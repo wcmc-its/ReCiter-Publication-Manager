@@ -1,0 +1,15 @@
+.manage-profile-content-container {
+    grid-row-start: page-content;
+    display: grid;
+    grid-template-rows: [identity] auto [identity-table];
+}
+
+.manage-profile-identity {
+    grid-row-start: identity;
+    padding: 1rem 3rem;
+}
+
+.identity-table-container {
+    grid-row-start: identity-table;
+    padding: 3rem;
+}

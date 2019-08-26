@@ -1,0 +1,220 @@
+import React, { Component } from 'react';
+import '../../css/TabSuggested.css';
+import '../../css/TabControls.css';
+import Publication from './Publication';
+import { Pagination } from './Pagination';
+import { Filter } from './Filter';
+
+export class TabSuggested extends Component {
+
+    state = {
+        page: 1,
+        count: 20,
+        search: "",
+        sort: "0"
+    }
+
+    constructor(props) {
+        super(props);
+        this.handlePaginationUpdate = this.handlePaginationUpdate.bind(this);
+        this.handleFilterUpdate = this.handleFilterUpdate.bind(this);
+        this.acceptPublication = this.acceptPublication.bind(this);
+        this.rejectPublication = this.rejectPublication.bind(this);
+        this.undoPublication = this.undoPublication.bind(this);
+        this.acceptAll = this.acceptAll.bind(this);
+        this.rejectAll = this.rejectAll.bind(this);
+        this.filter = this.filter.bind(this);
+
+    }
+
+    handlePaginationUpdate(event, page) {
+        this.setState({
+            page: page
+        });
+        if(event.target.value !== undefined) {
+            this.setState({
+                count: event.target.value
+            });
+        }
+    }
+
+    handleFilterUpdate(filterState) {
+        this.setState({
+            search: filterState.search,
+            sort: filterState.sort,
+            page: 1
+        });
+    }
+
+    acceptPublication(id) {
+        const request = {
+            faculty: this.props.identityData,
+            publications: [id],
+            userAssertion: 'ACCEPTED',
+            manuallyAddedFlag: false
+        }
+        this.props.updatePublication(this.props.identityData.uid, request)
+    }
+
+    rejectPublication(id) {
+        const request = {
+            faculty: this.props.identityData,
+            publications: [id],
+            userAssertion: 'REJECTED',
+            manuallyAddedFlag: false
+        }
+        this.props.updatePublication(this.props.identityData.uid, request)
+    }
+
+    undoPublication(id) {
+        const request = {
+            faculty: this.props.identityData,
+            publications: [id],
+            userAssertion: 'NULL'
+        }
+        this.props.updatePublication(this.props.identityData.uid, request)
+    }
+
+    acceptAll() {
+        const publications = this.filter();
+        var ids = [];
+        publications.paginatedPublications.forEach(function(item){
+            ids.push(item.pmid);
+        });
+        const request = {
+            faculty: this.props.identityData,
+            publications: ids,
+            userAssertion: 'ACCEPTED'
+        }
+        this.props.updatePublication(this.props.identityData.uid, request)
+    }
+
+    rejectAll() {
+        const publications = this.filter();
+        var ids = [];
+        publications.paginatedPublications.forEach(function(item){
+            ids.push(item.pmid);
+        });
+        const request = {
+            faculty: this.props.identityData,
+            publications: ids,
+            userAssertion: 'REJECTED'
+        }
+        this.props.updatePublication(this.props.identityData.uid, request)
+    }
+
+    filter() {
+        const thisObject = this;
+
+        // Filter
+        const filteredPublications = []
+        thisObject.props.reciterData.reciter.forEach((publication) => {
+            // Check if publication is Suggested
+            if(publication.userAssertion === "NULL") {
+                // Check search and sort
+                if(thisObject.state.search !== "") {
+                    if(/^[0-9 ]*$/.test(thisObject.state.search)) {
+                        var pmids = thisObject.state.search.split(" ");
+                        if(pmids.some(pmid => Number(pmid) === publication.pmid )){
+                            filteredPublications.push(publication);
+                        }
+                    }else {
+                        var addPublication = true;
+                        // check filter search
+                        if (thisObject.state.search !== "") {
+                            addPublication = false;
+                            // title
+                            if (publication.title.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true;
+                            }
+                            // journal
+                            if (publication.journal.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true;
+                            }
+                            // authors
+                            if (publication.authors !== undefined) {
+                                var authorsArray = publication.authors.map(function (author, authorIndex) {
+                                    return author.authorName;
+                                });
+                                if (authorsArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                    addPublication = true;
+                                }
+                            }
+                        }
+                        if (addPublication) {
+                            filteredPublications.push(publication);
+                        }
+                    }
+                }else {
+                    filteredPublications.push(publication);
+                }
+            }
+        })
+
+        // Sort
+        filteredPublications.sort((a, b) => {
+            switch(this.state.sort) {
+                case "0":
+                    return b.standardScore - a.standardScore;
+                case "1":
+                    return a.standardScore - b.standardScore;
+                case "2":
+                    return new Date(b.standardDate) - new Date(a.standardDate);
+                case "3":
+                    return new Date(a.standardDate) - new Date(b.standardDate);
+                default:
+                    return b.standardScore - a.standardScore;
+            }
+        });
+
+
+        var from = (parseInt(this.state.page, 10) - 1) * parseInt(this.state.count, 10);
+        var to = from + parseInt(this.state.count, 10) - 1;
+        var publications = [];
+        var i = from;
+        for(i; i <= to; i++) {
+            if(filteredPublications[i] !== undefined) {
+                publications.push(filteredPublications[i]);
+            }
+        }
+        return {
+            filteredPublications: filteredPublications,
+            paginatedPublications: publications
+        };
+    }
+
+    render() {
+        const thisObject = this;
+        const publications = this.filter();
+
+        return (
+            <div className="h6fnhWdeg-tab-content">
+                <div className="h6fnhWdeg-tab-controls-container">
+                    <Filter onChange={this.handleFilterUpdate} showSort={true} />
+                    <button
+                        className="btn btn-primary h6fnhWdeg-accept-all"
+                        onClick={this.acceptAll}
+                    >Accept all on page</button>
+                    <button
+                        className="btn btn-primary h6fnhWdeg-reject-all"
+                        onClick={this.rejectAll}
+                    >Reject all on page</button>
+                </div>
+                <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
+                <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
+                <div className="table-responsive">
+                    <table className="h6fnhWdeg-publications-table table table-striped">
+                        <tbody>
+                            {
+                                publications.paginatedPublications.map(function(item, index){
+                                    return <Publication item={item} key={index} onAccept={thisObject.acceptPublication} onReject={thisObject.rejectPublication} onUndo={thisObject.undoPublication} faculty={thisObject.props.reciterData.faculty} />;
+                                })
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
+            </div>
+        );
+    }
+}

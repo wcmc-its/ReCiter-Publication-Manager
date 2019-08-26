@@ -1,0 +1,29 @@
+#root {
+    height: 100vh;
+}
+
+body {
+    height: 100vh;
+}
+
+#root>div {
+    height: 100vh;
+}
+
+/* Subgrid of content section in main-container */
+
+.search-content-container {
+    grid-row-start: page-content;
+    display: grid;
+    grid-template-rows: [search-bar] auto [search-table] auto [start-footer];
+}
+
+.search-bar {
+    grid-row-start: search-bar;
+    padding: 1rem 3rem;
+}
+
+.individual-link {
+    color: #337ab7;
+    cursor: pointer;
+}

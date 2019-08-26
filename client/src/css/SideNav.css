@@ -1,0 +1,42 @@
+.sideNav {
+  height: 100%; 
+  /* z-index: 1; Stay on top */
+  background-color: #e6e6e6;
+  overflow: hidden; /* Disable horizontal scroll */
+  padding-top: 40px;
+  
+}
+
+/* The navigation menu links */
+.links{
+  padding: 6px 0px 6px 16px;
+  text-decoration: none;
+  /* font-size: 25px; */
+  
+  display: block;
+}
+
+.links a{
+  display: block;
+  height: 100%;
+  width: 100%;
+  text-decoration: none;
+  color: black;
+  font-weight: 400;
+}
+
+/* When you mouse over the navigation links, change their color */
+.links a:hover {
+  color: #f1f1f1;
+  background-color: gray;
+}
+
+.category{
+    font-weight: 900;
+    text-align: right;
+    padding-right: 1rem;
+}
+
+.navHr{
+    border-color:#999999 ;
+}

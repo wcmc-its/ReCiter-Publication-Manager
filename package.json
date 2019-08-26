@@ -1,0 +1,29 @@
+{
+  "name": "reciter-publication-manager",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "NODE_ENV=production node ./bin/www",
+    "dev": "NODE_ENV=development node-dev ./bin/www"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.508.0",
+    "connect-dynamodb": "^2.0.3",
+    "cookie-parser": "~1.4.4",
+    "dateformat": "^3.0.3",
+    "debug": "~2.6.9",
+    "express": "~4.16.1",
+    "express-session": "^1.16.2",
+    "htmlspecialchars": "^1.0.5",
+    "http-build-query": "^0.7.0",
+    "http-errors": "~1.6.3",
+    "jsonwebtoken": "^8.5.1",
+    "morgan": "~1.9.1",
+    "pug": "2.0.0-beta11",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.4"
+  },
+  "devDependencies": {
+    "dynamodb-local": "0.0.29"
+  }
+}

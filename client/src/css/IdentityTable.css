@@ -1,0 +1,13 @@
+.expand-relationships {
+    text-decoration: none;
+    margin-left: 5px;
+}
+
+.expand-relationships:hover {
+    text-decoration: none;
+}
+
+.table>thead>tr>th {
+    background-color: #337ab7;
+    color: white;
+}

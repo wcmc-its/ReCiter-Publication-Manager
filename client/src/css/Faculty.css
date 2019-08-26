@@ -1,0 +1,24 @@
+.profile-info {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 20px;
+    margin-bottom: 5px;
+}
+.profile-info h2 {
+    font-size: 24px;
+    font-weight: 400;
+}
+.profile-info .img-container {
+    display: table;
+    float: left;
+    width: 100px;
+    height: 110px;
+    margin-right: 20px;
+}
+.profile-info .img-container .img-bar {
+    width: 100px;
+    min-height: 100px;
+    background: #efefef url('../images/profile-pic.jpg') no-repeat center center;
+    background-size: 80px 80px;
+    overflow: hidden;
+    border: 1px solid #ccc;
+}
