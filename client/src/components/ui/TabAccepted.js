@@ -97,6 +97,34 @@ export class TabAccepted extends Component {
                         // check filter search
                         if (thisObject.state.search !== "") {
                             addPublication = false;
+                            //pmcid
+                            if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true
+                            }
+                            //publicationTypeCanonical
+                            if(publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true
+                            }
+                            //scopusDocID
+                            if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true
+                            }
+                            //journalTitleISOabbreviation
+                            if(publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true
+                            }
+                            //journalTitleVerbose
+                            if(publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true
+                            }
+                            //publication date display
+                            if(publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true
+                            }
+                            //doi
+                            if(publication.doi !== undefined && publication.doi.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                addPublication = true
+                            }
                             // title
                             if (publication.title.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true;
@@ -105,12 +133,36 @@ export class TabAccepted extends Component {
                             if (publication.journal.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true;
                             }
+                            //issn
+                            if(publication.issn !== undefined) {
+                                var issnArray = publication.issn.map((issn, issnIndex) => {
+                                    return issn.issn
+                                })
+                                if(issnArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                    addPublication = true;
+                                }
+                            }
                             // authors
                             if (publication.authors !== undefined) {
                                 var authorsArray = publication.authors.map(function (author, authorIndex) {
                                     return author.authorName;
                                 });
                                 if (authorsArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                    addPublication = true;
+                                }
+                            }
+                            //evidence
+                            if (publication.evidence !== undefined) {
+                                var evidenceArticleArray = publication.evidence.map(function (evidence, evidenceIndex) {
+                                    return evidence.articleData;
+                                });
+                                var evidenceInstArray = publication.evidence.map(function (evidence, evidenceIndex) {
+                                    return evidence.institutionalData;
+                                });
+                                if (evidenceInstArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                    addPublication = true;
+                                }
+                                if (evidenceArticleArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                     addPublication = true;
                                 }
                             }
