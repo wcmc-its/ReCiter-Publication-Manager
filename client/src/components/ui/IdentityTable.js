@@ -72,10 +72,10 @@ export default class IdentityTable extends Component {
             var i = 0;
             for (i in identityData.degreeYear) {
                 if (i === "bachelorYear" && identityData.degreeYear[i] != 0) {
-                    degree.push(identityData.degreeYear[i] + " - Bachelor's");
+                    degree.push(<p>{identityData.degreeYear[i] + ' - Bachelor\'s'}</p>);
                 }
                 if (i === "doctoralYear" && identityData.degreeYear[i] != 0) {
-                    degree.push(identityData.degreeYear[i] + " - PhD");
+                    degree.push(<p>{identityData.degreeYear[i] + ' - PhD'}</p>);
                 }
             }
 
@@ -150,7 +150,7 @@ export default class IdentityTable extends Component {
                         </tr>
                         <tr>
                             <th className="text-right" scope="row">
-                                Org Units
+                                Organizational units
               </th>
                             <td>{field.orgUnits}</td>
                         </tr>
