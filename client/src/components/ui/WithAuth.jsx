@@ -40,7 +40,7 @@ function WithAuth(ComponentToProtect) {
             }
             return (
                 <React.Fragment>
-                    <ComponentToProtect {...this.props} />
+                    <ComponentToProtect {...this.props} username={this.state.username}/>
                 </React.Fragment>
             );
         }

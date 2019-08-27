@@ -146,7 +146,7 @@ class Search extends Component {
             return (
                 <div className="main-container">
                     <div className="header-position">
-                        <Header  username={this.props.auth.username}  />
+                        <Header  username={this.props.username}  />
                     </div>
 
                     <div className="side-nav-position">

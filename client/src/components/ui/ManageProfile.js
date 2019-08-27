@@ -25,7 +25,7 @@ class ManageProfile extends Component {
         return (
             <div className="main-container">
                 <div className="header-position">
-                    <Header />
+                    <Header username={this.props.username} />
                 </div>
                 <div className="side-nav-position">
                     <SideNav uid={this.props.match.params.uid} history={this.props.history} />
