@@ -3,6 +3,7 @@ import Header from "../ui/Header";
 import Footer from "../ui/Footer";
 import { Button, Form, FormGroup, FormControl } from "react-bootstrap";
 import "../../css/Login.css";
+import reducers from "../../store/reducers";
 
 export default class Login extends Component {
   constructor(props) {
@@ -10,7 +11,8 @@ export default class Login extends Component {
 
     this.state = {
       username: "",
-      password: ""
+      password: "",
+      invalidCredentialsFlag: false
     };
     this.authUser = this.authUser.bind(this)
   }
@@ -33,20 +35,26 @@ export default class Login extends Component {
       username: this._username.value,
       password: this._password.value
     })
-    let timeout = 5, count = 0
+    let timeout = 3, count = 0
     const awaitServer = setInterval(() => {
       if(this.props.auth.isLoggedIn) {
+        this.setState({
+          invalidCredentialsFlag: false
+        })
         clearInterval(awaitServer)
         return this.props.history.push('/search')
       }
       else if(count >= timeout)
       {
         clearInterval(awaitServer)
+        this.setState({
+          invalidCredentialsFlag: true
+        })
         return console.log('failed to auth')
       }
       count += 1
       return 
-    }, 500)
+    }, 100)
   }
   render() {
     return (
@@ -85,6 +93,7 @@ export default class Login extends Component {
             >
               Sign in
             </Button>
+            {(this.state.invalidCredentialsFlag)?(<p style={{color: 'red'}}>Bad Credentials</p>):null}
           </Form>
         </div>
 
