@@ -27,8 +27,15 @@ export default class Identity extends Component {
             );
         } else {
             const identityData = this.props.identityData
+            let imageUrl = ''
+            if(identityData.identityImageEndpoint !== undefined) {
+                if(identityData.identityImageEndpoint.length > 0) 
+                    imageUrl = identityData.identityImageEndpoint
+                else
+                    imageUrl = '../images/generic-headshot.png'
+            }
             const image = (
-                <img src={`https://directory.weill.cornell.edu/api/v1/person/profile/${identityData.uid}.png?returnGenericOn404=true`} width="144"/>
+                <img src={`${imageUrl}`} width="144"/>
             );
             const userData = {
                 primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined)? ' ' + identityData.primaryName.middleName + ' ':' ') + identityData.primaryName.lastName,

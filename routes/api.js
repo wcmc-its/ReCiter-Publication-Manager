@@ -5,6 +5,7 @@ const reciterPublication = require('../src/api/reciterPublication')
 const reciterPubmed = require('../src/api/searchPubmed')
 const reciterUpdateGoldStandard = require('../src/api/reciterUpdateGoldStandard')
 const userFeedback = require('../src/api/userFeedback')
+const identityImageEndpoint = require('../config/local').config.reciter.reciterIdentityEndpoints.identityImageEndpoint
 
 router.get('/reciter/getidentity/:uid', function (req, res) {
     return userData.requestWithRetry(req.params.uid, (err, data) => {

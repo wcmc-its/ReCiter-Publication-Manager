@@ -2,7 +2,17 @@ const request = require('request')
 const adminApiKey = require('../../config/local').config.reciter.adminApiKey
 const identityEndpoint = require('../../config/local').config.reciter.reciterIdentityEndpoints.identityByUid
 const identityAllEndpoint =  require('../../config/local').config.reciter.reciterIdentityEndpoints.getAllIdentity
+const identityImageEndpoint = require('../../config/local').config.reciter.reciterIdentityEndpoints.identityImageEndpoint
+
 const getIdentity = (uid, cb) => {
+    let identityImage = ''
+    if(identityImageEndpoint !== undefined && identityImageEndpoint.length > 0) {
+        if(identityImageEndpoint.includes('${uid}')) {
+            identityImage = identityImageEndpoint.replace('${uid}', uid)
+        }  else {
+            identityImage = identityImageEndpoint
+        }
+    }
     return request({
         headers: {
             'api-key': adminApiKey
@@ -14,6 +24,7 @@ const getIdentity = (uid, cb) => {
             return cb(error, null)
         }
         let data = JSON.parse(body)
+        data['identityImageEndpoint'] = identityImage
         //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
         return cb(null, data)
         
@@ -34,6 +45,17 @@ const getAllIdentity = (cb) => {
             return cb(error, null)
         }
         let data = JSON.parse(body)
+        data.forEach(identity => {
+            let identityImage = ''
+            if(identityImageEndpoint !== undefined && identityImageEndpoint.length > 0) {
+                if(identityImageEndpoint.includes('${uid}')) {
+                    identityImage = identityImageEndpoint.replace('${uid}', identity.uid)
+                }  else {
+                    identityImage = identityImageEndpoint
+                }
+            }
+            identity['identityImageEndpoint'] = identityImage
+        })
         //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
         return cb(null, data)
         
