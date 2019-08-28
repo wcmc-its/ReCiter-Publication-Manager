@@ -17,7 +17,10 @@ ReCiter Publication Manager is a front end user interface for providing feedback
 1. Clone the repository to a local folder using `git clone https://github.com/wcmc-its/ReCiter-Publication-Manager.git`
 1. In Terminal, navigate to local directory where the repository is installed
 1. Enter `docker build -t reciter/pub-manager .`
-1. Navigate to local directory/config/local.js and update the endpoint with appropriate endpoint for reciter and reciter pubmed and save the file.
+1. Navigate to local directory/config/local.js and update the endpoint with appropriate endpoint for reciter and reciter pubmed and save the file. `Note - use localhost for local development mode or follow instructions for hostname below`
+   1. If you are using docker to run the project then you must not specify `localhost` for hostname. Since the container does not understand the DNS entry.
+   1. If you are using Windows machine use your machine IP for hostname or `host.docker.internal` for hostname
+   1. If you are using Mac use `docker.for.mac.host.internal` for hostname 
 1. Enter `docker run -d -p 8081:8081 --name <container-name> reciter/pub-manager`
 1. Let's see what is happening in the logs as we make changes to our application. 
    1. You can check the container details using - 
