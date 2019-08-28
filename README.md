@@ -17,6 +17,7 @@ ReCiter Publication Manager is a front end user interface for providing feedback
 1. Clone the repository to a local folder using `git clone https://github.com/wcmc-its/ReCiter-Publication-Manager.git`
 1. In Terminal, navigate to local directory where the repository is installed
 1. Enter `docker build -t reciter/pub-manager .`
+1. Navigate to local directory/config/local.js and update the endpoint with appropriate endpoint for reciter and reciter pubmed and save the file.
 1. Enter `docker run -d -p 3000:3000 reciter/pub-manager`
 1. Let's see what is happening in the logs as we make changes to our application. 
    1. We need to find the randomly assigned name of our instance.
@@ -28,7 +29,7 @@ boring_chandrasekhar
 ```
    1. Enter `docker logs -f -t boring_chandrasekhar` where `boring_chandrasekhar` is the name of your instance.
 1. Go to your browser and enter `https://localhost:3000/login`
-1. To login, enter your username and password. ???
+1. To login, enter your username and password. You can setup username and password using the reciter api http://<reciter-endpoint>:<port-number>/swagger-ui.html#/re-citer-pub-manager-controller/createUserUsingPOST
 
 
 ## Stopping and removing an instance
