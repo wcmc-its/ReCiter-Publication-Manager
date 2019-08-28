@@ -1,4 +1,4 @@
-# ReCiter-Publication-Manager
+# ReCiter Publication Manager
 
 ReCiter Publication Manager is a front end user interface for providing feedback to [ReCiter](https://github.com/wcmc-its/reciter/). Users are displayed a set of suggested, accepted, and rejected publications. User feedback in Publication Manager will update the evidence scores of suggested publications in DynamoDB. Feedback will also appear in the various APIs ReCiter uses to share publication data.
 
