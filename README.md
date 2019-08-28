@@ -32,13 +32,14 @@ reciter_pub_manager
 ```
    1. Enter `docker logs -f -t reciter_pub_manager` where `reciter_pub_manager` is the name of your container.
 1. Go to your browser and enter `https://localhost:8081/login`
-1. To login, enter your username and password. You can setup username and password using the reciter api http://<reciter-endpoint>:<port-number>/swagger-ui.html#/re-citer-pub-manager-controller/createUserUsingPOST
+1. To login, enter your username and password. You can setup username and password using the reciter api 
+`http://<reciter-endpoint>:<port-number>/swagger-ui.html#/re-citer-pub-manager-controller/createUserUsingPOST`
 
 
 ## Stopping and removing an instance
 
-1. Go to Terminal and enter `docker stop boring_chandrasekhar` where `boring_chandrasekhar` is the name of your instance. 
-2. Enter `docker rm boring_chandrasekhar`.
+1. Go to Terminal and enter `docker stop reciter_pub_manager` where `reciter_pub_manager` is the name of your instance. 
+2. Enter `docker rm reciter_pub_manager`.
 
 
 ## Installation as a development box
