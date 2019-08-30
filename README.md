@@ -74,7 +74,8 @@ These steps allow us to make and test out changess locally. We're going to run o
    1. Enter Control-C
    1. Enter `npm start` again.
    1. Alternatively, you can use a new port.
-1. This should open a new tab in your default browser.  
+1. This should open a new tab in your default browser.
+1. Add `/login` to URL as in `https://localhost:3000/login`
 1. Try logging in.
 
 
