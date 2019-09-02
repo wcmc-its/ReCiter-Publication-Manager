@@ -55,23 +55,11 @@ These steps allow us to make and test out changess locally. We're going to run o
 1. We now want to run Publication Manager and trigger the application to automatically restart any time code changes are detected.
    1. Go to the `Publication-Manager` directory. Enter `..`
    1. Enter `npm i -g  node-dev`.
-1. Enter `npm run dev`
+1. Enter `npm run dev` This will run the nodejs express server in development mode and also the react server concurrently.
 1. If you get an error because a port is already in use, you need to do the following.
    1. Interrupt the existing process by entering control-C.
    1. Identify the existing PID. Enter `lsof -f :5000`
    1. Enter `kill -9 41046` where 41046 is the PID of the existing process.
-1. Let's start our React app as a development server.
-1. Open a new tab in Terminal.
-1. Enter `cd client`
-1. Enter `npm start`
-1. If you get an error because the port is already in use, you need to do the following.
-   1. The error message should provide you with the PID number.
-   1. Open a new tab.
-   1. Enter `kill -9 40766` where 40766 is the PID.
-   1. Return to the previous tab.
-   1. Enter Control-C
-   1. Enter `npm start` again.
-   1. Alternatively, you can use a new port.
 1. This should open a new tab in your default browser.
 1. Add `/login` to URL as in `https://localhost:3000/login`
 1. Try logging in.

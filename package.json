@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "start": "NODE_ENV=production node ./bin/www",
-    "dev": "NODE_ENV=development node-dev ./bin/www"
+    "server": "NODE_ENV=development node-dev ./bin/www",
+    "client": "npm start --prefix client",
+    "dev": "concurrently \"npm run client\" \"npm run server\""
   },
   "dependencies": {
     "aws-sdk": "^2.508.0",
+    "concurrently": "^4.1.2",
     "connect-dynamodb": "^2.0.3",
     "cookie-parser": "~1.4.4",
     "dateformat": "^3.0.3",
