@@ -1,5 +1,19 @@
 # ReCiter Publication Manager
 
+![Build Status](https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiSFBQdHVsYW1rMTltMGN6bG1iNFhrdC9sb3pyZzVGYU92THRaVTlNSENWV1RaUllNZEZpWVA4RDNnRlBINzdQeDdONDQxSjExWm9uRVVZcGRRSkVhVUw0PSIsIml2UGFyYW1ldGVyU3BlYyI6ImhsSmlRVTZvTTI2aWdrNFciLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
+![version](https://img.shields.io/badge/version-1.0-blue.svg?maxAge=2592000)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+[![Pending Pull-Requests](https://img.shields.io/github/issues-pr-raw/wcmc-its/reciter.svg?color=blue)](https://github.com/wcmc-its/ReCiter-Publication-Manager/pulls)
+[![Closed Pull-Requests](https://img.shields.io/github/issues-pr-closed-raw/wcmc-its/reciter.svg?color=blue)](https://github.com/wcmc-its/ReCiter-Publication-Manager/pulls)
+[![GitHub issues open](https://img.shields.io/github/issues-raw/wcmc-its/ReCiter-Publication-Manager.svg?maxAge=2592000)](https://github.com/wcmc-its/ReCiter-Publication-Manager/issues)
+[![GitHub issues closed](https://img.shields.io/github/issues-closed-raw/wcmc-its/ReCiter-Publication-Manager.svg?maxAge=2592000)](https://github.com/wcmc-its/ReCiter-Publication-Manager/issues)
+[![star this repo](http://githubbadges.com/star.svg?user=wcmc-its&repo=ReCiter-Publication-Manager&style=flat)](https://github.com/wcmc-its/ReCiter-Publication-Manager)
+[![fork this repo](http://githubbadges.com/fork.svg?user=wcmc-its&repo=ReCiter-Publication-Manager&style=flat)](https://github.com/wcmc-its/ReCiter-Publication-Manager/fork)
+[![Tags](https://img.shields.io/github/tag/wcmc-its/ReCiter-Publication-Manager.svg?style=social)](https://github.com/wcmc-its/ReCiter-Publication-Manager/releases)
+[![Github All Releases](https://img.shields.io/github/downloads/wcmc-its/ReCiter-Publication-Manager/total.svg)]()
+[![Open Source Love](https://badges.frapsoft.com/os/v3/open-source.svg?v=102)](https://github.com/wcmc-its/ReCiter-Publication-Manager/)
+
 ReCiter Publication Manager is a front end user interface for providing feedback to [ReCiter](https://github.com/wcmc-its/reciter/). Users are displayed a set of suggested, accepted, and rejected publications. User feedback in Publication Manager will update the evidence scores of suggested publications in DynamoDB. Feedback will also appear in the various APIs ReCiter uses to share publication data.
 
 
