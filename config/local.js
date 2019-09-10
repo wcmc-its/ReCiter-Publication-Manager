@@ -6,7 +6,7 @@ exports.config = {
         /*
          * Admin api key to access all the reciter endpoint. If you did not setup security in your reciter APIs then leave it empty.
          */ 
-        adminApiKey: 'admin',
+        adminApiKey: 'ADMIN_API_KEY',
         /**
          * This is where you specify all the Identity endpoints in reciter. Please refer to the Identity controller in swagger-ui for all the related
          * Identity endpoints.
@@ -91,5 +91,5 @@ exports.config = {
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
      * Make sure its a good secret with good mix of alpha numeric characters.
      */
-    tokenSecret: 'mysecretsshhhhhh'
+    tokenSecret: 'TOKEN_SECRET'
 }
