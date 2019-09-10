@@ -1,7 +1,7 @@
 # ReCiter Publication Manager
 
 ![Build Status](https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiSFBQdHVsYW1rMTltMGN6bG1iNFhrdC9sb3pyZzVGYU92THRaVTlNSENWV1RaUllNZEZpWVA4RDNnRlBINzdQeDdONDQxSjExWm9uRVVZcGRRSkVhVUw0PSIsIml2UGFyYW1ldGVyU3BlYyI6ImhsSmlRVTZvTTI2aWdrNFciLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
-![version](https://img.shields.io/badge/version-0.1-alpha-blue.svg?maxAge=2592000)
+![version](https://img.shields.io/badge/version-0.1alpha-blue.svg?maxAge=2592000)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 [![Pending Pull-Requests](https://img.shields.io/github/issues-pr-raw/wcmc-its/reciter.svg?color=blue)](https://github.com/wcmc-its/ReCiter-Publication-Manager/pulls)
