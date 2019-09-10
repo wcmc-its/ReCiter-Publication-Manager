@@ -15,12 +15,12 @@ exports.config = {
             /**
              * This endpoint get Identity based on supplied unique id.
              */
-            identityByUid: 'http://reciter-endpoint/reciter/find/identity/by/uid',
+            identityByUid: 'https://reciter.weill.cornell.edu/reciter/find/identity/by/uid',
             /**
              * This endpoint get all identity listed in your database. This API consumes significant resources when making a call.
              * So when in /search page refrain from refreshing the page since that entails a fresh api call.
              */
-            getAllIdentity: 'http://reciter-endpoint/reciter/find/all/identity',
+            getAllIdentity: 'https://reciter.weill.cornell.edu/reciter/find/all/identity',
             /**
              * This is the image that is shown in the search page and the Individual page. If you have an api that serves image for each of your identity
              * then specify it here. Otherwise if its blank it uses a stock image specified.
@@ -31,7 +31,7 @@ exports.config = {
          * This is the api to fetch all the publication related to an individual with all the eivdence.
          */
         featureGenerator: {
-            featureGeneratorEndpoint: 'http://reciter-endpoint/reciter/feature-generator/by/uid',
+            featureGeneratorEndpoint: 'https://reciter.weill.cornell.edu/reciter/feature-generator/by/uid',
             featutreGeneratorApiParams: {
                 /**
                  * This is the minimum score that the publication will be filtered on.
@@ -64,19 +64,19 @@ exports.config = {
         /**
          * This is the endpoint in ReCiter-Publication-Manager controller for authentication.
          */
-        reciterPubManagerAuthenticationEndpoint: 'http://reciter-endpoint/reciter/publication/manager/authenticate',
+        reciterPubManagerAuthenticationEndpoint: 'https://reciter.weill.cornell.edu/reciter/publication/manager/authenticate',
         /**
          * This endpoint is to update the feedback for users.
          */
-        reciterUpdateGoldStandardEndpoint: 'http://reciter-endpoint/reciter/goldstandard',
+        reciterUpdateGoldStandardEndpoint: 'https://reciter.weill.cornell.edu/reciter/goldstandard',
         /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */
         reciterUserFeedbackEndpoints: {
-            saveUserFeedback: 'http://reciter-endpoint/reciter/publication/manager/userfeedback/save',
-            deleteUserFeedback: 'http://reciter-endpoint/reciter/publication/manager/userfeedback/delete',
-            findUserFeedback: 'http://reciter-endpoint/reciter/publication/manager/userfeedback/find'
+            saveUserFeedback: 'https://reciter.weill.cornell.edu/reciter/publication/manager/userfeedback/save',
+            deleteUserFeedback: 'https://reciter.weill.cornell.edu/reciter/publication/manager/userfeedback/delete',
+            findUserFeedback: 'https://reciter.weill.cornell.edu/reciter/publication/manager/userfeedback/find'
         }
     },
     /**
@@ -84,8 +84,8 @@ exports.config = {
      * for details.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: 'http://reciter-endpoint/pubmed/query-complex/',
-        searchPubmedCountEndpoint: 'http://reciter-endpoint/pubmed/query-number-pubmed-articles/'
+        searchPubmedEndpoint: 'https://reciter-pubmed.weill.cornell.edu/pubmed/query-complex/',
+        searchPubmedCountEndpoint: 'https://reciter-pubmed.weill.cornell.edu/pubmed/query-number-pubmed-articles/'
     },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
