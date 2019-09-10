@@ -10,6 +10,8 @@ phases:
   build:
     commands:
       - echo Build started on `date`
+      - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
+      - sed -i -e "s/TOKEN_SECRET/$TOKEN_SECRET/g" config/local.js
       - cd client
       - npm install --only=production
       - npm run build
