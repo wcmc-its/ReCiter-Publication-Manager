@@ -33,7 +33,7 @@ ReCiter Publication Manager is a front end user interface for providing feedback
 1. Enter `docker build -t reciter/pub-manager .`
 1. Update local.js
    1. Navigate to `directory/config/local.js`.
-   1. Update the endpoint with appropriate endpoint for ReCiter and Reciter-Pubmed. Note - use localhost for local development mode or follow instructions for hostname below.
+   1. Update the endpoint with appropriate endpoint for ReCiter and Reciter-Pubmed. (For local development mode, follow instructions in the "Installation as a development box" section.)
    1. If you are using Docker to run the project then you must not specify `localhost` for hostname. Since the container does not understand the DNS entry. See [Connect to services running on host from within Docker container](https://stackoverflow.com/a/43541732)
    1. If you are using Windows machine use your machine IP for hostname or `host.docker.internal` for hostname
    1. If you are using Mac use `docker.for.mac.host.internal` for hostname 
