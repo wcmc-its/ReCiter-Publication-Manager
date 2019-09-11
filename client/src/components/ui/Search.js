@@ -235,7 +235,7 @@ function Name(props) {
     }
     if(props.identity.primaryName !== undefined) {
         const nameString = props.identity.primaryName.firstName + ((props.identity.primaryName.middleName !== undefined) ? ' ' + props.identity.primaryName.middleName + ' ' : ' ') + props.identity.primaryName.lastName
-        nameArray.push(<p key="0"><img src={`${imageUrl}`} width="80" style={{float: "left"}}/> <a href="#" onClick={() =>{this.handleRedirect(props.identity.uid)}}>
+        nameArray.push(<p key="0"><img src={`${imageUrl}`} width="80" style={{float: "left"}}/> <a href={`/app/${props.identity.uid}`} target="_blank">
             {nameString}
             </a></p>)
         
