@@ -1,11 +1,11 @@
 # ReCiter Publication Manager
 
 ![Build Status](https://codebuild.us-east-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiSFBQdHVsYW1rMTltMGN6bG1iNFhrdC9sb3pyZzVGYU92THRaVTlNSENWV1RaUllNZEZpWVA4RDNnRlBINzdQeDdONDQxSjExWm9uRVVZcGRRSkVhVUw0PSIsIml2UGFyYW1ldGVyU3BlYyI6ImhsSmlRVTZvTTI2aWdrNFciLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
-![version](https://img.shields.io/badge/version-1.0-blue.svg?maxAge=2592000)
+![version](https://img.shields.io/badge/version-0.1alpha-blue.svg?maxAge=2592000)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![Pending Pull-Requests](https://img.shields.io/github/issues-pr-raw/wcmc-its/reciter.svg?color=blue)](https://github.com/wcmc-its/ReCiter-Publication-Manager/pulls)
-[![Closed Pull-Requests](https://img.shields.io/github/issues-pr-closed-raw/wcmc-its/reciter.svg?color=blue)](https://github.com/wcmc-its/ReCiter-Publication-Manager/pulls)
+[![Pending Pull-Requests](https://img.shields.io/github/issues-pr-raw/wcmc-its/ReCiter-Publication-Manager.svg?color=blue)](https://github.com/wcmc-its/ReCiter-Publication-Manager/pulls)
+[![Closed Pull-Requests](https://img.shields.io/github/issues-pr-closed-raw/wcmc-its/ReCiter-Publication-Manager.svg?color=blue)](https://github.com/wcmc-its/ReCiter-Publication-Manager/pulls)
 [![GitHub issues open](https://img.shields.io/github/issues-raw/wcmc-its/ReCiter-Publication-Manager.svg?maxAge=2592000)](https://github.com/wcmc-its/ReCiter-Publication-Manager/issues)
 [![GitHub issues closed](https://img.shields.io/github/issues-closed-raw/wcmc-its/ReCiter-Publication-Manager.svg?maxAge=2592000)](https://github.com/wcmc-its/ReCiter-Publication-Manager/issues)
 [![star this repo](http://githubbadges.com/star.svg?user=wcmc-its&repo=ReCiter-Publication-Manager&style=flat)](https://github.com/wcmc-its/ReCiter-Publication-Manager)
@@ -33,7 +33,7 @@ ReCiter Publication Manager is a front end user interface for providing feedback
 1. Enter `docker build -t reciter/pub-manager .`
 1. Update local.js
    1. Navigate to `directory/config/local.js`.
-   1. Update the endpoint with appropriate endpoint for ReCiter and Reciter-Pubmed. Note - use localhost for local development mode or follow instructions for hostname below.
+   1. Update the endpoint with appropriate endpoint for ReCiter and Reciter-Pubmed. (For local development mode, follow instructions in the "Installation as a development box" section.)
    1. If you are using Docker to run the project then you must not specify `localhost` for hostname. Since the container does not understand the DNS entry. See [Connect to services running on host from within Docker container](https://stackoverflow.com/a/43541732)
    1. If you are using Windows machine use your machine IP for hostname or `host.docker.internal` for hostname
    1. If you are using Mac use `docker.for.mac.host.internal` for hostname 
