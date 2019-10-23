@@ -55,51 +55,57 @@ export default class IdentityTable extends Component {
                     : " ") +
                 identityData.primaryName.lastName
             );
-
-            for (var i = 0; i < identityData.alternateNames.length; i++) {
-                var altName = identityData.alternateNames[i];
-                uniqueNames.push(
-                    altName.firstName +
-                    ((altName.middleName !== undefined)
-                        ? " " + altName.middleName + " "
-                        : " ") +
-                    altName.lastName
-                );
+            if(identityData.alternateNames !== undefined && identityData.alternateNames !== null) {
+                for (var i = 0; i < identityData.alternateNames.length; i++) {
+                    var altName = identityData.alternateNames[i];
+                    uniqueNames.push(
+                        altName.firstName +
+                        ((altName.middleName !== undefined)
+                            ? " " + altName.middleName + " "
+                            : " ") +
+                        altName.lastName
+                    );
+                }
             }
 
             //Get degree types and years
             let degree = [];
             var i = 0;
-            for (i in identityData.degreeYear) {
-                if (i === "bachelorYear" && identityData.degreeYear[i] != 0) {
-                    degree.push(<p>{identityData.degreeYear[i] + ' - Bachelor\'s'}</p>);
+            if(identityData.degreeYear !== undefined && identityData.degreeYear !== null) {
+                for (i in identityData.degreeYear) {
+                    if (i === "bachelorYear" && identityData.degreeYear[i] != 0) {
+                        degree.push(<p>{identityData.degreeYear[i] + ' - Bachelor\'s'}</p>);
+                    }
+                    if (i === "doctoralYear" && identityData.degreeYear[i] != 0) {
+                        degree.push(<p>{identityData.degreeYear[i] + ' - PhD'}</p>);
+                    }
                 }
-                if (i === "doctoralYear" && identityData.degreeYear[i] != 0) {
-                    degree.push(<p>{identityData.degreeYear[i] + ' - PhD'}</p>);
-                }
-            }
+            }   
 
             //Get array of names and types of known relationships
             let relationships = [];
-
-            for (var i = 0; i < identityData.knownRelationships.length; i++) {
-                var relationship = identityData.knownRelationships[i];
-                relationships.push(
-                    relationship.name.firstName +
-                    " " +
-                    relationship.name.lastName +
-                    " (" +
-                    relationship.type +
-                    ")"
-                );
+            if(identityData.knownRelationships !== undefined && identityData.knownRelationships !== null) {
+                for (var i = 0; i < identityData.knownRelationships.length; i++) {
+                    var relationship = identityData.knownRelationships[i];
+                    relationships.push(
+                        relationship.name.firstName +
+                        " " +
+                        relationship.name.lastName +
+                        " (" +
+                        relationship.type +
+                        ")"
+                    );
+                }
             }
 
             //Eliminate duplicates organizational units
             let orgUnits = [];
-            for (var i = 0; i < identityData.organizationalUnits.length; i++) {
-                orgUnits.push(
-                    identityData.organizationalUnits[i].organizationalUnitLabel
-                );
+            if(identityData.organizationalUnits !== undefined && identityData.organizationalUnits !== null) {
+                for (var i = 0; i < identityData.organizationalUnits.length; i++) {
+                    orgUnits.push(
+                        identityData.organizationalUnits[i].organizationalUnitLabel
+                    );
+                }
             }
             const uniqueOrgUnits = Array.from(new Set(orgUnits));
 
@@ -115,6 +121,12 @@ export default class IdentityTable extends Component {
             } else {
                 grants = identityData.grants
             }
+            let personTypes = []
+            if(identityData.personTypes === null) {
+                console.log('No grants')
+            } else {
+                personTypes = identityData.personTypes
+            }
 
             //Fields to populate table
             const field = {
@@ -128,7 +140,7 @@ export default class IdentityTable extends Component {
                 )),
                 emails: emails.join(", "),
                 grants: grants.join(", "),
-                personTypes: identityData.personTypes.join(", ")
+                personTypes: personTypes.join(", ")
             };
 
             return (
