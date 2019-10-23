@@ -206,7 +206,7 @@ class Search extends Component {
 
 
 function List(props) {
-    if(props.list === undefined) {
+    if(props.list === undefined || props.list === null) {
         return null
     } 
     let listArray = []
