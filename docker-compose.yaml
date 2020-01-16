@@ -1,0 +1,12 @@
+version: '2'
+services:
+  ui:
+    build: ./client
+    ports:
+      - '80:80'
+    depends_on:
+      - api
+  api:
+    build: ./
+    ports:
+      - '8081:8081'
