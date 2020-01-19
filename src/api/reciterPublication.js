@@ -4,7 +4,6 @@ const adminApiKey = require('../../config/local').config.reciter.adminApiKey
 const featureGeneratorEndpoint = require('../../config/local').config.reciter.featureGenerator.featureGeneratorEndpoint
 const featureGeneratorApiParams = require('../../config/local').config.reciter.featureGenerator.featutreGeneratorApiParams
 const url = require('url')
-
 const getPublications = (req, cb) => {
     let uri = featureGeneratorEndpoint+ '?uid=' + req.params.uid + '&' + httpBuildQuery(featureGeneratorApiParams)
     if(req.query !== undefined) {
@@ -36,9 +35,7 @@ const getPublications = (req, cb) => {
             return cb(null, reciterData)
         })
     });
-
 }
-
 function clearPendingFeedback(uid, req, callback) 
 {
     request({
@@ -56,7 +53,6 @@ function clearPendingFeedback(uid, req, callback)
         }
     })
 }
-
 function getPendingFeedback(uid, data, req, callback) {
     let reciterData = {}
     request({
@@ -96,7 +92,6 @@ function getPendingFeedback(uid, data, req, callback) {
         callback(reciterData)
     })
 }
-
 function formatPublications(data) {
     var PublicationsReciter = []
     if (data.hasOwnProperty('reCiterArticleFeatures')) {
@@ -111,7 +106,6 @@ function formatPublications(data) {
                 'rawScore': reciterArticle.totalArticleScoreNonStandardized,
                 'userAssertion': reciterArticle.userAssertion
             }
-
             if(reciterArticle.hasOwnProperty('doi')) {
                 Publication['doi'] = reciterArticle.doi
             }
@@ -154,13 +148,12 @@ function formatPublications(data) {
                     var weillCornellDataHtml = ''
                     var articleDataHtml = ''
                     if(reciterArticle.evidence.relationshipEvidence.hasOwnProperty('relationshipEvidenceTotalScore')) {
-                        var relationshipScoreTotal = reciterArticle.evidence.relationshipEvidence.relationshipEvidenceTotalScore.toFixed(1)
+                        var relationshipScoreTotal = reciterArticle.evidence.relationshipEvidence.relationshipEvidenceTotalScore.tofixed(2)
                     }
                     
                     reciterArticle.evidence.relationshipEvidence.relationshipPositiveMatch.forEach(relationshipItem => {
                         weillCornellDataHtml = weillCornellDataHtml + '<p>' + relationshipItem.relationshipNameIdentity.firstName + ' ' + relationshipItem.relationshipNameIdentity.lastName + ' ' + 
                         relationshipItem.relationshipType.map(relationshipType => '<span class="h6fnhWdeg-reciter-type">' + relationshipType + '</span>').join(' ')
-
                         articleDataHtml = articleDataHtml + '<p>' + relationshipItem.relationshipNameArticle.firstName + ' ' + relationshipItem.relationshipNameArticle.lastName + '</p>'
                     })
                         
@@ -189,7 +182,7 @@ function formatPublications(data) {
                     let itemCount = 0
                     reciterArticle.evidence.organizationalUnitEvidence.forEach(orgUnitItem => {
                         itemCount++
-                        scoreTotal = scoreTotal + Number(Math.round(orgUnitItem.organizationalUnitMatchingScore + orgUnitItem.organizationalUnitModifierScore).toFixed(1))
+                        scoreTotal = scoreTotal + Number(Math.round(orgUnitItem.organizationalUnitMatchingScore + orgUnitItem.organizationalUnitModifierScore).tofixed(2))
                         if(orgUnitItem.hasOwnProperty('organizationalUnitType')) {
                             weillCornellDataHtml = weillCornellDataHtml + '<p>' + orgUnitItem.identityOrganizationalUnit + ' <span class="h6fnhWdeg-reciter-type">' + orgUnitItem.organizationalUnitType + '</span></p>'
                         } else {
@@ -209,8 +202,8 @@ function formatPublications(data) {
                 //Journal category evidence
                 if(reciterArticle.evidence.journalCategoryEvidence !== undefined) {
                     evidence.push({
-                        'score': Math.abs(parseFloat(reciterArticle.evidence.journalCategoryEvidence.journalSubfieldScore)).toFixed(1),
-                        'label': '<p><strong>Journal category</strong><br/><small>' + Math.abs(parseFloat(reciterArticle.evidence.journalCategoryEvidence.journalSubfieldScore)).toFixed(1) + ' points</small></p>',
+                        'score': Math.abs(parseFloat(reciterArticle.evidence.journalCategoryEvidence.journalSubfieldScore)).tofixed(2),
+                        'label': '<p><strong>Journal category</strong><br/><small>' + parseFloat(reciterArticle.evidence.journalCategoryEvidence.journalSubfieldScore).tofixed(2) + ' points</small></p>',
                         'institutionalData': (reciterArticle.evidence.journalCategoryEvidence.journalSubfieldDepartment === 'NO_MATCH')? '<p>-</p>': '<p>' + reciterArticle.evidence.journalCategoryEvidence.journalSubfieldDepartment + ' <span class="h6fnhWdeg-reciter-type">Organizational Unit</span></p>',
                         'articleData': '<p>' + reciterArticle.evidence.journalCategoryEvidence.journalSubfieldScienceMetrixLabel + ' <span class="h6fnhWdeg-reciter-type">Journal Category</span></p>'
                     })
@@ -224,7 +217,7 @@ function formatPublications(data) {
                     if(reciterArticle.evidence.affiliationEvidence.hasOwnProperty('scopusTargetAuthorAffiliation')) {
                         let matchType = ''
                         reciterArticle.evidence.affiliationEvidence.scopusTargetAuthorAffiliation.forEach(scopusTargetAuthorAffiliation => {
-                            scopusTargetAuthorAffiliationScore = scopusTargetAuthorAffiliationScore + Number(Math.round(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore).toFixed(1))
+                            scopusTargetAuthorAffiliationScore = scopusTargetAuthorAffiliationScore + Number(Math.round(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore).tofixed(2))
                             if(scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationMatchType')) {
                                 if(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INDIVIDUAL') {
                                     matchType = 'Individual Affiliation'
@@ -240,7 +233,6 @@ function formatPublications(data) {
                             if(scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationIdentity')) {
                                 targetAuthorInstitutionalAffiliationIdentity = scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationIdentity
                             }
-
                             if(matchType === 'No data available') {
                                 weillCornellDataHtml = weillCornellDataHtml + '<p>-</p>'
                                 articleDataHtml = articleDataHtml + '<p> <span class="h6fnhWdeg-reciter-type">' + matchType + '</span></p>'
@@ -274,7 +266,7 @@ function formatPublications(data) {
                     let totalScore = scopusTargetAuthorAffiliationScore + pubmedTargetAuthorAffiliationScore
                     evidence.push({
                         'score': Math.abs(totalScore),
-                        'label': '<p><strong>Target author\'s institutional affiliation</strong><br/><small>' + Math.abs(totalScore) + ' points</small></p>',
+                        'label': '<p><strong>Target author\'s institutional affiliation</strong><br/><small>' + totalScore + ' points</small></p>',
                         'institutionalData': weillCornellDataHtml,
                         'articleData': articleDataHtml
                     })
@@ -289,7 +281,6 @@ function formatPublications(data) {
                                 articleDataHtml = articleDataHtml + '<p>' + knownInst[2] + ' author(s) from ' + knownInst[0] + ' <a href="https://www.scopus.com/affil/profile.uri?afid=' + knownInst[1] + '">' + knownInst[1] +  '</a> <span class="h6fnhWdeg-reciter-type">Scopus</span></p>'
                             })
                         }
-
                         if(reciterArticle.evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution !== undefined) {
                             reciterArticle.evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution.forEach(matchingCollabInst => {
                                 let collabInst = matchingCollabInst.split(', ')
@@ -299,11 +290,10 @@ function formatPublications(data) {
                         }
                         evidence.push({
                             'score': Math.abs(scopusNonTargetAuthorAffiliationScore),
-                            'label': '<p><strong>Co-author\'s institutional affiliation</strong><br/><small>' + Math.abs(scopusNonTargetAuthorAffiliationScore) + ' points</small></p>',
+                            'label': '<p><strong>Co-author\'s institutional affiliation</strong><br/><small>' + scopusNonTargetAuthorAffiliationScore + ' points</small></p>',
                             'institutionalData': weillCornellDataHtml,
                             'articleData': articleDataHtml
                         })
-
                     }
                 }
                 //Grants evidence
@@ -319,7 +309,7 @@ function formatPublications(data) {
                         })
                         evidence.push({
                             'score': Math.abs(Math.round(scoreTotal)),
-                            'label': '<strong>Grants</strong><br/><small>' + Number(Math.round(scoreTotal).toFixed(1)) + ' points</small></p>',
+                            'label': '<strong>Grants</strong><br/><small>' + Number(Math.round(scoreTotal).tofixed(2)) + ' points</small></p>',
                             'institutionalData': weillCornellDataHtml,
                             'articleData': articleDataHtml
                         })
@@ -329,7 +319,7 @@ function formatPublications(data) {
                 if(reciterArticle.evidence.hasOwnProperty('personTypeEvidence')) {
                     evidence.push({
                         'score': Math.abs(Math.round(reciterArticle.evidence.personTypeEvidence.personTypeScore)),
-                        'label': '<strong>Person type</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.personTypeEvidence.personTypeScore).toFixed(1)) + ' points</small></p>',
+                        'label': '<strong>Person type</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.personTypeEvidence.personTypeScore).tofixed(2)) + ' points</small></p>',
                         'institutionalData': '<p>' + reciterArticle.evidence.personTypeEvidence.personType + '</p>',
                         'articleData': '<p>-</p>'
                     })
@@ -338,7 +328,7 @@ function formatPublications(data) {
                 if(reciterArticle.evidence.hasOwnProperty('articleCountEvidence')) {
                     evidence.push({
                         'score': Math.abs(Math.round(reciterArticle.evidence.articleCountEvidence.articleCountScore)),
-                        'label': '<strong>Candidate article count</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.articleCountEvidence.articleCountScore).toFixed(1)) + ' points</small></p>',
+                        'label': '<strong>Candidate article count</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.articleCountEvidence.articleCountScore).tofixed(2)) + ' points</small></p>',
                         'institutionalData': '<p>-</p>', 
                         'articleData': '<p>' + reciterArticle.evidence.articleCountEvidence.countArticlesRetrieved + '</p>',
                     })
@@ -352,10 +342,9 @@ function formatPublications(data) {
                     if(reciterArticle.evidence.educationYearEvidence.identityDoctoralYear !== undefined) {
                         weillCornellDataHtml.push(reciterArticle.evidence.educationYearEvidence.identityDoctoralYear + ' - Doctoral')
                     }
-
                     evidence.push({
                         'score': Math.abs(Math.round(reciterArticle.evidence.educationYearEvidence.discrepancyDegreeYearBachelorScore + reciterArticle.evidence.educationYearEvidence.discrepancyDegreeYearDoctoralScore)),
-                        'label': '<strong>Degree year discrepancy</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.educationYearEvidence.discrepancyDegreeYearBachelorScore + reciterArticle.evidence.educationYearEvidence.discrepancyDegreeYearDoctoralScore).toFixed(1)) + ' points</small></p>',
+                        'label': '<strong>Degree year discrepancy</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.educationYearEvidence.discrepancyDegreeYearBachelorScore + reciterArticle.evidence.educationYearEvidence.discrepancyDegreeYearDoctoralScore).tofixed(2)) + ' points</small></p>',
                         'institutionalData': '<p>' + weillCornellDataHtml.join(', ') +'</p>', 
                         'articleData': '<p>' + reciterArticle.evidence.educationYearEvidence.articleYear + '</p>',
                     })
@@ -364,7 +353,7 @@ function formatPublications(data) {
                 if(reciterArticle.evidence.hasOwnProperty('averageClusteringEvidence')) {
                     evidence.push({
                         'score': Math.abs(Math.round(reciterArticle.evidence.averageClusteringEvidence.clusterScoreModificationOfTotalScore)),
-                        'label': '<strong>Clustering</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.averageClusteringEvidence.clusterScoreModificationOfTotalScore).toFixed(1)) + ' points</small></p>',
+                        'label': '<strong>Clustering</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.averageClusteringEvidence.clusterScoreModificationOfTotalScore).tofixed(2)) + ' points</small></p>',
                         'institutionalData': '<p>-</p>', 
                         'articleData': '<p>Score of article without clustering: ' + reciterArticle.evidence.averageClusteringEvidence.totalArticleScoreWithoutClustering + '</p><p>Average score of cluster: ' + reciterArticle.evidence.averageClusteringEvidence.clusterScoreAverage + '</p>'
                     })
@@ -389,11 +378,10 @@ function formatPublications(data) {
                     }
                     evidence.push({
                         'score': Math.abs(Math.round(reciterArticle.evidence.genderEvidence.genderScoreIdentityArticleDiscrepancy)),
-                        'label': '<p><strong>Inferred gender of name (<a href="https://data.world/howarder/gender-by-name" target="_blank">source</a>)</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.genderEvidence.genderScoreIdentityArticleDiscrepancy).toFixed(1)) +' points</small></p>',
+                        'label': '<p><strong>Inferred gender of name (<a href="https://data.world/howarder/gender-by-name" target="_blank">source</a>)</strong><br/><small>' + Number(Math.round(reciterArticle.evidence.genderEvidence.genderScoreIdentityArticleDiscrepancy).tofixed(2)) +' points</small></p>',
                         'institutionalData': '<p>' + weillCornellDataHtml + '</p>', 
                         'articleData': '<p>' + articleDataHtml + '</p>'
                     })
-
                 }
                 //Sort the array
                 evidence.sort((a, b) => b.score - a.score)
@@ -401,19 +389,19 @@ function formatPublications(data) {
                 if(reciterArticle.evidence.hasOwnProperty('authorNameEvidence')) {
                     let weillCornellAuthorVerboseName = ''
                     let articleAuthorVerboseName = ''
-
                     weillCornellAuthorVerboseName = reciterArticle.evidence.authorNameEvidence.institutionalAuthorName.firstName + ' ' +
                     ((reciterArticle.evidence.authorNameEvidence.institutionalAuthorName.middleName !== undefined)?reciterArticle.evidence.authorNameEvidence.institutionalAuthorName.middleName + ' ':'') +
                     ((reciterArticle.evidence.authorNameEvidence.institutionalAuthorName.lastName !== undefined)?reciterArticle.evidence.authorNameEvidence.institutionalAuthorName.lastName:'')
 
                     if(reciterArticle.evidence.authorNameEvidence.hasOwnProperty('articleAuthorName')) {
                         articleAuthorVerboseName = reciterArticle.evidence.authorNameEvidence.articleAuthorName.firstName + ' ' +
+                        ((reciterArticle.evidence.authorNameEvidence.articleAuthorName.lastName !== undefined)?reciterArticle.evidence.authorNameEvidence.institutionalAuthorName.lastName:'')
                         ((reciterArticle.evidence.authorNameEvidence.articleAuthorName.lastName !== undefined)?reciterArticle.evidence.authorNameEvidence.articleAuthorName.lastName:'')
                     }
                     //Place author evidence on top of array
                     evidence.unshift({
-                        'score': Math.abs(Math.round(reciterArticle.evidence.authorNameEvidence.nameScoreTotal)).toFixed(1),
-                        'label': '<p><strong>Name</strong><br/><small>' + Math.abs(Math.round(reciterArticle.evidence.authorNameEvidence.nameScoreTotal)).toFixed(1) + ' points</small></p>',
+                        'score': Math.abs(Math.round(reciterArticle.evidence.authorNameEvidence.nameScoreTotal)).tofixed(2),
+                        'label': '<p><strong>Name</strong><br/><small>' + Math.round(reciterArticle.evidence.authorNameEvidence.nameScoreTotal).tofixed(2) + ' points</small></p>',
                         'institutionalData': weillCornellAuthorVerboseName, 
                         'articleData': articleAuthorVerboseName
                     })
@@ -423,10 +411,8 @@ function formatPublications(data) {
             PublicationsReciter.push(Publication)
         })
     }
-
     return PublicationsReciter
 }
-
 function fullUrl(req, path) {
     return url.format({
         protocol: req.protocol,
