@@ -16,6 +16,7 @@ phases:
         - $(aws ecr get-login --no-include-email)
         - export KUBECONFIG=$HOME/.kube/config
         - cat ./kubernetes/k8-deployment.yaml
+        - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
   build:
     commands:
       - docker build --tag $REPOSITORY_URI:$TAG .
@@ -31,8 +32,8 @@ phases:
       - export AWS_SECRET_ACCESS_KEY="$(echo ${CREDENTIALS} | jq -r '.Credentials.SecretAccessKey')"
       - export AWS_SESSION_TOKEN="$(echo ${CREDENTIALS} | jq -r '.Credentials.SessionToken')"
       - export AWS_EXPIRATION=$(echo ${CREDENTIALS} | jq -r '.Credentials.Expiration')
+      - echo $AWS_ACCESS_KEY_ID
       - aws eks update-kubeconfig --name $EKS_CLUSTER_NAME
-      - kubectl get svc
       - kubectl apply -f ./kubernetes/k8-deployment.yaml
       - printf '[{"name":"k8-deployment.yaml","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
 artifacts:
