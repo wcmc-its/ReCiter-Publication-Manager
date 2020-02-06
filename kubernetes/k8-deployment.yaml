@@ -26,7 +26,7 @@ spec:
         owner: szd2013
     spec:
       containers:
-      - image: :
+      - image: CONTAINER_IMAGE
         name: reciter-pm
         imagePullPolicy: IfNotPresent
         ports:
@@ -39,7 +39,7 @@ spec:
           limits:
             memory: 2G
             cpu: 0.8
-      - image: CONTAINER_IMAGE
+      - image: CLIENT_IMAGE
         name:  reciter-pm-client
         imagePullPolicy: IfNotPresent
         ports:

@@ -14,7 +14,7 @@ phases:
         - ls
         - echo $TAG
         - cat ./kubernetes/k8-deployment.yaml
-        - sed -i -e 's@CONTAINER_IMAGE@'"$REPOSITORY_URI:$TAG"'@' ./kubernetes/k8-deployment.yaml
+        - sed -i.bak -e 's@CONTAINER_IMAGE@'"$REPOSITORY_URI:$TAG"'@' -e 's@CLIENT_IMAGE@'"$REPOSITORY_URI/client:$TAG"'@' kubernetes/k8-deployment.yaml
         - $(aws ecr get-login --no-include-email)
         - export KUBECONFIG=$HOME/.kube/config
   build:
