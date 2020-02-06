@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reciter-pm-nginx-configmap
+  namespace: reciter
+  labels:
+    app: reciter-pm
+    environment: dev
+    owner: szd2013
+data:
+  nginx.conf: |-
+    server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        location /publication-manager {
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Port $server_port;
+            proxy_set_header Host $host;
+            proxy_read_timeout 300s;
+            proxy_send_timeout 300s;
+            proxy_connect_timeout 300s;
+            proxy_pass http://localhost:8081/login;
+        }
+    }

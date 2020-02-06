@@ -1,4 +1,4 @@
-FROM node:10.16
+FROM node:10.16 as build-stage
 
 RUN apt-get -y update && apt-get -y upgrade
 
@@ -8,11 +8,10 @@ COPY . .
 RUN npm install --only=production
 
 # Install client dependencies
-WORKDIR /usr/src/app/client
-RUN npm install --only=production
-RUN npm run build
-RUN mv build/index.html build/app.html
-
+# WORKDIR /usr/src/app/client
+# RUN npm install --only=production
+# RUN npm run build
+# RUN mv build/index.html build/app.html
 WORKDIR /usr/src/app
 
 EXPOSE 8081
