@@ -26,7 +26,7 @@ spec:
         owner: szd2013
     spec:
       containers:
-      - image: xxxxxxxxxxx.dkr.ecr.us-east-1.amazonaws.com/wcmc/reciter/reciter-publication-manager:tag
+      - image: :
         name: reciter-pm
         imagePullPolicy: IfNotPresent
         ports:
@@ -39,7 +39,7 @@ spec:
           limits:
             memory: 2G
             cpu: 0.8
-      - image: xxxxxxxxxxx.dkr.ecr.us-east-1.amazonaws.com/wcmc/reciter/reciter-publication-manager/client:tag
+      - image: CONTAINER_IMAGE
         name:  reciter-pm-client
         imagePullPolicy: IfNotPresent
         ports:
