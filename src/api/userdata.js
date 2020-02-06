@@ -27,9 +27,9 @@ const getIdentity = (uid, cb) => {
         data['identityImageEndpoint'] = identityImage
         //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
         return cb(null, data)
-        
 
-    }); 
+
+    });
 
 }
 
@@ -45,6 +45,9 @@ const getAllIdentity = (cb) => {
             return cb(error, null)
         }
         let data = JSON.parse(body)
+
+        if(typeof data !== 'object')
+            return cb(null, null)
         data.forEach(identity => {
             let identityImage = ''
             if(identityImageEndpoint !== undefined && identityImageEndpoint.length > 0) {
@@ -58,9 +61,9 @@ const getAllIdentity = (cb) => {
         })
         //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
         return cb(null, data)
-        
 
-    }); 
+
+    });
 
 }
 
@@ -86,7 +89,7 @@ function formatIdentity(data) {
     return reciterIdentity
 }
 
-  
+
 function requestWithRetry (uid, cb) {
     const MAX_RETRIES = 5
     let dataRetrieved = false
