@@ -25,7 +25,7 @@ export default class SideNav extends Component {
 
     render() {
         const navItems = [
-            { category: "Find Scholar(s)", links: ["Individual"] },
+            { category: "Find Scholar", links: ["Individual"] },
             { category: "Manage Publications", links: ["Review Suggestions"] },
             {
                 category: "Manage Profile",

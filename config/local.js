@@ -1,12 +1,12 @@
 exports.config = {
-    /* 
+    /*
      *Configuration for using this application. For the api endpoints just update the protocol and host name and port(if required)
      */
     reciter: {
         /*
          * Admin api key to access all the reciter endpoint. If you did not setup security in your reciter APIs then leave it empty.
-         */ 
-        adminApiKey: 'ADMIN_API_KEY',
+         */
+        adminApiKey: '9edd88cf-4806-49d8-bc14-5a7e4cc4ccf8',
         /**
          * This is where you specify all the Identity endpoints in reciter. Please refer to the Identity controller in swagger-ui for all the related
          * Identity endpoints.
