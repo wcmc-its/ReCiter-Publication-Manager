@@ -3,15 +3,13 @@ version: 0.2
 phases:
   install:
     commands:
-      - curl -sS -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
       - curl -sS -o kubectl https://amazon-eks.s3-us-west-2.amazonaws.com/1.14.6/2019-08-22/bin/linux/amd64/kubectl
-      - chmod +x ./kubectl ./aws-iam-authenticator
+      - chmod +x ./kubectl
       - export PATH=$PWD/:$PATH
-      - apt-get update && apt-get -y install jq python3-pip python3-dev && pip3 install --upgrade awscli
+      - apt-get -y install jq
   pre_build:
       commands:
         - TAG="$CODEBUILD_BUILD_NUMBER.$(date +%Y-%m-%d.%H.%M.%S).$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
-        - echo $TAG
         - sed -i.bak -e 's@CONTAINER_IMAGE@'"$REPOSITORY_URI:$TAG"'@' -e 's@CLIENT_IMAGE@'"$REPOSITORY_URI/client:$TAG"'@' kubernetes/k8-deployment.yaml
         - $(aws ecr get-login --no-include-email)
         - export KUBECONFIG=$HOME/.kube/config
@@ -32,7 +30,6 @@ phases:
       - export AWS_SECRET_ACCESS_KEY="$(echo ${CREDENTIALS} | jq -r '.Credentials.SecretAccessKey')"
       - export AWS_SESSION_TOKEN="$(echo ${CREDENTIALS} | jq -r '.Credentials.SessionToken')"
       - export AWS_EXPIRATION=$(echo ${CREDENTIALS} | jq -r '.Credentials.Expiration')
-      - echo $AWS_ACCESS_KEY_ID
       - aws eks update-kubeconfig --name $EKS_CLUSTER_NAME
       - kubectl apply -f ./kubernetes/k8-deployment.yaml
       - printf '[{"name":"k8-deployment.yaml","imageUri":"%s"}]' $REPOSITORY_URI:$TAG > build.json
