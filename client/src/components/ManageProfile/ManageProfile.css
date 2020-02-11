@@ -1,0 +1,355 @@
+.width100percent{
+    width:100%;
+}
+.width25Percent{
+    width:25%;
+}
+.margin0{
+    margin:0;
+}
+.backgroundColorWhite{
+    background-color: #ffffff;
+}
+.backgroundColorGrey{
+    background-color:#efefef;
+}
+.backgroundColorBlue{
+    background-color: #005ad9;
+}
+.backgroundColor202b3b{
+    background-color: #202b3b;
+}
+.backgroundColorGreen{
+  background-color: #77d900;
+}
+.backgroundColorRed{
+    background-color: #d91a00;
+}
+.colorBlack{
+    color:#000000;
+}
+.colorWhite{
+    color:#ffffff;
+}
+.colorBlue{
+    color: #005ad9;
+}
+.fontSize20px{
+    font-size: 20px;
+}
+.fontSize13px{
+    font-size: 13px;
+}
+.fontFamily{
+    font-family: 1898Sans;
+}
+.marginLeft30px{
+    margin-left: 30px;
+}
+.padding30px{
+    padding:30px;
+}
+.padding10_20px{
+    padding:20px 70px 20px 0;
+}
+.padding15px{
+    padding: 15px 15%;
+}
+.padding20px{
+    padding: 20px;
+}
+.padding10px{
+    padding: 7px;
+}
+.padding5px{
+    padding:5px 10px;
+}
+.displayflex{
+    display: flex;
+}
+.flexDirectionCol{
+    flex-direction: column;
+}
+.alignItemsCenter{
+    align-items: center;
+}
+.justifyContentFS{
+    justify-content: flex-start;
+}
+.justifyContentFE{
+    justify-content: flex-end;
+}
+.justifyContentSpaceBt{
+    justify-content: space-between;
+}
+.borderRadius50percent{
+    border-radius: 50%;
+}
+.borderRadius0{
+    border-radius: 0%;
+}
+.borderRadius2{
+    border-radius: 2px;
+}
+.border1px{
+    border: solid 1px #474747;
+}
+.border1pxGreen{
+    border: solid 1px #77d900;
+}
+.lineSpacing1{
+    line-height: 0.5;
+}
+.fontWeightBold{
+    font-weight: bold;
+}
+.fontWeightNormal{
+    font-weight: normal;
+}
+.textDecorationUnderline{
+    text-decoration: underline;
+}
+.textAlignRight{
+    text-align: right;
+}
+.textAlignCenter{
+    text-align: center;
+}
+.listStyleTypeNone{
+    list-style-type: none;
+}
+.displayInline{
+    display: inline;
+}
+.fontStyleItalic{
+    font-style: italic;
+}
+.tabHeader{
+    display:flex;
+    justify-content: space-between;
+    background-color: #fff;
+    padding: 0px 20px 0px 72px;
+    margin-left: -14px;
+    margin-right: -20px;
+    border-radius: 0.5;
+    /* border-bottom: 1px solid grey; */
+}
+.tabHeader .nav-tabs {
+    border: 1px  solid lightgrey ;
+    
+}
+
+/* .tabs1{
+    border: 1px 0px 0px 0px solid grey;
+    background-color:red!important;
+}
+.tabs1{
+    background-color:#7e5353!important;
+} */
+.form-control {
+    margin-top: 6px;
+}
+#form-label_number{
+    padding: 9px 0px 0px 32px;
+}
+#form_group{
+    margin-bottom:0px;
+}
+.form-control{
+    padding: 1px 9px 0px 25px;
+}
+select .form-control{
+    padding:10px;
+}
+
+tr td:first-child{
+    text-align: justify;
+    
+    /* font-weight: bold; */
+    font-size: 14px;
+    width:15%;
+}
+
+.table>tbody>tr>td{
+    padding:15px;
+}
+ .table>thead>tr>th{
+     padding:10px 20px;
+ }
+
+tr td:nth-child(3){
+    width:0%;
+}
+.btn-success{
+    margin-right: 10px;
+}
+.evidence{
+    padding-top: 10px;
+    margin-bottom: 0px;
+}
+.score{
+    font-size: 40px;
+}
+.tableBody{
+   border:0px;
+   margin-top: 10px;
+   padding: 20px;
+}
+.table>tbody>tr>td, .table>tbody>tr>th, .table>tfoot>tr>td, .table>tfoot>tr>th, .table>thead>tr>td, .table>thead>tr>th {
+    padding: 8px;
+    line-height: 1.42857143;
+    vertical-align: top;
+    border-top: 1px solid white;
+}
+.backgroundColorGrey{
+    background-color: rgb(223, 222, 222);
+    padding:0px 15px 15px 15px;
+}
+.AcceptRejectTab{
+    margin: 10px 0px;
+    padding: 10px 10px;
+   
+}
+.plussign a{
+    font-size: 30px;
+    /* float: right; */
+    margin:0% 100%;
+    text-align: right;
+    display: inline;
+    color: rgb(67, 179, 231);
+}
+.suggestionText a{
+    /* float: left; */
+    font-size: small;
+    margin: 20px 0px 0px;
+    padding: 0px;
+    text-decoration: underline;
+    color: rgb(67, 179, 231);
+}
+.button1{
+    background-color: white;
+    color: blue;
+    border-color: blue;
+    margin: 0px 10px;
+}
+/* .tabHeader .nav-tabs .nav-item.show .nav-link,.tabHeader .nav-tabs .nav-link.active{
+    background-color: rebeccapurple;
+} */
+.nav-tabs .nav-item.show .nav-link, .nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #dfdede;
+    border-top: 1px  solid grey!important;
+    border-left: 2px solid grey;
+    border-right: 2px solid grey;
+}
+/*----- Roop ------ */
+.newrecord-profile li{
+vertical-align: middle;
+}
+.newrecord-profile h4 ,.newrecord-profile p,.newrecord-profile a{
+    margin:1px;
+}
+.paddig_top0{
+    padding-top:45px;
+}
+.accoedins_btns {
+    border: 0px !important;
+    margin: 2px 0px;
+    padding-left: 0px;
+}
+.newrecord-profile {
+    padding: 43px 0px 54px 61px;
+}
+.serach_new_block .form-control{
+margin:0px;
+}
+.pubmedaddnewrecordtxt {
+    position: relative;
+    float: right;
+    padding-right: 3px;
+    font-style: italic;
+}
+.pubmed_get_itbtns{
+    padding-top:25%;
+}
+.new_records_tabs .nav-tabs{
+    padding-left: 77px;  
+}
+.new_records_tabs .nav-tabs .nav-link {
+    border: 1px solid #dfdfdf;
+}
+
+.new_records_tabs a >p {
+margin-right:0px;
+text-decoration: none;
+}
+/*** Rooop **8----*/
+.grey_background {
+    height: 100%;
+    background: #f0f0f0;
+    padding: 8px;
+}
+.new_record_table td:first-child{
+    width:20%;
+}
+.white_bgm {
+    background: #fff;
+    margin: 15px 0px 0px 0px;
+}
+.new_record_table{
+    width: 97.5%;
+    max-width: 99%;
+    margin-bottom: 20px;
+    margin: 0px 15px 0px 15px;   
+}
+.serach_new_block {
+    padding: 15px 0px 8px 0px;
+}
+.first_new_record{
+    padding: 20px 25px 10px 25px;
+}
+.second_new_record{
+    padding: 0px 25px 15px  25px;
+
+}
+.new_records_tabs .nav-tabs .nav-item.show .nav-link,.new_records_tabs .nav-tabs .nav-link.active{
+    color: #000000;
+    background-color: #f0f0f0;
+    border-top: 1px solid #dfdfdf !important;
+}
+.new_records_tabs .nav-link{
+padding:1rem 1rem;
+}
+.new_records_tabs .nav-link.active .second_childrecords{
+    background-color:#005ad9;
+    padding: 5px;
+    border-radius: 15px;
+    color: #fff;  
+}
+.new_records_tabs .second_childrecords {
+    background-color: #474747;
+    padding: 5px;
+    border-radius: 15px;
+    color: #fff;
+}
+.new_records_tabs .form-control{
+    border-radius:2px;
+    border:1px solid #474747;
+}
+.search_newcord_icon{
+    background-color: #005ad9; 
+    border:0px;
+    color: #fff;  
+}
+.newRecord_selectinput {
+    height: 34px !important;
+}
+.first_new_record p{
+margin:0 0 4px;
+}
+button {
+    background-color: white;
+    color: #005ad9;
+    border: 1px solid #005ad9 !important;
+    margin: 0px 10px;
+}
