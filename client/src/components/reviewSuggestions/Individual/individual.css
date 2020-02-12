@@ -1,55 +1,27 @@
-.profileimg {
-    width: 60px;
-    height: 60px;
-    display: block;
-    border-radius: 100%;
-    border: 1px solid #eaeaea;
+.tags {
+    background-color: #005ad9;
+    color: #fff;
+    padding: 02px 5px;
+    border-radius: 16px;
+    margin: 0 0 6px;
 }
-.individualImgTd{
-    vertical-align: middle !important;
-    width:25%
-}
-.individual{
-    color:#323942;
-    font-size: 13px;
-    font-family: 'Open Sans', sans-serif;
-   }
-   .individual .table>thead>tr>th {
-    background-color: #fff;
-    color: #323942;
-}
-.pagination{
+.close_icons{
     float:right;
 }
-.searchHeader {
-    background-color: #e8e8e8;
-    padding: 10px;
-    display: flex;
-}
-.card {
-    background-color: #e8e8e8;
-    margin: 5px 0px;
-}
-.individual_search .form-control{
-    margin-top:0px;
+.border-forms_ids{
+    border: 0px;
+    border-bottom: 1px solid #000;
+    border-radius: 0px;
+    box-shadow: none !important;
+    background-color: transparent;
 }
 .individual_search_well{
     background-color:#ececec;
     border:1px solid #ececec;
 }
-.inputadds{
-    background: #005ad9;
-    color: #ffff;
-    border:0px;    
-}
-#individual_page{
-    margin:0px;
-}
-#form-label_number{
-    padding:9px 0px 0px 15px;
-}
-#form_group{
-    margin-bottom:0px;
+.individual_table th {
+    background: white !important;
+    color: #000 !important;
 }
 .scholars{
     font-size: 16px;
@@ -61,22 +33,38 @@
     text-align: center;
     color: #323942;
 }
+.list-inline li{
+    vertical-align:middle;
+}
+.searchHeader {
+    background-color: #e8e8e8;
+    padding: 10px;
+    display: flex;
+}
+.border{
+    border: 1px solid #000 !important;
+    height: 34px !important;
+    border-radius: 2px;
+}
 .btn-primes{
     border:0px;
     border-radius: 5px;
-    background-color: #005ad9 !important;
+    background-color: #005ad9 !important;   
+}
+
+.individual{
+    color:#323942;
+    font-size: 13px;
+    font-family: 'Open Sans', sans-serif;
+   }
+
+.inputadds{
+    background: #005ad9;
+    color: #ffff;
+    border:0px;    
 }
 .btn-span{
     padding-left:15px;
-}
-.tags {
-    background-color: #005ad9;
-    color: #fff;
-    padding: 02px 5px;
-    border-radius: 16px;
-    margin: 0 0 6px;
-}
-.close_icons{
-    float:right;
-}
+} 
+
 

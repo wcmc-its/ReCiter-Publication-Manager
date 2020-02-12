@@ -21,20 +21,19 @@ const ReviewSuggestions = () => {
             </div>
             <Container className="width100percent margin0 backgroundColorGrey">
                 <HeaderComponent />
-                <div className = "tabHeader">
+                <div className = "review_suggested_tabs new_records_tabs tabHeader">
                 <Tabs defaultActiveKey="profile" id="uncontrolled-tab-example" className="tabs">  
-                    <Tab eventKey="home" title="Suggested" >
+                    <Tab eventKey="home" title={<p> <span> Suggested </span> <span className="second_childrecords"> 40 </span></p>} >
                         
                     </Tab>
-                    <p><span id="tab1number">20</span></p>
-                    <Tab eventKey="profile" title="Accepted">
+                    <Tab eventKey="profile" title={<p> <span> Accepted</span> <span className="second_childrecords"> 30 </span></p>}>
 
                     </Tab>
-                    <Tab eventKey="contact" title="Rejected">
+                    <Tab eventKey="contact" title={<p><span>Rejected</span> <span className="second_childrecords"> 20 </span></p>}>
 
                     </Tab>
                 </Tabs>
-                <div><p><a href="#">Add new record from PubMe</a></p></div>
+                <div><p><a href="#"><u>Add new record</u></a></p></div>
                 </div>
                 <BodyComponent />
             </Container>

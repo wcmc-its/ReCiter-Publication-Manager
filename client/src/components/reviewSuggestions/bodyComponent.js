@@ -20,7 +20,7 @@ const BodyComponent = () => {
                     <Col xs={2} md={2} lg={2} style={{ margin: 0 }}>
                         <Form.Group controlId="exampleForm.ControlSelect1" style={{ margin: 0, padding: 0 }}>
                             {/* <Form.Label>Example select</Form.Label> */}
-                            <Form.Control as="select">
+                            <Form.Control as="select" className="border">
                                 <option>Sort by Year</option>
                                 <option>2</option>
                                 <option>3</option>
@@ -32,7 +32,7 @@ const BodyComponent = () => {
                     <Col xs={2} md={2} lg={1} style={{ margin: 0 }}>
                         <Form.Group controlId="exampleForm.ControlSelect1" style={{ margin: 0, padding: 0 }}>
                             {/* <Form.Label>Example select</Form.Label> */}
-                            <Form.Control as="select">
+                            <Form.Control as="select" className="border">
                                 <option>1</option>
                                 <option>2</option>
                                 <option>3</option>
@@ -85,18 +85,18 @@ const BodyComponent = () => {
 
                             <td>
                                 <Row>
-                                    <Col lg={12}>
-                                        <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin<br />
-                                        <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.<br />
-                                        <b>Journal:</b> The Journal of general physiology<br />
-                                        <b>Date:</b> 2016 Oct 01<br />
+                                    <Col lg={12} className="pt-1">
+                                        <p> <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin </p>
+                                        <p> <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.</p>
+                                        <p>  <b>Journal:</b> The Journal of general physiology</p>
+                                        <p> <b>Date:</b> 2016 Oct 01 </p>
                                     </Col>
                                 </Row>
                                 <Row>
                                     <Col lg={8}>
                                         <Accordion defaultActiveKey="-1">
                                             <Accordion.Toggle variant="link" eventKey="0" className="accoedins_btns">
-                                                        <p className="suggestionText">+ Show evidence behind this suggestion</p>
+                                                <p className="suggestionText">+ Show evidence behind this suggestion</p>
                                             </Accordion.Toggle>
                                             <Accordion.Collapse eventKey="0">
                                                 <div>
@@ -165,18 +165,18 @@ const BodyComponent = () => {
 
                             <td>
                                 <Row>
-                                    <Col lg={12}>
-                                        <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin<br />
-                                        <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.<br />
-                                        <b>Journal:</b> The Journal of general physiology<br />
-                                        <b>Date:</b> 2016 Oct 01<br />
+                                    <Col lg={12} className="pt-1">
+                                        <p> <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin </p>
+                                        <p> <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.</p>
+                                        <p>  <b>Journal:</b> The Journal of general physiology</p>
+                                        <p> <b>Date:</b> 2016 Oct 01 </p>
                                     </Col>
                                 </Row>
                                 <Row>
                                     <Col lg={8}>
                                         <Accordion defaultActiveKey="-1">
                                             <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
-                                                        <p className="suggestionText">+ Show evidence behind this suggestion</p>
+                                                <p className="suggestionText">+ Show evidence behind this suggestion</p>
                                             </Accordion.Toggle>
                                             <Accordion.Collapse eventKey="0">
                                                 <div>

@@ -1,4 +1,11 @@
-
+.individual2_table tr{
+    border-bottom:1px solid #ccc;
+}
+.individual2_table h4{
+    border-bottom: 1px solid #ccc;
+    padding: 5px 10px 15px 15px;
+   
+}
 .gtsymbol{
     margin: 2px 2px 2px 9px;
     font-size: 19px;

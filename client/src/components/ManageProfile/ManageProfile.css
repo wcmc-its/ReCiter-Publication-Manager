@@ -53,7 +53,7 @@
     padding:20px 70px 20px 0;
 }
 .padding15px{
-    padding: 15px 15%;
+    padding: 15px 24%;
 }
 .padding20px{
     padding: 20px;
@@ -80,7 +80,7 @@
     justify-content: flex-end;
 }
 .justifyContentSpaceBt{
-    justify-content: space-between;
+    justify-content: center;
 }
 .borderRadius50percent{
     border-radius: 50%;
@@ -162,13 +162,13 @@ select .form-control{
     padding:10px;
 }
 
-tr td:first-child{
+/* tr td:first-child{
     text-align: justify;
     
-    /* font-weight: bold; */
+    /* font-weight: bold; 
     font-size: 14px;
     width:15%;
-}
+} */
 
 .table>tbody>tr>td{
     padding:15px;
@@ -177,9 +177,9 @@ tr td:first-child{
      padding:10px 20px;
  }
 
-tr td:nth-child(3){
+/* tr td:nth-child(3){
     width:0%;
-}
+} */
 .btn-success{
     margin-right: 10px;
 }
@@ -190,11 +190,11 @@ tr td:nth-child(3){
 .score{
     font-size: 40px;
 }
-.tableBody{
+/* .tableBody{
    border:0px;
    margin-top: 10px;
    padding: 20px;
-}
+} */
 .table>tbody>tr>td, .table>tbody>tr>th, .table>tfoot>tr>td, .table>tfoot>tr>th, .table>thead>tr>td, .table>thead>tr>th {
     padding: 8px;
     line-height: 1.42857143;
@@ -315,6 +315,7 @@ text-decoration: none;
 .new_records_tabs .nav-tabs .nav-item.show .nav-link,.new_records_tabs .nav-tabs .nav-link.active{
     color: #000000;
     background-color: #f0f0f0;
+    font-weight: bold;
     border-top: 1px solid #dfdfdf !important;
 }
 .new_records_tabs .nav-link{
@@ -352,4 +353,6 @@ button {
     color: #005ad9;
     border: 1px solid #005ad9 !important;
     margin: 0px 10px;
+}.review_suggested_tabs .tabs{
+    padding-left:0px;
 }

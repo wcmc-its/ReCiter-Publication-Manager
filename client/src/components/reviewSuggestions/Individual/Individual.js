@@ -1,10 +1,11 @@
 import React, { Component } from "react";
-import { Table, Form, Row, Col, Container, Pagination } from "react-bootstrap";
+import { Link } from "react-router-dom";
+import { Table, Form, Row, Col, Container, Pagination, FormControl, InputGroup } from "react-bootstrap";
 import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
 import SideNav from "../../ui/SideNav";
 import "./individual.css";
-import profilePic from '../../../images/profile-pic.jpg';
+import profilePic from '../../../images/profile_pic.png';
 export default class Individual extends Component {
 
     render() {
@@ -17,88 +18,100 @@ export default class Individual extends Component {
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
                     <SideNav />
                 </div>
-                <div className="manage-profile-content-container">
+                <div className="mt-5 manage-profile-content-container">
                     <div className="container">
                         <div className="row">
                             <div className="col-md-12">
                                 <h4>Find Scholar</h4>
                             </div>
-                            <div className="col-md-6">
+                            <div className="mt-5 mb-5 col-md-6">
                                 <div className="individual_search_well well well-sm">
-                                    <form className="individual_search">
+
+                                    <Form className="individual_search">
                                         <div className="form-group">
-                                            <div class="input-group">
-                                                <input type="text" class="form-control" placeholder="Enter name or CWID" aria-describedby="basic-addon2" />
-                                                <span class="inputadds input-group-addon" id="basic-addon2"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></span>
+                                            <div className="input-group">
+                                                <input type="text" className="mt-0 font-italic form-control" placeholder="Enter name or CWID" aria-describedby="basic-addon2" />
+                                                <span className="inputadds input-group-addon" id="basic-addon2"><span className="glyphicon glyphicon-search" aria-hidden="true"></span></span>
                                             </div>
                                         </div>
+                                        {/* <Form.Row>
+                                        <InputGroup className="mb-3">
+                                            <FormControl
+                                                placeholder="Username"
+                                                aria-label="Username"
+                                                aria-describedby="basic-addon1"
+                                                className="d-inline-block"
+                                            />
+                                            <InputGroup.Prepend className="d-inline-block">
+                                                <InputGroup.Text id="basic-addon1">@</InputGroup.Text>
+                                            </InputGroup.Prepend>
+                                        </InputGroup>
+                                        </Form.Row> */}
                                         <div>
-                                            <p>Advanced Search : <a href="#">Clear All</a></p>
+                                            <p><span className="font-italic">Advanced Search</span> : <a href="#"> <u>Clear All</u></a></p>
                                         </div>
-                                        <div className="row">
-                                            <div className="col-md-4">
-                                                <div className="form-group">
-                                                    <select className="form-control" placeholder="Department">
-                                                    <option selected>Department</option>
+                                        <Row>
+                                            <Col md={4}>
+                                                <Form.Group controlId="exampleForm.ControlSelect1">
+                                                    <Form.Control as="select" className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                        <option selected>Department</option>
                                                         <option>Pediatric Cardiology</option>
                                                         <option>Pediatric Anesthesiology</option>
                                                         <option>Pediatric Cardiothoracic Surgery</option>
-                                                    </select>
-                                                </div>
+                                                    </Form.Control>
+                                                </Form.Group>
                                                 <div>
-                                                <p className="tags"><span>Pediatric Cardiology</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="tags"><span>Pediatric Anesthesiology</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="tags"><span>Pediatric Cardiothoracic Surgery</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="tags bg-primary"><span>Pediatric Cardiology</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="tags bg-primary"><span>Anesthesiology</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="tags bg-primary"><span>Pediatric  Surgery</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
                                                 </div>
-                                            </div>
-                                            <div className="col-md-4">
-                                                <div className="form-group">
-                                                    <select className="form-control" placeholder="Affiliation">
-                                                    <option>Affiliation</option>
+                                            </Col>
+                                            <Col md={4}>
+                                                <Form.Group controlId="exampleForm.ControlSelect1">
+                                                    <Form.Control as="select" className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                        <option>Affiliation</option>
                                                         <option>Affiliation Affiliation</option>
-                                                    </select>
-                                                </div>
+                                                    </Form.Control>
+                                                </Form.Group>
                                                 <div>
-                                                <p className="tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="tags"><span>Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="bg-primary tags"><span>Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
                                                 </div>
-                                            </div>
-                                            <div className="col-md-4">
-                                                <div className="form-group">
-                                                    <select className="form-control" defaultvalue="Person Type" placeholder="Person Type">
-                                                    <option selected>Person Type</option>
+                                            </Col>
+                                            <Col md={4}>
+                                                <Form.Group controlId="exampleForm.ControlSelect1">
+                                                    <Form.Control as="select" className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                        <option selected>Person Type</option>
                                                         <option>Person Type Person </option>
-                                                    </select>
-                                                </div>
+                                                    </Form.Control>
+                                                </Form.Group>
                                                 <div>
-                                                <p className="tags"><span>Person Type Person </span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    {/* <p className="tags"><span>space</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="tags"><span>space</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p> */}
+                                                    <p className="bg-primary tags"><span>Person Type Person </span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    </form>
+                                            </Col>
+                                        </Row>
+                                    </Form>
                                 </div>
                             </div>
                         </div>
                         <div className="row">
                             <div className="col-md-12">
-                                <h4><span className="scholars"> 11,201 scholar </span> <span className="btn-span">   <button type="button" class="btn-primes btn btn-primary">Review  All Pending Suggestions</button></span></h4>
+                                <h4><span className="scholars"> 11,201 scholar </span> <span className="btn-span"> <Link to="/individual_suggestions">  <button type="button" class="btn-primes btn btn-primary">Review  All Pending Suggestions</button> </Link></span></h4>
                             </div>
                         </div>
                         <div className="row">
                             <div className="col-xs-12">
                                 <div className="individual">
                                     <div className="searchHeader">
-                                        <div className="col-sm-4">
+                                        <div className="col-sm-4 pt-1">
 
                                             <div className="individual_search">
                                                 <Form>
 
                                                     <Form.Group as={Row} id="form_group">
-                                                        <Form.Label column sm="4" id="form-label_number">Show records</Form.Label>
-                                                        <Col sm="4"> <Form.Control as="select" >
+                                                        <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label>
+                                                        <Col sm="2" className="pl-0"> <Form.Control as="select" className="mt-0 pl-1 pr-0">
 
                                                             <option>10</option>
                                                             <option>20</option>
@@ -112,7 +125,7 @@ export default class Individual extends Component {
                                             </div>
                                         </div>
                                         <div className="col-sm-8">
-                                            <Pagination id="individual_page">
+                                            <Pagination id="individual_page" className="m-0 pull-right">
                                                 <Pagination.First />
                                                 <Pagination.Prev />
                                                 <Pagination.Item>{1}</Pagination.Item>
@@ -132,8 +145,8 @@ export default class Individual extends Component {
                                         </div>
                                     </div>
                                     <div className="row">
-                                        <div className="col-md-12">
-                                            <Table responsive>
+                                        <div className="col-md-12 pr-5 pl-5">
+                                            <Table responsive className="individual_table">
                                                 <thead>
                                                     <tr>
                                                         <th>Name</th>
@@ -143,9 +156,9 @@ export default class Individual extends Component {
                                                 </thead>
                                                 <tbody>
                                                     <tr>
-                                                        <td className="individualImgTd">
+                                                        <td >
                                                             <ul className="list-inline">
-                                                                <li> <img src={profilePic} className="profileimg" />
+                                                                <li> <img src={profilePic} className="profileimg" height="65px" width="65px"/>
                                                                 </li>
                                                                 <li><p><b>Jochen Buck, M.D.</b></p>
                                                                     <p>Associate Professor of <br></br> Physiology and Biophysics</p>
@@ -154,14 +167,14 @@ export default class Individual extends Component {
                                                             </ul>
 
                                                         </td>
-                                                        <td><ul>
+                                                        <td><ul className="pl-4">
                                                             <li>Medicine *</li>
                                                             <li>General Internal Medicine </li>
                                                             <li>Healthcare Policy and Research</li>
                                                             <li>Information Technologies and Services</li>
                                                         </ul></td>
                                                         <td>
-                                                            <ul>
+                                                            <ul className="pl-4">
                                                                 <li>Weill Cornell Medical College, Cornell University New York-Presbyterian Hospital</li>
                                                                 <li>Browdoin College</li>
                                                                 <li>Cornell University Medical College</li>
@@ -171,9 +184,9 @@ export default class Individual extends Component {
                                                     </tr>
 
                                                     <tr>
-                                                        <td className="individualImgTd">
+                                                        <td >
                                                             <ul className="list-inline">
-                                                                <li> <img src={profilePic} className="profileimg" />
+                                                                <li><img src={profilePic} className="profileimg" height="65px" width="65px"/>
                                                                 </li>
                                                                 <li><p><b>Jochen Buck, M.D.</b></p>
                                                                     <p>Associate Professor of <br></br> Physiology and Biophysics</p>
@@ -182,14 +195,14 @@ export default class Individual extends Component {
                                                             </ul>
 
                                                         </td>
-                                                        <td><ul>
+                                                        <td><ul className="pl-4">
                                                             <li>Medicine *</li>
                                                             <li>General Internal Medicine </li>
                                                             <li>Healthcare Policy and Research</li>
                                                             <li>Information Technologies and Services</li>
                                                         </ul></td>
                                                         <td>
-                                                            <ul>
+                                                            <ul className="pl-4">
                                                                 <li>Weill Cornell Medical College, Cornell University New York-Presbyterian Hospital</li>
                                                                 <li>Browdoin College</li>
                                                                 <li>Cornell University Medical College</li>
@@ -198,9 +211,9 @@ export default class Individual extends Component {
                                                         </td>
                                                     </tr>
                                                     <tr>
-                                                        <td className="individualImgTd">
+                                                        <td >
                                                             <ul className="list-inline">
-                                                                <li> <img src={profilePic} className="profileimg" />
+                                                                <li><img src={profilePic} className="profileimg" height="65px" width="65px"/>
                                                                 </li>
                                                                 <li><p><b>Jochen Buck, M.D.</b></p>
                                                                     <p>Associate Professor of <br></br> Physiology and Biophysics</p>
@@ -209,14 +222,14 @@ export default class Individual extends Component {
                                                             </ul>
 
                                                         </td>
-                                                        <td><ul>
+                                                        <td><ul className="pl-4">
                                                             <li>Medicine *</li>
                                                             <li>General Internal Medicine </li>
                                                             <li>Healthcare Policy and Research</li>
                                                             <li>Information Technologies and Services</li>
                                                         </ul></td>
                                                         <td>
-                                                            <ul>
+                                                            <ul className="pl-4">
                                                                 <li>Weill Cornell Medical College, Cornell University New York-Presbyterian Hospital</li>
                                                                 <li>Browdoin College</li>
                                                                 <li>Cornell University Medical College</li>

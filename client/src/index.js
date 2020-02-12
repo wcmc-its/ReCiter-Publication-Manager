@@ -3,6 +3,7 @@ import { render } from 'react-dom'
 import storeFactory from './store'
 import { Provider } from 'react-redux'
 import { addError } from './actions'
+// import 'bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 import App from './components/containers/App'
 import ReCiterRouter from './router'

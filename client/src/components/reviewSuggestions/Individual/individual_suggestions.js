@@ -1,11 +1,11 @@
 import React, { Component } from "react";
-import { Table, Button, Form, Row, Col, Container, Pagination } from "react-bootstrap";
+import { Table, Button, Form, Row, Col, Container,Accordion, Pagination } from "react-bootstrap";
 import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
 import SideNav from "../../ui/SideNav";
-import "./individual_2.css";
+import "./individual_suggestions.css";
 import profilePic from '../../../images/profile-pic.jpg';
-export default class individual_2 extends Component {
+export default class Individuals extends Component {
 
     render() {
         return (
@@ -113,7 +113,7 @@ export default class individual_2 extends Component {
 
                                                 <Form.Group as={Row} id="form_group">
                                                     <Form.Label column sm="4" id="form-label_number">Show records</Form.Label>
-                                                    <Col sm="4"> <Form.Control as="select" >
+                                                    <Col sm="3"> <Form.Control as="select" className="pl-1 border">
 
                                                         <option>10</option>
                                                         <option>20</option>
@@ -128,7 +128,7 @@ export default class individual_2 extends Component {
                                     </div>
                                     <div className="col-sm-8">
                                         <button className="btn button1" type="button">First</button>
-                                        <Pagination id="individual_page">
+                                        <Pagination id="individual_page" className="mt-0 mb-0">
                                             {/* <Pagination.First /> */}
                                             <Pagination.Prev />
 
@@ -146,17 +146,17 @@ export default class individual_2 extends Component {
                                         </Pagination>
                                     </div>
                                 </div>
-                                </div>
-                                <div className="firsttable">
+                            </div>
+                            <div className="firsttable">
                                 <div className="row">                                    <div className="col-md-12">
-                                        <h4><span className="link"><a href="#">Rainu Kaushal</a></span><span className="name">Chairman of Healthcare Policy and Research</span></h4>
-                                    </div>
+                                    <h4><span className="link"><a href="#">Rainu Kaushal</a></span><span className="name">Chairman of Healthcare Policy and Research</span></h4>
+                                </div>
                                 </div>
                                 <div className="row recordstable">
                                     <div className="col-md-12">
                                         <div className="tableBody backgroundColorWhite">
                                             {/* <Col xs={12} md={12} lg={12}> */}
-                                            <Table>
+                                            <Table className="individual2_table">
                                                 <tbody>
                                                     <tr>
                                                         <td>
@@ -191,19 +191,35 @@ export default class individual_2 extends Component {
                                                             {/* </Col> */}
                                                             {/* </Row> */}
                                                         </td>
-
                                                         <td>
-                                                            <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin<br />
-                                                            <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.<br />
-                                                            <b>Journal:</b> The Journal of general physiology<br />
-                                                            <b>Date:</b> 2016 Oct 01<br />
-                                                            <span className="plussign"><a href="#">+
-                                                                <p className="suggestionText">Show evidence behind this suggestion</p></a>
-                                                                </span>
-                                                               <span> <button className="btn button" type="button">PubMed</button>
-                                                                <button className="btn button" type="button">GET IT</button>
-                                                            </span>
-                                                            </td>
+                                                            <Row>
+                                                                <Col lg={12} className="pt-1">
+                                                                    <p> <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin </p>
+                                                                    <p> <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.</p>
+                                                                    <p>  <b>Journal:</b> The Journal of general physiology</p>
+                                                                    <p> <b>Date:</b> 2016 Oct 01 </p>
+                                                                </Col>
+                                                            </Row>
+                                                            <Row>
+                                                                <Col lg={8}>
+                                                                    <Accordion defaultActiveKey="-1">
+                                                                        <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
+                                                                            <p className="suggestionText">+ Show evidence behind this suggestion</p>
+                                                                        </Accordion.Toggle>
+                                                                        <Accordion.Collapse eventKey="0">
+                                                                            <div>
+                                                                                <p>Sample Text</p>
+                                                                            </div>
+                                                                        </Accordion.Collapse>
+                                                                    </Accordion>
+                                                                </Col>
+                                                                <Col lg={4}>
+                                                                    <span> <button className="btn button" type="button">PubMed</button>
+                                                                        <button className="btn button" type="button">GET IT</button>
+                                                                    </span>
+                                                                </Col>
+                                                            </Row>
+                                                        </td>
                                                     </tr>
 
                                                     {/* <tr><td className="plussign"><a href="#">+</a></td>
@@ -254,16 +270,34 @@ export default class individual_2 extends Component {
                                                         </td>
 
                                                         <td>
-                                                            <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin<br />
-                                                            <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.<br />
-                                                            <b>Journal:</b> The Journal of general physiology<br />
-                                                            <b>Date:</b> 2016 Oct 01<br />
-                                                            <span className="plussign"><a href="#">+
-                                                                <p className="suggestionText">Show evidence behind this suggestion</p></a></span>
-                                                               <span> <button className="btn button" type="button">PubMed</button>
-                                                                <button className="btn button" type="button">GET IT</button>
-                                                            </span>
-                                                            </td>
+                                                            <Row>
+                                                                <Col lg={12} className="pt-1">
+                                                                    <p> <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin </p>
+                                                                    <p> <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.</p>
+                                                                    <p>  <b>Journal:</b> The Journal of general physiology</p>
+                                                                    <p> <b>Date:</b> 2016 Oct 01 </p>
+                                                                </Col>
+                                                            </Row>
+                                                            <Row>
+                                                                <Col lg={8}>
+                                                                    <Accordion defaultActiveKey="-1">
+                                                                        <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
+                                                                            <p className="suggestionText">+ Show evidence behind this suggestion</p>
+                                                                        </Accordion.Toggle>
+                                                                        <Accordion.Collapse eventKey="0">
+                                                                            <div>
+                                                                                <p>Sample Text</p>
+                                                                            </div>
+                                                                        </Accordion.Collapse>
+                                                                    </Accordion>
+                                                                </Col>
+                                                                <Col lg={4}>
+                                                                    <span> <button className="btn button" type="button">PubMed</button>
+                                                                        <button className="btn button" type="button">GET IT</button>
+                                                                    </span>
+                                                                </Col>
+                                                            </Row>
+                                                        </td>
                                                     </tr>
 
                                                     {/* <tr className="plus">
@@ -276,12 +310,12 @@ export default class individual_2 extends Component {
                                                 </tbody>
                                             </Table>
                                         </div>
-                                        
+
                                     </div>
 
                                 </div>
-                                </div>
-                                <div className="secondtable">
+                            </div>
+                            <div className="secondtable">
                                 <div className="row">
                                     <div className="col-md-12">
                                         <h4><span className="link"><a href="#">Nathaniel Hupert</a></span><span className="name">Chairman of Healthcare Policy and Research</span></h4>
@@ -328,17 +362,34 @@ export default class individual_2 extends Component {
                                                         </td>
 
                                                         <td>
-                                                            <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin<br />
-                                                            <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.<br />
-                                                            <b>Journal:</b> The Journal of general physiology<br />
-                                                            <b>Date:</b> 2016 Oct 01<br />
-                                                            <span className="plussign"><a href="#">+
-                                                                <p className="suggestionText">Show evidence behind this suggestion</p></a>
-                                                                </span>
-                                                               <span> <button className="btn button" type="button">PubMed</button>
-                                                                <button className="btn button" type="button">GET IT</button>
-                                                            </span>
-                                                            </td>
+                                                            <Row>
+                                                                <Col lg={12} className="pt-1">
+                                                                    <p> <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin </p>
+                                                                    <p> <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.</p>
+                                                                    <p>  <b>Journal:</b> The Journal of general physiology</p>
+                                                                    <p> <b>Date:</b> 2016 Oct 01 </p>
+                                                                </Col>
+                                                            </Row>
+                                                            <Row>
+                                                                <Col lg={8}>
+                                                                    <Accordion defaultActiveKey="-1">
+                                                                        <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
+                                                                            <p className="suggestionText">+ Show evidence behind this suggestion</p>
+                                                                        </Accordion.Toggle>
+                                                                        <Accordion.Collapse eventKey="0">
+                                                                            <div>
+                                                                                <p>Sample Text</p>
+                                                                            </div>
+                                                                        </Accordion.Collapse>
+                                                                    </Accordion>
+                                                                </Col>
+                                                                <Col lg={4}>
+                                                                    <span> <button className="btn button" type="button">PubMed</button>
+                                                                        <button className="btn button" type="button">GET IT</button>
+                                                                    </span>
+                                                                </Col>
+                                                            </Row>
+                                                        </td>
                                                     </tr>
 
                                                     {/* <tr><td className="plussign"><a href="#">+</a></td>
@@ -389,16 +440,34 @@ export default class individual_2 extends Component {
                                                         </td>
 
                                                         <td>
-                                                            <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin<br />
-                                                            <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.<br />
-                                                            <b>Journal:</b> The Journal of general physiology<br />
-                                                            <b>Date:</b> 2016 Oct 01<br />
-                                                            <span className="plussign"><a href="#">+
-                                                                <p className="suggestionText">Show evidence behind this suggestion</p></a></span>
-                                                               <span> <button className="btn button" type="button">PubMed</button>
-                                                                <button className="btn button" type="button">GET IT</button>
-                                                            </span>
-                                                            </td>
+                                                            <Row>
+                                                                <Col lg={12} className="pt-1">
+                                                                    <p> <b>Authors:</b> Nawreen Rahman, Cavoisier Ramos-Espiritu, Teresa A. Miller, John Buck, Lonny R Levin </p>
+                                                                    <p> <b>Title:</b> Soluble adenylyl cyclase is essential for proper lysosomal acidification.</p>
+                                                                    <p>  <b>Journal:</b> The Journal of general physiology</p>
+                                                                    <p> <b>Date:</b> 2016 Oct 01 </p>
+                                                                </Col>
+                                                            </Row>
+                                                            <Row>
+                                                                <Col lg={8}>
+                                                                    <Accordion defaultActiveKey="-1">
+                                                                        <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
+                                                                            <p className="suggestionText">+ Show evidence behind this suggestion</p>
+                                                                        </Accordion.Toggle>
+                                                                        <Accordion.Collapse eventKey="0">
+                                                                            <div>
+                                                                                <p>Sample Text</p>
+                                                                            </div>
+                                                                        </Accordion.Collapse>
+                                                                    </Accordion>
+                                                                </Col>
+                                                                <Col lg={4}>
+                                                                    <span> <button className="btn button" type="button">PubMed</button>
+                                                                        <button className="btn button" type="button">GET IT</button>
+                                                                    </span>
+                                                                </Col>
+                                                            </Row>
+                                                        </td>
                                                     </tr>
 
                                                     {/* <tr className="plus">
@@ -414,10 +483,10 @@ export default class individual_2 extends Component {
                                     </div>
 
                                 </div>
-                                </div>
                             </div>
                         </div>
-                    
+                    </div>
+
 
 
 

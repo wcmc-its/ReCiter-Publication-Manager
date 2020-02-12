@@ -7,7 +7,7 @@ const HeaderComponent = () => {
     return (
         <Row className="backgroundColorWhite padding30px">
             <Col>
-                <p className="fontSize20px fontFamily">Manage Profile</p>
+                <p className="fontSize20px fontFamily">Review Suggestions</p>
             </Col>
             <Col xs={12} md={12}>
                 <Row className="displayflex alignItemsCenter padding10_20px">
