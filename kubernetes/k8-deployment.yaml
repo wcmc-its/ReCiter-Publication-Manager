@@ -5,7 +5,7 @@ metadata:
   namespace: NAMESPACE
   labels:
     app: reciter-pm
-    ENVIRONMENT_LABEL
+    environment: ENVIRONMENT_LABEL
     tier: frontend
     owner: szd2013
 spec:
@@ -22,7 +22,7 @@ spec:
       labels:
         app: reciter-pm
         tier: frontend
-        ENVIRONMENT_LABEL
+        environment: ENVIRONMENT_LABEL
         owner: szd2013
     spec:
       containers:
