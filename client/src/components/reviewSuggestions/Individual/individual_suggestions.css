@@ -1,0 +1,207 @@
+.individual2_table tr{
+    border-bottom:1px solid #ccc;
+}
+.individual2_table h4{
+    border-bottom: 1px solid #ccc;
+    padding: 5px 10px 15px 15px;
+   
+}
+.gtsymbol{
+    margin: 2px 2px 2px 9px;
+    font-size: 19px;
+}
+.review{
+    font-weight: 500;
+    padding: 10px 0px 0px 0px;
+    font-size: 21px;
+}
+.searchby ul{
+    list-style-type: none;
+    list-style: none;
+    padding: 3px 0px 2px 15px;
+}
+.searchby ul li{
+    font-size: 12px;
+    /* font-family: OpenSans; */
+}
+/* .listtable {
+    list-style-type: none;
+} */
+.findscholar{
+    font-size: 16px;
+    padding: 10px 5px 16px 19px;
+    margin: 27px 15px 10px 14px;
+}
+.findscholar .scholarlink a{
+    color: #005ad9;
+    text-decoration: underline;
+    margin-top: 20px;
+}
+.listtable ,.listtable3{
+    margin: 5px 3px 3px -21px;
+    font-size: 13px;
+}
+ul .listtable2{
+    padding-left: 10px;
+}
+.tablehead{
+    font-weight: 900;
+    font-size: 14px;
+    padding: 3px 0px 5px 0px;
+}
+.searchtable{
+    margin: 1px 2px 2px 2px;
+    padding: 2px 2px 2px 2px;
+}
+/* .listtable li{
+    font-size: 10px;
+} */
+.listtable .searchedby{
+    font-style: italic;
+    font-size: 15px;
+    font-weight: 500;
+    color: #212121;
+    margin: 2px 2px 2px 18px;
+}
+.search{
+    box-sizing: border-box;
+    width: 50%;
+    height: 30%;
+    border: 1px solid #ececec;
+    background-color: #ececec;
+    padding: 17px 0px 0px 0px;
+    margin: 11px 13px 0px 16px;
+}
+li .search{
+    font-style: italic;
+}
+.edit{
+    background-color:#e3e3e3;
+    border:1px solid #ececec;
+    box-sizing: border-box;
+    width: 50%;
+    height: 30%;
+    margin: 0px 4px 2px 16px;
+}
+.editsearch{
+margin-bottom: 10px;
+margin-top: 5px;
+}
+.edit ul a{
+    /* align-items:center; */
+    /* text-align: center; */
+    margin: 10px 2px 2px 94px;
+    padding: 0px 3px 3px 103px;
+    text-decoration: underline;
+    color: #005ad9;
+}
+.scholars h4{
+    font-weight: 600;
+    padding-top: 20px;
+}
+.link{
+    margin: 14px 11px 6px 9px;
+}
+.link a{
+    color: #005ad9;
+    text-decoration: underline;
+}
+.name{
+    margin: 2px 2px 2px 6px;
+    font-weight: 800;
+    font-size: 15px;
+}
+.individual{
+    margin-top:10px;
+}
+.individual_search .form-control {
+    margin-top: 6px;
+}
+#form-label_number{
+    padding: 9px 0px 0px 32px;
+}
+#form_group{
+    margin-bottom:0px;
+}
+.form-control{
+    padding: 1px 9px 0px 25px;
+}
+select .form-control{
+    padding:10px;
+}
+.button1{
+    color: #005ad9;
+    font-size: 13px;
+    border: solid 0.5px #bbbbbb;
+    background-color: #f9f9f9;
+    margin-left: 32rem;
+}
+.button2{
+    color: #005ad9;
+    border: solid 0.5px #bbbbbb;
+    background-color: #f9f9f9;
+    padding-left: 10px;
+    margin: 0px 0px 0px 10px;
+    font-size: 13px;
+}
+.searchHeader {
+    background-color: #e8e8e8;
+    padding: 10px;
+    display: flex;
+    margin: 13px 0px 12px 2px;
+}
+.button{
+    
+    background-color: white;
+    color: #005ad9;
+    border-color: #005ad9;
+    margin: 0px 10px;
+    /* font-size: 15px; */
+}
+/* .suggestionText a {
+    float: left;
+    font-size: small;
+    margin: 20px 0px 0px;
+    padding: 0px;
+    text-decoration: underline;
+    color: #005ad9;
+}
+.plussign a {
+    font-size: 30px;
+    float: right;
+    margin: 9px -11px 1px 5px;
+    text-align: left;
+    display: inline;
+    color: #005ad9;
+} */
+.plussign a{
+    margin: 0;
+    font-size:15px;
+    color: #005ad9;
+    
+}
+
+a >p{
+display: inline;
+margin-right: 32rem;
+text-decoration: underline;
+}
+.plus{
+    margin-bottom: 10px;
+}
+p .suggestionText a{
+    margin:2px 2px 2px 2px;
+    color: #005ad9 ;
+}
+.plussign ,a .pluslink{
+    font-size: 10px;
+}
+.firsttable ,.secondtable {
+    border:1px solid lightgray;
+}
+.secondtable{
+    margin-top: 20px;
+}
+a h4{
+    margin-top: 20px;
+}

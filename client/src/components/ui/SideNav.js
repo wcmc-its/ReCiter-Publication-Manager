@@ -11,14 +11,17 @@ export default class SideNav extends Component {
     }
 
     manageLinks(link) {
-        if(link !== undefined && link === 'Individual'){
-            return this.props.history.push('/search')
+        if (link !== undefined && link === 'Individual') {
+            // return this.props.history.push('/search')
+            return window.location.href = '/individual'
         }
-        if(link !== undefined && link === 'Review Suggestions'){
-            if(window.location.pathname === '/search') {
-                return this.props.history.push('/search')
-            }
-            return this.props.history.push('/manage/' + this.props.uid)
+        if (link !== undefined && link === 'Review Suggestions') {
+            // if(window.location.pathname === '/search') {
+            //     return this.props.history.push('/search')
+            // }
+            // return this.props.history.push('/manage/' + this.props.uid) 
+            return window.location.href = '/reviewSuggestions'
+            // return this.props.history.push('/reviewSuggestions')
         }
     }
 
@@ -33,11 +36,11 @@ export default class SideNav extends Component {
             }
         ];
         const listItems = navItems.map((item, index) => (
-            <div className="category" key= {index}>
+            <div className="category" key={index}>
                 {item.category}
                 {item.links.map(link => (
-                    <div className="links" key= {index}>
-                        <a onClick={() =>{this.manageLinks(link)}}>{link}</a>
+                    <div className="links" key={index}>
+                        <a onClick={() => { this.manageLinks(link) }}>{link}</a>
                     </div>
                 ))}
                 <hr className="navHr" />

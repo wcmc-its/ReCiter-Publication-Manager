@@ -28,7 +28,9 @@
     position: relative;
     display: inline-block;
   }
-
+.publication_text{
+  font-size:18px;
+}
   /* Dropdown Content (Hidden by Default) */
   .dropdown-content {
     display: none;
