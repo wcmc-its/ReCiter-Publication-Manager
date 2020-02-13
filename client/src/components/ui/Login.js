@@ -35,7 +35,7 @@ export default class Login extends Component {
       username: this._username.value,
       password: this._password.value
     })
-    let timeout = 3, count = 0
+    let timeout = 30, count = 0
     const awaitServer = setInterval(() => {
       if(this.props.auth.isLoggedIn) {
         this.setState({
@@ -53,7 +53,7 @@ export default class Login extends Component {
         return console.log('failed to auth')
       }
       count += 1
-      return 
+      return
     }, 100)
   }
   render() {

@@ -62,6 +62,9 @@ typings/
 
 reciter-pub-manager.code-workspace
 
+#jetbrains
+.idea
+
 .DS_Store
 
 package-lock.json
