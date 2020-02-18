@@ -41,3 +41,31 @@
 .navHr{
     border-color:#999999 ;
 }
+.sideNav_tooglt_btn{
+  position:absolute;
+  right:0;
+  top:15px;
+  display:none;
+}
+.desktop_side_bar{
+  display:block;
+  height: 100%;
+}
+.mobile_side_bar{
+  display:none;
+}
+@media (max-width:768px){
+  .sideNav{
+     position:absolute;
+     z-index:999;
+  }
+  .sideNav_tooglt_btn{
+    display:block;
+  }
+  .desktop_side_bar{
+    display:none;
+  }
+  .mobile_side_bar{
+    display:block;
+  }
+}

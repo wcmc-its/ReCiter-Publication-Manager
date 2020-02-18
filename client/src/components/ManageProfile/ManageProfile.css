@@ -39,6 +39,7 @@
 }
 .fontSize13px{
     font-size: 13px;
+    line-height: 21px;
 }
 .fontFamily{
     font-family: 1898Sans;
@@ -125,19 +126,40 @@
     font-style: italic;
 }
 .tabHeader{
-    display:flex;
+    display:block;
     justify-content: space-between;
     background-color: #fff;
-    padding: 0px 20px 0px 72px;
+    padding: 0px 20px 0px 20px;
     margin-left: -14px;
     margin-right: -20px;
     border-radius: 0.5;
     /* border-bottom: 1px solid grey; */
 }
-.tabHeader .nav-tabs {
+.add_record_p .breadcrumb-item+.breadcrumb-item::before {
+content:'|';
+}
+.add_record_p a{
+    text-decoration:underline;
+}
+.add_record_p  .breadcrumb {
+    padding: 8px 15px;
+    margin-bottom: 20px;
+    list-style: none;
+    background-color: #fff;
+    border-radius: 4px;
+}
+.add_record_p{
+    float: right;
+    position: absolute;
+    right: 17px;  
+}
+.add_record_spans {
+    display: inline-block;
+}
+/* .tabHeader .nav-tabs {
     border: 1px  solid lightgrey ;
     
-}
+} */
 
 /* .tabs1{
     border: 1px 0px 0px 0px solid grey;
@@ -289,9 +311,9 @@ text-decoration: none;
     background: #f0f0f0;
     padding: 8px;
 }
-.new_record_table td:first-child{
+/* .new_record_table td:first-child{
     width:20%;
-}
+} */
 .white_bgm {
     background: #fff;
     margin: 15px 0px 0px 0px;
@@ -314,7 +336,7 @@ text-decoration: none;
 }
 .new_records_tabs .nav-tabs .nav-item.show .nav-link,.new_records_tabs .nav-tabs .nav-link.active{
     color: #000000;
-    background-color: #f0f0f0;
+    background-color: #ffff;
     font-weight: bold;
     border-top: 1px solid #dfdfdf !important;
 }
@@ -355,4 +377,36 @@ button {
     margin: 0px 10px;
 }.review_suggested_tabs .tabs{
     padding-left:0px;
+}
+.Accepted_info th{
+background-color:#202b3b !important;  
+}
+.secondColumnData ul{
+    list-style: none;
+    padding-left:0px;
+}
+.secondColumnData li{
+    padding-bottom:10px;
+}
+.secondColumnData #coinvestigator {
+    background: #d9d9d9;
+    padding: 5px 8px;
+    font-weight: bold;
+    font-size: 10px;
+    float: right;
+    margin-left: 18px;
+}
+#coinvestigator,#coinvestigator1 {
+    background: #d9d9d9;
+    padding: 5px 8px;
+    font-weight: bold;
+    font-size: 10px;
+}
+.thirdColumnData ul{
+    list-style: none;
+    padding-left:0px;  
+}
+.firstColumnData ,.secondColumnData ,.thirdColumnData{
+    border:0px !important;
+    border-bottom: 1px solid #ccc !important;
 }

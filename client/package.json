@@ -2,7 +2,7 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:5000/",
+  "proxy": "http://internal-d3677aff-reciter-reciterin-1143-1820758335.us-east-1.elb.amazonaws.com",
   "dependencies": {
     "bootstrap": "^3.4.1",
     "react": "^16.8.6",

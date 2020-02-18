@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import '../ManageProfile/ManageProfile.css';
 import Image from 'react-bootstrap/Image'
-import { Row, Col, Button, Form, Table, Accordion, Card } from 'react-bootstrap';
+import { Row, Col, Button, Form, Table, Accordion, Card, Collapse } from 'react-bootstrap';
 
 const BodyComponent = () => {
+    const [open, setOpen] = useState(false);
+
     return (
         <div >
             <div className=" AcceptRejectTab backgroundColorGrey">
@@ -175,15 +177,14 @@ const BodyComponent = () => {
                                 <Row>
                                     <Col lg={8}>
                                         <Accordion defaultActiveKey="-1">
-                                            <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
-                                                <p className="suggestionText">+ Show evidence behind this suggestion</p>
-                                            </Accordion.Toggle>
-                                            <Accordion.Collapse eventKey="0">
-                                                <div>
-                                                    <p>Sample Text</p>
-                                                </div>
-                                            </Accordion.Collapse>
+                                            {/* <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
+                                                <p className="suggestionText"></p>
+                                            </Accordion.Toggle> */}
+
                                         </Accordion>
+                                        <p onClick={() => setOpen(!open)}
+                                            aria-controls="example-collapse-text"
+                                            aria-expanded={open}>+ Show evidence behind this suggestion </p>
                                     </Col>
                                     <Col lg={4}>
                                         <span> <button className="btn button" type="button">PubMed</button>
@@ -191,9 +192,106 @@ const BodyComponent = () => {
                                         </span>
                                     </Col>
                                 </Row>
-
-
                             </td>
+                        </tr>
+                        <tr><td colspan="3">
+                            <Collapse in={open}>
+                            <div className = " backgroundColorWhite">
+                <Table className ="Accepted_info table table-bordered">
+                    <thead>  
+                        <tr >
+                        <th className="firstColumn">Evidence</th>
+                        <th className="secondColumn">Institutional Data</th>
+                        <th className="thirdColumn">Article Data</th>
+                    </tr>
+                    </thead>
+                  <tbody>
+                  <tr>
+                        <td className="firstColumnData"><b>Name <br/></b>2.0 points</td>
+                        <td className="secondColumnData"> Alanoud Hejab Alanazi</td>
+                        <td className="thirdColumnData">Alanoud Alanazi</td>
+                    </tr>
+                    
+                    <tr>
+                        <td className="firstColumnData"><b>Relationships<br/></b>8.1 points</td>
+                        <td className="secondColumnData">
+                            <ul className="d-inline-block">
+                                <li className = "peronName">Wencheng Liu</li><span id="coinvestigator">Co-investigator</span>
+                                <li className = "peronName">Lingzhi Zhao </li><span id="coinvestigator">Co-investigator</span>
+                                <li className = "peronName">Maria Chiuchiolo </li> <span id="coinvestigator">Co-investigator</span>
+                                <li className = "peronName">Dolan Sondhi </li><span id="coinvestigator">Co-investigator</span>
+                                <li className = "peronName">Stephen Kaminsky</li> <span id="coinvestigator">Co-investigator</span>
+                                <li className = "peronName">Steven Paul</li> <span id="coinvestigator">Co-investigator</span>
+                            </ul>
+                            
+                        </td>
+                        <td className="thirdColumnData" >
+                            <ul className="d-inline-block">
+                                <li>Wencheng Liu </li>
+                                <li>Lingzhi Zhao </li>
+                                <li>Maria Chiuchiolo </li>
+                                <li>Dolan Sondhi </li>
+                                <li>Stephen Kaminsky</li>
+                                <li>Steven Paul </li>
+                            </ul>
+                            
+                        </td>
+                    </tr>
+                    <tr>
+                        <td className="firstColumnData"><b>Candidate article count</b><br/>1 points</td>
+                        <td className="secondColumnData"></td>
+                        <td className="thirdColumnData"><b>157</b></td>
+                    </tr>
+                    <tr>
+                    <td className="firstColumnData"><b>Target author’s <br/>institutional affiliation<br/></b>0.71 points</td>
+                        <td ></td>
+                        <td className="thirdColumnData"><ul>
+                            <li> Departemnt  Clinical Pharmacy College Pharmacy King Saud University Riyadh Saudi Arabia</li>
+                            <li>mahalrasheed@ksu.edu.sa</li>
+                            <li> <span id="coinvestigator">Co-investigator</span></li></ul></td>
+
+                    </tr>
+                    <tr>
+                    <td className="firstColumnData"><b>Journal Category</b><br/>0.1 points</td>
+                        <td className="secondColumnData">
+                            <ul>
+                                <li>Surgery</li>
+                            <li> <span id="coinvestigator">Organizational Unit</span></li></ul></td>
+                        <td className="thirdColumnData"><ul>
+                            <li>General & Internal Medicine</li>
+                                            <li> <span id="coinvestigator">Co-investigator</span></li></ul></td>
+
+                    </tr>
+                    <tr>
+                    <td className="firstColumnData"><b>Degree Year Discrepancy<br/></b>0 points</td>
+                        <td className="secondColumnData"> 2011-Doctorate</td>
+                        <td className="thirdColumnData">2018</td>
+
+                    </tr>
+                    <tr>
+                    <td className="firstColumnData"><b>Clustering</b><br/>0 points</td>
+                        <td className="secondColumnData"></td>
+                        <td className="thirdColumnData">
+                            <ul>
+                            <li> Score of article without clustering:<b>2.38</b></li>
+                            <li>Average score of cluster:<b>2.38</b></li>
+                        </ul>
+                        </td>
+
+                    </tr>
+                    <tr>
+                    <td className="firstColumnData"><b>Inferred gender of <br/>name (suorce)</b><br/>0 points</td>
+                        <td className="secondColumnData">Female - 100% probability</td>
+                        <td className="thirdColumnData"> Female - 100% probability</td>
+
+                    </tr>
+                  </tbody>
+                   
+                </Table>
+
+            </div>
+                            </Collapse>
+                        </td>
                         </tr>
 
                         {/* <tr><td className="plussign"><a href="#">+</a></td>

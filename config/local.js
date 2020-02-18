@@ -84,8 +84,8 @@ exports.config = {
      * for details.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: 'https://reciter-pubmed.weill.cornell.edu/pubmed/query-complex/',
-        searchPubmedCountEndpoint: 'https://reciter-pubmed.weill.cornell.edu/pubmed/query-number-pubmed-articles/'
+        searchPubmedEndpoint: 'https://reciter.weill.cornell.edu/pubmed/query-complex/',
+        searchPubmedCountEndpoint: 'https://reciter.weill.cornell.edu/pubmed/query-number-pubmed-articles/'
     },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.

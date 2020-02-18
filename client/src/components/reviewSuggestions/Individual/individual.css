@@ -1,16 +1,61 @@
+.heading{
+    font-size: 21px;
+    color: #323942;
+    margin-top: 54px;
+    letter-spacing: -0.48px;
+}
+.well-sm {
+    padding: 25px;
+    border-radius: 3px;
+}
 .tags {
     background-color: #005ad9;
     color: #fff;
-    padding: 02px 5px;
-    border-radius: 16px;
-    margin: 0 0 6px;
+    padding: 02px 8px;
+    border-radius:5px;
+    margin: 0 0 5px;
+    font-size: 10px;
+    width: fit-content;
+    word-wrap: none;
 }
 .close_icons{
     float:right;
 }
+.individual_searchfilter {
+    position: relative;
+}
+.border-forms_ids:focus {
+    background-color: transparent;
+}
+.show_recordscaret{
+    position: absolute;
+    color:#005ad9;
+    right:21px;
+    top:5px;    
+}
+.searchicon{
+    color:#ffffff;
+    /* border: solid 4px white; */
+    width: 22px;
+    height: 17px;
+}
+.search_carot_icon{
+    position: absolute;
+    color:#005ad9;
+    right:0px;
+    top: 3px;
+    font-size: 19px;
+}
+.show_recordscaret {
+    font-size: 24px;
+    /* padding: 0px 2px 2px 2px; */
+    margin: -8px -3px 0px 0px;
+
+}
 .border-forms_ids{
     border: 0px;
-    border-bottom: 1px solid #000;
+    /* border-bottom: 1px solid #ececec; */
+    border-bottom: solid 2px #dadada;
     border-radius: 0px;
     box-shadow: none !important;
     background-color: transparent;
@@ -18,6 +63,31 @@
 .individual_search_well{
     background-color:#ececec;
     border:1px solid #ececec;
+}
+.close_icons{
+    padding-left: 4px;
+}
+.selectoption{
+        font-weight: 300;
+        font-size: 12px;
+}
+.show_recordscaret{
+    padding: 2px 2px 2px 2px;
+}
+.button1{
+    color: #005ad9;
+    font-size: 13px;
+    border: solid 0.5px #bbbbbb;
+    background-color: #f9f9f9;
+    margin-left: 32rem;
+}
+.button2{
+    color: #005ad9;
+    border: solid 0.5px #bbbbbb;
+    background-color: #f9f9f9;
+    padding-left: 10px;
+    margin: 0px 0px 0px 10px;
+    font-size: 13px;
 }
 .individual_table th {
     background: white !important;
@@ -51,7 +121,6 @@
     border-radius: 5px;
     background-color: #005ad9 !important;   
 }
-
 .individual{
     color:#323942;
     font-size: 13px;
@@ -66,5 +135,6 @@
 .btn-span{
     padding-left:15px;
 } 
-
-
+.pagination{
+    margin:0px 0;
+}
