@@ -8,6 +8,17 @@
 
 }
 
+.icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  background-size: contain;
+  position: relative;
+  top: 3px;
+  background-repeat: no-repeat;
+  margin-right:2px;
+}
+
 /* The navigation menu links */
 .links{
   padding: 6px 0px 6px 0px;
@@ -24,7 +35,8 @@
   text-decoration: none;
   color: white;
   font-weight: 400;
-  padding: 6px 0 6px 16px;
+  padding: 6px 0 6px 24px;
+  font-size: 12px;
 }
 
 /* When you mouse over the navigation links, change their color */
@@ -35,7 +47,7 @@
 
 .category{
     font-weight: 900;
-    padding: 0 1rem;
+    padding: 0 1rem 0 1rem;
 }
 
 .navHr{
