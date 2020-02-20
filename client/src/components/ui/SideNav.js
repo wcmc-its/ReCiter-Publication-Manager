@@ -1,11 +1,16 @@
 import React, { Component } from "react";
+import { Button } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faOutdent, faBars } from '@fortawesome/free-solid-svg-icons'
 import "../../css/SideNav.css";
-
+const mql = global.matchMedia(`(min-width: 768px)`);
 export default class SideNav extends Component {
 
     constructor(props) {
         super(props)
-
+        this.state = {
+            childVisible: false
+        }
         // bind elements
         this.manageLinks = this.manageLinks.bind(this)
     }
@@ -25,7 +30,9 @@ export default class SideNav extends Component {
         }
     }
 
-
+    onClick() {
+        this.setState({ childVisible: !this.state.childVisible });
+    }
     render() {
         const navItems = [
             { category: "Find Scholar", links: ["Individual"] },
@@ -46,6 +53,17 @@ export default class SideNav extends Component {
                 <hr className="navHr" />
             </div>
         ));
-        return <div className="sideNav">{listItems}</div>;
+        return <div>
+            <div className="desktop_side_bar">
+                <div className="sideNav">{listItems}</div>
+            </div>
+            <div className="mobile_side_bar">
+                {
+                    this.state.childVisible ? <div className="sideNav">{listItems}</div> : null}
+            </div>
+            <div onClick={this.onClick.bind(this)}>
+                <Button variant="primary" className="sideNav_tooglt_btn">{
+                    this.state.childVisible ? <FontAwesomeIcon icon={faOutdent} size='1x' /> : <FontAwesomeIcon icon={faBars} size='1x' />}</Button>
+            </div> </div>;
     }
 }

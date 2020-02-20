@@ -116,6 +116,10 @@ margin-top: 5px;
 }
 .individual_search .form-control {
     margin-top: 6px;
+    -webkit-appearance: none;
+    -moz-appearance:none;
+    appearance:none;
+
 }
 #form-label_number{
     padding: 9px 0px 0px 32px;

@@ -13,10 +13,8 @@ export default class Individuals extends Component {
                 <div className="header-position">
                     <Header />
                 </div>
-                <div className="side-nav-position">
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
                     <SideNav />
-                </div>
                 <div className="container">
                     <div className="row">
                         <div className="col-md-12 findscholar">

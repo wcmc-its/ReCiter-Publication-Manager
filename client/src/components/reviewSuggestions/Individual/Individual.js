@@ -1,6 +1,8 @@
 import React, { Component } from "react";
 import { Link } from "react-router-dom";
 import { Table, Form, Row, Col, Container, Pagination, FormControl, InputGroup } from "react-bootstrap";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCoffee, faTimes,faSortDown} from '@fortawesome/free-solid-svg-icons'
 import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
 import SideNav from "../../ui/SideNav";
@@ -14,24 +16,24 @@ export default class Individual extends Component {
                 <div className="header-position">
                     <Header />
                 </div>
-                <div className="side-nav-position">
+                {/* <div className="side-nav-position"> */}
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
                     <SideNav />
-                </div>
-                <div className="mt-5 manage-profile-content-container">
+                {/* </div>
+                <div className="mt-5 manage-profile-content-container"> */}
                     <div className="container">
                         <div className="row">
                             <div className="col-md-12">
-                                <h4>Find Scholar</h4>
+                                <h4 className="heading">Find Scholar</h4>
                             </div>
-                            <div className="mt-5 mb-5 col-md-6">
+                            <div className=" mb-5 col-md-6">
                                 <div className="individual_search_well well well-sm">
 
                                     <Form className="individual_search">
                                         <div className="form-group">
                                             <div className="input-group">
                                                 <input type="text" className="mt-0 font-italic form-control" placeholder="Enter name or CWID" aria-describedby="basic-addon2" />
-                                                <span className="inputadds input-group-addon" id="basic-addon2"><span className="glyphicon glyphicon-search" aria-hidden="true"></span></span>
+                                                <span className="inputadds input-group-addon" id="basic-addon2"><span className="glyphicon glyphicon-search searchicon" aria-hidden="true"></span></span>
                                             </div>
                                         </div>
                                         {/* <Form.Row>
@@ -52,42 +54,48 @@ export default class Individual extends Component {
                                         </div>
                                         <Row>
                                             <Col md={4}>
-                                                <Form.Group controlId="exampleForm.ControlSelect1">
+                                                <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
+                                                <FontAwesomeIcon icon={faSortDown}  size = '1x' className="search_carot_icon"/>
                                                     <Form.Control as="select" className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option selected>Department</option>
                                                         <option>Pediatric Cardiology</option>
                                                         <option>Pediatric Anesthesiology</option>
                                                         <option>Pediatric Cardiothoracic Surgery</option>
                                                     </Form.Control>
+                                                   
                                                 </Form.Group>
-                                                <div>
-                                                    <p className="tags bg-primary"><span>Pediatric Cardiology</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="tags bg-primary"><span>Anesthesiology</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="tags bg-primary"><span>Pediatric  Surgery</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                <div className="tags-info">
+                                                    <p className="tags bg-primary"><span>Pediatric Cardiology</span> <span className="close_icons"><FontAwesomeIcon icon={faTimes} size = '1x'/> </span></p>
+                                                    <p className="tags bg-primary"><span>Pediatric Anesthesiology</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes} size = '1x'/></span></p>
+                                                    <p className="tags bg-primary"><span>Pediatric Surgery</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes} size = '1x'/> </span></p>
                                                 </div>
                                             </Col>
                                             <Col md={4}>
-                                                <Form.Group controlId="exampleForm.ControlSelect1">
-                                                    <Form.Control as="select" className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
+                                                <FontAwesomeIcon icon={faSortDown}  size = '1x' className="search_carot_icon"/>
+                                                    <Form.Control as="select" className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option>Affiliation</option>
                                                         <option>Affiliation Affiliation</option>
                                                     </Form.Control>
+                                                   
                                                 </Form.Group>
                                                 <div>
-                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="bg-primary tags"><span>Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
-                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes}  size = '1x'/> </span></p>
+                                                    <p className="bg-primary tags"><span>Affiliation</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes}  size = '1x'/></span></p>
+                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"><FontAwesomeIcon icon={faTimes}  size = '1x'/></span></p>
                                                 </div>
                                             </Col>
                                             <Col md={4}>
-                                                <Form.Group controlId="exampleForm.ControlSelect1">
+                                                <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
+                                                <FontAwesomeIcon icon={faSortDown}  size = '1x' className="search_carot_icon"/>
                                                     <Form.Control as="select" className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option selected>Person Type</option>
                                                         <option>Person Type Person </option>
                                                     </Form.Control>
+                                                    
                                                 </Form.Group>
                                                 <div>
-                                                    <p className="bg-primary tags"><span>Person Type Person </span> <span className="close_icons"> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    <p className="bg-primary tags"><span>Person Type Person </span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes}  size = '1x'/> </span></p>
                                                 </div>
                                             </Col>
                                         </Row>
@@ -108,10 +116,13 @@ export default class Individual extends Component {
 
                                             <div className="individual_search">
                                                 <Form>
-
+                                              
                                                     <Form.Group as={Row} id="form_group">
+                                                    
                                                         <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label>
-                                                        <Col sm="2" className="pl-0"> <Form.Control as="select" className="mt-0 pl-1 pr-0">
+                                                        <Col sm="2" className="pl-0 individual_searchfilter">
+                                                        <FontAwesomeIcon icon={faSortDown}  size = '1x' className="show_recordscaret"/>
+                                                             <Form.Control as="select" className="mt-0 pl-3 pr-0 selectoption">
 
                                                             <option>10</option>
                                                             <option>20</option>
@@ -125,24 +136,24 @@ export default class Individual extends Component {
                                             </div>
                                         </div>
                                         <div className="col-sm-8">
-                                            <Pagination id="individual_page" className="m-0 pull-right">
-                                                <Pagination.First />
-                                                <Pagination.Prev />
-                                                <Pagination.Item>{1}</Pagination.Item>
-                                                <Pagination.Ellipsis />
+                                        <button className="btn button1" type="button">First</button>
+                                        <Pagination id="individual_page">
+                                            {/* <Pagination.First /> */}
+                                            <Pagination.Prev />
 
-                                                <Pagination.Item>{10}</Pagination.Item>
-                                                <Pagination.Item>{11}</Pagination.Item>
-                                                <Pagination.Item active>{12}</Pagination.Item>
-                                                <Pagination.Item>{13}</Pagination.Item>
-                                                <Pagination.Item disabled>{14}</Pagination.Item>
 
-                                                <Pagination.Ellipsis />
-                                                <Pagination.Item>{20}</Pagination.Item>
-                                                <Pagination.Next />
-                                                <Pagination.Last />
-                                            </Pagination>
-                                        </div>
+                                            <Pagination.Item disabled>{10}</Pagination.Item>
+                                            <Pagination.Item>{11}</Pagination.Item>
+                                            <Pagination.Ellipsis />
+                                            <Pagination.Item>{25}</Pagination.Item>
+                                            <Pagination.Item >{26}</Pagination.Item>
+
+
+                                            <Pagination.Next />
+                                            {/* <Pagination.Last /> */}
+                                            <button className="btn button2" type="button">Last</button>
+                                        </Pagination>
+                                    </div>
                                     </div>
                                     <div className="row">
                                         <div className="col-md-12 pr-5 pl-5">
@@ -158,7 +169,7 @@ export default class Individual extends Component {
                                                     <tr>
                                                         <td >
                                                             <ul className="list-inline">
-                                                                <li> <img src={profilePic} className="profileimg" height="65px" width="65px"/>
+                                                                <li> <img src={profilePic} className="profileimg" height="65px" width="65px" />
                                                                 </li>
                                                                 <li><p><b>Jochen Buck, M.D.</b></p>
                                                                     <p>Associate Professor of <br></br> Physiology and Biophysics</p>
@@ -186,7 +197,7 @@ export default class Individual extends Component {
                                                     <tr>
                                                         <td >
                                                             <ul className="list-inline">
-                                                                <li><img src={profilePic} className="profileimg" height="65px" width="65px"/>
+                                                                <li><img src={profilePic} className="profileimg" height="65px" width="65px" />
                                                                 </li>
                                                                 <li><p><b>Jochen Buck, M.D.</b></p>
                                                                     <p>Associate Professor of <br></br> Physiology and Biophysics</p>
@@ -213,7 +224,7 @@ export default class Individual extends Component {
                                                     <tr>
                                                         <td >
                                                             <ul className="list-inline">
-                                                                <li><img src={profilePic} className="profileimg" height="65px" width="65px"/>
+                                                                <li><img src={profilePic} className="profileimg" height="65px" width="65px" />
                                                                 </li>
                                                                 <li><p><b>Jochen Buck, M.D.</b></p>
                                                                     <p>Associate Professor of <br></br> Physiology and Biophysics</p>
@@ -247,7 +258,7 @@ export default class Individual extends Component {
                             </div>
                         </div>
                     </div>
-                </div>
+                {/* </div> */}
                 <div className="footer-position">
                     <Footer />
                 </div>
