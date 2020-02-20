@@ -21,7 +21,7 @@
 
 /* The navigation menu links */
 .links{
-  padding: 6px 0px 6px 0px;
+  padding: 2px 0px;
   text-decoration: none;
   /* font-size: 25px; */
 
@@ -35,8 +35,8 @@
   text-decoration: none;
   color: white;
   font-weight: 400;
-  padding: 6px 0 6px 24px;
-  font-size: 12px;
+  padding: 4px 0 4px 24px;
+  font-size: 14px;
 }
 
 /* When you mouse over the navigation links, change their color */
@@ -46,8 +46,9 @@
 }
 
 .category{
-    font-weight: 900;
-    padding: 0 1rem 0 1rem;
+  font-weight: 900;
+  padding: 0 1rem 0 1rem;
+  font-size: 15px;
 }
 
 .navHr{
