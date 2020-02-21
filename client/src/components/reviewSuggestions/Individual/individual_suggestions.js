@@ -1,20 +1,33 @@
 import React, { Component } from "react";
-import { Table, Button, Form, Row, Col, Container,Accordion, Pagination } from "react-bootstrap";
+import { Table, Button, Form, Row, Col, Container, Accordion, Pagination } from "react-bootstrap";
 import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
 import SideNav from "../../ui/SideNav";
 import "./individual_suggestions.css";
-import profilePic from '../../../images/profile-pic.jpg';
-export default class Individuals extends Component {
+import { connect } from 'react-redux'
+
+class Individuals extends Component {
+
+    constructor(props) {
+        super(props);
+        this.state = {
+            groupReviewSuggestions: []
+        }
+    }
+
+    componentDidMount() {
+        console.log("this.props in indivi", this.props.groupReviewSuggestions)
+    }
 
     render() {
+        console.log("individual suggestions render", this.props.groupReviewSuggestions)
         return (
             <div className="main-container">
                 <div className="header-position">
                     <Header />
                 </div>
-                    {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
-                    <SideNav />
+                {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
+                <SideNav />
                 <div className="container">
                     <div className="row">
                         <div className="col-md-12 findscholar">
@@ -499,3 +512,11 @@ export default class Individuals extends Component {
         );
     }
 }
+
+const mapStateToProps = state => ({
+    groupReviewSuggestions: state.groupReviewSuggestions
+})
+
+
+// export default Individual;
+export default connect(mapStateToProps, null)(Individuals)

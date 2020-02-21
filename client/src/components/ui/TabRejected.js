@@ -156,12 +156,6 @@ export class TabRejected extends Component {
                                 var evidenceArticleArray = publication.evidence.map(function (evidence, evidenceIndex) {
                                     return evidence.articleData;
                                 });
-                                var evidenceInstArray = publication.evidence.map(function (evidence, evidenceIndex) {
-                                    return evidence.institutionalData;
-                                });
-                                if (evidenceInstArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
-                                    addPublication = true;
-                                }
                                 if (evidenceArticleArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                     addPublication = true;
                                 }
@@ -223,7 +217,7 @@ export class TabRejected extends Component {
                 <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
                 <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
                 <div className="table-responsive">
-                    <table className="h6fnhWdeg-publications-table table table-striped">
+                    <table className="tabs_tables h6fnhWdeg-publications-table table">
                         <tbody>
                         {
                             publications.paginatedPublications.map(function(item, index){

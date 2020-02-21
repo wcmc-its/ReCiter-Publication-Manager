@@ -39,3 +39,9 @@
     background: #999999;
     color: #ffffff;
 }
+.newTabs>li>a{
+    border:1px solid #dfdfdf;
+}
+.tabs_tables {
+    background-color: #fff;
+}

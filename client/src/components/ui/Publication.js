@@ -18,7 +18,7 @@ class Publication extends Component {
 
     toogleEvidence() {
         this.setState({
-            showEvidence: (this.state.showEvidence)?false:true
+            showEvidence: (this.state.showEvidence) ? false : true
         });
     }
 
@@ -41,26 +41,26 @@ class Publication extends Component {
 
         const { item } = this.props;
         var facultyUserName = "";
-        if(this.props.faculty !== undefined) {
+        if (this.props.faculty !== undefined) {
 
-            if(this.props.faculty.firstName !== undefined) {
+            if (this.props.faculty.firstName !== undefined) {
                 facultyUserName += this.props.faculty.firstName + ' ';
             }
-            if(this.props.faculty.middleName !== undefined) {
+            if (this.props.faculty.middleName !== undefined) {
                 facultyUserName += this.props.faculty.middleName + ' ';
             }
-            if(this.props.faculty.lastName !== undefined) {
+            if (this.props.faculty.lastName !== undefined) {
                 facultyUserName += this.props.faculty.lastName + ' ';
             }
         }
 
-        var evidancePopoverHtml = "<strong>" + item.rawScore + " :</strong> Raw score<br/><strong>" + item.standardScore + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+facultyUserName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
+        var evidancePopoverHtml = "<strong>" + item.rawScore + " :</strong> Raw score<br/><strong>" + item.standardScore + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>" + facultyUserName + "</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
 
         var buttons = null;
-        if(item.userAssertion === "NULL") {
+        if (item.userAssertion === "NULL") {
             buttons = <div>
                 <button
-                    className={`btn btn-success h6fnhWdeg-publication-accept`}
+                    className={`btn kumars btn-success h6fnhWdeg-publication-accept`}
                     onClick={this.acceptPublication}
                 >Accept
                 </button>
@@ -71,7 +71,7 @@ class Publication extends Component {
                 </button>
             </div>;
         }
-        if(item.userAssertion === "ACCEPTED") {
+        if (item.userAssertion === "ACCEPTED") {
 
             buttons = <div>
                 <button
@@ -87,7 +87,7 @@ class Publication extends Component {
             </div>;
         }
 
-        if(item.userAssertion === "REJECTED") {
+        if (item.userAssertion === "REJECTED") {
             buttons = <div>
                 <button
                     className={`btn btn-success h6fnhWdeg-publication-accept`}
@@ -103,18 +103,18 @@ class Publication extends Component {
 
         }
 
-        return <tr>
+        return <tr><td><tr>
             <td key="0" className="h6fnhWdeg-publication-buttons">
                 {buttons}
                 <div className="clear-both"></div>
-                {(item.evidence !==undefined)?
+                {(item.evidence !== undefined) ?
                     <React.Fragment>
                         <p className="h6fnhWdeg-publication-score" data-tip={evidancePopoverHtml} data-place="right"
-                           data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">
+                            data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">
                             Evidence<br />Score<br /><strong>{item.standardScore}</strong>
                         </p>
                         < ReactTooltip />
-                    </React.Fragment>: <p></p>
+                    </React.Fragment> : <p></p>
                 }
             </td>
             <td key="1" className="h6fnhWdeg-publication-content">
@@ -123,18 +123,18 @@ class Publication extends Component {
                     <strong>Authors: </strong>
                     <span className="h6fnhWdeg-publication-field-authors">
                         {
-                            (item.authors !== undefined)?item.authors.map(function(author, authorIndex){
+                            (item.authors !== undefined) ? item.authors.map(function (author, authorIndex) {
                                 var authorHTML = <span></span>;
-                                if(author.targetAuthor) {
+                                if (author.targetAuthor) {
                                     authorHTML = <span key={authorIndex} className="h6fnhWdeg-publication-author-highlighted">{author.authorName}</span>;
-                                    if(authorIndex < item.authors.length - 1) {
+                                    if (authorIndex < item.authors.length - 1) {
                                         authorHTML = <span key={authorIndex}>{authorHTML}, </span>;
                                     }
-                                }else {
-                                    authorHTML = <span key={authorIndex}>{author.authorName}{(authorIndex < item.authors.length - 1)?", ":""}</span>;
+                                } else {
+                                    authorHTML = <span key={authorIndex}>{author.authorName}{(authorIndex < item.authors.length - 1) ? ", " : ""}</span>;
                                 }
                                 return authorHTML;
-                                }):<span>No authors listed</span>
+                            }) : <span>No authors listed</span>
                         }
                     </span>
                 </p>
@@ -169,34 +169,7 @@ class Publication extends Component {
                             </p>
 
 
-                            <div
-                                className={`h6fnhWdeg-publication-show-evidence-container ${(this.state.showEvidence) ? "h6fnhWdeg-publication-show-evidence-container-open" : ""}`}>
-                                <div className="table-responsive">
-                                    <table className="h6fnhWdeg-publications-evidence-table table table-striped">
-                                        <thead>
-                                        <tr>
-                                            <th key="0" className="h6fnhWdeg-first-cell">Evidence</th>
-                                            <th key="1">Institutional Data</th>
-                                            <th key="2">Article Data</th>
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        {
-                                            item.evidence.map(function (evidence, evidenceIndex) {
-                                                return <tr key={evidenceIndex}>
-                                                    <td key="0" align="right"
-                                                        dangerouslySetInnerHTML={{__html: evidence.label}}/>
-                                                    <td key="1" width="40%"
-                                                        dangerouslySetInnerHTML={{__html: evidence.institutionalData}}/>
-                                                    <td key="2" width="40%"
-                                                        dangerouslySetInnerHTML={{__html: evidence.articleData}}/>
-                                                </tr>;
-                                            })
-                                        }
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+
 
 
                         </div>
@@ -205,8 +178,37 @@ class Publication extends Component {
                         </div>
                 }
                 <div className="clear-both"></div>
+
             </td>
-        </tr>;
+        </tr>
+            {(this.state.showEvidence) ? (<tr><td colspan="2">
+                <table className="h6fnhWdeg-publications-evidence-table table table-striped">
+                    <thead>
+                        <tr>
+                            <th key="0" className="h6fnhWdeg-first-cell">Evidence</th>
+                            <th key="1">Institutional Data</th>
+                            <th key="2">Article Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {
+                            item.evidence.map(function (evidence, evidenceIndex) {
+                                return <tr key={evidenceIndex}>
+                                    <td key="0" align="right"
+                                        dangerouslySetInnerHTML={{ __html: evidence.label }} />
+                                    <td key="1" width="40%"
+                                        dangerouslySetInnerHTML={{ __html: evidence.institutionalData }} />
+                                    <td key="2" width="40%"
+                                        dangerouslySetInnerHTML={{ __html: evidence.articleData }} />
+                                </tr>;
+                            })
+                        }
+                    </tbody>
+                </table>
+
+            </td></tr>) : <tr></tr>}
+
+        </td></tr>;
     }
 }
 
