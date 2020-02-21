@@ -25,6 +25,12 @@ phases:
         - export KUBECONFIG=$HOME/.kube/config
         - cat ./kubernetes/k8-deployment.yaml
         - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
+        #Install Trivy for container and dependency scanning
+        - apt-get install wget apt-transport-https gnupg
+        - wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | apt-key add -
+        - echo deb https://aquasecurity.github.io/trivy-repo/deb bionic main | tee -a /etc/apt/sources.list.d/trivy.list
+        - apt-get update
+        - apt-get install -y trivy
   build:
     commands:
       - |
@@ -38,6 +44,8 @@ phases:
     commands:
       - |
         if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
+          trivy --no-progress --exit-code 1 --severity HIGH,CRITICAL $REPOSITORY_URI:$TAG
+          trivy --no-progress --exit-code 1 --severity HIGH,CRITICAL $REPOSITORY_URI/client:$TAG
           docker push $REPOSITORY_URI:$TAG
           docker push $REPOSITORY_URI/client:$TAG
           CREDENTIALS=$(aws sts assume-role --role-arn $EKS_KUBECTL_ROLE_ARN --role-session-name codebuild-kubectl --duration-seconds 900)

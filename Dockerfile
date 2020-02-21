@@ -1,6 +1,6 @@
-FROM node:10.16 as build-stage
+FROM node:12.16.1-alpine as build-stage
 
-RUN apt-get -y update && apt-get -y upgrade
+#RUN apt-get -y update && apt-get -y upgrade
 
 # Install server dependencies
 WORKDIR /usr/src/app
