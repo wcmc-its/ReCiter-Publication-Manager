@@ -4,6 +4,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faOutdent, faBars } from '@fortawesome/free-solid-svg-icons'
 import "../../css/SideNav.css";
 const mql = global.matchMedia(`(min-width: 768px)`);
+import admin from "../../images/icons/admin.png";
+import find from "../../images/icons/find.png";
+import profile from "../../images/icons/profile.png";
+import growth from "../../images/icons/growth.png";
+import copy from "../../images/icons/copy.png";
+
 export default class SideNav extends Component {
 
     constructor(props) {
@@ -24,7 +30,7 @@ export default class SideNav extends Component {
             // if(window.location.pathname === '/search') {
             //     return this.props.history.push('/search')
             // }
-            // return this.props.history.push('/manage/' + this.props.uid) 
+            // return this.props.history.push('/manage/' + this.props.uid)
             return window.location.href = '/reviewSuggestions'
             // return this.props.history.push('/reviewSuggestions')
         }
@@ -35,16 +41,15 @@ export default class SideNav extends Component {
     }
     render() {
         const navItems = [
-            { category: "Find Scholar", links: ["Individual"] },
-            { category: "Manage Publications", links: ["Review Suggestions"] },
-            {
-                category: "Manage Profile",
-                links: []
-            }
+            { category: "Find Scholar", icon: find, links: ["Individual"] },
+            { category: "Manage Publications", icon: copy, links: ["Review Suggestions"] },
+            { category: "Manage Profile", icon: profile, links: [] },
+            { category: "Reports", icon: growth, links: ["List View","Export View","Impact Pictograph","Impact Table"] },
+            { category: "Admin", icon: admin, links: ["Settings","Control Access","FAQs"] },
         ];
         const listItems = navItems.map((item, index) => (
             <div className="category" key={index}>
-                {item.category}
+                <span className="icon" style={{backgroundImage: `url(${item.icon})`}}/> {item.category}
                 {item.links.map(link => (
                     <div className="links" key={index}>
                         <a onClick={() => { this.manageLinks(link) }}>{link}</a>
