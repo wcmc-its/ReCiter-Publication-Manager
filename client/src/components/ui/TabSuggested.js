@@ -183,12 +183,6 @@ export class TabSuggested extends Component {
                                 var evidenceArticleArray = publication.evidence.map(function (evidence, evidenceIndex) {
                                     return evidence.articleData;
                                 });
-                                var evidenceInstArray = publication.evidence.map(function (evidence, evidenceIndex) {
-                                    return evidence.institutionalData;
-                                });
-                                if (evidenceInstArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
-                                    addPublication = true;
-                                }
                                 if (evidenceArticleArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                     addPublication = true;
                                 }
@@ -245,18 +239,18 @@ export class TabSuggested extends Component {
                 <div className="h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true} />
                     <button
-                        className="btn btn-primary h6fnhWdeg-accept-all"
+                        className="btn btn-primary h6fnhWdeg-accept-all backgroundColorBlue borderRadius0"
                         onClick={this.acceptAll}
-                    >Accept all on page</button>
+                    >Accept All</button>
                     <button
-                        className="btn btn-primary h6fnhWdeg-reject-all"
+                        className="btn btn-primary h6fnhWdeg-reject-all colorBlue backgroundColorWhite borderRadius0"
                         onClick={this.rejectAll}
-                    >Reject all on page</button>
+                    >Reject All</button>
                 </div>
                 <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
                 <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
                 <div className="table-responsive">
-                    <table className="h6fnhWdeg-publications-table table table-striped">
+                    <table className="tabs_tables h6fnhWdeg-publications-table table">
                         <tbody>
                             {
                                 publications.paginatedPublications.map(function(item, index){
