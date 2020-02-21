@@ -1,10 +1,11 @@
 .userContainer {
     display: grid;
-    min-height: 100%;
+    height: 160px;
     padding: 0 5rem;
     padding-top: 4.25rem;
-    grid-template-columns: [col-1-start] 10rem [col-2-start] 3rem [col-3-start] auto [col-end];
-    grid-template-rows: [row-1-start] 6rem [row-2-start] 4rem [row-3-start] auto [row-end];
+    margin-bottom: 40px;
+    grid-template-columns: [col-1-start] 144px [col-2-start] 3rem [col-3-start] auto [col-end];
+    grid-template-rows: [row-1-start] auto [row-2-start] 3rem [row-3-start] 3rem [row-4-start] 3rem [row-5-start] auto [row-end];
 }
 
 .userImg {
@@ -13,14 +14,17 @@
     grid-column-start: col-1-start;
 }
 
-img {
-    border: 0px solid #007bff;
-    max-height: 100%;
-    max-width: 100%;
+.userImg span {
+    display: block;
+    width: 120px;
+    height: 120px;
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: center center;
 }
 
 .userName {
-    grid-row-start: row-1-start;
+    grid-row-start: row-2-start;
     grid-column-start: col-3-start;
 }
 
@@ -29,7 +33,7 @@ img {
 }
 
 .userTitle {
-    grid-row-start: row-2-start;
+    grid-row-start: row-4-start;
     grid-column-start: col-3-start;
 }
 
@@ -43,5 +47,9 @@ img {
 }
 
 .manageBtn {
-    border: 1px solid #d2cccc;
+    color: #005AD9;
+    text-decoration: underline;
+    border: none !important;
+    margin: 0;
+    padding: 0;
 }

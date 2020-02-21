@@ -21,43 +21,49 @@ export default class Identity extends Component {
     }
 
     render() {
+
+        const picStyle = this.props.isProfileRounded ? {borderRadius: '50%'} : {};
+
+
         if (this.props.identityFetching || this.props.identityData.length <= 0) {
             return (
                     <div className="h6fnhWdeg-app-loader"> </div>
             );
-        } else {
-            const identityData = this.props.identityData
-            let imageUrl = ''
-            if(identityData.identityImageEndpoint !== undefined) {
-                if(identityData.identityImageEndpoint.length > 0) 
-                    imageUrl = identityData.identityImageEndpoint
-                else
-                    imageUrl = '../images/generic-headshot.png'
-            }
-            const image = (
-                <img src={`${imageUrl}`} width="144"/>
-            );
-            const userData = {
-                primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined)? ' ' + identityData.primaryName.middleName + ' ':' ') + identityData.primaryName.lastName,
-                title: identityData.title
-            };
-
-            return (
-                <div className="userContainer">
-                    <div className="userImg">{image}</div>
-                    <div className="userName">
-                        <h1>{userData.primaryName}</h1>
-                    </div>
-                    <div className="userTitle">
-                        <h3>{userData.title}</h3>
-                    </div>
-                    <div className="btnContainer">
-                        <Button className="manageBtn" variant="outline-dark" onClick={this.manageProfile}>
-                            {this.props.buttonName}
-                        </Button>
-                    </div>
-                </div>
-            );
         }
+
+        const identityData = this.props.identityData
+        let imageUrl = ''
+
+        if(identityData.identityImageEndpoint !== undefined) {
+            if(identityData.identityImageEndpoint.length > 0)
+                imageUrl = identityData.identityImageEndpoint
+            else
+                imageUrl = '../images/generic-headshot.png'
+        }
+        const image = (
+            <span style={{backgroundImage: `url(${imageUrl})`, ...picStyle}} />
+        );
+        const userData = {
+            primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined)? ' ' + identityData.primaryName.middleName + ' ':' ') + identityData.primaryName.lastName,
+            title: identityData.title
+        };
+
+        return (
+            <div className="userContainer">
+                <div className="userImg">{image}</div>
+                <div className="userName">
+                    <h3>{userData.primaryName}</h3>
+                </div>
+                <div className="userTitle">
+                    <p>{userData.title}</p>
+                </div>
+                <div className="btnContainer">
+                    <Button className="manageBtn" variant="link" onClick={this.manageProfile}>
+                        {this.props.buttonName}
+                    </Button>
+                </div>
+            </div>
+        );
+
     }
 }

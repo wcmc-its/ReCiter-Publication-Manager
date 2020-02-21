@@ -23,7 +23,13 @@ const getIdentity = (uid, cb) => {
         if (error) {
             return cb(error, null)
         }
-        let data = JSON.parse(body)
+
+        let data;
+        try {
+            data = JSON.parse(body);
+        } catch(e) {
+            return cb(e, null)
+        }
         data['identityImageEndpoint'] = identityImage
         //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
         return cb(null, data)

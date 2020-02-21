@@ -38,10 +38,11 @@ class ManageProfile extends Component {
                             history={this.props.history}
                             uid={this.props.match.params.uid}
                             buttonName='Review Suggestions'
+                            isProfileRounded
                         />
                     </div>
                     <div className="identity-table-container">
-                        <p>
+                        <p style={{maxWidth: '60%'}}>
                             <b>
                                 The following are attributes from institutional data sources.
                                 These data can only be corrected in authoritative systems of

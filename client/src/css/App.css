@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css?family=Open+Sans&display=swap');
+
 .h6fnhWdeg-app-loader {
     min-height: 350px;
     background: url('../images/main-loader.gif') no-repeat center center;
@@ -25,6 +27,7 @@ li.active a span.badge {
 
 body {
     height: 100vh;
+    font-family: 'Open Sans', Arial, sans-serif;
 }
 
 #root>div {
