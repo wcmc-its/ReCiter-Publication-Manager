@@ -1,14 +1,14 @@
+import admin from "../../images/icons/admin.png";
+import find from "../../images/icons/find.png";
+import profile from "../../images/icons/profile.png";
+import growth from "../../images/icons/growth.png";
+import copy from "../../images/icons/copy.png";
 import React, { Component } from "react";
 import { Button } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faOutdent, faBars } from '@fortawesome/free-solid-svg-icons'
 import "../../css/SideNav.css";
 const mql = global.matchMedia(`(min-width: 768px)`);
-import admin from "../../images/icons/admin.png";
-import find from "../../images/icons/find.png";
-import profile from "../../images/icons/profile.png";
-import growth from "../../images/icons/growth.png";
-import copy from "../../images/icons/copy.png";
 
 export default class SideNav extends Component {
 

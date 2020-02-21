@@ -47,6 +47,7 @@ phases:
         if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
           trivy --no-progress --exit-code 1 --severity HIGH,CRITICAL $REPOSITORY_URI:$TAG
           docker push $REPOSITORY_URI:$TAG
+          trivy --no-progress --exit-code 1 --severity HIGH,CRITICAL $REPOSITORY_URI/client:$TAG
           docker push $REPOSITORY_URI/client:$TAG
           CREDENTIALS=$(aws sts assume-role --role-arn $EKS_KUBECTL_ROLE_ARN --role-session-name codebuild-kubectl --duration-seconds 900)
           export AWS_ACCESS_KEY_ID="$(echo ${CREDENTIALS} | jq -r '.Credentials.AccessKeyId')"
