@@ -24,7 +24,8 @@ phases:
         - $(aws ecr get-login --no-include-email)
         - export KUBECONFIG=$HOME/.kube/config
         - cat ./kubernetes/k8-deployment.yaml
-        - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
+        - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.example.js
+        - sed -i -e "s/TOKEN_SECRET/$TOKEN_SECRET/g" config/local.example.js
         #Install Trivy for container and dependency scanning
         - apt-get install wget apt-transport-https gnupg
         - wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | apt-key add -
