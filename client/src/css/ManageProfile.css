@@ -12,4 +12,25 @@
 .identity-table-container {
     grid-row-start: identity-table;
     padding: 3rem;
+    background: #EFEFEF;
+}
+
+.identity-table-container table{
+    background: white;
+}
+
+.identity-table-container .table td, .identity-table-container .table th {
+    border-top: 1px solid #A4a4a4;
+    padding: 16px;
+}
+
+.identity-table-container .table th {
+    border-top: 1px solid #A4a4a4;
+    padding-right: 32px;
+}
+
+.identity-table-container .table thead th {
+    border-top: 1px solid #A4a4a4;
+    padding-top: 8px;
+    padding-bottom: 8px;
 }
