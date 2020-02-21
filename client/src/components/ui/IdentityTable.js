@@ -80,7 +80,7 @@ export default class IdentityTable extends Component {
                         degree.push(<p>{identityData.degreeYear[i] + ' - PhD'}</p>);
                     }
                 }
-            }   
+            }
 
             //Get array of names and types of known relationships
             let relationships = [];
@@ -144,10 +144,10 @@ export default class IdentityTable extends Component {
             };
 
             return (
-                <table className="h6fnhWdeg-identity-table table table-striped">
+                <table className="h6fnhWdeg-identity-table table">
                     <thead className="thead-dark">
                         <tr>
-                            <th className="text-right" scope="col">
+                            <th className="text-right" scope="col" style={{ minWidth: '24vw'}}>
                                 Field
               </th>
                             <th scope="col">Data</th>
