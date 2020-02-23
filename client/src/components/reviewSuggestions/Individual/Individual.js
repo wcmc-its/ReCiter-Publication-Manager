@@ -122,8 +122,8 @@ class Individual extends Component {
     }
 
     clearAllFilters() {
-        this.setState({ selectedDeps: [], selectedPersonTypes: [],data:this.props.identityAllData });
-        this.refs['search-field'].value=""
+        this.setState({ selectedDeps: [], selectedPersonTypes: [], data: this.props.identityAllData });
+        this.refs['search-field'].value = ""
     }
 
     onSearchUpdate(e) {
@@ -327,6 +327,7 @@ class Individual extends Component {
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
                                                     <Form.Control as="select" onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                        <option value='Department'>Department</option>
                                                         {depOptions}
                                                     </Form.Control>
 
@@ -342,20 +343,18 @@ class Individual extends Component {
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
                                                     <Form.Control as="select" className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option>Affiliation</option>
-                                                        <option>Affiliation Affiliation</option>
                                                     </Form.Control>
 
                                                 </Form.Group>
                                                 <div>
-                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes} size='1x' /> </span></p>
-                                                    <p className="bg-primary tags"><span>Affiliation</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes} size='1x' /></span></p>
-                                                    <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"><FontAwesomeIcon icon={faTimes} size='1x' /></span></p>
+                                                    {/* <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes} size='1x' /> </span></p> */}
                                                 </div>
                                             </Col>
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
                                                     <Form.Control as="select" onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                        <option value='Person Type'>Person Type</option>
                                                         {personTypeOptions}
                                                     </Form.Control>
 

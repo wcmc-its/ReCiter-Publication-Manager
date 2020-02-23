@@ -2,6 +2,7 @@ var express = require('express')
 var router = express.Router()
 const userData = require('../src/api/userdata')
 const reciterPublication = require('../src/api/reciterPublication')
+const reciterGroupPublication = require('../src/api/reciterGroupPublication')
 const reciterPubmed = require('../src/api/searchPubmed')
 const reciterUpdateGoldStandard = require('../src/api/reciterUpdateGoldStandard')
 const userFeedback = require('../src/api/userFeedback')
@@ -51,6 +52,23 @@ router.get('/reciter/feature-generator/:uid', function (req, res) {
             message: 'success'
         })
     })
+})
+
+router.get('/reciter/feature-generator/by/group', function(req, res){
+    return reciterGroupPublication.getGroupPublications(req, (err, data) => {
+        if (err) {
+            return res.send({
+                error: err,
+                message: 'failure'
+            })
+        }
+        return res.send({
+            reciter: data.reciterData,
+            reciterPending: data.reciterPendingData,
+            message: 'success'
+        })
+    })
+
 })
 
 // router.get('/reciter/authentication', function (req, res) {

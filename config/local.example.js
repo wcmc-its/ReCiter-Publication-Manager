@@ -62,6 +62,25 @@ exports.config = {
             }
         },
         /**
+        * This is the api to fetch all the publication related by group with all the eivdence.
+        */
+        featureGeneratorByGroup: {
+            featureGeneratorByGroupApiParams: {
+                /**
+                * This is the minimum score that the publication will be filtered on.
+                * Type: Number
+                */
+                totalStandardizedArticleScore: 4,
+                /**
+                 * This is the maximum no of articles that will be returned per person.
+                 * Type: Number
+                 */
+                maxArticlesPerPerson: 6
+            },
+            featureGeneratorByGroupEndpoint: 'https://reciter.weill.cornell.edu/reciter/feature-generator/by/group',
+            // featureGeneratorByGroupEndpoint: 'http://internal-d3677aff-reciter-reciterin-1143-1820758335.us-east-1.elb.amazonaws.com/reciter/feature-generator/by/group'
+        },
+        /**
          * This is the endpoint in ReCiter-Publication-Manager controller for authentication.
          */
         reciterPubManagerAuthenticationEndpoint: 'https://reciter.weill.cornell.edu/reciter/publication/manager/authenticate',
