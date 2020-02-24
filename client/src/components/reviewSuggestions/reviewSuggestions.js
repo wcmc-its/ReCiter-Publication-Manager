@@ -10,14 +10,14 @@ import Footer from "../ui/Footer";
 import SideNav from "../ui/SideNav";
 
 
-const ReviewSuggestions = () => {
+const ReviewSuggestions = (props) => {
     return (
         <div className="main-container">
             <div className="header-position">
-                <Header />
+                <Header username={props.username}/>
             </div>
-                {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
-                <SideNav />
+            {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
+            <SideNav />
             <Container className="width100percent margin0 backgroundColorGrey">
                 <HeaderComponent />
                 <Row className="backgroundColorWhite">

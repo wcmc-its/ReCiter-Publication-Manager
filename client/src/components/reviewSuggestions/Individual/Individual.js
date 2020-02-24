@@ -1,7 +1,7 @@
 import React, { Component } from "react";
 import { Link } from "react-router-dom";
 import { Table, Form, Row, Col, Container, FormControl, InputGroup } from "react-bootstrap";
-import { identityFetchAllData, updateDeptsPersonTypes, getGroupReviewSuggestions } from '../../../../src/actions';
+import { identityFetchAllData, updateDeptsPersonTypes, getGroupReviewSuggestions, updateAffiliationType, clearDeptPersonAffiliTypesData } from '../../../../src/actions';
 import { connect } from 'react-redux'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCoffee, faTimes, faSortDown } from '@fortawesome/free-solid-svg-icons'
@@ -18,6 +18,7 @@ class Individual extends Component {
         identitySearch: "",
         identityData: undefined,
         selectedDeps: [],
+        selectedAffiliations: [],
         selectedPersonTypes: [],
         search: "",
         page: 1,
@@ -40,7 +41,9 @@ class Individual extends Component {
         this.onRecordsLimitChange = this.onRecordsLimitChange.bind(this);
         this.handleDepartmentSelect = this.handleDepartmentSelect.bind(this);
         this.handlePersonTypeSelect = this.handlePersonTypeSelect.bind(this);
+        this.handleAffiliationSelect = this.handleAffiliationSelect.bind(this);
         this.removeDepartmentFilter = this.removeDepartmentFilter.bind(this);
+        this.removeAffiliationFilter = this.removeAffiliationFilter.bind(this);
         this.removePersonTypeFilter = this.removePersonTypeFilter.bind(this);
         this.onSearchUpdate = this.onSearchUpdate.bind(this);
         this.handlePaginationUpdate = this.handlePaginationUpdate.bind(this);
@@ -73,16 +76,37 @@ class Individual extends Component {
     }
 
     getDepartments() {
-        return [...new Set(this.props.identityAllData.map((data) => data.organizationalUnits).flat())]
+        let departments = [...new Set(this.props.identityAllData.map((data) => data.organizationalUnits).flat())]
             .filter((orgUnit) => {
                 if (orgUnit != null) {
                     return orgUnit.organizationalUnitType === "DEPARTMENT"
                 }
             });
+        departments = this.getUnique(departments, 'organizationalUnitLabel')
+        return departments
     }
+
+    getUnique(arr, comp) {
+
+        const unique = arr
+            .map(e => e[comp])
+
+            // store the keys of the unique objects
+            .map((e, i, final) => final.indexOf(e) === i && i)
+
+            // eliminate the dead keys & store unique objects
+            .filter(e => arr[e]).map(e => arr[e]);
+
+        return unique;
+    }
+
 
     getPersonTypes() {
         return [...new Set(this.props.identityAllData.map((data) => data.personTypes).flat())]
+    }
+
+    getAffiliationTypes() {
+        return [...new Set(this.props.identityAllData.map((data) => data.institutions).flat())]
     }
 
     onRecordsLimitChange(e) {
@@ -95,14 +119,23 @@ class Individual extends Component {
 
     handleDepartmentSelect(event) {
         let newDepartment = event.target.value;
-        let selectedDeps = [...this.state.selectedDeps, newDepartment];
+        // let selectedDeps = [...this.state.selectedDeps, newDepartment];
+        let selectedDeps = [...new Set([...this.state.selectedDeps, newDepartment])];
         this.props.updateDeptsPersonTypes(selectedDeps, this.state.selectedPersonTypes)
         this.setState({ selectedDeps });
     }
 
+    handleAffiliationSelect(event) {
+        let newAffiliation = event.target.value;
+        let selectedAffiliations = [...new Set([...this.state.selectedAffiliations, newAffiliation])];
+        this.props.updateAffiliationType(selectedAffiliations)
+        this.setState({ selectedAffiliations });
+    }
+
+
     handlePersonTypeSelect(event) {
         let personType = event.target.value;
-        let selectedPersonTypes = [...this.state.selectedPersonTypes, personType];
+        let selectedPersonTypes = [...new Set([...this.state.selectedPersonTypes, personType])];
         this.props.updateDeptsPersonTypes(this.state.selectedDeps, selectedPersonTypes)
         this.setState({ selectedPersonTypes });
     }
@@ -114,6 +147,14 @@ class Individual extends Component {
         })
     }
 
+    removeAffiliationFilter(affiliation, event) {
+        console.log(this.state.selectedAffiliations, '1')
+        this.setState(prevState => {
+            return { selectedAffiliations: prevState.selectedAffiliations.filter(selectedAffiliation => selectedAffiliation !== affiliation) };
+        })
+        console.log(this.state.selectedAffiliations, '2')
+    }
+
     removePersonTypeFilter(pType, event) {
 
         this.setState(prevState => {
@@ -122,7 +163,8 @@ class Individual extends Component {
     }
 
     clearAllFilters() {
-        this.setState({ selectedDeps: [], selectedPersonTypes: [], data: this.props.identityAllData });
+        this.props.clearDeptPersonAffiliTypesData()
+        this.setState({ selectedDeps: [], selectedPersonTypes: [], selectedAffiliations: [], data: this.props.identityAllData });
         this.refs['search-field'].value = ""
     }
 
@@ -157,9 +199,9 @@ class Individual extends Component {
     }
 
     search() {
-        if (this.state.selectedDeps.length > 0 || this.state.selectedPersonTypes.length > 0) {
-            this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, () => this.props.history.push('/individual_suggestions'))
-        } else {
+        // if (this.state.selectedDeps.length > 0 || this.state.selectedPersonTypes.length > 0 || this.state.selectedAffiliations.length > 0) {
+        //     this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, this.props.affiliationTypes, () => this.props.history.push('/individual_suggestions'))
+        // } else {
             if (this.refs['search-field'].value != "" && this.refs['search-field'].value != undefined) {
                 const { identityAllData } = this.props;
                 let foundObj = identityAllData.find((item) => item ? item.uid == this.refs['search-field'].value : false)
@@ -167,7 +209,7 @@ class Individual extends Component {
             } else {
                 this.setState({ data: this.props.identityAllData })
             }
-        }
+        // }
         // this.props.history.push({
         //     pathname:'/individual_suggestions',
         //     state:{
@@ -229,6 +271,12 @@ class Individual extends Component {
 
     }
 
+    reviewSuggestions() {
+        if (this.state.selectedDeps.length || this.state.selectedPersonTypes.length || this.state.selectedAffiliations.length) {
+            this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, this.props.affiliationTypes, () => this.props.history.push('/individual_suggestions'))
+        }
+    }
+
     render() {
         // console.log('Testing', this.props.identityAllData)
         console.log('Testing', this.props.identityAllData)
@@ -273,6 +321,9 @@ class Individual extends Component {
             let depOptions = this.getDepartments().map((dep) => {
                 return <option value={dep.organizationalUnitLabel}>{dep.organizationalUnitLabel}</option>
             });
+            let affiliationOptions = this.getAffiliationTypes().map((affiliation) => {
+                return <option value={affiliation}>{affiliation}</option>
+            });
             let personTypeOptions = this.getPersonTypes().map((ptype) => {
                 return <option value={ptype}>{ptype}</option>
             });
@@ -284,7 +335,7 @@ class Individual extends Component {
             return (
                 <div className="main-container">
                     <div className="header-position">
-                        <Header />
+                        <Header username={this.props.username} />
                     </div>
                     {/* <div className="side-nav-position"> */}
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
@@ -341,13 +392,16 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control as="select" onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option>Affiliation</option>
+                                                        {affiliationOptions}
                                                     </Form.Control>
 
                                                 </Form.Group>
                                                 <div>
-                                                    {/* <p className="bg-primary tags"><span>Affiliation Affiliation</span> <span className="close_icons"> <FontAwesomeIcon icon={faTimes} size='1x' /> </span></p> */}
+                                                    {this.state.selectedAffiliations.map((dep) => {
+                                                        return <p className="tags bg-primary"><span>{dep}</span> <span className="close_icons" onClick={() => this.removeAffiliationFilter(dep)}> <span class="glyphicon glyphicon-remove" aria-hidden="true"></span> </span></p>
+                                                    })}
                                                 </div>
                                             </Col>
                                             <Col md={4}>
@@ -374,7 +428,7 @@ class Individual extends Component {
                         </div>
                         <div className="row">
                             <div className="col-md-12">
-                                <h4><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <Link to="/individual_suggestions">  <button type="button" class="btn-primes btn btn-primary">Review  All Pending Suggestions</button> </Link></span></h4>
+                                <h4><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <Link to="/individual_suggestions">  <button type="button" class="btn-primes btn btn-primary" onClick={() => this.reviewSuggestions()}>Review  All Pending Suggestions</button> </Link></span></h4>
                             </div>
                         </div>
                         <div className="row">
@@ -388,16 +442,16 @@ class Individual extends Component {
 
                                                     <Form.Group as={Row} id="form_group">
 
-                                                        <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label>
+                                                        {/* <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label> */}
                                                         <Col sm="2" className="pl-0 individual_searchfilter">
-                                                            <FontAwesomeIcon icon={faSortDown} size='1x' className="show_recordscaret" />
+                                                            {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="show_recordscaret" />
                                                             <Form.Control as="select" className="mt-0 pl-3 pr-0 selectoption" onChange={this.onRecordsLimitChange}>
                                                                 <option>10</option>
                                                                 <option>20</option>
                                                                 <option>30</option>
                                                                 <option>40</option>
                                                                 <option>50</option>
-                                                            </Form.Control>
+                                                            </Form.Control> */}
                                                         </Col>
                                                     </Form.Group>
                                                 </Form>
@@ -469,6 +523,7 @@ function mapStateToProps(state) {
         errors: state.errors,
         deptTypes: state.selectedDeptTypes,
         personTypes: state.selectedPersonTypes,
+        affiliationTypes: state.selectedAffiliationTypes,
         auth: state.auth
     }
 }
@@ -481,8 +536,15 @@ const mapDispatchToProps = dispatch => ({
         console.log("deptTypes", deptTypes)
         dispatch(updateDeptsPersonTypes(deptTypes, personTypes))
     },
-    getGroupReviewSuggestions(deptTypes, personTypes, cb) {
-        dispatch(getGroupReviewSuggestions(deptTypes, personTypes, cb))
+    getGroupReviewSuggestions(deptTypes, personTypes, affiliationTypes, cb) {
+        dispatch(getGroupReviewSuggestions(deptTypes, personTypes, affiliationTypes, cb))
+    },
+    updateAffiliationType(affiliationTypes) {
+        console.log("affili", affiliationTypes)
+        dispatch(updateAffiliationType(affiliationTypes))
+    },
+    clearDeptPersonAffiliTypesData() {
+        dispatch(clearDeptPersonAffiliTypesData())
     }
 })
 
