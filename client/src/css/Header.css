@@ -1,54 +1,59 @@
 .topNav{
-  background-color: white;
-  border-radius: 0;
-  border-bottom: 1px solid gray;
-  margin: 0;
+    background-color: white;
+    border-radius: 0;
+    border-bottom: 1px solid gray;
+    margin: 0;
+    display: flex;
+    position: relative;
+    height: 100%;
+    color: black;
 }
 
 .drop-container{
-  float: right;
-  color: #323942;
-  margin: 15px;
-  position: absolute;
-  right: 0;
-  margin-top: 0px;
+    color: #323942;
+    margin: 15px;
+    align-self: flex-start;
+    position: absolute;
+    right: 0px;
+    padding-top: .5rem;
+    margin-top: 0px;
 }
 
 .navbar-text {
   color: #323942 !important;
   font-weight: bold;
   font-size:18px;
-  margin:15px 15px 6px 15px;
-  padding-left: 55px;
-
+  margin:12px 15px 12px 5px;
 }
 
 /* Dropdown Button */
 .drop-btn {
-  color: #323942;
-  font-size: 10px;
-  border: none;
+    color: #323942;
+    font-size: 10px;
+    border: none !important;
+    margin: 0 2px;
 }
 .navbar-brand{
-  padding:0px;
+    padding:0px;
 }
+
 /* The container <div> - needed to position the dropdown content*/
 .dropdown {
-  position: relative;
-  display: inline-block;
+    position: relative;
+    display: inline-block;
 }
 .publication_text{
-font-size:18px;
+    font-size:18px;
 }
 /* Dropdown Content (Hidden by Default) */
 .dropdown-content {
-  display: none;
-  position: absolute;
-  right: 50%;
-  background-color: #f1f1f1;
-  min-width: 160px;
-  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-  z-index: 1;
+    display: none;
+    position: absolute;
+    right: 50%;
+    background-color: #f1f1f1;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
 }
 
 /* Links inside the dropdown */

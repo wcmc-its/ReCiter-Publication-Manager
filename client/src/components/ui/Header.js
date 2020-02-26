@@ -7,10 +7,10 @@ export default class Header extends Component {
 
     render() {
         return (
-            <Navbar bg="default" className="topNav">
-                <Navbar.Brand>
-                  <img src={Reciter} alt='contest-cover' />
-                </Navbar.Brand>
+            <Navbar className="topNav">
+                {/*<Navbar.Brand>
+                    Re<b>Citer</b>
+                </Navbar.Brand>*/}
                 <Navbar.Text>Publications Management System</Navbar.Text>
                 {
                 (this.props.username !== undefined && this.props.username.length > 0)?
