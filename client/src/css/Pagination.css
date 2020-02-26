@@ -5,6 +5,9 @@
 }
 .show-rows select {
     max-width: 100px;
+    height: calc(3.25rem + 2px) !important;
+    border:1px solid #000;
+    border-radius:0px;
 }
 .show-rows label {
     display: table-cell;
@@ -19,4 +22,7 @@
 }
 .pagination-container ul.pagination {
     margin: 0px;
+    border:1px solid #000;
+    border-radius:0px;
+    float:right;
 }

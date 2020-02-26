@@ -106,6 +106,12 @@ margin-top: 5px;
     color: #005ad9;
     text-decoration: underline;
 }
+.individual2_table td:nth-child(1) {
+    width: 12%;
+}
+.individual2_table td:nth-child(2) {
+    width: 72%;
+}
 .name{
     margin: 2px 2px 2px 6px;
     font-weight: 800;
@@ -209,3 +215,8 @@ p .suggestionText a{
 a h4{
     margin-top: 20px;
 }
+@media (min-width: 1200px){
+    .container {
+        width: 1119px;
+    }
+    }

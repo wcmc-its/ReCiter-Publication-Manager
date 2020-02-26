@@ -48,11 +48,11 @@ export class Pagination extends Component {
 
             return (
                 <div className="row pagination-container">
-                    <div className="col-lg-3 col-md-4 col-sm-4 col">
+                    <div className="col-lg-2 col-xl-2 col-xs-4 col-md-4 col-sm-4 col">
                         <div className="show-rows">
                             <label>Show records</label>
                             <select
-                                className="form-control"
+                                className="form-control show_records_select pl-0 pr-0 mt-0"
                                 value={(propsCount)}
                                 onChange={(event) => thisObject.props.onChange(event, 1)}
                             >
@@ -63,7 +63,7 @@ export class Pagination extends Component {
                             </select>
                         </div>
                     </div>
-                    <div className="col-lg-9 col-md-8 col-sm-8 col">
+                    <div className="col-lg-10 c0l-xl-10 col-xs-8 col-md-8 col-sm-8 col">
                         <div>
                             <ul className="pagination">
                                 <li className={`page-item ${(propsPage === 1)?'disabled':''}`}>

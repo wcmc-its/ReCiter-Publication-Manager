@@ -1,15 +1,16 @@
 import React, { Component } from "react";
 import { Navbar, Nav, NavDropdown } from "react-bootstrap";
+import Reciter from '../../images/Reciter.png'
 import "../../css/Header.css";
 
 export default class Header extends Component {
 
     render() {
         return (
-            <Navbar bg="primary" className="topNav">
-                {/*<Navbar.Brand>
-                    Re<b>Citer</b>
-                </Navbar.Brand>*/}
+            <Navbar bg="default" className="topNav">
+                <Navbar.Brand>
+                  <img src={Reciter} alt='contest-cover' />
+                </Navbar.Brand>
                 <Navbar.Text>Publications Management System</Navbar.Text>
                 {
                 (this.props.username !== undefined && this.props.username.length > 0)?

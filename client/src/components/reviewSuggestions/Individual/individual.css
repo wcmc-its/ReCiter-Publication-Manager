@@ -8,6 +8,12 @@
     padding: 25px;
     border-radius: 3px;
 }
+.idvidual_ul {
+    list-style: disc;
+}
+.userimg_individual {
+
+}
 .tags {
     background-color: #005ad9;
     color: #fff;
@@ -59,6 +65,10 @@
     border-radius: 0px;
     box-shadow: none !important;
     background-color: transparent;
+    color: #212121;
+}
+.individual_table tbody tr{
+    border-bottom:3px solid #f4f4f4;
 }
 .individual_search_well{
     background-color:#ececec;
@@ -132,9 +142,61 @@
     color: #ffff;
     border:0px;    
 }
+.username_individual a{
+    color:#000;
+}
 .btn-span{
     padding-left:15px;
 } 
 .pagination{
     margin:0px 0;
+}
+.individual_table .row{
+    margin-left: 0px;
+margin-right: 0px;
+}
+@media (min-width:1200px) and (max-width:1366px){
+    .indivdual_container{
+        width:1108px;
+    }
+}
+@media (min-width:992px) and (max-width:1204px){
+    .indivdual_container{
+        width: 787px;
+    }
+}
+@media(min-width:769px) and (max-width:991px){
+    .indvidualbody{
+        padding-left:0px !important;
+        padding-right:0px !important;
+    }
+    .indivdual_container{
+        max-width:96%;
+    }
+    .userimg_individual {
+        width: 45px;
+    }
+    .username_individual, .title_individual {
+        word-break: break-all;
+        white-space: initial;
+    }
+}
+@media(max-width:768px){
+    .indvidualbody{
+        padding-left:0px !important;
+        padding-right:0px !important;
+    }
+    .indivdual_container{
+        max-width:95%;
+    }
+    .userimg_individual {
+        width: 45px;
+    }
+    .username_individual, .title_individual {
+        word-break: break-all;
+        white-space: initial;
+    }
+    .individual_table{
+        width:1366px;
+    }
 }

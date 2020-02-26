@@ -278,6 +278,8 @@ vertical-align: middle;
     border: 0px !important;
     margin: 2px 0px;
     padding-left: 0px;
+    box-shadow: none !important;
+    outline: none !important;
 }
 .newrecord-profile {
     padding: 43px 0px 54px 61px;

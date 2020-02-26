@@ -1,5 +1,4 @@
 import React, { Component } from "react";
-import { Link } from "react-router-dom";
 import { Table, Form, Row, Col, Container, FormControl, InputGroup } from "react-bootstrap";
 import { identityFetchAllData, updateDeptsPersonTypes, getGroupReviewSuggestions, updateAffiliationType, clearDeptPersonAffiliTypesData } from '../../../../src/actions';
 import { connect } from 'react-redux'
@@ -9,6 +8,7 @@ import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
 import SideNav from "../../ui/SideNav";
 import { Pagination } from '../../ui/Pagination'
+import GenericheadShot from '../../../images/generic_headshot.png'
 import "./individual.css";
 // import "../../css/Search.css";
 // import "../../../css/Search.css";
@@ -148,11 +148,9 @@ class Individual extends Component {
     }
 
     removeAffiliationFilter(affiliation, event) {
-        console.log(this.state.selectedAffiliations, '1')
         this.setState(prevState => {
             return { selectedAffiliations: prevState.selectedAffiliations.filter(selectedAffiliation => selectedAffiliation !== affiliation) };
         })
-        console.log(this.state.selectedAffiliations, '2')
     }
 
     removePersonTypeFilter(pType, event) {
@@ -202,13 +200,13 @@ class Individual extends Component {
         // if (this.state.selectedDeps.length > 0 || this.state.selectedPersonTypes.length > 0 || this.state.selectedAffiliations.length > 0) {
         //     this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, this.props.affiliationTypes, () => this.props.history.push('/individual_suggestions'))
         // } else {
-            if (this.refs['search-field'].value != "" && this.refs['search-field'].value != undefined) {
-                const { identityAllData } = this.props;
-                let foundObj = identityAllData.find((item) => item ? item.uid == this.refs['search-field'].value : false)
-                this.setState({ data: [foundObj] })
-            } else {
-                this.setState({ data: this.props.identityAllData })
-            }
+        if (this.refs['search-field'].value != "" && this.refs['search-field'].value != undefined) {
+            const { identityAllData } = this.props;
+            let foundObj = identityAllData.find((item) => item ? item.uid == this.refs['search-field'].value : false)
+            this.setState({ data: [foundObj] })
+        } else {
+            this.setState({ data: this.props.identityAllData })
+        }
         // }
         // this.props.history.push({
         //     pathname:'/individual_suggestions',
@@ -288,16 +286,20 @@ class Individual extends Component {
         } else {
             const identities = this.filter(this.state.data);
             let tableData = identities.paginatedIdentities.map((identity, index) => {
-                return <tr>
-                    <td >
-                        <ul className="list-inline">
-                            <li><img src={identity.identityImageEndpoint} width="80" style={{ float: "left" }} /></li>
-                            <li><p><b>{identity.primaryName.firstName}</b></p>
-                                <p>{identity.title}</p>
-                            </li>
-                        </ul>
+                return <tr className="row">
+                    <td className="col-md-3 col-lg-3 col-sm-3 col-xs-3 col-xl-3">
+                        <RenderProfileDetails identity={identity} />
+                        {/* <Row>
+                            <Col md={4} xs={4} sm={4} lg={4} xl={4}>
+                                <img className="userimg_individual" src={identity.identityImageEndpoint} width="80" style={{ float: "left" }} />
+                            </Col>
+                            <Col md={8} xs={8} sm={8} lg={8} xl={8}>
+                                <p className="username_individual"><b>{identity.primaryName.firstName + '  ' + identity.primaryName.lastName}</b></p>
+                                <p className="title_individual">{identity.title}</p>
+                            </Col>
+                        </Row> */}
                     </td>
-                    <td><ul className="pl-4">
+                    <td className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4"><ul className="pl-4">
                         {/* {identity.organizationalUnits.map((label, index) => {
                             return <li>{`${label.organizationalUnitLabel}`}</li>
                         }
@@ -306,7 +308,7 @@ class Individual extends Component {
 
                         </RenderListItems>
                     </ul></td>
-                    <td>
+                    <td className="col-md-5 col-lg-5 col-sm-5 col-xs-5 col-xl-5">
                         <ul className="pl-4">
                             {/* {identity.institutions.map((label, index) => {
                                 return <li>{`${label}`}</li>
@@ -342,12 +344,12 @@ class Individual extends Component {
                     <SideNav />
                     {/* </div>
                     <div className="mt-5 manage-profile-content-container"> */}
-                    <div className="container">
+                    <Container className="indivdual_container">
                         <div className="row">
                             <div className="col-md-12">
                                 <h4 className="heading">Find Scholar</h4>
                             </div>
-                            <div className=" mb-5 col-md-6">
+                            <div className=" mb-5 col-md-12 colsm-12 col-xs-12 col-lg-6 col-xl-6">
                                 <div className="individual_search_well well well-sm">
 
                                     <Form className="individual_search">
@@ -428,21 +430,21 @@ class Individual extends Component {
                         </div>
                         <div className="row">
                             <div className="col-md-12">
-                                <h4><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <Link to="/individual_suggestions">  <button type="button" class="btn-primes btn btn-primary" onClick={() => this.reviewSuggestions()}>Review  All Pending Suggestions</button> </Link></span></h4>
+                                <h4><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.reviewSuggestions()}>Review  All Pending Suggestions</button></span></h4>
                             </div>
                         </div>
                         <div className="row">
-                            <div className="col-xs-12">
+                            <div className="col-xs-12 col-md-12 col-lg-12 col-xl-12 col-sm-12 pl-0 pr-0">
                                 <div className="individual">
                                     <div className="searchHeader">
-                                        <div className="col-sm-4 pt-1">
+                                       {/*  <div className="col-sm-4 pt-1">
 
                                             <div className="individual_search">
                                                 <Form>
 
                                                     <Form.Group as={Row} id="form_group">
 
-                                                        {/* <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label> */}
+                                                        <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label> 
                                                         <Col sm="2" className="pl-0 individual_searchfilter">
                                                             {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="show_recordscaret" />
                                                             <Form.Control as="select" className="mt-0 pl-3 pr-0 selectoption" onChange={this.onRecordsLimitChange}>
@@ -451,13 +453,13 @@ class Individual extends Component {
                                                                 <option>30</option>
                                                                 <option>40</option>
                                                                 <option>50</option>
-                                                            </Form.Control> */}
+                                                            </Form.Control> 
                                                         </Col>
                                                     </Form.Group>
                                                 </Form>
                                             </div>
-                                        </div>
-                                        <div className="col-sm-8">
+                                        </div>*/}
+                                        <div className="col-sm-12">
                                             {/* <Pagination id="individual_page" items={4}>
                                                 {PaginationData}
                                             </Pagination> */}
@@ -467,13 +469,13 @@ class Individual extends Component {
                                         </div>
                                     </div>
                                     <div className="row">
-                                        <div className="col-md-12 pr-5 pl-5">
+                                        <div className="indvidualbody col-md-12 pr-5 pl-5">
                                             <Table responsive className="individual_table">
                                                 <thead>
-                                                    <tr>
-                                                        <th>Name</th>
-                                                        <th>Organizational units</th>
-                                                        <th>Institutions</th>
+                                                    <tr className="row">
+                                                        <th className="col-md-3 col-lg-3 col-sm-3 col-xs-3 col-xl-3">Name</th>
+                                                        <th className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4">Organizational units</th>
+                                                        <th className="col-md-5 col-lg-5 col-sm-5 col-xs-5 col-xl-5">Institutions</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -486,7 +488,7 @@ class Individual extends Component {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </Container>
                     {/* </div> */}
                     <div className="footer-position">
                         <Footer />
@@ -495,6 +497,27 @@ class Individual extends Component {
             );
         }
     }
+}
+
+function RenderProfileDetails(identity) {
+    // if(identity.identity.identityImageEndpoint !== undefined) {
+    //     if(identity.identity.identityImageEndpoint.length > 0) 
+    //         imageUrl = identity.identity.identityImageEndpoint
+    //     else
+    //         imageUrl = '../images/generic-headshot.png'
+    // }
+    return (<Row>
+        <Col md={4} xs={4} sm={4} lg={4} xl={4}>
+            <img className="userimg_individual" src={identity.identity.identityImageEndpoint} onError={(e)=>{e.target.onerror = null; e.target.src='https://directory.weill.cornell.edu/api/v1/person/profile/msr2004.png?returnGenericOn404=true'}}  width="80" style={{ float: "left" }} />
+        </Col>
+        <Col md={8} xs={8} sm={8} lg={8} xl={8}>
+            <p className="username_individual"><a href={`/app/${identity.identity.uid}`} target="_blank">
+                <b>{identity.identity.primaryName.firstName || ''}</b>
+            </a></p>
+            <p className="title_individual">{identity.identity.title}</p>
+        </Col>
+    </Row>
+    )
 }
 
 function RenderListItems(props) {
@@ -512,7 +535,7 @@ function RenderListItems(props) {
         })
     }
     return (
-        (<ul>{listArray}</ul>)
+        (<ul className="idvidual_ul pl-0">{listArray}</ul>)
     )
 }
 
