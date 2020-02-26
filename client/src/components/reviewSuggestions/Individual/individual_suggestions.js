@@ -20,11 +20,10 @@ class Individuals extends Component {
     }
 
     componentDidMount() {
-        if (this.props.selectedDeptTypes.length == 0 || this.props.selectedAffiliationTypes.length == 0 || this.props.selectedPersonTypes.length == 0) {
+        if (this.props.selectedDeptTypes.length == 0 && this.props.selectedAffiliationTypes.length == 0 && this.props.selectedPersonTypes.length == 0) {
             console.log(this.props, 'Testing COnsole')
             this.props.history.push('/individual')
         }
-
     }
 
     handlePaginationUpdate(event, page) {
@@ -151,7 +150,7 @@ class Individuals extends Component {
             return (
                 <div className="main-container">
                     <div className="header-position">
-                        <Header username={this.props.username}/>
+                        <Header username={this.props.username} />
                     </div>
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
                     <SideNav />
