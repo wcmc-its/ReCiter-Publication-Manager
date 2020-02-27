@@ -184,6 +184,8 @@ export const selectedDeptTypes = (state = [], action) => {
     switch (action.type) {
         case methods.UPDATE_DEPT_TYPES:
             return action.payload
+        case methods.CLEAR_DEPT_TYPES_DATA:
+            return []
         default:
             return state
     }
@@ -193,6 +195,20 @@ export const selectedPersonTypes = (state = [], action) => {
     switch (action.type) {
         case methods.UPDATE_PERSON_TYPES:
             return action.payload
+        case methods.CLEAR_PERSON_TYPES_DATA:
+            return []
+        default:
+            return state
+    }
+}
+
+export const selectedAffiliationTypes = (state = [], action) => {
+    switch (action.type) {
+        case methods.UPDATE_AFFILIATION_TYPES:
+            console.log("affilition type reducer",action.payload)
+            return action.payload
+        case methods.CLEAR_AFFILIATION_TYPES_DATA:
+            return []
         default:
             return state
     }
@@ -242,5 +258,6 @@ export default combineReducers({
     sessionId,
     selectedPersonTypes,
     selectedDeptTypes,
-    groupReviewSuggestions
+    groupReviewSuggestions,
+    selectedAffiliationTypes
 })

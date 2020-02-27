@@ -55,9 +55,10 @@
     border-color:#999999 ;
 }
 .sideNav_tooglt_btn{
-  position:absolute;
+  position:fixed;
   right:0;
   top:15px;
+  z-index:999;
   display:none;
 }
 .desktop_side_bar{
@@ -67,10 +68,31 @@
 .mobile_side_bar{
   display:none;
 }
+@media (min-width:769px) and (max-width:992px){
+  .sideNav{
+    position:fixed;
+    z-index:999;
+    overflow: auto;
+    margin-top:0px;
+    height:95vh;
+ }
+ .sideNav_tooglt_btn{
+   display:block;
+ }
+ .desktop_side_bar{
+   display:none;
+ }
+ .mobile_side_bar{
+   display:block;
+ }
+}
 @media (max-width:768px){
   .sideNav{
-     position:absolute;
+     position:fixed;
      z-index:999;
+     overflow: auto;
+     margin-top: 71px;
+     height:95vh;
   }
   .sideNav_tooglt_btn{
     display:block;

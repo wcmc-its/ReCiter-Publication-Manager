@@ -46,6 +46,7 @@ body {
     grid-row-end: page-content;
     grid-column-start: side-nav;
     grid-column-end: content-end;
+    position:relative;
 }
 
 .side-nav-position {
@@ -136,9 +137,23 @@ body {
     box-shadow: none;
     border-radius: 0px;
 }
-
+@media (min-width:769px) and (max-width:992px){
+    .main-container{
+        display:block;
+    }
+    .header-position{
+        position:fixed;
+        z-index:999;
+        width:100%;
+    }
+}
 @media (max-width:768px){
     .main-container{
         display:block;
+    }
+    .header-position{
+        position:fixed;
+        z-index:999;
+        width:100%;
     }
 }

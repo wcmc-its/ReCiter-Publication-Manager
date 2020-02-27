@@ -65,8 +65,6 @@ ul .listtable2{
 }
 .search{
     box-sizing: border-box;
-    width: 50%;
-    height: 30%;
     border: 1px solid #ececec;
     background-color: #ececec;
     padding: 17px 0px 0px 0px;
@@ -79,8 +77,6 @@ li .search{
     background-color:#e3e3e3;
     border:1px solid #ececec;
     box-sizing: border-box;
-    width: 50%;
-    height: 30%;
     margin: 0px 4px 2px 16px;
 }
 .editsearch{
@@ -105,6 +101,12 @@ margin-top: 5px;
 .link a{
     color: #005ad9;
     text-decoration: underline;
+}
+.individual2_table td:nth-child(1) {
+    width: 12%;
+}
+.individual2_table td:nth-child(2) {
+    width: 72%;
 }
 .name{
     margin: 2px 2px 2px 6px;
@@ -209,3 +211,8 @@ p .suggestionText a{
 a h4{
     margin-top: 20px;
 }
+@media (min-width: 1200px){
+    .container {
+        width: 1119px;
+    }
+    }

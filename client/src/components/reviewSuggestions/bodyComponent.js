@@ -34,7 +34,7 @@ const BodyComponent = () => {
                     <Col xs={2} md={2} lg={1} style={{ margin: 0 }}>
                         <Form.Group controlId="exampleForm.ControlSelect1" style={{ margin: 0, padding: 0 }}>
                             {/* <Form.Label>Example select</Form.Label> */}
-                            <Form.Control as="select" className="border">
+                            <Form.Control as="select" className="border pl-1 pr-0">
                                 <option>1</option>
                                 <option>2</option>
                                 <option>3</option>
