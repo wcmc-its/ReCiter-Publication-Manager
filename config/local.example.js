@@ -77,8 +77,7 @@ exports.config = {
                  */
                 maxArticlesPerPerson: 6
             },
-            featureGeneratorByGroupEndpoint: 'https://reciter.weill.cornell.edu/reciter/feature-generator/by/group',
-            // featureGeneratorByGroupEndpoint: 'http://internal-d3677aff-reciter-reciterin-1143-1820758335.us-east-1.elb.amazonaws.com/reciter/feature-generator/by/group'
+            featureGeneratorByGroupEndpoint: 'https://reciter.weill.cornell.edu/reciter/feature-generator/by/group',           
         },
         /**
          * This is the endpoint in ReCiter-Publication-Manager controller for authentication.

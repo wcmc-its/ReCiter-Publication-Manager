@@ -1,8 +1,8 @@
 const request = require('request')
 var httpBuildQuery = require('http-build-query')
 const adminApiKey = require('../../config/local').config.reciter.adminApiKey
-const apiEndPoint = require('../../config/local.example').config.reciter.featureGeneratorByGroup.featureGeneratorByGroupEndpoint
-const apiParameters = require('../../config/local.example').config.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams
+const apiEndPoint = require('../../config/local').config.reciter.featureGeneratorByGroup.featureGeneratorByGroupEndpoint
+const apiParameters = require('../../config/local').config.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams
 
 const url = require('url')
 
