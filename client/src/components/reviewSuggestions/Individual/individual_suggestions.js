@@ -84,12 +84,12 @@ class Individuals extends Component {
                                                             </Col>
                                                         </Row>
                                                         <Row>
-                                                            <Col lg={8}>
+                                                            <Col lg={8} md={8} sm={8} xs={8} xl={8}>
                                                                 <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
                                                                     <p className="suggestionText">+ Show evidence behind this suggestion</p>
                                                                 </Accordion.Toggle>
                                                             </Col>
-                                                            <Col lg={4}>
+                                                            <Col lg={4} md={4} sm={4} xs={4} xl={4}>
                                                                 <span> <button className="btn button" type="button">PubMed</button>
                                                                     <button className="btn button" type="button">GET IT</button>
                                                                 </span>
@@ -164,20 +164,24 @@ class Individuals extends Component {
                             <Row>
                                 <Col md={6} className="search well well-sm">
                                     <Col md={12}>
-                                        Searched by:
+                                        <p className="font-italic">Searched by:</p>
                                 </Col>
-                                    <Row>
+                                    <Row className="search_filterss">
                                         <Col md={4}>
-                                            Department
+                                          <h5> <b> Department</b></h5>
+                                            
+                                            {selectedDeptTypes ? selectedDeptTypes.map((dept) => <li>{dept}</li>) : null}
                                     </Col>
                                         <Col md={4}>
-                                            Affiliation
+                                            <h5><b>Affiliation</b></h5>
+                                            {selectedAffiliationTypes ? selectedAffiliationTypes.map(type => <li>{type}</li>) : null}
                                     </Col>
                                         <Col md={4}>
-                                            Person Type
+                                        <h5> <b>Person Type</b></h5>
+                                            {selectedPersonTypes ? selectedPersonTypes.map((personType) => <li>{personType}</li>) : null}
                                     </Col>
                                     </Row>
-                                    <Col md={12}>
+                                    <Col md={12} className="searchfilter_edit">
                                         <a href="#">Edit Search</a>
                                     </Col>
                                 </Col>

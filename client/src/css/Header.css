@@ -1,96 +1,98 @@
 .topNav{
-    background-color: white;
-    border-radius: 0;
-    border-bottom: 1px solid gray;
-    margin: 0;
+  background-color: white;
+  border-radius: 0;
+  border-bottom: 1px solid gray;
+  margin: 0;
 }
 
 .drop-container{
-    float: right;
-    color: #323942;
-    margin: 15px;
-    position: absolute;
-    right: 0;
-    margin-top: 0px;
+  float: right;
+  color: #323942;
+  margin: 15px;
+  position: absolute;
+  right: 0;
+  margin-top: 0px;
 }
 
 .navbar-text {
-    color: #323942 !important;
-    font-weight: bold;
-    font-size:18px;
-    margin:15px 15px 6px 15px;
-    padding-left: 55px;
+  color: #323942 !important;
+  font-weight: bold;
+  font-size:18px;
+  margin:15px 15px 6px 15px;
+  padding-left: 55px;
 
 }
 
 /* Dropdown Button */
 .drop-btn {
-    color: #323942;
-    font-size: 10px;
-    border: none;
-  }
-  .navbar-brand{
-    padding:0px;
-  }
-  /* The container <div> - needed to position the dropdown content*/
-  .dropdown {
-    position: relative;
-    display: inline-block;
-  }
-.publication_text{
-  font-size:18px;
+  color: #323942;
+  font-size: 10px;
+  border: none;
 }
-  /* Dropdown Content (Hidden by Default) */
-  .dropdown-content {
-    display: none;
-    position: absolute;
-    right: 50%;
-    background-color: #f1f1f1;
-    min-width: 160px;
-    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-    z-index: 1;
-  }
+.navbar-brand{
+  padding:0px;
+}
+/* The container <div> - needed to position the dropdown content*/
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+.publication_text{
+font-size:18px;
+}
+/* Dropdown Content (Hidden by Default) */
+.dropdown-content {
+  display: none;
+  position: absolute;
+  right: 50%;
+  background-color: #f1f1f1;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 1;
+}
 
-  /* Links inside the dropdown */
-  .dropdown-content a {
-    color: #323942;
-    padding: 12px 16px;
-    text-decoration: none;
-    display: block;
-  }
+/* Links inside the dropdown */
+.dropdown-content a {
+  color: #323942;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+}
 
-  /* Change color of dropdown links on hover */
-  .dropdown-content a:hover {background-color: #ddd;}
+/* Change color of dropdown links on hover */
+.dropdown-content a:hover {background-color: #ddd;}
 
-  /* Show the dropdown menu on hover */
-  .dropdown:hover .dropdown-content {display: block;}
+/* Show the dropdown menu on hover */
+.dropdown:hover .dropdown-content {display: block;}
 
-  /* Change the background color of the dropdown button when the dropdown content is shown */
-  .dropdown:hover .dropbtn {background-color: #3e8e41;}
+/* Change the background color of the dropdown button when the dropdown content is shown */
+.dropdown:hover .dropbtn {background-color: #3e8e41;}
 
 @media(min-width:769px) and (max-width:992px){
-  .drop-container{
-    right:58px;
-  }
+.drop-container{
+  right:58px;
+}
 }
 @media(max-width:768px){
-  /* .topNav{
-    display:block;
-  } */
-  .navbar{
-    display:block;
-  }
-  .navbar-brand{
-    display:block;
-    width: 100%;
-  }
-  .navbar-text{
-    display:block;
-    padding-left:0px;
-    margin:0px;
-  }
-  .drop-container{
-    right: -14px;
-    margin-top: -23px;
-  }
+/* .topNav{
+  display:block;
+} */
+.navbar{
+  display:block;
+}
+.navbar-brand{
+  display:block;
+  width: 100%;
+}
+.navbar-text{
+  display:block;
+  padding-left:8px;
+  margin:0px;
+  font-size:14px;
+}
+.drop-container{
+  right: -14px;
+  margin-top: -23px;
+  bottom:0px;
+}
 }

@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import '../../css/Publication.css';
 import ReactTooltip from 'react-tooltip';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {faCheck,faTimes } from '@fortawesome/free-solid-svg-icons'
 
 class Publication extends Component {
 
@@ -60,14 +62,14 @@ class Publication extends Component {
         if (item.userAssertion === "NULL") {
             buttons = <div>
                 <button
-                    className={`btn kumars btn-success h6fnhWdeg-publication-accept`}
+                    className={`success_btn btn btn-success h6fnhWdeg-publication-accept`}
                     onClick={this.acceptPublication}
-                >Accept
+                ><FontAwesomeIcon icon={faCheck} size='1x' /> Accept
                 </button>
                 <button
-                    className={`btn btn-danger h6fnhWdeg-publication-reject`}
+                    className={`dangers_btn btn btn-danger h6fnhWdeg-publication-reject`}
                     onClick={this.rejectPublication}
-                >Reject
+                ><FontAwesomeIcon icon={faTimes} size='1x' /> Reject
                 </button>
             </div>;
         }
@@ -103,7 +105,7 @@ class Publication extends Component {
 
         }
 
-        return <tr><td><tr>
+        return <tr><td className="h6fnhWdeg-publication_tabletd"><tr className="h6fnhWdeg-publication_tablerow">
             <td key="0" className="h6fnhWdeg-publication-buttons">
                 {buttons}
                 <div className="clear-both"></div>
@@ -181,7 +183,7 @@ class Publication extends Component {
 
             </td>
         </tr>
-            {(this.state.showEvidence) ? (<tr><td colspan="2">
+            {(this.state.showEvidence) ? (<tr><td colspan="3">
                 <table className="h6fnhWdeg-publications-evidence-table table table-striped">
                     <thead>
                         <tr>

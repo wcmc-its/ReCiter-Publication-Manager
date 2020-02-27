@@ -248,7 +248,7 @@ export class TabSuggested extends Component {
                     >Reject All</button>
                 </div>
                 <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
-                <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
+                {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
                 <div className="table-responsive">
                     <table className="tabs_tables h6fnhWdeg-publications-table table">
                         <tbody>

@@ -7,9 +7,10 @@
     border-bottom: 0px;
 }
 .nav-tabs li.active .h6fnhWdeg-publications-tab-link {
-    color: #777777;
+    color: #000;
     background-color: #efefef;
     border-bottom: 2px solid #efefef;
+    font-weight:bold;
 }
 .nav-tabs li.active .h6fnhWdeg-publications-tab-link:hover {
     border-bottom: 2px solid #efefef;
@@ -36,7 +37,7 @@
 }
 
 .h6fnhWdeg-publications-tab-link span.h6fnhWdeg-publications-tab-link-active {
-    background: #999999;
+    background: #005ad9;
     color: #ffffff;
 }
 .newTabs>li>a{
