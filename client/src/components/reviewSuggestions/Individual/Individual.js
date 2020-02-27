@@ -394,7 +394,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control  as="select" onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option>Affiliation</option>
                                                         {affiliationOptions}
                                                     </Form.Control>

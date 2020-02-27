@@ -48,7 +48,7 @@ export class Pagination extends Component {
 
             return (
                 <div className="row pagination-container">
-                    <div className="col-lg-2 col-xl-2 col-xs-4 col-md-4 col-sm-4 col">
+                    <div className="col-lg-3 col-xl-3 col-xs-6 col-md-4 col-sm-5">
                         <div className="show-rows">
                             <label>Show records</label>
                             <select
@@ -63,7 +63,7 @@ export class Pagination extends Component {
                             </select>
                         </div>
                     </div>
-                    <div className="col-lg-10 c0l-xl-10 col-xs-8 col-md-8 col-sm-8 col">
+                    <div className="col-lg-9 c0l-xl-9 col-xs-6 col-md-8 col-sm-7">
                         <div>
                             <ul className="pagination">
                                 <li className={`page-item ${(propsPage === 1)?'disabled':''}`}>

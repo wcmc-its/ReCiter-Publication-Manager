@@ -65,8 +65,6 @@ ul .listtable2{
 }
 .search{
     box-sizing: border-box;
-    width: 50%;
-    height: 30%;
     border: 1px solid #ececec;
     background-color: #ececec;
     padding: 17px 0px 0px 0px;
@@ -79,8 +77,6 @@ li .search{
     background-color:#e3e3e3;
     border:1px solid #ececec;
     box-sizing: border-box;
-    width: 50%;
-    height: 30%;
     margin: 0px 4px 2px 16px;
 }
 .editsearch{

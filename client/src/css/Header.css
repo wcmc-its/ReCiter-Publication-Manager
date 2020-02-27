@@ -68,3 +68,29 @@
   /* Change the background color of the dropdown button when the dropdown content is shown */
   .dropdown:hover .dropbtn {background-color: #3e8e41;}
 
+@media(min-width:769px) and (max-width:992px){
+  .drop-container{
+    right:58px;
+  }
+}
+@media(max-width:768px){
+  /* .topNav{
+    display:block;
+  } */
+  .navbar{
+    display:block;
+  }
+  .navbar-brand{
+    display:block;
+    width: 100%;
+  }
+  .navbar-text{
+    display:block;
+    padding-left:0px;
+    margin:0px;
+  }
+  .drop-container{
+    right: -14px;
+    margin-top: -23px;
+  }
+}

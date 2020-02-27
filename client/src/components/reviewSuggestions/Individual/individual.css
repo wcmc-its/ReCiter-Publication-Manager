@@ -163,7 +163,11 @@ margin-right: 0px;
 }
 @media (min-width:992px) and (max-width:1204px){
     .indivdual_container{
-        width: 787px;
+        width: 1079px;
+    }
+    .individual_table {
+        width: 1081px;
+        overflow-x: auto;
     }
 }
 @media(min-width:769px) and (max-width:991px){
@@ -180,6 +184,9 @@ margin-right: 0px;
     .username_individual, .title_individual {
         word-break: break-all;
         white-space: initial;
+    }
+    .heading{
+        margin-top:112px;
     }
 }
 @media(max-width:768px){
@@ -199,5 +206,8 @@ margin-right: 0px;
     }
     .individual_table{
         width:1024px;
+    }
+    .heading{
+        margin-top:112px;
     }
 }

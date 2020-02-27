@@ -8,6 +8,7 @@
     height: calc(3.25rem + 2px) !important;
     border:1px solid #000;
     border-radius:0px;
+    width:60px !important;
 }
 .show-rows label {
     display: table-cell;

@@ -57,7 +57,7 @@ class Individuals extends Component {
                                 <Accordion defaultActiveKey="-1">
 
                                     <div className="tableBody backgroundColorWhite">
-                                        <Table className="individual2_table">
+                                        <Table responsive className="individual2_table">
                                             <tbody>
                                                 <tr>
                                                     <td>
@@ -161,42 +161,33 @@ class Individuals extends Component {
                             </div>
                         </div>
                         <div className="searchby">
-                            <div className="search">
-                                <div className="row">
-                                    <div className="col-md-12">
-                                        <ul className="listtable">
-                                            <li className="searchedby">Searched by:</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                                <div className="row searchtable">
-                                    <div className="col-md-5">
-                                        <ul className="listtable">
-                                            <li className="tablehead">Department</li>
-                                            {selectedDeptTypes ? selectedDeptTypes.map((dept) => <li>{dept}</li>) : null}
-                                        </ul>
-                                    </div>
-                                    <div className="col-md-4">
-                                        <ul className="listtable2">
-                                            <li className="tablehead">Affiliation</li>
-                                            {selectedAffiliationTypes ? selectedAffiliationTypes.map(type => <li>{type}</li>) : null}
-                                        </ul>
-                                    </div>
-                                    <div className="col-md-3">
-                                        <ul className="listtable3">
-                                            <li className="tablehead">Person Type</li>
-                                            {selectedPersonTypes ? selectedPersonTypes.map((personType) => <li>{personType}</li>) : null}
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="row edit">
-                                <div className="col-md-12">
-                                    <ul className="editsearch">
+                            <Row>
+                                <Col md={6} className="search well well-sm">
+                                    <Col md={12}>
+                                        Searched by:
+                                </Col>
+                                    <Row>
+                                        <Col md={4}>
+                                            Department
+                                    </Col>
+                                        <Col md={4}>
+                                            Affiliation
+                                    </Col>
+                                        <Col md={4}>
+                                            Person Type
+                                    </Col>
+                                    </Row>
+                                    <Col md={12}>
                                         <a href="#">Edit Search</a>
-                                    </ul>
+                                    </Col>
+                                </Col>
+
+                            </Row>
+                            {/* <div className="row edit">
+                                <div className="col-md-12">
+                                  
                                 </div>
-                            </div>
+                            </div> */}
                         </div>
                         <div className="row scholars">
                             <div className="col-md-2">
