@@ -156,4 +156,13 @@ body {
         z-index:999;
         width:100%;
     }
+    .identity-container{
+        margin-top:80px;
+    }
+    .tab-container{
+        margin-top:50px;
+    }
+    .publications-content{
+        overflow:hidden;
+    }
 }

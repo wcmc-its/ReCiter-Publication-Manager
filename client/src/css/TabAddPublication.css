@@ -4,10 +4,26 @@
     padding: 20px;
     margin-bottom: 20px;
 }
-.h6fnhWdeg-add-publication-search-container button {
-    margin-left: -15px;
+#year {
+    padding: 0px;
 }
-
+.h6fnhWdeg-add-publication-search-container button {
+    margin-left:0px;
+    background-color: #005ad9;
+    border-color: #005cbf;
+    border: 0px !important;
+    box-shadow: none !important;
+    border-radius: 2px;
+    outline: none !important;
+    padding: 7px 12px;
+}
+.h6fnhWdeg-add-publication-search-container .form-control{
+    border-radius:2px;
+    border:1px solid #000;
+    outline:none !important;
+    box-shadow:none !important;
+    font-style:italic;
+}
 label.year-label {
     padding-right: 0;
     width: 60px;

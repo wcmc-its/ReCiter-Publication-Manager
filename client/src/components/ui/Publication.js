@@ -183,7 +183,7 @@ class Publication extends Component {
 
             </td>
         </tr>
-            {(this.state.showEvidence) ? (<tr><td colspan="3">
+            {(this.state.showEvidence) ? (<tr><td colspan="2">
                 <table className="h6fnhWdeg-publications-evidence-table table table-striped">
                     <thead>
                         <tr>

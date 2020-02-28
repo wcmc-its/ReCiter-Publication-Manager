@@ -5,6 +5,8 @@ import { Pagination } from './Pagination';
 import { Filter } from './Filter';
 import { YearPicker } from 'react-dropdown-date';
 import { Row, Col, InputGroup, FormControl, Button } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {faSearch} from '@fortawesome/free-solid-svg-icons'
 
 export class TabAddPublication extends Component {
 
@@ -296,7 +298,7 @@ export class TabAddPublication extends Component {
                             />
                             <InputGroup.Append>
       <Button className="btn btn-primary"
-                                onClick={this.search}>Search</Button>
+                                onClick={this.search}><FontAwesomeIcon icon={faSearch} size='1x' /></Button>
     </InputGroup.Append></InputGroup>
                         </div>
                         <div className="col-md-2" >

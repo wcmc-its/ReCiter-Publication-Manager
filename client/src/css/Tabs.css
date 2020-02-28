@@ -17,7 +17,9 @@
     background-color: #efefef;
     color: #777777;
 }
-
+.tabs-headers{
+    margin-left:7%;
+}
 .h6fnhWdeg-publications-tab-link span {
     display: inline-block;
     padding-right: 8px;
@@ -45,4 +47,9 @@
 }
 .tabs_tables {
     background-color: #fff;
+}
+@media(min-width:320px) and (max-width:600px){
+    .h6fnhWdeg-publications-tab-link{
+        font-size:12px;
+    }
 }

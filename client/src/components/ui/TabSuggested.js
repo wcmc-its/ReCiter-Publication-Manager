@@ -249,7 +249,8 @@ export class TabSuggested extends Component {
                 </div>
                 <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
                 {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
-                <div className="table-responsive">
+                <div className="col-md-12">
+                <div className="">
                     <table className="tabs_tables h6fnhWdeg-publications-table table">
                         <tbody>
                             {
@@ -259,6 +260,7 @@ export class TabSuggested extends Component {
                             }
                         </tbody>
                     </table>
+                    </div>
                 </div>
                 <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
             </div>

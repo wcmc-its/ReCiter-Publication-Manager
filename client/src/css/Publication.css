@@ -84,13 +84,13 @@ right:81px;
     border-top:0px !important;  
 }
 .h6fnhWdeg-publication-buttons {
-    width:24%;
+    width:250px;
     text-align: center;
     padding-top: 23px !important;
 }
 .h6fnhWdeg-publication-content {
     padding-top: 20px !important;
-    width: 76%;
+    width:800px;
 }
 .h6fnhWdeg-publication-accept {
     font-size: 14px;
@@ -201,4 +201,13 @@ right:81px;
 .h6fnhWdeg-publication-undo:hover {
     color: #333;
     border-color: #999;
+}
+@media(min-width:993px) and (max-width:1200px){
+    .h6fnhWdeg-publication-buttons{
+        width:297px;
+        
+    }
+    .h6fnhWdeg-publication_tablerow .h6fnhWdeg-publication-row-buttons{
+        right:2px;
+    }
 }
