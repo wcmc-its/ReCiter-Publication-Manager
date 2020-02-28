@@ -7,6 +7,8 @@ import SideNav from "../../ui/SideNav";
 import { Pagination } from '../../ui/Pagination';
 import "./individual_suggestions.css";
 import { connect } from 'react-redux'
+import { editIndividualSearch } from '../../../../src/actions';
+
 
 class Individuals extends Component {
 
@@ -17,6 +19,9 @@ class Individuals extends Component {
             page: 1,
             count: 10
         }
+        this.editsearch = this.editsearch.bind(this);
+        this.handlePaginationUpdate = this.handlePaginationUpdate.bind(this);
+        this.filter = this.filter.bind(this);
     }
 
     componentDidMount() {
@@ -35,6 +40,44 @@ class Individuals extends Component {
                 count: event.target.value
             });
         }
+    }
+
+    editsearch() {
+        if (this.props.selectedDeptTypes.length || this.props.selectedPersonTypes.length || this.props.selectedAffiliations.length) {
+            this.props.editsearch(this.props.selectedDeptTypes, this.props.selectedPersonTypes, this.props.selectedAffiliations, () => this.props.history.push('/individual'))
+        }
+    }
+
+    filter() {
+        const thisObject = this;
+        console.log(this.props.groupReviewSuggestions.length, this.props.identityAllData.length)
+        let suggestionsData = []
+        thisObject.props.groupReviewSuggestions.forEach((suggestion) => {
+
+            let userObj = this.props.identityAllData.find((identity) => identity ? identity.uid == suggestion.personIdentifier : false)
+            let articles = suggestion.reciterArticleFeatures.length ? suggestion.reciterArticleFeatures : 0
+            suggestionsData.push({
+                userName: userObj,
+                articles: articles
+            })
+        })
+
+        var from = (parseInt(this.state.page, 10) - 1) * parseInt(this.state.count, 10);
+        var to = from + parseInt(this.state.count, 10) - 1;
+        var suggestions = [];
+        var i = from;
+        return{
+            paginatedSuggestions: suggestionsData
+        }
+        // for (i; i <= to; i++) {
+        //     if (filteredPublications[i] !== undefined) {
+        //         suggestions.push(filteredPublications[i]);
+        //     }
+        // }
+        // return {
+        //     paginatedSuggestions: suggestions
+        // };
+
     }
 
     render() {
@@ -141,12 +184,12 @@ class Individuals extends Component {
 
         }
         console.log("elemtnUI length", elementsUI.length)
+        // const suggestions = this.filter()
+        // console.log(suggestions, 'asdsadasdsadasdasdsadsadsadasdss')
         if (groupReviewSuggestions.length == 0) {
             return (<div className="h6fnhWdeg-app-loader"> </div>)
         }
         else {
-            // return(<p>Success</p>)
-
             return (
                 <div className="main-container">
                     <div className="header-position">
@@ -165,24 +208,24 @@ class Individuals extends Component {
                                 <Col md={6} className="search well well-sm">
                                     <Col md={12}>
                                         <p className="font-italic">Searched by:</p>
-                                </Col>
+                                    </Col>
                                     <Row className="search_filterss">
                                         <Col md={4}>
-                                          <h5> <b> Department</b></h5>
-                                            
+                                            <h5> <b> Department</b></h5>
+
                                             {selectedDeptTypes ? selectedDeptTypes.map((dept) => <li>{dept}</li>) : null}
-                                    </Col>
+                                        </Col>
                                         <Col md={4}>
                                             <h5><b>Affiliation</b></h5>
                                             {selectedAffiliationTypes ? selectedAffiliationTypes.map(type => <li>{type}</li>) : null}
-                                    </Col>
+                                        </Col>
                                         <Col md={4}>
-                                        <h5> <b>Person Type</b></h5>
+                                            <h5> <b>Person Type</b></h5>
                                             {selectedPersonTypes ? selectedPersonTypes.map((personType) => <li>{personType}</li>) : null}
-                                    </Col>
+                                        </Col>
                                     </Row>
                                     <Col md={12} className="searchfilter_edit">
-                                        <a href="#">Edit Search</a>
+                                        <a href="#" onClick={() => this.editsearch()}>Edit Search</a>
                                     </Col>
                                 </Col>
 
@@ -261,6 +304,11 @@ const mapStateToProps = state => ({
     identityAllData: state.identityAllData
 })
 
+const mapDispatchToProps = dispatch => ({
+    editsearch(deptTypes, personTypes, affiliationTypes, cb) {
+        dispatch(editIndividualSearch(deptTypes, personTypes, affiliationTypes, cb))
+    }
+});
 
 // export default Individual;
-export default connect(mapStateToProps, null)(Individuals)
+export default connect(mapStateToProps, mapDispatchToProps)(Individuals)

@@ -527,3 +527,7 @@ export const getGroupReviewSuggestions = (deptTypes, personTypes, affiliationTyp
         })
 
 }
+
+export const editIndividualSearch = (deptTypes, personTypes, affiliationTypes, cb) =>dispatch =>{
+    cb()
+}

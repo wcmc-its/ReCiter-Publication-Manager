@@ -31,13 +31,6 @@ class Individual extends Component {
 
     constructor(props) {
         super(props);
-        // this.search = this.search.bind(this);
-        // this.handlePaginationUpdate = this.handlePaginationUpdate.bind(this);
-        // this.filter = this.filter.bind(this);
-        // this.handleFilterUpdate = this.handleFilterUpdate.bind(this);
-        // this.handleSearchUpdate = this.handleSearchUpdate.bind(this);
-        // this.handleRedirect = this.handleRedirect.bind(this);
-        // Name = Name.bind(this)
         this.onRecordsLimitChange = this.onRecordsLimitChange.bind(this);
         this.handleDepartmentSelect = this.handleDepartmentSelect.bind(this);
         this.handlePersonTypeSelect = this.handlePersonTypeSelect.bind(this);
