@@ -211,3 +211,10 @@ right:81px;
         right:2px;
     }
 }
+@media (min-width:769px) and (max-width:1024px){
+    .h6fnhWdeg-publication_tablerow .h6fnhWdeg-publication-row-buttons {
+        position: absolute;
+        right: 1px;
+    
+    }
+}

@@ -35,9 +35,6 @@ export class Filter extends Component {
 
         return (
             <div className="filter-container" key="filter-component">
-                {(this.props.showSort) ? <Dropdown sort={this.state.sort} onChange={this.handleSortUpdate} /> :
-                    <span></span>
-                }
                 <input
                     type="text"
                     className="form-control"
@@ -45,6 +42,9 @@ export class Filter extends Component {
                     onKeyUp={this.handleSearchUpdate}
                     ref="filter-form-search"
                 />
+                {(this.props.showSort) ? <Dropdown sort={this.state.sort} onChange={this.handleSortUpdate} /> :
+                    <span></span>
+                }
             </div>
         );
     }

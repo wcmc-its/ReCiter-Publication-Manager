@@ -137,6 +137,7 @@ body {
     box-shadow: none;
     border-radius: 0px;
 }
+
 @media (min-width:769px) and (max-width:992px){
     .main-container{
         display:block;
@@ -145,6 +146,12 @@ body {
         position:fixed;
         z-index:999;
         width:100%;
+    }
+    .identity-container {
+        margin-top: 80px;
+    }
+    .tab-container {
+        margin-top: 50px;
     }
 }
 @media (max-width:768px){
@@ -164,5 +171,8 @@ body {
     }
     .publications-content{
         overflow:hidden;
+    }
+    .h6fnhWdeg-tabs-content {
+        padding:0px;
     }
 }

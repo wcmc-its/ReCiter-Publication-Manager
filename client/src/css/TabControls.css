@@ -13,7 +13,7 @@
     min-width: 390px;
 }
 .h6fnhWdeg-tab-controls-container .filter-container input {
-    float: right;
+    float:initial;
     max-width: 200px;
     margin-right: 10px;
 }
@@ -24,4 +24,17 @@
     color: #777;
     background-color: #ffffff;
     border-color: #ccc;
+}
+@media(max-width:768px){
+    .h6fnhWdeg-tab-controls-container .filter-container{
+        float:initial;
+        margin-bottom: 20px;
+    }
+    .h6fnhWdeg-tab-controls-container .filter-container .dropdown{
+        float:initial;
+    }
+    .suggested_filter_text {
+        text-align: justify;
+        padding-left: 4%;
+    }
 }
