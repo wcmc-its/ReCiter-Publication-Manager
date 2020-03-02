@@ -8,14 +8,26 @@ const url = require('url')
 
 const getGroupPublications = (req, cb) => {
     let uri = apiEndPoint
-    if (req.query.departmentalAffiliation && req.query.personType) {
-        uri = apiEndPoint + '?personType=' + req.query.personType + '&departmentalAffiliation=' + req.query.departmentalAffiliation + '&' + httpBuildQuery(apiParameters)
+    if (req.query.departmentalAffiliation && req.query.personType && req.query.organizationalAffiliation) {
+        uri = apiEndPoint + '?personType=' + req.query.personType + '&departmentalAffiliation=' + req.query.departmentalAffiliation + '&organizationalAffiliation=' + req.query.organizationalAffiliation + '&' + httpBuildQuery(apiParameters)
+    }
+    else if (req.query.departmentalAffiliation && req.query.personType) {
+        uri = apiEndPoint + '?departmentalAffiliation=' + req.query.departmentalAffiliation + '&personType=' + req.query.personType + '&' + httpBuildQuery(apiParameters)
+    }
+    else if (req.query.organizationalAffiliation && req.query.personType) {
+        uri = apiEndPoint + '?organizationalAffiliation=' + req.query.organizationalAffiliation + '&personType=' + req.query.personType + '&' + httpBuildQuery(apiParameters)
+    }
+    else if (req.query.organizationalAffiliation && req.query.departmentalAffiliation) {
+        uri = apiEndPoint + '?organizationalAffiliation=' + req.query.organizationalAffiliation + '&departmentalAffiliation=' + req.query.departmentalAffiliation + '&' + httpBuildQuery(apiParameters)
     }
     else if (req.query.departmentalAffiliation) {
         uri = apiEndPoint + '?departmentalAffiliation=' + req.query.departmentalAffiliation + '&' + httpBuildQuery(apiParameters)
     }
+    else if (req.query.organizationalAffiliation) {
+        uri = apiEndPoint + '?organizationalAffiliation=' + req.query.organizationalAffiliation + '&' + httpBuildQuery(apiParameters)
+    }
     else if (req.query.personType) {
-        uri = apiEndPoint + '?personType=' + req.query.departmentalAffiliation + '&' + httpBuildQuery(apiParameters)
+        uri = apiEndPoint + '?personType=' + req.query.personType + '&' + httpBuildQuery(apiParameters)
     }
     return request({
         headers: {
@@ -27,12 +39,20 @@ const getGroupPublications = (req, cb) => {
         if (error) {
             return cb(error, null)
         }
-        let data = JSON.parse(body)
-        let formattedData = formatPublications(data)
-        let reciterData = {
-            reciterData: formattedData
+        try {
+            let data = JSON.parse(body)
+            let formattedData = formatPublications(data)
+            let reciterData = {
+                reciterData: formattedData
+            }
+            cb(null, reciterData)
+            
+        } catch (error) {
+            let reciterData = {
+                reciterData: []
+            }
+            cb(null, reciterData)
         }
-        cb(null, reciterData)
     });
 
 }

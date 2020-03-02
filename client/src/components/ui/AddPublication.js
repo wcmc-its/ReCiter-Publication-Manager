@@ -1,5 +1,8 @@
 import React, { Component } from 'react';
 import '../../css/AddPublication.css';
+import '../ManageProfile/ManageProfile.css';
+import Image from 'react-bootstrap/Image'
+import { Row, Col, Button, Form, Table, Accordion, Card, Collapse } from 'react-bootstrap';
 
 class AddPublication extends Component {
 
@@ -29,25 +32,26 @@ class AddPublication extends Component {
 
         const { item } = this.props;
 
-        return <tr>
-            <td key="0" className="h6fnhWdeg-publication-buttons">
-                <div>
-                    <button
-                        className={`btn btn-success h6fnhWdeg-publication-accept`}
-                        onClick={this.acceptPublication}
-                    >Accept
-                    </button>
-                    <button
-                        className={`btn btn-danger h6fnhWdeg-publication-reject`}
-                        onClick={this.rejectPublication}
-                    >Reject
-                    </button>
+        return <div className="tableBody backgroundColorWhite">
+                <Table className="mb-1">
+                    <tbody>
+                        <tr>
+            <td style={{width: "10%"}}>
+                <div className="displayflex padding5px margin0px justifyContentSpaceBt borderRadius0">
+                    <Button className="backgroundColorGreen btn-success" onClick={this.acceptPublication}> <span className="glyphicon glyphicon-ok margin10 padding10" />
+                    Accept
+                    </Button>
+                    <Button className="backgroundColorRed" onClick={this.rejectPublication}> <span className="glyphicon glyphicon-remove" />
+                    Reject
+                    </Button>
                 </div>
             </td>
-            <td key="1" className="h6fnhWdeg-publication-content">
-                <p className="h6fnhWdeg-publication-field">
-                    <strong>Authors: </strong>
-                    <span className="h6fnhWdeg-publication-field-authors">
+            <td style={{width: "90%"}}>
+            <Row>
+                                    <Col lg={12} className="pt-1">
+                <p>
+                    <b>Authors: </b>
+                    
                         {
                             (item.authors !== undefined)?
                             item.authors.map(function(author, authorIndex) {
@@ -60,22 +64,29 @@ class AddPublication extends Component {
                             :<span>No authors listed</span>
                         }
 
-                    </span>
+                    
                 </p>
-                <p className="h6fnhWdeg-publication-field">
-                    <strong>Title: </strong>
-                    <span className="h6fnhWdeg-publication-field-title">{item.title}</span>
+                <p>
+                    <b>Title: </b>
+                    {item.title}
                 </p>
-                <p className="h6fnhWdeg-publication-field">
-                    <strong>Journal: </strong>
-                    <span className="h6fnhWdeg-publication-field-journal">{item.journal}</span>
+                <p>
+                    <b>Journal: </b>
+                    {item.journal}
                 </p>
-                <p className="h6fnhWdeg-publication-field">
-                    <strong>Date: </strong>
-                    <span className="h6fnhWdeg-publication-field-year">{item.displayDate}</span>
+                <p>
+                    <b>Date: </b>
+                    {item.displayDate}
                 </p>
+                </Col>
+                </Row>
             </td>
-        </tr>;
+        </tr>
+                    </tbody>
+
+        </Table>
+        </div>
+                    ;
     }
 
 }

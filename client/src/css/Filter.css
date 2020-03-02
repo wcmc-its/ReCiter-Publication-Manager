@@ -1,10 +1,8 @@
-.filter-container {
-    margin-bottom: 20px;
+.filter-container input {
+	height: calc(3.25rem + 2px) !important;
+	margin: 0;
 }
+
 .filter-sort-by-label {
     text-align: right;
-}
-.filter-sort-by-label span {
-    padding-top: 5px;
-    display: block;
 }

@@ -54,7 +54,7 @@ router.get('/reciter/feature-generator/:uid', function (req, res) {
     })
 })
 
-router.get('/reciter/feature-generator/by/group', function(req, res){
+router.get('/reciter/feature-generator/by/group', function (req, res) {
     return reciterGroupPublication.getGroupPublications(req, (err, data) => {
         if (err) {
             return res.send({
@@ -62,9 +62,21 @@ router.get('/reciter/feature-generator/by/group', function(req, res){
                 message: 'failure'
             })
         }
+        let resultMode = ''
+        if (data !== undefined && Array.isArray(data.reciterData)) {
+            if (data.reciterData.length >= 200) {
+                resultMode = 'LARGE_RESULTS'
+            } else {
+                resultMode = 'VALID_RESULTS'
+            }
+            if (data.reciterData.length == 0) {
+                resultMode = 'EMPTY'
+            }
+        }
         return res.send({
             reciter: data.reciterData,
             reciterPending: data.reciterPendingData,
+            resultMode: resultMode,
             message: 'success'
         })
     })
@@ -82,7 +94,7 @@ router.get('/reciter/feature-generator/by/group', function(req, res){
 //         return res.send({
 //             message: data
 //         })
-        
+
 //     })
 // })
 
@@ -120,11 +132,11 @@ router.post('/reciter/update/goldstandard', function (req, res) {
                 message: 'failure'
             })
         }
-        if (data !== undefined ) {
+        if (data !== undefined) {
             return res.send({
                 goldStandard: data,
                 message: 'success'
-            }) 
+            })
         }
     })
 })
@@ -137,11 +149,11 @@ router.post('/reciter/save/userfeedback', function (req, res) {
                 message: 'failure'
             })
         }
-        if (data !== undefined ) {
+        if (data !== undefined) {
             return res.send({
                 userFeedback: data,
                 message: 'success'
-            }) 
+            })
         }
     })
 })
@@ -154,11 +166,11 @@ router.get('/reciter/find/userfeedback/:uid', function (req, res) {
                 message: 'failure'
             })
         }
-        if (data !== undefined ) {
+        if (data !== undefined) {
             return res.send({
                 userFeedback: data,
                 message: 'success'
-            }) 
+            })
         }
     })
 })
@@ -171,11 +183,11 @@ router.get('/reciter/delete/userfeedback/:uid', function (req, res) {
                 message: 'failure'
             })
         }
-        if (data !== undefined ) {
+        if (data !== undefined) {
             return res.send({
                 userFeedback: data,
                 message: 'success'
-            }) 
+            })
         }
     })
 })

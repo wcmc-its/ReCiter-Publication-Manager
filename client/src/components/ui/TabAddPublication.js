@@ -4,6 +4,9 @@ import AddPublication from './AddPublication';
 import { Pagination } from './Pagination';
 import { Filter } from './Filter';
 import { YearPicker } from 'react-dropdown-date';
+import { Row, Col, InputGroup, FormControl, Button } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {faSearch} from '@fortawesome/free-solid-svg-icons'
 
 export class TabAddPublication extends Component {
 
@@ -283,17 +286,20 @@ export class TabAddPublication extends Component {
         })
 
         return (
-            <div className="h6fnhWdeg-tab-content">
+            <div>
                 <div className="h6fnhWdeg-add-publication-search-container">
                     <div className="row">
                         <div className="col-md-6">
-                            <input
-                                type="text"
-                                className="form-control"
+                            <InputGroup>
+                                <FormControl
                                 placeholder="Search..."
                                 ref="search-field"
                                 defaultValue={(this.state.pubmedSearch !== undefined)?this.state.pubmedSearch:''}
                             />
+                            <InputGroup.Append>
+      <Button className="btn btn-primary"
+                                onClick={this.search}><FontAwesomeIcon icon={faSearch} size='1x' /></Button>
+    </InputGroup.Append></InputGroup>
                         </div>
                         <div className="col-md-2" >
                             <div className="show-rows">
@@ -340,10 +346,7 @@ export class TabAddPublication extends Component {
                             </div>
                         </div>
                         <div className="col-md-2">
-                            <button
-                                className="btn btn-primary"
-                                onClick={this.search}
-                            >Search</button>
+                            
                         </div>
                     </div>
                 </div>
@@ -353,26 +356,31 @@ export class TabAddPublication extends Component {
                     <div>
                         {(this.props.pubmedData.length > 0) ?
                             <div>
-                                <div className="row">
+                                <div className="row py-5 mx-0 backgroundColorWhite">
                                     <div className="col-md-4">
                                         <p>Number of results: <strong>{this.props.pubmedData.length}</strong></p>
                                         <p><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
                                     </div>
-                                    <div className="col-md-4" style={{float: "right"}}>
-                                        <Filter onChange={this.handleFilterUpdate} showSort={false}/>
-                                    </div>
-                                </div>
 
+                                </div>
                                 {
                                     (this.state.largeSearchFlag === true) ? <div><span><strong>Too many results. Please provide additional search parameters</strong></span>
                                         </div> :
                                         <React.Fragment>
+                                        <Row className="backgroundColorWhite py-5 mb-1 mx-0">
+                                            <Col lg={10}>
                                             <Pagination total={this.props.pubmedData.length} page={this.state.page}
                                                         count={this.state.count}
                                                         onChange={this.handlePaginationUpdate}/>
-                                            <div className="table-responsive">
-                                                <table className="h6fnhWdeg-publications-table table table-striped">
-                                                    <tbody>
+                                            </Col>
+                                            <Col lg={2}>
+                                             <Filter onChange={this.handleFilterUpdate} showSort={false}/>
+                                            </Col>
+                                        </Row>
+                                            <Row>
+                                            <Col md={12}>
+                                            <div>
+                                                
                                                     {
                                                         publications.paginatedPublications.map(function (item, index) {
                                                             return <AddPublication item={item} key={index}
@@ -380,12 +388,10 @@ export class TabAddPublication extends Component {
                                                                                    onReject={thisObject.rejectPublication}/>;
                                                         })
                                                     }
-                                                    </tbody>
-                                                </table>
+                                                    
                                             </div>
-                                            <Pagination total={publications.filteredPublications.length}
-                                                        page={this.state.page} count={this.state.count}
-                                                        onChange={this.handlePaginationUpdate}/>
+                                            </Col>
+                                            </Row>
                                         </React.Fragment>
                                 }
 

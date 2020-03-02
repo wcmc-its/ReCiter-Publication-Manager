@@ -31,13 +31,6 @@ class Individual extends Component {
 
     constructor(props) {
         super(props);
-        // this.search = this.search.bind(this);
-        // this.handlePaginationUpdate = this.handlePaginationUpdate.bind(this);
-        // this.filter = this.filter.bind(this);
-        // this.handleFilterUpdate = this.handleFilterUpdate.bind(this);
-        // this.handleSearchUpdate = this.handleSearchUpdate.bind(this);
-        // this.handleRedirect = this.handleRedirect.bind(this);
-        // Name = Name.bind(this)
         this.onRecordsLimitChange = this.onRecordsLimitChange.bind(this);
         this.handleDepartmentSelect = this.handleDepartmentSelect.bind(this);
         this.handlePersonTypeSelect = this.handlePersonTypeSelect.bind(this);
@@ -56,7 +49,10 @@ class Individual extends Component {
 
     componentDidMount() {
         console.log("identitiyfetcll did mount", this.props.identityAllData)
-        this.setState({ data: this.props.identityAllData })
+        this.setState({ data: this.props.identityAllData,
+                        selectedDeps: this.props.deptTypes,
+                        selectedPersonTypes: this.props.personTypes,
+                        selectedAffiliations: this.props.affiliationTypes })
     }
 
     componentWillReceiveProps(nextProps) {
@@ -103,10 +99,12 @@ class Individual extends Component {
 
     getPersonTypes() {
         return [...new Set(this.props.identityAllData.map((data) => data.personTypes).flat())]
+            .filter((personItem) => personItem != null ? true : false)
     }
 
     getAffiliationTypes() {
         return [...new Set(this.props.identityAllData.map((data) => data.institutions).flat())]
+            .filter((affliItem) => affliItem != null ? true : false)
     }
 
     onRecordsLimitChange(e) {
@@ -119,25 +117,31 @@ class Individual extends Component {
 
     handleDepartmentSelect(event) {
         let newDepartment = event.target.value;
-        // let selectedDeps = [...this.state.selectedDeps, newDepartment];
-        let selectedDeps = [...new Set([...this.state.selectedDeps, newDepartment])];
-        this.props.updateDeptsPersonTypes(selectedDeps, this.state.selectedPersonTypes)
-        this.setState({ selectedDeps });
+        if (newDepartment != "Department") {
+            // let selectedDeps = [...this.state.selectedDeps, newDepartment];
+            let selectedDeps = [...new Set([...this.state.selectedDeps, newDepartment])];
+            this.props.updateDeptsPersonTypes(selectedDeps, this.state.selectedPersonTypes)
+            this.setState({ selectedDeps, deptVal: "Department" });
+        }
     }
 
     handleAffiliationSelect(event) {
         let newAffiliation = event.target.value;
-        let selectedAffiliations = [...new Set([...this.state.selectedAffiliations, newAffiliation])];
-        this.props.updateAffiliationType(selectedAffiliations)
-        this.setState({ selectedAffiliations });
+        if (newAffiliation != "Affiliation") {
+            let selectedAffiliations = [...new Set([...this.state.selectedAffiliations, newAffiliation])];
+            this.props.updateAffiliationType(selectedAffiliations)
+            this.setState({ selectedAffiliations, affiliVal: "Affiliation" });
+        }
     }
 
 
     handlePersonTypeSelect(event) {
         let personType = event.target.value;
-        let selectedPersonTypes = [...new Set([...this.state.selectedPersonTypes, personType])];
-        this.props.updateDeptsPersonTypes(this.state.selectedDeps, selectedPersonTypes)
-        this.setState({ selectedPersonTypes });
+        if (personType != "Person Type") {
+            let selectedPersonTypes = [...new Set([...this.state.selectedPersonTypes, personType])];
+            this.props.updateDeptsPersonTypes(this.state.selectedDeps, selectedPersonTypes)
+            this.setState({ selectedPersonTypes, personVal: "Person Type" });
+        }
     }
 
     removeDepartmentFilter(dep, event) {
@@ -272,6 +276,7 @@ class Individual extends Component {
     reviewSuggestions() {
         if (this.state.selectedDeps.length || this.state.selectedPersonTypes.length || this.state.selectedAffiliations.length) {
             this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, this.props.affiliationTypes, () => this.props.history.push('/individual_suggestions'))
+            // this.props.history.push('/individual_suggestions')
         }
     }
 
@@ -379,7 +384,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control as="select" placeholder={this.state.deptVal || "Department"} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option value='Department'>Department</option>
                                                         {depOptions}
                                                     </Form.Control>
@@ -394,7 +399,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control  as="select" onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control as="select" placeholder={this.state.affiliVal || "Affiliation"} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option>Affiliation</option>
                                                         {affiliationOptions}
                                                     </Form.Control>
@@ -409,7 +414,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control as="select" placeholder={this.state.personVal || "Person Type"} onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
                                                         <option value='Person Type'>Person Type</option>
                                                         {personTypeOptions}
                                                     </Form.Control>
@@ -437,7 +442,7 @@ class Individual extends Component {
                             <div className="col-xs-12 col-md-12 col-lg-12 col-xl-12 col-sm-12 pl-0 pr-0">
                                 <div className="individual">
                                     <div className="searchHeader">
-                                       {/*  <div className="col-sm-4 pt-1">
+                                        {/*  <div className="col-sm-4 pt-1">
 
                                             <div className="individual_search">
                                                 <Form>
@@ -508,7 +513,7 @@ function RenderProfileDetails(identity) {
     // }
     return (<Row>
         <Col md={4} xs={4} sm={4} lg={4} xl={4}>
-            <img className="userimg_individual" src={identity.identity.identityImageEndpoint} onError={(e)=>{e.target.onerror = null; e.target.src='https://directory.weill.cornell.edu/api/v1/person/profile/msr2004.png?returnGenericOn404=true'}}  width="80" style={{ float: "left" }} />
+            <img className="userimg_individual" src={identity.identity.identityImageEndpoint} onError={(e) => { e.target.onerror = null; e.target.src = 'https://directory.weill.cornell.edu/api/v1/person/profile/msr2004.png?returnGenericOn404=true' }} width="80" style={{ float: "left" }} />
         </Col>
         <Col md={8} xs={8} sm={8} lg={8} xl={8}>
             <p className="username_individual"><a href={`/app/${identity.identity.uid}`} target="_blank">

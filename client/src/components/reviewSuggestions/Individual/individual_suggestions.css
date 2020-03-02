@@ -10,6 +10,28 @@
     margin: 2px 2px 2px 9px;
     font-size: 19px;
 }
+.search_filterss li{
+    font-size:11px;
+}
+.search_filterss h5{
+    font-size: 14px;
+    margin-bottom:8px;
+}
+.search_filterss {
+    list-style: none;
+    padding-left:15px;
+    padding-bottom:25px;
+}
+.searchfilter_edit a{
+    font-size: 14px;
+    text-decoration: underline;
+    color:#005ad9 !important;
+}
+.searchfilter_edit{
+ background-color:#e3e3e3;
+ text-align: center;  
+ padding:10px; 
+}
 .review{
     font-weight: 500;
     padding: 10px 0px 0px 0px;
@@ -94,6 +116,7 @@ margin-top: 5px;
 .scholars h4{
     font-weight: 600;
     padding-top: 20px;
+    text-align:left;
 }
 .link{
     margin: 14px 11px 6px 9px;
@@ -211,8 +234,32 @@ p .suggestionText a{
 a h4{
     margin-top: 20px;
 }
+@media (min-width:1300px) and (max-width:1920px){
+    .firsttable .table-responsive{
+        overflow-x: hidden;
+    }
+}
 @media (min-width: 1200px){
     .container {
         width: 1119px;
     }
+    }
+@media (min-width:769px) and (max-width:992px){
+    .findscholar{
+   margin:87px 15px 10px 14px;    
+    } 
+}
+    @media(max-width:768px){
+        .findscholar{
+            margin:106px 15px 10px 14px;
+        }
+        .findscholar h4{
+            font-size: 15px;
+        }
+        .gtsymbol{
+            font-size:13px;
+        }
+        .review{
+            font-size:15px;
+        }
     }

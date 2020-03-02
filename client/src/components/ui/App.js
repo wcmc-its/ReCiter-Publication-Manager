@@ -110,7 +110,7 @@ class App extends Component {
                                 buttonName='Manage Profile'
                             />
                         </div>
-                        <div className="tab-container">
+                        <div className="tab-container px-0">
                             {thisObject.props.reciterData.reciterPending.length > 0 ? (
                                 <div className="h6fnhWdeg-reciter-pending-banner">
                                     <span>You have provided feedback on </span>
