@@ -49,7 +49,10 @@ class Individual extends Component {
 
     componentDidMount() {
         console.log("identitiyfetcll did mount", this.props.identityAllData)
-        this.setState({ data: this.props.identityAllData })
+        this.setState({ data: this.props.identityAllData,
+                        selectedDeps: this.props.deptTypes,
+                        selectedPersonTypes: this.props.personTypes,
+                        selectedAffiliations: this.props.affiliationTypes })
     }
 
     componentWillReceiveProps(nextProps) {
