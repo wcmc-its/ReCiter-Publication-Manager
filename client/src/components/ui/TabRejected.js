@@ -90,7 +90,10 @@ export class TabRejected extends Component {
                     if(/^[0-9 ]*$/.test(thisObject.state.search)) {
                         var pmids = thisObject.state.search.split(" ");
                         if(pmids.some(pmid => Number(pmid) === publication.pmid )){
-                            filteredPublications.push(publication);
+                           filteredPublications.push(publication);
+                        }
+                        if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                           filteredPublications.push(publication);     
                         }
                     }else {
                         var addPublication = true;

@@ -119,6 +119,9 @@ export class TabSuggested extends Component {
                         if(pmids.some(pmid => Number(pmid) === publication.pmid )){
                             filteredPublications.push(publication);
                         }
+                        if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                           filteredPublications.push(publication);     
+                        }
                     }else {
                         var addPublication = true;
                         // check filter search
