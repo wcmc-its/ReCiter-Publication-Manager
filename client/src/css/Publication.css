@@ -32,11 +32,11 @@
     font-size: 14px;
 }
 .h6fnhWdeg-publications-evidence-table thead th {
-    background: #202b3b !important;
-    color: #fff;
-    padding: 10px;
-    border-left: 1px solid #9cb8cb;
-    text-align: center;
+    background: white !important;
+    color: #323942 !important;
+    padding: 10px 10px 4px;
+    text-align: left;
+    border-bottom: 2px solid gray;
 }
 .h6fnhWdeg-publications-evidence-table td {
     padding: 5px 10px;

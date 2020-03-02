@@ -15,19 +15,26 @@
     width: 110px;
 }
 .pagination-container {
-    padding: 0px 10px;
+    padding: 10px;
+    background-color: #E8E8E8;
+}
+.pagination-container label {
+    font-weight: normal;
 }
 .pagination-container .col {
     padding: 10px;
 }
 .pagination-container ul.pagination {
     margin: 0px;
-    border:1px solid #000;
-    border-radius:0px;
+    border:1px solid #bbb;
+    border-radius:4px;
     float:right;
 }
-@media(max-width:768px){
+@media(max-width:768px) {
     .pagination-container {
         padding: 0px 0px !important;
     }
+}
+.pagination-container ul.pagination li span{
+    padding: 4px 10px;
 }

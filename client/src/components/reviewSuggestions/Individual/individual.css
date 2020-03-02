@@ -9,7 +9,12 @@
     border-radius: 3px;
 }
 .idvidual_ul {
-    list-style: disc;
+    list-style: none;
+}
+.idvidual_ul li:before {
+    content:"•";
+    font-size:10pt;
+    margin-right: 10px;
 }
 .userimg_individual {
 
@@ -37,7 +42,7 @@
     position: absolute;
     color:#005ad9;
     right:21px;
-    top:5px;    
+    top:5px;
 }
 .searchicon{
     color:#ffffff;
@@ -68,7 +73,7 @@
     color: #212121;
 }
 .individual_table tbody tr{
-    border-bottom:3px solid #f4f4f4;
+    border-bottom:3px solid #F4F4F4 !important;
 }
 .individual_search_well{
     background-color:#ececec;
@@ -104,6 +109,9 @@
     color: #000 !important;
     font-weight: bold;
 }
+.scholarHeading {
+    margin: 0;
+}
 .scholars{
     font-size: 16px;
     font-weight: bold;
@@ -119,8 +127,10 @@
 }
 .searchHeader {
     background-color: #e8e8e8;
-    padding: 10px;
     display: flex;
+}
+.searchHeader label{
+    font-weight: normal;
 }
 .border{
     border: 1px solid #000 !important;
@@ -130,7 +140,7 @@
 .btn-primes{
     border:0px;
     border-radius: 5px;
-    background-color: #005ad9 !important;   
+    background-color: #005ad9 !important;
 }
 .individual{
     color:#323942;
@@ -141,20 +151,25 @@
 .inputadds{
     background: #005ad9;
     color: #ffff;
-    border:0px;    
+    border:0px;
 }
 .username_individual a{
     color:#000;
 }
 .btn-span{
     padding-left:15px;
-} 
+}
 .pagination{
     margin:0px 0;
 }
 .individual_table .row{
     margin-left: 0px;
 margin-right: 0px;
+}
+
+.indivdual_container{
+    margin: 0;
+    padding: 0 30px;
 }
 @media (min-width:1200px) and (max-width:1366px){
     .indivdual_container{

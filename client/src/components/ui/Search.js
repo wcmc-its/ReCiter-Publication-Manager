@@ -1,14 +1,15 @@
 import React, { Component } from "react";
-import { Button, Form } from "react-bootstrap";
+import { Button, Form, InputGroup,  } from "react-bootstrap";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { connect } from 'react-redux';
 import { identityFetchAllData } from '../../actions'
-import "../../css/Search.css";
 import Header from "../ui/Header";
 import Footer from "../ui/Footer";
 import SideNav from "../ui/SideNav";
 import { Pagination } from './Pagination';
-import { Filter } from './Filter'; 
+import "../../css/Search.css";
+
+import { Filter } from './Filter';
 
 class Search extends Component {
 
@@ -83,7 +84,7 @@ class Search extends Component {
                     identities.push(thisObject.props.identityAllData[i]);
                 }
             }
-            
+
         }
         return {
             paginatedIdentities: identities
@@ -104,8 +105,8 @@ class Search extends Component {
             if(thisObject.props.identityAllData !== undefined) {
                 var searchResults = []
                 searchResults = thisObject.props.identityAllData.filter(identity => {
-                    if(identity.uid === searchText 
-                        || 
+                    if(identity.uid === searchText
+                        ||
                         identity.primaryName.firstName.toLowerCase().includes(searchText.toLowerCase())
                         ||
                         identity.primaryName.lastName.toLowerCase().includes(searchText.toLowerCase())) {
@@ -116,7 +117,7 @@ class Search extends Component {
                     identityData: searchResults
                 })
             }
-            
+
         })
 
     }
@@ -153,21 +154,26 @@ class Search extends Component {
                         <SideNav uid={this.props.match.params.uid} history={this.props.history} />
                     </div>
                     <div className="search-content-container">
-                        <div className="search-bar">
-                            <h1>Find a scholar(s)</h1>
+                        <div className="search-bar ">
+                            <h4>Find Scholar</h4>
                             <Form.Group controlId="formSearch">
-                                <Form.Control
-                                    type="input"
-                                    placeholder="Enter name or person identifier"
-                                    ref="search-field"
-                                />
+                                <InputGroup>
+                                    <InputGroup.Prepend>
+                                        <InputGroup.Text onClick={this.search}> @ </InputGroup.Text>
+                                    </InputGroup.Prepend>
+                                    <Form.Control
+                                        type="input"
+                                        placeholder="Enter name or person identifier"
+                                        ref="search-field"
+                                    />
+                                </InputGroup>
                             </Form.Group>
                             <Button className="primary" onClick={this.search} >Search</Button>
                             <div>
                                 <br/>
-                                <div className="row">
+                                <div className="row page-title">
                                     <div className="col-md-4">
-                                        <h3>Number of results: <strong>{(this.state.identityData !==undefined && this.state.identityData.length > 0)?this.state.identityData.length: thisObject.props.identityAllData.length}</strong></h3>
+                                        <h4 className="scholarHeading"><strong>{(this.state.identityData !==undefined && this.state.identityData.length > 0)?this.state.identityData.length: thisObject.props.identityAllData.length} scholar(s)</strong></h4>
                                     </div>
                                 </div>
                                 <React.Fragment>
@@ -175,7 +181,7 @@ class Search extends Component {
                                                 count={this.state.count}
                                                 onChange={this.handlePaginationUpdate}/>
                                     <div className="table-responsive">
-                                        <table className="h6fnhWdeg-publications-evidence-table table table-striped">
+                                        <table className="h6fnhWdeg-publications-evidence-table table resultTable">
                                             <thead>
                                                 <tr>
                                                     <th key="0">Name</th>
@@ -208,7 +214,7 @@ class Search extends Component {
 function List(props) {
     if(props.list === undefined || props.list === null) {
         return null
-    } 
+    }
     let listArray = []
     if(props.orgUnit === "true") {
         props.list.map((item, idx) => {
@@ -228,7 +234,7 @@ function Name(props) {
     let nameArray = []
     let imageUrl = ''
     if(props.identity.identityImageEndpoint !== undefined) {
-        if(props.identity.identityImageEndpoint.length > 0) 
+        if(props.identity.identityImageEndpoint.length > 0)
             imageUrl = props.identity.identityImageEndpoint
         else
             imageUrl = '../images/generic-headshot.png'
@@ -238,7 +244,7 @@ function Name(props) {
         nameArray.push(<p key="0"><img src={`${imageUrl}`} width="80" style={{float: "left"}}/> <a href={`/app/${props.identity.uid}`} target="_blank">
             {nameString}
             </a></p>)
-        
+
     }
     if(props.identity.title !== undefined) {
         nameArray.push(<p key="1"><span>{props.identity.title}</span></p>)
