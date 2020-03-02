@@ -384,7 +384,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" placeholder={this.state.deptVal || "Department"} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control as="select" placeholder={this.state.deptVal || "Department"}  onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
                                                         <option value='Department'>Department</option>
                                                         {depOptions}
                                                     </Form.Control>
@@ -399,7 +399,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" placeholder={this.state.affiliVal || "Affiliation"} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control  as="select" placeholder={this.state.affiliVal || "Affiliation"} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
                                                         <option>Affiliation</option>
                                                         {affiliationOptions}
                                                     </Form.Control>
@@ -414,7 +414,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" placeholder={this.state.personVal || "Person Type"} onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold border-bottom-1">
+                                                    <Form.Control as="select" placeholder={this.state.personVal || "Person Type"}  onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold">
                                                         <option value='Person Type'>Person Type</option>
                                                         {personTypeOptions}
                                                     </Form.Control>
@@ -433,9 +433,9 @@ class Individual extends Component {
                                 </div>
                             </div>
                         </div>
-                        <div className="row">
+                        <div className="row page-title">
                             <div className="col-md-12">
-                                <h4><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.reviewSuggestions()}>Review  All Pending Suggestions</button></span></h4>
+                                <h4 className="scholarHeading"><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.reviewSuggestions()}>Review  All Pending Suggestions</button></span></h4>
                             </div>
                         </div>
                         <div className="row">
@@ -449,7 +449,7 @@ class Individual extends Component {
 
                                                     <Form.Group as={Row} id="form_group">
 
-                                                        <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label> 
+                                                        <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label>
                                                         <Col sm="2" className="pl-0 individual_searchfilter">
                                                             {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="show_recordscaret" />
                                                             <Form.Control as="select" className="mt-0 pl-3 pr-0 selectoption" onChange={this.onRecordsLimitChange}>
@@ -458,7 +458,7 @@ class Individual extends Component {
                                                                 <option>30</option>
                                                                 <option>40</option>
                                                                 <option>50</option>
-                                                            </Form.Control> 
+                                                            </Form.Control>
                                                         </Col>
                                                     </Form.Group>
                                                 </Form>
@@ -506,7 +506,7 @@ class Individual extends Component {
 
 function RenderProfileDetails(identity) {
     // if(identity.identity.identityImageEndpoint !== undefined) {
-    //     if(identity.identity.identityImageEndpoint.length > 0) 
+    //     if(identity.identity.identityImageEndpoint.length > 0)
     //         imageUrl = identity.identity.identityImageEndpoint
     //     else
     //         imageUrl = '../images/generic-headshot.png'

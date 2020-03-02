@@ -27,3 +27,25 @@ body {
     color: #337ab7;
     cursor: pointer;
 }
+
+.page-title {
+    font-size:16px;
+    margin-bottom: 6px;
+}
+
+.resultTable ul {
+    list-style: none;
+    padding-left: 4px;
+}
+
+.resultTable ul li:before{
+    content:"•";
+    font-size:10pt;
+    margin-right: 10px;
+
+}
+
+.pagination-container {
+    padding: 10px;
+    background-color: #E8E8E8;
+}
