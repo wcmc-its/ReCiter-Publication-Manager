@@ -18,7 +18,7 @@
     color: #777777;
 }
 .tabs-headers{
-    margin-left:7%;
+    margin-left:10%;
 }
 .h6fnhWdeg-publications-tab-link span {
     display: inline-block;
@@ -77,5 +77,8 @@
     }
     .nav > li > a{
         padding:8px 5px;
+    }
+    .h6fnhWdeg-publication-buttons {
+        width: 145px !important;
     }
 }

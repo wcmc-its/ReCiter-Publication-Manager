@@ -109,7 +109,12 @@ right:81px;
 }
 .h6fnhWdeg-publication-undo {
     font-size: 14px;
-    font-weight: 600;
+border-radius: 2px;
+outline: none !important;
+box-shadow: none !important;
+color:
+#202b3b;
+font-weight: normal;
     margin-right: 5px;
 }
 .h6fnhWdeg-publication-score {

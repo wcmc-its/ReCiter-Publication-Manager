@@ -12,6 +12,7 @@
     grid-row-start: row-1-start;
     grid-row-end: row-end;
     grid-column-start: col-1-start;
+    margin-left:39px;
 }
 
 .userImg span {
@@ -57,5 +58,15 @@
 @media(max-width:768px){
     .userContainer {
 padding:0rem 0rem;
+    }
+    .userName {
+        grid-row-start: row-1-start;
+    }
+    .userTitle {
+        grid-row-start: row-2-start;
+
+    }
+    .btnContainer {
+        margin-top: -89PX;
     }
 }

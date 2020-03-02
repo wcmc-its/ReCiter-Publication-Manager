@@ -211,11 +211,12 @@ export class TabRejected extends Component {
             <div className="h6fnhWdeg-tab-content">
                 <div className="h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true}/>
-                    <button className="btn btn-primary h6fnhWdeg-accept-all" onClick={this.acceptAll}>Accept all on page</button>
-                    <button className="btn btn-default disabled h6fnhWdeg-reject-all">Reject all on page</button>
+                    <button className="btn btn-primary backgroundColorBlue h6fnhWdeg-accept-all borderRadius0" onClick={this.acceptAll}>Accept all</button>
+                    <button className="btn btn-default disabled h6fnhWdeg-reject-all borderRadius0">Reject all</button>
                 </div>
                 <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
-                <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
+                {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
+                <div className="tabs_responsive_table col-md-12">
                 <div className="table-responsive">
                     <table className="tabs_tables h6fnhWdeg-publications-table table">
                         <tbody>
@@ -226,6 +227,7 @@ export class TabRejected extends Component {
                         }
                         </tbody>
                     </table>
+                </div>
                 </div>
                 <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
             </div>

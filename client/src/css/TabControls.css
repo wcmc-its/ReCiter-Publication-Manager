@@ -25,6 +25,9 @@
     background-color: #ffffff;
     border-color: #ccc;
 }
+.suggested_filter_text {
+    padding-left: 19px;
+}
 @media(max-width:768px){
     .h6fnhWdeg-tab-controls-container .filter-container{
         float:initial;

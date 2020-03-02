@@ -28,7 +28,7 @@ export class TabAccepted extends Component {
         this.setState({
             page: page
         });
-        if(event.target.value !== undefined) {
+        if (event.target.value !== undefined) {
             this.setState({
                 count: event.target.value
             });
@@ -66,7 +66,7 @@ export class TabAccepted extends Component {
     rejectAll() {
         const publications = this.filter();
         var ids = [];
-        publications.paginatedPublications.forEach(function(item){
+        publications.paginatedPublications.forEach(function (item) {
             ids.push(item.pmid);
         });
         const request = {
@@ -79,50 +79,50 @@ export class TabAccepted extends Component {
 
     filter() {
         const thisObject = this;
-        
+
         // Filter
         var filteredPublications = [];
         this.props.reciterData.reciter.forEach((publication) => {
             // Check if publication is Suggested
-            if(publication.userAssertion === "ACCEPTED") {
+            if (publication.userAssertion === "ACCEPTED") {
                 // Check search and sort
-                if(thisObject.state.search !== "") {
-                    if(/^[0-9 ]*$/.test(thisObject.state.search)) {
+                if (thisObject.state.search !== "") {
+                    if (/^[0-9 ]*$/.test(thisObject.state.search)) {
                         var pmids = thisObject.state.search.split(" ");
-                        if(pmids.some(pmid => Number(pmid) === publication.pmid )){
+                        if (pmids.some(pmid => Number(pmid) === publication.pmid)) {
                             filteredPublications.push(publication);
                         }
-                    }else {
+                    } else {
                         var addPublication = true;
                         // check filter search
                         if (thisObject.state.search !== "") {
                             addPublication = false;
                             //pmcid
-                            if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //publicationTypeCanonical
-                            if(publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //scopusDocID
-                            if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //journalTitleISOabbreviation
-                            if(publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //journalTitleVerbose
-                            if(publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //publication date display
-                            if(publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //doi
-                            if(publication.doi !== undefined && publication.doi.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.doi !== undefined && publication.doi.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             // title
@@ -134,11 +134,11 @@ export class TabAccepted extends Component {
                                 addPublication = true;
                             }
                             //issn
-                            if(publication.issn !== undefined) {
+                            if (publication.issn !== undefined) {
                                 var issnArray = publication.issn.map((issn, issnIndex) => {
                                     return issn.issn
                                 })
-                                if(issnArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                if (issnArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                     addPublication = true;
                                 }
                             }
@@ -165,14 +165,14 @@ export class TabAccepted extends Component {
                             filteredPublications.push(publication);
                         }
                     }
-                }else {
+                } else {
                     filteredPublications.push(publication);
                 }
             }
         })
         // Sort
         filteredPublications.sort((a, b) => {
-            switch(this.state.sort) {
+            switch (this.state.sort) {
                 case "0":
                     return parseInt(b.standardScore) - parseInt(a.standardScore);
                 case "1":
@@ -191,8 +191,8 @@ export class TabAccepted extends Component {
         var to = from + parseInt(this.state.count, 10) - 1;
         var publications = [];
         var i = from;
-        for(i; i <= to; i++) {
-            if(filteredPublications[i] !== undefined) {
+        for (i; i <= to; i++) {
+            if (filteredPublications[i] !== undefined) {
                 publications.push(filteredPublications[i]);
             }
         }
@@ -211,24 +211,24 @@ export class TabAccepted extends Component {
             <div className="h6fnhWdeg-tab-content">
                 <div className="h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true} />
-                    <button className="btn btn-default disabled h6fnhWdeg-accept-all">Accept all</button>
-                    <button className="btn btn-primary h6fnhWdeg-reject-all" onClick={this.rejectAll}>Reject allnpm </button>
+                    <button className="btn btn-primary  backgroundColorBlue disabled h6fnhWdeg-accept-all borderRadius0">Accept all</button>
+                    <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0" onClick={this.rejectAll}>Reject all</button>
                 </div>
-                <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
+                <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); }}>Search PubMed...</a></p>
                 {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
-           
-               <div className="table-responsive">
-                    <table className="tabs_tables h6fnhWdeg-publications-table table">
-                        <tbody>
-                        {
-                            publications.paginatedPublications.map(function(item, index){
-                                return <Publication item={item} key={index} onAccept={thisObject.acceptPublication} onReject={thisObject.rejectPublication} onUndo={thisObject.undoPublication} />;
-                            })
-                        }
-                        </tbody>
-                    </table>
-               </div>
-           
+                <div className="tabs_responsive_table col-md-12">
+                    <div className="table-responsive">
+                        <table className="tabs_tables h6fnhWdeg-publications-table table">
+                            <tbody>
+                                {
+                                    publications.paginatedPublications.map(function (item, index) {
+                                        return <Publication item={item} key={index} onAccept={thisObject.acceptPublication} onReject={thisObject.rejectPublication} onUndo={thisObject.undoPublication} />;
+                                    })
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
                 <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
             </div>
         );

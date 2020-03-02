@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import '../../css/Publication.css';
 import ReactTooltip from 'react-tooltip';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {faCheck,faTimes } from '@fortawesome/free-solid-svg-icons'
+import {faCheck,faTimes,faUndo } from '@fortawesome/free-solid-svg-icons'
 
 class Publication extends Component {
 
@@ -79,12 +79,12 @@ class Publication extends Component {
                 <button
                     className={`btn btn-default h6fnhWdeg-publication-undo`}
                     onClick={this.undoPublication}
-                >Undo
+                ><FontAwesomeIcon icon={faUndo} size='1x' /> Undo
                 </button>
                 <button
                     className={`btn btn-danger h6fnhWdeg-publication-reject`}
                     onClick={this.rejectPublication}
-                >Reject
+                ><FontAwesomeIcon icon={faTimes} size='1x' /> Reject
                 </button>
             </div>;
         }
@@ -94,12 +94,12 @@ class Publication extends Component {
                 <button
                     className={`btn btn-success h6fnhWdeg-publication-accept`}
                     onClick={this.acceptPublication}
-                >Accept
+                > <FontAwesomeIcon icon={faCheck} size='1x' /> Accept
                 </button>
                 <button
                     className={`btn btn-default h6fnhWdeg-publication-undo`}
                     onClick={this.undoPublication}
-                >Undo
+                ><FontAwesomeIcon icon={faUndo} size='1x' /> Undo
                 </button>
             </div>;
 
