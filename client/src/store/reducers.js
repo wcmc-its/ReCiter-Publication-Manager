@@ -175,6 +175,8 @@ export const groupReviewSuggestions = (state = [], action) => {
     switch (action.type) {
         case methods.GROUP_BY_FETCH_ALL_DATA:
             return action.payload
+        case methods.GROUP_REVIEW_SUGGESTIONS_CLEAR_DATA:
+            return []
         default:
             return state
     }

@@ -470,6 +470,11 @@ export const clearDeptPersonAffiliTypesData = () => dispatch => {
     })
 }
 
+export const clearGroupReviewSuggestions = () => dispatch => {
+    dispatch({
+        type: methods.GROUP_REVIEW_SUGGESTIONS_CLEAR_DATA
+    })
+}
 
 export const getGroupReviewSuggestions = (deptTypes, personTypes, affiliationTypes, cb) => dispatch => {
     console.log("deptTypes in review", deptTypes, affiliationTypes)
@@ -528,6 +533,6 @@ export const getGroupReviewSuggestions = (deptTypes, personTypes, affiliationTyp
 
 }
 
-export const editIndividualSearch = (deptTypes, personTypes, affiliationTypes, cb) =>dispatch =>{
+export const editIndividualSearch = (deptTypes, personTypes, affiliationTypes, cb) => dispatch => {
     cb()
 }
