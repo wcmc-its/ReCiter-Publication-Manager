@@ -373,7 +373,7 @@ class Individual extends Component {
                                                 <thead>
                                                     <tr className="row">
                                                         <th className="col-md-3 col-lg-3 col-sm-3 col-xs-3 col-xl-3">Name</th>
-                                                        <th className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4">Organizational units</th>
+                                                        <th className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4">Organizational Units</th>
                                                         <th className="col-md-5 col-lg-5 col-sm-5 col-xs-5 col-xl-5">Institutions</th>
                                                     </tr>
                                                 </thead>
