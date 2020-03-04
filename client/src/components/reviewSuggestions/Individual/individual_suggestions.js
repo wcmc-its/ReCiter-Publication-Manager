@@ -11,34 +11,56 @@ import { editIndividualSearch, getGroupReviewSuggestions, reciterUpdatePublicati
 
 
 class Individuals extends Component {
+    state = {
+        groupReviewSuggestions: [],
+        selectedDeptTypes: [],
+        selectedAffiliations: [],
+        selectedPersonTypes: [],
+        identityAllData: [],
+        resultMode: "EMPTY",
+        loading: false,
+        page: 1,
+        count: 10
+    }
 
     constructor(props) {
         super(props);
-        this.state = {
-            groupReviewSuggestions: [],
-            page: 1,
-            count: 10
-        }
         this.editsearch = this.editsearch.bind(this);
         this.handlePaginationUpdate = this.handlePaginationUpdate.bind(this);
         this.filter = this.filter.bind(this);
+
     }
 
     componentDidMount() {
-        this.props.getGroupReviewSuggestions(this.props.selectedDeptTypes, this.props.selectedPersonTypes, this.props.selectedAffiliationTypes, this.setGroupReviewSuggestions)
-        if (this.props.selectedDeptTypes.length == 0 && this.props.selectedAffiliationTypes.length == 0 && this.props.selectedPersonTypes.length == 0) {
-            console.log(this.props, 'Testing COnsole')
-            this.props.history.push('/individual')
+        this.setState({
+            selectedDeptTypes: this.props.selectedDeptTypes || [],
+            selectedPersonTypes: this.props.selectedPersonTypes || [],
+            selectedAffiliations: this.props.selectedAffiliationTypes || [],
+            identityAllData: this.props.identityAllData || [],
+            loading: true
+        });
+
+        this.props.getGroupReviewSuggestions(this.props.selectedDeptTypes,
+            this.props.selectedPersonTypes, this.props.selectedAffiliationTypes, this.setGroupReviewSuggestions);
+
+        if (this.props.selectedDeptTypes.length == 0
+            && this.props.selectedAffiliationTypes.length == 0 && this.props.selectedPersonTypes.length == 0) {
+            this.props.history.push('/individual');
         }
     }
 
     setGroupReviewSuggestions = (groupReviewSuggestions) => {
-        if(groupReviewSuggestions.length>0){
-        console.log("this.props.groupReview", groupReviewSuggestions)
-        this.setState({ groupReviewSuggestions })
-        }else{
+        if (groupReviewSuggestions && groupReviewSuggestions.reciter.length > 0) {
+            this.setState({
+                groupReviewSuggestions: groupReviewSuggestions.reciter,
+                resultMode: groupReviewSuggestions.resultMode,
+                loading: false
+            })
+
+        } else {
             this.props.history.push('/individual')
         }
+
     }
 
     handlePaginationUpdate(event, page) {
@@ -61,7 +83,6 @@ class Individuals extends Component {
 
     filter() {
         const thisObject = this;
-        console.log(this.props.groupReviewSuggestions.length, this.props.identityAllData.length)
         let suggestionsData = []
         thisObject.props.groupReviewSuggestions.forEach((suggestion) => {
 
@@ -77,7 +98,6 @@ class Individuals extends Component {
         var to = from + parseInt(this.state.count, 10) - 1;
         var suggestions = [];
         var i = from;
-        console.log(suggestionsData, 'suggestionsData')
         return {
             paginatedSuggestions: suggestionsData
         }
@@ -93,23 +113,15 @@ class Individuals extends Component {
     }
 
     render() {
-        const { groupReviewSuggestions, selectedDeptTypes, selectedPersonTypes, selectedAffiliationTypes, identityAllData } = this.props;
+        const { groupReviewSuggestions, selectedDeptTypes, selectedPersonTypes, selectedAffiliationTypes, identityAllData } = this.state;
         const { page, count } = this.state;
-        // const statesss = this.filter()
-        if (this)
-            // for(let i of statesss){
-            //     console.log(i.userName, '<==i', i.articles)
-            // }
 
-            console.log("individual suggestions render", groupReviewSuggestions, identityAllData)
-        console.log(this.state.page, 'page', this.state.count, 'count')
         let elementsUI = [], loopCount;
         if (count < groupReviewSuggestions.length) loopCount = count;
         else loopCount = groupReviewSuggestions.length;
         for (let j = page - 1; j < loopCount; j++) {
             let i = groupReviewSuggestions[j]
             let userObj = identityAllData.find((item) => item ? item.uid == i.personIdentifier : false)
-            console.log("userObj", userObj)
             elementsUI.push(
                 <div className="firsttable">
                     <div className="row">
@@ -206,8 +218,65 @@ class Individuals extends Component {
                 </div>)
 
         }
-        console.log("elemtnUI length", elementsUI.length)
-        if (groupReviewSuggestions.length == 0) {
+        let mainContent = [];
+        if (this.state.resultMode === "EMPTY") {
+            mainContent.push(<div class="alert alert-danger" role="alert">
+                No data
+                        </div>)
+
+        } else {
+            if (this.state.resultMode === "LARGE_RESULTS") {
+                mainContent.push(<div class="alert alert-danger" role="alert">
+                    Too many results
+                        </div>)
+
+            }
+            mainContent.push(<div className="row">
+                <div className="col-xs-12">
+                    <div className="individual">
+                        <div className="searchHeader">
+                            {/* <div className="col-sm-4">
+                                            <div className="individual_search">
+                                                <Form>
+                                                    <Form.Group as={Row} id="form_group">
+                                                        <Form.Label column sm="4" id="form-label_number">Show records</Form.Label>
+                                                        <Col sm="3"> <Form.Control as="select" className="pl-1 border">
+                                                            <option>10</option>
+                                                            <option>20</option>
+                                                            <option>30</option>
+                                                            <option>40</option>
+                                                            <option>50</option>
+                                                        </Form.Control>
+                                                        </Col>
+                                                    </Form.Group>
+                                                </Form>
+                                            </div>
+                                        </div> */}
+                            <div className="col-sm-12">
+                                {/* <button className="btn button1" type="button">First</button> */}
+                                <Pagination total={groupReviewSuggestions.length} page={this.state.page}
+                                    count={this.state.count}
+                                    onChange={this.handlePaginationUpdate} />
+                                {/* <Pagination id="individual_page" className="mt-0 mb-0">
+                                                {/* <Pagination.First /> */}
+                                {/* <Pagination.Prev />
+                                                <Pagination.Item disabled>{10}</Pagination.Item>
+                                                <Pagination.Item>{11}</Pagination.Item>
+                                                <Pagination.Ellipsis />
+                                                <Pagination.Item>{25}</Pagination.Item>
+                                                <Pagination.Item >{26}</Pagination.Item>
+                                                <Pagination.Next /> */}
+                                {/* <Pagination.Last /> */}
+                                {/* <button className="btn button2" type="button">Last</button>
+                                            </Pagination> */}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            )
+        }
+        if (this.state.loading) {
             return (<div className="h6fnhWdeg-app-loader"> </div>)
         }
         else {
@@ -262,49 +331,7 @@ class Individuals extends Component {
                                 <h4>{groupReviewSuggestions.length} scholars</h4>
                             </div>
                         </div>
-                        <div className="row">
-                            <div className="col-xs-12">
-                                <div className="individual">
-                                    <div className="searchHeader">
-                                        {/* <div className="col-sm-4">
-                                            <div className="individual_search">
-                                                <Form>
-                                                    <Form.Group as={Row} id="form_group">
-                                                        <Form.Label column sm="4" id="form-label_number">Show records</Form.Label>
-                                                        <Col sm="3"> <Form.Control as="select" className="pl-1 border">
-                                                            <option>10</option>
-                                                            <option>20</option>
-                                                            <option>30</option>
-                                                            <option>40</option>
-                                                            <option>50</option>
-                                                        </Form.Control>
-                                                        </Col>
-                                                    </Form.Group>
-                                                </Form>
-                                            </div>
-                                        </div> */}
-                                        <div className="col-sm-12">
-                                            {/* <button className="btn button1" type="button">First</button> */}
-                                            <Pagination total={groupReviewSuggestions.length} page={this.state.page}
-                                                count={this.state.count}
-                                                onChange={this.handlePaginationUpdate} />
-                                            {/* <Pagination id="individual_page" className="mt-0 mb-0">
-                                                {/* <Pagination.First /> */}
-                                            {/* <Pagination.Prev />
-                                                <Pagination.Item disabled>{10}</Pagination.Item>
-                                                <Pagination.Item>{11}</Pagination.Item>
-                                                <Pagination.Ellipsis />
-                                                <Pagination.Item>{25}</Pagination.Item>
-                                                <Pagination.Item >{26}</Pagination.Item>
-                                                <Pagination.Next /> */}
-                                            {/* <Pagination.Last /> */}
-                                            {/* <button className="btn button2" type="button">Last</button>
-                                            </Pagination> */}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {mainContent}
                         {elementsUI}
                     </div>
                     <div className="footer-position">
