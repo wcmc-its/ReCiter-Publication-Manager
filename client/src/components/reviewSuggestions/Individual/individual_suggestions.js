@@ -7,7 +7,7 @@ import SideNav from "../../ui/SideNav";
 import { Pagination } from '../../ui/Pagination';
 import "./individual_suggestions.css";
 import { connect } from 'react-redux'
-import { editIndividualSearch } from '../../../../src/actions';
+import { editIndividualSearch, getGroupReviewSuggestions, reciterUpdatePublication, identityFetchData, clearGroupReviewSuggestions } from '../../../../src/actions';
 
 
 class Individuals extends Component {
@@ -25,8 +25,18 @@ class Individuals extends Component {
     }
 
     componentDidMount() {
+        this.props.getGroupReviewSuggestions(this.props.selectedDeptTypes, this.props.selectedPersonTypes, this.props.selectedAffiliationTypes, this.setGroupReviewSuggestions)
         if (this.props.selectedDeptTypes.length == 0 && this.props.selectedAffiliationTypes.length == 0 && this.props.selectedPersonTypes.length == 0) {
             console.log(this.props, 'Testing COnsole')
+            this.props.history.push('/individual')
+        }
+    }
+
+    setGroupReviewSuggestions = (groupReviewSuggestions) => {
+        if(groupReviewSuggestions.length>0){
+        console.log("this.props.groupReview", groupReviewSuggestions)
+        this.setState({ groupReviewSuggestions })
+        }else{
             this.props.history.push('/individual')
         }
     }
@@ -44,6 +54,7 @@ class Individuals extends Component {
 
     editsearch() {
         if (this.props.selectedDeptTypes.length || this.props.selectedPersonTypes.length || this.props.selectedAffiliations.length) {
+            this.props.clearGroupReviewSuggestions()
             this.props.editsearch(this.props.selectedDeptTypes, this.props.selectedPersonTypes, this.props.selectedAffiliations, () => this.props.history.push('/individual'))
         }
     }
@@ -66,7 +77,8 @@ class Individuals extends Component {
         var to = from + parseInt(this.state.count, 10) - 1;
         var suggestions = [];
         var i = from;
-        return{
+        console.log(suggestionsData, 'suggestionsData')
+        return {
             paginatedSuggestions: suggestionsData
         }
         // for (i; i <= to; i++) {
@@ -82,16 +94,27 @@ class Individuals extends Component {
 
     render() {
         const { groupReviewSuggestions, selectedDeptTypes, selectedPersonTypes, selectedAffiliationTypes, identityAllData } = this.props;
-        console.log("individual suggestions render", groupReviewSuggestions, identityAllData)
-        let elementsUI = [];
-        for (let i of groupReviewSuggestions) {
+        const { page, count } = this.state;
+        // const statesss = this.filter()
+        if (this)
+            // for(let i of statesss){
+            //     console.log(i.userName, '<==i', i.articles)
+            // }
+
+            console.log("individual suggestions render", groupReviewSuggestions, identityAllData)
+        console.log(this.state.page, 'page', this.state.count, 'count')
+        let elementsUI = [], loopCount;
+        if (count < groupReviewSuggestions.length) loopCount = count;
+        else loopCount = groupReviewSuggestions.length;
+        for (let j = page - 1; j < loopCount; j++) {
+            let i = groupReviewSuggestions[j]
             let userObj = identityAllData.find((item) => item ? item.uid == i.personIdentifier : false)
             console.log("userObj", userObj)
             elementsUI.push(
                 <div className="firsttable">
                     <div className="row">
                         <div className="col-md-12">
-                            <h4><span className="link"><a href="#">{userObj?.primaryName?.firstName + " " + userObj?.primaryName?.lastName}</a></span><span className="name">{userObj?.title}</span></h4>
+                            <h4><span className="link"><a href={`/app/${userObj?.uid}`} target="_blank">{userObj?.primaryName?.firstName + " " + userObj?.primaryName?.lastName}</a></span><span className="name">{userObj?.title}</span></h4>
                         </div>
                     </div>
                     <div className="row recordstable">
@@ -184,8 +207,6 @@ class Individuals extends Component {
 
         }
         console.log("elemtnUI length", elementsUI.length)
-        // const suggestions = this.filter()
-        // console.log(suggestions, 'asdsadasdsadasdasdsadsadsadasdss')
         if (groupReviewSuggestions.length == 0) {
             return (<div className="h6fnhWdeg-app-loader"> </div>)
         }
@@ -307,6 +328,20 @@ const mapStateToProps = state => ({
 const mapDispatchToProps = dispatch => ({
     editsearch(deptTypes, personTypes, affiliationTypes, cb) {
         dispatch(editIndividualSearch(deptTypes, personTypes, affiliationTypes, cb))
+    },
+    getGroupReviewSuggestions(deptTypes, personTypes, affiliationTypes, cb) {
+        dispatch(getGroupReviewSuggestions(deptTypes, personTypes, affiliationTypes, cb))
+    },
+    updatePublication(uid, request) {
+        dispatch(
+            reciterUpdatePublication(uid, request)
+        )
+    },
+    identityFetchData(uid) {
+        dispatch(identityFetchData(uid))
+    },
+    clearGroupReviewSuggestions() {
+        dispatch(clearGroupReviewSuggestions())
     }
 });
 

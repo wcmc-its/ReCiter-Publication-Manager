@@ -49,10 +49,12 @@ class Individual extends Component {
 
     componentDidMount() {
         console.log("identitiyfetcll did mount", this.props.identityAllData)
-        this.setState({ data: this.props.identityAllData,
-                        selectedDeps: this.props.deptTypes,
-                        selectedPersonTypes: this.props.personTypes,
-                        selectedAffiliations: this.props.affiliationTypes })
+        this.setState({
+            data: this.props.identityAllData,
+            selectedDeps: this.props.deptTypes,
+            selectedPersonTypes: this.props.personTypes,
+            selectedAffiliations: this.props.affiliationTypes
+        })
     }
 
     componentWillReceiveProps(nextProps) {
@@ -206,77 +208,27 @@ class Individual extends Component {
         // } else {
         if (this.refs['search-field'].value != "" && this.refs['search-field'].value != undefined) {
             const { identityAllData } = this.props;
-            let foundObj = identityAllData.find((item) => item ? item.uid == this.refs['search-field'].value : false)
-            this.setState({ data: [foundObj] })
+            // let foundObj = identityAllData.find((item) => item ? item.uid == this.refs['search-field'].value : false)
+            let searchText = this.refs['search-field'].value;
+            let foundObj = identityAllData.filter(identity => {
+                if (identity.uid === searchText
+                    ||
+                    identity.primaryName.firstName.toLowerCase().includes(searchText.toLowerCase())
+                    ||
+                    identity.primaryName.lastName.toLowerCase().includes(searchText.toLowerCase())) {
+                    return identity
+                }
+            })
+            this.setState({ data: foundObj })
         } else {
             this.setState({ data: this.props.identityAllData })
         }
-        // }
-        // this.props.history.push({
-        //     pathname:'/individual_suggestions',
-        //     state:{
-        //         deptTypes:this.state.selectedDeps,
-        //         personTypes:this.state.selectedPersonTypes
-        //     }
-        // })
-        // const thisObject = this
-        // const searchText = this.refs['search-field'].value
-
-        // this.setState({
-        //     identityData: thisObject.props.identityAllData
-        // })
-
-        // this.setState({
-        //     identitySearch: searchText
-        // }, function () {
-        //     if (thisObject.props.identityAllData !== undefined) {
-        //         var searchResults = []
-        //         searchResults = thisObject.props.identityAllData.filter(identity => {
-        //             let matchesText = false;
-        //             let matchesDeps = false;
-        //             let matchesPersonTypes = false;
-        //             if (identity.uid === searchText
-        //                 ||
-        //                 identity.primaryName.firstName.toLowerCase().includes(searchText.toLowerCase())
-        //                 ||
-        //                 identity.primaryName.lastName.toLowerCase().includes(searchText.toLowerCase())) {
-        //                 // matchesText = true;
-        //                 return identity
-        //             }
-        //             // if (this.state.selectedDepFilters.length > 0) {
-        //             //     let deps = identity.organizationalUnits.map(ou => ou.organizationalUnitLabel);
-        //             //     matchesDeps = this.state.selectedDepFilters.every(selectedDep => deps.includes(selectedDep));
-
-        //             // } else {
-        //             //     matchesDeps = true;
-        //             // }
-
-        //             // if (this.state.selectedPersonTypesFilters.length > 0) {
-        //             //     matchesPersonTypes = this.state.selectedPersonTypesFilters
-        //             //         .every(selectedPType => identity.personTypes.includes(selectedPType));
-
-        //             // } else {
-        //             //     matchesPersonTypes = true;
-        //             // }
-
-        //             // if (matchesText && matchesDeps && matchesPersonTypes) {
-        //             //     return identity;
-        //             // }
-
-        //         })
-        //         this.setState({
-        //             identityData: searchResults
-        //         })
-        //     }
-
-        // })
-
     }
 
     reviewSuggestions() {
         if (this.state.selectedDeps.length || this.state.selectedPersonTypes.length || this.state.selectedAffiliations.length) {
-            this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, this.props.affiliationTypes, () => this.props.history.push('/individual_suggestions'))
-            // this.props.history.push('/individual_suggestions')
+            // this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, this.props.affiliationTypes, () => this.props.history.push('/individual_suggestions'))
+            this.props.history.push('/individual_suggestions')
         }
     }
 
@@ -294,31 +246,14 @@ class Individual extends Component {
                 return <tr className="row">
                     <td className="col-md-3 col-lg-3 col-sm-3 col-xs-3 col-xl-3">
                         <RenderProfileDetails identity={identity} />
-                        {/* <Row>
-                            <Col md={4} xs={4} sm={4} lg={4} xl={4}>
-                                <img className="userimg_individual" src={identity.identityImageEndpoint} width="80" style={{ float: "left" }} />
-                            </Col>
-                            <Col md={8} xs={8} sm={8} lg={8} xl={8}>
-                                <p className="username_individual"><b>{identity.primaryName.firstName + '  ' + identity.primaryName.lastName}</b></p>
-                                <p className="title_individual">{identity.title}</p>
-                            </Col>
-                        </Row> */}
                     </td>
                     <td className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4"><ul className="pl-4">
-                        {/* {identity.organizationalUnits.map((label, index) => {
-                            return <li>{`${label.organizationalUnitLabel}`}</li>
-                        }
-                        )} */}
                         <RenderListItems list={identity.organizationalUnits} orgUnit="true">
 
                         </RenderListItems>
                     </ul></td>
                     <td className="col-md-5 col-lg-5 col-sm-5 col-xs-5 col-xl-5">
                         <ul className="pl-4">
-                            {/* {identity.institutions.map((label, index) => {
-                                return <li>{`${label}`}</li>
-                            }
-                            )} */}
                             <RenderListItems list={identity.institutions} orgUnit="false"></RenderListItems>
                         </ul>
                     </td>
@@ -364,19 +299,6 @@ class Individual extends Component {
                                                 <span onClick={() => this.search()} className="inputadds input-group-addon" id="basic-addon2"><span className="glyphicon glyphicon-search searchicon" aria-hidden="true"></span></span>
                                             </div>
                                         </div>
-                                        {/* <Form.Row>
-                                            <InputGroup className="mb-3">
-                                                <FormControl
-                                                    placeholder="Username"
-                                                    aria-label="Username"
-                                                    aria-describedby="basic-addon1"
-                                                    className="d-inline-block"
-                                                />
-                                                <InputGroup.Prepend className="d-inline-block">
-                                                    <InputGroup.Text id="basic-addon1">@</InputGroup.Text>
-                                                </InputGroup.Prepend>
-                                            </InputGroup>
-                                            </Form.Row> */}
                                         <div>
                                             <p><span className="font-italic">Advanced Search</span> : <a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
                                         </div>
@@ -384,7 +306,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" placeholder={this.state.deptVal || "Department"}  onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
+                                                    <Form.Control as="select" placeholder={this.state.deptVal || "Department"} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
                                                         <option value='Department'>Department</option>
                                                         {depOptions}
                                                     </Form.Control>
@@ -399,7 +321,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control  as="select" placeholder={this.state.affiliVal || "Affiliation"} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
+                                                    <Form.Control as="select" placeholder={this.state.affiliVal || "Affiliation"} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
                                                         <option>Affiliation</option>
                                                         {affiliationOptions}
                                                     </Form.Control>
@@ -414,7 +336,7 @@ class Individual extends Component {
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" />
-                                                    <Form.Control as="select" placeholder={this.state.personVal || "Person Type"}  onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold">
+                                                    <Form.Control as="select" placeholder={this.state.personVal || "Person Type"} onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold">
                                                         <option value='Person Type'>Person Type</option>
                                                         {personTypeOptions}
                                                     </Form.Control>
@@ -442,28 +364,7 @@ class Individual extends Component {
                             <div className="col-xs-12 col-md-12 col-lg-12 col-xl-12 col-sm-12 pl-0 pr-0">
                                 <div className="individual">
                                     <div className="searchHeader">
-                                        {/*  <div className="col-sm-4 pt-1">
 
-                                            <div className="individual_search">
-                                                <Form>
-
-                                                    <Form.Group as={Row} id="form_group">
-
-                                                        <Form.Label column sm="4" id="form-label_number" className="pt-1 font-weight-normal">Show records</Form.Label>
-                                                        <Col sm="2" className="pl-0 individual_searchfilter">
-                                                            {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="show_recordscaret" />
-                                                            <Form.Control as="select" className="mt-0 pl-3 pr-0 selectoption" onChange={this.onRecordsLimitChange}>
-                                                                <option>10</option>
-                                                                <option>20</option>
-                                                                <option>30</option>
-                                                                <option>40</option>
-                                                                <option>50</option>
-                                                            </Form.Control>
-                                                        </Col>
-                                                    </Form.Group>
-                                                </Form>
-                                            </div>
-                                        </div>*/}
                                         <div className="col-sm-12">
                                             {/* <Pagination id="individual_page" items={4}>
                                                 {PaginationData}
@@ -505,19 +406,21 @@ class Individual extends Component {
 }
 
 function RenderProfileDetails(identity) {
-    // if(identity.identity.identityImageEndpoint !== undefined) {
-    //     if(identity.identity.identityImageEndpoint.length > 0)
-    //         imageUrl = identity.identity.identityImageEndpoint
-    //     else
-    //         imageUrl = '../images/generic-headshot.png'
-    // }
+    let imageUrl = ''
+    if (identity.identity.identityImageEndpoint !== undefined) {
+        if (identity.identity.identityImageEndpoint.length > 0)
+            imageUrl = identity.identity.identityImageEndpoint
+        else
+            imageUrl = GenericheadShot
+    }
+    let profileName = identity.identity.primaryName.firstName + ((identity.identity.primaryName.middleName !== undefined) ? ' ' + identity.identity.primaryName.middleName + ' ' : ' ') + identity.identity.primaryName.lastName
     return (<Row>
         <Col md={4} xs={4} sm={4} lg={4} xl={4}>
-            <img className="userimg_individual" src={identity.identity.identityImageEndpoint} onError={(e) => { e.target.onerror = null; e.target.src = 'https://directory.weill.cornell.edu/api/v1/person/profile/msr2004.png?returnGenericOn404=true' }} width="80" style={{ float: "left" }} />
+            <img className="userimg_individual" src={`${imageUrl}`} onError={(e) => { e.target.onerror = null; e.target.src = GenericheadShot }} width="80" style={{ float: "left" }} />
         </Col>
         <Col md={8} xs={8} sm={8} lg={8} xl={8}>
             <p className="username_individual"><a href={`/app/${identity.identity.uid}`} target="_blank">
-                <b>{identity.identity.primaryName.firstName || ''}</b>
+                <b>{profileName}</b>
             </a></p>
             <p className="title_individual">{identity.identity.title}</p>
         </Col>
