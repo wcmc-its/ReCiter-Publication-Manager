@@ -1,0 +1,25 @@
+.suggested_tabs_filter .filter-container input{
+    max-width:279px !important;
+    width:279px !important;
+    margin-right: 0px;
+    outline: none !important;
+    height: 40px !important;
+    padding: 1px 9px 0px 10px;
+    font-style: italic;
+    box-shadow: none !important;
+    border-radius: 2px;
+}
+.suggested_tabs_filter #dropdownMenuButton{
+height:40px;
+border-radius: 2px;
+}
+.h6fnhWdeg-accept-all{
+    height:40px;
+    margin-right:0px;
+    border-radius: 2px;
+}
+.h6fnhWdeg-reject-all{
+    height:40px;
+    margin-right:0px; 
+    border-radius: 2px; 
+}

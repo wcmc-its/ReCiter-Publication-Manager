@@ -212,7 +212,7 @@ export class TabAccepted extends Component {
 
         return (
             <div className="h6fnhWdeg-tab-content">
-                <div className="h6fnhWdeg-tab-controls-container">
+                <div className="Accepted_tabs_filter h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true} />
                     <button className="btn btn-primary  backgroundColorBlue disabled h6fnhWdeg-accept-all borderRadius0">Accept all</button>
                     <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0" onClick={this.rejectAll}>Reject all</button>

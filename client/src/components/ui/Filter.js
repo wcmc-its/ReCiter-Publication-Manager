@@ -38,7 +38,7 @@ export class Filter extends Component {
                 <input
                     type="text"
                     className="form-control"
-                    placeholder="Filter..."
+                    placeholder="Filter........"
                     onKeyUp={this.handleSearchUpdate}
                     ref="filter-form-search"
                 />
