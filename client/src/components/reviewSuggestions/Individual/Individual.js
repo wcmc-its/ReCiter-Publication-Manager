@@ -3,7 +3,7 @@ import { Table, Form, Row, Col, Container, FormControl, InputGroup } from "react
 import { identityFetchAllData, updateDeptsPersonTypes, getGroupReviewSuggestions, updateAffiliationType, clearDeptPersonAffiliTypesData } from '../../../../src/actions';
 import { connect } from 'react-redux'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faTimes, faSortDown,faSearch } from '@fortawesome/free-solid-svg-icons'
+import { faTimes, faSortDown, faSearch } from '@fortawesome/free-solid-svg-icons'
 import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
 import SideNav from "../../ui/SideNav";
@@ -25,7 +25,10 @@ class Individual extends Component {
         count: 20,
         activepage: 1,
         searchText: '',
-        data: []
+        data: [],
+        selectedAffiliationValue: '',
+        selectedDepartmentValue: '',
+        selectedPersonValue: ''
 
     }
 
@@ -79,6 +82,14 @@ class Individual extends Component {
                 }
             });
         departments = this.getUnique(departments, 'organizationalUnitLabel')
+        departments.sort((a, b) => {
+            let nameA = a.organizationalUnitLabel.toLowerCase(), nameB = b.organizationalUnitLabel.toLowerCase()
+            if (nameA < nameB) //sort string ascending
+                return -1
+            if (nameA > nameB)
+                return 1
+            return 0
+        })
         return departments
     }
 
@@ -96,15 +107,20 @@ class Individual extends Component {
         return unique;
     }
 
+    numberWithCommas(number) {
+        return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
 
     getPersonTypes() {
-        return [...new Set(this.props.identityAllData.map((data) => data.personTypes).flat())]
+        let personTypes = [...new Set(this.props.identityAllData.map((data) => data.personTypes).flat())]
             .filter((personItem) => personItem != null ? true : false)
+        return personTypes.sort()
     }
 
     getAffiliationTypes() {
-        return [...new Set(this.props.identityAllData.map((data) => data.institutions).flat())]
+        let affiliationTypes = [...new Set(this.props.identityAllData.map((data) => data.institutions).flat())]
             .filter((affliItem) => affliItem != null ? true : false)
+        return affiliationTypes.sort()
     }
 
     onRecordsLimitChange(e) {
@@ -121,7 +137,7 @@ class Individual extends Component {
             // let selectedDeps = [...this.state.selectedDeps, newDepartment];
             let selectedDeps = [...new Set([...this.state.selectedDeps, newDepartment])];
             this.props.updateDeptsPersonTypes(selectedDeps, this.state.selectedPersonTypes)
-            this.setState({ selectedDeps, deptVal: "Department" });
+            this.setState({ selectedDeps, selectedDepartmentValue: "Department" });
         }
     }
 
@@ -130,7 +146,7 @@ class Individual extends Component {
         if (newAffiliation != "Affiliation") {
             let selectedAffiliations = [...new Set([...this.state.selectedAffiliations, newAffiliation])];
             this.props.updateAffiliationType(selectedAffiliations)
-            this.setState({ selectedAffiliations, affiliVal: "Affiliation" });
+            this.setState({ selectedAffiliations, selectedAffiliationValue: "Affiliation" });
         }
     }
 
@@ -140,7 +156,7 @@ class Individual extends Component {
         if (personType != "Person Type") {
             let selectedPersonTypes = [...new Set([...this.state.selectedPersonTypes, personType])];
             this.props.updateDeptsPersonTypes(this.state.selectedDeps, selectedPersonTypes)
-            this.setState({ selectedPersonTypes, personVal: "Person Type" });
+            this.setState({ selectedPersonTypes, selectedPersonValue: "Person Type" });
         }
     }
 
@@ -293,13 +309,13 @@ class Individual extends Component {
                                             </div>
                                         </div>
                                         <div>
-                                            <p><span className="font-italic advanced_search_font">Advanced Search</span> : <a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
+                                            <p><span className="font-italic advanced_search_font">Advanced Search:</span><a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
                                         </div>
                                         <Row>
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
-                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={this.state.deptVal || "Department"} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
+                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Department"} value={this.state.selectedDepartmentValue} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
                                                         <option value='Department'>Department</option>
                                                         {depOptions}
                                                     </Form.Control>
@@ -307,14 +323,14 @@ class Individual extends Component {
                                                 </Form.Group>
                                                 <div className="tags-info">
                                                     {this.state.selectedDeps.map((dep) => {
-                                                        return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeDepartmentFilter(dep)}> <FontAwesomeIcon icon={faTimes}/> </span></p>
+                                                        return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeDepartmentFilter(dep)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
                                                     })}
                                                 </div>
                                             </Col>
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
-                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={this.state.affiliVal || "Affiliation"} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
+                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Affiliation"} value={this.state.selectedAffiliationValue} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
                                                         <option>Affiliation</option>
                                                         {affiliationOptions}
                                                     </Form.Control>
@@ -322,14 +338,14 @@ class Individual extends Component {
                                                 </Form.Group>
                                                 <div>
                                                     {this.state.selectedAffiliations.map((dep) => {
-                                                        return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeAffiliationFilter(dep)}><FontAwesomeIcon icon={faTimes}/> </span></p>
+                                                        return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeAffiliationFilter(dep)}><FontAwesomeIcon icon={faTimes} /> </span></p>
                                                     })}
                                                 </div>
                                             </Col>
                                             <Col md={4}>
                                                 <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                     {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
-                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={this.state.personVal || "Person Type"} onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold">
+                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Person Type"} value={this.state.selectedPersonValue} onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold">
                                                         <option value='Person Type'>Person Type</option>
                                                         {personTypeOptions}
                                                     </Form.Control>
@@ -337,7 +353,7 @@ class Individual extends Component {
                                                 </Form.Group>
                                                 <div>
                                                     {this.state.selectedPersonTypes.map((ptype) => {
-                                                        return <p className="bg-primary tags"><span className="tags_main_child">{ptype} </span> <span className="close_icons" onClick={() => this.removePersonTypeFilter(ptype)}> <FontAwesomeIcon icon={faTimes}/> </span></p>
+                                                        return <p className="bg-primary tags"><span className="tags_main_child">{ptype} </span> <span className="close_icons" onClick={() => this.removePersonTypeFilter(ptype)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
                                                     })
                                                     }
 
@@ -350,7 +366,7 @@ class Individual extends Component {
                         </div>
                         <div className="row page-title">
                             <div className="col-md-12">
-                                <h4 className="scholarHeading"><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
+                                <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.props.identityAllData.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
                             </div>
                         </div>
                         <div className="row">
