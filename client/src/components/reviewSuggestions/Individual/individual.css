@@ -25,6 +25,15 @@ width:100%;
     border: solid 2px #efefef !important;
     outline: none !important;
     box-shadow: none !important;
+    font-size: 15px;
+  font-weight: normal;
+  font-stretch: normal;
+  font-style: italic;
+  line-height: 1.33;
+  letter-spacing: -0.19px;
+  text-align: left;
+  color: #212121;
+    padding-left: 13px !important;
 }
 .tags_main_child {
     width: 89%;
@@ -33,7 +42,7 @@ width:100%;
     text-overflow: ellipsis;
 }
 .tags {
-    background-color: #005ad9;
+    background-color: #005ad9 !important;
     color: #fff;
     padding: 02px 8px;
     border-radius:5px;
@@ -153,6 +162,15 @@ width:100%;
 .searchHeader {
     background-color: #e8e8e8;
     display: flex;
+}
+.advanced_search_font{
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    line-height: 1.33;
+    letter-spacing: -0.59px;
+    text-align: left;
+    color: #212121;   
 }
 .searchHeader label{
     font-weight: normal;
