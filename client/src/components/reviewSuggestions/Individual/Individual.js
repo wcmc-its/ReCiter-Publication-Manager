@@ -48,7 +48,6 @@ class Individual extends Component {
     }
 
     componentDidMount() {
-        console.log("identitiyfetcll did mount", this.props.identityAllData)
         this.setState({
             data: this.props.identityAllData,
             selectedDeps: this.props.deptTypes,
@@ -58,7 +57,6 @@ class Individual extends Component {
     }
 
     componentWillReceiveProps(nextProps) {
-        console.log("identitiyfetcll receive mount", nextProps.identityAllData)
         this.setState({ data: nextProps.identityAllData })
     }
 
@@ -173,7 +171,6 @@ class Individual extends Component {
     }
 
     onSearchUpdate(e) {
-        console.log(e.target.value, 'asdsad')
         this.setState({
             searchText: e.target.value
         })
@@ -227,15 +224,11 @@ class Individual extends Component {
 
     reviewSuggestions() {
         if (this.state.selectedDeps.length || this.state.selectedPersonTypes.length || this.state.selectedAffiliations.length) {
-            // this.props.getGroupReviewSuggestions(this.props.deptTypes, this.props.personTypes, this.props.affiliationTypes, () => this.props.history.push('/individual_suggestions'))
-            this.props.history.push('/individual_suggestions')
+            this.props.getGroupReviewSuggestions(this.state.selectedDeps, this.state.selectedPersonTypes, this.state.selectedAffiliations, () => this.props.history.push('/individual_suggestions'))
         }
     }
 
     render() {
-        // console.log('Testing', this.props.identityAllData)
-        console.log('Testing', this.props.identityAllData)
-        console.log('asdsad', this.state)
         if (this.props.identityAllData.length <= 0) {
             return (
                 <div className="h6fnhWdeg-app-loader"> </div>
@@ -357,7 +350,7 @@ class Individual extends Component {
                         </div>
                         <div className="row page-title">
                             <div className="col-md-12">
-                                <h4 className="scholarHeading"><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.reviewSuggestions()}>Review  All Pending Suggestions</button></span></h4>
+                                <h4 className="scholarHeading"><span className="scholars"> {this.props.identityAllData.length} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
                             </div>
                         </div>
                         <div className="row">
@@ -380,7 +373,7 @@ class Individual extends Component {
                                                 <thead>
                                                     <tr className="row">
                                                         <th className="col-md-3 col-lg-3 col-sm-3 col-xs-3 col-xl-3">Name</th>
-                                                        <th className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4">Organizational units</th>
+                                                        <th className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4">Organizational Units</th>
                                                         <th className="col-md-5 col-lg-5 col-sm-5 col-xs-5 col-xl-5">Institutions</th>
                                                     </tr>
                                                 </thead>
@@ -464,14 +457,12 @@ const mapDispatchToProps = dispatch => ({
         dispatch(identityFetchAllData())
     },
     updateDeptsPersonTypes(deptTypes, personTypes) {
-        console.log("deptTypes", deptTypes)
         dispatch(updateDeptsPersonTypes(deptTypes, personTypes))
     },
     getGroupReviewSuggestions(deptTypes, personTypes, affiliationTypes, cb) {
         dispatch(getGroupReviewSuggestions(deptTypes, personTypes, affiliationTypes, cb))
     },
     updateAffiliationType(affiliationTypes) {
-        console.log("affili", affiliationTypes)
         dispatch(updateAffiliationType(affiliationTypes))
     },
     clearDeptPersonAffiliTypesData() {
