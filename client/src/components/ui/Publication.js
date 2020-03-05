@@ -113,7 +113,7 @@ class Publication extends Component {
                     <React.Fragment>
                         <p className="h6fnhWdeg-publication-score" data-tip={evidancePopoverHtml} data-place="right"
                             data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">
-                            Evidence<br />Score<br /><strong>{item.standardScore}</strong>
+                            Evidence Score<br /><strong>{item.standardScore}</strong>
                         </p>
                         < ReactTooltip />
                     </React.Fragment> : <p></p>
