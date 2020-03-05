@@ -64,7 +64,7 @@ export class Dropdown extends Component {
 
     render() {
         var sortClass = "";
-        var sortBy = "";
+        var sortBy = " ";
         switch(this.state.sort) {
             case "0":
                 sortClass = "dropdown-sort-desc";

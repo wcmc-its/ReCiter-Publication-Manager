@@ -1,7 +1,13 @@
 .h6fnhWdeg-publications-tab-link {
     cursor: pointer;
-    color: #337ab7;
-    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.29 !important;
+    letter-spacing: 0.16px;
+    text-align: left;
+    color: #000000 !important;
+    font-size: 14px !important;
 }
 .h6fnhWdeg-publications-tab-link:hover {
     border-bottom: 0px;

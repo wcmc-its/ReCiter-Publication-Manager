@@ -134,6 +134,7 @@ body {
     background-color: #fff !important;
     border: 1px solid #202b3b !important;
     color: #474747;
+    padding:0px 12px;
     box-shadow: none;
     border-radius: 0px;
 }

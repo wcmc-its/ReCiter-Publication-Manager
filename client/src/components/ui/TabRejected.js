@@ -214,8 +214,8 @@ export class TabRejected extends Component {
             <div className="h6fnhWdeg-tab-content">
                 <div className="Rejected_tabs_filter h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true}/>
-                    <button className="btn btn-primary backgroundColorBlue h6fnhWdeg-accept-all borderRadius0" onClick={this.acceptAll}>Accept all</button>
-                    <button className="btn btn-default disabled h6fnhWdeg-reject-all borderRadius0">Reject all</button>
+                    <button className="btn btn-primary backgroundColorBlue h6fnhWdeg-accept-all borderRadius0" onClick={this.acceptAll}>Accept All</button>
+                    <button className="btn btn-default disabled h6fnhWdeg-reject-all borderRadius0">Reject All</button>
                 </div>
                 <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
                 {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}

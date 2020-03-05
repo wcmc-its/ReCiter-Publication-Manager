@@ -20,6 +20,9 @@ border-radius: 2px;
 }
 .h6fnhWdeg-reject-all{
     height:40px;
+    color:#005ad9;
+    background-color:#fff !important;
+    box-shadow:none !important;
     margin-right:0px; 
     border-radius: 2px; 
 }

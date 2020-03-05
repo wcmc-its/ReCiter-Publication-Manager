@@ -1,7 +1,7 @@
 .heading{
     font-size: 21px;
     color: #323942;
-    margin-top: 54px;
+    margin-top: 27px;
     letter-spacing: -0.48px;
 }
 .well-sm {
@@ -17,7 +17,20 @@
     margin-right: 10px;
 }
 .userimg_individual {
-
+width:100%;
+}
+.search_indivdual_input{
+    height: 42px;
+    border-radius: 4px;
+    border: solid 2px #efefef !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.tags_main_child {
+    width: 89%;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .tags {
     background-color: #005ad9;
@@ -26,8 +39,9 @@
     border-radius:5px;
     margin: 0 0 5px;
     font-size: 10px;
-    width: fit-content;
-    word-wrap: none;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap
 }
 .close_icons{
     float:right;
@@ -49,6 +63,8 @@
     /* border: solid 4px white; */
     width: 22px;
     height: 17px;
+    font-size: 3em;
+
 }
 .search_carot_icon{
     position: absolute;
@@ -76,8 +92,11 @@
     border-bottom:3px solid #F4F4F4 !important;
 }
 .individual_search_well{
-    background-color:#ececec;
-    border:1px solid #ececec;
+    border: 1px solid #ececec;
+    margin-bottom: 48px;
+    border-radius: 2px;
+    background-color: #ececec;
+    box-shadow: none;
 }
 .close_icons{
     padding-left: 4px;
@@ -106,8 +125,14 @@
 }
 .individual_table th {
     background: white !important;
-    color: #000 !important;
+    font-size: 14px;
     font-weight: bold;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: -0.32px;
+    color: #323942 !important;
+
 }
 .scholarHeading {
     margin: 0;
@@ -131,6 +156,13 @@
 }
 .searchHeader label{
     font-weight: normal;
+    font-size: 14px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: -0.32px;
+    color: #323942;
 }
 .border{
     border: 1px solid #000 !important;
@@ -138,9 +170,21 @@
     border-radius: 2px;
 }
 .btn-primes{
-    border:0px;
+    height: 39px;
     border-radius: 5px;
     background-color: #005ad9 !important;
+    border: 0px !important;
+    margin-left: 0px;
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #ffffff;
+    box-shadow: none !important;
+    outline: none !important;
 }
 .individual{
     color:#323942;
@@ -151,10 +195,41 @@
 .inputadds{
     background: #005ad9;
     color: #ffff;
-    border:0px;
+    border:2px solid #efefef;
+    width:58px;
 }
 .username_individual a{
-    color:#000;
+    color: #323942;
+}
+.individual_table td{
+    font-size: 14px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.5 !important;
+    letter-spacing: -0.32px;
+    text-align: left;
+    color: #323942;  
+}
+.title_individual{
+    font-size: 14px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: -0.32px;
+    text-align: left;
+    color: #323942;   
+}
+.username_individual{
+    font-size: 14px;
+    font-weight: bold;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: -0.32px;
+    color: #323942;
+    margin-bottom: 2px;
 }
 .btn-span{
     padding-left:15px;
