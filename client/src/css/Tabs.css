@@ -28,7 +28,7 @@
     color: #777777;
     border-radius: 50%;
     width: inherit;
-    height: 22px;
+    height: 23px;
     text-align: center;
     line-height: 22px;
     font-size: 14px;
@@ -52,7 +52,7 @@
     .h6fnhWdeg-publication_tablerow .h6fnhWdeg-publication-row-buttons {
         position: absolute;
         right: 1px;
-    
+
     }
     .h6fnhWdeg-publication-buttons {
         width: 283px;
@@ -68,10 +68,10 @@
 @media (max-width:768px){
     .h6fnhWdeg-publications-tab-link{
         font-size:12px;
-    } 
+    }
     .tabs-headers {
         margin-left: 3.5%;
-    }  
+    }
     .tabs_responsive_table{
         width:99vw;
     }

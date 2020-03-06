@@ -157,7 +157,7 @@ class Search extends Component {
                     <div className="search-content-container">
                         <div className="search-bar ">
                             <h4>Find Scholar</h4>
-                            <div className="well well-sm">
+                            <div className="well well-sm ">
 
                                 <Form.Group controlId="formSearch">
                                     <InputGroup className="mb-3 col-xs-6" >

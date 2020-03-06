@@ -54,7 +54,7 @@ export class Tabs extends Component {
                 </li>
             </ul>
 
-            <ul className="nav nav-tabs tabs-headers" role="tablist">
+            <ul className="nav side-nav" >
                 <li className={(this.props.tabActive === "Add Publication")?"active":""}>
                     <a
                         className="h6fnhWdeg-publications-tab-link"
