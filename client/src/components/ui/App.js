@@ -111,7 +111,7 @@ class App extends Component {
                             />
                         </div>
                         <div className="tab-container px-0">
-                            {thisObject.props.reciterData.reciterPending.length > 0 ? (
+                            {thisObject.props.reciterData.reciterPending && thisObject.props.reciterData.reciterPending.length > 0 ? (
                                 <div className="h6fnhWdeg-reciter-pending-banner">
                                     <span>You have provided feedback on </span>
                                     <strong>{`${

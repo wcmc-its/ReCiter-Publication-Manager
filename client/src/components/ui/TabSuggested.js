@@ -109,6 +109,13 @@ export class TabSuggested extends Component {
 
         // Filter
         const filteredPublications = []
+        if(!thisObject.props.reciterData.reciter){
+            return {
+                filteredPublications: [],
+                paginatedPublications: []
+            };
+        }
+
         thisObject.props.reciterData.reciter.forEach((publication) => {
             // Check if publication is Suggested
             if(publication.userAssertion === "NULL") {
@@ -120,7 +127,7 @@ export class TabSuggested extends Component {
                             filteredPublications.push(publication);
                         }
                         if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
-                           filteredPublications.push(publication);     
+                           filteredPublications.push(publication);
                         }
                     }else {
                         var addPublication = true;

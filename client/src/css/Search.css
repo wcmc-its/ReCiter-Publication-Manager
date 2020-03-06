@@ -23,6 +23,10 @@ body {
     padding: 1rem 3rem;
 }
 
+.search-bar .form-control {
+    height:39px;
+}
+
 .individual-link {
     color: #337ab7;
     cursor: pointer;

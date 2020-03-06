@@ -10,6 +10,7 @@ import { Pagination } from './Pagination';
 import "../../css/Search.css";
 
 import { Filter } from './Filter';
+import FormControl from "react-bootstrap/FormControl";
 
 class Search extends Component {
 
@@ -156,19 +157,21 @@ class Search extends Component {
                     <div className="search-content-container">
                         <div className="search-bar ">
                             <h4>Find Scholar</h4>
-                            <Form.Group controlId="formSearch">
-                                <InputGroup>
-                                    <InputGroup.Prepend>
-                                        <InputGroup.Text onClick={this.search}> @ </InputGroup.Text>
-                                    </InputGroup.Prepend>
-                                    <Form.Control
-                                        type="input"
-                                        placeholder="Enter name or person identifier"
-                                        ref="search-field"
-                                    />
-                                </InputGroup>
-                            </Form.Group>
-                            <Button className="primary" onClick={this.search} >Search</Button>
+                            <div className="well well-sm">
+
+                                <Form.Group controlId="formSearch">
+                                    <InputGroup className="mb-3 col-xs-6" >
+                                        <FormControl
+                                            placeholder="Enter name or person identifier"
+                                            aria-label="Enter name or person identifier"
+                                            ref="search-field"
+                                        />
+                                        <InputGroup.Append>
+                                            <Button variant="primary" onClick={this.search}><span className="glyphicon glyphicon-search searchicon" aria-hidden="true"></span></Button>
+                                        </InputGroup.Append>
+                                    </InputGroup>
+                                </Form.Group>
+                            </div>
                             <div>
                                 <br/>
                                 <div className="row page-title">

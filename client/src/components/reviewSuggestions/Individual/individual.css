@@ -54,7 +54,7 @@
     position: absolute;
     color:#005ad9;
     right:0px;
-    top: 3px;
+    top: 0px;
     font-size: 19px;
 }
 .show_recordscaret {
@@ -152,6 +152,7 @@
     background: #005ad9;
     color: #ffff;
     border:0px;
+    padding: 6px 18px;
 }
 .username_individual a{
     color:#000;
