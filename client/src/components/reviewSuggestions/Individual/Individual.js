@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Table, Form, Row, Col, Container, FormControl, InputGroup } from "react-bootstrap";
+import {Table, Form, Row, Col, Container, FormControl, InputGroup, Button} from "react-bootstrap";
 import { identityFetchAllData, updateDeptsPersonTypes, getGroupReviewSuggestions, updateAffiliationType, clearDeptPersonAffiliTypesData } from '../../../../src/actions';
 import { connect } from 'react-redux'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -286,12 +286,19 @@ class Individual extends Component {
                                 <div className="individual_search_well well well-sm">
 
                                     <Form className="individual_search">
-                                        <div className="form-group">
-                                            <div className="input-group">
-                                                <input type="text" className="mt-0 font-italic form-control" placeholder="Enter name or CWID" aria-describedby="basic-addon2" onChange={this.onSearchUpdate} ref="search-field" />
-                                                <span onClick={() => this.search()} className="inputadds input-group-addon" id="basic-addon2"><span className="glyphicon glyphicon-search searchicon" aria-hidden="true"></span></span>
-                                            </div>
-                                        </div>
+                                        <Form.Group controlId="formSearch">
+                                            <InputGroup className="mb-3 col-xs-12" >
+                                                <FormControl
+                                                    placeholder="Enter name or person identifier"
+                                                    aria-label="Enter name or person identifier"
+                                                    ref="search-field"
+                                                />
+                                                <InputGroup.Append>
+                                                    <Button variant="primary" onClick={this.search}><span className="glyphicon glyphicon-search searchicon" aria-hidden="true"></span></Button>
+                                                </InputGroup.Append>
+                                            </InputGroup>
+                                        </Form.Group>
+
                                         <div>
                                             <p><span className="font-italic">Advanced Search</span> : <a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
                                         </div>

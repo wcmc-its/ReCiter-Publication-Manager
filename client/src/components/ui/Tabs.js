@@ -9,6 +9,11 @@ export class Tabs extends Component {
         var accepted = 0
         var rejected = 0
 
+        if(!this.props.reciterData.reciter) {
+            return (
+                <ul className="nav nav-tabs tabs-headers" role="tablist"></ul>
+            )
+        }
         this.props.reciterData.reciter.forEach(function(publication){
             switch(publication.userAssertion) {
                 case "NULL":
@@ -24,7 +29,7 @@ export class Tabs extends Component {
         })
 
         return (
-
+        <div>
             <ul className="nav nav-tabs tabs-headers" role="tablist">
                 <li className={(this.props.tabActive === "Accepted")?"active":""}>
                     <a
@@ -47,6 +52,9 @@ export class Tabs extends Component {
                         onClick={() => { this.props.tabClickHandler("Rejected"); } }
                     >Rejected <span className={(this.props.tabActive === "Rejected")?"h6fnhWdeg-publications-tab-link-active":"h6fnhWdeg-publications-tab-link-inactive"}>{rejected}</span></a>
                 </li>
+            </ul>
+
+            <ul className="nav side-nav" >
                 <li className={(this.props.tabActive === "Add Publication")?"active":""}>
                     <a
                         className="h6fnhWdeg-publications-tab-link"
@@ -55,6 +63,7 @@ export class Tabs extends Component {
                     >Add Publication</a>
                 </li>
             </ul>
+    </div>
         );
     }
 }
