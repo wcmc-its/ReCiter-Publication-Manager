@@ -366,7 +366,7 @@ class Individual extends Component {
                         </div>
                         <div className="row page-title">
                             <div className="col-md-12">
-                                <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.props.identityAllData.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
+                                <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.state.data.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
                             </div>
                         </div>
                         <div className="row">
@@ -378,7 +378,7 @@ class Individual extends Component {
                                             {/* <Pagination id="individual_page" items={4}>
                                                 {PaginationData}
                                             </Pagination> */}
-                                            <Pagination total={this.props.identityAllData.length} page={this.state.page}
+                                            <Pagination total={this.state.data.length} page={this.state.page}
                                                 count={this.state.count}
                                                 onChange={this.handlePaginationUpdate} />
                                         </div>

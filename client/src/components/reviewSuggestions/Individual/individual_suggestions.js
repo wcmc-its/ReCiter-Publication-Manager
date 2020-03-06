@@ -8,7 +8,8 @@ import { Pagination } from '../../ui/Pagination';
 import "./individual_suggestions.css";
 import { connect } from 'react-redux'
 import { editIndividualSearch, getGroupReviewSuggestions, reciterUpdatePublication, identityFetchData, clearGroupReviewSuggestions } from '../../../../src/actions';
-
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCheck, faTimes, faChevronRight } from '@fortawesome/free-solid-svg-icons'
 
 class Individuals extends Component {
     state = {
@@ -50,7 +51,7 @@ class Individuals extends Component {
     }
 
     setGroupReviewSuggestions = (groupReviewSuggestions) => {
-        if (groupReviewSuggestions && groupReviewSuggestions.reciter.length > 0) {
+        if (groupReviewSuggestions && groupReviewSuggestions.reciter.length >= 0) {
             this.setState({
                 groupReviewSuggestions: groupReviewSuggestions.reciter,
                 resultMode: groupReviewSuggestions.resultMode,
@@ -126,7 +127,7 @@ class Individuals extends Component {
                 <div className="firsttable">
                     <div className="row">
                         <div className="col-md-12">
-                            <h4><span className="link"><a href={`/app/${userObj?.uid}`} target="_blank">{userObj?.primaryName?.firstName + " " + userObj?.primaryName?.lastName}</a></span><span className="name">{userObj?.title}</span></h4>
+                            <h4 className="group_heeader_main"><span className="link"><a href={`/app/${userObj?.uid}`} target="_blank">{userObj?.primaryName?.firstName + " " + userObj?.primaryName?.lastName}</a></span><span className="name">{userObj?.title}</span></h4>
                         </div>
                     </div>
                     <div className="row recordstable">
@@ -140,8 +141,8 @@ class Individuals extends Component {
                                                 <tr>
                                                     <td>
                                                         <div className="displayflex padding5px margin0px justifyContentSpaceBt borderRadius0">
-                                                            <Button className="backgroundColorGreen btn-success"> <span className="glyphicon glyphicon-ok margin10 padding10" /> Accept</Button>
-                                                            <Button className="backgroundColorRed"> <span className="glyphicon glyphicon-remove" /> Reject</Button>
+                                                            <Button className="h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <FontAwesomeIcon icon={faCheck} size='1x' /> Accept</Button>
+                                                            <Button className="h6fnhWdeg-publication-reject backgroundColorRed"> <FontAwesomeIcon icon={faTimes} size='1x' /> Reject</Button>
                                                         </div>
                                                         <div className="padding15px ">
                                                             <div className="displayflex flexDirectionCol backgroundColor202b3b textAlignCenter colorWhite ">
@@ -154,7 +155,7 @@ class Individuals extends Component {
                                                     </td>
                                                     <td>
                                                         <Row>
-                                                            <Col lg={12} className="pt-1">
+                                                            <Col lg={12} className="contnet_individual_suggestions pt-1">
                                                                 {item.authors.length ? <p><b>Authors:</b>{item.authors.map((author, index) => index != item.authors.length - 1 ? author.authorName + ', ' : author.authorName)}</p> : null}
                                                                 <p> <b>Title:</b> {item.title}</p>
                                                                 <p>  <b>Journal:</b> {item.journal}</p>
@@ -164,7 +165,7 @@ class Individuals extends Component {
                                                         <Row>
                                                             <Col lg={8} md={8} sm={8} xs={8} xl={8}>
                                                                 <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
-                                                                    <p className="suggestionText">+ Show evidence behind this suggestion</p>
+                                                                    <p className="suggestionText">+ Show Evidence behind this suggestion</p>
                                                                 </Accordion.Toggle>
                                                             </Col>
                                                             <Col lg={4} md={4} sm={4} xs={4} xl={4}>
@@ -220,22 +221,87 @@ class Individuals extends Component {
         }
         let mainContent = [];
         if (this.state.resultMode === "EMPTY") {
-            mainContent.push(<div class="alert alert-danger" role="alert">
+            mainContent.push(<div class="alert_to_many alert alert-danger" role="alert">
                 No data
                         </div>)
 
         } else {
             if (this.state.resultMode === "LARGE_RESULTS") {
-                mainContent.push(<div class="alert alert-danger" role="alert">
+                mainContent.push(<div class="alert_to_many alert alert-danger" role="alert">
                     Too many results
                         </div>)
 
             }
-            mainContent.push(<div className="row">
-                <div className="col-xs-12">
-                    <div className="individual">
-                        <div className="searchHeader">
-                            {/* <div className="col-sm-4">
+            // mainContent.push()
+        }
+        if (this.state.loading) {
+            return (<div className="h6fnhWdeg-app-loader"> </div>)
+        }
+        else {
+            return (
+                <div className="main-container">
+                    <div className="header-position">
+                        <Header username={this.props.username} />
+                    </div>
+                    <div className="side-nav-position">
+                        <SideNav />
+                    </div>
+                    {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
+                    <div>
+                        <div className="individual_suggest_container container">
+                            <div className="row">
+                                <div className="col-md-12 findscholar">
+                                    <h4> <span className="scholarlink"><Link to="/individual"><a href="#">Find Scholar </a></Link></span><span className="gtsymbol"><FontAwesomeIcon icon={faChevronRight} /></span><span className="review">Review Pendings Suggestions</span></h4>
+                                </div>
+                            </div>
+                            <div className="searchby">
+                                <Row>
+                                    <Col md={6} className="search well well-sm">
+                                        <Col md={12}>
+                                            <p className="Searchby_font font-italic">Searched by:</p>
+                                        </Col>
+                                        <Row className="search_filterss">
+                                            <Col md={4}>
+                                                <h5> <b> Department</b></h5>
+
+                                                {selectedDeptTypes ? selectedDeptTypes.map((dept) => <li>{dept}</li>) : null}
+                                            </Col>
+                                            <Col md={4}>
+                                                <h5><b>Affiliation</b></h5>
+                                                {selectedAffiliationTypes ? selectedAffiliationTypes.map(type => <li>{type}</li>) : null}
+                                            </Col>
+                                            <Col md={4}>
+                                                <h5> <b>Person Type</b></h5>
+                                                {selectedPersonTypes ? selectedPersonTypes.map((personType) => <li>{personType}</li>) : null}
+                                            </Col>
+                                        </Row>
+                                        <Col md={12} className="searchfilter_edit">
+                                            <a href="#" onClick={() => this.editsearch()}>Edit Search</a>
+                                        </Col>
+                                    </Col>
+
+                                </Row>
+                                {/* <div className="row edit">
+                                <div className="col-md-12">
+                                  
+                                </div>
+                            </div> */}
+                            </div>
+                            <div className="row scholars">
+                                <div className="col-md-2">
+                                    <h4>{groupReviewSuggestions.length} scholars</h4>
+                                </div>
+                                <div className="col-md-12">
+                                    {mainContent}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="individual_suggest_containers12">
+                            <div className="row">
+                                <div className="col-xs-12">
+                                    <div className="individual_suggestions">
+                                        <div className="searchHeader">
+                                            {/* <div className="col-sm-4">
                                             <div className="individual_search">
                                                 <Form>
                                                     <Form.Group as={Row} id="form_group">
@@ -252,87 +318,34 @@ class Individuals extends Component {
                                                 </Form>
                                             </div>
                                         </div> */}
-                            <div className="col-sm-12">
-                                {/* <button className="btn button1" type="button">First</button> */}
-                                <Pagination total={groupReviewSuggestions.length} page={this.state.page}
-                                    count={this.state.count}
-                                    onChange={this.handlePaginationUpdate} />
-                                {/* <Pagination id="individual_page" className="mt-0 mb-0">
+                                            <div className="col-sm-12">
+                                                {/* <button className="btn button1" type="button">First</button> */}
+                                                <Pagination total={groupReviewSuggestions.length} page={this.state.page}
+                                                    count={this.state.count}
+                                                    onChange={this.handlePaginationUpdate} />
+                                                {/* <Pagination id="individual_page" className="mt-0 mb-0">
                                                 {/* <Pagination.First /> */}
-                                {/* <Pagination.Prev />
+                                                {/* <Pagination.Prev />
                                                 <Pagination.Item disabled>{10}</Pagination.Item>
                                                 <Pagination.Item>{11}</Pagination.Item>
                                                 <Pagination.Ellipsis />
                                                 <Pagination.Item>{25}</Pagination.Item>
                                                 <Pagination.Item >{26}</Pagination.Item>
                                                 <Pagination.Next /> */}
-                                {/* <Pagination.Last /> */}
-                                {/* <button className="btn button2" type="button">Last</button>
+                                                {/* <Pagination.Last /> */}
+                                                {/* <button className="btn button2" type="button">Last</button>
                                             </Pagination> */}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            )
-        }
-        if (this.state.loading) {
-            return (<div className="h6fnhWdeg-app-loader"> </div>)
-        }
-        else {
-            return (
-                <div className="main-container">
-                    <div className="header-position">
-                        <Header username={this.props.username} />
-                    </div>
-                    {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
-                    <SideNav />
-                    <div className="container">
-                        <div className="row">
-                            <div className="col-md-12 findscholar">
-                                <h4> <span className="scholarlink"><Link to="/individual"><a href="#">Find Scholar </a></Link></span><span className="gtsymbol">&gt;</span><span className="review">Review Pendings Suggestions</span></h4>
-                            </div>
-                        </div>
-                        <div className="searchby">
-                            <Row>
-                                <Col md={6} className="search well well-sm">
-                                    <Col md={12}>
-                                        <p className="font-italic">Searched by:</p>
-                                    </Col>
-                                    <Row className="search_filterss">
-                                        <Col md={4}>
-                                            <h5> <b> Department</b></h5>
-
-                                            {selectedDeptTypes ? selectedDeptTypes.map((dept) => <li>{dept}</li>) : null}
-                                        </Col>
-                                        <Col md={4}>
-                                            <h5><b>Affiliation</b></h5>
-                                            {selectedAffiliationTypes ? selectedAffiliationTypes.map(type => <li>{type}</li>) : null}
-                                        </Col>
-                                        <Col md={4}>
-                                            <h5> <b>Person Type</b></h5>
-                                            {selectedPersonTypes ? selectedPersonTypes.map((personType) => <li>{personType}</li>) : null}
-                                        </Col>
-                                    </Row>
-                                    <Col md={12} className="searchfilter_edit">
-                                        <a href="#" onClick={() => this.editsearch()}>Edit Search</a>
-                                    </Col>
-                                </Col>
-
-                            </Row>
-                            {/* <div className="row edit">
-                                <div className="col-md-12">
-                                  
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div> */}
-                        </div>
-                        <div className="row scholars">
-                            <div className="col-md-2">
-                                <h4>{groupReviewSuggestions.length} scholars</h4>
                             </div>
+
                         </div>
-                        {mainContent}
-                        {elementsUI}
+                        <div className="individual_suggest_containers">
+                            {elementsUI}
+                        </div>
+
                     </div>
                     <div className="footer-position">
                         <Footer />
