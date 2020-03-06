@@ -16,13 +16,21 @@ border-radius: 2px;
 .h6fnhWdeg-accept-all{
     height:40px;
     margin-right:0px;
-    border-radius: 2px;
+    border-radius: 2px !important;
+    font-size: 15px;
+    background-color: #005ad9 !important;
+    color: #fff !important;
+    box-shadow: none !important;
+    outline:none !important;
 }
 .h6fnhWdeg-reject-all{
     height:40px;
-    color:#005ad9;
+    color:#005ad9 !important;
     background-color:#fff !important;
     box-shadow:none !important;
-    margin-right:0px; 
-    border-radius: 2px; 
+    margin-right:0px;
+    font-size: 15px; 
+    border-radius: 2px !important; 
+    box-shadow: none !important;
+    outline:none !important;
 }

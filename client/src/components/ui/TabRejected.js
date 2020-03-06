@@ -215,9 +215,9 @@ export class TabRejected extends Component {
                 <div className="Rejected_tabs_filter h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true}/>
                     <button className="btn btn-primary backgroundColorBlue h6fnhWdeg-accept-all borderRadius0" onClick={this.acceptAll}>Accept All</button>
-                    <button className="btn btn-default disabled h6fnhWdeg-reject-all borderRadius0">Reject All</button>
+                    <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0">Reject All</button>
                 </div>
-                <p>Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
+                <p className="suggested_filter_text">Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
                 {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
                 <div className="tabs_responsive_table col-md-12">
                 <div className="table-responsive">

@@ -52,6 +52,7 @@
 .h6fnhWdeg-publication-buttons .h6fnhWdeg-publication-accept{
     display: inline-block;
     margin: 5px;
+    height:33px;
     background-color: #77d900 !important;
     border:0px !important;
     border-radius: 2px;
@@ -70,6 +71,7 @@
     display: inline-block;
     margin: 5px;
     margin-right:0px;
+    height:33px;
     background-color:#d91a00 !important;
     border:0px !important;
     border-radius: 2px;
@@ -112,6 +114,7 @@ right:81px;
 .h6fnhWdeg-publication-reject {
     border:0px !important;
     border-radius: 2px;
+    height:33px;
     background-color:#d91a00;
     outline: none !important;
     box-shadow: none !important;
@@ -126,16 +129,19 @@ right:81px;
 }
 .h6fnhWdeg-publication-undo {
 border-radius: 2px;
+height:33px;
 outline: none !important;
 box-shadow: none !important;
 color:
 #202b3b;
+margin-right: 0px;
 font-weight: normal;
     margin-right: 5px;
     font-weight: normal;
     font-stretch: normal;
     font-style: normal;
     line-height: 1.33;
+    margin-right:0px;
     letter-spacing: 0.17px;
       font-size:15px;
 }
@@ -169,7 +175,6 @@ font-weight: normal;
 .h6fnhWdeg-publication-row-buttons a {
     border-radius: 2px;
     background-color: #ffffff !important;
-    font-size: 15px;
     border: 1px solid #005ad9 !important;
     margin-left: 10px;
     color: #005ad9 !important;
@@ -181,6 +186,9 @@ font-weight: normal;
     font-style: normal;
     line-height: 1.33;
     letter-spacing: 0.17px;
+    height: 39px;
+    width: 89px;
+    padding: 8px;
 }
 .h6fnhWdeg-publication-show-evidence-container {
     font-size: 14px;
@@ -250,6 +258,7 @@ font-weight: normal;
     height: 33px;
     border-radius: 2px;
     font-size:15px;
+    margin-right:0px;
     font-weight: normal;
     font-stretch: normal;
     font-style: normal;
