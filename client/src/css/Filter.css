@@ -57,10 +57,10 @@
 .selectdivider{
     background-color: #474747;
     width: 1px;
-    height: 21px;
+    height: 19px;
     position: absolute;
     margin-left: -30px;
-    margin-top: 9px;
+    margin-top: 11px;
     box-shadow: 0px 1px 1px 0px #474747;
 }
 .h6fnhWdeg-publications-evidence-table td:nth-child(1){
