@@ -113,7 +113,7 @@ class Publication extends Component {
                     <React.Fragment>
                         <p className="h6fnhWdeg-publication-score" data-tip={evidancePopoverHtml} data-place="right"
                             data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">
-                            Evidence<br />Score<br /><strong>{item.standardScore}</strong>
+                            Evidence Score<br /><strong>{item.standardScore}</strong>
                         </p>
                         < ReactTooltip />
                     </React.Fragment> : <p></p>
@@ -122,7 +122,7 @@ class Publication extends Component {
             <td key="1" className="h6fnhWdeg-publication-content">
                 <p className="h6fnhWdeg-publication-citation">malhotra s, cheriff ad, gossey jt, cole cl, kaushal r, ancker js. effects of an e-prescribing interface redesign on rates of generic drug prescribing: exploiting default options. j am med inform assoc. 2016 sep;23(5):891-8. doi:10.1093/jamia/ocv192. epub 2016 feb 17. pubmed pmid: 26911828.</p>
                 <p className="h6fnhWdeg-publication-field">
-                    <strong>Authors: </strong>
+                    <strong className="Publications_text_bold">Authors : </strong>
                     <span className="h6fnhWdeg-publication-field-authors">
                         {
                             (item.authors !== undefined) ? item.authors.map(function (author, authorIndex) {
@@ -141,15 +141,15 @@ class Publication extends Component {
                     </span>
                 </p>
                 <p className="h6fnhWdeg-publication-field">
-                    <strong>Title: </strong>
+                    <strong className="Publications_text_bold">Title : </strong>
                     <span className="h6fnhWdeg-publication-field-title">{item.title}</span>
                 </p>
                 <p className="h6fnhWdeg-publication-field">
-                    <strong>Journal: </strong>
+                    <strong className="Publications_text_bold">Journal : </strong>
                     <span className="h6fnhWdeg-publication-field-journal">{item.journal}</span>
                 </p>
                 <p className="h6fnhWdeg-publication-field">
-                    <strong>Date: </strong>
+                    <strong className="Publications_text_bold">Date : </strong>
                     <span className="h6fnhWdeg-publication-field-year">{item.displayDate}</span>
                 </p>
                 <div className="h6fnhWdeg-publication-row-buttons">

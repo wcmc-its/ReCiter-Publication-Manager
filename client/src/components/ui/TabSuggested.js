@@ -246,7 +246,7 @@ export class TabSuggested extends Component {
 
         return (
             <div className="h6fnhWdeg-tab-content">
-                <div className="h6fnhWdeg-tab-controls-container">
+                <div className="suggested_tabs_filter h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true} />
                     <button
                         className="btn btn-primary h6fnhWdeg-accept-all backgroundColorBlue borderRadius0"
