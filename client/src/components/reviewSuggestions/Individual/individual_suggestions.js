@@ -76,9 +76,9 @@ class Individuals extends Component {
     }
 
     editsearch() {
-        if (this.props.selectedDeptTypes.length || this.props.selectedPersonTypes.length || this.props.selectedAffiliations.length) {
+        if (this.props.selectedDeptTypes.length || this.props.selectedPersonTypes.length || this.props.selectedAffiliationTypes.length) {
             this.props.clearGroupReviewSuggestions()
-            this.props.editsearch(this.props.selectedDeptTypes, this.props.selectedPersonTypes, this.props.selectedAffiliations, () => this.props.history.push('/individual'))
+            this.props.editsearch(this.props.selectedDeptTypes, this.props.selectedPersonTypes, this.props.selectedAffiliationTypes, () => this.props.history.push('/individual'))
         }
     }
 
@@ -114,9 +114,8 @@ class Individuals extends Component {
     }
 
     render() {
-        const { groupReviewSuggestions, selectedDeptTypes, selectedPersonTypes, selectedAffiliationTypes, identityAllData } = this.state;
+        const { groupReviewSuggestions, selectedDeptTypes, selectedPersonTypes, selectedAffiliations, identityAllData } = this.state;
         const { page, count } = this.state;
-
         let elementsUI = [], loopCount;
         if (count < groupReviewSuggestions.length) loopCount = count;
         else loopCount = groupReviewSuggestions.length;
@@ -132,7 +131,7 @@ class Individuals extends Component {
                     </div>
                     <div className="row recordstable">
                         <div className="col-md-12">
-                            {i.reciterArticleFeatures.length ? i.reciterArticleFeatures.map((item) =>
+                            {i.reciterArticleFeatures.length ? i.reciterArticleFeatures.map((item, index) =>
                                 <Accordion defaultActiveKey="-1">
 
                                     <div className="tableBody backgroundColorWhite">
@@ -268,7 +267,7 @@ class Individuals extends Component {
                                             </Col>
                                             <Col md={4}>
                                                 <h5><b>Affiliation</b></h5>
-                                                {selectedAffiliationTypes ? selectedAffiliationTypes.map(type => <li>{type}</li>) : null}
+                                                {selectedAffiliations ? selectedAffiliations.map(type => <li>{type}</li>) : null}
                                             </Col>
                                             <Col md={4}>
                                                 <h5> <b>Person Type</b></h5>

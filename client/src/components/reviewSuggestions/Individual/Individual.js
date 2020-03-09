@@ -165,12 +165,14 @@ class Individual extends Component {
         this.setState(prevState => {
             return { selectedDeps: prevState.selectedDeps.filter(selectedDep => selectedDep !== dep) };
         })
+        this.props.updateDeptsPersonTypes(this.state.selectedDeps.filter(selectedDep => selectedDep !== dep),this.state.selectedPersonTypes )
     }
 
     removeAffiliationFilter(affiliation, event) {
         this.setState(prevState => {
             return { selectedAffiliations: prevState.selectedAffiliations.filter(selectedAffiliation => selectedAffiliation !== affiliation) };
         })
+        this.props.updateAffiliationType(this.state.selectedAffiliations.filter(selectedAffiliation => selectedAffiliation !== affiliation))
     }
 
     removePersonTypeFilter(pType, event) {
