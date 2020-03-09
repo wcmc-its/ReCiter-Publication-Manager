@@ -66,15 +66,15 @@ export class Pagination extends Component {
                     <div className="col-lg-9 c0l-xl-9 col-xs-6 col-md-8 col-sm-7">
                         <div>
                             <ul className="pagination">
-                                <li className={`page-item ${(propsPage === 1) ? 'disabled' : ''}`}>
+                                <li id="firstpagination_wrap" className={`page-item ${(propsPage === 1) ? 'disabled' : ''}`}>
                                     <span
-                                        className="page-link"
+                                        className="firstpagination_btn page-link"
                                         onClick={(event) => thisObject.props.onChange(event, 1)}
                                     >First</span>
                                 </li>
                                 <li className={`page-item ${(propsPage === 1) ? 'disabled' : ''}`}>
                                     <span
-                                        className="page-link"
+                                        className="pagination_icons_wrap page-link"
                                         onClick={(event) => thisObject.props.onChange(event, propsPage - 1)}
                                     >&laquo;</span>
                                 </li>
@@ -90,13 +90,13 @@ export class Pagination extends Component {
                                 }
                                 <li className={`page-item ${(propsPage === totalPages) ? 'disabled' : ''}`}>
                                     <span
-                                        className="page-link"
+                                        className="pagination_icons_wrap12 page-link"
                                         onClick={(event) => thisObject.props.onChange(event, propsPage + 1)}
                                     >&raquo;</span>
                                 </li>
-                                <li className={`page-item ${(propsPage === totalPages) ? 'disabled' : ''}`}>
+                                <li id="last_pagination_wrap" className={`page-item ${(propsPage === totalPages) ? 'disabled' : ''}`}>
                                     <span
-                                        className="page-link"
+                                        className="lastpagination_btn page-link"
                                         onClick={(event) => thisObject.props.onChange(event, totalPages)}
                                     >Last</span>
                                 </li>
