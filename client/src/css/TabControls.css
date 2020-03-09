@@ -18,7 +18,7 @@
     margin-right: 10px;
 }
 .h6fnhWdeg-tab-controls-container .filter-container .dropdown {
-    float: right;
+    float:initial;
 }
 .h6fnhWdeg-tab-controls-container .btn-default.disabled {
     color: #777;

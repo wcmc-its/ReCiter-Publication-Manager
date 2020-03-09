@@ -45,8 +45,13 @@ export class Filter extends Component {
                 {(this.props.showSort) ? <Dropdown sort={this.state.sort} onChange={this.handleSortUpdate} /> :
                     <span></span>
                 }
+                <select className="sort_filter_select form-control">
+                    <option value="50">50</option>
+                    <option value="20">20</option>
+                    <option value="10">10</option>
+                </select>
+                <span class="selectdivider divider"></span>
             </div>
         );
     }
-
 }

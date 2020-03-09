@@ -9,7 +9,13 @@
     box-shadow: none !important;
     border-radius: 2px;
 }
+.tabs_responsive_table{
+    display:contents;
+}
 .Accepted_tabs_filter #dropdownMenuButton{
 height:40px;
 border-radius: 2px;
+}
+.Accepted_tabs_filter .dropdown{
+    vertical-align: top;
 }

@@ -41,6 +41,7 @@
 .dropdown {
     position: relative;
     display: inline-block;
+    vertical-align: top;
 }
 .publication_text{
     font-size:18px;
