@@ -24,7 +24,7 @@ export class Tabs extends Component {
         })
 
         return (
-
+        <div>
             <ul className="nav nav-tabs tabs-headers" role="tablist">
                 <li className={(this.props.tabActive === "Suggested") ? "active" : ""}>
                     <a
@@ -47,6 +47,7 @@ export class Tabs extends Component {
                         onClick={() => { this.props.tabClickHandler("Rejected"); }}
                     >Rejected <span className={(this.props.tabActive === "Rejected") ? "h6fnhWdeg-publications-tab-link-active" : "h6fnhWdeg-publications-tab-link-inactive"}>{rejected}</span></a>
                 </li>
+
                 <li className={(this.props.tabActive === "Add Publication") ? "active" : ""}>
                     <a
                         className="h6fnhWdeg-publications-tab-link"
@@ -55,6 +56,7 @@ export class Tabs extends Component {
                     >Add Publication</a>
                 </li>
             </ul>
+    </div>
         );
     }
 }

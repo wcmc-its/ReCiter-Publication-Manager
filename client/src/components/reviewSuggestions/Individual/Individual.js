@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Table, Form, Row, Col, Container, FormControl, InputGroup } from "react-bootstrap";
+import {Table, Form, Row, Col, Container, FormControl, InputGroup, Button} from "react-bootstrap";
 import { identityFetchAllData, updateDeptsPersonTypes, getGroupReviewSuggestions, updateAffiliationType, clearDeptPersonAffiliTypesData } from '../../../../src/actions';
 import { connect } from 'react-redux'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -308,6 +308,7 @@ class Individual extends Component {
                                                 <span onClick={() => this.search()} className="inputadds input-group-addon" id="basic-addon2"><FontAwesomeIcon icon={faSearch} className="searchicon" /></span>
                                             </div>
                                         </div>
+
                                         <div>
                                             <p><span className="font-italic advanced_search_font">Advanced Search:</span> <a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
                                         </div>

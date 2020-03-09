@@ -58,6 +58,17 @@ body {
     grid-row-end: footer;
 }
 
+.input-group>.input-group-append>.btn {
+    margin: 0;
+    background-color: #005ad9;
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.glyphicon-search:before {
+    font-size: 20px;
+}
+
 /* Subgrid in content section of main-container grid */
 
 .publications-content {
