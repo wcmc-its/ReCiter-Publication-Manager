@@ -286,7 +286,15 @@ margin-top: 5px;
     letter-spacing: 0.17px;
       font-size:15px;
 }
-
+.suggestionText{
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: normal;
+    letter-spacing: normal;
+    color: #005ad9;   
+}
 .name{
     margin: 2px 2px 2px 6px;
     font-size: 14px;
@@ -428,6 +436,20 @@ p .suggestionText a{
     background-color: #fff;
     margin: 0px 0px 29px 0px;
     box-shadow: 0px 0px 5px 5px #eaeaea;
+}
+.individual_evidence_table td:nth-child(1){
+    width:21%;
+}
+.individual_evidence_table th:nth-child(2){
+    padding-left:31px;    
+}
+.individual_evidence_table td:nth-child(2){
+    width:40%;
+    padding-left:31px;
+}
+
+.individual_evidence_table td:nth-child(3){
+    width:35%;
 }
 
 

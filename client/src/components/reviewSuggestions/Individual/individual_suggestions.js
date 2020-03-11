@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Table, Button, Form, Row, Col, Container, Accordion } from "react-bootstrap";
+import { Row, Col } from "react-bootstrap";
 import { Link } from "react-router-dom";
 import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
@@ -9,7 +9,8 @@ import "./individual_suggestions.css";
 import { connect } from 'react-redux'
 import { editIndividualSearch, getGroupReviewSuggestions, reciterUpdatePublication, identityFetchData, clearGroupReviewSuggestions } from '../../../../src/actions';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCheck, faTimes, faChevronRight } from '@fortawesome/free-solid-svg-icons'
+import { faChevronRight } from '@fortawesome/free-solid-svg-icons'
+import Suggestions from './Suggestions'
 
 class Individuals extends Component {
     state = {
@@ -131,89 +132,8 @@ class Individuals extends Component {
                     </div>
                     <div className="row recordstable">
                         <div className="col-md-12">
-                            {i.reciterArticleFeatures.length ? i.reciterArticleFeatures.map((item, index) =>
-                                <Accordion defaultActiveKey="-1">
-
-                                    <div className="tableBody backgroundColorWhite">
-                                        <Table responsive className="individual2_table">
-                                            <tbody>
-                                                <tr>
-                                                    <td>
-                                                        <div className="displayflex padding5px margin0px justifyContentSpaceBt borderRadius0">
-                                                            <Button className="h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <FontAwesomeIcon icon={faCheck} size='1x' /> Accept</Button>
-                                                            <Button className="h6fnhWdeg-publication-reject backgroundColorRed"> <FontAwesomeIcon icon={faTimes} size='1x' /> Reject</Button>
-                                                        </div>
-                                                        <div className="padding15px ">
-                                                            <div className="displayflex flexDirectionCol backgroundColor202b3b textAlignCenter colorWhite ">
-                                                                <p className="evidence">Evidence Score</p>
-                                                                <h1 className="score"><b>{item.standardScore}</b></h1>
-                                                            </div>
-                                                        </div>
-                                                        {/* </Col> */}
-                                                        {/* </Row> */}
-                                                    </td>
-                                                    <td>
-                                                        <Row>
-                                                            <Col lg={12} className="contnet_individual_suggestions pt-1">
-                                                                {item.authors.length ? <p><b>Authors:</b>{item.authors.map((author, index) => index != item.authors.length - 1 ? author.authorName + ', ' : author.authorName)}</p> : null}
-                                                                <p> <b>Title:</b> {item.title}</p>
-                                                                <p>  <b>Journal:</b> {item.journal}</p>
-                                                                <p> <b>Date:</b> {item.displayDate} </p>
-                                                            </Col>
-                                                        </Row>
-                                                        <Row>
-                                                            <Col lg={8} md={8} sm={8} xs={8} xl={8}>
-                                                                <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
-                                                                    <p className="suggestionText">+ Show Evidence behind this suggestion</p>
-                                                                </Accordion.Toggle>
-                                                            </Col>
-                                                            <Col lg={4} md={4} sm={4} xs={4} xl={4}>
-                                                                <span> <button className="btn button" type="button">PubMed</button>
-                                                                    <button className="btn button" type="button">GET IT</button>
-                                                                </span>
-                                                            </Col>
-                                                        </Row>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td colSpan="2">
-                                                        <Row>
-                                                            <Col lg={12}>
-
-
-                                                                <Accordion.Collapse eventKey="0">
-                                                                    <div>
-                                                                        <table className="h6fnhWdeg-publications-evidence-table table table-striped">
-                                                                            <thead>
-                                                                                <tr>
-                                                                                    <th key="0" className="h6fnhWdeg-first-cell">Evidence</th>
-                                                                                    <th key="1">Institutional Data</th>
-                                                                                    <th key="2">Article Data</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody>
-                                                                                {
-                                                                                    item?.evidence.map((evid) => <tr>
-                                                                                        <td dangerouslySetInnerHTML={{ __html: evid.label }} className="textAlignRight"></td>
-                                                                                        <td dangerouslySetInnerHTML={{ __html: evid.institutionalData }}></td>
-                                                                                        <td dangerouslySetInnerHTML={{ __html: evid.articleData }}></td>
-                                                                                    </tr>)
-                                                                                }
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </Accordion.Collapse>
-
-                                                            </Col>
-                                                        </Row>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </Table>
-                                    </div>
-                                </Accordion>) : null}
+                            <Suggestions articles={i} />
                         </div>
-
                     </div>
                 </div>)
 
