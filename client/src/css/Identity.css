@@ -2,17 +2,28 @@
     display: grid;
     height: 160px;
     padding: 0 5rem;
-    padding-top: 4.25rem;
+    padding-top: 2.7rem;
     margin-bottom: 40px;
     grid-template-columns: [col-1-start] 144px [col-2-start] 3rem [col-3-start] auto [col-end];
     grid-template-rows: [row-1-start] auto [row-2-start] 3rem [row-3-start] 3rem [row-4-start] 3rem [row-5-start] auto [row-end];
 }
-
+.reviewSuggestionHeading{
+    padding-left: 30px;
+    padding-top: 20px;
+    font-size: 21px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.19;
+    letter-spacing: -0.48px;
+    text-align: left;
+    color: #323942;   
+}
 .userImg {
     grid-row-start: row-1-start;
     grid-row-end: row-end;
     grid-column-start: col-1-start;
-    margin-left:39px;
+    margin-left: 15px;
 }
 
 .userImg span {
@@ -35,8 +46,10 @@
     color: #323942;    
 }
 .userName {
-    grid-row-start: row-3-start;
+    grid-row-start: row-2-start;
     grid-column-start: col-3-start;
+    margin-left: -38px;
+
 }
 
 .h1, h1 {
@@ -44,8 +57,10 @@
 }
 
 .userTitle {
-    grid-row-start: row-4-start;
+    grid-row-start: row-3-start;
     grid-column-start: col-3-start;
+    margin-left: -38px;
+
 }
 
 .h3, h3 {
@@ -55,7 +70,9 @@
 .btnContainer {
     grid-row-start: row-3-end;
     grid-column-start: col-3-start;
-    margin-top: -25PX;
+    margin-top: -60PX;
+    margin-left: -38px;
+
 }
 
 .manageBtn {

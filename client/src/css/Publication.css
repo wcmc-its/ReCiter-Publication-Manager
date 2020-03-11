@@ -26,6 +26,8 @@
 
 .h6fnhWdeg-publication-show-evidence-link, h6fnhWdeg-publication-evidence-hide {
     margin-left: -10px;
+    position: relative;
+    top: 8px;
 }
 
 .h6fnhWdeg-publications-evidence-table {
