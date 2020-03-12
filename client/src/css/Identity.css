@@ -19,6 +19,18 @@
     text-align: left;
     color: #323942;   
 }
+.reviewSuggestionHeading h3{
+    padding-left: 30px;
+    padding-top: 20px;
+    font-size: 21px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.19;
+    letter-spacing: -0.48px;
+    text-align: left;
+    color: #323942;
+}
 .userImg {
     grid-row-start: row-1-start;
     grid-row-end: row-end;
