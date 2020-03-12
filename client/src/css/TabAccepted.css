@@ -1,7 +1,7 @@
 .Accepted_tabs_filter .filter-container input{
-    max-width:279px !important;
-    width:279px !important;
-    margin-right: 0px;
+    max-width: 279px !important;
+    width: 279px !important;
+    margin-right: 0px !important;
     outline: none !important;
     height: 40px !important;
     padding: 1px 9px 0px 10px;
@@ -9,7 +9,13 @@
     box-shadow: none !important;
     border-radius: 2px;
 }
+.tabs_responsive_table{
+    display:contents;
+}
 .Accepted_tabs_filter #dropdownMenuButton{
 height:40px;
 border-radius: 2px;
+}
+.Accepted_tabs_filter .dropdown{
+    vertical-align: top;
 }

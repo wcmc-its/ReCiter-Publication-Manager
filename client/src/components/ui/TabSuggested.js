@@ -109,6 +109,13 @@ export class TabSuggested extends Component {
 
         // Filter
         const filteredPublications = []
+        if(!thisObject.props.reciterData.reciter){
+            return {
+                filteredPublications: [],
+                paginatedPublications: []
+            };
+        }
+
         thisObject.props.reciterData.reciter.forEach((publication) => {
             // Check if publication is Suggested
             if(publication.userAssertion === "NULL") {
@@ -120,7 +127,7 @@ export class TabSuggested extends Component {
                             filteredPublications.push(publication);
                         }
                         if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
-                           filteredPublications.push(publication);     
+                           filteredPublications.push(publication);
                         }
                     }else {
                         var addPublication = true;
@@ -250,7 +257,6 @@ export class TabSuggested extends Component {
                         onClick={this.rejectAll}
                     >Reject All</button>
                 </div>
-                <p className="suggested_filter_text">Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
                 {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
                 <div className="tabs_responsive_table col-md-12">
                 <div className="table-responsive">

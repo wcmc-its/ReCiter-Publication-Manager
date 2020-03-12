@@ -29,6 +29,7 @@
 }
 .pagination-container label {
     font-weight: normal;
+    font-size:14px;
 }
 .pagination-container .col {
     padding: 10px;

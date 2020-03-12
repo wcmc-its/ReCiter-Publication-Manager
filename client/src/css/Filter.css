@@ -1,6 +1,19 @@
 .filter-container input {
 	height: calc(3.25rem + 2px) !important;
-	margin: 0;
+    margin: 0;
+    font-size: 15px !important;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: italic;
+    line-height: 1.33;
+    letter-spacing: -0.19px;
+    text-align: left;
+    color: #212121;
+    height: 40px;
+    border-radius: 2px;
+    border: solid 1px #474747;
+    background-color: #ffffff;
+    border: solid 1px #474747 !important;
 }
 
 .filter-sort-by-label {
@@ -16,7 +29,7 @@
     font-size: 20px;
     margin-top: 0px;
 	top: 4px;
-    color: blue;
+    color: #005ad9;
     position: relative;
     border-top: .4em solid;
     border-right: .4em solid transparent;
@@ -24,9 +37,60 @@
     border-left: .4em solid transparent;
 }
 .dropdown-sort-desc::after{
-	content: ' \007C' !important;
-	position: relative;
-    font-size: 20px;
-    width: 5px;
+    content: ' \007C' !important;
+    position: relative;
+    font-size: 21px;
+    width: 9px;
+    font-weight: bold;
     top: -2px;
+    color: #474747;
+}
+.sort_filter_select {
+    display: inline-block;
+    width: 78px;
+    height: 40px !important;
+    padding-left: 13px !important;
+    font-family: OpenSans;
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #474747;
+    outline: none !important;
+    box-shadow: none !important;
+    background-image: linear-gradient(45deg, transparent 56%, #005ad9 29%), linear-gradient(135deg, #005ad9 43%, transparent 35%) !important;
+    background-position: calc(1% - -52px) 15.8px, calc(1% - -61px) 15.8px, 0% 0px;
+    background-size: 10px 10px, 10px 10px;
+    background-repeat: no-repeat;
+    -webkit-appearance: none;
+    appearance: none;
+    vertical-align: top;
+    border: solid 1px #474747 !important;
+
+}
+.selectdivider{
+    background-color: #474747;
+    width: 2px;
+    height: 22px;
+    position: absolute;
+    margin-left: -30px;
+    margin-top: 9px;
+}
+.h6fnhWdeg-publications-evidence-table td:nth-child(1){
+width:20%;
+}
+.h6fnhWdeg-publications-evidence-table td:nth-child(2){
+    width:33%; 
+}
+.h6fnhWdeg-publications-evidence-table td:nth-child(3){
+    width:30%;
+}
+.h6fnhWdeg-publications-evidence-table td:nth-child(2) {
+    padding-left: 4% !important;
+}
+.h6fnhWdeg-publications-evidence-table th:nth-child(2) {
+    padding-left: 4% !important;
 }

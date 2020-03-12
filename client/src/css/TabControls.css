@@ -1,8 +1,8 @@
 .h6fnhWdeg-tab-controls-container {
     background: #efefef;
     border-radius: 4px;
-    padding: 20px;
-    margin-bottom: 0px;
+    padding: 20px 0px;
+    margin-bottom: 18px;
 }
 .h6fnhWdeg-accept-all {
     margin-right: 10px;
@@ -18,7 +18,7 @@
     margin-right: 10px;
 }
 .h6fnhWdeg-tab-controls-container .filter-container .dropdown {
-    float: right;
+    float:initial;
 }
 .h6fnhWdeg-tab-controls-container .btn-default.disabled {
     color: #777;
