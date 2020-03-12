@@ -264,6 +264,24 @@ margin-right: 0px;
     margin: 0;
     padding: 0 30px;
 }
+.individual_table_body_container .pagination-container{
+    padding-left:54px;
+}
+.indvidualbody .table-responsive{
+    padding-left: 56px; 
+    padding-right: 50px;  
+}
+.indvidualbody .table-responsive th{
+    padding-left:0px;
+}
+.indvidualbody .table-responsive td{
+    padding-left:0px;
+}
+.individual_table_body_container{
+    width:99%;
+    overflow:hidden;
+    display: table;
+}
 @media (min-width:1200px) and (max-width:1366px){
     .indivdual_container{
         width:1108px;

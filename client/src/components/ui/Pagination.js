@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {faCaretRight,faCaretLeft} from '@fortawesome/free-solid-svg-icons'
+import { faCaretRight, faCaretLeft } from '@fortawesome/free-solid-svg-icons'
 import '../../css/Pagination.css';
 
 export class Pagination extends Component {
@@ -11,27 +11,27 @@ export class Pagination extends Component {
         const propsPage = parseInt(this.props.page, 10);
         const propsCount = parseInt(this.props.count, 10);
 
-        if(propsTotal > 0) {
+        if (propsTotal > 0) {
             // Calculate total pages
             var totalPages = parseInt((propsTotal / propsCount), 10);
-            if(propsTotal > totalPages*propsCount) totalPages++;
+            if (propsTotal > totalPages * propsCount) totalPages++;
             // Calculate first page number
             var firstPage = propsPage - 5;
-            if(firstPage <= 0) {
+            if (firstPage <= 0) {
                 firstPage = 1;
             }
-            if((totalPages - 10) < firstPage) {
+            if ((totalPages - 10) < firstPage) {
                 firstPage = totalPages - 10;
             }
-            if(totalPages <= 11) {
+            if (totalPages <= 11) {
                 firstPage = 1;
             }
             // Calculate last page
             var lastPage = propsPage + 5;
-            if(propsPage + 5 <= 11) {
+            if (propsPage + 5 <= 11) {
                 lastPage = 11;
             }
-            if(lastPage > totalPages) {
+            if (lastPage > totalPages) {
                 lastPage = totalPages;
             }
 
@@ -39,7 +39,7 @@ export class Pagination extends Component {
             var i = firstPage;
             for (i; i <= lastPage; i++) {
                 var isActive = false;
-                if(i === propsPage) {
+                if (i === propsPage) {
                     isActive = true;
                 }
                 pages.push({
@@ -68,27 +68,39 @@ export class Pagination extends Component {
                     <div className="col-lg-9 c0l-xl-9 col-xs-6 col-md-8 col-sm-7">
                         <div>
                             <ul className="pagination">
-                                <li className={`page-item ${(propsPage === 1)?'disabled':''}`}>
-                                <span
-                                    className="page-link"
-                                    onClick={(event) => thisObject.props.onChange(event, propsPage-1)}
-                                ><FontAwesomeIcon icon={faCaretLeft} size='1x' className="pagination_carot_icon" /></span>
+                                <li id="firstpagination_wrap" className={`page-item ${(propsPage === 1) ? 'disabled' : ''}`}>
+                                    <span
+                                        className="firstpagination_btn page-link"
+                                        onClick={(event) => thisObject.props.onChange(event, 1)}
+                                    >First</span>
+                                </li>
+                                <li className={`page-item ${(propsPage === 1) ? 'disabled' : ''}`}>
+                                    <span
+                                        className="pagination_icons_wrap page-link"
+                                        onClick={(event) => thisObject.props.onChange(event, propsPage - 1)}
+                                    ><FontAwesomeIcon icon={faCaretLeft} size='1x' className="pagination_carot_icon" /></span>
                                 </li>
                                 {
-                                    pages.map(function(page, index){
-                                        return <li className={`page-item ${(page.isActive)?"active":""}`} key={`page-item-${page.title}`}>
-                                        <span
-                                            className="page-link"
-                                            onClick={(event) => thisObject.props.onChange(event, page.title)}
-                                        >{page.title}</span>
+                                    pages.map(function (page, index) {
+                                        return <li className={`page-item ${(page.isActive) ? "active" : ""}`} key={`page-item-${page.title}`}>
+                                            <span
+                                                className="page-link"
+                                                onClick={(event) => thisObject.props.onChange(event, page.title)}
+                                            >{page.title}</span>
                                         </li>
                                     })
                                 }
-                                <li className={`page-item ${(propsPage === totalPages)?'disabled':''}`}>
-                                <span
-                                    className="page-link"
-                                    onClick={(event) => thisObject.props.onChange(event, propsPage+1)}
-                                ><FontAwesomeIcon icon={faCaretRight} size='1x' className="pagination_carot_icon" /></span>
+                                <li className={`page-item ${(propsPage === totalPages) ? 'disabled' : ''}`}>
+                                    <span
+                                        className="pagination_icons_wrap12 page-link"
+                                        onClick={(event) => thisObject.props.onChange(event, propsPage + 1)}
+                                    ><FontAwesomeIcon icon={faCaretRight} size='1x' className="pagination_carot_icon" /></span>
+                                </li>
+                                <li id="last_pagination_wrap" className={`page-item ${(propsPage === totalPages) ? 'disabled' : ''}`}>
+                                    <span
+                                        className="lastpagination_btn page-link"
+                                        onClick={(event) => thisObject.props.onChange(event, totalPages)}
+                                    >Last</span>
                                 </li>
                             </ul>
                         </div>
@@ -96,7 +108,7 @@ export class Pagination extends Component {
                     </div>
                 </div>
             );
-        }else {
+        } else {
             return null;
         }
     }

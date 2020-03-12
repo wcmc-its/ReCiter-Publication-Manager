@@ -165,12 +165,14 @@ class Individual extends Component {
         this.setState(prevState => {
             return { selectedDeps: prevState.selectedDeps.filter(selectedDep => selectedDep !== dep) };
         })
+        this.props.updateDeptsPersonTypes(this.state.selectedDeps.filter(selectedDep => selectedDep !== dep), this.state.selectedPersonTypes)
     }
 
     removeAffiliationFilter(affiliation, event) {
         this.setState(prevState => {
             return { selectedAffiliations: prevState.selectedAffiliations.filter(selectedAffiliation => selectedAffiliation !== affiliation) };
         })
+        this.props.updateAffiliationType(this.state.selectedAffiliations.filter(selectedAffiliation => selectedAffiliation !== affiliation))
     }
 
     removePersonTypeFilter(pType, event) {
@@ -291,120 +293,126 @@ class Individual extends Component {
                     {/* <div className="side-nav-position"> */}
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
                     <SideNav />
-                    {/* </div>
+                    <div>
+                        {/* </div>
                     <div className="mt-5 manage-profile-content-container"> */}
-                    <Container className="indivdual_container">
-                        <div className="row">
-                            <div className="col-md-12">
-                                <h4 className="heading">Find Scholar</h4>
-                            </div>
-                            <div className=" mb-7 col-md-12 col-sm-12 col-xs-12 col-lg-7 col-xl-7">
-                                <div className="individual_search_well well well-sm">
 
-                                    <Form className="individual_search">
-                                        <div className="form-group">
-                                            <div className="input-group">
-                                                <input type="text" className="search_indivdual_input mt-0 font-italic form-control" placeholder="Enter name or CWID" aria-describedby="basic-addon2" onChange={this.onSearchUpdate} ref="search-field" />
-                                                <span onClick={() => this.search()} className="inputadds input-group-addon" id="basic-addon2"><FontAwesomeIcon icon={faSearch} className="searchicon" /></span>
+                        <Container className="indivdual_container">
+                            <div className="row">
+                                <div className="col-md-12">
+                                    <h4 className="heading">Find Scholar</h4>
+                                </div>
+                                <div className=" mb-7 col-md-12 col-sm-12 col-xs-12 col-lg-7 col-xl-7">
+                                    <div className="individual_search_well well well-sm">
+
+                                        <Form className="individual_search">
+                                            <div className="form-group">
+                                                <div className="input-group">
+                                                    <input type="text" className="search_indivdual_input mt-0 font-italic form-control" placeholder="Enter name or CWID" aria-describedby="basic-addon2" onChange={this.onSearchUpdate} ref="search-field" />
+                                                    <span onClick={() => this.search()} className="inputadds input-group-addon" id="basic-addon2"><FontAwesomeIcon icon={faSearch} className="searchicon" /></span>
+                                                </div>
                                             </div>
-                                        </div>
+                                            <div>
+                                                <p><span className="font-italic advanced_search_font">Advanced Search:</span> <a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
+                                            </div>
+                                            <Row>
+                                                <Col md={4}>
+                                                    <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
+                                                        {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
+                                                        <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Department"} value={this.state.selectedDepartmentValue} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
+                                                            <option value='Department'>Department</option>
+                                                            {depOptions}
+                                                        </Form.Control>
 
-                                        <div>
-                                            <p><span className="font-italic advanced_search_font">Advanced Search:</span> <a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
-                                        </div>
-                                        <Row>
-                                            <Col md={4}>
-                                                <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
-                                                    {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
-                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Department"} value={this.state.selectedDepartmentValue} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
-                                                        <option value='Department'>Department</option>
-                                                        {depOptions}
-                                                    </Form.Control>
+                                                    </Form.Group>
+                                                    <div className="tags-info">
+                                                        {this.state.selectedDeps.map((dep) => {
+                                                            return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeDepartmentFilter(dep)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
+                                                        })}
+                                                    </div>
+                                                </Col>
+                                                <Col md={4}>
+                                                    <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
+                                                        {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
+                                                        <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Affiliation"} value={this.state.selectedAffiliationValue} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
+                                                            <option>Affiliation</option>
+                                                            {affiliationOptions}
+                                                        </Form.Control>
 
-                                                </Form.Group>
-                                                <div className="tags-info">
-                                                    {this.state.selectedDeps.map((dep) => {
-                                                        return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeDepartmentFilter(dep)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
-                                                    })}
-                                                </div>
-                                            </Col>
-                                            <Col md={4}>
-                                                <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
-                                                    {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
-                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Affiliation"} value={this.state.selectedAffiliationValue} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
-                                                        <option>Affiliation</option>
-                                                        {affiliationOptions}
-                                                    </Form.Control>
+                                                    </Form.Group>
+                                                    <div>
+                                                        {this.state.selectedAffiliations.map((dep) => {
+                                                            return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeAffiliationFilter(dep)}><FontAwesomeIcon icon={faTimes} /> </span></p>
+                                                        })}
+                                                    </div>
+                                                </Col>
+                                                <Col md={4}>
+                                                    <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
+                                                        {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
+                                                        <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Person Type"} value={this.state.selectedPersonValue} onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold">
+                                                            <option value='Person Type'>Person Type</option>
+                                                            {personTypeOptions}
+                                                        </Form.Control>
 
-                                                </Form.Group>
-                                                <div>
-                                                    {this.state.selectedAffiliations.map((dep) => {
-                                                        return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeAffiliationFilter(dep)}><FontAwesomeIcon icon={faTimes} /> </span></p>
-                                                    })}
-                                                </div>
-                                            </Col>
-                                            <Col md={4}>
-                                                <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
-                                                    {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
-                                                    <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Person Type"} value={this.state.selectedPersonValue} onChange={this.handlePersonTypeSelect} className="border-forms_ids pl-2 font-weight-bold">
-                                                        <option value='Person Type'>Person Type</option>
-                                                        {personTypeOptions}
-                                                    </Form.Control>
+                                                    </Form.Group>
+                                                    <div>
+                                                        {this.state.selectedPersonTypes.map((ptype) => {
+                                                            return <p className="bg-primary tags"><span className="tags_main_child">{ptype} </span> <span className="close_icons" onClick={() => this.removePersonTypeFilter(ptype)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
+                                                        })
+                                                        }
 
-                                                </Form.Group>
-                                                <div>
-                                                    {this.state.selectedPersonTypes.map((ptype) => {
-                                                        return <p className="bg-primary tags"><span className="tags_main_child">{ptype} </span> <span className="close_icons" onClick={() => this.removePersonTypeFilter(ptype)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
-                                                    })
-                                                    }
-
-                                                </div>
-                                            </Col>
-                                        </Row>
-                                    </Form>
+                                                    </div>
+                                                </Col>
+                                            </Row>
+                                        </Form>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="row page-title">
-                            <div className="col-md-12">
-                                <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.props.identityAllData.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
+                            <div className="row page-title">
+                                <div className="col-md-12">
+                                    <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.state.data.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
+                                </div>
                             </div>
-                        </div>
-                        <div className="row">
-                            <div className="col-xs-12 col-md-12 col-lg-12 col-xl-12 col-sm-12 pl-0 pr-0">
-                                <div className="individual">
-                                    <div className="individual_searchshowrec searchHeader">
+                        </Container>
+                        <div>
+                            <div className="individual_table_body_container">
+                                <div className="row">
+                                    <div className="col-xs-12 col-md-12 col-lg-12 col-xl-12 col-sm-12 pl-0 pr-0">
+                                        <div className="individual">
+                                            <div className="individual_searchshowrec searchHeader">
 
-                                        <div className="col-sm-12">
-                                            {/* <Pagination id="individual_page" items={4}>
+                                                <div className="col-sm-12">
+                                                    {/* <Pagination id="individual_page" items={4}>
                                                 {PaginationData}
                                             </Pagination> */}
-                                            <Pagination total={this.props.identityAllData.length} page={this.state.page}
-                                                count={this.state.count}
-                                                onChange={this.handlePaginationUpdate} />
-                                        </div>
-                                    </div>
-                                    <div className="row">
-                                        <div className="indvidualbody col-md-12 pr-5 pl-5">
-                                            <Table responsive className="individual_table">
-                                                <thead>
-                                                    <tr className="row">
-                                                        <th className="col-md-3 col-lg-3 col-sm-3 col-xs-3 col-xl-3">Name</th>
-                                                        <th className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4">Organizational Units</th>
-                                                        <th className="col-md-5 col-lg-5 col-sm-5 col-xs-5 col-xl-5">Institutions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {tableData}
-                                                </tbody>
-                                            </Table>
-                                        </div>
-                                    </div>
+                                                    <Pagination total={this.state.data.length} page={this.state.page}
+                                                        count={this.state.count}
+                                                        onChange={this.handlePaginationUpdate} />
+                                                </div>
+                                            </div>
+                                            <div className="row">
+                                                <div className="indvidualbody col-md-12 pr-5 pl-5">
+                                                    <Table responsive className="individual_table">
+                                                        <thead>
+                                                            <tr className="row">
+                                                                <th className="col-md-3 col-lg-3 col-sm-3 col-xs-3 col-xl-3">Name</th>
+                                                                <th className="col-md-4 col-lg-4 col-sm-4 col-xs-4 col-xl-4">Organizational Units</th>
+                                                                <th className="col-md-5 col-lg-5 col-sm-5 col-xs-5 col-xl-5">Institutions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {tableData}
+                                                        </tbody>
+                                                    </Table>
+                                                </div>
+                                            </div>
 
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </Container>
+                    </div>
                     {/* </div> */}
                     <div className="footer-position">
                         <Footer />

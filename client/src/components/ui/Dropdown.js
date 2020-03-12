@@ -76,11 +76,11 @@ export class Dropdown extends Component {
                 break;
             case "2":
                 sortClass = "dropdown-sort-desc";
-                sortBy = "Date";
+                sortBy = "Year";
                 break;
             case "3":
                 sortClass = "dropdown-sort-asc";
-                sortBy = "Date";
+                sortBy = "Year";
                 break;
             default:
                 sortClass = "dropdown-sort-desc";
@@ -105,9 +105,9 @@ export class Dropdown extends Component {
                         onClick={(event) => this.handleClick(event, "Score")}
                     >Score</span>
                     <span
-                        className={(sortBy === "Date")?sortClass:""}
-                        onClick={(event) => this.handleClick(event, "Date")}
-                    >Date</span>
+                        className={(sortBy === "Year")?sortClass:""}
+                        onClick={(event) => this.handleClick(event, "Year")}
+                    >Year</span>
                 </div>
             </div>
         );
