@@ -73,7 +73,7 @@ export default class Suggestions extends Component {
                                             </Row>
                                             <Row>
                                                 <Col lg={8} md={8} sm={8} xs={8} xl={8}>
-                                                    <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns" onClick={() => this.onAccordionChange('accordion' + index)}>
+                                                    <Accordion.Toggle as={Button} variant="link" eventKey="0" className="individual_suggestion_accordinbtn accoedins_btns" onClick={() => this.onAccordionChange('accordion' + index)}>
                                                         <p className="suggestionText" >{this.state['accordion' + index] || '+ Show evidence behind this suggestion'}</p>
                                                     </Accordion.Toggle>
                                                 </Col>
@@ -88,7 +88,7 @@ export default class Suggestions extends Component {
                                     <tr>
                                         <td colSpan="2">
                                             <Row>
-                                                <Col lg={12}>
+                                                <Col lg={12} className="suggestion_indvidual_table_col">
                                                     <Accordion.Collapse eventKey="0">
                                                         <div>
                                                             <table className="individual_evidence_table h6fnhWdeg-publications-evidence-table table table-striped">

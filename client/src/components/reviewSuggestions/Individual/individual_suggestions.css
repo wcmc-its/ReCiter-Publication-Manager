@@ -294,6 +294,22 @@ margin-top: 5px;
     line-height: normal;
     letter-spacing: normal;
     color: #005ad9;   
+    position:relative;
+    top:2px;
+}
+.suggestion_indvidual_table_col{
+    padding:0px;
+}
+.individual_suggestion_accordinbtn{
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: normal;
+    letter-spacing: normal;
+    color: #005ad9;
+    position: relative;
+    top: 5px;   
 }
 .name{
     margin: 2px 2px 2px 6px;
@@ -436,6 +452,23 @@ p .suggestionText a{
     background-color: #fff;
     margin: 0px 0px 29px 0px;
     box-shadow: 0px 0px 5px 5px #eaeaea;
+}
+.individual_evidence_table th {
+    font-size: 15px;
+    font-weight: bold;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #ffffff;
+}
+.individual_evidence_table small{
+    font-size:14px;
+}
+.individual_evidence_table td {
+    font-size: 14px;
+    color: #000;
 }
 .individual_evidence_table td:nth-child(1){
     width:21%;

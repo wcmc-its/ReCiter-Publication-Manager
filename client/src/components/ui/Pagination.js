@@ -1,4 +1,6 @@
 import React, { Component } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCaretRight, faCaretLeft } from '@fortawesome/free-solid-svg-icons'
 import '../../css/Pagination.css';
 
 export class Pagination extends Component {
@@ -76,7 +78,7 @@ export class Pagination extends Component {
                                     <span
                                         className="pagination_icons_wrap page-link"
                                         onClick={(event) => thisObject.props.onChange(event, propsPage - 1)}
-                                    >&laquo;</span>
+                                    ><FontAwesomeIcon icon={faCaretLeft} size='1x' className="pagination_carot_icon" /></span>
                                 </li>
                                 {
                                     pages.map(function (page, index) {
@@ -92,7 +94,7 @@ export class Pagination extends Component {
                                     <span
                                         className="pagination_icons_wrap12 page-link"
                                         onClick={(event) => thisObject.props.onChange(event, propsPage + 1)}
-                                    >&raquo;</span>
+                                    ><FontAwesomeIcon icon={faCaretRight} size='1x' className="pagination_carot_icon" /></span>
                                 </li>
                                 <li id="last_pagination_wrap" className={`page-item ${(propsPage === totalPages) ? 'disabled' : ''}`}>
                                     <span
