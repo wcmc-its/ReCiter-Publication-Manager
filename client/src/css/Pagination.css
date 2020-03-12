@@ -28,6 +28,7 @@
 }
 .pagination-container label {
     font-weight: normal;
+    font-size:14px;
 }
 .pagination-container .col {
     padding: 10px;
@@ -37,6 +38,9 @@
     border:1px solid #bbb;
     border-radius:4px;
     float:right;
+}
+.pagination_carot_icon{
+    color:#005ad9;
 }
 @media(max-width:768px) {
     .pagination-container {

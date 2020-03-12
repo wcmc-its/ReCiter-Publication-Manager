@@ -163,7 +163,7 @@ class Individuals extends Component {
                                                         </Row>
                                                         <Row>
                                                             <Col lg={8} md={8} sm={8} xs={8} xl={8}>
-                                                                <Accordion.Toggle as={Button} variant="link" eventKey="0" className="accoedins_btns">
+                                                                <Accordion.Toggle  variant="link" eventKey="0" className="accoedins_btns">
                                                                     <p className="suggestionText">+ Show evidence behind this suggestion</p>
                                                                 </Accordion.Toggle>
                                                             </Col>
