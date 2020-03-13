@@ -51,15 +51,16 @@
 }
 .page-item.disabled .page-link {
     background-color: #f9f9f9;
-    font-size: 11px;
-    font-weight: normal;
+    font-size: 10px;
+    font-weight: bold;
     font-stretch: normal;
     font-style: normal;
-    line-height: 2.2;
+    line-height: normal;
     letter-spacing: normal;
+    /* height: 12.3px; */
     text-align: center;
-    color: #005ad9;
-
+    color: #5b5b5b;
+    border: 1px solid #bbbbbb;
 
 }
 .pagination_icons_wrap{
@@ -72,14 +73,16 @@
 }
 .page-item .page-link{
     background-color: #f9f9f9;
-    font-size: 11px;
-    font-weight: normal;
+    font-size: 10px;
+    font-weight: bold;
     font-stretch: normal;
     font-style: normal;
-    line-height: 2.2;
+    line-height: normal;
+    border: 1px solid #bbbbbb;
     letter-spacing: normal;
+    /* height: 12.3px; */
     text-align: center;
-    color: #005ad9;
+    color: #5b5b5b;
  
 
 }
