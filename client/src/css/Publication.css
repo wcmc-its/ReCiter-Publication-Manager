@@ -103,6 +103,15 @@ font-size:14px;
 position: absolute;
 right:81px;
 }
+.evidance_tablepubmedcolspan{
+    padding:0px !important;
+}
+.publication_evidance_tablediv{
+    border-bottom:3px solid #f4f4f4;   
+}
+.publication_evidance_tablediv .h6fnhWdeg-publication_tabletd{
+    border: 0px !important;
+}
 .tabs_tables .h6fnhWdeg-publication_tabletd, .tabs_tables th{
     border-bottom:3px solid #f4f4f4;
     border-top:0px !important;
@@ -110,8 +119,11 @@ right:81px;
 .tabs_tables td, .tabs_tables th{
     border-top:0px !important;  
 }
+.evidance_review_suggest_td{
+    padding:0px;
+}
 .h6fnhWdeg-publication-buttons {
-    width:250px;
+    width:210px;
     text-align: center;
     padding-top: 23px !important;
 }
@@ -238,7 +250,7 @@ font-weight: normal;
     letter-spacing: .18px;
 }
 .h6fnhWdeg-publication-author-highlighted {
-    background-color: #ebf3b1;
+    background-color: rgba(191, 217, 1, 0.31);
     height: 33px;
     line-height: 1em;
     padding: 5px;

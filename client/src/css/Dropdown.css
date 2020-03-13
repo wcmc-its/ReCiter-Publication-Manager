@@ -1,20 +1,38 @@
 .dropdown-menu span {
     display: block;
-    padding: 3px 20px 4px 20px;
+    padding: 3px 20px 4px 12px;
     clear: both;
     font-weight: 400;
     line-height: 1.4em;
-    font-size: 14px;
+    font-size: 15px;
     color: #333;
     white-space: nowrap;
     cursor: pointer;
+    text-align: left;
+}
+.dropdown-menu{
+    width:90%;
+}
+.dropdown-menu-right {
+    right: 9px;
+}
+.dropdown-menu  .dropdown-sort-desc::after {
+content:'' !important;
+}
+.dropdown-menu .dropdown-sort-asc::after {
+    content:'' !important;
 }
 .dropdown-menu span:hover {
     background-color: #efefef;
 }
 .dropdown-sort-asc::after {
-    content: '\2191';
-    padding-left: 10px;
+    content: ' \007C' !important;
+    position: relative;
+    font-size: 21px;
+    width: 9px;
+    font-weight: bold;
+    top: -2px;
+    color: #474747;
 }
 .dropdown-sort-desc::after {
     content: '\2193';

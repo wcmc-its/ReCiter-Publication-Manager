@@ -105,7 +105,7 @@ class Publication extends Component {
 
         }
 
-        return <tr><td className="h6fnhWdeg-publication_tabletd"><tr className="h6fnhWdeg-publication_tablerow">
+        return <div className="publication_evidance_tablediv"><tr><td className="h6fnhWdeg-publication_tabletd"><tr className="h6fnhWdeg-publication_tablerow">
             <td key="0" className="h6fnhWdeg-publication-buttons">
                 {buttons}
                 <div className="clear-both"></div>
@@ -183,7 +183,11 @@ class Publication extends Component {
 
             </td>
         </tr>
-            {(this.state.showEvidence) ? (<tr><td colspan="2">
+            
+
+        </td></tr>
+        <tr>
+        {(this.state.showEvidence) ? (<tr><td colspan="2" className="evidance_tablepubmedcolspan">
                 <table className="h6fnhWdeg-publications-evidence-table table table-striped">
                     <thead>
                         <tr>
@@ -209,8 +213,7 @@ class Publication extends Component {
                 </table>
 
             </td></tr>) : <tr></tr>}
-
-        </td></tr>;
+            </tr></div>;
     }
 }
 
