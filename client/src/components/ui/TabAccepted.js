@@ -92,8 +92,8 @@ export class TabAccepted extends Component {
                         if (pmids.some(pmid => Number(pmid) === publication.pmid)) {
                             filteredPublications.push(publication);
                         }
-                        if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
-                           filteredPublications.push(publication);     
+                        if (publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            filteredPublications.push(publication);
                         }
                     } else {
                         var addPublication = true;
@@ -211,26 +211,29 @@ export class TabAccepted extends Component {
         const publications = this.filter();
 
         return (
-            <div className="h6fnhWdeg-tab-content">
-                <div className="Accepted_tabs_filter h6fnhWdeg-tab-controls-container">
-                    <Filter onChange={this.handleFilterUpdate} showSort={true} />
-                    <button className="btn btn-primary  backgroundColorBlue  h6fnhWdeg-accept-all borderRadius0">Accept All</button>
-                    <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0" onClick={this.rejectAll}>Reject All</button>
-                </div>
-                {/* <p className="suggested_filter_text">Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); }}>Search PubMed...</a></p> */}
-                {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
-                <div className="tabs_responsive_table col-md-12">
-                    <div className="table-responsive">
-                        <table className="tabs_tables h6fnhWdeg-publications-table table">
-                            <tbody>
-                                {
-                                    publications.paginatedPublications.map(function (item, index) {
-                                        return <Publication item={item} key={index} onAccept={thisObject.acceptPublication} onReject={thisObject.rejectPublication} onUndo={thisObject.undoPublication} />;
-                                    })
-                                }
-                            </tbody>
-                        </table>
+            <div className="Tabssuggestion_main_body12">
+                <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
+                    <div className="Accepted_tabs_filter h6fnhWdeg-tab-controls-container">
+                        <Filter onChange={this.handleFilterUpdate} showSort={true} />
+                        <button className="btn btn-primary  backgroundColorBlue  h6fnhWdeg-accept-all borderRadius0">Accept All</button>
+                        <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0" onClick={this.rejectAll}>Reject All</button>
                     </div>
+                    {/* <p className="suggested_filter_text">Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); }}>Search PubMed...</a></p> */}
+                    {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
+                    <div className="tabs_responsive_table col-md-12">
+                        <div className="table-responsive">
+                            <table className="tabs_tables h6fnhWdeg-publications-table table">
+                                <tbody>
+                                    {
+                                        publications.paginatedPublications.map(function (item, index) {
+                                            return <Publication item={item} key={index} onAccept={thisObject.acceptPublication} onReject={thisObject.rejectPublication} onUndo={thisObject.undoPublication} />;
+                                        })
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
                 <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
             </div>

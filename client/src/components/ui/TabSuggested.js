@@ -32,7 +32,7 @@ export class TabSuggested extends Component {
         this.setState({
             page: page
         });
-        if(event.target.value !== undefined) {
+        if (event.target.value !== undefined) {
             this.setState({
                 count: event.target.value
             });
@@ -79,7 +79,7 @@ export class TabSuggested extends Component {
     acceptAll() {
         const publications = this.filter();
         var ids = [];
-        publications.paginatedPublications.forEach(function(item){
+        publications.paginatedPublications.forEach(function (item) {
             ids.push(item.pmid);
         });
         const request = {
@@ -93,7 +93,7 @@ export class TabSuggested extends Component {
     rejectAll() {
         const publications = this.filter();
         var ids = [];
-        publications.paginatedPublications.forEach(function(item){
+        publications.paginatedPublications.forEach(function (item) {
             ids.push(item.pmid);
         });
         const request = {
@@ -109,7 +109,7 @@ export class TabSuggested extends Component {
 
         // Filter
         const filteredPublications = []
-        if(!thisObject.props.reciterData.reciter){
+        if (!thisObject.props.reciterData.reciter) {
             return {
                 filteredPublications: [],
                 paginatedPublications: []
@@ -118,48 +118,48 @@ export class TabSuggested extends Component {
 
         thisObject.props.reciterData.reciter.forEach((publication) => {
             // Check if publication is Suggested
-            if(publication.userAssertion === "NULL") {
+            if (publication.userAssertion === "NULL") {
                 // Check search and sort
-                if(thisObject.state.search !== "") {
-                    if(/^[0-9 ]*$/.test(thisObject.state.search)) {
+                if (thisObject.state.search !== "") {
+                    if (/^[0-9 ]*$/.test(thisObject.state.search)) {
                         var pmids = thisObject.state.search.split(" ");
-                        if(pmids.some(pmid => Number(pmid) === publication.pmid )){
+                        if (pmids.some(pmid => Number(pmid) === publication.pmid)) {
                             filteredPublications.push(publication);
                         }
-                        if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
-                           filteredPublications.push(publication);
+                        if (publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            filteredPublications.push(publication);
                         }
-                    }else {
+                    } else {
                         var addPublication = true;
                         // check filter search
                         if (thisObject.state.search !== "") {
                             addPublication = false;
                             //pmcid
-                            if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //publicationTypeCanonical
-                            if(publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //scopusDocID
-                            if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //journalTitleISOabbreviation
-                            if(publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //journalTitleVerbose
-                            if(publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //publication date display
-                            if(publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             //doi
-                            if(publication.doi !== undefined && publication.doi.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.doi !== undefined && publication.doi.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
                             }
                             // title
@@ -171,11 +171,11 @@ export class TabSuggested extends Component {
                                 addPublication = true;
                             }
                             //issn
-                            if(publication.issn !== undefined) {
+                            if (publication.issn !== undefined) {
                                 var issnArray = publication.issn.map((issn, issnIndex) => {
                                     return issn.issn
                                 })
-                                if(issnArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                                if (issnArray.join().toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                     addPublication = true;
                                 }
                             }
@@ -202,7 +202,7 @@ export class TabSuggested extends Component {
                             filteredPublications.push(publication);
                         }
                     }
-                }else {
+                } else {
                     filteredPublications.push(publication);
                 }
             }
@@ -210,7 +210,7 @@ export class TabSuggested extends Component {
 
         // Sort
         filteredPublications.sort((a, b) => {
-            switch(this.state.sort) {
+            switch (this.state.sort) {
                 case "0":
                     return b.standardScore - a.standardScore;
                 case "1":
@@ -229,8 +229,8 @@ export class TabSuggested extends Component {
         var to = from + parseInt(this.state.count, 10) - 1;
         var publications = [];
         var i = from;
-        for(i; i <= to; i++) {
-            if(filteredPublications[i] !== undefined) {
+        for (i; i <= to; i++) {
+            if (filteredPublications[i] !== undefined) {
                 publications.push(filteredPublications[i]);
             }
         }
@@ -245,30 +245,32 @@ export class TabSuggested extends Component {
         const publications = this.filter();
 
         return (
-            <div className="h6fnhWdeg-tab-content">
-                <div className="suggested_tabs_filter h6fnhWdeg-tab-controls-container">
-                    <Filter onChange={this.handleFilterUpdate} showSort={true} />
-                    <button
-                        className="btn btn-primary h6fnhWdeg-accept-all backgroundColorBlue borderRadius0"
-                        onClick={this.acceptAll}
-                    >Accept All</button>
-                    <button
-                        className="btn btn-primary h6fnhWdeg-reject-all colorBlue backgroundColorWhite borderRadius0"
-                        onClick={this.rejectAll}
-                    >Reject All</button>
-                </div>
-                {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
-                <div className="tabs_responsive_table col-md-12">
-                <div className="table-responsive">
-                    <table className="tabs_tables h6fnhWdeg-publications-table table">
-                        <tbody>
-                            {
-                                publications.paginatedPublications.map(function(item, index){
-                                    return <Publication item={item} key={index} onAccept={thisObject.acceptPublication} onReject={thisObject.rejectPublication} onUndo={thisObject.undoPublication} faculty={thisObject.props.reciterData.faculty} />;
-                                })
-                            }
-                        </tbody>
-                    </table>
+            <div className="Tabssuggestion_main_body12">
+                <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
+                    <div className="suggested_tabs_filter h6fnhWdeg-tab-controls-container">
+                        <Filter onChange={this.handleFilterUpdate} showSort={true} />
+                        <button
+                            className="btn btn-primary h6fnhWdeg-accept-all backgroundColorBlue borderRadius0"
+                            onClick={this.acceptAll}
+                        >Accept All</button>
+                        <button
+                            className="btn btn-primary h6fnhWdeg-reject-all colorBlue backgroundColorWhite borderRadius0"
+                            onClick={this.rejectAll}
+                        >Reject All</button>
+                    </div>
+                    {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
+                    <div className="tabs_responsive_table col-md-12">
+                        <div className="table-responsive">
+                            <table className="tabs_tables h6fnhWdeg-publications-table table">
+                                <tbody>
+                                    {
+                                        publications.paginatedPublications.map(function (item, index) {
+                                            return <Publication item={item} key={index} onAccept={thisObject.acceptPublication} onReject={thisObject.rejectPublication} onUndo={thisObject.undoPublication} faculty={thisObject.props.reciterData.faculty} />;
+                                        })
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
                 <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />

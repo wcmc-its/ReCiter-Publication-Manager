@@ -30,7 +30,7 @@
     border-bottom: 1px solid #9b9b9b;
 }
 .tabs-headers li:nth-child(1){
-    margin-left:6.9%;
+    margin-left:7.3%;
 }
 .h6fnhWdeg-publications-tab-link span {
     display: inline-block;
@@ -63,6 +63,15 @@
 }
 .tabs_tables {
     background-color: #fff;
+}
+.Tabs_main_body1{
+    padding: 20px 30px;
+}
+.Tabssuggestion_main_body12 .pagination-container{
+    padding-left:30px;
+}
+.Tabssuggestion_main_body12 .pagination-container ul.pagination{
+    padding-right: 19px;   
 }
 @media (min-width : 993px) and (max-width : 1024px) {
     .h6fnhWdeg-publication_tablerow .h6fnhWdeg-publication-row-buttons {

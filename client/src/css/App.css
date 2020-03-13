@@ -101,14 +101,15 @@ body {
 }
 
 /* End of changes */
-
+.Tabs_body_container {
+    padding: 0px !important;
+}
 .h6fnhWdeg-tabs-container {
     background-color: #fff;
     /* padding: 20px; */
     border: 1px solid #ddd;
     border-top: 0px;
 }
-
 .h6fnhWdeg-tabs-content {
     background-color:#efefef;
     padding: 20px;
@@ -116,6 +117,7 @@ body {
     -webkit-border-radius: 4px;
     -moz-border-radius: 4px;
     border-radius: 4px;
+    overflow:hidden;
 }
 
 .h6fnhWdeg-reciter-pending-banner {

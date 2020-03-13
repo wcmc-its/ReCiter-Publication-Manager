@@ -211,7 +211,8 @@ export class TabRejected extends Component {
         const publications = this.filter();
 
         return (
-            <div className="h6fnhWdeg-tab-content">
+            <div className="Tabssuggestion_main_body12">
+            <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
                 <div className="Rejected_tabs_filter h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true}/>
                     <button className="btn btn-primary backgroundColorBlue h6fnhWdeg-accept-all borderRadius0" onClick={this.acceptAll}>Accept All</button>
@@ -231,7 +232,9 @@ export class TabRejected extends Component {
                     </table>
                 </div>
                 </div>
-                <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />
+                
+            </div>
+            <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} />            
             </div>
         );
     }

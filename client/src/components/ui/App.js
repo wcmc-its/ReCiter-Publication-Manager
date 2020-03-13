@@ -128,7 +128,7 @@ class App extends Component {
                                 tabClickHandler={this.tabClickHandler}
                             />
                             <div className="h6fnhWdeg-tab-content h6fnhWdeg-tabs-container">
-                                <div className="h6fnhWdeg-tabs-content">{tabActiveContent}</div>
+                                <div className="Tabs_body_container h6fnhWdeg-tabs-content">{tabActiveContent}</div>
                             </div>
                         </div>
                     </div>
