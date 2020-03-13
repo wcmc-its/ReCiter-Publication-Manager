@@ -327,11 +327,19 @@ margin-top: 5px;
 }
 #indivdual_search_selectopts{
     background-image: linear-gradient(45deg, transparent 71%, #005ad9 13%), linear-gradient(135deg, #005ad9 33%, transparent 26%) !important;
-    background-position: calc(1% - -141px) 11px, calc(1% - -151px) 11px, 0% 0px;
+    background-position: calc(1% - -141px) 11px,calc(1% - -151px) 11px,0 0;
     background-size: 10px 10px, 10px 10px;
     background-repeat: no-repeat;
     -webkit-appearance: none;
-    padding-right: 21px
+    padding-right: 21px;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: -0.55px;
+    text-align: left;
+    color: #212121;
 }
 .individual_searchshowrec .form-control{
     width: 44px !important;
