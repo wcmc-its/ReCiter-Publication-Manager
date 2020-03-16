@@ -41,7 +41,7 @@ export default class Identity extends Component {
                 imageUrl = '../images/generic-headshot.png'
         }
         const image = (
-            <span style={{ backgroundImage: `url(${imageUrl})`, ...picStyle }} />
+            <img src={`${imageUrl}`}  alt="contest-cover" className="profile_identity"/>
         );
         const userData = {
             primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined) ? ' ' + identityData.primaryName.middleName + ' ' : ' ') + identityData.primaryName.lastName,
@@ -67,6 +67,9 @@ export default class Identity extends Component {
                             {this.props.buttonName}
                         </Button>
                     </div>
+                </div>
+                <div className="addPubmed_record_link">
+                    <p>Add New Record</p>
                 </div>
             </div>
 

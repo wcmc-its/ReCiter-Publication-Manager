@@ -83,11 +83,15 @@
     /* height: 12.3px; */
     text-align: center;
     color: #5b5b5b;
- 
-
+}
+.page-item.active .page-link {
+    z-index: 1;
+    color: #5b5b5b !important;
+    background-color: #efefef !important;
+    border-color: #bbbbbb !important;
 }
 .pagination_carot_icon{
-    color:#005ad9;
+    color:#5b5b5b;
 }
 @media(max-width:768px) {
     .pagination-container {

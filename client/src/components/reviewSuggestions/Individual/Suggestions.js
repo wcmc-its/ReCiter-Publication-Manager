@@ -86,7 +86,7 @@ export default class Suggestions extends Component {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td colSpan="2">
+                                        <td className="suggestionsss_table_evdience" colSpan="2">
                                             <Row>
                                                 <Col lg={12} className="suggestion_indvidual_table_col">
                                                     <Accordion.Collapse eventKey="0">

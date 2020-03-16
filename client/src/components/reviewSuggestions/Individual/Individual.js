@@ -313,7 +313,7 @@ class Individual extends Component {
                                                 </div>
                                             </div>
                                             <div>
-                                                <p className="advanced_search_p"><span className="font-italic advanced_search_font">Advanced Search:</span> <a href="#"><u onClick={this.clearAllFilters}>Clear All</u></a></p>
+                                                <p className="advanced_search_p"><span className="font-italic advanced_search_font">Advanced Search:</span> <a href="#"><u onClick={this.clearAllFilters} className="advanced_searchssu">Clear All</u></a></p>
                                             </div>
                                             <Row>
                                                 <Col md={4}>
