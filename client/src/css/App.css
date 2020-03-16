@@ -84,8 +84,8 @@ body {
 }
 
 .tab-container {
-    grid-row-start: row-3-start;
-    grid-row-end: row-3-end;
+    grid-row-start: row-5-start;
+    grid-row-end: row-5-end;
     padding: 0 5rem;
     width: 100%;
 }

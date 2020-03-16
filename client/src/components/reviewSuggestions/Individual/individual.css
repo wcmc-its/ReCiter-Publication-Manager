@@ -166,6 +166,7 @@ width:100%;
 }
 .scholarHeading {
     margin: 0;
+    margin-top:21px;
 }
 .scholars{
     font-size: 16px;
@@ -183,6 +184,9 @@ width:100%;
 .searchHeader {
     background-color: #e8e8e8;
     display: flex;
+}
+.individual_table tbody tr:last-child {
+    border: 0px !important;
 }
 .advanced_search_font{
     font-size: 15px;
@@ -260,6 +264,17 @@ width:100%;
     text-align: left;
     color: #323942;   
 }
+.advanced_searchssu{
+    font-size: 14px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: 0.16px;
+    text-align: left;
+    color: #005ad9;
+    padding-left: 1px;
+}
 .username_individual{
     font-size: 14px;
     font-weight: bold;
@@ -269,6 +284,7 @@ width:100%;
     letter-spacing: -0.32px;
     color: #323942;
     margin-bottom: 2px;
+    padding-top:18px;
 }
 .btn-span{
     padding-left:15px;

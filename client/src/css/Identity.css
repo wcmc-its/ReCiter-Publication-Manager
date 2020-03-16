@@ -1,6 +1,6 @@
 .userContainer {
     display: grid;
-    height: 160px;
+    height:auto;
     padding: 0 5rem;
     padding-top: 2.7rem;
     margin-bottom: 40px;
@@ -60,7 +60,7 @@
 .userName {
     grid-row-start: row-2-start;
     grid-column-start: col-3-start;
-    margin-left: -38px;
+    /* margin-left: -38px; */
 
 }
 
@@ -71,7 +71,7 @@
 .userTitle {
     grid-row-start: row-3-start;
     grid-column-start: col-3-start;
-    margin-left: -38px;
+    /* margin-left: -38px; */
 
 }
 
@@ -82,11 +82,14 @@
 .btnContainer {
     grid-row-start: row-3-end;
     grid-column-start: col-3-start;
-    margin-top: -60PX;
-    margin-left: -38px;
+    margin-top: -112PX;
+    /* margin-left: -38px; */
 
 }
-
+.profile_identity{
+    width:144px;
+    height:auto;
+}
 .manageBtn {
     color: #005AD9;
     text-decoration: underline;
@@ -95,6 +98,23 @@
     padding: 0;
     font-size: 14px;
     outline: none !important;
+}
+.addPubmed_record_link {
+    position: relative;
+    right: 24px;
+    float: right;
+    bottom: -58px;
+}
+.addPubmed_record_link p{
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #005ad9;
+    text-decoration: underline;
 }
 @media(max-width:768px){
     .userContainer {

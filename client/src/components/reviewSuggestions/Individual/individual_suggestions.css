@@ -31,6 +31,9 @@
 .individual_suggestions .searchHeader{
     margin:0px;
 }
+.suggestionsss_table_evdience{
+    padding-top:0px !important;
+}
 .individual_suggest_containers12 {
     background-color: #e8e8e8;
     display: table;
@@ -161,6 +164,7 @@ ul .listtable2{
     text-align: left;
     color: #212121;
     margin: 0px;
+    padding-bottom:14px;
 }
 .search{
     box-sizing: border-box;
@@ -196,7 +200,7 @@ margin-top: 5px;
     width: 14%;  
 }
 .scholars h4{
-    padding-top: 50px;
+    padding-top: 47px;
     text-align: left;
     font-size: 16px;
     font-weight: bold;
@@ -396,7 +400,7 @@ select .form-control{
     background-color: #e8e8e8;
     padding: 0px;
     display: flex;
-    margin: 13px 0px 12px 2px;
+    margin: 5px 0px 12px 2px;
 }
 .button{
     background-color: white !important;

@@ -40,7 +40,7 @@
 }
 
 /* When you mouse over the navigation links, change their color */
-.links a:hover {
+.links a:hover,.links a:active {
   color: white;
   background-color: #005AD9;
 }
@@ -53,6 +53,9 @@
 
 .navHr{
     border-color:#999999 ;
+}
+.active{
+  color:red !important;
 }
 .sideNav_tooglt_btn{
   position:fixed;

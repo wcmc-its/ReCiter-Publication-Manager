@@ -33,8 +33,7 @@ class App extends Component {
 
     componentDidMount() {
         this.props.onLoad(this.props.match.params.uid, false)
-        if(!this.props.auth.isLoggedIn)
-        {
+        if (!this.props.auth.isLoggedIn) {
             //return this.props.history.push('/login')
         }
         //this.props.getIdentity(this.props.auth.username)

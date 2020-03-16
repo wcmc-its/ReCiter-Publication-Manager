@@ -16,20 +16,20 @@ export class Pagination extends Component {
             var totalPages = parseInt((propsTotal / propsCount), 10);
             if (propsTotal > totalPages * propsCount) totalPages++;
             // Calculate first page number
-            var firstPage = propsPage - 5;
+            var firstPage = propsPage - 2;
             if (firstPage <= 0) {
                 firstPage = 1;
             }
-            if ((totalPages - 10) < firstPage) {
-                firstPage = totalPages - 10;
+            if ((totalPages - 5) < firstPage) {
+                firstPage = totalPages - 5;
             }
-            if (totalPages <= 11) {
+            if (totalPages <= 5) {
                 firstPage = 1;
             }
             // Calculate last page
-            var lastPage = propsPage + 5;
-            if (propsPage + 5 <= 11) {
-                lastPage = 11;
+            var lastPage = propsPage + 2;
+            if (propsPage + 2 <= 5) {
+                lastPage = 5;
             }
             if (lastPage > totalPages) {
                 lastPage = totalPages;
@@ -37,17 +37,26 @@ export class Pagination extends Component {
 
             var pages = [];
             var i = firstPage;
+            let j = 0
             for (i; i <= lastPage; i++) {
                 var isActive = false;
+
                 if (i === propsPage) {
                     isActive = true;
                 }
-                pages.push({
-                    title: i,
-                    isActive: isActive
-                });
+                j++;
+                if (j == 3) {
+                    pages.push({
+                        title: '...',
+                        isActive: false
+                    })
+                } else {
+                    pages.push({
+                        title: i,
+                        isActive: isActive
+                    });
+                }
             }
-
             return (
                 <div className="row pagination-container">
                     <div className="col-lg-3 col-xl-3 col-xs-6 col-md-4 col-sm-5">
@@ -82,12 +91,22 @@ export class Pagination extends Component {
                                 </li>
                                 {
                                     pages.map(function (page, index) {
-                                        return <li className={`page-item ${(page.isActive) ? "active" : ""}`} key={`page-item-${page.title}`}>
-                                            <span
-                                                className="page-link"
-                                                onClick={(event) => thisObject.props.onChange(event, page.title)}
-                                            >{page.title}</span>
-                                        </li>
+                                        if (page.title === '...') {
+                                            return <li className={`page-item ${(page.isActive) ? "disabled" : "disabled"}`}>
+                                                <span
+                                                    className="page-link"
+                                                    onClick={(event) => thisObject.props.onChange(event, page.title)}
+                                                >{page.title}</span>
+                                            </li>
+                                        }
+                                        else {
+                                            return <li className={`page-item ${(page.isActive) ? "active" : ""}`} key={`page-item-${page.title}`}>
+                                                <span
+                                                    className="page-link"
+                                                    onClick={(event) => thisObject.props.onChange(event, page.title)}
+                                                >{page.title}</span>
+                                            </li>
+                                        }
                                     })
                                 }
                                 <li className={`page-item ${(propsPage === totalPages) ? 'disabled' : ''}`}>
