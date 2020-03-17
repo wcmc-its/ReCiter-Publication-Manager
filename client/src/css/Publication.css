@@ -131,6 +131,10 @@ right:81px;
     padding-top: 20px !important;
     width:800px;
 }
+.publication_evidence_tr{
+    width:100%;
+    display:inline-table;
+}
 .h6fnhWdeg-publication-accept {
     font-size: 15px;
     margin-right: 5px;

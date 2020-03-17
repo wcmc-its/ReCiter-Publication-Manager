@@ -47,14 +47,6 @@ export class Tabs extends Component {
                         onClick={() => { this.props.tabClickHandler("Rejected"); }}
                     >Rejected <span className={(this.props.tabActive === "Rejected") ? "h6fnhWdeg-publications-tab-link-active" : "h6fnhWdeg-publications-tab-link-inactive"}>{rejected}</span></a>
                 </li>
-
-                <li className={(this.props.tabActive === "Add Publication") ? "active" : ""}>
-                    <a
-                        className="h6fnhWdeg-publications-tab-link"
-                        aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
-                        onClick={() => { this.props.tabClickHandler("Add Publication"); }}
-                    >Add Publication</a>
-                </li>
             </ul>
     </div>
         );

@@ -54,7 +54,8 @@ width:100%;
     font-size: 10px;
     width: 100%;
     overflow: hidden;
-    white-space: nowrap
+    white-space: nowrap;
+    padding-left: 6px !important;
 }
 .close_icons{
     float:right;
@@ -106,7 +107,7 @@ width:100%;
 }
 .individual_search p{
     margin-top: 14px;
-    padding-left: 4px;   
+    padding-left: 0px;   
 }
 .advanced_search_p{
     padding-left:4px;
@@ -310,6 +311,7 @@ margin-right: 0px;
 }
 .indvidualbody .table-responsive th{
     padding-left:0px;
+    border-bottom:3px solid #f4f4f4 !important;
 }
 .indvidualbody .table-responsive td{
     padding-left:0px;
