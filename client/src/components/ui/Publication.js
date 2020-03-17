@@ -186,7 +186,7 @@ class Publication extends Component {
             
 
         </td></tr>
-        <tr>
+        <tr className="publication_evidence_tr">
         {(this.state.showEvidence) ? (<tr><td colspan="2" className="evidance_tablepubmedcolspan">
                 <table className="h6fnhWdeg-publications-evidence-table table table-striped">
                     <thead>

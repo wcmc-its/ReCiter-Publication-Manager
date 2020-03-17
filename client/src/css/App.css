@@ -76,7 +76,7 @@ body {
     grid-row-gap: 4rem;
     grid-row-start: page-content;
     grid-column-start: content-start;
-    grid-template-rows: [row-2-start] 200px [row-3-start] auto [row-3-end];
+    grid-template-rows: [row-2-start] 144px [row-3-start] auto [row-3-end];
 }
 
 .identity-container {
@@ -84,10 +84,11 @@ body {
 }
 
 .tab-container {
-    grid-row-start: row-5-start;
-    grid-row-end: row-5-end;
+    /* grid-row-start: row-5-start;
+    grid-row-end: row-5-end; */
     padding: 0 5rem;
     width: 100%;
+    margin-top: 19%;
 }
 
 /* .inner-tab-container {

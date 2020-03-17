@@ -344,9 +344,10 @@ margin-top: 5px;
     letter-spacing: -0.55px;
     text-align: left;
     color: #212121;
+    padding-left:0px !important;
 }
 .individual_searchshowrec .form-control{
-    width: 44px !important;
+    width: 46px !important;
     height: 31px !important;
   border-radius: 4px;
   border: solid 0.5px #bbbbbb;
