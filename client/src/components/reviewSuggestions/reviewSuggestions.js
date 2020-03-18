@@ -17,7 +17,7 @@ const ReviewSuggestions = (props) => {
                 <Header username={props.username}/>
             </div>
             {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
-            <SideNav />
+            <SideNav uid={props.match.params.uid} history={props.history}/>
             <Container className="width100percent margin0 backgroundColorGrey">
                 <HeaderComponent />
                 <Row className="backgroundColorWhite">

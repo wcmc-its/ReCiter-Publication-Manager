@@ -23,36 +23,41 @@ export default class SideNav extends Component {
 
     manageLinks(link) {
         if (link !== undefined && link === 'Individual') {
-            // return this.props.history.push('/search')
-            return window.location.href = '/individual'
+            return this.props.history.push('/individual')
+            // return window.location.href = '/individual'
         }
         if (link !== undefined && link === 'Review Suggestions') {
             // if(window.location.pathname === '/search') {
             //     return this.props.history.push('/search')
             // }
             // return this.props.history.push('/manage/' + this.props.uid)
-            return window.location.href = '/reviewSuggestions'
-            // return this.props.history.push('/reviewSuggestions')
+            return this.props.history.push('/reviewSuggestions')
         }
     }
-
+    getPosition(string, subString, index) {
+        return string.split(subString, index).join(subString).length;
+    }
     onClick() {
         this.setState({ childVisible: !this.state.childVisible });
     }
     render() {
+        console.log(this.props.history.location.pathname, '<=========Path Name')
+        let urlpathName = this.props.history.location.pathname
+        urlpathName = urlpathName.length <= this.getPosition(urlpathName, '/', 2) ? urlpathName : urlpathName.substr(0, this.getPosition(urlpathName, '/', 2))
         const navItems = [
-            { category: "Find Scholar", icon: find, links: ["Individual"] },
-            { category: "Manage Publications", icon: copy, links: ["Review Suggestions"] },
+            { category: "Find Scholar", icon: find, links: [{ name: "Individual", value: "/individual" }] },
+            { category: "Manage Publications", icon: copy, links: [{ name: "Review Suggestions", value: "/app" }] },
             { category: "Manage Profile", icon: profile, links: [] },
-            { category: "Reports", icon: growth, links: ["List View","Export View","Impact Pictograph","Impact Table"] },
-            { category: "Admin", icon: admin, links: ["Settings","Control Access","FAQs"] },
+            { category: "Reports", icon: growth, links: [{ name: "List View", value: "" }, { name: "Export View", value: "" }, { name: "Impact Pictograph", value: "" }, { name: "Impact Table", value: "" }] },
+            { category: "Admin", icon: admin, links: [{ name: "Settings", value: "" }, { name: "Control Access", value: "" }, { name: "FAQs", value: "" }] }
+
         ];
         const listItems = navItems.map((item, index) => (
             <div className="category" key={index}>
-                <span className="icon" style={{backgroundImage: `url(${item.icon})`}}/> {item.category}
+                <span className="side_nav_icon icon" style={{ backgroundImage: `url(${item.icon})` }} /> {item.category}
                 {item.links.map(link => (
                     <div className="links" key={index}>
-                        <a onClick={() => { this.manageLinks(link) }}>{link}</a>
+                        <a className={`side-nav-element ${(urlpathName === link.value) ? 'side_bar_active' : 'inactive'}`} onClick={() => { this.manageLinks(link.name) }}>{link.name}</a>
                     </div>
                 ))}
                 <hr className="navHr" />

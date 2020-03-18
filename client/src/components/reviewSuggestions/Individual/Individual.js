@@ -292,7 +292,7 @@ class Individual extends Component {
                     </div>
                     {/* <div className="side-nav-position"> */}
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
-                    <SideNav />
+                    <SideNav uid={this.props.match.params.uid} history={this.props.history}/>
                     <div>
                         {/* </div>
                     <div className="mt-5 manage-profile-content-container"> */}

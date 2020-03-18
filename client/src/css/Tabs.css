@@ -29,6 +29,7 @@
     /* margin-top:5%; */
     /* margin-left:6.9%; */
     border-bottom: 1px solid #9b9b9b;
+    width:100%;
 }
 .tabs-headers li:nth-child(1){
     margin-left:7.3%;
