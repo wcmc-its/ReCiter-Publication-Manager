@@ -101,10 +101,11 @@
     outline: none !important;
 }
 .addPubmed_record_link {
-    position: relative;
+    position: absolute;
     right: 24px;
     float: right;
-    bottom: -65px;
+    /* bottom: -65px; */
+    margin-top: 10px;
 }
 .addPubmed_record_link p{
     font-size: 15px;

@@ -44,18 +44,21 @@
   color: white;
   background-color: #005AD9;
 }
-
+.side_nav_icon {
+  margin-left: 1rem !important;
+}
 .category{
   font-weight: 900;
-  padding: 0 1rem 0 1rem;
+  /* padding: 0 1rem 0 1rem; */
   font-size: 15px;
 }
 
 .navHr{
     border-color:#999999 ;
 }
-.active{
-  color:red !important;
+.side_bar_active{
+  color: white;
+  background-color: #005AD9;
 }
 .sideNav_tooglt_btn{
   position:fixed;

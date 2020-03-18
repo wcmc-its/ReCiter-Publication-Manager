@@ -68,9 +68,6 @@ export default class Identity extends Component {
                         </Button>
                     </div>
                 </div>
-                <div className="addPubmed_record_link">
-                    <p>Add New Record</p>
-                </div>
             </div>
 
         );
