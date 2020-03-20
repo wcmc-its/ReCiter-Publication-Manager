@@ -37,6 +37,7 @@
     background: #202b3b !important;
     color: #fff !important;
     padding: 10px 10px 4px;
+    font-family: opensans-extrabold;
     font-size:15px;
     letter-spacing: 0.17px;
     height:38px;
@@ -45,6 +46,7 @@
 }
 .h6fnhWdeg-publications-evidence-table td {
     padding: 5px 10px;
+    vertical-align: middle !important;
 }
 .h6fnhWdeg-publications-evidence-table thead .h6fnhWdeg-first-cell {
     text-align: right !important;
@@ -155,13 +157,27 @@ right:81px;
     letter-spacing: 0.17px;
       font-size:15px;
 }
+
+.h6fnhWdeg-reciter-type {
+    display: inline-block;
+    border: 1px solid #dedcdc;
+    background: #eaeae1;
+    border-radius: 2px;
+    text-align: center;
+    padding: 5px 5px;
+    line-height: 1.0em;
+    margin-top: 8px;
+    font-size: 11px;
+    font-family: opensans-extrabold;
+}
+
+
 .h6fnhWdeg-publication-undo {
 border-radius: 2px;
 height:33px;
 outline: none !important;
 box-shadow: none !important;
-color:
-#202b3b;
+color: #202b3b;
 margin-right: 0px;
 font-weight: normal;
     margin-right: 5px;
