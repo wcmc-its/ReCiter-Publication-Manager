@@ -73,7 +73,7 @@ body {
 
 .publications-content {
     display: grid;
-    grid-row-gap: 4rem;
+    grid-row-gap: 24rem;
     grid-row-start: page-content;
     grid-column-start: content-start;
     grid-template-rows: [row-2-start] 144px [row-3-start] auto [row-3-end];
@@ -88,7 +88,7 @@ body {
     grid-row-end: row-5-end; */
     padding: 0 5rem;
     width: 100%;
-    grid-row-start:7;
+    /* grid-row-start:7; */
 }
 
 /* .inner-tab-container {

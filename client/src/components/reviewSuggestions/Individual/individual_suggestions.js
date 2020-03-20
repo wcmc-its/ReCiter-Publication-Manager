@@ -120,8 +120,9 @@ class Individuals extends Component {
         let elementsUI = [], loopCount;
         if (count < groupReviewSuggestions.length) loopCount = count;
         else loopCount = groupReviewSuggestions.length;
-        for (let j = page - 1; j < loopCount; j++) {
+        for (let j = ((page - 1) * loopCount); j < ((page - 1) * loopCount) + loopCount; j++) {
             let i = groupReviewSuggestions[j]
+            console.log(i.personIdentifier, 'i')
             let userObj = identityAllData.find((item) => item ? item.uid == i.personIdentifier : false)
             elementsUI.push(
                 <div className="firsttable">
@@ -163,7 +164,7 @@ class Individuals extends Component {
                         <Header username={this.props.username} />
                     </div>
                     <div className="side-nav-position">
-                        <SideNav />
+                        <SideNav uid={this.props.match.params.uid} history={this.props.history} />
                     </div>
                     {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
                     <div>

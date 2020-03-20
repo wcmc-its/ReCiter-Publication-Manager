@@ -6,7 +6,7 @@ export class Filter extends Component {
 
     state = {
         search: "",
-        sort: "0"
+        sort: "0",
     }
 
     constructor(props) {
@@ -42,7 +42,7 @@ export class Filter extends Component {
                     onKeyUp={this.handleSearchUpdate}
                     ref="filter-form-search"
                 />
-                {(this.props.showSort) ? <Dropdown sort={this.state.sort} onChange={this.handleSortUpdate} /> :
+                {(this.props.showSort) ? <Dropdown id="dropdown-basic" sort={this.state.sort} onChange={this.handleSortUpdate} /> :
                     <span></span>
                 }
                 <select className="sort_filter_select form-control">

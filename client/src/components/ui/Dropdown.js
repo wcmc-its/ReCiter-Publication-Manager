@@ -14,7 +14,12 @@ export class Dropdown extends Component {
         this.handleClick = this.handleClick.bind(this);
         this.state.sort = this.props.sort;
     }
-
+    componentDidMount() {
+        document.addEventListener("mousedown",  this.handleClick);
+    }
+    componentWillUnmount() {
+      document.removeEventListener("mousedown",  this.handleClick);
+    }
     toggleOpen(event) {
         event.stopPropagation();
         this.setState({ isOpen: !this.state.isOpen });
