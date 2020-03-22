@@ -13,6 +13,7 @@
 .dropdown-menu{
     width: 89%;
     left: 11px;
+    max-width:151px;
 }
 .dropdown-menu-right {
     right: 9px;
@@ -37,5 +38,5 @@ content:'' !important;
 }
 .dropdown-sort-desc::after {
     content: '\2193';
-    padding-left: 10px;
+    /* padding-left: 10px; */
 }

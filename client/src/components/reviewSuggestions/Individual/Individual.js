@@ -243,6 +243,7 @@ class Individual extends Component {
     reviewSuggestions() {
         if (this.state.selectedDeps.length || this.state.selectedPersonTypes.length || this.state.selectedAffiliations.length) {
             this.props.getGroupReviewSuggestions(this.state.selectedDeps, this.state.selectedPersonTypes, this.state.selectedAffiliations, () => this.props.history.push('/individual_suggestions'))
+            // this.props.history.push('/individual_suggestions')
         }
     }
 

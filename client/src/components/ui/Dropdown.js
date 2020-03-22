@@ -3,9 +3,11 @@ import '../../css/Dropdown.css';
 
 export class Dropdown extends Component {
 
+    container = React.createRef()
     state = {
         isOpen: false,
-        sort: "0"
+        sort: "0",
+        sortByValue: 'Year'
     };
 
     constructor(props) {
@@ -14,7 +16,19 @@ export class Dropdown extends Component {
         this.handleClick = this.handleClick.bind(this);
         this.state.sort = this.props.sort;
     }
-
+    componentDidMount() {
+        document.addEventListener("mousedown", this.handleClickOutside);
+    }
+    componentWillUnmount() {
+        document.removeEventListener("mousedown", this.handleClickOutside);
+    }
+    handleClickOutside = event => {
+        if (this.container.current && !this.container.current.contains(event.target)) {
+            this.setState({
+                isOpen: false,
+            });
+        }
+    };
     toggleOpen(event) {
         event.stopPropagation();
         this.setState({ isOpen: !this.state.isOpen });
@@ -23,32 +37,39 @@ export class Dropdown extends Component {
     handleClick(event, sortBy) {
         event.stopPropagation();
         var sortValue = "0";
-        switch(this.state.sort) {
+        let dropdownValue;
+        if (sortBy == 'Year') {
+            dropdownValue = 'Score'
+        }
+        if (sortBy == 'Score') {
+            dropdownValue = 'Year'
+        }
+        switch (this.state.sort) {
             case "0":
-                if(sortBy === "Score") {
+                if (sortBy === "Score") {
                     sortValue = "1";
-                }else {
+                } else {
                     sortValue = "2";
                 }
                 break;
             case "1":
-                if(sortBy === "Score") {
+                if (sortBy === "Score") {
                     sortValue = "0";
-                }else {
+                } else {
                     sortValue = "2";
                 }
                 break;
             case "2":
-                if(sortBy === "Score") {
+                if (sortBy === "Score") {
                     sortValue = "0";
-                }else {
+                } else {
                     sortValue = "3";
                 }
                 break;
             case "3":
-                if(sortBy === "Score") {
+                if (sortBy === "Score") {
                     sortValue = "0";
-                }else {
+                } else {
                     sortValue = "2";
                 }
                 break;
@@ -57,7 +78,8 @@ export class Dropdown extends Component {
         }
         this.setState({
             isOpen: false,
-            sort: sortValue
+            sort: sortValue,
+            sortByValue: dropdownValue
         })
         this.props.onChange(sortValue);
     }
@@ -65,7 +87,7 @@ export class Dropdown extends Component {
     render() {
         var sortClass = "";
         var sortBy = " ";
-        switch(this.state.sort) {
+        switch (this.state.sort) {
             case "0":
                 sortClass = "dropdown-sort-desc";
                 sortBy = "Score";
@@ -89,7 +111,7 @@ export class Dropdown extends Component {
         }
 
         return (
-            <div className="dropdown" onClick={this.toggleOpen}>
+            <div className="dropdown" onClick={this.toggleOpen} ref={this.container}>
                 <button
                     className="btn btn-primary dropdown-toggle"
                     type="button"
@@ -101,13 +123,9 @@ export class Dropdown extends Component {
                 </button>
                 <div className={`dropdown-menu dropdown-menu-right ${this.state.isOpen ? " show" : ""}`} aria-labelledby="dropdownMenuButton">
                     <span
-                        className={(sortBy === "Score")?sortClass:""}
-                        onClick={(event) => this.handleClick(event, "Score")}
-                    >Score</span>
-                    <span
-                        className={(sortBy === "Year")?sortClass:""}
-                        onClick={(event) => this.handleClick(event, "Year")}
-                    >Year</span>
+                        className={(sortBy === this.state.sortByValue) ? sortClass : ""}
+                        onClick={(event) => this.handleClick(event, this.state.sortByValue)}
+                    >{this.state.sortByValue}</span>
                 </div>
             </div>
         );
