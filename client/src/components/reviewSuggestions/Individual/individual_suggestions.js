@@ -122,6 +122,7 @@ class Individuals extends Component {
         else loopCount = groupReviewSuggestions.length;
         for (let j = ((page - 1) * loopCount); j < ((page - 1) * loopCount) + loopCount; j++) {
             let i = groupReviewSuggestions[j]
+            if(i != undefined){
             console.log(i.personIdentifier, 'i')
             let userObj = identityAllData.find((item) => item ? item.uid == i.personIdentifier : false)
             elementsUI.push(
@@ -137,6 +138,7 @@ class Individuals extends Component {
                         </div>
                     </div>
                 </div>)
+            }
 
         }
         let mainContent = [];
