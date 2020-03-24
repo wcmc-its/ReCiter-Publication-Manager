@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import {Table, Form, Row, Col, Container, FormControl, InputGroup, Button} from "react-bootstrap";
+import { Table, Form, Row, Col, Container, FormControl, InputGroup, Button } from "react-bootstrap";
 import { identityFetchAllData, updateDeptsPersonTypes, getGroupReviewSuggestions, updateAffiliationType, clearDeptPersonAffiliTypesData } from '../../../../src/actions';
 import { connect } from 'react-redux'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -8,6 +8,7 @@ import Header from "../../ui/Header";
 import Footer from "../../ui/Footer";
 import SideNav from "../../ui/SideNav";
 import { Pagination } from '../../ui/Pagination'
+import ReactTooltip from 'react-tooltip';
 import GenericheadShot from '../../../images/generic_headshot.png'
 import "./individual.css";
 // import "../../css/Search.css";
@@ -281,23 +282,14 @@ class Individual extends Component {
             let personTypeOptions = this.getPersonTypes().map((ptype) => {
                 return <option value={ptype}>{ptype}</option>
             });
-            // let PaginationData = this.props.identityAllData.map((identities, index) => {
-            //     return <Pagination.Item key={index + 1} active={index + 1 === this.state.activepage} onSelect={(e) => console.log(e)}>
-            //         {index + 1}
-            //     </Pagination.Item>
-            // })
+
             return (
                 <div className="main-container">
                     <div className="header-position">
                         <Header username={this.props.username} />
                     </div>
-                    {/* <div className="side-nav-position"> */}
-                    {/* <SideNav uid={this.props.match.params.uid} history={this.props.history} /> */}
-                    <SideNav uid={this.props.match.params.uid} history={this.props.history}/>
+                    <SideNav uid={this.props.match.params.uid} history={this.props.history} />
                     <div>
-                        {/* </div>
-                    <div className="mt-5 manage-profile-content-container"> */}
-
                         <Container className="indivdual_container">
                             <div className="row">
                                 <div className="col-md-12">
@@ -328,7 +320,7 @@ class Individual extends Component {
                                                     </Form.Group>
                                                     <div className="tags-info">
                                                         {this.state.selectedDeps.map((dep) => {
-                                                            return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeDepartmentFilter(dep)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
+                                                            return <React.Fragment><p className="tags bg-primary" data-tip={dep}><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeDepartmentFilter(dep)}> <FontAwesomeIcon icon={faTimes} /> </span></p>< ReactTooltip /></React.Fragment>
                                                         })}
                                                     </div>
                                                 </Col>
@@ -343,7 +335,7 @@ class Individual extends Component {
                                                     </Form.Group>
                                                     <div>
                                                         {this.state.selectedAffiliations.map((dep) => {
-                                                            return <p className="tags bg-primary"><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeAffiliationFilter(dep)}><FontAwesomeIcon icon={faTimes} /> </span></p>
+                                                            return <React.Fragment><p className="tags bg-primary" data-tip={dep}><span className="tags_main_child">{dep}</span> <span className="close_icons" onClick={() => this.removeAffiliationFilter(dep)}><FontAwesomeIcon icon={faTimes} /> </span></p>< ReactTooltip /></React.Fragment>
                                                         })}
                                                     </div>
                                                 </Col>
@@ -358,7 +350,7 @@ class Individual extends Component {
                                                     </Form.Group>
                                                     <div>
                                                         {this.state.selectedPersonTypes.map((ptype) => {
-                                                            return <p className="bg-primary tags"><span className="tags_main_child">{ptype} </span> <span className="close_icons" onClick={() => this.removePersonTypeFilter(ptype)}> <FontAwesomeIcon icon={faTimes} /> </span></p>
+                                                            return <React.Fragment><p className="bg-primary tags" data-tip={ptype}><span className="tags_main_child">{ptype} </span> <span className="close_icons" onClick={() => this.removePersonTypeFilter(ptype)}> <FontAwesomeIcon icon={faTimes} /> </span></p>< ReactTooltip /></React.Fragment>
                                                         })
                                                         }
 

@@ -330,8 +330,8 @@ margin-top: 5px;
     margin-top:0px;
 }
 #indivdual_search_selectopts{
-    background-image: linear-gradient(45deg, transparent 71%, #005ad9 13%), linear-gradient(135deg, #005ad9 33%, transparent 26%) !important;
-    background-position: calc(1% - -141px) 11px,calc(1% - -151px) 11px,0 0;
+    background-image: linear-gradient(45deg, transparent 71%, #005ad9 13%), linear-gradient(135deg, #005ad9 26%, transparent 0%) !important;
+    background-position: calc(1% - -135px) 11px,calc(1% - -145px) 11px,0 0;
     background-size: 10px 10px, 10px 10px;
     background-repeat: no-repeat;
     -webkit-appearance: none;
@@ -344,7 +344,7 @@ margin-top: 5px;
     letter-spacing: -0.55px;
     text-align: left;
     color: #212121;
-    padding-left:0px !important;
+    padding-left: 0px !important;
 }
 .individual_searchshowrec .form-control{
     width: 46px !important;

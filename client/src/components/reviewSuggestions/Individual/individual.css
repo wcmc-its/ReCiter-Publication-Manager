@@ -121,6 +121,7 @@ width:100%;
     padding-left: 7px;
     font-weight: 900;
     height: 42px; 
+    width: 11%;
 }
 .individual_search_well{
     border: 1px solid #ececec;
@@ -128,6 +129,7 @@ width:100%;
     border-radius: 2px;
     background-color: #ececec;
     box-shadow: none;
+    width:95.3%;
 }
 .close_icons{
     padding-left: 4px;
@@ -274,7 +276,7 @@ width:100%;
     letter-spacing: 0.16px;
     text-align: left;
     color: #005ad9;
-    padding-left: 1px;
+    padding-left: 6px;
 }
 .username_individual{
     font-size: 14px;
