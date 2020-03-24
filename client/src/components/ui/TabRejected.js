@@ -215,8 +215,10 @@ export class TabRejected extends Component {
             <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
                 <div className="Rejected_tabs_filter h6fnhWdeg-tab-controls-container">
                     <Filter onChange={this.handleFilterUpdate} showSort={true} page={this.state.page} count={this.state.count} onFilterChange={this.handlePaginationUpdate}/>
+                    {publications.paginatedPublications.length ? <React.Fragment>
                     <button className="btn btn-primary backgroundColorBlue h6fnhWdeg-accept-all borderRadius0" onClick={this.acceptAll}>Accept All</button>
                     <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0">Reject All</button>
+                    </React.Fragment> : null}
                 </div>
                 {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
                 <div className="tabs_responsive_table col-md-12">

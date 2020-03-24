@@ -214,9 +214,12 @@ export class TabAccepted extends Component {
             <div className="Tabssuggestion_main_body12">
                 <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
                     <div className="Accepted_tabs_filter h6fnhWdeg-tab-controls-container">
-                        <Filter onChange={this.handleFilterUpdate} showSort={true}  page={this.state.page} count={this.state.count} onFilterChange={this.handlePaginationUpdate}/>
-                        <button className="btn btn-primary  backgroundColorBlue  h6fnhWdeg-accept-all borderRadius0">Accept All</button>
-                        <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0" onClick={this.rejectAll}>Reject All</button>
+                        <Filter onChange={this.handleFilterUpdate} showSort={true} page={this.state.page} count={this.state.count} onFilterChange={this.handlePaginationUpdate} />
+                        {publications.paginatedPublications.length ?
+                            <React.Fragment>
+                                <button className="btn btn-primary  backgroundColorBlue  h6fnhWdeg-accept-all borderRadius0">Accept All</button>
+                                <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0" onClick={this.rejectAll}>Reject All</button>
+                            </React.Fragment> : null}
                     </div>
                     {/* <p className="suggested_filter_text">Not finding what you're looking for? <a onClick={() => { this.props.tabClickHandler("Add Publication"); }}>Search PubMed...</a></p> */}
                     {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}

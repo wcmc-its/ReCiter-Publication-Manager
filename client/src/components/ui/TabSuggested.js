@@ -248,15 +248,16 @@ export class TabSuggested extends Component {
             <div className="Tabssuggestion_main_body12">
                 <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
                     <div className="suggested_tabs_filter h6fnhWdeg-tab-controls-container">
-                        <Filter onChange={this.handleFilterUpdate} showSort={true}  page={this.state.page} count={this.state.count} onFilterChange={this.handlePaginationUpdate}/>
-                        <button
+                        <Filter onChange={this.handleFilterUpdate} showSort={true} page={this.state.page} count={this.state.count} onFilterChange={this.handlePaginationUpdate} />
+                        {publications.paginatedPublications.length ? <React.Fragment><button
                             className="btn btn-primary h6fnhWdeg-accept-all backgroundColorBlue borderRadius0"
                             onClick={this.acceptAll}
                         >Accept All</button>
-                        <button
-                            className="btn btn-primary h6fnhWdeg-reject-all colorBlue backgroundColorWhite borderRadius0"
-                            onClick={this.rejectAll}
-                        >Reject All</button>
+                            <button
+                                className="btn btn-primary h6fnhWdeg-reject-all colorBlue backgroundColorWhite borderRadius0"
+                                onClick={this.rejectAll}
+                            >Reject All</button></React.Fragment>: null}
+
                     </div>
                     {/* <Pagination total={publications.filteredPublications.length} page={this.state.page} count={this.state.count} onChange={this.handlePaginationUpdate} /> */}
                     <div className="tabs_responsive_table col-md-12">
