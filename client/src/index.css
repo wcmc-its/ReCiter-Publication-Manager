@@ -1,11 +1,52 @@
 @import url("https://maxcdn.bootstrapcdn.com/bootstrap/latest/css/bootstrap.min.css");
-@import url('https://fonts.googleapis.com/css?family=Open+Sans&display=swap');
-h1,h2,h3,h4,h5,h6,p{
-  font-family: 'Open Sans' !important;
+/* @import url('https://fonts.googleapis.com/css?family=Open+Sans&display=swap'); */
+
+@font-face {
+  font-family: 'opensans-bold';
+  src: local('opensans-bold'), url(../src/fonts/OpenSans-Bold.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-bolditalic';
+  src: local('opensans-bolditalic'), url(../src/fonts/OpenSans-BoldItalic.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-extrabolditalic';
+  src: local('opensans-extrabolditalic'), url(../src/fonts/OpenSans-ExtraBoldItalic.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-italic';
+  src: local('opensans-italic'), url(../src/fonts/OpenSans-Italic.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-light';
+  src: local('opensans-light'), url(../src/fonts/OpenSans-Light.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-lightitalic';
+  src: local('opensans-lightitalic'), url(../src/fonts/OpenSans-LightItalic.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-regular';
+  src: local('opensans-regular'), url(../src/fonts/OpenSans-Regular.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-semibold';
+  src: local('opensans-semibold'), url(../src/fonts/OpenSans-Semibold.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-semibolditalic';
+  src: local('opensans-semibolditalic'), url(../src/fonts/OpenSans-SemiboldItalic.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'opensans-extrabold';
+  src: local('opensans-extrabold'), url(../src/fonts/OpenSans-ExtraBold.ttf) format('truetype');
+}
+p{
+font-family:'opensans-regular';
 }
 body {
   margin: 0;
-  font-family: 'Open Sans' !important;
+   font-family: 'opensans-regular' !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
