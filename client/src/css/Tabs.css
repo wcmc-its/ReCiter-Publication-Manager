@@ -11,6 +11,46 @@
     font-size: 15px !important;
     height: 51px !important;
 }
+.addPubmed_record_link {
+    position: absolute;
+    right: 24px;
+    float: right;
+    /* bottom: -65px; */
+    margin-top: 10px;
+}
+.addPubmed_record_link p{
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #000;
+    display:inline-block;
+}
+.bread_crumb_record{
+    display:inline-block;
+}
+.bread_crumb_record .breadcrumb{
+    background-color:#fff;
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #005ad9;
+    text-decoration: underline;
+    display:inline-block;
+}
+.breadcrumb-item{
+text-decoration:underline;
+}
+.breadcrumb-item+.breadcrumb-item::before{
+content:"|";
+}
 .h6fnhWdeg-publications-tab-link:hover {
     border-bottom: 0px;
 }

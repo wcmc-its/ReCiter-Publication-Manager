@@ -248,7 +248,7 @@ export class TabSuggested extends Component {
             <div className="Tabssuggestion_main_body12">
                 <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
                     <div className="suggested_tabs_filter h6fnhWdeg-tab-controls-container">
-                        <Filter onChange={this.handleFilterUpdate} showSort={true} />
+                        <Filter onChange={this.handleFilterUpdate} showSort={true}  page={this.state.page} count={this.state.count} onFilterChange={this.handlePaginationUpdate}/>
                         <button
                             className="btn btn-primary h6fnhWdeg-accept-all backgroundColorBlue borderRadius0"
                             onClick={this.acceptAll}

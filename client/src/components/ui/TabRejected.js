@@ -214,7 +214,7 @@ export class TabRejected extends Component {
             <div className="Tabssuggestion_main_body12">
             <div className="Tabs_main_body1 h6fnhWdeg-tab-content">
                 <div className="Rejected_tabs_filter h6fnhWdeg-tab-controls-container">
-                    <Filter onChange={this.handleFilterUpdate} showSort={true}/>
+                    <Filter onChange={this.handleFilterUpdate} showSort={true} page={this.state.page} count={this.state.count} onFilterChange={this.handlePaginationUpdate}/>
                     <button className="btn btn-primary backgroundColorBlue h6fnhWdeg-accept-all borderRadius0" onClick={this.acceptAll}>Accept All</button>
                     <button className="btn btn-default h6fnhWdeg-reject-all borderRadius0">Reject All</button>
                 </div>

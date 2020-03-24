@@ -9,7 +9,7 @@
 }
 
 .reviewSuggestionHeading h3{
-    padding-left: 11px;
+    padding-left:25px;
     padding-top: 20px;
     font-size: 21px;
     font-weight: normal;
@@ -25,7 +25,7 @@
     grid-row-start: row-1-start;
     grid-row-end: row-end;
     grid-column-start: col-1-start;
-    margin-left: 44px;
+    margin-left:33px;
     height:218px;
 }
 
@@ -55,7 +55,7 @@ img.profile_identity {
 .userName {
     grid-row-start: row-2-start;
     grid-column-start: col-3-start;
-    margin-left: 32px;
+    margin-left: 19px;
 
 }
 
@@ -66,7 +66,7 @@ img.profile_identity {
 .userTitle {
     grid-row-start: row-3-start;
     grid-column-start: col-3-start;
-    margin-left: 32px;
+    margin-left: 19px;
 
 }
 
@@ -82,7 +82,7 @@ img.profile_identity {
     grid-row-start: row-3-end;
     grid-column-start: col-3-start;
     margin-top: -97PX;
-    margin-left: 32px;
+    margin-left:19px;
 
 }
 .profile_identity{
@@ -97,24 +97,6 @@ img.profile_identity {
     padding: 0;
     font-size: 14px;
     outline: none !important;
-}
-.addPubmed_record_link {
-    position: absolute;
-    right: 24px;
-    float: right;
-    /* bottom: -65px; */
-    margin-top: 10px;
-}
-.addPubmed_record_link p{
-    font-size: 15px;
-    font-weight: normal;
-    font-stretch: normal;
-    font-style: normal;
-    line-height: 1.33;
-    letter-spacing: 0.17px;
-    text-align: left;
-    color: #005ad9;
-    text-decoration: underline;
 }
 @media(max-width:768px){
     .userContainer {
