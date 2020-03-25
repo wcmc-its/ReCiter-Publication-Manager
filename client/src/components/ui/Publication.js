@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import '../../css/Publication.css';
 import ReactTooltip from 'react-tooltip';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {faCheck,faTimes,faUndo } from '@fortawesome/free-solid-svg-icons'
+import { faCheck, faTimes, faUndo, faPlus, faMinus } from '@fortawesome/free-solid-svg-icons'
 
 class Publication extends Component {
 
@@ -159,14 +159,14 @@ class Publication extends Component {
                 {
                     (item.evidence !== undefined) ?
                         <div className="h6fnhWdeg-publication-evidence-bar">
-                            <p onClick={this.toogleEvidence}>
+                            <p className="link_for_show_evidence_hidemain" onClick={this.toogleEvidence}>
                                 {
                                     (this.state.showEvidence) ?
                                         <span
-                                            className="h6fnhWdeg-publication-show-evidence-link h6fnhWdeg-publication-evidence-show">Hide evidence behind this suggestion</span>
+                                            className="publication_hide_evidences h6fnhWdeg-publication-show-evidence-link h6fnhWdeg-publication-evidence-show">  <span> <FontAwesomeIcon icon={faMinus} /> </span> <span className="link_evidence_underline">Hide evidence behind this suggestion </span></span>
                                         :
                                         <span
-                                            className="h6fnhWdeg-publication-show-evidence-link h6fnhWdeg-publication-evidence-hide">Show evidence behind this suggestion</span>
+                                            className="publication_show_evidences h6fnhWdeg-publication-show-evidence-link h6fnhWdeg-publication-evidence-hide">  <span><FontAwesomeIcon icon={faPlus} /></span> <span className="link_evidence_underline">Show evidence behind this suggestion</span></span>
                                 }
                             </p>
 
@@ -183,36 +183,36 @@ class Publication extends Component {
 
             </td>
         </tr>
-            
+
 
         </td></tr>
-        <tr className="publication_evidence_tr">
-        {(this.state.showEvidence) ? (<tr><td colspan="2" className="evidance_tablepubmedcolspan">
-                <table className="h6fnhWdeg-publications-evidence-table table table-striped">
-                    <thead>
-                        <tr>
-                            <th key="0" className="h6fnhWdeg-first-cell">Evidence</th>
-                            <th key="1">Institutional Data</th>
-                            <th key="2">Article Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {
-                            item.evidence.map(function (evidence, evidenceIndex) {
-                                return <tr key={evidenceIndex}>
-                                    <td key="0" align="right"
-                                        dangerouslySetInnerHTML={{ __html: evidence.label }} />
-                                    <td key="1" width="40%"
-                                        dangerouslySetInnerHTML={{ __html: evidence.institutionalData }} />
-                                    <td key="2" width="40%"
-                                        dangerouslySetInnerHTML={{ __html: evidence.articleData }} />
-                                </tr>;
-                            })
-                        }
-                    </tbody>
-                </table>
+            <tr className="publication_evidence_tr">
+                {(this.state.showEvidence) ? (<tr><td colspan="2" className="evidance_tablepubmedcolspan">
+                    <table className="h6fnhWdeg-publications-evidence-table table table-striped">
+                        <thead>
+                            <tr>
+                                <th key="0" className="h6fnhWdeg-first-cell">Evidence</th>
+                                <th key="1">Institutional Data</th>
+                                <th key="2">Article Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                item.evidence.map(function (evidence, evidenceIndex) {
+                                    return <tr key={evidenceIndex}>
+                                        <td key="0" align="right"
+                                            dangerouslySetInnerHTML={{ __html: evidence.label }} />
+                                        <td key="1" width="40%"
+                                            dangerouslySetInnerHTML={{ __html: evidence.institutionalData }} />
+                                        <td key="2" width="40%"
+                                            dangerouslySetInnerHTML={{ __html: evidence.articleData }} />
+                                    </tr>;
+                                })
+                            }
+                        </tbody>
+                    </table>
 
-            </td></tr>) : <tr></tr>}
+                </td></tr>) : <tr></tr>}
             </tr></div>;
     }
 }

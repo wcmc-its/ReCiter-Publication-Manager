@@ -244,7 +244,6 @@ margin-top: 5px;
     background-color:red;
 }
 .contnet_individual_suggestions p{
-    font-family: OpenSans;
     font-weight: normal;
     font-stretch: normal;
     font-style: normal;
@@ -290,8 +289,7 @@ margin-top: 5px;
     letter-spacing: 0.17px;
       font-size:15px;
 }
-.suggestionText{
-    font-size: 15px;
+.suggestionTex{
     font-weight: normal;
     font-stretch: normal;
     font-style: normal;
@@ -299,6 +297,7 @@ margin-top: 5px;
     letter-spacing: normal;
     color: #005ad9;   
     position:relative;
+    font-size: 15px;
     top:2px;
 }
 .suggestion_indvidual_table_col{
