@@ -18,7 +18,7 @@
     padding-bottom: 15px;
 }
 .gtsymbol{
-    margin: 2px 2px 2px 19px;
+    margin: 2px 2px 2px 11px;
     font-size: 19px;
 }
 .individual_suggest_containers {
@@ -94,11 +94,12 @@
     font-weight: normal;
     font-stretch: normal;
     font-style: normal;
-    line-height: 1.19;
+    line-height:25px;
     letter-spacing: -0.48px;
     text-align: left;
     color: #323942;
-    padding-left: 9px;
+    padding-left: 3px;
+    font-family: '1898Sans-Regular',sans-serif;
 }
 .searchby ul{
     list-style-type: none;
@@ -117,6 +118,9 @@
     padding: 19px 5px 0px 4px;
     margin: 0px 15px 6px 14px;
 }
+.suggestions_edit_lastchild li{
+    padding-right:10px;
+}
 .findscholar .scholarlink a{
     text-decoration: underline;
     margin-top: 20px;
@@ -124,10 +128,11 @@
     font-weight: normal;
     font-stretch: normal;
     font-style: normal;
-    line-height: 1.19;
+    line-height:19px;
     letter-spacing: -0.36px;
     text-align: left;
     color: #005ad9;
+    font-family: '1898Sans-Regular',sans-serif;
 }
 .listtable ,.listtable3{
     margin: 5px 3px 3px -21px;
@@ -173,6 +178,7 @@ ul .listtable2{
     padding: 17px 0px 0px 0px;
     margin: 6px 13px 0px 16px;
     box-shadow: none;
+    max-width: 39.7%;
 }
 li .search{
     font-style: italic;

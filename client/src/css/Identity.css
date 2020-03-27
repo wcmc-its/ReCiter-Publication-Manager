@@ -16,9 +16,9 @@
     font-stretch: normal;
     font-style: normal;
     line-height: 1.19;
-    letter-spacing: normal;
-    font-family: Helvetica;
+    font-family: "1898Sans-Regular",sans-serif;
     text-align: left;
+    letter-spacing: -0.48px;
     color: #323942;
 }
 .userImg {
@@ -43,14 +43,23 @@ img.profile_identity {
 }
 .userName h3 {
     font-size: 18px;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: -0.41px;
     font-family: opensans-bold;
     color: #323942;
-    letter-spacing: normal;
 }
 .userTitle p{
+    margin-top: -5px;
     font-size: 14px;
-    margin-top: -1px;
-    color: #323942;    
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: -0.32px;
+    text-align: left;
+    color: #323942;  
 }
 .userName {
     grid-row-start: row-2-start;
@@ -81,7 +90,7 @@ img.profile_identity {
 .btnContainer {
     grid-row-start: row-3-end;
     grid-column-start: col-3-start;
-    margin-top: -97PX;
+    margin-top: -107PX;
     margin-left:19px;
 
 }
@@ -97,6 +106,20 @@ img.profile_identity {
     padding: 0;
     font-size: 14px;
     outline: none !important;
+}
+@media(min-width:1024px) and (max-width:1199px){
+    .userImg{
+        margin-left: 10px;  
+    }
+    .userName{
+        margin-left: 0px;    
+    }
+    .userTitle{
+        margin-left: 0px;       
+    }
+    .btnContainer{
+        margin-left: 0px;   
+    }
 }
 @media(max-width:768px){
     .userContainer {
