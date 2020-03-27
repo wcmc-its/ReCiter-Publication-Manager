@@ -1,6 +1,7 @@
 .show-rows {
     width: 100%;
     display: table;
+    margin-left: 9px;
 }
 .show-rows select {
     width: 44px !important;

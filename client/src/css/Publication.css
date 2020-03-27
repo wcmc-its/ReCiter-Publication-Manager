@@ -339,19 +339,9 @@ font-weight: normal;
     color: #333;
     border-color: #999;
 }
-@media(min-width:993px) and (max-width:1200px){
-    .h6fnhWdeg-publication-buttons{
-        width:297px;
-        
+@media(min-width:1200px) and (max-width:1365px){
+    .link_for_show_evidence_hidemain {
+        width: 42.9%;
     }
-    .h6fnhWdeg-publication_tablerow .h6fnhWdeg-publication-row-buttons{
-        right:2px;
-    }
-}
-@media (min-width:769px) and (max-width:1024px){
-    .h6fnhWdeg-publication_tablerow .h6fnhWdeg-publication-row-buttons {
-        position: absolute;
-        right: 1px;
-    
-    }
+
 }

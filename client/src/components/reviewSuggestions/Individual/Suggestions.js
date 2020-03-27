@@ -75,7 +75,7 @@ export default class Suggestions extends Component {
                                             <Row>
                                                 <Col lg={8} md={8} sm={8} xs={8} xl={8}>
                                                     <Accordion.Toggle as={Button} variant="link" eventKey="0" className="individual_suggestion_accordinbtn accoedins_btns" onClick={() => this.onAccordionChange('accordion' + index)}>
-                                                        <p className="suggestionText" >{this.state['accordion' + index] || ' Show evidence behind this suggestion'}</p>
+                                                        <p className="suggestionText" >{this.state['accordion' + index] || '+ Show evidence behind this suggestion'}</p>
                                                     </Accordion.Toggle>
                                                 </Col>
                                                 <Col lg={4} md={4} sm={4} xs={4} xl={4}>

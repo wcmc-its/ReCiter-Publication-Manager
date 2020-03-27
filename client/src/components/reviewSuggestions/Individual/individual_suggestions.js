@@ -192,7 +192,7 @@ class Individuals extends Component {
                                                 <h5><b>Affiliation</b></h5>
                                                 {selectedAffiliations ? selectedAffiliations.map(type => <li>{type}</li>) : null}
                                             </Col>
-                                            <Col md={4}>
+                                            <Col md={4} className="suggestions_edit_lastchild">
                                                 <h5> <b>Person Type</b></h5>
                                                 {selectedPersonTypes ? selectedPersonTypes.map((personType) => <li>{personType}</li>) : null}
                                             </Col>
