@@ -2,7 +2,10 @@ import React, { Component } from 'react';
 import '../../css/Publication.css';
 import ReactTooltip from 'react-tooltip';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCheck, faTimes, faUndo, faPlus, faMinus } from '@fortawesome/free-solid-svg-icons'
+import {faPlus, faMinus } from '@fortawesome/free-solid-svg-icons'
+import checked_icon from '../../images/icons/checked.svg';
+import cancel_icon from '../../images/icons/cancel.svg';
+import undo_icon from '../../images/icons/undo.svg';
 
 class Publication extends Component {
 
@@ -64,12 +67,12 @@ class Publication extends Component {
                 <button
                     className={`success_btn btn btn-success h6fnhWdeg-publication-accept`}
                     onClick={this.acceptPublication}
-                ><FontAwesomeIcon icon={faCheck} size='1x' /> Accept
+                ><span><img src={checked_icon} className='publicationaccepted_icons'/></span> <span>Accept</span>
                 </button>
                 <button
                     className={`dangers_btn btn btn-danger h6fnhWdeg-publication-reject`}
                     onClick={this.rejectPublication}
-                ><FontAwesomeIcon icon={faTimes} size='1x' /> Reject
+                ><span><img src={cancel_icon} className='publicationreject_icons'/></span> <span>Reject</span>
                 </button>
             </div>;
         }
@@ -79,12 +82,12 @@ class Publication extends Component {
                 <button
                     className={`btn btn-default h6fnhWdeg-publication-undo`}
                     onClick={this.undoPublication}
-                ><FontAwesomeIcon icon={faUndo} size='1x' /> Undo
+                ><span><img src={undo_icon} className='publicationundo_icons'/></span> <span>Undo</span>
                 </button>
                 <button
                     className={`btn btn-danger h6fnhWdeg-publication-reject`}
                     onClick={this.rejectPublication}
-                ><FontAwesomeIcon icon={faTimes} size='1x' /> Reject
+                ><span><img src={cancel_icon} className='publicationreject_icons'/></span> <span>Reject</span>
                 </button>
             </div>;
         }
@@ -94,12 +97,12 @@ class Publication extends Component {
                 <button
                     className={`btn btn-success h6fnhWdeg-publication-accept`}
                     onClick={this.acceptPublication}
-                > <FontAwesomeIcon icon={faCheck} size='1x' /> Accept
+                > <span><img src={checked_icon} className='publicationaccepted_icons'/></span> <span>Accept</span>
                 </button>
                 <button
                     className={`btn btn-default h6fnhWdeg-publication-undo`}
                     onClick={this.undoPublication}
-                ><FontAwesomeIcon icon={faUndo} size='1x' /> Undo
+                ><span><img src={undo_icon} className='publicationundo_icons'/></span> <span>Undo</span>
                 </button>
             </div>;
 

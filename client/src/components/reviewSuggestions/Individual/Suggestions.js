@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Table, Button, Form, Row, Col, Container, Accordion } from "react-bootstrap";
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCheck, faTimes, faChevronRight } from '@fortawesome/free-solid-svg-icons'
+import checked_icon from '../../../images/icons/checked.svg';
+import cancel_icon from '../../../images/icons/cancel.svg';
 import './individual_suggestions.css'
 
 
@@ -53,8 +53,8 @@ export default class Suggestions extends Component {
                                     <tr>
                                         <td>
                                             <div className="displayflex padding5px margin0px justifyContentSpaceBt borderRadius0">
-                                                <Button className="h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <FontAwesomeIcon icon={faCheck} size='1x' /> Accept</Button>
-                                                <Button className="h6fnhWdeg-publication-reject backgroundColorRed"> <FontAwesomeIcon icon={faTimes} size='1x' /> Reject</Button>
+                                                <Button className="h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <span><img src={checked_icon} className='publicationaccepted_icons'/></span> <span>Accept</span></Button>
+                                                <Button className="h6fnhWdeg-publication-reject backgroundColorRed"> <span><img src={cancel_icon} className='publicationreject_icons'/></span> <span>Reject</span></Button>
                                             </div>
                                             <div className="padding15px ">
                                                 <div className="displayflex flexDirectionCol backgroundColor202b3b textAlignCenter colorWhite ">
@@ -66,7 +66,7 @@ export default class Suggestions extends Component {
                                         <td>
                                             <Row>
                                                 <Col lg={12} className="contnet_individual_suggestions pt-1">
-                                                    {item.authors.length ? <p><b>Authors:</b>{item.authors.map((author, index) => index != item.authors.length - 1 ? author.authorName + ', ' : author.authorName)}</p> : null}
+                                                    {item.authors.length ? <p><b>Authors:</b> {item.authors.map((author, index) => index != item.authors.length - 1 ? author.authorName + ', ' : author.authorName)}</p> : null}
                                                     <p> <b>Title:</b> {item.title}</p>
                                                     <p>  <b>Journal:</b> {item.journal}</p>
                                                     <p> <b>Date:</b> {item.displayDate} </p>

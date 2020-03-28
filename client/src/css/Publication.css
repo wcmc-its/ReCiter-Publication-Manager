@@ -145,7 +145,7 @@ right:81px;
     border:0px !important;
     border-radius: 2px;
     height:33px;
-    background-color:#d91a00;
+    background-color:#d91a00 !important;
     outline: none !important;
     box-shadow: none !important;
     font-weight: normal;
@@ -170,8 +170,23 @@ right:81px;
     font-size: 11px;
     font-family: opensans-bold;
 }
-
-
+.h6fnhWdeg-publication-undo .fa-undo {
+    transform: rotate(-44deg);
+}
+.publicationaccepted_icons{
+    width: 14px;
+    margin-top: -3px;
+}
+.publicationreject_icons {
+    width: 10px;
+    margin-top: -4px;
+}
+.publicationundo_icons {
+    width: 14px;
+    margin-top: -4px;
+    height: 12px;
+    transform: rotate(-42deg);
+}
 .h6fnhWdeg-publication-undo {
 border-radius: 2px;
 height:33px;
@@ -234,9 +249,6 @@ font-weight: normal;
     width: 89px;
     padding: 8px;
 }
-.link_for_show_evidence_hidemain{
-    width:37.5%;
-}
 .h6fnhWdeg-publication-show-evidence-container {
     font-size: 14px;
 }
@@ -244,6 +256,8 @@ font-weight: normal;
     color: #005ad9;
     cursor: pointer;
     font-size: 15px;
+    cursor:pointer;
+    pointer-events: auto;
 }
 /* .h6fnhWdeg-publication-show-evidence-link.h6fnhWdeg-publication-evidence-show::before {
     content: '-';
@@ -263,6 +277,12 @@ font-weight: normal;
 .link_for_show_evidence_hidemain {
     padding-top: 8px;
     margin-left: 10px;
+    pointer-events:none;
+    cursor: default;
+}
+.reciter_type_name {
+    width: 50%;
+    display: inline-block;
 }
 .link_evidence_underline{
     text-decoration:underline;
@@ -338,6 +358,9 @@ font-weight: normal;
 .h6fnhWdeg-publication-undo:hover {
     color: #333;
     border-color: #999;
+}
+@media(min-width:1366px) and (max-width:1600px){
+    
 }
 @media(min-width:1200px) and (max-width:1365px){
     .link_for_show_evidence_hidemain {
