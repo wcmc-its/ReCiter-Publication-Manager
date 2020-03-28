@@ -4,7 +4,7 @@ import ReactTooltip from 'react-tooltip';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {faPlus, faMinus } from '@fortawesome/free-solid-svg-icons'
 import checked_icon from '../../images/icons/checked.svg';
-import cancel_icon from '../../images/icons/cancel.svg';
+import cancel_icon from '../../images/icons/close1.svg';
 import undo_icon from '../../images/icons/undo.svg';
 
 class Publication extends Component {

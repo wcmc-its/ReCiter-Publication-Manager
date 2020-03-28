@@ -415,6 +415,9 @@ select .form-control{
     display: flex;
     margin: 5px 0px 12px 2px;
 }
+.individual2_table table .button{
+    margin: 4px 2.5px 4px 2.5px;   
+}
 .button{
     background-color: white !important;
     color: #005ad9 !important;

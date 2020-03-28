@@ -1,7 +1,9 @@
 import React, { Component } from 'react';
 import { Table, Button, Form, Row, Col, Container, Accordion } from "react-bootstrap";
 import checked_icon from '../../../images/icons/checked.svg';
-import cancel_icon from '../../../images/icons/cancel.svg';
+import cancel_icon from '../../../images/icons/close1.svg';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPlus, faMinus } from '@fortawesome/free-solid-svg-icons'
 import './individual_suggestions.css'
 
 
@@ -24,13 +26,14 @@ export default class Suggestions extends Component {
     }
 
     onAccordionChange = (e) => {
-        let showEvidence = '+ Show evidence behind this suggestion'
-        let hideEvidence = '- Hide evidence behind this suggestion'
-        if (this.state[e]) {
+        let showEvidence = true
+        let hideEvidence = false
+        if (this.state.hasOwnProperty([e])) {
             this.setState({
                 [e]: this.state[e] == showEvidence ? hideEvidence : showEvidence
             })
-        } else {
+        }
+        else {
             this.setState({
                 [e]: hideEvidence
             })
@@ -53,8 +56,8 @@ export default class Suggestions extends Component {
                                     <tr>
                                         <td>
                                             <div className="displayflex padding5px margin0px justifyContentSpaceBt borderRadius0">
-                                                <Button className="h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <span><img src={checked_icon} className='publicationaccepted_icons'/></span> <span>Accept</span></Button>
-                                                <Button className="h6fnhWdeg-publication-reject backgroundColorRed"> <span><img src={cancel_icon} className='publicationreject_icons'/></span> <span>Reject</span></Button>
+                                                <Button className="h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <span><img src={checked_icon} className='publicationaccepted_icons' /></span> <span>Accept</span></Button>
+                                                <Button className="h6fnhWdeg-publication-reject backgroundColorRed"> <span><img src={cancel_icon} className='publicationreject_icons' /></span> <span>Reject</span></Button>
                                             </div>
                                             <div className="padding15px ">
                                                 <div className="displayflex flexDirectionCol backgroundColor202b3b textAlignCenter colorWhite ">
@@ -75,7 +78,12 @@ export default class Suggestions extends Component {
                                             <Row>
                                                 <Col lg={8} md={8} sm={8} xs={8} xl={8}>
                                                     <Accordion.Toggle as={Button} variant="link" eventKey="0" className="individual_suggestion_accordinbtn accoedins_btns" onClick={() => this.onAccordionChange('accordion' + index)}>
-                                                        <p className="suggestionText" >{this.state['accordion' + index] || '+ Show evidence behind this suggestion'}</p>
+                                                        {/* <p className="suggestionText" ><span>{this.state['accordion' + index + 'symbol']}</span>{this.state['accordion' + index] || '+ Show evidence behind this suggestion'}</p> */}
+                                                        <p className="suggestionText" >
+                                                            {
+                                                                (this.state['accordion' + index] != undefined ? (this.state['accordion' + index] ? <span className="publication_show_evidences h6fnhWdeg-publication-show-evidence-link h6fnhWdeg-publication-evidence-hide">  <span><FontAwesomeIcon icon={faPlus} /></span> <span className="link_evidence_underline">Show evidence behind this suggestion</span></span> : <span className="publication_hide_evidences h6fnhWdeg-publication-show-evidence-link h6fnhWdeg-publication-evidence-show">  <span> <FontAwesomeIcon icon={faMinus} /> </span> <span className="link_evidence_underline">Hide evidence behind this suggestion </span></span>) : <span className="publication_show_evidences h6fnhWdeg-publication-show-evidence-link h6fnhWdeg-publication-evidence-hide">  <span><FontAwesomeIcon icon={faPlus} /></span> <span className="link_evidence_underline">Show evidence behind this suggestion</span></span>)
+                                                            }
+                                                        </p>
                                                     </Accordion.Toggle>
                                                 </Col>
                                                 <Col lg={4} md={4} sm={4} xs={4} xl={4}>
