@@ -122,7 +122,7 @@ function formatPublications(data) {
                             }
 
                             reciterArticle.evidence.relationshipEvidence.relationshipPositiveMatch.forEach(relationshipItem => {
-                                weillCornellDataHtml = weillCornellDataHtml + '<p>' + relationshipItem.relationshipNameIdentity.firstName + ' ' + relationshipItem.relationshipNameIdentity.lastName + ' ' +
+                                weillCornellDataHtml = weillCornellDataHtml + '<p><span class="reciter_type_name">' + relationshipItem.relationshipNameIdentity.firstName + ' ' + relationshipItem.relationshipNameIdentity.lastName + ' </span>' +
                                     relationshipItem.relationshipType.map(relationshipType => '<span class="h6fnhWdeg-reciter-type">' + relationshipType + '</span>').join(' ')
 
                                 articleDataHtml = articleDataHtml + '<p>' + relationshipItem.relationshipNameArticle.firstName + ' ' + relationshipItem.relationshipNameArticle.lastName + '</p>'
@@ -330,7 +330,7 @@ function formatPublications(data) {
                                 'score': Math.abs(reciterArticle.evidence.averageClusteringEvidence.clusterScoreModificationOfTotalScore),
                                 'label': '<strong>Clustering</strong><br/><small>' + Math.round(reciterArticle.evidence.averageClusteringEvidence.clusterScoreModificationOfTotalScore * 100 + Number.EPSILON) / 100 + ' points</small></p>',
                                 'institutionalData': '<p>-</p>',
-                                'articleData': '<p>Score of article without clustering: ' + reciterArticle.evidence.averageClusteringEvidence.totalArticleScoreWithoutClustering + '</p><p>Average score of cluster: ' + reciterArticle.evidence.averageClusteringEvidence.clusterScoreAverage + '</p>'
+                                'articleData': '<p>Score of article without clustering:<b> ' + reciterArticle.evidence.averageClusteringEvidence.totalArticleScoreWithoutClustering + '</b></p><p>Average score of cluster: <b>' + reciterArticle.evidence.averageClusteringEvidence.clusterScoreAverage + '</b></p>'
                             })
                         }
                         //Gender Strategy

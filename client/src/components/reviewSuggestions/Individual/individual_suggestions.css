@@ -278,9 +278,10 @@ margin-top: 5px;
     font-size:15px;
     margin:0px;
 }
-.h6fnhWdeg-publication-rejected{
+.h6fnhWdeg-publication-reject{
     display: inline-block;
     margin: 5px;
+    margin-top:0px;
     margin-right:0px;
     height:33px;
     background-color:#d91a00 !important;
@@ -309,6 +310,10 @@ margin-top: 5px;
 .suggestion_indvidual_table_col{
     padding:0px;
 }
+.suggestionText{
+    cursor:pointer;
+    pointer-events:auto;    
+}
 .individual_suggestion_accordinbtn{
     font-size: 15px;
     font-weight: normal;
@@ -318,7 +323,9 @@ margin-top: 5px;
     letter-spacing: normal;
     color: #005ad9;
     position: relative;
-    top: 5px;   
+    top: 5px; 
+    cursor:default;
+    pointer-events:none;  
 }
 .name{
     margin: 2px 2px 2px 6px;
@@ -407,6 +414,9 @@ select .form-control{
     padding: 0px;
     display: flex;
     margin: 5px 0px 12px 2px;
+}
+.individual2_table table .button{
+    margin: 4px 2.5px 4px 2.5px;   
 }
 .button{
     background-color: white !important;
