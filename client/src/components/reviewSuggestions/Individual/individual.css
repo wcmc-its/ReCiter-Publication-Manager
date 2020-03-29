@@ -117,14 +117,16 @@ width:100%;
     padding-left:4px;
     margin-top:14px;
 }
-.individual_search .inputadds{
+.individual_search .inputadds {
     display: inline-block;
-    padding-top: 12px;
-    padding-right: 11px;
-    text-align: center;
-    font-weight: 900;
-    height: 42px; 
-}
+        padding-top: 12px;
+        padding-right: 38px;
+        text-align: center;
+        font-weight: 900;
+        height: 42px;
+        width: 57px;
+        padding-left: 8px;
+    }
 #suggestion_tables_evdiencetd{
     padding-top: 0px !important;
 }
