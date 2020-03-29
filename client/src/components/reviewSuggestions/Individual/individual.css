@@ -60,6 +60,9 @@ width:100%;
 }
 .close_icons{
     float:right;
+    padding-left: 4px;
+    position: relative;
+    top: 1.8px;
 }
 .individual_searchfilter {
     position: relative;
@@ -119,10 +122,8 @@ width:100%;
     padding-top: 12px;
     padding-right: 11px;
     text-align: center;
-    padding-left: 7px;
     font-weight: 900;
     height: 42px; 
-    width: 11%;
 }
 #suggestion_tables_evdiencetd{
     padding-top: 0px !important;
@@ -134,9 +135,6 @@ width:100%;
     background-color: #ececec;
     box-shadow: none;
     width:95.3%;
-}
-.close_icons{
-    padding-left: 4px;
 }
 .selectoption{
         font-weight: 300;
@@ -261,6 +259,23 @@ width:100%;
     text-align: left;
     color: #323942;  
 }
+#indivdual_search_selectopts{
+    background-image: linear-gradient(45deg, transparent 71%, #005ad9 13%), linear-gradient(135deg, #005ad9 26%, transparent 0%) !important;
+    background-position: calc(1% - -135px) 11px,calc(1% - -145px) 11px,0 0;
+    background-size: 10px 10px, 10px 10px;
+    background-repeat: no-repeat;
+    -webkit-appearance: none;
+    padding-right: 21px;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.36;
+    letter-spacing: -0.55px;
+    text-align: left;
+    color: #212121;
+    padding-left: 0px !important;
+}
 .title_individual{
     font-size: 14px;
     font-weight: normal;
@@ -332,7 +347,15 @@ margin-right: 0px;
         width:1108px;
     }
 }
-@media (min-width:992px) and (max-width:1204px){
+@media (min-width:1024px) and (max-width:1199px){
+    .individual_search .inputadds{
+        width:11%;
+            }
+}
+@media (min-width:992px) and (max-width:1023px){
+    .individual_search_well{
+        width:100%;
+    }
     .indivdual_container{
         width: 1079px;
     }
@@ -340,6 +363,21 @@ margin-right: 0px;
         width: 1081px;
         overflow-x: auto;
     }
+    .findscholar_heading{
+        margin-top:1%;
+    }
+    
+    .indvidualbody .table-responsive{
+        width:100vw;
+        overflow-x:auto;
+        padding-left:10px;
+    }
+        #indivdual_search_selectopts {
+            background-position: calc(1% - -115px) 11px,calc(1% - -125px) 11px,0 0 !important;  
+    }
+    .individual_search .inputadds{
+        width:8%;
+            }
 }
 @media(min-width:769px) and (max-width:991px){
     .indvidualbody{
@@ -359,14 +397,78 @@ margin-right: 0px;
     .heading{
         margin-top:112px;
     }
+    .individual_search .inputadds{
+        width:8%;
+            }
+}
+@media (min-width:601px) and (max-width:768px){
+    .individual_search_well{
+        width:100%;
+    }
+    .individual_search .inputadds{
+        padding-left:0px;
+    }
+    #indivdual_search_selectopts {
+        background-position: calc(1% - -95%) 11px,calc(1% - -97%) 11px,0 0;
+    }
+    .indvidualbody .table-responsive {
+        padding-left: 15px;
+        padding-right: 38px;
+        width: 97vw;
+    }
+    .indvidualbody{
+        width:100vw;
+        margin-left:38px;
+    }
+}
+    @media (min-width:481px) and (max-width:600px){
+        .individual_search_well{
+           width:100%;
+       }
+       .individual_search .inputadds{
+        padding-left:0px;
+    }
+    #indivdual_search_selectopts {
+        background-position: calc(1% - -95%) 11px,calc(1% - -97%) 11px,0 0;
+    }
+    .indvidualbody .table-responsive {
+        padding-left: 15px;
+        padding-right: 38px;
+        width: 97vw;
+    }
+    .indvidualbody{
+        width:100vw;
+        margin-left:38px;
+    }
+    }
+@media (min-width:320px) and (max-width:480px){
+    .individual_search_well {
+        width: 100%;
+        padding: 10px;
+    }
+.individual_search .inputadds{
+    padding-left:0px;
+}
+#indivdual_search_selectopts {
+    background-position: calc(1% - -258px) 11px,calc(1% - -268px) 11px,0 0;
+}
+.searchicon{
+    margin-left:-5px;
+}
 }
 @media(max-width:768px){
+    .individual_search .inputadds {
+        width: 8%;
+    }
     .indvidualbody{
         padding-left:0px !important;
         padding-right:0px !important;
     }
+    /* #indivdual_search_selectopts{
+        background-position: calc(1% - -152px) 11px,calc(1% - -162px) 11px,0 0;      
+    } */
     .indivdual_container{
-        max-width:95%;
+        max-width:100%;
     }
     .userimg_individual {
         width: 45px;
@@ -379,6 +481,6 @@ margin-right: 0px;
         width:1024px;
     }
     .heading{
-        margin-top:112px;
+        margin-top:76px;
     }
 }

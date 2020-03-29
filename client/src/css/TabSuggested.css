@@ -35,3 +35,9 @@ border-radius: 2px;
     box-shadow: none !important;
     outline:none !important;
 }
+@media (min-width :481px) and (max-width :600px) {
+    .suggested_tabs_filter .filter-container input {
+        max-width: 230px !important;
+        width: 230px !important;
+    }
+}

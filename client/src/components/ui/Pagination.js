@@ -74,7 +74,7 @@ export class Pagination extends Component {
                             </select>
                         </div>
                     </div>
-                    <div className="col-lg-9 c0l-xl-9 col-xs-6 col-md-8 col-sm-7">
+                    <div className="col-lg-9 c0l-xl-9 col-xs-12 col-md-8 col-sm-7">
                         <div>
                             <ul className="pagination">
                                 <li id="firstpagination_wrap" className={`page-item ${(propsPage === 1) ? 'disabled' : ''}`}>

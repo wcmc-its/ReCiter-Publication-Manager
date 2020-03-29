@@ -341,23 +341,6 @@ margin-top: 5px;
 .indiviindividual_suggestions{
     margin-top:0px;
 }
-#indivdual_search_selectopts{
-    background-image: linear-gradient(45deg, transparent 71%, #005ad9 13%), linear-gradient(135deg, #005ad9 26%, transparent 0%) !important;
-    background-position: calc(1% - -135px) 11px,calc(1% - -145px) 11px,0 0;
-    background-size: 10px 10px, 10px 10px;
-    background-repeat: no-repeat;
-    -webkit-appearance: none;
-    padding-right: 21px;
-    font-size: 14px !important;
-    font-weight: bold !important;
-    font-stretch: normal;
-    font-style: normal;
-    line-height: 1.36;
-    letter-spacing: -0.55px;
-    text-align: left;
-    color: #212121;
-    padding-left: 0px !important;
-}
 .individual_searchshowrec .form-control{
     width: 46px !important;
     height: 31px !important;
@@ -530,22 +513,78 @@ a h4{
         width: 1119px;
     }
     }
-@media (min-width:769px) and (max-width:992px){
+@media (min-width:992px) and (max-width:1023px){
     .findscholar{
-   margin:87px 15px 10px 14px;    
-    } 
+        margin:7px 15px 10px 14px;    
+         }
+         .search{
+            max-width:45.7%;
+        }
+}
+@media (min-width:769px) and (max-width:991px){
+    .accordion .table-responsive{
+        width:100vw;
+    }
+    .individual2_table{
+        width:1024px;
+    }
+    .individual_suggest_containers{
+        padding: 36px 14px 15px 16px;   
+    }
+    .search{
+        max-width: 105.7%;
+        flex: 0 0 62%;
+    }
+    .findscholar {
+        margin: 76px 15px 10px 14px;
+    }
+    .findscholar h4{
+        font-size: 15px;
+    }
+    .firsttable{
+        width: 96vw;
+        overflow: hidden;   
+    }
 }
     @media(max-width:768px){
+        .pubmed_suggestions_second_td{
+            max-width:800px;
+            width: 800px !important;
+            white-space: normal !important;
+        
+        }
+        .suggestion_get_pubmed_btns{
+            position: absolute;
+            right:83px;
+        }
+        .individual_suggest_container {
+            width:100%;
+        }
+        .firsttable{
+            width: 96vw;
+            overflow: hidden;   
+        }
+        .contnet_individual_suggestions {
+            padding-right:25px;
+        }
+        .accordion .table-responsive{
+            width:100vw;
+        }
+        .individual2_table{
+            width:1024px;
+            position: relative;
+        }
+        .individual_suggest_containers{
+            padding: 36px 14px 15px 9px;   
+        }
+        .search {
+            max-width: 100%;
+            flex: 0 0 87%;
+        }
         .findscholar{
-            margin:106px 15px 10px 14px;
+            margin:57px 15px 10px 14px;
         }
         .findscholar h4{
             font-size: 15px;
-        }
-        .gtsymbol{
-            font-size:13px;
-        }
-        .review{
-            font-size:15px;
         }
     }

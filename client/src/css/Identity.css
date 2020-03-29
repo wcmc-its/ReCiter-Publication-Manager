@@ -121,18 +121,74 @@ img.profile_identity {
         margin-left: 0px;   
     }
 }
-@media(max-width:768px){
-    .userContainer {
-padding:0rem 0rem;
+@media(min-width:769px) and (max-width:991px){
+    .userContainer{
+        padding:0rem;
+    }
+    .reviewSuggestionHeading h3{
+        padding-bottom:25px;
+    }
+}
+@media(min-width:601px) and (max-width:768px){
+    .reviewSuggestionHeading h3{
+        padding-bottom:25px;
     }
     .userName {
-        grid-row-start: row-1-start;
+        grid-row-start: row-2-start;
     }
     .userTitle {
-        grid-row-start: row-2-start;
+        grid-row-start: row-3-start;
 
     }
     .btnContainer {
-        margin-top: -89PX;
+        margin-top: -108PX;
+    }
+}
+@media(min-width:481px) and (max-width:600px){
+    .reviewSuggestionHeading h3{
+        padding-bottom:25px;
+    }
+    .userName {
+        grid-row-start: row-2-start;
+    }
+    .userTitle {
+        grid-row-start: row-3-start;
+
+    }
+    .btnContainer {
+        margin-top: -108PX;
+    }
+}
+@media(min-width:320px) and (max-width:480px){
+    .profile_identity{
+        width: 100px;
+    }
+    .reviewSuggestionHeading h3{
+        padding-bottom:15px;
+        padding-left:15px;
+    }
+    .userName {
+        grid-row-start: row-2-start;
+        padding-bottom: 7px;
+    }
+    .userTitle {
+        grid-row-start: row-3-start;
+        padding-bottom: 7px;
+
+    }
+    .btnContainer {
+        margin-top: -15PX;
+    }
+    .userContainer {
+        display: table;
+    }
+    .userImg{
+        height: 177px;
+        margin-left:15px;
+    }
+}
+@media(max-width:768px){
+    .userContainer {
+padding:0rem 0rem;
     }
 }
