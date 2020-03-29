@@ -114,7 +114,7 @@ class Publication extends Component {
                 <div className="clear-both"></div>
                 {(item.evidence !== undefined) ?
                     <React.Fragment>
-                        <p className="h6fnhWdeg-publication-score" data-tip={evidancePopoverHtml} data-place="right"
+                        <p className="h6fnhWdeg-publication-score" data-place="right"
                             data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">
                             Evidence Score<br /><strong>{item.standardScore}</strong>
                         </p>

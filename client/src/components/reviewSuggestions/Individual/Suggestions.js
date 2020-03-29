@@ -66,7 +66,7 @@ export default class Suggestions extends Component {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
+                                        <td className="pubmed_suggestions_second_td">
                                             <Row>
                                                 <Col lg={12} className="contnet_individual_suggestions pt-1">
                                                     {item.authors.length ? <p><b>Authors:</b> {item.authors.map((author, index) => index != item.authors.length - 1 ? author.authorName + ', ' : author.authorName)}</p> : null}
@@ -86,7 +86,7 @@ export default class Suggestions extends Component {
                                                         </p>
                                                     </Accordion.Toggle>
                                                 </Col>
-                                                <Col lg={4} md={4} sm={4} xs={4} xl={4}>
+                                                <Col lg={4} md={4} sm={4} xs={4} xl={4} className='suggestion_get_pubmed_btns'>
                                                     <span> <button className="btn button" type="button">PubMed</button>
                                                         <button className="btn button" type="button">GET IT</button>
                                                     </span>

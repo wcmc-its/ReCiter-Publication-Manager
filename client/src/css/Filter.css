@@ -93,3 +93,8 @@ width:20%;
 .h6fnhWdeg-publications-evidence-table th:nth-child(2) {
     padding-left: 4% !important;
 }
+@media (min-width:320px) and (max-width:480px){
+    .selectdivider{
+        margin-top: 25px;    
+    }
+}

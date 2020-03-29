@@ -160,13 +160,23 @@ body {
     line-height: 1.33;
     letter-spacing: 0.17px;
 }
-
-@media (min-width:769px) and (max-width:992px){
+@media (min-width:992px) and (max-width:1023px){
     .main-container{
         display:block;
+        overflow:hidden;
+    }
+    .individual_table_body_container .pagination-container{
+        width:100vw;
+    }
+
+}
+@media (min-width:769px) and (max-width:991px){
+    .main-container{
+        display:block;
+        overflow:hidden;
     }
     .header-position{
-        position:fixed;
+        position:absolute;
         z-index:999;
         width:100%;
     }
@@ -174,23 +184,50 @@ body {
         margin-top: 80px;
     }
     .tab-container {
-        margin-top: 50px;
+        margin-top:7px;
+    }
+}
+@media (min-width:601px) and (max-width:768px){
+    .identity-container {
+        margin-top: 57px;
+    }
+    .tab-container{
+        margin-top:0px;
+    }
+}
+@media (min-width:481px) and (max-width:600px){
+    .identity-container {
+        margin-top: 57px;
+    }
+    .tab-container{
+        margin-top:0px;
+    }
+}
+@media (min-width:320px) and (max-width:480px){
+    .identity-container {
+        margin-top: 57px;
+    }
+    .tab-container{
+        margin-top:0px;
+    }
+    .h6fnhWdeg-tab-controls-container #dropdownMenuButton {
+margin:0px !important;
+margin-top:15px !important;
+margin-right:5px !important;
+    }
+    .sort_filter_select {
+        margin-top: 15px !important;
     }
 }
 @media (max-width:768px){
     .main-container{
         display:block;
+        overflow: hidden;
     }
     .header-position{
-        position:fixed;
+        position: absolute;
         z-index:999;
         width:100%;
-    }
-    .identity-container{
-        margin-top:132px;
-    }
-    .tab-container{
-        margin-top:50px;
     }
     .publications-content{
         overflow:hidden;

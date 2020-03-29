@@ -292,7 +292,7 @@ class Individual extends Component {
                     <div>
                         <Container className="indivdual_container">
                             <div className="row">
-                                <div className="col-md-12">
+                                <div className="col-md-12 findscholar_heading">
                                     <h4 className="heading">Find Scholar</h4>
                                 </div>
                                 <div className=" mb-7 col-md-12 col-sm-12 col-xs-12 col-lg-7 col-xl-7">
