@@ -276,12 +276,12 @@ margin-top: 5px;
   line-height: 1.33;
   letter-spacing: 0.17px;
     font-size:15px;
-    margin:0px;
+    margin:5px;
 }
 .h6fnhWdeg-publication-reject{
     display: inline-block;
     margin: 5px;
-    margin-top:0px;
+    /* margin-top:0px; */
     margin-right:0px;
     height:33px;
     background-color:#d91a00 !important;
@@ -314,6 +314,9 @@ margin-top: 5px;
     cursor:pointer;
     pointer-events:auto;    
 }
+.suggestion_getpumedbtn{
+    margin: 10px 2.5px 0px 2.5px !important;
+}
 .individual_suggestion_accordinbtn{
     font-size: 15px;
     font-weight: normal;
@@ -325,7 +328,8 @@ margin-top: 5px;
     position: relative;
     top: 5px; 
     cursor:default;
-    pointer-events:none;  
+    pointer-events:none; 
+    margin-left:10px; 
 }
 .name{
     margin: 2px 2px 2px 6px;
@@ -401,6 +405,9 @@ select .form-control{
 .individual2_table table .button{
     margin: 4px 2.5px 4px 2.5px;   
 }
+.suggestion_get_pubmed_btns a{
+    text-decoration: none !important;
+}
 .button{
     background-color: white !important;
     color: #005ad9 !important;
@@ -416,6 +423,7 @@ select .form-control{
     line-height: 1.33;
     letter-spacing: 0.17px;
     border-radius: 2px !important;
+    text-decoration: none !important;
 }
 /* .suggestionText a {
     float: left;

@@ -274,13 +274,13 @@ class Individual extends Component {
             })
 
             let depOptions = this.getDepartments().map((dep) => {
-                return <option value={dep.organizationalUnitLabel}>{dep.organizationalUnitLabel}</option>
+                return <option className="option_dep" value={dep.organizationalUnitLabel}>{dep.organizationalUnitLabel}</option>
             });
             let affiliationOptions = this.getAffiliationTypes().map((affiliation) => {
-                return <option value={affiliation}>{affiliation}</option>
+                return <option className="option_dep" value={affiliation}>{affiliation}</option>
             });
             let personTypeOptions = this.getPersonTypes().map((ptype) => {
-                return <option value={ptype}>{ptype}</option>
+                return <option className="option_dep" value={ptype}>{ptype}</option>
             });
 
             return (
@@ -313,7 +313,7 @@ class Individual extends Component {
                                                     <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                         {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
                                                         <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Department"} value={this.state.selectedDepartmentValue} onChange={this.handleDepartmentSelect} className="border-forms_ids pl-2 font-weight-bold">
-                                                            <option value='Department'>Department</option>
+                                                            <option value='Department' className="option_dep">Department</option>
                                                             {depOptions}
                                                         </Form.Control>
 
@@ -328,7 +328,7 @@ class Individual extends Component {
                                                     <Form.Group controlId="exampleForm.ControlSelect1" className="individual_searchfilter">
                                                         {/* <FontAwesomeIcon icon={faSortDown} size='1x' className="search_carot_icon" /> */}
                                                         <Form.Control id="indivdual_search_selectopts" as="select" placeholder={"Affiliation"} value={this.state.selectedAffiliationValue} onChange={this.handleAffiliationSelect} className="select_box border-forms_ids pl-2 font-weight-bold">
-                                                            <option>Affiliation</option>
+                                                            <option className="option_dep">Affiliation</option>
                                                             {affiliationOptions}
                                                         </Form.Control>
 

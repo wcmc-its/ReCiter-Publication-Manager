@@ -448,14 +448,19 @@ margin-right: 0px;
         width: 100%;
         padding: 10px;
     }
-.individual_search .inputadds{
-    padding-left:0px;
-}
 #indivdual_search_selectopts {
     background-position: calc(1% - -258px) 11px,calc(1% - -268px) 11px,0 0;
 }
 .searchicon{
-    margin-left:-5px;
+    margin-left:5px;
+    width:1em;
+    font-size:1em;
+}
+.individual_search .inputadds {
+    width: 0%;
+    padding-left: 0px;
+    padding-right: 24px;
+
 }
 }
 @media(max-width:768px){

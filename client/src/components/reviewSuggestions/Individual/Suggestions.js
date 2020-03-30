@@ -56,7 +56,7 @@ export default class Suggestions extends Component {
                                     <tr>
                                         <td>
                                             <div className="displayflex padding5px margin0px justifyContentSpaceBt borderRadius0">
-                                                <Button className="h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <span><img src={checked_icon} className='publicationaccepted_icons' /></span> <span>Accept</span></Button>
+                                                <Button className="suggestions_acceptedbtns  h6fnhWdeg-publication-accept backgroundColorGreen btn-success"> <span><img src={checked_icon} className='publicationaccepted_icons' /></span> <span>Accept</span></Button>
                                                 <Button className="h6fnhWdeg-publication-reject backgroundColorRed"> <span><img src={cancel_icon} className='publicationreject_icons' /></span> <span>Reject</span></Button>
                                             </div>
                                             <div className="padding15px ">
@@ -87,8 +87,8 @@ export default class Suggestions extends Component {
                                                     </Accordion.Toggle>
                                                 </Col>
                                                 <Col lg={4} md={4} sm={4} xs={4} xl={4} className='suggestion_get_pubmed_btns'>
-                                                    <span> <button className="btn button" type="button">PubMed</button>
-                                                        <button className="btn button" type="button">GET IT</button>
+                                                    <span> <button className="suggestion_getpumedbtn btn button" type="button"><a href={`https://www.ncbi.nlm.nih.gov/pubmed/${item.pmid}`} target="_blank" rel="noopener noreferrer">PubMed</a></button>
+                                                        <button className="suggestion_getpumedbtn btn button" type="button"><a href={`https://weillcornell-primo.hosted.exlibrisgroup.com/openurl/01WCMC/WCMC?sid=Entrez:PubMed&id=pmid:${item.pmid}`} target="_blank" rel="noopener noreferrer">GET IT</a></button>
                                                     </span>
                                                 </Col>
                                             </Row>

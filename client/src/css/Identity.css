@@ -128,6 +128,12 @@ img.profile_identity {
     .reviewSuggestionHeading h3{
         padding-bottom:25px;
     }
+    .userTitle p{
+        width: 47%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;   
+    }
 }
 @media(min-width:601px) and (max-width:768px){
     .reviewSuggestionHeading h3{
@@ -143,6 +149,12 @@ img.profile_identity {
     .btnContainer {
         margin-top: -108PX;
     }
+    .userTitle p{
+        width: 47%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;   
+    }
 }
 @media(min-width:481px) and (max-width:600px){
     .reviewSuggestionHeading h3{
@@ -157,6 +169,12 @@ img.profile_identity {
     }
     .btnContainer {
         margin-top: -108PX;
+    }
+    .userTitle p{
+        width: 47%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;   
     }
 }
 @media(min-width:320px) and (max-width:480px){
@@ -185,6 +203,12 @@ img.profile_identity {
     .userImg{
         height: 177px;
         margin-left:15px;
+    }
+    .userTitle p{
+        width: 47%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;   
     }
 }
 @media(max-width:768px){
