@@ -280,6 +280,7 @@ margin-top: 5px;
 }
 .h6fnhWdeg-publication-reject{
     display: inline-block;
+    margin: 5px;
     /* margin-top:0px; */
     margin-right:0px;
     height:33px;
@@ -503,7 +504,20 @@ p .suggestionText a{
     width:35%;
 }
 
-
+.h6fnhWdeg-publication-score {
+    display: inline-block;
+    background: #202b3b;
+    border-radius: 0px;
+    text-align: center;
+    padding: 14px 10px 7px 10px;
+    line-height: 1.2em;
+    margin-top: 20px;
+    font-size: 12px;
+    height: 89px;
+    border-radius: 2px;
+    color: #fff;
+    width: 108px;
+}
 .secondtable{
     margin-top: 20px;
 }

@@ -1,8 +1,8 @@
 .heading{
     font-size: 21px;
     color: #323942;
-    margin-top: 43px;
-    /* letter-spacing: 0; */
+    margin-top: 23px;
+    letter-spacing: -0.48px;
     font-family: '1898Sans-Regular',sans-serif;
 }
 .well-sm {
@@ -62,7 +62,7 @@ width:100%;
     float:right;
     padding-left: 4px;
     position: relative;
-    line-height: 17px;
+    top: 1.8px;
 }
 .individual_searchfilter {
     position: relative;
@@ -352,7 +352,16 @@ margin-right: 0px;
 @media (min-width:1024px) and (max-width:1199px){
     .individual_search .inputadds{
         width:11%;
+        padding-right: 41px;
+        padding-left: 0px;
             }
+            #indivdual_search_selectopts{
+                background-position: calc(-1% - -103px) 11px,calc(6% - -105px) 11px,0 0;   
+            }
+            .individual_searchshowrec .form-control{
+                background-position: calc(-2% - -22px) 11px, calc(0% - -31.1px) 11px, 0% 0px;    
+            }
+
 }
 @media (min-width:992px) and (max-width:1023px){
     .individual_search_well{

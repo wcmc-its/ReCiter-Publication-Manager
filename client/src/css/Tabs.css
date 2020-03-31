@@ -46,7 +46,7 @@
     display:inline-block;
 }
 .breadcrumb-item{
-text-decoration:underline;
+    text-decoration:none;
 }
 .breadcrumb-item a{
     color:#005ad9 !important;
