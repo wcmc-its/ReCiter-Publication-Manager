@@ -118,6 +118,26 @@ content:"|";
 .Tabssuggestion_main_body12 .pagination-container ul.pagination{
     padding-right: 19px;   
 }
+@media (min-width :1800px) and (max-width :1920px) {
+    .tabs-headers li:nth-child(1) {
+        margin-left: 5%;
+    }
+}
+@media (min-width :1601px) and (max-width :1799px) {
+    .tabs-headers li:nth-child(1) {
+        margin-left: 5.6%;
+    }
+}
+@media (min-width :1501px) and (max-width :1600px) {
+    .tabs-headers li:nth-child(1) {
+        margin-left: 5.6%;
+    }
+}
+@media (min-width :1400px) and (max-width :1500px) {
+    .tabs-headers li:nth-child(1) {
+        margin-left: 5.6%;
+    }
+}
 @media (min-width :1200px) and (max-width :1365px) {
     .tabs-headers li:nth-child(1) {
         margin-left: 8.3%;

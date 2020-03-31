@@ -210,14 +210,6 @@ body {
     .tab-container{
         margin-top:0px;
     }
-    .h6fnhWdeg-tab-controls-container #dropdownMenuButton {
-margin:0px !important;
-margin-top:15px !important;
-margin-right:5px !important;
-    }
-    .sort_filter_select {
-        margin-top: 15px !important;
-    }
 }
 @media (max-width:768px){
     .main-container{

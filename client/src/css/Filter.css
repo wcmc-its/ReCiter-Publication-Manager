@@ -94,7 +94,22 @@ width:20%;
     padding-left: 4% !important;
 }
 @media (min-width:320px) and (max-width:480px){
-    .selectdivider{
+    /* .selectdivider{
         margin-top: 25px;    
+    } */
+    .h6fnhWdeg-tab-controls-container .filter-container input{
+        margin-right: 7px !important;
+        margin-bottom: 15px;
     }
+    .h6fnhWdeg-tab-controls-container #dropdownMenuButton{
+        margin-left:0px;
+    }
+    /* .h6fnhWdeg-tab-controls-container #dropdownMenuButton {
+        margin:0px !important;
+        margin-top:15px !important;
+        margin-right:5px !important;
+            }
+            .sort_filter_select {
+                margin-top: 15px !important;
+            } */
 }
