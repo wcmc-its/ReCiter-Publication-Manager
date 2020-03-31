@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Table, Button, Form, Row, Col, Container, Accordion } from "react-bootstrap";
+import ReactTooltip from 'react-tooltip';
 import checked_icon from '../../../images/icons/checked.svg';
 import cancel_icon from '../../../images/icons/close1.svg';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -44,8 +45,19 @@ export default class Suggestions extends Component {
 
     render() {
         const i = this.state.articles;
+        var facultyUserName = "";
+        if (this.props.faculty !== undefined) {
 
-
+            if (this.props.faculty.firstName !== undefined) {
+                facultyUserName += this.props.faculty.firstName + ' ';
+            }
+            if (this.props.faculty.middleName !== undefined) {
+                facultyUserName += this.props.faculty.middleName + ' ';
+            }
+            if (this.props.faculty.lastName !== undefined) {
+                facultyUserName += this.props.faculty.lastName + ' ';
+            }
+        }
         return (
             <div>
                 {i != {} && i.reciterArticleFeatures ? i.reciterArticleFeatures.length ? i.reciterArticleFeatures.map((item, index) =>
@@ -61,8 +73,10 @@ export default class Suggestions extends Component {
                                             </div>
                                             <div className="padding15px ">
                                                 <div className="displayflex flexDirectionCol backgroundColor202b3b textAlignCenter colorWhite ">
-                                                    <p className="evidence">Evidence Score</p>
+                                                    <p className="evidence " data-tip={"<strong>" + item.rawScore + " :</strong> Raw score<br/><strong>" + item.standardScore + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>" + facultyUserName + "</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\""} data-place="right"
+                                                        data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">Evidence Score</p>
                                                     <h1 className="score"><b>{item.standardScore}</b></h1>
+                                                    < ReactTooltip />
                                                 </div>
                                             </div>
                                         </td>

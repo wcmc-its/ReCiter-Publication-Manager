@@ -19,6 +19,7 @@
 }
 .h6fnhWdeg-tab-controls-container .filter-container .dropdown {
     float:initial;
+    vertical-align:top;
 }
 .h6fnhWdeg-tab-controls-container .btn-default.disabled {
     color: #777;
