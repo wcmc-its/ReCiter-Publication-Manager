@@ -39,10 +39,10 @@
 .dropdown-sort-desc::after{
     content: ' \007C' !important;
     position: relative;
-    font-size: 21px;
+    font-size: 23px;
     width: 9px;
-    font-weight: bold;
-    top: -2px;
+    font-weight: 600;
+    top: 0px;
     color: #474747;
 }
 .sort_filter_select {
@@ -72,7 +72,7 @@
 }
 .selectdivider{
     background-color: #474747;
-    width: 2px;
+    width: 1.5px;
     height: 22px;
     position: absolute;
     margin-left: -30px;
