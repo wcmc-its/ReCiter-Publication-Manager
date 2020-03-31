@@ -511,6 +511,13 @@ p .suggestionText a{
 a h4{
     margin-top: 20px;
 }
+@media (min-width:1400px) and (max-width:1920px){
+    .individual_suggest_container {
+        width: 100% !important;
+        max-width: 100%;    
+        margin-left: 8px;
+    }
+}
 @media (min-width:1300px) and (max-width:1920px){
     .firsttable .table-responsive{
         overflow-x: hidden;
@@ -532,6 +539,10 @@ a h4{
 @media (min-width:769px) and (max-width:991px){
     .accordion .table-responsive{
         width:100vw;
+    }
+    .individual_suggest_container {
+        width:100%;
+        max-width: 100%;
     }
     .individual2_table{
         width:1024px;
@@ -567,6 +578,7 @@ a h4{
         }
         .individual_suggest_container {
             width:100%;
+            max-width: 100%;
         }
         .firsttable{
             width: 96vw;
