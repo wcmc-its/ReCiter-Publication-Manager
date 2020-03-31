@@ -16,7 +16,7 @@
   position: relative;
   top: 3px;
   background-repeat: no-repeat;
-  margin-right:2px;
+  margin-right:1rem;
 }
 
 /* The navigation menu links */
@@ -34,9 +34,9 @@
   width: 100%;
   text-decoration: none;
   color: white;
-  font-weight: 400;
-  padding: 4px 0 4px 24px;
-  font-size: 14px;
+  font-weight: 800;
+  padding: 8px 4px 8px 40px;
+  font-size: 15px;
 }
 
 /* When you mouse over the navigation links, change their color */
@@ -55,6 +55,7 @@
 
 .navHr{
     border-color:#999999 ;
+    width:160px;
 }
 .side_bar_active{
   color: white;

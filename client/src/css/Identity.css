@@ -9,16 +9,11 @@
 }
 
 .reviewSuggestionHeading h3{
-    padding-left:25px;
-    padding-top: 20px;
+    padding: 3rem 0rem 0rem 3rem;
     font-size: 21px;
-    font-weight: normal;
-    font-stretch: normal;
-    font-style: normal;
     line-height: 1.19;
     font-family: "1898Sans-Regular",sans-serif;
     text-align: left;
-    letter-spacing: -0.48px;
     color: #323942;
 }
 .userImg {
@@ -109,7 +104,7 @@ img.profile_identity {
 }
 @media(min-width:1024px) and (max-width:1199px){
     .userImg{
-        margin-left: 10px;  
+        margin-left: 0px;  
     }
     .userName{
         margin-left: 0px;    
@@ -202,7 +197,6 @@ img.profile_identity {
     }
     .userImg{
         height: 177px;
-        margin-left:15px;
     }
     .userTitle p{
         width: 47%;

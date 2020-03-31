@@ -58,7 +58,7 @@ class Publication extends Component {
                 facultyUserName += this.props.faculty.lastName + ' ';
             }
         }
-
+ 
         var evidancePopoverHtml = "<strong>" + item.rawScore + " :</strong> Raw score<br/><strong>" + item.standardScore + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>" + facultyUserName + "</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
 
         var buttons = null;
@@ -114,7 +114,7 @@ class Publication extends Component {
                 <div className="clear-both"></div>
                 {(item.evidence !== undefined) ?
                     <React.Fragment>
-                        <p className="h6fnhWdeg-publication-score" data-place="right"
+                        <p className="h6fnhWdeg-publication-score" data-tip={evidancePopoverHtml} data-place="right"
                             data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">
                             Evidence Score<br /><strong>{item.standardScore}</strong>
                         </p>

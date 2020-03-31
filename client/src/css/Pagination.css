@@ -60,7 +60,7 @@
     letter-spacing: normal;
     /* height: 12.3px; */
     text-align: center;
-    color: #5b5b5b;
+    color: #005ad9;
     border: 1px solid #bbbbbb;
 
 }
@@ -83,16 +83,16 @@
     letter-spacing: normal;
     /* height: 12.3px; */
     text-align: center;
-    color: #5b5b5b;
+    color: #005ad9;
 }
 .page-item.active .page-link {
     z-index: 1;
-    color: #5b5b5b !important;
+    color: #005ad9 !important;
     background-color: #efefef !important;
     border-color: #bbbbbb !important;
 }
 .pagination_carot_icon{
-    color:#5b5b5b;
+    color:#005ad9;
 }
 @media(min-width:481px) and (max-width:600px){
     .pagination-container ul.pagination {
