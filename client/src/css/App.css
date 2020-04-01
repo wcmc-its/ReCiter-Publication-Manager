@@ -37,7 +37,7 @@ body {
 .main-container {
     min-height: 100%;
     display: grid;
-    grid-template-rows: [header] 50px [page-content] 1fr [footer] auto;
+    grid-template-rows: [header] 70px [page-content] 1fr [footer] auto;
     grid-template-columns: [side-nav] 200px [content-start] auto [content-end];
 }
 

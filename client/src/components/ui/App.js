@@ -81,7 +81,7 @@ class App extends Component {
                     );
                     break;
                 case "Add Publication":
-                    tabActiveContent = <TabAddPublication />;
+                    tabActiveContent = (<TabAddPublication tabClickHandler={this.tabClickHandler} />);
                     break;
                 default:
                     tabActiveContent = (

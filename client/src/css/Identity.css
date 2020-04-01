@@ -9,7 +9,7 @@
 }
 
 .reviewSuggestionHeading h3{
-    padding: 3rem 0rem 0rem 3rem;
+    padding: 2rem 0rem 0rem 3rem;
     font-size: 21px;
     line-height: 1.19;
     font-family: "1898Sans-Regular",sans-serif;
@@ -120,7 +120,7 @@ img.profile_identity {
     .userContainer{
         padding:0rem;
     }
-    .reviewSuggestionHeading h3{
+    tyr{
         padding-bottom:25px;
     }
     .userTitle p{
@@ -194,6 +194,7 @@ img.profile_identity {
     }
     .userContainer {
         display: table;
+        width:100%;
     }
     .userImg{
         height: 177px;
