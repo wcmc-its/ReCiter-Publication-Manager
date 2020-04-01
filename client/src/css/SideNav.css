@@ -3,7 +3,7 @@
   /* z-index: 1; Stay on top */
   background-color: #202B3B;
   overflow: hidden; /* Disable horizontal scroll */
-  padding-top: 40px;
+  padding-top: 18px;
     color: white;
 
 }
@@ -75,13 +75,15 @@
 .mobile_side_bar{
   display:none;
 }
+/*
 @media (min-width:769px) and (max-width:992px){
   .sideNav{
     position:fixed;
     z-index:999;
     overflow: auto;
     margin-top:0px;
-    height:95vh;
+    height:100vh;
+    width:220px;
  }
  .sideNav_tooglt_btn{
    display:block;
@@ -93,16 +95,19 @@
    display:block;
  }
 }
+*/
 @media (max-width:768px){
-  .sideNav{
-     position:fixed;
-     z-index:999;
-     overflow: auto;
-     margin-top:97px;
-     height:95vh;
-  }
+  .sideNav {
+    position: fixed;
+    z-index: 999;
+    overflow: auto;
+    /* margin-top: 97px; */
+    height: 100vh;
+    width:220px;
+}
   .sideNav_tooglt_btn{
     display:block;
+    margin-right: 10px;
   }
   .desktop_side_bar{
     display:none;
@@ -111,3 +116,124 @@
     display:block;
   }
 }
+
+@media (max-width: 414px){
+
+.sideNav {
+  position: fixed;
+  z-index: 999;
+  overflow: auto;
+  /* margin-top: 97px; */
+  height: 100vh;
+  width: 100%;
+}
+
+.navHr {
+  width: 100%;
+}
+
+nav .navbar-text{
+display:none;
+
+}
+
+}
+
+
+@media (max-width: 812px){
+
+  .sideNav {
+    position: fixed;
+    z-index: 999;
+    overflow: auto;
+    /* margin-top: 97px; */
+    height: 100vh;
+    width: 250px;
+  }
+  
+  .navHr {
+    width: 100%;
+  }
+  
+  nav .navbar-text{
+  display:none;
+  
+  }
+  
+  }
+
+
+
+
+
+/* Smartphones (portrait and landscape) ----------- /*/
+@media only screen
+and (min-device-width : 320px)
+and (max-device-width : 480px) {
+
+}
+
+/* Smartphones (landscape) ----------- /
+@media only screen
+and (min-width : 321px) {
+
+}
+
+/* Smartphones (portrait) ----------- /*/
+@media only screen
+and (max-width : 320px) {
+
+}
+
+/* iPads (portrait and landscape) ----------- /
+@media only screen
+and (min-device-width : 768px)
+and (max-device-width : 1024px) {
+
+}
+
+/* iPads (landscape) ----------- /
+@media only screen
+and (min-device-width : 768px)
+and (max-device-width : 1024px)
+and (orientation : landscape) {
+
+}
+
+/* iPads (portrait) ----------- /*/
+@media only screen
+and (min-device-width : 768px)
+and (max-device-width : 1024px)
+and (orientation : portrait) {
+
+  .sideNav{
+    position:fixed;
+    z-index:999;
+    overflow: auto;
+    margin-top:0px;
+    height:100vh;
+    width:220px;
+ }
+ .sideNav_tooglt_btn{
+   display:block;
+ }
+ .desktop_side_bar{
+   display:none;
+ }
+ .mobile_side_bar{
+   display:block;
+ }
+}
+
+/* Desktops and laptops ----------- /*/
+@media only screen
+and (min-width : 1224px) {
+
+}
+
+/* Large screens ----------- /*/
+@media only screen
+and (min-width : 1824px) {
+
+}
+

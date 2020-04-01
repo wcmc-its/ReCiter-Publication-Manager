@@ -29,7 +29,7 @@ export class Tabs extends Component {
                 <div className="addPubmed_record_link">
                     <p>Add New Record:</p>
                     <Breadcrumb className="bread_crumb_record">
-                        <Breadcrumb.Item href="#">PubMed</Breadcrumb.Item>
+                        <Breadcrumb.Item onClick={() => { this.props.tabClickHandler("Add Publication"); }}>PubMed</Breadcrumb.Item>
                         <Breadcrumb.Item href="https://getbootstrap.com/docs/4.0/components/breadcrumb/">
                             Scopus
                         </Breadcrumb.Item>

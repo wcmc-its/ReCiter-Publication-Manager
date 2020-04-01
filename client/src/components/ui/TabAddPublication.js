@@ -50,9 +50,9 @@ export class TabAddPublication extends Component {
         });
     }
 
-    handleFilterUpdate(filterState) {
+    handleFilterUpdate(event) {
         this.setState({
-            search: filterState.search,
+            search: event.target.value,
             page: 1
         });
     }
@@ -287,9 +287,9 @@ export class TabAddPublication extends Component {
 
         return (
             <div>
-                <div className="h6fnhWdeg-add-publication-search-container">
-                    <div className="row">
-                        <div className="col-md-6">
+                <div >
+                    <div className="row mx-4 my-5">
+                        <div className="col-md-6 px-0 mx-0">
                             <InputGroup>
                                 <FormControl
                                 placeholder="Search..."
@@ -353,10 +353,10 @@ export class TabAddPublication extends Component {
 
                 {
                     (this.props.pubmedFetching) ? <div className="h6fnhWdeg-app-loader"></div> :
-                    <div>
+                    <div className="tab-add-publication">
                         {(this.props.pubmedData.length > 0) ?
                             <div>
-                                <div className="row py-5 mx-0 backgroundColorWhite">
+                                <div className="row py-5 mx-4 backgroundColorWhite">
                                     <div className="col-md-4">
                                         <p>Number of results: <strong>{this.props.pubmedData.length}</strong></p>
                                         <p><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
@@ -367,18 +367,24 @@ export class TabAddPublication extends Component {
                                     (this.state.largeSearchFlag === true) ? <div><span><strong>Too many results. Please provide additional search parameters</strong></span>
                                         </div> :
                                         <React.Fragment>
-                                        <Row className="backgroundColorWhite py-5 mb-1 mx-0">
-                                            <Col lg={10}>
+                                        <Row className="backgroundColorWhite filter-container pt-3 pb-5 mx-4">
+                                            <Col lg={8}>
                                             <Pagination total={this.props.pubmedData.length} page={this.state.page}
                                                         count={this.state.count}
                                                         onChange={this.handlePaginationUpdate}/>
                                             </Col>
-                                            <Col lg={2}>
-                                             <Filter onChange={this.handleFilterUpdate} showSort={false}/>
+                                            <Col lg={4}>
+                                            <input
+                                                type="text"
+                                                className="form-control"
+                                                placeholder="Filter........"
+                                                onKeyUp={this.handleFilterUpdate}
+                                                ref="filter-form-search"
+                                            />
                                             </Col>
                                         </Row>
-                                            <Row>
-                                            <Col md={12}>
+                                            <Row className="py-1 mx-4">
+                                            <Col md={12} className="px-0">
                                             <div>
                                                 
                                                     {

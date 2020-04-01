@@ -30,9 +30,23 @@ label.year-label {
     display: table-cell;
 }
 
+
 input.form-control {
 	width: 80% !important;
 	display: inline !important;
 	margin-top: 0 !important;
+}
+
+.show-rows select{
+    margin-left: 0;
+}
+
+
+.tab-add-publication .filter-container .pagination-container {
+    background-color: #FFF;
+}   
+
+.tab-add-publication .filter-container input.form-control {
+    margin-top: 10px !important;
 }
 
