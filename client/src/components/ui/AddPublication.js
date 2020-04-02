@@ -1,7 +1,9 @@
 import React, { Component } from 'react';
 import '../../css/AddPublication.css';
 import '../ManageProfile/ManageProfile.css';
-import Image from 'react-bootstrap/Image'
+// import Image from 'react-bootstrap/Image';
+import checked_icon from '../../images/icons/checked.svg';
+import cancel_icon from '../../images/icons/close1.svg';
 import { Row, Col, Button, Form, Table, Accordion, Card, Collapse } from 'react-bootstrap';
 
 class AddPublication extends Component {
@@ -38,11 +40,9 @@ class AddPublication extends Component {
                         <tr>
             <td style={{width: "10%"}}>
                 <div className="displayflex padding5px margin0px justifyContentSpaceBt borderRadius0">
-                    <Button className="backgroundColorGreen btn-success" onClick={this.acceptPublication}> <span className="glyphicon glyphicon-ok margin10 padding10" />
-                    Accept
+                    <Button className="pblicationacceptbtn backgroundColorGreen btn-success" onClick={this.acceptPublication}> <span><img src={checked_icon} className='publicationaccepted_icons'/></span> <span className="pblicationacceptbtntext">Accept</span>
                     </Button>
-                    <Button className="backgroundColorRed" onClick={this.rejectPublication}> <span className="glyphicon glyphicon-remove" />
-                    Reject
+                    <Button className="pblicationrejectbtn backgroundColorRed" onClick={this.rejectPublication}> <span><img src={cancel_icon} className='publicationreject_icons'/></span> <span>Reject</span>
                     </Button>
                 </div>
             </td>

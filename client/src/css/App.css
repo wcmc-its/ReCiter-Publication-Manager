@@ -38,7 +38,7 @@ body {
     min-height: 100%;
     display: grid;
     grid-template-rows: [header] 70px [page-content] 1fr [footer] auto;
-    grid-template-columns: [side-nav] 200px [content-start] auto [content-end];
+    grid-template-columns: [side-nav] 220px [content-start] auto [content-end];
 }
 
 .header-position {
@@ -176,7 +176,7 @@ body {
         overflow:hidden;
     }
     .header-position{
-        position:absolute;
+     /* position:absolute;*/
         z-index:999;
         width:100%;
     }
@@ -217,7 +217,7 @@ body {
         overflow: hidden;
     }
     .header-position{
-        position: absolute;
+       /* position: absolute;*/
         z-index:999;
         width:100%;
     }

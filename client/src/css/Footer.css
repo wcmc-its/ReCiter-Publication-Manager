@@ -1,11 +1,83 @@
 .footer{
-    margin-top: 15px;
-    padding-top: 10px;
-    color: #0A0E13;
     font-size: 13px;
-    line-height: 1.2em;
-    font-weight: 300;
-    margin-bottom: 30px;
+    height: 7rem;
+    /* font-weight: 300; */
+    /* margin-bottom: 30px; */
     text-align: center;
+    /* -webkit-filter: blur(10px); */
+    /* filter: blur(10px); */
+    border-top: 1px solid #f1f1f1;
+    /*padding: 1rem;*/
+    line-height: 7rem;
+
+}
+
+
+
+/* Smartphones (portrait and landscape) ----------- /*/
+@media only screen
+and (min-device-width : 320px)
+and (max-device-width : 480px) {
+
+    .footer{
+        height: 4rem;
+        font-size: 10px;
+        padding: 0.5rem;
+    }
+
+}
+
+/* Smartphones (landscape) ----------- */
+@media only screen
+and (min-width : 321px) {
+
+}
+
+/* Smartphones (portrait) ----------- /*/
+@media only screen
+and (max-width : 320px) {
+
+}
+
+/* iPads (portrait and landscape) ----------- */
+@media only screen
+and (min-device-width : 768px)
+and (max-device-width : 1024px) {
+
+    .footer{
+        height: 4rem;
+        font-size: 10px;
+        padding: 0.5rem;
+
+    
+    }
+}
+
+/* iPads (landscape) ----------- */
+@media only screen
+and (min-device-width : 768px)
+and (max-device-width : 1024px)
+and (orientation : landscape) {
+  
+}
+
+/* iPads (portrait) ----------- */
+@media only screen
+and (min-device-width : 768px)
+and (max-device-width : 1024px)
+and (orientation : portrait) {
+
+ 
+}
+
+/* Desktops and laptops ----------- /*/
+@media only screen
+and (min-width : 1224px) {
+
+}
+
+/* Large screens ----------- /*/
+@media only screen
+and (min-width : 1824px) {
 
 }
