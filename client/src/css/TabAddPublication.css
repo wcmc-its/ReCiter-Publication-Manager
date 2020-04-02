@@ -29,7 +29,27 @@ label.year-label {
     width: 60px;
     display: table-cell;
 }
-
+.searchpubmedbtn{
+    height:40px;
+    border-radius: 0px 2px 2px 0px;
+}
+.tab-add-publication {
+    padding: 6px 14px 25px 14px;
+}
+.tabaddpublication_topheader{
+    padding: 7px 14px 0px 14px;  
+}
+.tab-add-publication .pagination_main_wrap {
+    display: none;
+}
+.addpubmedsearchinput{
+    height: 40px;
+    border-radius: 2px;
+    border: solid 1px #474747 ;
+    background-color: #ffffff; 
+    box-shadow: none !important;  
+    outline:none !important; 
+}
 
 input.form-control {
 	width: 80% !important;

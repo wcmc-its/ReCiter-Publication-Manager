@@ -288,16 +288,17 @@ export class TabAddPublication extends Component {
         return (
             <div>
                 <div >
-                    <div className="row mx-4 my-5">
+                    <div className="tabaddpublication_topheader row mx-4 my-5">
                         <div className="col-md-6 px-0 mx-0">
                             <InputGroup>
                                 <FormControl
                                 placeholder="Search..."
                                 ref="search-field"
+                                className="addpubmedsearchinput"
                                 defaultValue={(this.state.pubmedSearch !== undefined)?this.state.pubmedSearch:''}
                             />
                             <InputGroup.Append>
-      <Button className="btn btn-primary"
+      <Button className="searchpubmedbtn btn btn-primary"
                                 onClick={this.search}><FontAwesomeIcon icon={faSearch} size='1x' /></Button>
     </InputGroup.Append></InputGroup>
                         </div>

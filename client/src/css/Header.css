@@ -15,29 +15,33 @@
     align-self: flex-start;
     position: absolute;
     right: 0px;
-    margin: 1rem 7rem 1rem 1rem;
+    margin: 1rem 1rem 1rem 1rem;
   /* border: 1px solid red; */
     padding: 4px;
     font-size: 1.5rem;
 }
 
-.navbar-brand{
+.navbar-brand {
     float: left;
     height: 50px;
-    padding: 15px 15px;
+    padding: 13px 40px 10px 12px;
     font-size: 28px;
     line-height: 20px;
-    width: 178px;
-    text-align: center;
-  }
+    width: 140px;
+    text-align: left;
+    width: 200px;
+
+}
   
 
 
 .navbar-text {
   color: #323942 !important;
   font-weight: bold;
-  font-size:18px;
+  font-size:18px;  
   margin:12px 15px 12px 5px;
+  display:block;
+  font-family: 1898Sans;
 }
 
 /* Dropdown Button */
@@ -45,9 +49,22 @@
     color: #323942;
     font-size: 1.5rem;
     border: none !important;
-    margin: 0 2px;
+    margin: 0px;
+    padding: 0px;
 }
 
+
+.header-username{
+
+  width: 120px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+  display: inline-block;
+  vertical-align: middle;
+  
+}
 
 /* The container <div> - needed to position the dropdown content*/
 .dropdown {
@@ -85,38 +102,165 @@
 
 /* Change the background color of the dropdown button when the dropdown content is shown */
 .dropdown:hover .dropbtn {background-color: #3e8e41;}
+/*
 
-@media(min-width:769px) and (max-width:992px){
-.drop-container{
-  right:58px;
+
+
+/*********
+
+Responsive to following devices 
+
+1281px to higher    Desktop - Hig Resolution                    *[Secondary] 
+1025px to 1280px    Desktop/Laptops                             *[DEFAULT]        
+768px to 1024px     Tablets, Ipads (portrait)                   *[Secondary]  
+768px to 1024px     Tablets, Ipads (landscape)                  *[DEFAULT]  
+481px to 767px      Low Resolution Tablets, Mobiles (Landscape)
+375px to 812px      iPhone X (landscape)
+375px to 667px      iPhone 6/7/8 (Portrait)                     *[Secondary] 
+320px to 479px      Most of the Smartphones Mobiles (Portrait)
+
+
+**********/
+
+/* 
+  ##Device = Desktops
+  ##Screen = 1281px to higher resolution desktops
+*/
+
+@media (min-width: 1281px) {
+  
+  
+}
+
+/* 
+  ##Device = Laptops, Desktops
+  ##Screen = B/w 1025px to 1280px
+*/
+
+@media (min-width: 1025px) and (max-width: 1280px) {
+  
+
+  
+}
+
+/* 
+  ##Device = Tablets, Ipads (portrait)
+  ##Screen = B/w 768px to 1024px
+*/
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  
+  .drop-container{
+
+    margin: 1rem 6rem 1rem 1rem;
+
+}
+  
+}
+
+/* 
+  ##Device = Tablets, Ipads (landscape)
+  ##Screen = B/w 768px to 1024px
+*/
+
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: landscape) {
+  
+  .drop-container{
+    margin: 1rem 1rem 1rem 1rem;
+  }
+  
+}
+
+/* 
+  ##Device = Low Resolution Tablets, Mobiles (Landscape)
+  ##Screen = B/w 481px to 767px   
+*/
+
+@media (min-width: 481px) and (max-width: 767px) {
+  
+
+  
+}
+
+
+/* 
+  ##Device = iPhone X (landscape)
+  ##Screen = B/w 375px to 812px 
+*/
+
+@media (min-width: 375px) and (max-width: 812px) and (orientation: landscape) {
+  
+  .drop-container{
+    margin: 1rem 6rem 1rem 1rem;
+  }
+  
+}
+
+
+
+
+/* 
+  ##Device = Most of the Smartphones Mobiles (Portrait)
+  ##Screen = B/w 320px to 479px 
+*/
+
+@media (min-width: 320px) and (max-width: 480px) {
+  
+  .navbar-text{
+    display:none;
+
+  }
+  .drop-container{
+    margin: 1rem 5rem 1rem 1rem;
+  }
+
+  .navbar-brand {
+    padding: 15px 0px;
+    
+  }
+  .header-username {
+    width: 100px;
 }
 }
-@media(max-width:768px){
-/* .topNav{
-  display:block;
-} */
-.navbar{
-  display:block;
+
+/* 
+  ##Device = iPhone 6/7/8 (Portrait)
+  ##Screen = B/w 375px to 667px     
+*/
+
+@media (min-width: 375px) and (max-width: 667px) {
+  
+  .navbar-text{
+    display:none;
+
+  }
+  .drop-container{
+    margin: 1rem 5rem 1rem 1rem;
+  }
+
+  .navbar-brand {
+    padding: 15px 0px;
+
+  }
 }
-.navbar-brand{
-    float: left;
-    height: 50px;
-    padding: 15px 15px;
-    font-size: 28px;
-    line-height: 20px;
-    width: 140px;
-    text-align: left;
-}
-.navbar-text{
-  display:block;
-  padding-left:8px;
-  margin:0px;
-  font-size:14px;
-  line-height: 40px;
-}
-.drop-container{
-  right: -14px;
-  margin-top: -23px;
-  bottom:0px;
-}
+
+/* 
+  ##Device = iPhone 6/7/8 (Landscape)
+  ##Screen = B/w 375px to 667px
+*/
+
+@media (min-width: 375px) and (max-width: 667px) and (orientation: landscape) {
+  
+  .navbar-text{
+    display:none;
+
+  }
+  .drop-container{
+    margin: 1rem 7rem 1rem 1rem;
+  }
+
+  .navbar-brand {
+    padding: 15px 0px;
+
+  }
 }

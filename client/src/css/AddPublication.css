@@ -1,1 +1,24 @@
 
+.pblicationacceptbtn{
+    height: 33px;
+    border-radius: 2px;
+    background-color: #77d900;
+    border: 1px solid #77d900 !important;
+}
+.pblicationrejectbtn{
+    width: 80px;
+    height: 33px;
+    border-radius: 2px;
+    background-color: #d91a00;
+    border:1px solid #d91a00 !important;
+}
+.pblicationacceptbtntext{
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #202b3b;  
+}
