@@ -1,4 +1,6 @@
 import React, { Component } from 'react';
+import downarrow from '../../images/icons/down-arrow.svg';
+import uparrow from '../../images/icons/uparrow.svg';
 import "../../css/IdentityTable.css";
 
 class RelationshipBtn extends Component {
@@ -25,7 +27,7 @@ class RelationshipBtn extends Component {
                 <div>
                     {this.getRenderedItems()}
                     <a className="expand-relationships" onClick={this.toggle}>
-                        {this.state.isOpen ? "...Show Less" : "...Show More"}
+                    <span>...</span> {this.state.isOpen ?<p className="manageprofileshowmainlink"><span className="manageprolieshomore_link">Show Less</span> <span><img src={uparrow} className="manageprofile_identityicons" alt="contest-cover" /></span></p> : <p className="manageprofileshowmainlink"><span>Show More</span> <span><img className="manageprofile_identityicons" src={downarrow} alt="contest-cover" /></span></p>}
                     </a>
                 </div>
             );
@@ -144,42 +146,42 @@ export default class IdentityTable extends Component {
             };
 
             return (
-                <table className="h6fnhWdeg-identity-table table">
+                <table className="manaeprofile_mainsource_table h6fnhWdeg-identity-table table">
                     <thead className="thead-dark">
                         <tr>
-                            <th className="text-right" scope="col" style={{ minWidth: '24vw'}}>
+                            <th className="manageprofiletableheader text-right" scope="col" style={{ minWidth: '24vw'}}>
                                 Field
               </th>
-                            <th scope="col">Data</th>
+                            <th className="manageprofiletableheader" scope="col">Data</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Names
               </th>
                             <td>{field.names}</td>
                         </tr>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Organizational units
               </th>
                             <td>{field.orgUnits}</td>
                         </tr>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Degree Year
               </th>
                             <td>{field.degreeYr}</td>
                         </tr>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Instituitions
               </th>
                             <td>{field.institutions}</td>
                         </tr>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Relationships
               </th>
                             <td>
@@ -187,19 +189,19 @@ export default class IdentityTable extends Component {
                             </td>
                         </tr>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Email
               </th>
                             <td>{field.emails}</td>
                         </tr>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Grants
               </th>
                             <td>{field.grants}</td>
                         </tr>
                         <tr>
-                            <th className="text-right" scope="row">
+                            <th className="manageprofiletabledetails text-right" scope="row">
                                 Person Types
               </th>
                             <td>{field.personTypes}</td>

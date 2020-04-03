@@ -1,16 +1,25 @@
-
+.tabaddpublicationtoprow{
+    padding-bottom: 0.3rem !important;
+    padding-top: 2rem !important;
+}
 .pblicationacceptbtn{
     height: 33px;
+    margin-left:5px;
     border-radius: 2px;
-    background-color: #77d900;
+    background-color: #77d900 !important;
     border: 1px solid #77d900 !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 .pblicationrejectbtn{
     width: 80px;
     height: 33px;
+    margin-left:5px;
     border-radius: 2px;
-    background-color: #d91a00;
+    background-color: #d91a00 !important;
     border:1px solid #d91a00 !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 .pblicationacceptbtntext{
     font-size: 15px;
@@ -21,4 +30,18 @@
     letter-spacing: 0.17px;
     text-align: left;
     color: #202b3b;  
+}
+.add-publication_content b{
+    font-family: opensans-bold; 
+}
+.add-publication_content p{
+    font-size: 16px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.94;
+    letter-spacing: 0.18px;
+    text-align: left;
+    color: #000000;
+    margin:0px;   
 }

@@ -17,7 +17,7 @@
   position: relative;
   top: 3px;
   background-repeat: no-repeat;
-  margin-right:1rem;
+  margin-right:0.2rem;
 }
 
 /* The navigation menu links */
@@ -34,10 +34,15 @@
   height: 100%;
   width: 100%;
   text-decoration: none;
-  color: white;
-  font-weight: no;
+  color:#fff;
+  font-family: 'opensans-regular';
   padding: 8px 4px 8px 40px;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: normal;
+  font-stretch: normal;
+  font-style: normal;
+  line-height: 1.36;
+  letter-spacing: -0.32px;
 }
 
 /* When you mouse over the navigation links, change their color */
@@ -49,7 +54,7 @@
   margin-left: 1rem !important;
 }
 .category{
-  font-weight: bold;
+  font-family: opensans-bold;
   /* padding: 0 1rem 0 1rem; */
   font-size: 15px;
 }

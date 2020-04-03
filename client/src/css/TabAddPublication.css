@@ -6,6 +6,10 @@
 }
 #year {
     padding: 0px;
+    height: 40px !important;
+    border-radius: 2px;
+    border: solid 1px #474747;
+    background-color: #ffffff;
 }
 .h6fnhWdeg-add-publication-search-container button {
     margin-left:0px;
@@ -26,8 +30,25 @@
 }
 label.year-label {
     padding-right: 0;
-    width: 60px;
+    /* width: 60px; */
     display: table-cell;
+}
+label.latestyear{
+    width:61px;
+}
+label.earliest{
+ width:70px;   
+}
+.addpublicationlabel{
+    font-size: 16px;
+    font-weight: bold;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.94;
+    letter-spacing: 0.18px;
+    text-align: left;
+    color: #000000;
+    font-family: opensans-bold;   
 }
 .searchpubmedbtn{
     height:40px;
@@ -42,17 +63,29 @@ label.year-label {
 .tab-add-publication .pagination_main_wrap {
     display: none;
 }
+/* .tabaddpublication_topheader input.form-control{
+
+} */
 .addpubmedsearchinput{
     height: 40px;
+    width:86.3% !important;
+    padding-left: 10px !important;
     border-radius: 2px;
     border: solid 1px #474747 ;
     background-color: #ffffff; 
     box-shadow: none !important;  
     outline:none !important; 
+    font-family: opensans-italic;
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    line-height: 1.33;
+    letter-spacing: -0.19px;
+    color: #212121;
 }
 
 input.form-control {
-	width: 80% !important;
+	/* width: 80% !important; */
 	display: inline !important;
 	margin-top: 0 !important;
 }

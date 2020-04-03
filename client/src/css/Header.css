@@ -36,12 +36,17 @@
 
 
 .navbar-text {
-  color: #323942 !important;
+  font-size: 18px;
   font-weight: bold;
-  font-size:18px;  
-  margin:12px 15px 12px 5px;
+  font-stretch: normal;
+  font-style: normal;
+  line-height: 23px;
+  letter-spacing: -0.41px;
+  text-align: center;
+  color: #323942 !important;
+  margin:14px 15px 12px 5px;
   display:block;
-  font-family: 1898Sans;
+  font-family: '1898Sans-Bold,sans-serif';
 }
 
 /* Dropdown Button */
@@ -52,10 +57,7 @@
     margin: 0px;
     padding: 0px;
 }
-
-
 .header-username{
-
   width: 120px;
   overflow: hidden;
   white-space: nowrap;
@@ -63,6 +65,13 @@
   text-align: right;
   display: inline-block;
   vertical-align: middle;
+  font-family: opensans-regular;
+  font-size: 15px;
+  font-weight: normal;
+  font-stretch: normal;
+  font-style: normal;
+  line-height: 1.33;
+  letter-spacing: -0.34px;
   
 }
 

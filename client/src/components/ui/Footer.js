@@ -6,7 +6,7 @@ export default class Footer extends Component {
         return (
             <div className="footer">
                 <p>
-                    © 2019. ReCiter and ReCiter Publications Manager are freely available
+                    © 2019. ReCiter and ReCiter Publications Manager are freely available <br/>
                     and open source under the Apache 2.0 license.
         </p>
             </div>

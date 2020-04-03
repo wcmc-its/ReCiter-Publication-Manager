@@ -48,7 +48,7 @@ class AddPublication extends Component {
             </td>
             <td style={{width: "90%"}}>
             <Row>
-                                    <Col lg={12} className="pt-1">
+                                    <Col lg={12} className="add-publication_content pt-1">
                 <p>
                     <b>Authors: </b>
                     

@@ -42,12 +42,12 @@
   src: local('opensans-extrabold'), url(../src/fonts/OpenSans-ExtraBold.ttf) format('truetype');
 }
 @font-face {
-  font-family: '1898Sans-Bold';
-  src: local('1898Sans-Bold'), url(../src/fonts/1898Sans-Bold.ttf) format('truetype');
+  font-family: '1898Sans-Bold,sans-serif';
+  src: local('1898Sans-Bold,sans-serif'), url(../src/fonts/1898Sans-Bold.ttf) format('truetype');
 }
 @font-face {
-  font-family: '1898Sans-Regular';
-  src: local('1898Sans-Regular'), url(../src/fonts/1898Sans-Regular.ttf) format('truetype');
+  font-family: '1898Sans-Regular,sans-serif';
+  src: local('1898Sans-Regular,sans-serif'), url(../src/fonts/1898Sans-Regular.ttf) format('truetype');
 }
 p{
 font-family:'opensans-regular';

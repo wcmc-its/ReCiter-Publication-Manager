@@ -8,11 +8,19 @@
     /* filter: blur(10px); */
     border-top: 1px solid #f1f1f1;
     /*padding: 1rem;*/
-    line-height: 7rem;
-
 }
-
-
+.footer p{
+font-size: 14px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.71;
+    letter-spacing: 0.16px;
+    text-align: center;
+    color: #0a0e13;
+    padding-top: 33px;
+    padding-bottom: 14px;
+} 
 
 /* Smartphones (portrait and landscape) ----------- /*/
 @media only screen

@@ -304,7 +304,7 @@ export class TabAddPublication extends Component {
                         </div>
                         <div className="col-md-2" >
                             <div className="show-rows">
-                                <label className="year-label">Earliest</label>
+                                <label className="earliest addpublicationlabel year-label">Earliest</label>
                                 <YearPicker
                                     defaultValue={''}
                                     // default is 1900
@@ -326,7 +326,7 @@ export class TabAddPublication extends Component {
                         </div>
                         <div className="col-md-2" >
                             <div className="show-rows">
-                                <label className="year-label">Latest</label>
+                                <label className="latestyear addpublicationlabel year-label">Latest</label>
                                 <YearPicker
                                     defaultValue={''}
                                     // default is 1900
@@ -357,7 +357,7 @@ export class TabAddPublication extends Component {
                     <div className="tab-add-publication">
                         {(this.props.pubmedData.length > 0) ?
                             <div>
-                                <div className="row py-5 mx-4 backgroundColorWhite">
+                                <div className="tabaddpublicationtoprow row py-5 mx-4 backgroundColorWhite">
                                     <div className="col-md-4">
                                         <p>Number of results: <strong>{this.props.pubmedData.length}</strong></p>
                                         <p><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
