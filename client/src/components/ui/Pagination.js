@@ -59,7 +59,7 @@ export class Pagination extends Component {
             }
             return (
                 <div className="row pagination-container">
-                    <div className="col-lg-3 col-xl-3 col-xs-6 col-md-4 col-sm-5">
+                    <div className="paginationshowrecords col-lg-3 col-xl-3 col-xs-12 col-md-4 col-sm-5">
                         <div className="show-rows">
                             <label>Show records</label>
                             <select

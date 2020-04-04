@@ -417,7 +417,7 @@ margin-right: 0px;
         width:100%;
     }
     .individual_search .inputadds{
-        padding-left:0px;
+        padding-left:14px;
     }
     #indivdual_search_selectopts {
         background-position: calc(1% - -163px) 11px,calc(1% - -173px) 11px,0 0;
@@ -442,7 +442,7 @@ margin-right: 0px;
            width:100%;
        }
        .individual_search .inputadds{
-        padding-left:0px;
+        padding-left:4px;
     }
     #indivdual_search_selectopts {
         background-position: calc(1% - -95%) 11px,calc(1% - -97%) 11px,0 0;

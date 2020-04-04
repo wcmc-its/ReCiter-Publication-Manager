@@ -302,11 +302,12 @@ export class TabAddPublication extends Component {
                                 onClick={this.search}><FontAwesomeIcon icon={faSearch} size='1x' /></Button>
     </InputGroup.Append></InputGroup>
                         </div>
-                        <div className="col-md-2" >
-                            <div className="show-rows">
+                        <div className="yearpublicationscolumns col-md-2 col-xs-6" >
+                            <div className="yearsearliest show-rows">
                                 <label className="earliest addpublicationlabel year-label">Earliest</label>
+                                <div className="selectyearpublicationcontainer">
                                 <YearPicker
-                                    defaultValue={''}
+                                    defaultValue={'Years'}
                                     // default is 1900
                                     start={new Date().getFullYear()-20}
                                     // default is false
@@ -322,13 +323,15 @@ export class TabAddPublication extends Component {
                                     name={'year'}
                                     optionClasses={'option classes'}
                                 />
+                               <span class="earliestpublicationdivider publicationselectdivider divider"></span>
+                               </div>
                             </div>
                         </div>
-                        <div className="col-md-2" >
-                            <div className="show-rows">
+                        <div className="yearpublicationscolumns12 yearpublicationscolumns col-md-2 col-xs-6" >
+                            <div className="yearslatest show-rows">
                                 <label className="latestyear addpublicationlabel year-label">Latest</label>
                                 <YearPicker
-                                    defaultValue={''}
+                                    defaultValue={'Years'}
                                     // default is 1900
                                     start={new Date().getFullYear()-20}
                                     // default is false
@@ -344,8 +347,10 @@ export class TabAddPublication extends Component {
                                     name={'year'}
                                     optionClasses={'option classes'}
                                 />
+                                 <span class="latestpublicationdivider publicationselectdivider divider"></span>
                             </div>
                         </div>
+                        
                         <div className="col-md-2">
                             
                         </div>
@@ -358,9 +363,9 @@ export class TabAddPublication extends Component {
                         {(this.props.pubmedData.length > 0) ?
                             <div>
                                 <div className="tabaddpublicationtoprow row py-5 mx-4 backgroundColorWhite">
-                                    <div className="col-md-4">
-                                        <p>Number of results: <strong>{this.props.pubmedData.length}</strong></p>
-                                        <p><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
+                                    <div className="col-md-12">
+                                        <p className="addpublicatiionnumberofresults">Number of results: <strong>{this.props.pubmedData.length}</strong></p>
+                                        <p className="addpublicatiionnumberofresults"><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
                                     </div>
 
                                 </div>
@@ -368,13 +373,13 @@ export class TabAddPublication extends Component {
                                     (this.state.largeSearchFlag === true) ? <div><span><strong>Too many results. Please provide additional search parameters</strong></span>
                                         </div> :
                                         <React.Fragment>
-                                        <Row className="backgroundColorWhite filter-container pt-3 pb-5 mx-4">
+                                        <Row className="addpuubmed_containerfilter backgroundColorWhite filter-container pt-3 pb-5 mx-4">
                                             <Col lg={8}>
                                             <Pagination total={this.props.pubmedData.length} page={this.state.page}
                                                         count={this.state.count}
                                                         onChange={this.handlePaginationUpdate}/>
                                             </Col>
-                                            <Col lg={4}>
+                                            <Col lg={4} sm={6}>
                                             <input
                                                 type="text"
                                                 className="form-control"
@@ -384,7 +389,7 @@ export class TabAddPublication extends Component {
                                             />
                                             </Col>
                                         </Row>
-                                            <Row className="py-1 mx-4">
+                                            <Row className="addpublicationssrows mx-4">
                                             <Col md={12} className="px-0">
                                             <div>
                                                 

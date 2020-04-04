@@ -4,12 +4,33 @@
     padding: 20px;
     margin-bottom: 20px;
 }
+.addpuubmed_containerfilter{
+    padding-bottom:2.3rem !important;
+}
+.yearsearliest {
+    position: relative;
+    margin-left: 0px;
+}
 #year {
-    padding: 0px;
+    padding: 0px 0px 0px 12px !important;
     height: 40px !important;
     border-radius: 2px;
     border: solid 1px #474747;
     background-color: #ffffff;
+    width:90px !important;
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-family:opensans-regular;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #474747;
+
+}
+.yearpublicationscolumns{
+    padding-right:0px;
 }
 .h6fnhWdeg-add-publication-search-container button {
     margin-left:0px;
@@ -20,6 +41,18 @@
     border-radius: 2px;
     outline: none !important;
     padding: 7px 12px;
+}
+.addpublicatiionnumberofresults{
+    font-size: 16px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.38;
+    letter-spacing: -0.36px;
+    color: #323942;   
+}
+.addpublicatiionnumberofresults strong{
+    font-family:opensans-bold;
 }
 .h6fnhWdeg-add-publication-search-container .form-control{
     border-radius:2px;
@@ -35,9 +68,13 @@ label.year-label {
 }
 label.latestyear{
     width:61px;
+    position: relative;
+    top: 3px;
 }
 label.earliest{
- width:70px;   
+ width:70px;
+ position: relative;
+ top: 3px;   
 }
 .addpublicationlabel{
     font-size: 16px;
@@ -53,6 +90,8 @@ label.earliest{
 .searchpubmedbtn{
     height:40px;
     border-radius: 0px 2px 2px 0px;
+    outline: none !important;
+    box-shadow: none !important;
 }
 .tab-add-publication {
     padding: 6px 14px 25px 14px;
@@ -89,7 +128,26 @@ input.form-control {
 	display: inline !important;
 	margin-top: 0 !important;
 }
-
+.yearsearliest select{
+    background-image: linear-gradient(45deg, transparent 64%, #005ad9 33%), linear-gradient(135deg, #005ad9 44%, transparent 39%) !important;
+    background-position: calc(1% - -62px) 15px, calc(1% - -72px) 15px, 0% 0px;
+  background-size: 10px 10px, 10px 10px;
+  background-repeat: no-repeat;
+  -webkit-appearance: none;
+  appearance: none;   
+  outline: 0px !important;
+    box-shadow: none !important;  
+}
+.yearslatest select{
+    background-image:linear-gradient(45deg, transparent 64%, #005ad9 33%), linear-gradient(135deg, #005ad9 44%, transparent 39%) !important;
+    background-position: calc(1% - -63px) 15px, calc(1% - -73px) 15px, 0% 0px;
+  background-size: 10px 10px, 10px 10px;
+  background-repeat: no-repeat;
+  -webkit-appearance: none;
+  appearance: none; 
+  outline: 0px !important;
+    box-shadow: none !important; 
+}
 .show-rows select{
     margin-left: 0;
 }

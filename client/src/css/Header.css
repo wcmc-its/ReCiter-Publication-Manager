@@ -4,9 +4,11 @@
     border-bottom: 1px solid #d1d1d1;
     margin: 0;
     display: flex;
-    position: relative;
     color: black;
     padding-left: 10px;
+    position: fixed;
+    width: 100%;
+    z-index: 990;
 }
 
 .drop-container{
@@ -15,7 +17,7 @@
     align-self: flex-start;
     position: absolute;
     right: 0px;
-    margin: 1rem 1rem 1rem 1rem;
+    margin: 1rem 3.1rem 1rem 1rem;
   /* border: 1px solid red; */
     padding: 4px;
     font-size: 1.5rem;
@@ -229,7 +231,11 @@ Responsive to following devices
   }
   .header-username {
     width: 100px;
-}
+  }
+  .topNav {
+  position: fixed !important;
+  width: 100%;
+  }
 }
 
 /* 
@@ -251,6 +257,12 @@ Responsive to following devices
     padding: 15px 0px;
 
   }
+  .topNav {
+    position: fixed !important;
+    width: 100%;
+  }
+
+
 }
 
 /* 
@@ -272,4 +284,37 @@ Responsive to following devices
     padding: 15px 0px;
 
   }
+  .topNav {
+    position: fixed !important;
+    width: 100%;
+  }
+
 }
+
+
+/* 
+  ##Device = iPhone 6/7/8 PLUS  (Portrait)
+  ##Screen = B/w 414px to 736px     
+*/
+
+@media (min-width: 414px) and (max-width: 736px) {
+
+
+  .topNav {
+    position: fixed !important;
+    width: 100%;
+  }
+
+
+
+}
+
+@media (min-width:992px) and (max-width:1023px){
+  
+  .drop-container{
+    padding-right: 4rem;
+  }
+
+}
+
+

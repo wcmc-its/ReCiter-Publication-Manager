@@ -41,17 +41,18 @@ export default class Identity extends Component {
                 imageUrl = '../images/generic-headshot.png'
         }
         const image = (
-            <img src={`${imageUrl}`}  alt="contest-cover" className="profile_identity"/>
+            <img src={`${imageUrl}`} alt="contest-cover" className="profile_identity" />
         );
         const userData = {
             primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined) ? ' ' + identityData.primaryName.middleName + ' ' : ' ') + identityData.primaryName.lastName,
             title: identityData.title
         };
+        const displayBanner = this.props.buttonName == 'Manage Profile' ? 'Review Suggestions' : 'Manage Profile';
 
         return (
             <div>
                 <div className="reviewSuggestionHeading">
-                    <h3>Review Suggestions</h3>
+                    <h3>{displayBanner}</h3>
                 </div>
                 <div className="userContainer">
 

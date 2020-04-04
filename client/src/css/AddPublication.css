@@ -2,6 +2,9 @@
     padding-bottom: 0.3rem !important;
     padding-top: 2rem !important;
 }
+.addpublicationtablebody .table-responsive{
+    overflow:initial;
+}
 .pblicationacceptbtn{
     height: 33px;
     margin-left:5px;
@@ -10,6 +13,11 @@
     border: 1px solid #77d900 !important;
     outline: none !important;
     box-shadow: none !important;
+}
+.tab-add-publication .filter-container input{
+    width: 84.4%;
+    float:right;
+    margin-right:19.4px;
 }
 .pblicationrejectbtn{
     width: 80px;
@@ -20,6 +28,26 @@
     border:1px solid #d91a00 !important;
     outline: none !important;
     box-shadow: none !important;
+}
+.earliestpublicationdivider {
+    margin-right: 32px;
+    right: 0px;
+
+}
+.latestpublicationdivider {
+    margin-right: 19px;
+    right: 0px;
+}
+.publicationselectdivider {
+    background-color: #474747;
+    width: 2px;
+    height: 22px;
+    position: absolute;
+    margin-left: 0px;
+    margin-top: -31px;
+}
+.yearpublicationscolumns12{
+    padding-left:30px;
 }
 .pblicationacceptbtntext{
     font-size: 15px;
@@ -44,4 +72,359 @@
     text-align: left;
     color: #000000;
     margin:0px;   
+}
+.addpublicationssrows{
+    padding-top:0.15rem !important;
+}
+@media (min-width:1800px) and (max-width:1920px){
+    .earliestpublicationdivider {
+        margin-right: 73px;
+    } 
+    .latestpublicationdivider {
+        margin-right: 57px;
+    } 
+#year {
+    width: 154px !important;
+}
+.yearslatest select{
+    background-position: calc(1% - -122px) 15px, calc(1% - -132px) 15px, 0% 0px;   
+}
+    .yearsearliest select{
+        background-position: calc(1% - -120px) 15px, calc(1% - -130px) 15px, 0% 15px;    
+    }
+} 
+@media (min-width:1600px) and (max-width:1799px){
+    .earliestpublicationdivider {
+        margin-right: 73px;
+    } 
+    .latestpublicationdivider {
+        margin-right: 57px;
+    }     
+}
+@media (min-width:1500px) and (max-width:1599px){
+
+}
+@media (min-width:1366px) and (max-width:1499px){
+    .earliestpublicationdivider {
+        margin-right: 35px;
+    }
+    .latestpublicationdivider {
+        margin-right: 26px;
+    }
+}
+@media (min-width:1200px) and (max-width:1300px){
+    .latestpublicationdivider {
+        margin-right: -2px;
+    }
+    .earliestpublicationdivider {
+        margin-right: 37px;
+    }
+    .yearsearliest select {
+        background-image: linear-gradient(45deg, transparent 60%, #005ad9 33%), linear-gradient(135deg, #005ad9 39%, transparent 11%) !important;
+        background-position: calc(1% - -63px) 15px, calc(1% - -72px) 15px, 0% 0px;
+        
+    }
+    .yearslatest select{
+        background-image: linear-gradient(45deg, transparent 60%, #005ad9 33%), linear-gradient(135deg, #005ad9 39%, transparent 11%) !important;
+        background-position: calc(1% - -64px) 15px, calc(1% - -73px) 15px, 0% 0px;    
+    }
+    .yearslatest {
+        margin-left: 12px;
+    }
+}
+@media (min-width:1024px) and (max-width:1199px){
+    .yearslatest {
+        margin-left: 45px;
+    }
+    .latestpublicationdivider {
+        margin-right: -66px;
+    }    
+    .addpuubmed_containerfilter .show-rows{
+        width:176px;
+    }
+    .paginationshowrecords {
+        padding-left: 0px !important;
+        margin-left: 0px;
+    }
+    .earliestpublicationdivider {
+        margin-right: 37px;
+    }
+}
+@media (min-width:992px) and (max-width:1023px){
+    .yearpublicationscolumns12 {
+        padding-left: 64px;
+    }
+    .latestpublicationdivider {
+        margin-right: -31px;
+    } 
+    .earliestpublicationdivider {
+        margin-right: 39px;
+    }    
+}
+@media (min-width:768px) and (max-width:991px){
+    .tab-add-publication{
+        width:100vw;
+    }   
+    .addpuubmed_containerfilter{
+        width: 92.5vw;   
+    }
+    .tab-add-publication .filter-container .pagination-container{
+        width:90vw;
+    }
+    .latestpublicationdivider {
+        margin-right: -81px;
+    }
+    .yearpublicationscolumns12 {
+        padding-left: 77px !important;
+    }
+    .yearpublicationscolumns {
+        padding-right: 0px;
+        padding-left: 39px;
+    }
+    label.earliest{
+        padding-right: 5px;
+    }
+}
+@media (min-width:680px) and (max-width:767px){
+    .tab-add-publication{
+        width:100vw;
+    }   
+    .addpuubmed_containerfilter{
+           width: 91.5vw;  
+    }
+    .tab-add-publication .filter-container .pagination-container{
+        width:89vw;
+    }
+    .addpublicationtablebody .table-responsive {
+        overflow: auto;
+    }
+    .yearpublicationscolumns {
+        margin-top: 15px;
+    }
+    .earliestpublicationdivider {
+        margin-right: 165px;
+    }
+    .latestpublicationdivider {
+        margin-right: 149px;
+    }
+    
+}
+@media (min-width:560px) and (max-width:679px){
+    .tab-add-publication{
+        width:100vw;
+    }   
+    .addpuubmed_containerfilter {
+        width: 89.6vw;
+    }
+    .tab-add-publication .filter-container .pagination-container{
+        width:86vw;
+    }
+    .addpublicationtablebody .table-responsive {
+        overflow: auto;
+    }
+    .tab-add-publication .filter-container input{
+        float:initial;
+    } 
+    .yearpublicationscolumns {
+        padding-right: 0px;
+        padding-left: 0px;
+        margin-top: 15px;
+    }
+    .earliestpublicationdivider {
+        margin-right: 117px;
+    }
+    .latestpublicationdivider {
+        margin-right: 117px;
+    } 
+}
+@media (min-width:480px) and (max-width:559px){
+    .tab-add-publication{
+        width:100vw;
+    }   
+    .addpuubmed_containerfilter {
+        width: 97.2vw;
+    }
+    .tab-add-publication .filter-container .pagination-container{
+        width:86vw;
+    }
+    .tab-add-publication {
+        padding: 6px 0px 25px 0px;
+    }
+    .mx-4{
+        margin-left:0.5rem !important;
+        margin-right:0.5rem !important;
+    }
+    .addpublicationtablebody .table-responsive {
+        overflow: auto;
+    }
+    .tab-add-publication .filter-container input{
+        float:initial;
+    }
+    .addpuubmed_containerfilter .paginationshowrecords .show-rows{
+        margin-left:0px;
+    }
+    .addpuubmed_containerfilter .paginationshowrecords {
+        width: 36%;
+        padding-left: 0px;
+    }  
+    .yearpublicationscolumns {
+        padding-right: 0px;
+        padding-left: 0px;
+        margin-top: 15px;
+    }
+    .earliestpublicationdivider {
+        margin-right: 90px;
+    }
+    .latestpublicationdivider {
+        margin-right: 89px;
+    } 
+}
+@media (min-width:414px) and (max-width:479px){
+    .tab-add-publication{
+        width:100vw;
+    }   
+    .addpuubmed_containerfilter {
+        width: 97.2vw;
+    }
+    .tab-add-publication .filter-container .pagination-container{
+        width:86vw;
+    }
+    .tab-add-publication {
+        padding: 6px 0px 25px 0px;
+    }
+    .mx-4{
+        margin-left:0.5rem !important;
+        margin-right:0.5rem !important;
+    }
+    .addpublicationtablebody .table-responsive {
+        overflow: auto;
+    }
+    .tab-add-publication .filter-container input{
+        float:initial;
+    }
+    .tabaddpublication_topheader {
+        padding: 7px 14px 0px 0px;
+    }
+    .yearpublicationscolumns {
+        padding-right: 0px;
+        padding-left: 0px;
+        margin-top: 15px;
+    }
+.addpuubmed_containerfilter .paginationshowrecords .show-rows{
+        margin-left:0px;
+    }
+    .latestpublicationdivider {
+        margin-right: 64px;
+    }
+    .earliestpublicationdivider {
+        margin-right: 64px;
+    }
+   .addpuubmed_containerfilter .paginationshowrecords {
+        width:46%;
+        padding-left: 0px;
+    } 
+
+}
+@media (min-width:375px) and (max-width:413px){
+    .tab-add-publication{
+        width:100vw;
+    }   
+    .addpuubmed_containerfilter {
+        width: 97.2vw;
+    }
+    .tab-add-publication .filter-container .pagination-container{
+        width:86vw;
+    }
+    .tab-add-publication {
+        padding: 6px 0px 25px 0px;
+    }
+    .mx-4{
+        margin-left:0.5rem !important;
+        margin-right:0.5rem !important;
+    }
+    .addpublicationtablebody .table-responsive {
+        overflow: auto;
+    }
+    .tab-add-publication .filter-container input{
+        float:initial;
+    }
+    .tabaddpublication_topheader {
+        padding: 7px 14px 0px 0px;
+    }
+    .yearpublicationscolumns {
+        padding-right: 0px;
+        padding-left: 0px;
+        margin-top: 15px;
+    }
+.addpuubmed_containerfilter .paginationshowrecords .show-rows{
+        margin-left:0px;
+    }
+    .latestpublicationdivider {
+        margin-right: 43px;
+    }
+    .earliestpublicationdivider {
+        margin-right: 43px;
+    }
+   .addpuubmed_containerfilter .paginationshowrecords {
+        width:46%;
+        padding-left: 0px;
+    } 
+    
+}
+@media (min-width:320px) and (max-width:374px){
+    .tab-add-publication{
+        width:100vw;
+    }   
+    .addpuubmed_containerfilter {
+        width: 96.9vw;
+    }
+    .tab-add-publication .filter-container .pagination-container{
+        width:86vw;
+    }
+    .tab-add-publication {
+        padding: 6px 0px 25px 0px;
+    }
+    .mx-4{
+        margin-left:0.5rem !important;
+        margin-right:0.5rem !important;
+    }
+    .addpublicationtablebody .table-responsive {
+        overflow: auto;
+    }
+    .tab-add-publication .filter-container input{
+        float:initial;
+    }
+    .earliestpublicationdivider {
+        margin-right: 38px;
+    }
+    .latestpublicationdivider {
+        margin-right: 29px;
+    }
+    .tabaddpublication_topheader {
+        padding: 7px 14px 0px 0px;
+    }
+    .yearpublicationscolumns {
+        padding-right: 0px;
+        padding-left: 0px;
+        margin-top: 15px;
+    }
+.addpuubmed_containerfilter .paginationshowrecords .show-rows{
+        margin-left:0px;
+    }
+    .addpuubmed_containerfilter .paginationshowrecords {
+        width: 59%;
+        padding-left: 0px;
+    } 
+    label.earliest{
+        padding-right: 2px;  
+        font-size: 12px;  
+    }
+    label.latestyear{
+        font-size:12px;
+    } 
+}
+@media(max-width:768px){
+    .addpublicationtablebody .table-responsive{
+        margin-bottom: 0px;
+    }
 }

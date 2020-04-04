@@ -34,8 +34,8 @@ class AddPublication extends Component {
 
         const { item } = this.props;
 
-        return <div className="tableBody backgroundColorWhite">
-                <Table className="mb-1">
+        return <div className="addpublicationtablebody tableBody backgroundColorWhite">
+                <Table className="mb-1" responsive>
                     <tbody>
                         <tr>
             <td style={{width: "10%"}}>

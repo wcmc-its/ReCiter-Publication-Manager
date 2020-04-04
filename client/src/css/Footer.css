@@ -27,10 +27,10 @@ font-size: 14px;
 and (min-device-width : 320px)
 and (max-device-width : 480px) {
 
-    .footer{
+    .footer p{
         height: 4rem;
         font-size: 10px;
-        padding: 0.5rem;
+        padding-top: 20px;
     }
 
 }
@@ -44,7 +44,10 @@ and (min-width : 321px) {
 /* Smartphones (portrait) ----------- /*/
 @media only screen
 and (max-width : 320px) {
-
+    .footer p {
+        font-size: 10px;
+        padding-top: 20px;
+    }
 }
 
 /* iPads (portrait and landscape) ----------- */

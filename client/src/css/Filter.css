@@ -9,11 +9,15 @@
     letter-spacing: -0.19px;
     text-align: left;
     color: #212121;
+    font-family:opensans-regular;
     height: 40px;
     border-radius: 2px;
     border: solid 1px #474747;
     background-color: #ffffff;
     border: solid 1px #474747 !important;
+    padding-left:8px !important;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 .filter-sort-by-label {

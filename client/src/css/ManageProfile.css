@@ -88,3 +88,63 @@
     padding-top: 8px;
     padding-bottom: 8px;
 }
+
+
+
+
+/* 
+  ##Device = iPhone 6/7/8 (Portrait)
+  ##Screen = B/w 375px to 667px     
+*/
+
+@media (min-width: 375px) and (max-width: 667px) {  
+   
+
+.identity-manageprofiletop-text{
+
+padding:0px;
+}
+.manage-profile-identity{
+
+    padding: 1rem 0rem;
+}
+
+
+.userContainer {
+    padding: 1rem 0 0rem 0;
+}
+
+
+
+  }
+
+
+
+
+ /* 
+    ##Device = ALL SMALL DEVICES
+    ##Screen = B/w 375px to 667px     
+    */
+  
+
+    @media (max-width: 768px)  {
+        
+        .identity-table-container {
+        padding: 2rem;
+        }   
+
+        .userContainer {
+            padding: 1rem 0 0rem 0rem;
+        }
+        
+        .manage-profile-identity{
+            padding: 6rem 1rem;
+            padding-bottom:0px;
+        }
+
+      
+    
+    }
+
+
+    
