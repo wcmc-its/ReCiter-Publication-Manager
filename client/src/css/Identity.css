@@ -42,7 +42,7 @@ img.profile_identity {
     font-style: normal;
     line-height: 1.33;
     letter-spacing: -0.41px;
-    font-family: opensans-bold;
+    font-family: '1898Sans-Bold,sans-serif';
     color: #323942;
 }
 .userTitle p{

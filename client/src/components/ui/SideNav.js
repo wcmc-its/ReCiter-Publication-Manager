@@ -72,8 +72,16 @@ export default class SideNav extends Component {
                     this.state.childVisible ? <div className="sideNav">{listItems}</div> : null}
             </div>
             <div className="sideNav_tooglt_btn_pos" onClick={this.onClick.bind(this)}>
-                <Button variant="primary" className="sideNav_tooglt_btn">{
-                    this.state.childVisible ? <FontAwesomeIcon icon={faOutdent} size='1x' /> : <FontAwesomeIcon icon={faBars} size='1x' />}</Button>
+            {/*<Button className="sideNav_tooglt_btn">{
+                    this.state.childVisible ? <FontAwesomeIcon icon={faOutdent} size='1x' className="sidenavoutdenticon"/> : <FontAwesomeIcon icon={faBars} size='1x' />}
+            </Button>*/}
+
+            {
+                    this.state.childVisible ? <span className="sideNav_tooglt_btn"><FontAwesomeIcon icon={faOutdent} size='1x' className="sideNav_outdentIcon"/></span> : <span className="sideNav_tooglt_btn"><FontAwesomeIcon icon={faBars} size='1x' /></span>
+                    
+            }
+            
+            
             </div> </div>;
     }
 }

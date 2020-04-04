@@ -19,15 +19,15 @@
     margin-top: 10px;
 }
 .addPubmed_record_link p{
+    display: inline-block;
     font-size: 15px;
     font-weight: normal;
     font-stretch: normal;
-    font-style: normal;
+    font-style: italic;
     line-height: 1.33;
     letter-spacing: 0.17px;
-    text-align: left;
-    color: #000;
-    display:inline-block;
+    /* text-align: left; */
+    color: #343434;
 }
 .bread_crumb_record{
     display:inline-block;
@@ -211,6 +211,9 @@ width:1024px;
     .h6fnhWdeg-publication-buttons {
         width: 217px !important;
     }
+    .addPubmed_record_link {
+padding-top:40px;
+    }
 }
 @media (min-width :481px) and (max-width :600px) {
     .tabs-headers li:nth-child(1) {
@@ -242,6 +245,7 @@ width:1024px;
         position: relative;
         float: left;
         padding-left: 40px;
+        padding-top: 15px;
     }
     .Tabs_main_body1{
         padding:20px 15px;

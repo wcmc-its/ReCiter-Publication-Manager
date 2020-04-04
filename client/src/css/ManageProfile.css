@@ -8,10 +8,24 @@
     grid-row-start: identity;
     padding: 1rem 3rem;
 }
-
+.identity-manageprofiletop-text{
+    font-size: 14px;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.5;
+    letter-spacing: 0.16px;
+    text-align: left;
+    color: #0a0e13;
+    font-family: opensans-bold;
+    margin: 0 0 7px;
+    padding-right: 22%; 
+}
+.manageprogiletopcolumn-text {
+    padding-left: 0px;
+}
 .identity-table-container {
     grid-row-start: identity-table;
-    padding: 3rem;
+    padding: 2.3rem 3rem 2.2rem 3rem;
     background: #EFEFEF;
 }
 
@@ -20,17 +34,117 @@
 }
 
 .identity-table-container .table td, .identity-table-container .table th {
-    border-top: 1px solid #A4a4a4;
+    border-top:2px solid #f4f4f4;
     padding: 16px;
 }
 
 .identity-table-container .table th {
-    border-top: 1px solid #A4a4a4;
+    border-top:2px solid #f4f4f4;
     padding-right: 32px;
 }
+.manageprofile_identityicons{
+    width: 14.2px;
+    vertical-align: top;
+    margin-top: 1px;
+}
+.manaeprofile_mainsource_table td{
+    font-size: 14px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.29;
+    letter-spacing: 0.16px;
+    text-align: left;
+    color: #000000;
+    font-family: opensans-regular;
+}
+.manageprofileshowmainlink {
+    margin-right: 1rem;
+    color:#005ad9;
+    cursor: pointer;
+}
 
+.manageprofiletabledetails{
+    font-size: 14px;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.64;
+    letter-spacing: 0.16px;
+    color: #0a0e13;
+    font-family: opensans-bold;
+}
+.manageprofiletableheader{
+    font-size: 15px;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33 !important;
+    letter-spacing: 0.17px;
+    /* text-align: left;
+    color: #ffffff; */
+    font-family: opensans-bold;   
+}
 .identity-table-container .table thead th {
     border-top: 1px solid #A4a4a4;
     padding-top: 8px;
     padding-bottom: 8px;
 }
+
+
+
+
+/* 
+  ##Device = iPhone 6/7/8 (Portrait)
+  ##Screen = B/w 375px to 667px     
+*/
+
+@media (min-width: 375px) and (max-width: 667px) {  
+   
+
+.identity-manageprofiletop-text{
+
+padding:0px;
+}
+.manage-profile-identity{
+
+    padding: 1rem 0rem;
+}
+
+
+.userContainer {
+    padding: 1rem 0 0rem 0;
+}
+
+
+
+  }
+
+
+
+
+ /* 
+    ##Device = ALL SMALL DEVICES
+    ##Screen = B/w 375px to 667px     
+    */
+  
+
+    @media (max-width: 768px)  {
+        
+        .identity-table-container {
+        padding: 2rem;
+        }   
+
+        .userContainer {
+            padding: 1rem 0 0rem 0rem;
+        }
+        
+        .manage-profile-identity{
+            padding: 6rem 1rem;
+            padding-bottom:0px;
+        }
+
+      
+    
+    }
+
+
+    

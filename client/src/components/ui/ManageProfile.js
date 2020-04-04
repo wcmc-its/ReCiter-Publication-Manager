@@ -42,13 +42,15 @@ class ManageProfile extends Component {
                         />
                     </div>
                     <div className="identity-table-container">
-                        <p style={{maxWidth: '60%'}}>
+                        <div className="manageprogiletopcolumn-text col-lg-8 col-sm-12 col-xs-12">
+                        <p className="identity-manageprofiletop-text">
                             <b>
                                 The following are attributes from institutional data sources.
                                 These data can only be corrected in authoritative systems of
                                 record.
                             </b>
                         </p>
+                        </div>
                         <IdentityTable identityData={this.props.identityData} identityFetching={this.props.identityFetching} />
                     </div>
                 </div>

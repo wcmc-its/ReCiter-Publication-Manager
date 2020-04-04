@@ -11,7 +11,7 @@ body{
 }
 
 .login-main-container{
-    min-height: 100%;
+    min-height: 94%;
     display: grid;
     grid-template-rows: [header] auto [form] 1fr [footer] auto;
 }
@@ -19,7 +19,9 @@ body{
 .header{
     grid-row-start: header;
 }
-
+.login-main-container .form-container{
+    grid-row-start: 2;
+}
 .form-container{
     display: grid;
     align-items: center;

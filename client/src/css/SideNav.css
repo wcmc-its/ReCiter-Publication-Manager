@@ -3,13 +3,15 @@
   /* z-index: 1; Stay on top */
   background-color: #202B3B;
   overflow: hidden; /* Disable horizontal scroll */
-  padding-top: 40px;
+  padding-top: 50px;
   color: white;
   width:220px;
-
 }
 
 .icon {
+/* Side Nave 16-24px
+   padding: 8px 4px 8px 40px;
+ 
   width: 16px;
   height: 16px;
   display: inline-block;
@@ -17,7 +19,19 @@
   position: relative;
   top: 3px;
   background-repeat: no-repeat;
-  margin-right:1rem;
+  margin-right:0.2rem;
+*/
+  width: 24px;
+    height: 24px;
+    display: inline-block;
+    background-size: contain;
+    position: relative;
+    top: 5px;
+    background-repeat: no-repeat;
+    margin-right: .5rem;
+
+
+
 }
 
 /* The navigation menu links */
@@ -34,10 +48,19 @@
   height: 100%;
   width: 100%;
   text-decoration: none;
-  color: white;
-  font-weight: no;
-  padding: 8px 4px 8px 40px;
-  font-size: 15px;
+  color:#fff;
+  font-family: 'opensans-regular';
+  /* Side Nave 16-24px
+   padding: 8px 4px 8px 40px;
+  */
+  padding: 8px 4px 8px 48px;
+
+  font-size: 14px;
+  font-weight: normal;
+  font-stretch: normal;
+  font-style: normal;
+  line-height: 1.36;
+  letter-spacing: -0.32px;
 }
 
 /* When you mouse over the navigation links, change their color */
@@ -46,10 +69,15 @@
   background-color: #005AD9;
 }
 .side_nav_icon {
+  /* Side Nave 16-24px
   margin-left: 1rem !important;
+  */
+  
+  margin-left: 1.5rem !important;
+
 }
 .category{
-  font-weight: bold;
+  font-family: opensans-bold;
   /* padding: 0 1rem 0 1rem; */
   font-size: 15px;
 }
@@ -57,19 +85,25 @@
 .navHr{
     border-color:#999999 ;
     width:160px;
+    
 }
 .side_bar_active{
   color: white;
   background-color: #005AD9;
 }
 .sideNav_tooglt_btn{
-  position:absolute;
-  right:0;
-  top:15px;
-  z-index:999;
-  display:none;
+  position: absolute;
+  right: 0;
+  top: 15px;
+  z-index: 999;
+  display: none;
+  background-color: transparent !important;
+  color: #005AD9 !important;
+  font-size: 24px;
 
 }
+
+
 .desktop_side_bar{
   display:block;
   height: 100%;
@@ -223,6 +257,8 @@ Responsive to following devices
 @media (min-width: 320px) and (max-width: 480px) {
   .sideNav_tooglt_btn{
     display:block;
+    right:10px;
+    position: fixed;
 
   }
 
@@ -236,6 +272,24 @@ Responsive to following devices
   .header-username {
     width: 100px;
 }
+.sideNav_outdentIcon{
+  color:#f8f8f8;
+}
+
+/* Show side menu ; restrict height to viewport ; full width HR */
+.sideNav {
+  height: 100vh;
+  overflow: scroll;
+  width: 100%;
+  position: absolute;
+  z-index: 999;
+  /* overflow-y: scroll; */
+}
+.navHr {
+  width:auto;
+}
+
+
 }
 
 /* 
@@ -246,7 +300,6 @@ Responsive to following devices
 @media (min-width: 375px) and (max-width: 667px) {
   .sideNav_tooglt_btn{
     display:block;
-
   }
 
   .desktop_side_bar{
@@ -255,8 +308,33 @@ Responsive to following devices
   .mobile_side_bar{
     display:block;
   }
- 
+
+
+  .sideNav {
+    height: 100vh;
+    overflow: scroll;
+    position: absolute;
+    z-index: 999;
+    /* overflow-y: scroll; */
+  }
+
+    /* 
+  Side navigation icon swap ; main container scroll management
+  START 
+  */
+  .main-container {
+    height: 100vh;
+    overflow-y: auto;
+    /* box-sizing: border-box; */
+  }
+  .sideNav_outdentIcon{
+    color:#f8f8f8;
+  }
+  /* 
+  END
+  */
 }
+
 
 /* 
   ##Device = iPhone 6/7/8 (Landscape)
@@ -275,5 +353,121 @@ Responsive to following devices
   .mobile_side_bar{
     display:block;
   }
+  .sideNav {
+    height: 100vh;
+    overflow: scroll;
+    position: absolute;
+    z-index: 999;
+    /* overflow-y: scroll; */
+  }
+
+  .main-container {
+    height: 100vh;
+    /* box-sizing: border-box; */
+  }
   
+}
+
+/* 
+  ##Device = iPhone 6/7/8 PLUS  (Portrait)
+  ##Screen = B/w 414px to 736px     
+*/
+
+@media (min-width: 414px) and (max-width: 736px) {
+  .sideNav_tooglt_btn{
+    display:block;
+  }
+
+  .desktop_side_bar{
+    display:none;
+  }
+  .mobile_side_bar{
+    display:block;
+  }
+  
+  /* 
+  Side navigation icon swap ; main container scroll management
+  START 
+  */
+  .main-container {
+    height: 100vh;
+    overflow-y: auto;
+    /* box-sizing: border-box; */
+  }
+  .sideNav_outdentIcon{
+    color:#f8f8f8;
+  }
+  /* 
+  END
+  */
+
+
+
+}
+
+
+
+/* 
+  ##Device = iPhone 6/7/8 PLUS  (Portrait)
+  ##Screen = B/w 414px to 736px     
+*/
+
+@media (min-width: 414px) and (max-width: 736px) and (orientation: landscape) {
+  .sideNav_tooglt_btn{
+    display:block;
+  }
+
+  .desktop_side_bar{
+    display:none;
+  }
+  .mobile_side_bar{
+    display:block;
+  }
+  .sideNav {
+    height: 100vh;
+    overflow: scroll;
+    position: absolute;
+    z-index: 999;
+    /* overflow-y: scroll; */
+  }
+
+ /* 
+  Side navigation icon swap ; main container scroll management
+  START 
+  */
+  .main-container {
+    height: 100vh;
+    overflow-y: auto;
+    /* box-sizing: border-box; */
+  }
+  .sideNav_outdentIcon{
+    color:#005AD9;
+
+  }
+  /* 
+  END
+  */
+
+
+
+
+  
+  
+}
+
+
+@media (min-width:992px) and (max-width:1023px){
+  .sideNav_tooglt_btn{
+    display:block;
+    margin-right:2rem;
+
+  }
+
+  .desktop_side_bar{
+    display:none;
+  }
+  .mobile_side_bar{
+    display:block;
+  }
+
 }

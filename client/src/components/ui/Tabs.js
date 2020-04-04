@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import {Breadcrumb } from 'react-bootstrap';
+import { Breadcrumb } from 'react-bootstrap';
 import '../../css/Tabs.css';
 
 export class Tabs extends Component {
@@ -26,16 +26,21 @@ export class Tabs extends Component {
 
         return (
             <div>
-                <div className="addPubmed_record_link">
-                    <p>Add New Record:</p>
-                    <Breadcrumb className="bread_crumb_record">
-                        <Breadcrumb.Item onClick={() => { this.props.tabClickHandler("Add Publication"); }}>PubMed</Breadcrumb.Item>
-                        <Breadcrumb.Item href="https://getbootstrap.com/docs/4.0/components/breadcrumb/">
-                            Scopus
+                {
+                    this.props.tabActive === 'Add Publication' ?
+                        (<div className="addPubmed_record_link">
+                            <p><i>Adding New Record from PubMed...</i></p>
+                        </div>) : (<div className="addPubmed_record_link">
+                            <p>Add New Record:</p>
+                            <Breadcrumb className="bread_crumb_record">
+                                <Breadcrumb.Item onClick={() => { this.props.tabClickHandler("Add Publication"); }}>PubMed</Breadcrumb.Item>
+                                <Breadcrumb.Item href="https://getbootstrap.com/docs/4.0/components/breadcrumb/">
+                                    Scopus
                         </Breadcrumb.Item>
-                        <Breadcrumb.Item >Manually</Breadcrumb.Item>
-                    </Breadcrumb>
-                </div>
+                                <Breadcrumb.Item >Manually</Breadcrumb.Item>
+                            </Breadcrumb>
+                        </div>)
+                }
                 <ul className="nav nav-tabs tabs-headers" role="tablist">
                     <li className={(this.props.tabActive === "Suggested") ? "active" : ""}>
                         <a

@@ -202,6 +202,7 @@ body {
     .tab-container{
         margin-top:0px;
     }
+  
 }
 @media (min-width:320px) and (max-width:480px){
     .identity-container {
@@ -227,4 +228,50 @@ body {
     .h6fnhWdeg-tabs-content {
         padding:0px;
     }
+    
 }
+
+
+
+
+
+/* 
+  ##Device = Most of the Smartphones Mobiles (Portrait)
+  ##Screen = B/w 320px to 479px 
+*/
+
+@media (min-width: 320px) and (max-width: 480px) {
+    .side-nav-position {
+        height: 0px;}
+  
+  }
+  
+  /* 
+    ##Device = iPhone 6/7/8 (Portrait)
+    ##Screen = B/w 375px to 667px     
+  */
+  
+  @media (min-width: 375px) and (max-width: 667px) {
+    .tab-container{
+
+        margin-top: -40px;
+    }
+
+  }
+    /* 
+    END
+    */
+
+    /* 
+    ##Device = ALL SMALL DEVICES
+    ##Screen = B/w 375px to 667px     
+    */
+  
+
+    @media (max-width: 768px)  {
+
+    .side-nav-position {
+        height: 0px;
+    }
+
+    }
