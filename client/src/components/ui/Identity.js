@@ -47,12 +47,12 @@ export default class Identity extends Component {
             primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined) ? ' ' + identityData.primaryName.middleName + ' ' : ' ') + identityData.primaryName.lastName,
             title: identityData.title
         };
-        const displayBanner = this.props.buttonName == 'Manage Profile' ? 'Review Suggestions' : 'Manage Profile';
+        const displayBanner = this.props.buttonName == 'Manage Profile' ? <h3>Review Suggestions</h3> : <h3 className="manageProfileheadinngText">Manage Profile</h3>;
 
         return (
             <div>
                 <div className="reviewSuggestionHeading">
-                    <h3>{displayBanner}</h3>
+                  {displayBanner}
                 </div>
                 <div className="userContainer">
 

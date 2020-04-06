@@ -13,21 +13,40 @@
     border: 1px solid #77d900 !important;
     outline: none !important;
     box-shadow: none !important;
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #202b3b;
+}
+.addpuubmed_containerfilter .paginationshowrecords{
+padding-left:5px;
 }
 .tab-add-publication .filter-container input{
-    width: 84.4%;
-    float:right;
-    margin-right:19.4px;
+    width: 85.4%;
+    float: right;
+    margin-right: 31px;
 }
 .pblicationrejectbtn{
     width: 80px;
     height: 33px;
-    margin-left:5px;
+    margin-left: 5px;
     border-radius: 2px;
     background-color: #d91a00 !important;
-    border:1px solid #d91a00 !important;
+    border: 1px solid #d91a00 !important;
     outline: none !important;
     box-shadow: none !important;
+    font-size: 15px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 1.33;
+    letter-spacing: 0.17px;
+    text-align: left;
+    color: #ffffff;
 }
 .earliestpublicationdivider {
     margin-right: 32px;
@@ -47,7 +66,7 @@
     margin-top: -31px;
 }
 .yearpublicationscolumns12{
-    padding-left:30px;
+    padding-left:15px;
 }
 .pblicationacceptbtntext{
     font-size: 15px;
@@ -75,6 +94,9 @@
 }
 .addpublicationssrows{
     padding-top:0.15rem !important;
+}
+.selectyearpublicationcontainer {
+    position: relative;
 }
 @media (min-width:1800px) and (max-width:1920px){
     .earliestpublicationdivider {
@@ -106,18 +128,18 @@
 }
 @media (min-width:1366px) and (max-width:1499px){
     .earliestpublicationdivider {
-        margin-right: 35px;
+        margin-right: 32px;
     }
     .latestpublicationdivider {
-        margin-right: 26px;
+        margin-right: 32px;
     }
 }
 @media (min-width:1200px) and (max-width:1300px){
     .latestpublicationdivider {
-        margin-right: -2px;
+        margin-right:12px;
     }
     .earliestpublicationdivider {
-        margin-right: 37px;
+        margin-right: 29px;
     }
     .yearsearliest select {
         background-image: linear-gradient(45deg, transparent 60%, #005ad9 33%), linear-gradient(135deg, #005ad9 39%, transparent 11%) !important;
@@ -133,11 +155,17 @@
     }
 }
 @media (min-width:1024px) and (max-width:1199px){
+    .yearpublicationscolumns{
+        margin-left:32px;
+    }
+   .tabaddpublication_topheader #year {
+        margin-left: 5px;
+    }
     .yearslatest {
         margin-left: 45px;
     }
     .latestpublicationdivider {
-        margin-right: -66px;
+        margin-right: -54px;
     }    
     .addpuubmed_containerfilter .show-rows{
         width:176px;
@@ -147,7 +175,7 @@
         margin-left: 0px;
     }
     .earliestpublicationdivider {
-        margin-right: 37px;
+        margin-right:29px;
     }
 }
 @media (min-width:992px) and (max-width:1023px){
@@ -170,6 +198,9 @@
     }
     .tab-add-publication .filter-container .pagination-container{
         width:90vw;
+    }
+    .earliestpublicationdivider {
+        margin-right: 29px;
     }
     .latestpublicationdivider {
         margin-right: -81px;
@@ -214,7 +245,7 @@
         width:100vw;
     }   
     .addpuubmed_containerfilter {
-        width: 89.6vw;
+        width: 90.3vw;
     }
     .tab-add-publication .filter-container .pagination-container{
         width:86vw;
@@ -231,10 +262,10 @@
         margin-top: 15px;
     }
     .earliestpublicationdivider {
-        margin-right: 117px;
+        margin-right: 140px;
     }
     .latestpublicationdivider {
-        margin-right: 117px;
+        margin-right: 140px;
     } 
 }
 @media (min-width:480px) and (max-width:559px){
@@ -395,10 +426,10 @@
         float:initial;
     }
     .earliestpublicationdivider {
-        margin-right: 38px;
+        margin-right: 29px;
     }
     .latestpublicationdivider {
-        margin-right: 29px;
+        margin-right: 20px;
     }
     .tabaddpublication_topheader {
         padding: 7px 14px 0px 0px;

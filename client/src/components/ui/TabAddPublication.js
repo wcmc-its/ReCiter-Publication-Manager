@@ -5,6 +5,7 @@ import { Pagination } from './Pagination';
 import { Filter } from './Filter';
 import { YearPicker } from 'react-dropdown-date';
 import { Row, Col, InputGroup, FormControl, Button } from 'react-bootstrap';
+import searchicon from '../../images/icons/magnifying-glass.svg'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {faSearch} from '@fortawesome/free-solid-svg-icons'
 
@@ -289,17 +290,17 @@ export class TabAddPublication extends Component {
             <div>
                 <div >
                     <div className="tabaddpublication_topheader row mx-4 my-5">
-                        <div className="col-md-6 px-0 mx-0">
+                        <div className="col-md-5 px-0 mx-0">
                             <InputGroup>
                                 <FormControl
-                                placeholder="Search..."
+                                placeholder="Search......"
                                 ref="search-field"
                                 className="addpubmedsearchinput"
                                 defaultValue={(this.state.pubmedSearch !== undefined)?this.state.pubmedSearch:''}
                             />
                             <InputGroup.Append>
       <Button className="searchpubmedbtn btn btn-primary"
-                                onClick={this.search}><FontAwesomeIcon icon={faSearch} size='1x' /></Button>
+                                onClick={this.search}><img src={searchicon} alt="contest-cover" width="17px"/></Button>
     </InputGroup.Append></InputGroup>
                         </div>
                         <div className="yearpublicationscolumns col-md-2 col-xs-6" >

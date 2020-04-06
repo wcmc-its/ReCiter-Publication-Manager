@@ -102,6 +102,9 @@ img.profile_identity {
     font-size: 14px;
     outline: none !important;
 }
+.manageProfileheadinngText {
+    padding: 2rem 0rem 0rem 0rem !important;
+}
 @media(min-width:1024px) and (max-width:1199px){
     .userImg{
         margin-left: 0px;  
