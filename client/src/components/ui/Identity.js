@@ -48,11 +48,14 @@ export default class Identity extends Component {
             title: identityData.title
         };
         const displayBanner = this.props.buttonName == 'Manage Profile' ? <h3>Review Suggestions</h3> : <h3 className="manageProfileheadinngText">Manage Profile</h3>;
-
+        // const buttonPubMed = this.props.buttonName == 'Manage Profile' ? null : <div className="mangaeprofilerowbtns h6fnhWdeg-publication-row-buttons">
+        //     <a href='#' className="btn btn-default" target="_blank" rel="noopener noreferrer">PubMed</a>
+        //     <a href='#' className="btn btn-default" target="_blank" rel="noopener noreferrer">GET IT</a>
+        // </div>;
         return (
             <div>
                 <div className="reviewSuggestionHeading">
-                  {displayBanner}
+                    {displayBanner}
                 </div>
                 <div className="userContainer">
 
@@ -67,6 +70,9 @@ export default class Identity extends Component {
                         <Button className="manageBtn" variant="link" onClick={this.manageProfile}>
                             {this.props.buttonName}
                         </Button>
+                        {/* <div>
+                            {buttonPubMed}
+                        </div> */}
                     </div>
                 </div>
             </div>

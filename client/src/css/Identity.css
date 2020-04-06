@@ -81,7 +81,10 @@ img.profile_identity {
 .btn-link {
     text-decoration: none;   
 }    
-
+.mangaeprofilerowbtns{
+    position: relative;
+    top: -27px;    
+}
 .btnContainer {
     grid-row-start: row-3-end;
     grid-column-start: col-3-start;

@@ -25,7 +25,7 @@
 }
 .identity-table-container {
     grid-row-start: identity-table;
-    padding: 2.3rem 3rem 2.2rem 3rem;
+    padding: 2rem 3rem 3rem 3rem;
     background: #EFEFEF;
 }
 
@@ -85,8 +85,8 @@
 }
 .identity-table-container .table thead th {
     border-top: 1px solid #A4a4a4;
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding-top: 9px;
+    padding-bottom: 9px;
 }
 
 

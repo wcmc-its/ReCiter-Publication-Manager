@@ -149,7 +149,7 @@ export default class IdentityTable extends Component {
                 <table className="manaeprofile_mainsource_table h6fnhWdeg-identity-table table">
                     <thead className="thead-dark">
                         <tr>
-                            <th className="manageprofiletableheader text-right" scope="col" style={{ minWidth: '24vw'}}>
+                            <th className="manageprofilefirsttableheader manageprofiletableheader text-right" scope="col" >
                                 Field
               </th>
                             <th className="manageprofiletableheader" scope="col">Data</th>
