@@ -53,10 +53,10 @@ and (max-width : 320px) {
 /* iPads (portrait and landscape) ----------- */
 @media only screen
 and (min-device-width : 768px)
-and (max-device-width : 1024px) {
+and (max-device-width : 1023px) {
 
     .footer{
-        height: 4rem;
+        height: 10rem;
         font-size: 10px;
         padding: 0.5rem;
 

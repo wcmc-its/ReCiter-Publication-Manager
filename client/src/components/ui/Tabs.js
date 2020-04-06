@@ -29,7 +29,7 @@ export class Tabs extends Component {
                 {
                     this.props.tabActive === 'Add Publication' ?
                         (<div className="addPubmed_record_link">
-                            <p><i>Adding New Record from PubMed...</i></p>
+                            <p className="addnewrecordfrompubmed"><i>Adding New Record from PubMed...</i></p>
                         </div>) : (<div className="addPubmed_record_link">
                             <p>Add New Record:</p>
                             <Breadcrumb className="bread_crumb_record">

@@ -13,10 +13,13 @@
 }
 .addPubmed_record_link {
     position: absolute;
-    right: 24px;
+    right: 19px;
     float: right;
     /* bottom: -65px; */
     margin-top: 10px;
+}
+.addnewrecordfrompubmed{
+    padding-right: 10px;
 }
 .addPubmed_record_link p{
     display: inline-block;
@@ -212,7 +215,7 @@ width:1024px;
         width: 217px !important;
     }
     .addPubmed_record_link {
-padding-top:40px;
+padding-top:39px;
     }
 }
 @media (min-width :481px) and (max-width :600px) {
