@@ -39,11 +39,11 @@
     padding: 16px;
 }
 .manageprofiletableheader{
-    padding-left:12px;
+    padding-left:28px !important;
 }
 .identity-table-container .table th {
     border-top:2px solid #f4f4f4;
-    padding-right: 32px;
+    padding-right: 18px;
 }
 .manageprofile_identityicons{
     width: 14.2px;
