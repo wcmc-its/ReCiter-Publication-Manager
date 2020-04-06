@@ -48,6 +48,9 @@ padding-left:5px;
     text-align: left;
     color: #ffffff;
 }
+.tabaddpublication_topheader .input-group{
+    display:table !important;
+}
 .earliestpublicationdivider {
     margin-right: 32px;
     right: 0px;
