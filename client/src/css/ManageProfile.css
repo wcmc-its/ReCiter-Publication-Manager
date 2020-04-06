@@ -31,13 +31,16 @@
 
 .identity-table-container table{
     background: white;
+    margin-bottom: 19px;
 }
 
 .identity-table-container .table td, .identity-table-container .table th {
     border-top:2px solid #f4f4f4;
     padding: 16px;
 }
-
+.manageprofiletableheader{
+    padding-left:12px;
+}
 .identity-table-container .table th {
     border-top:2px solid #f4f4f4;
     padding-right: 32px;
