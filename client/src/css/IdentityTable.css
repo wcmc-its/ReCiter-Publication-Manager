@@ -17,3 +17,6 @@
 .manageprofilefirsttableheader{
     width:18.9vw;
 }
+.identity-table-container .table td{
+    padding:16px 16px 16px 28px !important;
+}
