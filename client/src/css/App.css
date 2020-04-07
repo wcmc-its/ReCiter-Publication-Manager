@@ -47,6 +47,7 @@ body {
     grid-column-start: side-nav;
     grid-column-end: content-end;
     position:relative;
+    border-bottom: 1px solid #d1d1d1;
 }
 
 .side-nav-position {

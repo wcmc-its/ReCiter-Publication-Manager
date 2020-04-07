@@ -3,7 +3,7 @@
   /* z-index: 1; Stay on top */
   background-color: #202B3B;
   overflow: hidden; /* Disable horizontal scroll */
-  padding-top: 50px;
+  padding-top:22px;
   color: white;
   width:220px;
 }
@@ -53,13 +53,13 @@
   /* Side Nave 16-24px
    padding: 8px 4px 8px 40px;
   */
-  padding: 8px 4px 8px 48px;
+  padding: 3px 4px 0px 48px;
 
   font-size: 14px;
   font-weight: normal;
   font-stretch: normal;
   font-style: normal;
-  line-height: 1.36;
+  line-height: 20px;
   letter-spacing: -0.32px;
 }
 
@@ -85,6 +85,8 @@
 .navHr{
     border-color:#999999 ;
     width:160px;
+    margin-top: 13px;
+    margin-bottom: 13px;
     
 }
 .side_bar_active{

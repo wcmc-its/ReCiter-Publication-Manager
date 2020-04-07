@@ -138,6 +138,10 @@ padding-left:5px;
     }
 }
 @media (min-width:1200px) and (max-width:1300px){
+    .addpuubmed_containerfilter .paginationshowrecords{
+        flex: 6 0 61%;
+        max-width: 28%;
+    }
     .latestpublicationdivider {
         margin-right:12px;
     }

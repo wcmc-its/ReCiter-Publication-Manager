@@ -107,7 +107,7 @@ label.earliest{
 } */
 .addpubmedsearchinput{
     height: 40px;
-    width:86.3% !important;
+    width:84.1% !important;
     padding-left: 10px !important;
     border-radius: 2px;
     border: solid 1px #474747 ;
@@ -152,6 +152,9 @@ input.form-control {
     margin-left: 0;
 }
 
+.add-publication_content {
+    padding-left: 20px !important;
+}
 
 .tab-add-publication .filter-container .pagination-container {
     background-color: #FFF;
@@ -160,4 +163,11 @@ input.form-control {
 .tab-add-publication .filter-container input.form-control {
     margin-top: 10px !important;
 }
-
+.addpuubmed_containerfilter .show-rows{
+    margin-left:0px;
+}
+@media(min-width:1366px) and (max-width:1920px){
+    .searchpubmedbtn{
+        width:58px;
+    }
+}
