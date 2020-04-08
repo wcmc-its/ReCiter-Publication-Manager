@@ -238,6 +238,7 @@ padding-left:5px;
     }
     .yearpublicationscolumns {
         margin-top: 15px;
+        
     }
     .earliestpublicationdivider {
         margin-right: 165px;
@@ -267,6 +268,7 @@ padding-left:5px;
         padding-right: 0px;
         padding-left: 0px;
         margin-top: 15px;
+        width:50%;
     }
     .earliestpublicationdivider {
         margin-right: 140px;
@@ -347,6 +349,7 @@ padding-left:5px;
         padding-right: 0px;
         padding-left: 0px;
         margin-top: 15px;
+        width:50%;
     }
 .addpuubmed_containerfilter .paginationshowrecords .show-rows{
         margin-left:0px;
@@ -393,6 +396,7 @@ padding-left:5px;
         padding-right: 0px;
         padding-left: 0px;
         margin-top: 15px;
+        width:50%;
     }
 .addpuubmed_containerfilter .paginationshowrecords .show-rows{
         margin-left:0px;
@@ -445,6 +449,7 @@ padding-left:5px;
         padding-right: 0px;
         padding-left: 0px;
         margin-top: 15px;
+        width:50%;
     }
 .addpuubmed_containerfilter .paginationshowrecords .show-rows{
         margin-left:0px;
