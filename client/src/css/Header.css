@@ -1,7 +1,7 @@
 .topNav{
     background-color: white;
     border-radius: 0;
-    border-bottom: 0px solid #d1d1d1;
+    border-bottom: 1px solid #d1d1d1;
     margin: 0;
     display: flex;
     color: black;
@@ -17,7 +17,7 @@
     align-self: flex-start;
     position: absolute;
     right: 0px;
-    margin: 1rem 3.1rem 0rem 1rem;
+    margin: 1.5rem 3.1rem 0rem 1rem;
   /* border: 1px solid red; */
     padding: 4px;
     font-size: 1.5rem;
@@ -26,13 +26,16 @@
 .navbar-brand {
     float: left;
     height: 0px;
-    padding: 13px 40px 12px 12px;
+    padding: 13px 40px 20px 12px;
     font-size: 28px;
     line-height: 20px;
     width: 140px;
     text-align: left;
     width: 200px;
 
+}
+.navbar{
+  min-height: 70px;
 }
 .navbar-text {
   font-size: 18px;
@@ -47,7 +50,7 @@
   display: block;
   font-family: '1898Sans-Bold,sans-serif';
   position: relative;
-  top: 7px;
+  top: 3px;
 }
 
 /* Dropdown Button */
