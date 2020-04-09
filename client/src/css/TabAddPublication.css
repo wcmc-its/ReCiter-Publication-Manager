@@ -155,6 +155,8 @@ input.form-control {
 
 .add-publication_content {
     padding-left: 20px !important;
+    padding-top: 0px !important;
+    padding-bottom: 44px;
 }
 
 .tab-add-publication .filter-container .pagination-container {

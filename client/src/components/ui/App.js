@@ -13,6 +13,8 @@ import Identity from "../ui/Identity";
 import { BrowserRouter as Router, Route, Link } from "react-router-dom";
 import Login from './Login'
 //import jsonData from './sample-data.json';
+import {isEmpty} from 'lodash';
+import  Error from './Error';
 
 class App extends Component {
 
@@ -52,6 +54,7 @@ class App extends Component {
     }
 
     render() {
+        
         const thisObject = this;
 
         if (this.props.reciterFetching) {
@@ -91,6 +94,7 @@ class App extends Component {
                         />
                     );
             }
+            
             return (
                 <div className="main-container">
                     <div className="header-position">
@@ -99,38 +103,42 @@ class App extends Component {
                     <div className="side-nav-position">
                         <SideNav uid={this.props.match.params.uid} history={this.props.history} />
                     </div>
-                    <div className="publications-content">
-                        <div className="identity-container">
-                            <Identity
-                                identityData={this.props.identityData}
-                                identityFetching={this.props.identityFetching}
-                                history={this.props.history}
-                                uid={this.props.match.params.uid}
-                                buttonName='Manage Profile'
-                            />
-                        </div>
-                        <div className="tab-container px-0">
-                            {thisObject.props.reciterData.reciterPending && thisObject.props.reciterData.reciterPending.length > 0 ? (
-                                <div className="h6fnhWdeg-reciter-pending-banner">
-                                    <span>You have provided feedback on </span>
-                                    <strong>{`${
-                                        thisObject.props.reciterData.reciterPending.length
-                                        } record(s). `}</strong>
-                                    <a href="#" onClick={thisObject.refreshHandler}>
-                                        Refresh
-                        </a>
-                                    <span> to get new suggestions.</span>
-                                </div>
-                            ) : null}
-                            <Tabs
-                                tabActive={this.state.tabActive}
-                                tabClickHandler={this.tabClickHandler}
-                            />
-                            <div className="h6fnhWdeg-tab-content h6fnhWdeg-tabs-container">
-                                <div className="Tabs_body_container h6fnhWdeg-tabs-content">{tabActiveContent}</div>
+                    
+                        {isEmpty(this.props.errors) ? (
+                            <div className="publications-content">
+                            <div className="identity-container">
+                                <Identity
+                                    identityData={this.props.identityData}
+                                    identityFetching={this.props.identityFetching}
+                                    history={this.props.history}
+                                    uid={this.props.match.params.uid}
+                                    buttonName='Manage Profile'
+                                    errors={this.props.errors}
+                                />
                             </div>
-                        </div>
-                    </div>
+                            <div className="tab-container px-0">
+                                {thisObject.props.reciterData.reciterPending && thisObject.props.reciterData.reciterPending.length > 0 ? (
+                                    <div className="h6fnhWdeg-reciter-pending-banner">
+                                        <span>You have provided feedback on </span>
+                                        <strong>{`${
+                                            thisObject.props.reciterData.reciterPending.length
+                                            } record(s). `}</strong>
+                                        <a href="#" onClick={thisObject.refreshHandler}>
+                                            Refresh
+                            </a>
+                                        <span> to get new suggestions.</span>
+                                    </div>
+                                ) : null}
+                                <Tabs
+                                    tabActive={this.state.tabActive}
+                                    tabClickHandler={this.tabClickHandler}
+                                />
+                                <div className="h6fnhWdeg-tab-content h6fnhWdeg-tabs-container">
+                                    <div className="Tabs_body_container h6fnhWdeg-tabs-content">{tabActiveContent}</div>
+                                </div>
+                            </div>
+                            </div> 
+                        ) : (<Error errorMessage={this.props.errors.join(",")}></Error>) }
                     <div className="footer-position">
                         <Footer />
                     </div>
