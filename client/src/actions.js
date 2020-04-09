@@ -29,18 +29,12 @@ export const identityFetchData = uid => dispatch => {
         }
     }, 300000)
         .then(response => {
-            if (response.status === 200) {
-                return response.json()
-            } else {
-                throw {
-                    type: response.type,
-                    title: response.statusText,
-                    status: response.status,
-                    detail: "En error occurred. Please, try again later."
-                }
-            }
+            return response.json()
         })
         .then(data => {
+            if(data.error) {
+                throw data.error
+            }
             dispatch({
                 type: methods.IDENTITY_CHANGE_DATA,
                 payload: data.identity

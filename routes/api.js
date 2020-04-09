@@ -11,15 +11,16 @@ const identityImageEndpoint = require('../config/local').config.reciter.reciterI
 router.get('/reciter/getidentity/:uid', function (req, res) {
     return userData.requestWithRetry(req.params.uid, (err, data) => {
         if (err) {
-            return res.send({
+            return res.status(400).send({
                 error: err,
                 message: 'failure'
             })
-        }
+        } else {
         return res.send({
             identity: data,
             message: 'success'
         })
+        }
     })
 })
 

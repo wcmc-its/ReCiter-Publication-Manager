@@ -27,7 +27,12 @@ const getPublications = (req, cb) => {
         if (error) {
             return cb(error, null)
         }
-        let data = JSON.parse(body)
+        let data;
+        try {
+            data = JSON.parse(body)
+        } catch (e){
+            data = {}
+        }
         let formattedData = formatPublications(data)
         if(featureGeneratorApiParams.analysisRefreshFlag === 'true' && featureGeneratorApiParams.retrievalRefreshFlag === 'ONLY_NEWLY_ADDED_PUBLICATIONS') {
             
@@ -35,6 +40,7 @@ const getPublications = (req, cb) => {
         getPendingFeedback(req.params.uid, formattedData, req, (reciterData) => {
             return cb(null, reciterData)
         })
+
     });
 
 }
