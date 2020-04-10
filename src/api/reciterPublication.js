@@ -408,7 +408,7 @@ function formatPublications(data) {
 
                     if(reciterArticle.evidence.authorNameEvidence.hasOwnProperty('articleAuthorName')) {
                         articleAuthorVerboseName = reciterArticle.evidence.authorNameEvidence.articleAuthorName.firstName + ' ' +
-                        ((reciterArticle.evidence.authorNameEvidence.articleAuthorName.lastName !== undefined)?reciterArticle.evidence.authorNameEvidence.institutionalAuthorName.lastName:'')
+                        ((reciterArticle.evidence.authorNameEvidence.articleAuthorName.lastName !== undefined)?reciterArticle.evidence.authorNameEvidence.articleAuthorName.lastName:'')
                     }
                     //Place author evidence on top of array
                     evidence.unshift({
