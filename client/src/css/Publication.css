@@ -22,6 +22,7 @@
 .h6fnhWdeg-publication-evidence-bar {
     margin-left: 0px !important;
     margin-bottom: 15px !important;
+    margin-top: -23px;
 }
 
 .h6fnhWdeg-publication-show-evidence-link, .h6fnhWdeg-publication-evidence-hide {
@@ -106,6 +107,7 @@ font-size:14px;
 .h6fnhWdeg-publication_tablerow .h6fnhWdeg-publication-row-buttons{
 position: absolute;
 right:83px;
+margin-top:-19px;
 }
 .evidance_tablepubmedcolspan{
     padding:0px !important;
