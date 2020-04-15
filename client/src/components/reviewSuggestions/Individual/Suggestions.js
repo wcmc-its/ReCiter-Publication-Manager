@@ -90,7 +90,7 @@ export default class Suggestions extends Component {
                                                 </Col>
                                             </Row>
                                             <Row>
-                                                <Col lg={8} md={8} sm={8} xs={8} xl={8}>
+                                                <Col lg={8} md={8} sm={8} xs={8} xl={8} className="individual_suggestionsshowhidecol">
                                                     <Accordion.Toggle as={Button} variant="link" eventKey="0" className="individual_suggestion_accordinbtn accoedins_btns" onClick={() => this.onAccordionChange('accordion' + index)}>
                                                         {/* <p className="suggestionText" ><span>{this.state['accordion' + index + 'symbol']}</span>{this.state['accordion' + index] || '+ Show evidence behind this suggestion'}</p> */}
                                                         <p className="suggestionText" >

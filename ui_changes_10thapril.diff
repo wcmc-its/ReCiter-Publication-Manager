@@ -1,0 +1,156 @@
+diff --git a/client/package.json b/client/package.json
+index d1530c8..b5faab7 100644
+--- a/client/package.json
++++ b/client/package.json
+@@ -2,7 +2,7 @@
+   "name": "client",
+   "version": "0.1.0",
+   "private": true,
+-  "proxy": "http://localhost:5000",
++  "proxy": "http://internal-d3677aff-reciter-reciterin-1143-1820758335.us-east-1.elb.amazonaws.com",
+   "dependencies": {
+     "@fortawesome/fontawesome-svg-core": "^1.2.27",
+     "@fortawesome/free-solid-svg-icons": "^5.12.1",
+diff --git a/client/src/components/reviewSuggestions/Individual/individual_suggestions.css b/client/src/components/reviewSuggestions/Individual/individual_suggestions.css
+index 2645222..af24915 100644
+--- a/client/src/components/reviewSuggestions/Individual/individual_suggestions.css
++++ b/client/src/components/reviewSuggestions/Individual/individual_suggestions.css
+@@ -115,7 +115,7 @@
+ } */
+ .findscholar{
+     font-size: 16px;
+-    padding:33px 5px 0px 4px;
++    padding:14px 5px 0px 4px;
+     margin: 0px 15px 6px 14px;
+ }
+ .suggestions_edit_lastchild li{
+@@ -315,7 +315,7 @@ margin-top: 5px;
+     pointer-events:auto;    
+ }
+ .suggestion_getpumedbtn{
+-    margin: 10px 2.5px 0px 2.5px !important;
++    margin: 0px 2.5px 0px 2.5px !important;
+ }
+ .individual_suggestion_accordinbtn{
+     font-size: 15px;
+@@ -326,7 +326,7 @@ margin-top: 5px;
+     letter-spacing: normal;
+     color: #005ad9;
+     position: relative;
+-    top: 5px; 
++    top: -26px; 
+     cursor:default;
+     pointer-events:none; 
+     margin-left:10px; 
+@@ -490,7 +490,7 @@ p .suggestionText a{
+     color: #000;
+ }
+ .individual_evidence_table td:nth-child(1){
+-    width:21%;
++    width:22%;
+ }
+ .individual_evidence_table th:nth-child(2){
+     padding-left:31px;    
+@@ -535,11 +535,24 @@ a h4{
+     .firsttable .table-responsive{
+         overflow-x: hidden;
+     }
++    .individual_suggest_container{
++        padding-left:20px;
++    }
++    .suggestion_get_pubmed_btns {
++        margin-top: -23px;
++    }
+ }
+ @media (min-width: 1200px){
+     .container {
+         width: 1119px;
+     }
++    .individual_suggest_container{
++        padding-left: 20px;
++        overflow: hidden;
++    }
++    .suggestion_get_pubmed_btns {
++        margin-top: -23px;
++    }
+     }
+ @media (min-width:992px) and (max-width:1023px){
+     .findscholar{
+diff --git a/client/src/css/AddPublication.css b/client/src/css/AddPublication.css
+index 8d4f845..a462433 100644
+--- a/client/src/css/AddPublication.css
++++ b/client/src/css/AddPublication.css
+@@ -101,6 +101,12 @@ padding-left:5px;
+ .selectyearpublicationcontainer {
+     position: relative;
+ }
++.mb-1.table td{
++    padding-top: 23px !important;
++}
++.addpublicationtablebody .padding5px{
++    padding:7px 0px !important;
++}
+ @media (min-width:1800px) and (max-width:1920px){
+     .earliestpublicationdivider {
+         margin-right: 73px;
+diff --git a/client/src/css/Filter.css b/client/src/css/Filter.css
+index eccce06..5a87bcf 100644
+--- a/client/src/css/Filter.css
++++ b/client/src/css/Filter.css
+@@ -83,7 +83,7 @@
+     margin-top: 9px;
+ }
+ .h6fnhWdeg-publications-evidence-table td:nth-child(1){
+-width:20%;
++width:18%;
+ }
+ .h6fnhWdeg-publications-evidence-table td:nth-child(2){
+     width:33%; 
+diff --git a/client/src/css/Identity.css b/client/src/css/Identity.css
+index 4868243..efe255b 100644
+--- a/client/src/css/Identity.css
++++ b/client/src/css/Identity.css
+@@ -9,7 +9,7 @@
+ }
+ 
+ .reviewSuggestionHeading h3{
+-    padding: 2rem 0rem 0rem 3rem;
++    padding: 1.6rem 0rem 0rem 2.8rem;
+     font-size: 21px;
+     line-height: 1.19;
+     font-family: "1898Sans-Regular",sans-serif;
+@@ -106,7 +106,7 @@ img.profile_identity {
+     outline: none !important;
+ }
+ .manageProfileheadinngText {
+-    padding: 2rem 0rem 0rem 0rem !important;
++    padding: 0.8rem 0rem 0rem 0rem !important;
+ }
+ @media(min-width:1024px) and (max-width:1199px){
+     .userImg{
+diff --git a/client/src/css/Publication.css b/client/src/css/Publication.css
+index b3d1cc6..a6bfe86 100644
+--- a/client/src/css/Publication.css
++++ b/client/src/css/Publication.css
+@@ -134,7 +134,8 @@ margin-top:-19px;
+     padding-top: 23px !important;
+ }
+ .h6fnhWdeg-publication-content {
+-    padding-top: 20px !important;
++    padding-top: 23px !important;
++    padding-left: 11px !important;
+     width:850px;
+ }
+ .publication_evidence_tr{
+diff --git a/client/src/css/TabControls.css b/client/src/css/TabControls.css
+index ecca73c..30d95ac 100644
+--- a/client/src/css/TabControls.css
++++ b/client/src/css/TabControls.css
+@@ -48,6 +48,7 @@
+     .h6fnhWdeg-tab-controls-container .filter-container{
+         float:initial;
+         margin-bottom: 20px;
++        position:relative;
+     }
+     .h6fnhWdeg-tab-controls-container .filter-container .dropdown{
+         float:initial;
