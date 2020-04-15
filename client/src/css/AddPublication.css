@@ -101,6 +101,12 @@ padding-left:5px;
 .selectyearpublicationcontainer {
     position: relative;
 }
+.mb-1.table td{
+    padding-top: 23px !important;
+}
+.addpublicationtablebody .padding5px{
+    padding:7px 0px !important;
+}
 @media (min-width:1800px) and (max-width:1920px){
     .earliestpublicationdivider {
         margin-right: 73px;

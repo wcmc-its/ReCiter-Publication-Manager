@@ -85,9 +85,9 @@ content:"|";
     display: inline-block;
     background-color: #474747;
     border-radius: 118%;
-    width: 25px;
-    height: 25px;
-    line-height: 25px;
+    /* width: min-content; */
+    /* height: 25px; */
+    line-height: 24px;
     float: right;
     margin-top: -5px;
     margin-left: 5px;
@@ -99,6 +99,8 @@ content:"|";
     letter-spacing: normal;
     text-align: center;
     color: #ffffff;
+    padding: 1px 9px;
+    border-radius: 50%;
 }
 
 .h6fnhWdeg-publications-tab-link span.h6fnhWdeg-publications-tab-link-active {

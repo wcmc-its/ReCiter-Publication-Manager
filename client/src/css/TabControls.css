@@ -48,6 +48,7 @@
     .h6fnhWdeg-tab-controls-container .filter-container{
         float:initial;
         margin-bottom: 20px;
+        position:relative;
     }
     .h6fnhWdeg-tab-controls-container .filter-container .dropdown{
         float:initial;
