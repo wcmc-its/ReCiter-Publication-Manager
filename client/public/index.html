@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <link rel="shortcut icon" href="%PUBLIC_URL%/images/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <link rel="apple-touch-icon" sizes="57x57" href="%PUBLIC_URL%/images/apple-icon-57x57.png">
     <link rel="apple-touch-icon" sizes="60x60" href="%PUBLIC_URL%/images/apple-icon-60x60.png">
     <link rel="apple-touch-icon" sizes="72x72" href="%PUBLIC_URL%/images/apple-icon-72x72.png">
@@ -36,8 +36,15 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>ReCiter Publication Manager</title>
+ 
   </head>
   <body>
+    <script>
+      document.body.addEventListener("wheel", e=>{
+        if(e.ctrlKey)
+          event.preventDefault();//prevent zoom
+      });
+    </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     <!--

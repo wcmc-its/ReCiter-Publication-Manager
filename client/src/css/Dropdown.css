@@ -21,6 +21,12 @@
 .dropdown-menu  .dropdown-sort-desc::after {
 content:'' !important;
 }
+.drop_down_options{
+    width: 39px;
+    background: aquamarine;
+    display: inline-block;
+    text-align: left;   
+}
 .dropdown-menu .dropdown-sort-asc::after {
     content:'' !important;
 }
@@ -28,7 +34,7 @@ content:'' !important;
     background-color: #efefef;
 }
 .dropdown-sort-asc::after {
-    content: ' \007C' !important;
+    content: '\007C' !important;
     position: relative;
     font-size: 21px;
     width: 9px;
@@ -37,6 +43,6 @@ content:'' !important;
     color: #474747;
 }
 .dropdown-sort-desc::after {
-    content: '\2193';
+    content: '\007C' ;
     /* padding-left: 10px; */
 }

@@ -43,11 +43,16 @@
 .dropdown-sort-desc::after{
     content: ' \007C' !important;
     position: relative;
-    font-size: 23px;
-    width: 9px;
+    font-size: 0px;
+    width: 0px;
     font-weight: 600;
-    top: 0px;
+    top: -16px;
+    border: 1px solid #474747;
     color: #474747;
+    /* line-height: 22px; */
+    height: 22px;
+    margin: 0px 2px 0px 12px;
+    display: inline-block;
 }
 .sort_filter_select {
     display: inline-block;

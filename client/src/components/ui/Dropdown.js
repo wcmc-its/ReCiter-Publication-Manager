@@ -119,7 +119,7 @@ export class Dropdown extends Component {
                     data-toggle="dropdown"
                     aria-haspopup="true"
                 >
-                    Sort by <span className={sortClass}>{sortBy}</span>
+                    Sort by <span className={sortClass}><sapn className="drop_down_options">{sortBy}</sapn></span>
                 </button>
                 <div className={`dropdown-menu dropdown-menu-right ${this.state.isOpen ? " show" : ""}`} aria-labelledby="dropdownMenuButton">
                     <span
