@@ -30,7 +30,7 @@ export default class ReCiterRouter extends Component {
                     {/* <Route path="/individual" component={Individual} /> */}
                     {/* <Route path="/reviewSuggestionAccepted1" component={reviewSuggestionAccepted1} /> */}
                     {/* <Route path="/individual_suggestions" component={WithAuth(Individuals)} /> */}
-                    <Route path="/individual_suggestions" component={WithAuth(Individuals)} />
+                    <Route path="/review_suggestions" component={WithAuth(Individuals)} />
                     <Route path="/logout" component={Logout} />
                 </div>
             </Router>

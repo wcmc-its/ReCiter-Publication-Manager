@@ -243,7 +243,7 @@ class Individual extends Component {
 
     reviewSuggestions() {
         if (this.state.selectedDeps.length || this.state.selectedPersonTypes.length || this.state.selectedAffiliations.length) {
-            this.props.getGroupReviewSuggestions(this.state.selectedDeps, this.state.selectedPersonTypes, this.state.selectedAffiliations, () => this.props.history.push('/individual_suggestions'))
+            this.props.getGroupReviewSuggestions(this.state.selectedDeps, this.state.selectedPersonTypes, this.state.selectedAffiliations, () => this.props.history.push('/review_suggestions'))
             // this.props.history.push('/individual_suggestions')
         }
     }
@@ -363,7 +363,7 @@ class Individual extends Component {
                             </div>
                             <div className="row page-title">
                                 <div className="col-md-12">
-                                    <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.state.data.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/individual_suggestions')}>Review  All Pending Suggestions</button></span></h4>
+                                    <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.state.data.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/review_suggestions')}>Review  All Pending Suggestions</button></span></h4>
                                 </div>
                             </div>
                         </Container>
