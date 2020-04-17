@@ -4,20 +4,19 @@
     margin-left: 9px;
 }
 .show-rows select {
-    width: 44px !important;
+    width: 56px !important;
     height: 31px !important;
-  border-radius: 4px;
-  border: solid 0.5px #bbbbbb;
-  background-color: #f9f9f9;
-  background-image: linear-gradient(45deg, transparent 71%, #005ad9 13%), linear-gradient(135deg, #005ad9 33%, transparent 26%) !important;
-  background-position: calc(1% - -21px) 11px, calc(1% - -31px) 11px, 0% 0px;
-  background-size: 10px 10px, 10px 10px;
-  background-repeat: no-repeat;
-  -webkit-appearance: none;
-  appearance: none;
-  padding-left: 5px !important;
-  padding-right: 21px !important;
-  margin-left: -17px;
+    border-radius: 4px;
+    border: solid 0.5px #bbbbbb;
+    background-color: #f9f9f9;
+    background-image: linear-gradient(45deg, transparent 71%, #005ad9 13%), linear-gradient(135deg, #005ad9 33%, transparent 26%) !important;
+    background-position: calc(1% - -32px) 13px, calc(1% - -42px) 13px, 0% 0px;
+    background-size: 10px 10px, 10px 10px;
+    background-repeat: no-repeat;
+    -webkit-appearance: none;
+    padding-left: 8px !important;
+    margin-left: 0px;
+    font-size: 11px;
   margin-top:0px;
 }
 .show-rows label {

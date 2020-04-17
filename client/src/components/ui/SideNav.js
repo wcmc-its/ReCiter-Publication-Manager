@@ -1,13 +1,12 @@
-import admin from "../../images/icons/admin.png";
-import find from "../../images/icons/find.png";
-import profile from "../../images/icons/profile.png";
-import growth from "../../images/icons/growth.png";
-import copy from "../../images/icons/copy.png";
+import { faBars, faOutdent } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React, { Component } from "react";
-import { Button } from 'react-bootstrap';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faOutdent, faBars } from '@fortawesome/free-solid-svg-icons'
 import "../../css/SideNav.css";
+import admin from "../../images/icons/admin.png";
+import copy from "../../images/icons/copy.png";
+import find from "../../images/icons/find.png";
+import growth from "../../images/icons/growth.png";
+import profile from "../../images/icons/profile.png";
 const mql = global.matchMedia(`(min-width: 768px)`);
 
 export default class SideNav extends Component {
@@ -24,13 +23,8 @@ export default class SideNav extends Component {
     manageLinks(link) {
         if (link !== undefined && link === 'Individual') {
             return this.props.history.push('/individual')
-            // return window.location.href = '/individual'
         }
         if (link !== undefined && link === 'Review Suggestions') {
-            // if(window.location.pathname === '/search') {
-            //     return this.props.history.push('/search')
-            // }
-            // return this.props.history.push('/manage/' + this.props.uid)
             return this.props.history.push('/reviewSuggestions')
         }
     }
@@ -41,9 +35,14 @@ export default class SideNav extends Component {
         this.setState({ childVisible: !this.state.childVisible });
     }
     render() {
-        console.log(this.props.history.location.pathname, '<=========Path Name')
         let urlpathName = this.props.history.location.pathname
         urlpathName = urlpathName.length <= this.getPosition(urlpathName, '/', 2) ? urlpathName : urlpathName.substr(0, this.getPosition(urlpathName, '/', 2))
+        let myobj = {
+            '/individual' : 'Individual',
+            '/app': 'Review Suggestions',
+            '/search': 'Individual',
+            '/review_suggestions': 'Review Suggestions'
+        }
         const navItems = [
             { category: "Find Scholar", icon: find, links: [{ name: "Individual", value: "/individual" }] },
             { category: "Manage Publications", icon: copy, links: [{ name: "Review Suggestions", value: "/app" },{ name: "Curate Publications", value: "/" }] },
@@ -57,7 +56,7 @@ export default class SideNav extends Component {
                 <span className="side_nav_icon icon" style={{ backgroundImage: `url(${item.icon})` }} /> {item.category}
                 {item.links.map(link => (
                     <div className="links" key={index}>
-                        <a className={`side-nav-element ${(urlpathName === link.value) ? 'side_bar_active' : 'inactive'}`} onClick={() => { this.manageLinks(link.name) }}>{link.name}</a>
+                        <a className={`side-nav-element ${(myobj[urlpathName] === link.name) ? 'side_bar_active' : 'inactive'}`} onClick={() => { this.manageLinks(link.name) }}>{link.name}</a>
                     </div>
                 ))}
                 <hr className="navHr" />

@@ -456,7 +456,21 @@ Responsive to following devices
   
   
 }
+@media (min-width:813px) and (max-width:991px){
+  .sideNav_tooglt_btn{
+    display:block;
+    margin-right:2rem;
 
+  }
+
+  .desktop_side_bar{
+    display:none;
+  }
+  .mobile_side_bar{
+    display:block;
+  }
+
+}
 
 @media (min-width:992px) and (max-width:1023px){
   .sideNav_tooglt_btn{

@@ -1,7 +1,7 @@
 .heading{
     font-size: 21px;
     color: #323942;
-    margin-top:21px;
+    margin-top:15px;
     letter-spacing: -0.48px;
     font-family: '1898Sans-Regular',sans-serif;
 }
@@ -323,7 +323,7 @@ margin-right: 0px;
 
 .indivdual_container{
     margin: 0;
-    padding: 0 30px;
+    padding:0 25px;
 }
 .individual_table_body_container .pagination-container{
     padding-left:54px;
