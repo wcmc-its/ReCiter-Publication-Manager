@@ -9,7 +9,7 @@
 }
 
 .reviewSuggestionHeading h3{
-    padding: 1.6rem 0rem 0rem 2.5rem;
+    padding: 2rem 0rem 0rem 2.5rem;
     font-size: 21px;
     line-height: 1.19;
     font-family: "1898Sans-Regular",sans-serif;
@@ -106,7 +106,7 @@ img.profile_identity {
     outline: none !important;
 }
 .manageProfileheadinngText {
-    padding: 0.6rem 0rem 0rem 0rem !important;
+    padding:1rem 0rem 0rem 0rem !important;
 }
 @media(min-width:1024px) and (max-width:1199px){
     .userImg{
