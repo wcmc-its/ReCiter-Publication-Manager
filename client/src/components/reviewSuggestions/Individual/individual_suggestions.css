@@ -1,6 +1,9 @@
 .individual2_table tr:first-child{
     border-top:3px solid #f4f4f4;
 }
+.individual_evidence_table  tr:first-child{
+    border-top:1px solid #202b3b !important;
+}
 .individual2_table h4{
     /* border-bottom: 1px solid #ccc; */
     padding: 5px 10px 15px 15px;
@@ -14,8 +17,9 @@
 }
 .group_heeader_main{
     padding-left: 16px;
-    padding-top: 15px;
+    padding-top: 21px;
     padding-bottom: 15px;
+    margin-top: 0px;
 }
 .gtsymbol{
     margin: 2px 2px 2px 11px;
@@ -115,8 +119,11 @@
 } */
 .findscholar{
     font-size: 16px;
-    padding:11px 5px 0px 2px;
+    padding:23px 5px 0px 2px;
     margin: 0px 15px 6px 14px;
+}
+.findscholar h4 {
+    margin-top: 0px;
 }
 .suggestions_edit_lastchild li{
     padding-right:10px;
@@ -318,7 +325,7 @@ margin-top: 5px;
     margin: 0px 2.5px 0px 2.5px !important;
 }
 .individual_suggestionsshowhidecol{
-    margin-top: -22px;  
+    margin-top: -15px;  
 }
 .individual_suggestion_accordinbtn{
     font-size: 15px;

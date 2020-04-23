@@ -56,7 +56,7 @@
     padding:20px 70px 20px 0;
 }
 .padding15px{
-    padding: 15px 24%;
+    padding: 8px 24%;
 }
 .padding20px{
     padding: 20px;
@@ -65,7 +65,7 @@
     padding: 7px;
 }
 .padding5px{
-    padding:5px 2px;
+    padding:0px 2px;
 }
 .displayflex{
     display: flex;
