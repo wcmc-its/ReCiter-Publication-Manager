@@ -65,12 +65,12 @@ class Publication extends Component {
         if (item.userAssertion === "NULL") {
             buttons = <div>
                 <button
-                    className={`success_btn btn btn-success h6fnhWdeg-publication-accept`}
+                    className={`btn_publicationsuggestedacceptbtn success_btn btn btn-success h6fnhWdeg-publication-accept`}
                     onClick={this.acceptPublication}
                 ><span><img src={checked_icon} className='publicationaccepted_icons'/></span> <span>Accept</span>
                 </button>
                 <button
-                    className={`dangers_btn btn btn-danger h6fnhWdeg-publication-reject`}
+                    className={`btn_publicationsuggestedrejectbtn dangers_btn btn btn-danger h6fnhWdeg-publication-reject`}
                     onClick={this.rejectPublication}
                 ><span><img src={cancel_icon} className='publicationreject_icons'/></span> <span>Reject</span>
                 </button>
