@@ -66,6 +66,7 @@ font-size:14px;
 }
 .h6fnhWdeg-publication-buttons .h6fnhWdeg-publication-accept{
     display: inline-block;
+    vertical-align: middle;
     margin: 5px;
     /* margin-top:0px; */
     height:33px;
@@ -135,7 +136,7 @@ margin-top:-8px;
 }
 .h6fnhWdeg-publication-content {
     padding-top: 23px !important;
-    padding-left: 11px !important;
+    padding-left: 10.5px !important;
     width:850px;
 }
 .publication_evidence_tr{
@@ -162,7 +163,15 @@ margin-top:-8px;
     letter-spacing: 0.17px;
       font-size:15px;
 }
-
+.btn_publicationacceptedrejectbtn {
+    width: 92px;
+}
+.btn_publicationrejectedacceptbtn{
+    width: 92px;   
+}
+.btn_publicationacceptedundobtn{
+    width:82px;
+}
 .h6fnhWdeg-reciter-type {
     display: inline-block;
     border: 1px solid #dedcdc;
@@ -194,6 +203,8 @@ margin-top:-8px;
 }
 .h6fnhWdeg-publication-undo {
 border-radius: 2px;
+display:inline-block;
+vertical-align: middle;
 height:33px;
 outline: none !important;
 box-shadow: none !important;
@@ -208,6 +219,7 @@ margin-left:5px;
     margin-right:0px;
     letter-spacing: 0.17px;
       font-size:15px;
+      width:82px;
 }
 .h6fnhWdeg-publication-score {
     display: inline-block;
@@ -359,6 +371,7 @@ margin-left:5px;
     line-height: 1.33;
     letter-spacing: 0.17px;
     border: solid 1px #474747 !important;
+    width:82px;
 }
 .h6fnhWdeg-publication-undo:hover {
     color: #333;
