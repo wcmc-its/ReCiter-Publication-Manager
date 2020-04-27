@@ -102,7 +102,9 @@ content:"|";
     padding: 1px 9px;
     border-radius: 50%;
 }
-
+.h6fnhWdeg-publications-evidence-table>thead>tr>th {
+    border-bottom: 1px solid #202b3b;
+}
 .h6fnhWdeg-publications-tab-link span.h6fnhWdeg-publications-tab-link-active {
     background: #005ad9;
     color: #ffffff;
