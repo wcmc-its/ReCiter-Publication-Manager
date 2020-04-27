@@ -356,7 +356,12 @@ margin-left:5px;
     font-weight: bold;
 
 }
-
+.btn_publicationsuggestedacceptbtn{
+    width:92px;
+}
+.btn_publicationsuggestedrejectbtn{
+    width:82px;
+}
 .h6fnhWdeg-publication-undo {
     color: #474747 !important;
     background-color: #ffffff !important;
