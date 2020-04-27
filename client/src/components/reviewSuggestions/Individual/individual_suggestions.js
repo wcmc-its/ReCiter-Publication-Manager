@@ -173,7 +173,7 @@ class Individuals extends Component {
                         <div className="individual_suggest_container container">
                             <div className="row">
                                 <div className="col-md-12 findscholar">
-                                    <h4><span className="review">Review Pending Suggestions</span></h4>
+                                    <h4><span className="scholarlink"><Link to="/individual"><a href="#">Find Scholar</a></Link></span><span className="gtsymbol"><FontAwesomeIcon icon={faChevronRight} /></span><span className="review">Review Pending Suggestions</span></h4>
 
                                     {/* <span className="scholarlink"><Link to="/individual"><a href="#">Find Scholar </a></Link></span><span className="gtsymbol"><FontAwesomeIcon icon={faChevronRight} /></span> */}
 

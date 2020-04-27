@@ -120,10 +120,13 @@
 .individual_evidence_table>thead>tr>th{
     border-bottom: 1px solid #202b3b !important;
 }
+.individual_suggestion_accordinbtn:focus,.individual_suggestion_accordinbtn:hover{
+    text-decoration: none !important;
+}
 .findscholar{
     font-size: 16px;
     padding:21px 5px 0px 2px;
-    margin: 0px 15px -1px 14px;
+    margin: 0px 15px 6px 14px;
 }
 .findscholar h4 {
     margin-top: 0px;

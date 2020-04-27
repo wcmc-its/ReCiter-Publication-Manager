@@ -80,12 +80,12 @@ class Publication extends Component {
 
             buttons = <div>
                 <button
-                    className={`btn btn-default h6fnhWdeg-publication-undo`}
+                    className={`btn_publicationacceptedundobtn btn btn-default h6fnhWdeg-publication-undo`}
                     onClick={this.undoPublication}
                 ><span><img src={undo_icon} className='publicationundo_icons'/></span> <span>Undo</span>
                 </button>
                 <button
-                    className={`btn btn-danger h6fnhWdeg-publication-reject`}
+                    className={`btn_publicationacceptedrejectbtn btn btn-danger h6fnhWdeg-publication-reject`}
                     onClick={this.rejectPublication}
                 ><span><img src={cancel_icon} className='publicationreject_icons'/></span> <span>Reject</span>
                 </button>
@@ -95,12 +95,12 @@ class Publication extends Component {
         if (item.userAssertion === "REJECTED") {
             buttons = <div>
                 <button
-                    className={`btn btn-success h6fnhWdeg-publication-accept`}
+                    className={`btn_publicationrejectedacceptbtn btn-success h6fnhWdeg-publication-accept`}
                     onClick={this.acceptPublication}
                 > <span><img src={checked_icon} className='publicationaccepted_icons'/></span> <span>Accept</span>
                 </button>
                 <button
-                    className={`btn btn-default h6fnhWdeg-publication-undo`}
+                    className={`btn_publicationrejectedundobtn btn btn-default h6fnhWdeg-publication-undo`}
                     onClick={this.undoPublication}
                 ><span><img src={undo_icon} className='publicationundo_icons'/></span> <span>Undo</span>
                 </button>
