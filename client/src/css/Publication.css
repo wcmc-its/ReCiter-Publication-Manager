@@ -83,6 +83,7 @@ font-size:14px;
   line-height: 1.33;
   letter-spacing: 0.17px;
     font-size:15px;
+    width:83px;
 }
 .h6fnhWdeg-publication-buttons .h6fnhWdeg-publication-rejected{
     display: inline-block;
@@ -136,7 +137,7 @@ margin-top:-8px;
 }
 .h6fnhWdeg-publication-content {
     padding-top: 23px !important;
-    padding-left: 10.5px !important;
+    padding-left: 5.5px !important;
     width:850px;
 }
 .publication_evidence_tr{
@@ -164,10 +165,10 @@ margin-top:-8px;
       font-size:15px;
 }
 .btn_publicationacceptedrejectbtn {
-    width: 92px;
+    width: 80px;
 }
 .btn_publicationrejectedacceptbtn{
-    width: 92px;   
+    width: 80px;   
 }
 .btn_publicationacceptedundobtn{
     width:82px;
@@ -219,7 +220,7 @@ margin-left:5px;
     margin-right:0px;
     letter-spacing: 0.17px;
       font-size:15px;
-      width:82px;
+      width:76px;
 }
 .h6fnhWdeg-publication-score {
     display: inline-block;
@@ -357,10 +358,10 @@ margin-left:5px;
 
 }
 .btn_publicationsuggestedacceptbtn{
-    width:92px;
+    width:83px;
 }
 .btn_publicationsuggestedrejectbtn{
-    width:82px;
+    width:80px;
 }
 .h6fnhWdeg-publication-undo {
     color: #474747 !important;
@@ -376,7 +377,7 @@ margin-left:5px;
     line-height: 1.33;
     letter-spacing: 0.17px;
     border: solid 1px #474747 !important;
-    width:82px;
+    width:76px;
 }
 .h6fnhWdeg-publication-undo:hover {
     color: #333;

@@ -27,7 +27,10 @@ width:100%;
 .search_indivdual_input{
     height: 42px;
     border-radius: 4px;
-    border: 2px solid #efefef!important;
+    border-right: 0px;
+    border-bottom: 2px solid #efefef!important;
+    border-top: 2px solid #efefef!important;
+    border-left: 2px solid #efefef!important;
     outline: none!important;
     box-shadow: none!important;
     font-size: 15px !important;
@@ -124,7 +127,7 @@ width:100%;
         text-align: center;
         font-weight: 900;
         height: 42px;
-        width: 57px;
+        width: 58px;
         padding-left: 8px;
     }
 #suggestion_tables_evdiencetd{
@@ -246,6 +249,7 @@ width:100%;
     background: #005ad9;
     color: #ffff;
     border:2px solid #efefef;
+    border-left:0px;
     width:58px;
 }
 .username_individual a{
@@ -344,6 +348,9 @@ margin-right: 0px;
     overflow:hidden;
     display: table;
 }
+.reviewSuggestions_mainContainer .side-nav-position{
+    display:block;
+}
 @media (min-width:1200px) and (max-width:1366px){
     .indivdual_container{
         width:1108px;
@@ -364,6 +371,9 @@ margin-right: 0px;
 
 }
 @media (min-width:992px) and (max-width:1023px){
+    .reviewSuggestions_mainContainer .side-nav-position{
+      height:0px;
+    }
     .individual_search_well{
         width:100%;
     }
@@ -375,7 +385,7 @@ margin-right: 0px;
         overflow-x: auto;
     }
     .findscholar_heading{
-        margin-top:1%;
+        margin-top:10%;
     }
     
     .indvidualbody .table-responsive{
@@ -391,6 +401,9 @@ margin-right: 0px;
             }
 }
 @media(min-width:769px) and (max-width:991px){
+    .reviewSuggestions_mainContainer .side-nav-position{
+        height:0px;
+    }
     .indvidualbody{
         padding-left:0px !important;
         padding-right:0px !important;

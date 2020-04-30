@@ -83,7 +83,25 @@ export default class Suggestions extends Component {
                                         <td className="pubmed_suggestions_second_td">
                                             <Row>
                                                 <Col lg={12} className="contnet_individual_suggestions pt-1">
-                                                    {item.authors.length ? <p><b>Authors:</b> {item.authors.map((author, index) => index != item.authors.length - 1 ? author.authorName + ', ' : author.authorName)}</p> : null}
+                                                    <p className="h6fnhWdeg-publication-field">
+                                                        <strong className="Publications_text_bold">Authors: </strong>
+                                                        <span className="h6fnhWdeg-publication-field-authors">
+                                                            {
+                                                                (item.authors !== undefined) ? item.authors.map(function (author, authorIndex) {
+                                                                    var authorHTML = <span></span>;
+                                                                    if (author.targetAuthor) {
+                                                                        authorHTML = <span key={authorIndex} className="h6fnhWdeg-publication-author-highlighted">{author.authorName}</span>;
+                                                                        if (authorIndex < item.authors.length - 1) {
+                                                                            authorHTML = <span key={authorIndex}>{authorHTML}, </span>;
+                                                                        }
+                                                                    } else {
+                                                                        authorHTML = <span key={authorIndex}>{author.authorName}{(authorIndex < item.authors.length - 1) ? ", " : ""}</span>;
+                                                                    }
+                                                                    return authorHTML;
+                                                                }) : <span>No authors listed</span>
+                                                            }
+                                                        </span>
+                                                    </p>
                                                     <p> <b>Title:</b> {item.title}</p>
                                                     <p>  <b>Journal:</b> {item.journal}</p>
                                                     <p> <b>Date:</b> {item.displayDate} </p>

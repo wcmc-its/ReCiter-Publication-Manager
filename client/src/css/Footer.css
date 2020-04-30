@@ -59,7 +59,12 @@ and (max-device-width : 1023px) {
         height: 10rem;
         font-size: 10px;
         padding: 0.5rem;
-
+        position: fixed;
+        width: 100%;
+        background-color:#fff;
+        border-top: 1px solid #f1f1f1;
+        bottom: 0;
+        z-index: 999;
     
     }
 }
@@ -91,4 +96,19 @@ and (min-width : 1224px) {
 @media only screen
 and (min-width : 1824px) {
 
+}
+
+@media(min-width:320px) and(max-width:767px){
+    .footer{
+        height: 10rem;
+        font-size: 10px;
+        padding: 0.5rem;
+        position: fixed;
+        width: 100%;
+        background-color:#fff;
+        border-top: 1px solid #f1f1f1;
+        bottom: 0;
+        z-index: 999;
+    
+    }   
 }

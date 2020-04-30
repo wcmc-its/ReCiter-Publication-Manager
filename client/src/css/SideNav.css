@@ -456,11 +456,10 @@ Responsive to following devices
   
   
 }
-@media (min-width:813px) and (max-width:991px){
+@media (min-width:768px) and (max-width:991px){
   .sideNav_tooglt_btn{
     display:block;
-    margin-right:2rem;
-
+    margin-right: 2rem;
   }
 
   .desktop_side_bar{
@@ -468,6 +467,27 @@ Responsive to following devices
   }
   .mobile_side_bar{
     display:block;
+  }
+  .sideNav {
+    height: 100vh;
+    overflow: scroll;
+    position: absolute;
+    z-index: 999;
+    /* overflow-y: scroll; */
+  }
+
+ /* 
+  Side navigation icon swap ; main container scroll management
+  START 
+  */
+  .main-container {
+    height: 100vh;
+    overflow-y: auto;
+    /* box-sizing: border-box; */
+  }
+  .sideNav_outdentIcon{
+    color:#005AD9;
+
   }
 
 }
@@ -478,7 +498,11 @@ Responsive to following devices
     margin-right:2rem;
 
   }
-
+  .main-container {
+    height: 100vh;
+    overflow-y: auto;
+    /* box-sizing: border-box; */
+  }
   .desktop_side_bar{
     display:none;
   }

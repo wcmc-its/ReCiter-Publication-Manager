@@ -293,6 +293,7 @@ margin-top: 5px;
 }
 .h6fnhWdeg-publication-reject{
     display: inline-block;
+    vertical-align: middle;
     margin: 5px;
     /* margin-top:0px; */
     margin-right:0px;
@@ -543,6 +544,9 @@ p .suggestionText a{
 a h4{
     margin-top: 20px;
 }
+.individual_suggestions_page .side-nav-position{
+    display:block;
+}
 @media (min-width:1400px) and (max-width:1920px){
     .individual_suggest_container {
         width: 100% !important;
@@ -580,8 +584,14 @@ a h4{
          .search{
             max-width:45.7%;
         }
+        .individual_suggestions_page .side-nav-position{
+          height:0px;
+        }
 }
 @media (min-width:769px) and (max-width:991px){
+    .individual_suggestions_page .side-nav-position{
+        height:0px;
+      }
     .accordion .table-responsive{
         width:100vw;
     }

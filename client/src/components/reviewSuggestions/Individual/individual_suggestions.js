@@ -161,7 +161,7 @@ class Individuals extends Component {
         }
         else {
             return (
-                <div className="main-container">
+                <div className="individual_suggestions_page main-container">
                     <div className="header-position">
                         <Header username={this.props.username} />
                     </div>
