@@ -7,7 +7,7 @@ import { YearPicker } from 'react-dropdown-date';
 import { Row, Col, InputGroup, FormControl, Button } from 'react-bootstrap';
 import searchicon from '../../images/icons/magnifying-glass.svg'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {faSearch} from '@fortawesome/free-solid-svg-icons'
+import {faSortDown} from '@fortawesome/free-solid-svg-icons'
 
 export class TabAddPublication extends Component {
 
@@ -324,15 +324,19 @@ export class TabAddPublication extends Component {
                                     name={'year'}
                                     optionClasses={'option classes'}
                                 />
-                               <span class="earliestpublicationdivider publicationselectdivider divider"></span>
+                                 <div className="dropcomponents">
+                               <span class="earliestpublicationdivider"></span>
+                               <span className="earliest_yearicon"><FontAwesomeIcon icon={faSortDown} size='2x' className="addpublicationsearch_carot_icon" /> </span>
+                               </div>
                                </div>
                             </div>
                         </div>
                         <div className="yearpublicationscolumns12 yearpublicationscolumns col-md-2 col-xs-6" >
                             <div className="yearslatest show-rows">
                                 <label className="latestyear addpublicationlabel year-label">Latest</label>
+                                <div className="selectyearpublicationcontainer">
                                 <YearPicker
-                                    defaultValue={'Years'}
+                                    defaultValue={'Years           '}
                                     // default is 1900
                                     start={new Date().getFullYear()-20}
                                     // default is false
@@ -348,7 +352,11 @@ export class TabAddPublication extends Component {
                                     name={'year'}
                                     optionClasses={'option classes'}
                                 />
-                                 <span class="latestpublicationdivider publicationselectdivider divider"></span>
+                                <div className="dropcomponents">
+                                 <span class="latestpublicationdivider"></span>
+                                 <span className="earliest_yearicon"><FontAwesomeIcon icon={faSortDown} size='2x' className="addpublicationsearch_carot_icon" /> </span>
+                                 </div>
+                                 </div>
                             </div>
                         </div>
                         

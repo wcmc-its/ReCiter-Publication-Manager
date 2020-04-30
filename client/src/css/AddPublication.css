@@ -52,13 +52,21 @@ padding-left:5px;
     display:table !important;
 }
 .earliestpublicationdivider {
-    margin-right: 32px;
-    right: 0px;
-
+    /* margin-right: 32px;
+    right: 0px; */
+    width: 0px;
+    height: 20px;
+    background-color: #474747;
+    border: 1px solid #474747;
+}
+.earliest_yearicon{
+    padding-left:5px;
 }
 .latestpublicationdivider {
-    margin-right: 19px;
-    right: 0px;
+    width: 0px;
+    height: 20px;
+    background-color: #474747;
+    border: 1px solid #474747;
 }
 .publicationselectdivider {
     background-color: #474747;
@@ -107,14 +115,18 @@ padding-left:5px;
 .addpublicationtablebody .padding5px{
     padding:7px 0px !important;
 }
+.addpublicationsearch_carot_icon{
+    color:#005ad9;
+    display:inline-block;    
+}
 @media (min-width:1800px) and (max-width:1920px){
-    .earliestpublicationdivider {
+    /* .earliestpublicationdivider {
         margin-right: 73px;
-    } 
-    .latestpublicationdivider {
+    }  */
+    /* .latestpublicationdivider {
         margin-right: 72px;
-    } 
-#year {
+    }  */
+    .selectyearpublicationcontainer {
     width: 154px !important;
 }
 .yearslatest select{
@@ -125,47 +137,20 @@ padding-left:5px;
     }
 } 
 @media (min-width:1600px) and (max-width:1799px){
-    .earliestpublicationdivider {
-        margin-right: 73px;
-    } 
-    .latestpublicationdivider {
-        margin-right: 57px;
-    }     
+   
 }
 @media (min-width:1500px) and (max-width:1599px){
 
 }
 @media (min-width:1366px) and (max-width:1499px){
-    .earliestpublicationdivider {
-        margin-right: 32px;
-    }
-    .latestpublicationdivider {
-        margin-right: 32px;
-    }
+
 }
 @media (min-width:1200px) and (max-width:1300px){
     .addpuubmed_containerfilter .paginationshowrecords{
         flex: 6 0 61%;
         max-width: 28%;
     }
-    .latestpublicationdivider {
-        margin-right:12px;
-    }
-    .earliestpublicationdivider {
-        margin-right: 29px;
-    }
-    .yearsearliest select {
-        background-image: linear-gradient(45deg, transparent 60%, #005ad9 33%), linear-gradient(135deg, #005ad9 39%, transparent 11%) !important;
-        background-position: calc(1% - -63px) 15px, calc(1% - -72px) 15px, 0% 0px;
-        
-    }
-    .yearslatest select{
-        background-image: linear-gradient(45deg, transparent 60%, #005ad9 33%), linear-gradient(135deg, #005ad9 39%, transparent 11%) !important;
-        background-position: calc(1% - -64px) 15px, calc(1% - -73px) 15px, 0% 0px;    
-    }
-    .yearslatest {
-        margin-left: 12px;
-    }
+
 }
 @media (min-width:1024px) and (max-width:1199px){
     .yearpublicationscolumns{
@@ -177,9 +162,6 @@ padding-left:5px;
     .yearslatest {
         margin-left: 45px;
     }
-    .latestpublicationdivider {
-        margin-right: -54px;
-    }    
     .addpuubmed_containerfilter .show-rows{
         width:176px;
     }
@@ -187,20 +169,13 @@ padding-left:5px;
         padding-left: 0px !important;
         margin-left: 0px;
     }
-    .earliestpublicationdivider {
-        margin-right:29px;
-    }
+
 }
 @media (min-width:992px) and (max-width:1023px){
     .yearpublicationscolumns12 {
         padding-left: 64px;
     }
-    .latestpublicationdivider {
-        margin-right: -31px;
-    } 
-    .earliestpublicationdivider {
-        margin-right: 39px;
-    }    
+ 
 }
 @media (min-width:768px) and (max-width:991px){
     .tab-add-publication{
@@ -211,12 +186,6 @@ padding-left:5px;
     }
     .tab-add-publication .filter-container .pagination-container{
         width:90vw;
-    }
-    .earliestpublicationdivider {
-        margin-right: 29px;
-    }
-    .latestpublicationdivider {
-        margin-right: -81px;
     }
     .yearpublicationscolumns12 {
         padding-left: 77px !important;
@@ -247,12 +216,6 @@ padding-left:5px;
         width:50%;
         margin-left:0px !important;
     }
-    .earliestpublicationdivider {
-        margin-right: 165px;
-    }
-    .latestpublicationdivider {
-        margin-right: 149px;
-    }
     
 }
 @media (min-width:560px) and (max-width:679px){
@@ -278,12 +241,6 @@ padding-left:5px;
         width:50%;
         margin-left:0px !important;
     }
-    .earliestpublicationdivider {
-        margin-right: 140px;
-    }
-    .latestpublicationdivider {
-        margin-right: 140px;
-    } 
 }
 @media (min-width:480px) and (max-width:559px){
     .tab-add-publication{
@@ -322,12 +279,6 @@ padding-left:5px;
         width:50%;
         margin-left:0px !important;
     }
-    .earliestpublicationdivider {
-        margin-right: 90px;
-    }
-    .latestpublicationdivider {
-        margin-right: 89px;
-    } 
 }
 @media (min-width:414px) and (max-width:479px){
     .tab-add-publication{
@@ -364,12 +315,6 @@ padding-left:5px;
     }
 .addpuubmed_containerfilter .paginationshowrecords .show-rows{
         margin-left:0px;
-    }
-    .latestpublicationdivider {
-        margin-right: 64px;
-    }
-    .earliestpublicationdivider {
-        margin-right: 64px;
     }
    .addpuubmed_containerfilter .paginationshowrecords {
         width:46%;
@@ -413,12 +358,6 @@ padding-left:5px;
 .addpuubmed_containerfilter .paginationshowrecords .show-rows{
         margin-left:0px;
     }
-    .latestpublicationdivider {
-        margin-right: 43px;
-    }
-    .earliestpublicationdivider {
-        margin-right: 43px;
-    }
    .addpuubmed_containerfilter .paginationshowrecords {
         width:46%;
         padding-left: 0px;
@@ -447,12 +386,6 @@ padding-left:5px;
     }
     .tab-add-publication .filter-container input{
         float:initial;
-    }
-    .earliestpublicationdivider {
-        margin-right: 29px;
-    }
-    .latestpublicationdivider {
-        margin-right: 20px;
     }
     .tabaddpublication_topheader {
         padding: 7px 14px 0px 0px;

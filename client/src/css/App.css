@@ -169,6 +169,9 @@ body {
     .individual_table_body_container .pagination-container{
         width:100vw;
     }
+    .side-nav-position{
+        height:0px;
+    }
 
 }
 @media (min-width:769px) and (max-width:991px){
@@ -186,6 +189,9 @@ body {
     }
     .tab-container {
         margin-top:7px;
+    }
+    .side-nav-position{
+        height:0px;
     }
 }
 @media (min-width:601px) and (max-width:768px){

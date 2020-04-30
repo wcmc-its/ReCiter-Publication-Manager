@@ -96,7 +96,7 @@ class App extends Component {
             }
             
             return (
-                <div className="main-container">
+                <div className="reviewSuggestions_mainContainer main-container">
                     <div className="header-position">
                         <Header username={this.props.username} />
                     </div>
