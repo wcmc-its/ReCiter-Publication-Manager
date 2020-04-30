@@ -124,12 +124,12 @@ img.profile_identity {
 }
 @media(min-width:992px) and (max-width:1023px){
     .reviewSuggestionHeading {
-        padding-top: 13%;
+        padding-top: 7%;
     } 
 }
 @media(min-width:769px) and (max-width:991px){
     .reviewSuggestionHeading {
-        padding-top: 13%;
+        padding-top: 1%;
     }    
     .userContainer{
         padding:0rem;
@@ -146,7 +146,7 @@ img.profile_identity {
 }
 @media(min-width:601px) and (max-width:768px){
     .reviewSuggestionHeading {
-        padding-top: 13%;
+        padding-top: 3%;
     }   
     .reviewSuggestionHeading h3{
         padding-bottom:25px;
@@ -170,7 +170,7 @@ img.profile_identity {
 }
 @media(min-width:481px) and (max-width:600px){
     .reviewSuggestionHeading {
-        padding-top: 13%;
+        padding-top: 1%;
     }   
     .reviewSuggestionHeading h3{
         padding-bottom:25px;
@@ -194,7 +194,7 @@ img.profile_identity {
 }
 @media(min-width:320px) and (max-width:480px){
     .reviewSuggestionHeading {
-        padding-top: 13%;
+        padding-top:5%;
     }   
     .profile_identity{
         width: 100px;

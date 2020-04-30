@@ -38,10 +38,10 @@
     background-color: #ffffff;
     width:90px !important;*/
     border: solid 0px #474747;
-    width:100% !important;
+    width: 102.5% !important;
     position: absolute;
     background-color: transparent;
-    background-image:none !important;
+    background-image: none !important;
     font-size: 15px;
     font-weight: normal;
     font-stretch: normal;
@@ -55,7 +55,7 @@
     padding: 0px !important;
     padding-right: 5px !important;
     top: 4px;
-    margin-left: -12px;
+    margin-left: -13px;
     padding-left: 10px !important;
 }
 .yearpublicationscolumns{
