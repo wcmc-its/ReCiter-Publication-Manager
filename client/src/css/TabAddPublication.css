@@ -165,15 +165,11 @@ input.form-control {
 	margin-top: 0 !important;
 }
 .yearsearliest select{
-    /* background-image: linear-gradient(45deg, transparent 64%, #005ad9 33%), linear-gradient(135deg, #005ad9 44%, transparent 39%) !important;
-    background-position: calc(1% - -62px) 15px, calc(1% - -72px) 15px, 0% 0px;
-  background-size: 10px 10px, 10px 10px; */
   background-repeat: no-repeat;
   -webkit-appearance: none;
   appearance: none;   
   outline: 0px !important;
     box-shadow: none !important;  
-    /* background-image: url('../images/icons/Earliest1.png') !important; */
 }
 .yearslatest select{
     background-image:linear-gradient(45deg, transparent 64%, #005ad9 33%), linear-gradient(135deg, #005ad9 44%, transparent 39%) !important;
