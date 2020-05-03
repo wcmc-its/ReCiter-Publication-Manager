@@ -359,7 +359,7 @@ margin-right: 0px;
 @media (min-width:1024px) and (max-width:1199px){
     .individual_search .inputadds{
         width:11%;
-        padding-right: 41px;
+        padding-right:35px;
         padding-left: 0px;
             }
             #indivdual_search_selectopts{
@@ -455,7 +455,7 @@ margin-right: 0px;
            width:100%;
        }
        .individual_search .inputadds{
-        padding-left:4px;
+        padding-left:0px;
     }
     #indivdual_search_selectopts {
         background-position: calc(1% - -95%) 11px,calc(1% - -97%) 11px,0 0;
@@ -489,6 +489,7 @@ margin-right: 0px;
     padding-right: 24px;
 
 }
+
 }
 @media (min-width:320px) and (max-width:439px){
     .btn-span {
@@ -544,6 +545,18 @@ margin-right: 0px;
     }
 }
 @media(max-width:768px){
+    .indvidualbody .table-responsive th{
+        position: static;
+        display: inline-block !important;
+        float: none;
+        width: 33.3333% !important;
+    }
+    .indvidualbody .table-responsive td{
+        position: static;
+        display: inline-block !important;
+        float: none;
+        width: 33.3333% !important;
+    }
     .individual_search .inputadds {
         width: 11%;
     }
