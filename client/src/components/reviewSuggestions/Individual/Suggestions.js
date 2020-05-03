@@ -44,7 +44,7 @@ export default class Suggestions extends Component {
 
 
     render() {
-        const i = this.state.articles;
+        const i = this.props.articles;
         var facultyUserName = "";
         if (this.props.faculty !== undefined) {
 
