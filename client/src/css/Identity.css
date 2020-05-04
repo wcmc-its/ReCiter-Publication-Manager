@@ -162,7 +162,7 @@ img.profile_identity {
         margin-top: -108PX;
     }
     .userTitle p{
-        width: 47%;
+        width: 80%;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;   
