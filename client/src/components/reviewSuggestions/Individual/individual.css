@@ -44,7 +44,7 @@ width:100%;
     padding-left: 13px!important;
 }
 .tags_main_child {
-    width: 89%;
+    width: 87%;
     display: inline-block;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -363,7 +363,7 @@ margin-right: 0px;
         padding-left: 0px;
             }
             #indivdual_search_selectopts{
-                background-position: calc(-1% - -103px) 11px,calc(6% - -105px) 11px,0 0;   
+                background-position: calc(-1% - -80px) 11px,calc(6% - -83px) 11px,0 0;   
             }
             .individual_searchshowrec .form-control{
                 background-position: calc(-2% - -22px) 11px, calc(0% - -31.1px) 11px, 0% 0px;    
