@@ -13,10 +13,12 @@ phases:
         - |
           if expr "${BRANCH}" : ".*dev" >/dev/null; then
             sed -i.bak -e 's@NAMESPACE@'"reciter"'@' -e 's@APPNAME@'"reciter-pm-dev"'@' -e 's@HPANAME@'"hpa-reciter-pm-dev"'@' -e 's@ENVIRONMENT_LABEL@'"dev"'@' kubernetes/k8-deployment.yaml;
+            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-dev"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.example.js;
           fi
         - |
           if expr "${BRANCH}" : ".*master" >/dev/null; then
             sed -i.bak -e 's@NAMESPACE@'"reciter"'@' -e 's@APPNAME@'"reciter-pm-prod"'@' -e 's@HPANAME@'"hpa-reciter-pm-prod"'@' -e 's@ENVIRONMENT_LABEL@'"prod"'@' kubernetes/k8-deployment.yaml;
+            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-prod"'@'  config/local.example.js;
           fi
         - $(aws ecr get-login --no-include-email)
         - cat ./kubernetes/k8-deployment.yaml
