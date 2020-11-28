@@ -118,16 +118,16 @@ class App extends Component {
                             </div>
                             <div className="tab-container px-0">
                                 {thisObject.props.reciterData.reciterPending && thisObject.props.reciterData.reciterPending.length > 0 ? (
+                                  <a id="refreshBar" href="#" onClick={thisObject.refreshHandler}>
                                     <div className="h6fnhWdeg-reciter-pending-banner">
                                         <span>You have provided feedback on </span>
                                         <strong>{`${
                                             thisObject.props.reciterData.reciterPending.length
                                             } record(s). `}</strong>
-                                        <a href="#" onClick={thisObject.refreshHandler}>
                                             Refresh
-                            </a>
                                         <span> to get new suggestions.</span>
                                     </div>
+                                 </a>
                                 ) : null}
                                 <Tabs
                                     tabActive={this.state.tabActive}
