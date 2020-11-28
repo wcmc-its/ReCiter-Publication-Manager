@@ -62,21 +62,20 @@ class AddPublication extends Component {
                                 return authorHTML;
                             })
                             :<span>No authors listed</span>
-                        }
-
-                    
+                        }                    
                 </p>
                 <p>
                     <b>Title: </b>
-                    {item.title}
+                    <a class="title_content" href={`https://www.ncbi.nlm.nih.gov/pubmed/${item.pmid}`} target="_blank" rel="noopener noreferrer">{item.title}</a>
                 </p>
+
                 <p>
                     <b>Journal: </b>
-                    {item.journal}
+                    <span class="journal_content">{item.journal}</span>
                 </p>
                 <p>
                     <b>Date: </b>
-                    {item.displayDate}
+                    <span class="date_content">{item.displayDate}</span>
                 </p>
                 </Col>
                 </Row>
