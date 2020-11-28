@@ -54,7 +54,7 @@ export default class SideNav extends Component {
         const listItems = navItems.map((item, index) => (
             <div className="category" key={index}>
                 <span className="side_nav_icon icon" style={{ backgroundImage: `url(${item.icon})` }} /> 
-                <span className="side_nav_category">{item.category}</span>
+                <div className="side_nav_category">{item.category}</div>
                 {item.links.map(link => (
                     <div className="links" key={index}>
                         <a className={`side-nav-element ${(myobj[urlpathName] === link.name) ? 'side_bar_active' : 'inactive'}`} onClick={() => { this.manageLinks(link.name) }}>{link.name}</a>
