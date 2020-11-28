@@ -363,7 +363,28 @@ class Individual extends Component {
                             </div>
                             <div className="row page-title">
                                 <div className="col-md-12">
-                                    <h4 className="scholarHeading"><span className="scholars"> {this.numberWithCommas(this.state.data.length)} scholar </span> <span className="btn-span"> <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/review_suggestions')}>Review  All Pending Suggestions</button></span></h4>
+                                    <h4 className="scholarHeading">
+                                        if ({this.numberWithCommas(this.state.data.length)} = 0) {
+                                            <span className="scholars">0 scholars</span>
+                                            <span className="search-advice">Please try a less restrictive search.</span>
+                                        }
+                                        else if ({this.numberWithCommas(this.state.data.length)} = 1) {
+                                            <span className="scholars">1 scholar</span> 
+                                            <span className="btn-span"> 
+                                                <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/review_suggestions')}>Review top pending suggestions</button>
+                                            </span>
+                                        }
+                                        else if ({this.numberWithCommas(this.state.data.length)} < 500) {
+                                            <span className="scholars">{this.numberWithCommas(this.state.data.length)} scholars</span> 
+                                            <span className="btn-span"> 
+                                                <button type="button" class="btn-primes btn btn-primary" onClick={() => this.props.history.push('/review_suggestions')}>Review top pending suggestions</button>
+                                            </span>                                            
+                                        }
+                                        else {
+                                            <span className="scholars">{this.numberWithCommas(this.state.data.length)} scholars</span> 
+                                            <span className="search-advice">You have exceeded the maximum number of profiles that can be reviewed at one time. Please try a more restrictive search.</span>
+                                        }
+                                    </h4>
                                 </div>
                             </div>
                         </Container>
