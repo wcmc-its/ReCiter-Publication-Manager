@@ -39,16 +39,16 @@ export default class SideNav extends Component {
         urlpathName = urlpathName.length <= this.getPosition(urlpathName, '/', 2) ? urlpathName : urlpathName.substr(0, this.getPosition(urlpathName, '/', 2))
         let myobj = {
             '/individual' : 'Individual',
-            '/app': 'Review Suggestions',
+            '/app': 'Review suggestions',
             '/search': 'Individual',
-            '/review_suggestions': 'Review Suggestions'
+            '/review_suggestions': 'Review suggestions'
         }
         const navItems = [
-            { category: "Find Scholar", icon: find, links: [{ name: "Individual", value: "/individual" }] },
-            { category: "Manage Publications", icon: copy, links: [{ name: "Review Suggestions", value: "/app" },{ name: "Curate Publications", value: "/" }] },
-            { category: "Manage Profile", icon: profile, links: [] },
-            { category: "Reports", icon: growth, links: [{ name: "List View", value: "" }, { name: "Export View", value: "" }, { name: "Impact Pictograph", value: "" }, { name: "Impact Table", value: "" }] },
-            { category: "Admin", icon: admin, links: [{ name: "Settings", value: "" }, { name: "Control Access", value: "" }, { name: "FAQs", value: "" }] }
+            { category: "Find scholar", icon: find, links: [{ name: "Individual", value: "/individual" }] },
+            { category: "Manage publications", icon: copy, links: [{ name: "Review suggestions", value: "/app" },{ name: "Curate Ppblications", value: "/" }] },
+            { category: "Manage profile", icon: profile, links: [] },
+            { category: "Reports", icon: growth, links: [{ name: "List view", value: "" }, { name: "Export view", value: "" }, { name: "Impact pictograph", value: "" }, { name: "Impact table", value: "" }] },
+            { category: "Admin", icon: admin, links: [{ name: "Settings", value: "" }, { name: "Control access", value: "" }, { name: "FAQs", value: "" }] }
 
         ];
         const listItems = navItems.map((item, index) => (
