@@ -18,8 +18,8 @@ export default class Header extends Component {
                 (this.props.username !== undefined && this.props.username.length > 0)?
                 (<div className="drop-container">
                     <div className="header-username">
-                       <span class="welcome-statement">Welcome, </span> 
-                       <span class="welcome-username">{this.props.username}</span>
+                       <span class="welcome-statement">Welcome </span> 
+                       <span class="welcome-username"><strong>{this.props.username}</strong></span>
                        <a class="header-logout" href="/logout">Log out</a>
                     </div>
                 </div>)
