@@ -13,7 +13,7 @@ export default class Header extends Component {
                 {<Navbar.Brand>
                     ReCiter
                 </Navbar.Brand>}
-                <Navbar.Text>Publications Management System</Navbar.Text>
+                <Navbar.Text>Publication Manager</Navbar.Text>
                 {
                 (this.props.username !== undefined && this.props.username.length > 0)?
                 (<div className="drop-container">
