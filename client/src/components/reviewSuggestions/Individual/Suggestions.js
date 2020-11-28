@@ -74,7 +74,7 @@ export default class Suggestions extends Component {
                                             <div className="padding15px ">
                                                 <div className="displayflex flexDirectionCol backgroundColor202b3b textAlignCenter colorWhite ">
                                                     <p className="evidence " data-tip={"<strong>" + item.rawScore + " :</strong> Raw score<br/><strong>" + item.standardScore + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>" + facultyUserName + "</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\""} data-place="right"
-                                                        data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">Evidence Score</p>
+                                                        data-effect="solid" data-html={true} data-class="h6fnhWdeg-evidence-score-popup-container">Evidence</p>
                                                     <h1 className="score"><b>{item.standardScore}</b></h1>
                                                     < ReactTooltip />
                                                 </div>
