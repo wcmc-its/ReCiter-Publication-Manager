@@ -23,11 +23,10 @@ const ReviewSuggestions = (props) => {
                 <Row className="backgroundColorWhite">
                     <Col md={12}>
                         <div><p className="add_record_p"><span className="add_record_spans">Add new record</span> <span className="add_record_spans"><Breadcrumb>
-                            <Breadcrumb.Item href="/newrecord">Pub Med</Breadcrumb.Item>
-                            <Breadcrumb.Item href="#">
-                                Scopus
-                        </Breadcrumb.Item>
-                            <Breadcrumb.Item href="#">Manually</Breadcrumb.Item>
+                            <Breadcrumb.Item href="/newrecord">PubMed</Breadcrumb.Item>
+             // The ability to manually add records or Scopus records is not yet supported.
+             //             <Breadcrumb.Item href="#">Scopus</Breadcrumb.Item>
+             //             <Breadcrumb.Item href="#">Manually</Breadcrumb.Item>
                         </Breadcrumb> </span></p></div>
                     </Col>
                 </Row>
