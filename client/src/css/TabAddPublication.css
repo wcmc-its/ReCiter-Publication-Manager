@@ -30,6 +30,24 @@
     color: #474747;
 }
 
+a.title_content {
+    border-bottom: dotted #666 1px !important;
+    text-decoration: none;
+}
+
+.journal_content, .date_content, .title_content {
+    margin-left: 5px
+}
+
+.tab-add-publication .filter-container input {
+    width: 100%;
+}
+
+.addpuubmed_containerfilter.filter-container.pt-3.pb-5.mx-4.row {
+    background: rgb(245,245,245);
+    height: 70px;
+}
+
 #year {
     /* padding: 0px 0px 0px 12px !important;
     height: 40px !important;

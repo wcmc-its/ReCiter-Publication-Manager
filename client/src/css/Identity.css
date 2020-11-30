@@ -1,26 +1,33 @@
 .userContainer {
     display: grid;
-    height:auto;
-    padding: 0 5rem;
-    padding-top: 2.7rem;
+    height: auto;
+    padding: 3.7rem 5rem 0;
     margin-bottom: 40px;
     grid-template-columns: [col-1-start] 144px [col-2-start] 3rem [col-3-start] auto [col-end];
     grid-template-rows: [row-1-start] auto [row-2-start] 3rem [row-3-start] 3rem [row-4-start] 3rem [row-5-start] auto [row-end];
 }
-
-.reviewSuggestionHeading h3{
-    padding: 2rem 0rem 0rem 2.5rem;
-    font-size: 21px;
-    line-height: 1.19;
-    font-family: "1898Sans-Regular",sans-serif;
-    text-align: left;
-    color: #323942;
+.col-md-12.findscholar_heading {
+    margin-top: -26px;
+    margin-left: -24px;
+    margin-bottom: 10px;
 }
+
+.reviewSuggestionHeading h3, h4.heading {
+    padding: 12px 0 0 24px;
+    font-size: 20px;
+    line-height: 1.19;
+    font-family: "opensans-regular",sans-serif;
+    text-align: left;
+    color: #666;
+    font-weight: 200;
+}
+
 .userImg {
     grid-row-start: row-1-start;
     grid-row-end: row-end;
     grid-column-start: col-1-start;
-    margin-left:33px;
+    margin-top: 10px;
+    margin-left: 20px;
     height:218px;
 }
 
@@ -37,30 +44,27 @@ img.profile_identity {
     background-position: center center;
 }
 .userName h3 {
-    font-size: 18px;
+    font-size: 24px;
     font-stretch: normal;
     font-style: normal;
     line-height: 1.33;
-    letter-spacing: -0.41px;
-    font-family: '1898Sans-Bold,sans-serif';
-    color: #323942;
+    letter-spacing: 0px;
+    font-family: 'opensans-bold',sans-serif;
+    color: #000;
 }
-.userTitle p{
-    margin-top: -5px;
-    font-size: 14px;
-    font-weight: normal;
-    font-stretch: normal;
-    font-style: normal;
+.userTitle p {
+    margin-top: -30px;
+    font-size: 16px;
+    font-weight: 400;
     line-height: 1.36;
-    letter-spacing: -0.32px;
+    letter-spacing: 0; 
     text-align: left;
-    color: #323942;  
 }
 .userName {
-    grid-row-start: row-2-start;
+    grid-row-start: row-1-start;
     grid-column-start: col-3-start;
-    margin-left: 19px;
-
+    margin-left: 12px;
+    margin-top: 10px;
 }
 
 .h1, h1 {
@@ -68,11 +72,9 @@ img.profile_identity {
 }
 
 .userTitle {
-    grid-row-start: row-3-start;
-    grid-column-start: col-3-start;
-    margin-left: 19px;
-
+    margin-left: 12px;
 }
+
 
 .h3, h3 {
     margin: 0;
@@ -89,22 +91,14 @@ img.profile_identity {
     grid-row-start: row-3-end;
     grid-column-start: col-3-start;
     margin-top: -107PX;
-    margin-left:19px;
-
+    margin-left: 12px;
 }
+
 .profile_identity{
     width:144px;
     height:auto;
 }
-.manageBtn {
-    color: #005AD9;
-    text-decoration: underline;
-    border: none !important;
-    margin: 0;
-    padding: 0;
-    font-size: 14px;
-    outline: none !important;
-}
+
 .manageProfileheadinngText {
     padding:1rem 0rem 0rem 0rem !important;
 }
