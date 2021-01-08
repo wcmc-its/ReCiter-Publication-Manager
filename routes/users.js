@@ -14,6 +14,7 @@ app.use(session({
 
 app.post('/reciter/authentication', (req, res) => {
   return authenticate.authenticate(req, (err, data) => {
+        console.log("Authenticate Error: " + err)
         if(err)
         {
             return res.send({
