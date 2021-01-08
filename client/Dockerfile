@@ -1,4 +1,4 @@
-FROM node:12.16.1-alpine as build
+FROM node:12-slim as build
 WORKDIR /app
 ENV PATH /app/node_modules/.bin:$PATH
 COPY package.json /app/package.json
@@ -12,7 +12,7 @@ RUN npm run build
 RUN mv build/index.html build/app.html
 
 # production environment
-FROM nginx:alpine
+FROM nginx:latest
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
 EXPOSE 80
