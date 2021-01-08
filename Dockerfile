@@ -1,4 +1,4 @@
-FROM node:12.16.1-alpine as build-stage
+FROM node:12-slim as build-stage
 
 #RUN apt-get -y update && apt-get -y upgrade
 
