@@ -1,24 +1,24 @@
 .filter-container input {
-	height: calc(3.25rem + 2px) !important;
+    height: calc(3.25rem + 7px)!important;
     margin: 0;
-    font-size: 15px !important;
-    font-weight: normal;
+    font-size: 15px!important;
+    font-weight: 400;
     font-stretch: normal;
     font-style: italic;
     line-height: 1.33;
-    letter-spacing: -0.19px;
+    letter-spacing: 0; 
     text-align: left;
     color: #212121;
-    font-family:opensans-regular;
+    font-family: opensans-regular;
     height: 40px;
     border-radius: 2px;
-    border: solid 1px #474747;
-    background-color: #ffffff;
-    border: solid 1px #474747 !important;
-    padding-left:8px !important;
-    outline: none !important;
-    box-shadow: none !important;
+    border: 1px solid #999;
+    background-color: #fff;
+    padding-left: 8px!important;
+    outline: none!important;
+    box-shadow: none!important;
 }
+
 
 .filter-sort-by-label {
     text-align: right;
@@ -81,7 +81,7 @@
 }
 .selectdivider{
     background-color: #474747;
-    width: 1.5px;
+    width: 2px;
     height: 22px;
     position: absolute;
     margin-left: -30px;

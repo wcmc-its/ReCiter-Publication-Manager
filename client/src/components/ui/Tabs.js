@@ -29,15 +29,14 @@ export class Tabs extends Component {
                 {
                     this.props.tabActive === 'Add Publication' ?
                         (<div className="addPubmed_record_link">
-                            <p className="addnewrecordfrompubmed"><i>Adding New Record from PubMed...</i></p>
+                            <p className="addnewrecordfrompubmed"><i>Adding new record from PubMed...</i></p>
                         </div>) : (<div className="addPubmed_record_link">
                             <p>Add New Record:</p>
                             <Breadcrumb className="bread_crumb_record">
                                 <Breadcrumb.Item onClick={() => { this.props.tabClickHandler("Add Publication"); }}>PubMed</Breadcrumb.Item>
-                                <Breadcrumb.Item href="https://getbootstrap.com/docs/4.0/components/breadcrumb/">
-                                    Scopus
-                        </Breadcrumb.Item>
-                                <Breadcrumb.Item >Manually</Breadcrumb.Item>
+                    // The ability to manually added records or records from Scopus is not yet supported.
+                    //          <Breadcrumb.Item href="https://getbootstrap.com/docs/4.0/components/breadcrumb/">Scopus</Breadcrumb.Item>
+                    //          <Breadcrumb.Item >Manually</Breadcrumb.Item>
                             </Breadcrumb>
                         </div>)
                 }

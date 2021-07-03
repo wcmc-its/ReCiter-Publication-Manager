@@ -11,16 +11,14 @@
     z-index: 990;
 }
 
-.drop-container{
-    color: #323942;
-    margin: 15px;
+.drop-container {
+    color: #fff;
     align-self: flex-start;
     position: absolute;
-    right: 0px;
-    margin: 1.5rem 3.1rem 0rem 1rem;
-  /* border: 1px solid red; */
-    padding: 4px;
-    font-size: 1.5rem;
+    right: 20 !important;
+    font-size: 14px;
+    right: 20px;
+    top: 14px;
 }
 
 .navbar-brand {
@@ -34,32 +32,56 @@
     width: 200px;
 
 }
-.navbar{
-  min-height: 70px;
+.navbar {
+    min-height: 43px;
+    border-radius: 0px;
 }
+
 .navbar-text {
   font-size: 18px;
   font-weight: bold;
   font-stretch: normal;
   font-style: normal;
-  line-height: 23px;
-  letter-spacing: -0.41px;
+  line-height: 0em;
+  letter-spacing: 0.6px;
   text-align: center;
   color: #323942 !important;
-  margin: 14px 15px 0px 5px;
+  margin: 14px 15px 0px 10px;
   display: block;
-  font-family: '1898Sans-Bold,sans-serif';
   position: relative;
   top: 3px;
+  font-family: 'opensans-bold',sans-serif;
+}    
+
+span.welcome-username {
+    font-weight: bold;
+    padding-right: 15px;
+}
+
+a.header-logout {
+    color: #fff;
+}
+
+
+
+.topNav {
+    background-color: #015AD9;
+    border-bottom: 1px solid #000;
+    margin: 0;
+    display: flex;
+    padding-left: 10px;
+    position: relative;
+    width: 100%;
+    z-index: 990;
 }
 
 /* Dropdown Button */
 .drop-btn {
-    color: #323942;
+    color: #fff;
     font-size: 1.5rem;
-    border: none !important;
-    margin: 0px;
-    padding: 0px;
+    border: none!important;
+    margin: 0;
+    padding: 0;
 }
 .header-username{
   width: 120px;

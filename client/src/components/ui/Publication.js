@@ -179,7 +179,7 @@ class Publication extends Component {
 
                         </div>
                         : <div>
-                            <span>Manaually added publication</span>
+                            <span>Manually added publication</span>
                         </div>
                 }
                 <div className="clear-both"></div>

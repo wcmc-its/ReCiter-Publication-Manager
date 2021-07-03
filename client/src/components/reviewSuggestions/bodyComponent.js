@@ -157,7 +157,7 @@ const BodyComponent = () => {
                                 </div>
                                 <div className="padding15px ">
                                     <div className="displayflex flexDirectionCol backgroundColor202b3b textAlignCenter colorWhite ">
-                                        <p className="evidence">Evidence Score</p>
+                                        <p className="evidence">Evidence</p>
                                         <h1 className="score"><b>10</b></h1>
                                     </div>
                                 </div>

@@ -37,10 +37,9 @@ body {
 .main-container {
     min-height: 100%;
     display: grid;
-    grid-template-rows: [header] 70px [page-content] 1fr [footer] auto;
-    grid-template-columns: [side-nav] 220px [content-start] auto [content-end];
+    grid-template-rows: [header] 43px [page-content] 1fr [footer] auto;
+    grid-template-columns: [side-nav] 215px [content-start] auto [content-end];
 }
-
 .header-position {
     grid-row-start: header;
     grid-row-end: page-content;
@@ -52,6 +51,7 @@ body {
 
 .side-nav-position {
     height: 100%;
+    margin-top: -20px;
     background-color: #202b3b;
     grid-column-start: side-nav;
     grid-column-end: content-start;
@@ -80,9 +80,11 @@ body {
     grid-template-rows: [row-2-start] 144px [row-3-start] auto [row-3-end];
 }
 
+
 .identity-container {
-    grid-row-start: row-2-start;
+    margin-top: 15px;
 }
+
 
 .tab-container {
     /* grid-row-start: row-5-start;
@@ -122,14 +124,18 @@ body {
     overflow:hidden;
 }
 
+
 .h6fnhWdeg-reciter-pending-banner {
-    border: 1px solid #dddddd;
+    border: 1px solid #ddd;
     border-radius: 4px;
     background-color: #fef7af;
-    margin-bottom: 20px;
-    padding: 15px 20px;
-    color: #555;
+    margin-bottom: 30px;
+    padding: 16px 20px 16px 70px;
+    color: #000;
+    font-size: 14px;
+    font-family: 'opensans-regular';
 }
+
 
 .nav-tabs>li>a {
     margin-right: 0px !important;
@@ -161,6 +167,37 @@ body {
     line-height: 0;
     letter-spacing: 0.17px;
 }
+
+.manageBtn {
+    color: #000 !important;
+    /* text-decoration: underline; */
+    border-radius: 6px !important;
+    margin: 0;
+    padding: 4px 11px;    
+    font-size: 14px;
+    outline: none!important;
+    border: 1px solid #666 !important;
+    /* background: rgb(245,245,245); */
+}
+
+
+.manageBtn:hover {
+    background: inherit;
+    color: #000;
+    text-decoration: none !important;
+}
+
+
+a#refreshBar:hover .h6fnhWdeg-reciter-pending-banner {
+    background: rgba(191,217,1,.31);
+    text-decoration: none !important;
+}
+
+a#refreshBar:hover {
+    text-decoration: none !important;
+}
+
+
 @media (min-width:992px) and (max-width:1023px){
     .main-container{
         display:block;

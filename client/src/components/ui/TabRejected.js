@@ -127,13 +127,13 @@ export class TabRejected extends Component {
                             //doi
                             if(publication.doi !== undefined && publication.doi.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true
-                            }
+                            }                            
                             // title
-                            if (publication.title.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.title !== undefined && publication.title.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true;
                             }
                             // journal
-                            if (publication.journal.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
+                            if (publication.journal !== undefined && publication.journal.toLowerCase().includes(thisObject.state.search.toLowerCase())) {
                                 addPublication = true;
                             }
                             //issn

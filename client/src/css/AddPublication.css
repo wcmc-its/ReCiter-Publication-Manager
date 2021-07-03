@@ -51,6 +51,24 @@ padding-left:5px;
 .tabaddpublication_topheader .input-group{
     display:table !important;
 }
+.results_returned_container {
+    padding-left: 20px; 
+    padding-top: 10px;
+} 
+
+.results_returned {
+    font-size: 18px; 
+    font-family: 'opensans-bold';
+}   
+
+.results_already_accepted_rejected {
+    color: #000; 
+    font-size: 16px; 
+    font-weight: normal; 
+    margin-top: -5px;
+}
+
+
 .earliestpublicationdivider {
     /* margin-right: 32px;
     right: 0px; */
@@ -273,7 +291,7 @@ padding-left:5px;
     }
     .addpuubmed_containerfilter .paginationshowrecords {
         width: 36%;
-        padding-left: 0px;
+        padding-left: inherit;
     }  
     .yearpublicationscolumns {
         padding-right: 0px;

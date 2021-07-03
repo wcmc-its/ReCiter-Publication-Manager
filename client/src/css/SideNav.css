@@ -36,59 +36,59 @@
 
 /* The navigation menu links */
 .links{
-  padding: 2px 0px;
+  padding: 0;
   text-decoration: none;
   /* font-size: 25px; */
 
   display: block;
 }
 
-.links a{
-  display: block;
-  height: 100%;
-  width: 100%;
-  text-decoration: none;
-  color:#fff;
-  font-family: 'opensans-regular';
-  /* Side Nave 16-24px
-   padding: 8px 4px 8px 40px;
-  */
-  padding: 3px 4px 0px 48px;
-
-  font-size: 14px;
-  font-weight: normal;
-  font-stretch: normal;
-  font-style: normal;
-  line-height: 20px;
-  letter-spacing: -0.32px;
+.links a {
+    height: 100%;
+    width: 100%;
+    color: #fff;
+    font-family: opensans-regular;
+    font-size: 14px;
+    font-weight: 400;
+    font-stretch: normal;
+    font-style: normal;
+    line-height: 20px;
+    letter-spacing: 0px; 
+    padding: 4px 24px 4px 0px;
 }
 
-/* When you mouse over the navigation links, change their color */
-.links a:hover,.links a:active {
-  color: white;
-  background-color: #005AD9;
+
+
+
+.links a:hover {
+    background: rgba(191,217,1,.31);
+    color: #000;
 }
+
+
 .side_nav_icon {
   /* Side Nave 16-24px
   margin-left: 1rem !important;
   */
-  
+  display: none;
   margin-left: 1.5rem !important;
 
 }
-.category{
-  font-family: opensans-bold;
-  /* padding: 0 1rem 0 1rem; */
-  font-size: 15px;
+.category {
+    padding: 0 0 0 24px;
+    font-family: opensans-bold;
+    font-size: 14px;
+    text-align: left;
 }
 
-.navHr{
-    border-color:#999999 ;
-    width:160px;
-    margin-top: 13px;
-    margin-bottom: 13px;
-    
+
+.navHr {
+    border-color: #202B3C;
+    width: 160px;
+    margin-top: 7px;
+    margin-bottom: 7px;
 }
+
 .side_bar_active{
   color: white;
   background-color: #005AD9;
@@ -280,13 +280,19 @@ Responsive to following devices
 
 /* Show side menu ; restrict height to viewport ; full width HR */
 .sideNav {
-  height: 100vh;
-  overflow: scroll;
-  width: 100%;
-  position: absolute;
-  z-index: 999;
-  /* overflow-y: scroll; */
+    height: 100%;
+    background-color: #202b3b;
+    overflow: hidden;
+    padding-top: 42px;
+    color: #fff;
+    padding-left: 0;
 }
+
+.side_nav_category {
+  padding-left: 24px;
+  padding-bottom: 5px;
+}
+
 .navHr {
   width:auto;
 }
