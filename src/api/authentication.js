@@ -36,19 +36,18 @@ const authenticate = (req, cb) => {
             const apiError = 'ReCiter Publication Manager authenticate api is not reachable'
             return cb(apiError, null)
         }
+        console.log(body)
         if (body !== undefined) {
-            if (JSON.parse(body)) {
-                const payload = {
-                    username: req.body.username
-                }
-                return jwt.sign(payload, tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' }, function (err, token) {
-                    if (err) return cb('Failed to generate jwt token for user using tokenSecret', null)
-                    cookie['accessToken'] = token
-                    return cb(null, cookie)
-                })
-            } else {
-                return cb('User credentials is wrong', null)
+            const payload = {
+                username: req.body.username
             }
+            return jwt.sign(payload, tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' }, function (err, token) {
+                if (err) return cb('Failed to generate jwt token for user using tokenSecret', null)
+                cookie['accessToken'] = token
+                return cb(null, cookie)
+            })     
+        } else {
+            return cb('User credentials is wrong', null)
         }
     })
 }
