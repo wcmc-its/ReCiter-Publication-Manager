@@ -11,7 +11,7 @@
     "react-dropdown-date": "0.0.17",
     "react-redux": "^5.1.1",
     "react-router-dom": "^5.0.1",
-    "react-scripts": "3.0.1",
+    "react-scripts": "^3.3.0",
     "react-slidedown": "^2.0.5",
     "react-tooltip": "^3.9.0",
     "redux": "^4.0.1",
