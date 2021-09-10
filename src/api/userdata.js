@@ -44,20 +44,27 @@ const getAllIdentity = (cb) => {
         if (error) {
             return cb(error, null)
         }
-        let data = JSON.parse(body)
-        data.forEach(identity => {
-            let identityImage = ''
-            if(identityImageEndpoint !== undefined && identityImageEndpoint.length > 0) {
-                if(identityImageEndpoint.includes('${uid}')) {
-                    identityImage = identityImageEndpoint.replace('${uid}', identity.uid)
-                }  else {
-                    identityImage = identityImageEndpoint
+        if(response.statusCode != 200) {
+            console.log('ReCiter IdentityAll api is not reachable')
+            const apiError = 'ReCiter IdentityAll api is not reachable'
+            return (apiError, null)
+        }
+        if(response.statusCode == 200) {
+            let data = JSON.parse(body)
+            data.forEach(identity => {
+                let identityImage = ''
+                if(identityImageEndpoint !== undefined && identityImageEndpoint.length > 0) {
+                    if(identityImageEndpoint.includes('${uid}')) {
+                        identityImage = identityImageEndpoint.replace('${uid}', identity.uid)
+                    }  else {
+                        identityImage = identityImageEndpoint
+                    }
                 }
-            }
-            identity['identityImageEndpoint'] = identityImage
-        })
-        //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
-        return cb(null, data)
+                identity['identityImageEndpoint'] = identityImage
+            })
+            //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
+            return cb(null, data)
+        }
         
 
     }); 
