@@ -1,6 +1,7 @@
 FROM node:12-slim
 
 RUN apt-get -y update && apt-get -y upgrade
+RUN apt-get install -y ca-certificates wget
 
 # Install server dependencies
 WORKDIR /usr/src/app
