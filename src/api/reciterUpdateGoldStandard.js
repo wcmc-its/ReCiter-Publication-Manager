@@ -13,7 +13,8 @@ const updateGoldStandard = (req, cb) => {
         headers: {
             'Content-Type': 'application/json',
             'api-key': adminApiKey,
-            'Content-Length': req.body.length
+            'Content-Length': req.body.length,
+            'User-Agent': 'reciter-pub-manager-server'
 
         },
         body: JSON.stringify(req.body)
@@ -49,7 +50,8 @@ function callUserFeedbackApi(goldStandard, req) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Content-Length': userFeedback.length
+            'Content-Length': userFeedback.length,
+            'User-Agent': 'reciter-pub-manager-server'
 
         },
         body: JSON.stringify(userFeedback)

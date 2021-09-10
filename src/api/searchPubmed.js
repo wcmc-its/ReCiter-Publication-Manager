@@ -9,7 +9,8 @@ const searchPubmed = (req, cb) => {
         uri: `${searchPubmedCountEndpoint}`,
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'User-Agent': 'reciter-pub-manager-server'
         },
         body: JSON.stringify(req.body)
     }, (error, res, body) => {
@@ -23,7 +24,8 @@ const searchPubmed = (req, cb) => {
                     uri: `${searchPubmedEndpoint}`,
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'reciter-pub-manager-server'
                     },
                     body: JSON.stringify(req.body)
                 }, function (error, response, body) {

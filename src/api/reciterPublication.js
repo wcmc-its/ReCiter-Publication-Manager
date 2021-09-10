@@ -19,7 +19,8 @@ const getPublications = (req, cb) => {
     return request({
         
         headers: {
-            'api-key': adminApiKey
+            'api-key': adminApiKey,
+            'User-Agent': 'reciter-pub-manager-server'
         },
         uri: uri,
         method: 'GET'
@@ -45,7 +46,8 @@ function clearPendingFeedback(uid, req, callback)
         uri: fullUrl(req, '/api/reciter/delete/userfeedback/' + uid),
         method: 'GET',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'User-Agent': 'reciter-pub-manager-server'
         }
     }, (error, res, body) => {
         if (error) {
@@ -63,7 +65,8 @@ function getPendingFeedback(uid, data, req, callback) {
         uri: fullUrl(req, '/api/reciter/find/userfeedback/' + uid),
         method: 'GET',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'User-Agent': 'reciter-pub-manager-server'
         }
     }, (error, res, body) => {
         if (error) {

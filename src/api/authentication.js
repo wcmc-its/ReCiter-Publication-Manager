@@ -28,7 +28,8 @@ const authenticate = (req, cb) => {
         uri: `${authenticationEndpoint}?${httpBuildQuery(credentials)}`,
         headers: {
             'api-key': adminApiKey,
-            'Content-type': 'application/json'
+            'Content-type': 'application/json',
+            'User-Agent': 'reciter-pub-manager-server'
         },
         method: 'POST'
     }, (error, res, body) => {

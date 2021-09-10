@@ -10,7 +10,8 @@ const addUserFeedback = (req, cb) => {
         headers: {
             'Content-Type': 'application/json',
             'api-key': adminApiKey,
-            'Content-Length' : req.body.length
+            'Content-Length' : req.body.length,
+            'User-Agent': 'reciter-pub-manager-server'
 
         },
         body: JSON.stringify(req.body)
@@ -29,7 +30,8 @@ const deleteUserFeedback = (uid, cb) => {
         uri: `${userFeedbackEndpoint.deleteUserFeedback}` +'?uid=' + uid,
         method: 'GET',
         headers: {
-            'api-key': adminApiKey
+            'api-key': adminApiKey,
+            'User-Agent': 'reciter-pub-manager-server'
         }
     }, (error, res, body) => {
         if(error) {
@@ -46,7 +48,8 @@ const getUserFeedback = (uid, cb) => {
         uri: `${userFeedbackEndpoint.findUserFeedback}` +'?uid=' + uid,
         method: 'GET',
         headers: {
-            'api-key': adminApiKey
+            'api-key': adminApiKey,
+            'User-Agent': 'reciter-pub-manager-server'
         }
     }, (error, res, body) => {
         if(error) {
