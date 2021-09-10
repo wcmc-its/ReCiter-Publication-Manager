@@ -1,4 +1,4 @@
-FROM node:10.16
+FROM node:12-slim
 
 RUN apt-get -y update && apt-get -y upgrade
 
