@@ -33,7 +33,7 @@ const authenticate = (req, cb) => {
         method: 'POST'
     }, (error, res, body) => {
         if (error) {
-            const apiError = 'Pubmed search api is unreachable at the moment'
+            const apiError = 'ReCiter Publication Manager authenticate api is not reachable'
             return cb(apiError, null)
         }
         if (body !== undefined) {
@@ -42,12 +42,12 @@ const authenticate = (req, cb) => {
                     username: req.body.username
                 }
                 return jwt.sign(payload, tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' }, function (err, token) {
-                    if (err) return cb('Failed to authenticate the user', null)
+                    if (err) return cb('Failed to generate jwt token for user using tokenSecret', null)
                     cookie['accessToken'] = token
                     return cb(null, cookie)
                 })
             } else {
-                return cb('Failed to authenticate the user', null)
+                return cb('User credentials is wrong', null)
             }
         }
     })
