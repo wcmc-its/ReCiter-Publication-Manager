@@ -44,9 +44,11 @@ const searchPubmed = (req, cb) => {
                     return cb(null, formatPubmedSearch(data))
                 });
             } else {
+                message = "Your search exceeded 200 results: " + parseInt(body, 10) + ". Please narrow down search."
                 const limitExceededError = {
                     limit: parseInt(body, 10),
-                    message: 'Your search exceeded 200 results. Please narrow down search'
+                    message: message,
+                    status: 500
                 }
                 return cb(limitExceededError, null)
             }
