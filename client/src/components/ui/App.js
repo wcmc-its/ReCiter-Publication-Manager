@@ -10,8 +10,7 @@ import SideNav from "../ui/SideNav";
 import Header from "../ui/Header";
 import Footer from "../ui/Footer";
 import Identity from "../ui/Identity";
-import { BrowserRouter as Router, Route, Link } from "react-router-dom";
-import Login from './Login'
+import {Error} from "./Error";
 //import jsonData from './sample-data.json';
 
 class App extends Component {
@@ -54,6 +53,26 @@ class App extends Component {
 
     render() {
         const thisObject = this;
+
+        if(this.props.errors && this.props.errors.length > 0) {
+            return (
+                <div className="main-container">
+                    <div className="header-position">
+                        <Header  username={this.props.username}  />
+                    </div>
+
+                    <div className="side-nav-position">
+                        <SideNav uid={this.props.match.params.uid} history={this.props.history} />
+                    </div>
+                    <div>
+                        <Error {...this.props} />
+                    </div>
+                    <div className="footer-position">
+                        <Footer />
+                    </div>
+                </div>
+            );
+        }
 
         if (this.props.reciterFetching) {
             return (

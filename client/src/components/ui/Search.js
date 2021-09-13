@@ -8,7 +8,9 @@ import Header from "../ui/Header";
 import Footer from "../ui/Footer";
 import SideNav from "../ui/SideNav";
 import { Pagination } from './Pagination';
-import { Filter } from './Filter'; 
+import {Error} from "./Error";
+
+
 
 class Search extends Component {
 
@@ -123,6 +125,26 @@ class Search extends Component {
 
     render() {
         const identities = this.filter();
+
+        if(this.props.errors && this.props.errors.length > 0) {
+            return (
+                <div className="main-container">
+                    <div className="header-position">
+                        <Header  username={this.props.username}  />
+                    </div>
+
+                    <div className="side-nav-position">
+                        <SideNav uid={this.props.match.params.uid} history={this.props.history} />
+                    </div>
+                    <div>
+                        <Error {...this.props} />
+                    </div>
+                    <div className="footer-position">
+                        <Footer />
+                    </div>
+                </div>
+            );
+        }
         if (this.props.identityAllData.length <= 0) {
             return (
                     <div className="h6fnhWdeg-app-loader"> </div>

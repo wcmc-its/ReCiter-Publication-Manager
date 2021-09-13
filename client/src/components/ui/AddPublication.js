@@ -1,5 +1,9 @@
 import React, { Component } from 'react';
 import '../../css/AddPublication.css';
+import Header from "../ui/Header";
+import Footer from "../ui/Footer";
+import SideNav from "../ui/SideNav";
+import {Error} from "./Error"
 
 class AddPublication extends Component {
 
@@ -26,6 +30,25 @@ class AddPublication extends Component {
     }
 
     render() {
+        if(this.props.errors && this.props.errors.length > 0) {
+            return (
+                <div className="main-container">
+                    <div className="header-position">
+                        <Header  username={this.props.username}  />
+                    </div>
+
+                    <div className="side-nav-position">
+                        <SideNav uid={this.props.match.params.uid} history={this.props.history} />
+                    </div>
+                    <div>
+                        <Error {...this.props} />
+                    </div>
+                    <div className="footer-position">
+                        <Footer />
+                    </div>
+                </div>
+            );
+        }
 
         const { item } = this.props;
 
