@@ -1,6 +1,6 @@
 var express = require('express');
 const app = express()
-const session = require('express-session')
+const session = require('cookie-session')//require('express-session')
 const authenticate = require('../src/api/authentication')
 const cookieParser = require('cookie-parser')
 
