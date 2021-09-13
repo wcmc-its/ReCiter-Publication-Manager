@@ -20,6 +20,8 @@ export class Tabs extends Component {
                 case "REJECTED":
                     rejected++
                     break
+                default:
+                    break
             }
         })
 

@@ -220,7 +220,7 @@ export class TabAddPublication extends Component {
 
     search() {
 
-        const thisObject = this
+        //const thisObject = this
         const searchText = this.refs['search-field'].value
 
         this.setState({

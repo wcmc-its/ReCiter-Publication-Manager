@@ -1,9 +1,8 @@
-import React, { Component, Fragment } from "react";
+import React, { Component } from "react";
 import Header from "../ui/Header";
 import Footer from "../ui/Footer";
 import { Button, Form, FormGroup, FormControl } from "react-bootstrap";
 import "../../css/Login.css";
-import reducers from "../../store/reducers";
 
 export default class Login extends Component {
   constructor(props) {

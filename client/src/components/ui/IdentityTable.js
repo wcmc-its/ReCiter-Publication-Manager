@@ -70,13 +70,13 @@ export default class IdentityTable extends Component {
 
             //Get degree types and years
             let degree = [];
-            var i = 0;
+            //var i = 0;
             if(identityData.degreeYear !== undefined && identityData.degreeYear !== null) {
                 for (i in identityData.degreeYear) {
-                    if (i === "bachelorYear" && identityData.degreeYear[i] != 0) {
+                    if (i === "bachelorYear" && identityData.degreeYear[i] !== 0) {
                         degree.push(<p>{identityData.degreeYear[i] + ' - Bachelor\'s'}</p>);
                     }
-                    if (i === "doctoralYear" && identityData.degreeYear[i] != 0) {
+                    if (i === "doctoralYear" && identityData.degreeYear[i] !== 0) {
                         degree.push(<p>{identityData.degreeYear[i] + ' - PhD'}</p>);
                     }
                 }
@@ -85,7 +85,7 @@ export default class IdentityTable extends Component {
             //Get array of names and types of known relationships
             let relationships = [];
             if(identityData.knownRelationships !== undefined && identityData.knownRelationships !== null) {
-                for (var i = 0; i < identityData.knownRelationships.length; i++) {
+                for (i = 0; i < identityData.knownRelationships.length; i++) {
                     var relationship = identityData.knownRelationships[i];
                     relationships.push(
                         relationship.name.firstName +
@@ -101,7 +101,7 @@ export default class IdentityTable extends Component {
             //Eliminate duplicates organizational units
             let orgUnits = [];
             if(identityData.organizationalUnits !== undefined && identityData.organizationalUnits !== null) {
-                for (var i = 0; i < identityData.organizationalUnits.length; i++) {
+                for (i = 0; i < identityData.organizationalUnits.length; i++) {
                     orgUnits.push(
                         identityData.organizationalUnits[i].organizationalUnitLabel
                     );
