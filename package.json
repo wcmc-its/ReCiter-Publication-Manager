@@ -16,7 +16,7 @@
     "dateformat": "^3.0.3",
     "debug": "~2.6.9",
     "express": "~4.16.1",
-    "express-session": "^1.16.2",
+    "express-session": "^1.17.2",
     "htmlspecialchars": "^1.0.5",
     "http-build-query": "^0.7.0",
     "http-errors": "~1.6.3",
