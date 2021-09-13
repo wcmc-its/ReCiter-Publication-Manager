@@ -389,7 +389,7 @@ export class TabAddPublication extends Component {
                                         </React.Fragment>
                                 }
 
-                            </div> : null
+                            </div> : <div><b>No Results</b></div>
                         }
                     </div>
                 }
