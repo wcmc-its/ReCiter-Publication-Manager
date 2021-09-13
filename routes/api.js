@@ -8,8 +8,9 @@ const userFeedback = require('../src/api/userFeedback')
 const identityImageEndpoint = require('../config/local').config.reciter.reciterIdentityEndpoints.identityImageEndpoint
 
 router.get('/reciter/getidentity/:uid', function (req, res) {
-    return userData.requestWithRetry(req.params.uid, (err, data) => {
+    return userData.getIdentity(req.params.uid, (err, data) => {
         if (err) {
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'
@@ -25,6 +26,8 @@ router.get('/reciter/getidentity/:uid', function (req, res) {
 router.get('/reciter/getAllIdentity', function (req, res) {
     return userData.getAllIdentity((err, data) => {
         if (err) {
+            err = JSON.parse(err)
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'
@@ -40,6 +43,7 @@ router.get('/reciter/getAllIdentity', function (req, res) {
 router.get('/reciter/feature-generator/:uid', function (req, res) {
     return reciterPublication.getPublications(req, (err, data) => {
         if (err) {
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'
@@ -71,6 +75,7 @@ router.get('/reciter/feature-generator/:uid', function (req, res) {
 router.post('/reciter/search/pubmed', function (req, res) {
     return reciterPubmed.searchPubmed(req, (err, data) => {
         if (err) {
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'
@@ -97,6 +102,7 @@ router.post('/reciter/search/pubmed', function (req, res) {
 router.post('/reciter/update/goldstandard', function (req, res) {
     return reciterUpdateGoldStandard.updateGoldStandard(req, (err, data) => {
         if (err) {
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'
@@ -114,6 +120,7 @@ router.post('/reciter/update/goldstandard', function (req, res) {
 router.post('/reciter/save/userfeedback', function (req, res) {
     return userFeedback.addUserFeedback(req, (err, data) => {
         if (err) {
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'
@@ -131,6 +138,7 @@ router.post('/reciter/save/userfeedback', function (req, res) {
 router.get('/reciter/find/userfeedback/:uid', function (req, res) {
     return userFeedback.getUserFeedback(req.params.uid, (err, data) => {
         if (err) {
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'
@@ -148,6 +156,7 @@ router.get('/reciter/find/userfeedback/:uid', function (req, res) {
 router.get('/reciter/delete/userfeedback/:uid', function (req, res) {
     return userFeedback.deleteUserFeedback(req.params.uid, (err, data) => {
         if (err) {
+            res.status(err.status)
             return res.send({
                 error: err,
                 message: 'failure'

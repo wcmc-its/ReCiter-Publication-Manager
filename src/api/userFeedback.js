@@ -19,7 +19,15 @@ const addUserFeedback = (req, cb) => {
         if(error) {
             return cb(error, null)
         }
-        if(body !== undefined) {
+        if(res.statusCode != 200) {
+            console.log('ReCiter Add User Feedback api is not reachable: ' + body)
+            const apiError = {
+                status: res.statusCode,
+                error: body
+            }
+            return cb(apiError, null)
+        }
+        if(res.statusCode == 200 && body !== undefined) {
             return cb(null, JSON.parse(body))
         }
     })
@@ -37,7 +45,15 @@ const deleteUserFeedback = (uid, cb) => {
         if(error) {
             return cb(error, null)
         }
-        if(body !== undefined) {
+        if(res.statusCode != 200) {
+            console.log('ReCiter Delete User Feedback api is not reachable: ' + body)
+            const apiError = {
+                status: res.statusCode,
+                error: body
+            }
+            return cb(apiError, null)
+        }
+        if(res.statusCode == 200 && body !== undefined) {
             return cb(null, body)
         }
     })
@@ -55,7 +71,15 @@ const getUserFeedback = (uid, cb) => {
         if(error) {
             return cb(error, null)
         }
-        if(body !== undefined) {
+        if(res.statusCode != 200) {
+            console.log('ReCiter Get User Feedback api is not reachable: ' + body)
+            const apiError = {
+                status: res.statusCode,
+                error: body
+            }
+            return cb(apiError, null)
+        }
+        if(res.statusCode == 200 && body !== undefined) {
             try{
                 const response = JSON.parse(body)
                 return cb(null, response)

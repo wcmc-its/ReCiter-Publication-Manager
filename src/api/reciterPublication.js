@@ -15,7 +15,7 @@ const getPublications = (req, cb) => {
             })
         }
     }
-    console.log(uri)
+    //console.log(uri)
     return request({
         
         headers: {
@@ -28,14 +28,21 @@ const getPublications = (req, cb) => {
         if (error) {
             return cb(error, null)
         }
-        let data = JSON.parse(body)
-        let formattedData = formatPublications(data)
-        if(featureGeneratorApiParams.analysisRefreshFlag === 'true' && featureGeneratorApiParams.retrievalRefreshFlag === 'ONLY_NEWLY_ADDED_PUBLICATIONS') {
-            
+        if(response.statusCode != 200) {
+            console.log('ReCiter Feature Generator api is not reachable: ' + body)
+            const apiError = {
+                status: response.statusCode,
+                error: body
+            }
+            return cb(apiError, null)
         }
-        getPendingFeedback(req.params.uid, formattedData, req, (reciterData) => {
-            return cb(null, reciterData)
-        })
+        if(response.statusCode == 200) {
+            let data = JSON.parse(body)
+            let formattedData = formatPublications(data)
+            getPendingFeedback(req.params.uid, formattedData, req, (reciterData) => {
+                return cb(null, reciterData)
+            })
+        }   
     });
 
 }
@@ -53,7 +60,15 @@ function clearPendingFeedback(uid, req, callback)
         if (error) {
             callback(error)
         }
-        if(body !== undefined) {
+        if(res.statusCode != 200) {
+            console.log('ReCiter Delete Feedback api is not reachable: ' + body)
+            const apiError = {
+                status: res.statusCode,
+                error: body
+            }
+            callback(apiError)
+        }
+        if(res.statusCode == 200 && body !== undefined) {
             callback(body)
         }
     })
@@ -73,7 +88,15 @@ function getPendingFeedback(uid, data, req, callback) {
             console.log(error)
             reciterData =  {'reciterData': data, 'reciterPendingData': []}
         }
-        if (body !== undefined) {
+        if(res.statusCode != 200) {
+            console.log('ReCiter Get User Feedback api is not reachable: ' + body)
+            const apiError = {
+                status: res.statusCode,
+                error: body
+            }
+            reciterData =  {'reciterData': data, 'reciterPendingData': []}
+        }
+        if (res.statusCode == 200 && body !== undefined) {
             body = JSON.parse(body)
             let pendingPublications = []
             if(body.userFeedback.acceptedPmids !== undefined) {

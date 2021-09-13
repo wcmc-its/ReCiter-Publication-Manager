@@ -22,7 +22,15 @@ const updateGoldStandard = (req, cb) => {
         if (error) {
             return cb(error, null)
         }
-        if (body !== undefined) {
+        if(res.statusCode != 200) {
+            console.log('ReCiter Update GoldStandard api is not reachable: ' + body)
+            const apiError = {
+                status: res.statusCode,
+                error: body
+            }
+            return cb(apiError, null)
+        }
+        if (res.statusCode == 200 && body !== undefined) {
             callUserFeedbackApi(goldStandard, req)
             return cb(null, JSON.parse(body))
         }
@@ -59,7 +67,15 @@ function callUserFeedbackApi(goldStandard, req) {
         if (error) {
             console.log(error)
         }
-        if (body !== undefined) {
+        if(res.statusCode != 200) {
+            console.log('ReCiter Call User Feedback api is not reachable: ' + body)
+            const apiError = {
+                status: res.statusCode,
+                error: body
+            }
+            return cb(apiError, null)
+        }
+        if (res.statusCode == 200 && body !== undefined) {
             console.log(body)
         }
     })

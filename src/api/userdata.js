@@ -24,10 +24,19 @@ const getIdentity = (uid, cb) => {
         if (error) {
             return cb(error, null)
         }
-        let data = JSON.parse(body)
-        data['identityImageEndpoint'] = identityImage
-        //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
-        return cb(null, data)
+        if(response.statusCode != 200) {
+            console.log('ReCiter Identity api is not reachable: ' + body)
+            const apiError = {
+                status: response.statusCode,
+                error: body
+            }
+            return cb(apiError, null)
+        }
+        if(response.statusCode == 200) {
+            let data = JSON.parse(body)
+            data['identityImageEndpoint'] = identityImage
+            return cb(null, data)
+        }
         
 
     }); 
@@ -46,13 +55,10 @@ const getAllIdentity = (cb) => {
         if (error) {
             return cb(error, null)
         }
-        console.log(body)
-        console.log('api-key' + adminApiKey)
-        console.log(identityAllEndpoint)
         if(response.statusCode != 200) {
-            console.log('ReCiter IdentityAll api is not reachable')
-            const apiError = 'ReCiter IdentityAll api is not reachable'
-            return (apiError, null)
+            console.log('ReCiter IdentityAll api is not reachable' + body)
+            const apiError = body
+            return cb(apiError, null)
         }
         if(response.statusCode == 200) {
             let data = JSON.parse(body)
@@ -67,7 +73,6 @@ const getAllIdentity = (cb) => {
                 }
                 identity['identityImageEndpoint'] = identityImage
             })
-            //const knownRelationships = data.knownRelationships.filter(relationship => relationship.type === 'CO_INVESTIGATOR')
             return cb(null, data)
         }
         

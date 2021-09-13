@@ -34,10 +34,9 @@ const authenticate = (req, cb) => {
         method: 'POST'
     }, (error, res, body) => {
         if (error) {
-            const apiError = 'ReCiter Publication Manager authenticate api is not reachable'
+            const apiError = body
             return cb(apiError, null)
         }
-        console.log(body)
         if (body !== undefined) {
             const payload = {
                 username: req.body.username
