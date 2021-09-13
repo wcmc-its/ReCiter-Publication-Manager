@@ -36,7 +36,7 @@ export const identityFetchData = uid => dispatch => {
                     type: response.type,
                     title: response.statusText,
                     status: response.status,
-                    detail: "En error occurred. Please, try again later."
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
                 }
             }
         })
@@ -83,7 +83,7 @@ export const identityFetchAllData = () => dispatch => {
                     type: response.type,
                     title: response.statusText,
                     status: response.status,
-                    detail: "En error occurred. Please, try again later."
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
                 }
             }
         })
@@ -99,7 +99,6 @@ export const identityFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
-
             dispatch(
                 addError(error)
             )
@@ -136,7 +135,7 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
                     type: response.type,
                     title: response.statusText,
                     status: response.status,
-                    detail: "En error occurred. Please, try again later."
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
                 }
             }
         })
@@ -185,7 +184,7 @@ export const pubmedFetchData = query => dispatch => {
                     type: response.type,
                     title: response.statusText,
                     status: response.status,
-                    detail: "En error occurred. Please, try again later."
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
                 }
             }
         })
@@ -353,7 +352,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                 type: response.type,
                 title: response.statusText,
                 status: response.status,
-                detail: "En error occurred. Please, try again later."
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
             }
         }
     })
