@@ -73,7 +73,7 @@ function callUserFeedbackApi(goldStandard, req) {
                 status: res.statusCode,
                 error: body
             }
-            return cb(apiError, null)
+            console.log(apiError)
         }
         if (res.statusCode == 200 && body !== undefined) {
             console.log(body)
