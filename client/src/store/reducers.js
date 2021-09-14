@@ -119,7 +119,7 @@ export const reciterData = (state=[], action) => {
                 reciterPending: pendingPublications
             }
         case methods.UNDO_PUBLICATION :
-            //var publications = []
+            var publications = []
             pendingPublications = state.reciterPending
             state.reciter.forEach(function(publication){
                 if(publication.pmid === action.payload) {
