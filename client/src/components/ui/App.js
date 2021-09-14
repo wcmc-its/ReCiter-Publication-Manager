@@ -54,7 +54,7 @@ class App extends Component {
     render() {
         const thisObject = this;
 
-        if(this.props.errors && this.props.errors.length > 0) {
+        /*if(this.props.errors && this.props.errors.length > 0) {
             return (
                 <div className="main-container">
                     <div className="header-position">
@@ -72,7 +72,7 @@ class App extends Component {
                     </div>
                 </div>
             );
-        }
+        }*/
 
         if (this.props.reciterFetching) {
             return (

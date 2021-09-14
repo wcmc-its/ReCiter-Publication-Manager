@@ -177,15 +177,20 @@ export const pubmedFetchData = query => dispatch => {
         body: JSON.stringify(query)
     }, 300000)
         .then(response => {
+            var errorMessage = ''
             if(response.status === 200) {
                 return response.json()
             }else {
+                response.json().then(parsedResponse => {
+                    errorMessage = parsedResponse.error.message
+                    console.log(errorMessage)
+                })
                 throw {
                     type: response.type,
-                    title: response.statusText,
+                    title: errorMessage,
                     status: response.status,
                     detail: "Error occurred with api " + response.url + ". Please, try again later "
-                }
+                } 
             }
         })
         .then(data => {
