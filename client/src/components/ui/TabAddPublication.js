@@ -15,7 +15,6 @@ export class TabAddPublication extends Component {
         count: 20,
         latestYear: '',
         earliestYear: '',
-        largeSearchFlag: false,
         resultMode: ''
     }
 
@@ -28,6 +27,7 @@ export class TabAddPublication extends Component {
         this.acceptPublication = this.acceptPublication.bind(this);
         this.rejectPublication = this.rejectPublication.bind(this);
         this.handleSearchUpdate = this.handleSearchUpdate.bind(this);
+        this.largeSearchFlag = false;
     }
 
     handlePaginationUpdate(event, page) {
@@ -253,11 +253,18 @@ export class TabAddPublication extends Component {
             }
 
             this.props.getPubmedPublications(query)
+            
         })
 
     }
 
     render() {
+
+        if(this.props.errors && this.props.errors.length > 0) {
+            this.largeSearchFlag = true
+        } else {
+            this.largeSearchFlag = false
+        }
         const publications = this.filter();
         const thisObject = this;
 
@@ -351,7 +358,7 @@ export class TabAddPublication extends Component {
                 {
                     (this.props.pubmedFetching) ? <div className="h6fnhWdeg-app-loader"></div> :
                     <div>
-                        {(this.props.pubmedData.length > 0) ?
+                        {(this.props.pubmedData.length > 0 || this.largeSearchFlag === true) ?
                             <div>
                                 <div className="row">
                                     <div className="col-md-4">
@@ -364,8 +371,7 @@ export class TabAddPublication extends Component {
                                 </div>
 
                                 {
-                                    (this.state.largeSearchFlag === true) ? <div><span><strong>Too many results. Please provide additional search parameters</strong></span>
-                                        </div> :
+                                    (this.largeSearchFlag === true) ? <div><strong>Too many results. Please provide additional search parameters</strong></div> :
                                         <React.Fragment>
                                             <Pagination total={this.props.pubmedData.length} page={this.state.page}
                                                         count={this.state.count}
@@ -389,7 +395,7 @@ export class TabAddPublication extends Component {
                                         </React.Fragment>
                                 }
 
-                            </div> : <div><b>No Results</b></div>
+                            </div> : (this.state.pubmedSearch ==="")?null:<div><b>No Results</b></div>
                         }
                     </div>
                 }
