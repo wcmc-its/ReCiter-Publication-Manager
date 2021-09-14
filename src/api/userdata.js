@@ -57,7 +57,10 @@ const getAllIdentity = (cb) => {
         }
         if(response.statusCode != 200) {
             console.log('ReCiter IdentityAll api is not reachable' + body)
-            const apiError = body
+            const apiError = {
+                status: response.statusCode,
+                error: body
+            }
             return cb(apiError, null)
         }
         if(response.statusCode == 200) {
