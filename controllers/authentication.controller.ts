@@ -1,12 +1,10 @@
 
 import httpBuildQuery from 'http-build-query'
 import jwt from 'jsonwebtoken'
-import { NextApiRequest, NextApiResponse } from 'next';
 import { reciterConfig } from '../config/local'
+import { Request, Response } from 'express'
 
-
-
-export async function authenticate(req: any){
+export async function authenticate(req: Request){
     const hour: number = 3600000 * 8; // 8 hours
     const expires: Date = new Date(Date.now() + hour);
     let cookie = {
@@ -34,20 +32,18 @@ export async function authenticate(req: any){
             },
         })
         .then(res=>res.json())
-        .then((res) => {
-            console.log(res)
+        .then( async (res) => {
             if (res === true) {
-                const payload = {
-                    username: req.body.username
-                }
-                jwt.sign(payload, reciterConfig.tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' }, function (err, token: any) {
-                    if (err) {
-                        return "Failed to generate jwt token for user using tokenSecret"
+                const payload: {
+                    username: string
+                } = {
+                        username: req.body.username
                     }
-                    cookie['accessToken'] = token
-                    return cookie
-                }) 
-                return cookie 
+                const token = jwt.sign(payload, reciterConfig.tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' });
+                return {
+                    ...cookie,
+                    accessToken: token
+                }
             } else if(res === false){
                 console.log("Credentials for user: " + req.body.username + " is incorrect")
                 return "Credentials for user: " + req.body.username + " is incorrect"
@@ -61,7 +57,7 @@ export async function authenticate(req: any){
         });
 }
 
-export async function withAuth(req: any, res: any) {
+export async function withAuth(req: Request, res: Response) {
     if(!req.cookies || !req.cookies['reciter-session'])
     {
         return res.send({
