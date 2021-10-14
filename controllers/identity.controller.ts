@@ -41,3 +41,48 @@ export async function getIdentity(uid: string | string[])  {
             }
         });
 }
+
+export async function getAllIdentity()  {
+    
+    return fetch(`${reciterConfig.reciter.reciterIdentityEndpoints.getAllIdentity}`, {
+         method: "GET",
+         headers: {
+             'api-key': reciterConfig.reciter.adminApiKey,
+             'User-Agent': 'reciter-pub-manager-server'
+         },
+     })
+         .then(async(res)=> {
+             if(res.status !== 200) {
+                 let responseText = await res.text()
+                 return {
+                     statusCode: res.status,
+                     statusText: responseText
+                 }
+             } else {
+                 let data: any = await res.json()
+                 let identityImage = ''
+                 data.forEach((identity: any) => {
+                    if(reciterConfig.reciter.reciterIdentityEndpoints.identityImageEndpoint !== undefined && reciterConfig.reciter.reciterIdentityEndpoints.identityImageEndpoint.length > 0) {
+                        if(reciterConfig.reciter.reciterIdentityEndpoints.identityImageEndpoint.includes('${uid}')) {
+                            identityImage = reciterConfig.reciter.reciterIdentityEndpoints.identityImageEndpoint.replace('${uid}', String(identity.uid))
+                        } else {
+                            identityImage = reciterConfig.reciter.reciterIdentityEndpoints.identityImageEndpoint
+                        }
+                    }
+                    identity['identityImageEndpoint'] = identityImage
+                 })
+                 
+                 return {
+                     statusCode: res.status,
+                     statusText: data
+                 }
+             }
+         })
+         .catch((error) => {
+             console.log('ReCiter Identity api is not reachable: ' + error)
+             return {
+                 statusCode: error.status,
+                 statusText: error
+             }
+         });
+ }
