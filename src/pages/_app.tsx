@@ -1,4 +1,4 @@
-import '../../styles/globals.css'
+/* import '../../styles/globals.css'
 import "bootstrap/dist/css/bootstrap.min.css"
 import type { AppProps } from 'next/app'
 import { useState } from "react";
@@ -8,10 +8,7 @@ import { ReactQueryDevtools } from "react-query/devtools"
 import type { Page } from '../../types/pages'
 
 
-// this should give a better typing
-type Props = AppProps & {
-  Component: Page
-}
+
  
 
 function MyApp({ Component, pageProps }: Props) {
@@ -29,4 +26,26 @@ function MyApp({ Component, pageProps }: Props) {
         </QueryClientProvider>
     );
 }
-export default MyApp
+export default MyApp */
+
+
+
+import { Provider } from 'react-redux'
+import { useStore } from '../redux/store/store'
+import type { Page } from '../../types/pages'
+import type { AppProps } from 'next/app'
+
+// this should give a better typing
+type Props = AppProps & {
+  Component: Page
+}
+
+export default function App({ Component, pageProps }: Props) {
+  const store = useStore(pageProps.initialReduxState)
+
+  return (
+    <Provider store={store}>
+      <Component {...pageProps} />
+    </Provider>
+  )
+}
