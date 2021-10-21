@@ -1,0 +1,43 @@
+.loginMainContainer{
+    min-height: 100%;
+    display: grid;
+    grid-template-rows: [header] auto [form] 1fr [footer] auto;
+}
+
+.header{
+    grid-row-start: header;
+}
+
+.formContainer{
+    display: grid;
+    align-items: center;
+    justify-content: center;
+}
+
+.loginForm{
+    display: inline-block; 
+    border: 1px solid gray;
+    padding: 30px 40px;
+    border-radius: 4px; 
+}
+
+h3.loginHeader{
+    margin: 0;
+    margin-bottom: 20px;
+}
+
+.formControl{
+    margin-top: 5px;
+}
+
+button.loginBtn.btn.btnPrimary{
+    float: right;
+    color: white;
+    background-color: orange;
+    font-weight: 500;
+    border-color: orange;
+}
+
+.footer{
+    grid-row-start: footer;
+}
