@@ -9,6 +9,7 @@ import {
 } from "../../../redux/actions/actions";
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
+import Header from "../Header/Header"; 
 
 const Login = () => {
     const router = useRouter()
@@ -67,6 +68,7 @@ const Login = () => {
 
     return (
         <div className={styles.loginMainContainer}>
+        <Header/>
         <div className={styles.formContainer}>
             <Form className={styles.loginForm} onSubmit={handleSubmit}>
             <h3 className={styles.loginHeader}>Sign into your account</h3>
