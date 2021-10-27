@@ -1,58 +1,31 @@
 import React, { Component } from "react";
 import { Navbar} from "react-bootstrap";
 import styles from "./Header.module.css";
-
-/* export default class Header extends Component {
-    
-    render() {
-        return (
-            <Navbar bg="primary" className="topNav">
-                <Navbar.Brand>
-                    Re<b>Citer</b>
-                </Navbar.Brand>
-                <Navbar.Text>Publication Management System</Navbar.Text>
-                {
-                (this.props.username !== undefined && this.props.username.length > 0)?
-                (<div className="drop-container">
-                    {this.props.username}
-                    <div className="dropdown">
-                        <button className="drop-btn">▼</button>
-                        <div className="dropdown-content">
-                            <a href="/logout">Log out</a>
-                        </div>
-                    </div>
-                </div>)
-                : null
-                }
-            </Navbar>
-        );
-    }
-} */
+import { useSelector } from 'react-redux';
 
 type Props = {
     username: string
 }
 
-const Header: React.FC<Props> = ({ username}) => {
+const Header: React.FC<Props> = () => {
+    const username = useSelector((state: any) => state.auth.username)
     return (
         <Navbar bg="primary" className={styles.topNav}>
-            <Navbar.Brand>
-                Re<b>Citer</b>
-            </Navbar.Brand>
-            <Navbar.Text>Publication Management System</Navbar.Text>
-            {
-            (username !== undefined && username.length > 0)?
-            (<div className={styles.dropContainer}>
-                {username}
-                <div className={styles.dropdown}>
-                    <button className={styles.dropdown}>▼</button>
-                    <div className={styles.dropdownContent}>
-                        <a href="/logout">Log out</a>
-                    </div>
-                </div>
-            </div>)
-            : null
-            }
+            <div>
+                <Navbar.Brand className={styles.headerText}>
+                    <b>ReCiter Publication Management System</b>
+                </Navbar.Brand>
+            </div>
+            <div>
+            <ul className={`nav navbar-nav ${styles.navbarRight}`}>
+                {username !== undefined && username.length > 0 ? 
+                <>
+                    <li className={styles.headerNavSignedInAs}><p><b>Signed in as {username}</b></p></li> 
+                    <li><a className={styles.logout} href="/logout">Logout</a></li>
+                </> : null}
+                
+            </ul>
+            </div>
         </Navbar>
     )
 }
