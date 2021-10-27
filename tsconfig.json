@@ -15,6 +15,6 @@
     "jsx": "preserve",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "src/redux/store/store.tsx", "src/pages/login/index.js", "src/components/layouts/AppLayout.jsx"],
   "exclude": ["node_modules"]
 }
