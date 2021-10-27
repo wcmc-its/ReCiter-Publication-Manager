@@ -1,6 +1,7 @@
 import methods from '../methods/methods'
 import fetchWithTimeout from '../../pages/fetchWithTimeout';
 import { toast } from "react-toastify"
+import { reciterConfig } from '../../../config/local';
 
 export const addError = (message) =>
     ({
@@ -73,7 +74,8 @@ export const identityFetchAllData = () => dispatch => {
         credentials: "same-origin",
         method: 'GET',
         headers: {
-            Accept: 'application/json'
+            Accept: 'application/json',
+            'Authorization': reciterConfig.backendApiKey
         }
     }, 300000)
         .then(response => {
@@ -89,6 +91,7 @@ export const identityFetchAllData = () => dispatch => {
             }
         })
         .then(data => {
+            console.log(data.identity)
             dispatch({
                 type: methods.IDENTITY_CHANGE_ALL_DATA,
                 payload: data.identity
@@ -100,6 +103,15 @@ export const identityFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            toast.error("IdentityAll Api Error" + error.title, {
+                position: "top-right",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                });
             dispatch(
                 addError(error)
             )
@@ -383,7 +395,7 @@ export const authUser = auth => dispatch => {
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'Authorization': 'test'
+            'Authorization': reciterConfig.backendApiKey
         },
         body: JSON.stringify(auth)
     }, 300000)
@@ -409,7 +421,6 @@ export const authUser = auth => dispatch => {
             })
             
         } else {
-            console.log('here')
             return dispatch({
                 type: methods.USER_LOGIN,
                 auth: {
