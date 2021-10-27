@@ -9,6 +9,8 @@
 }
 
 .formContainer{
+    margin: 0 auto;
+    margin-top: 20%;
     display: grid;
     align-items: center;
     justify-content: center;
