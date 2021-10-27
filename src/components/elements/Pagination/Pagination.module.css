@@ -1,0 +1,22 @@
+
+.showRows {
+    width: 100%;
+    display: table;
+}
+.showRows select {
+    max-width: 100px;
+}
+.showRows label {
+    display: table-cell;
+    padding-right: 10px;
+    width: 110px;
+}
+.paginationContainer {
+    padding: 0px 10px;
+}
+.paginationContainer .col {
+    padding: 10px;
+}
+.paginationContainer ul.pagination {
+    margin: 0px;
+}
