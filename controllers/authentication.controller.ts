@@ -52,7 +52,7 @@ export async function authenticate(req: Request){
             }
         })
         .catch((error) => {
-            console.log('ReCiter Delete User Feedback api is not reachable: ' + error)
+            console.log('ReCiter Authenticate api is not reachable: ' + error)
             return error
         });
 }
