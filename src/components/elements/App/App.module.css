@@ -1,0 +1,96 @@
+.h6fnhWdegAppLoader {
+    min-height: 350px;
+    background: url('../../../images/main-loader.gif') no-repeat center center;
+}
+
+li a span.badge {
+    background: #E6E6E6;
+    color: #666;
+    font-weight: 400;
+    font-size: 13px;
+    float: right;
+    margin-left: 5px;
+}
+
+li.active a span.badge {
+    background: #999;
+    color: #fff;
+}
+
+.mainContainer {
+    min-height: 100%;
+    grid-template-rows: [header] 50px [page-content] 1fr [footer] auto;
+    grid-template-columns: [side-nav] 200px [content-start] auto [content-end];
+}
+
+.headerPosition {
+    grid-row-start: header;
+    grid-row-end: page-content;
+    grid-column-start: side-nav;
+    grid-column-end: content-end;
+}
+
+.sideNavPosition {
+    grid-column-start: side-nav;
+    grid-column-end: content-start;
+    grid-row-start: page-content;
+    grid-row-end: footer;
+}
+
+/* Subgrid in content section of main-container grid */
+
+.publicationsContent {
+    display: grid;
+    grid-row-gap: 4rem;
+    grid-row-start: page-content;
+    grid-column-start: content-start;
+    grid-template-rows: [row-2-start] 200px [row-3-start] auto [row-3-end];
+}
+
+.identityContainer {
+    grid-row-start: row-2-start;
+}
+
+.tabContainer {
+    grid-row-start: row-3-start;
+    grid-row-end: row-3-end;
+    padding: 0 5rem;
+    width: 100%;
+}
+
+/* .inner-tab-container {
+    position: absolute;
+} */
+
+.footerPosition {
+    grid-row-start: footer;
+    grid-column-start: side-nav;
+    grid-column-end: content-end;
+}
+
+/* End of changes */
+
+.h6fnhWdegTabsContainer {
+    background-color: #efefef;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-top: 0px;
+}
+
+.h6fnhWdegTabsContent {
+    background-color: #ffffff;
+    padding: 20px;
+    border: 1px solid #ddd;
+    -webkit-border-radius: 4px;
+    -moz-border-radius: 4px;
+    border-radius: 4px;
+}
+
+.h6fnhWdegReciterPendingBanner {
+    border: 1px solid #dddddd;
+    border-radius: 4px;
+    background-color: #fef7af;
+    margin-bottom: 20px;
+    padding: 15px 20px;
+    color: #555;
+}
