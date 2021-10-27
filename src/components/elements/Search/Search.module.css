@@ -1,0 +1,17 @@
+/* Subgrid of content section in main-container */
+
+.searchContentContainer {
+    grid-row-start: page-content;
+    display: grid;
+    grid-template-rows: [search-bar] auto [search-table] auto [start-footer];
+}
+
+.searchBar {
+    grid-row-start: search-bar;
+    padding: 1rem 3rem;
+}
+
+.individualLink {
+    color: #337ab7;
+    cursor: pointer;
+}
