@@ -402,7 +402,7 @@ export const authUser = auth => dispatch => {
     .then(r => r.json())
     .then(results => {
         console.log(results.statusCode)
-        if(results.statusCode !== '200')
+        if(results.statusCode !== 200)
         {   
             toast.error("Invalid credentials", {
                 position: "top-right",
