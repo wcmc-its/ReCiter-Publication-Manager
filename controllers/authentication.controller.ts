@@ -41,14 +41,18 @@ export async function authenticate(req: Request){
                     }
                 const token = jwt.sign(payload, reciterConfig.tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' });
                 return {
-                    ...cookie,
-                    accessToken: token
+                    statusMessage: {
+                        ...cookie,
+                        accessToken: token
+                    },
+                    statusCode: 200
                 }
-            } else if(res === false){
-                console.log("Credentials for user: " + req.body.username + " is incorrect")
-                return "Credentials for user: " + req.body.username + " is incorrect"
             } else {
-                return res
+                console.log("Credentials for user: " + req.body.username + " is incorrect")
+                return {
+                    statusCode: 401,
+                    statusMessage: "Credentials for user: " + req.body.username + " is incorrect"
+                }
             }
         })
         .catch((error) => {
