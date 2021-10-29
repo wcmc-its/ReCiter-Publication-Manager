@@ -14,9 +14,9 @@ export default async function handler(
       if(req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
           const apiResponse = await authenticate(req);
-          res.status(200).send({
-              statusCode: 200,
-              message: apiResponse
+          res.status(apiResponse.statusCode).send({
+              statusCode: apiResponse.statusCode,
+              message: apiResponse.statusMessage
           })
         } else if(req.headers.authorization === undefined) {
           res.status(400).send({
