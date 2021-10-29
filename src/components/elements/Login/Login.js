@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Form, FormGroup, FormControl } from "react-bootstrap";
+import { Button, Form, FormGroup, FormControl, Row, Col } from "react-bootstrap";
 import styles from "./Login.module.css";
 import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
@@ -23,17 +23,25 @@ const Login = () => {
     const [invalidCredentialsFlag, setInvalidCredentialsFlag] = useState(false)
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
+    const [isShowButton, setIsShowButton] = useState(true)
 
-   /*  useEffect((refresh = false) => {
-      dispatch(reciterFetchData(refresh))
-    }) */
+   useEffect(() => {
+
+    })
 
     const validateForm = () => {
-      return state.username.length > 0 && state.password.length > 0;
+        if(username === ''){
+            setIsShowButton(true)
+        } else if(password === '') {
+            setIsShowButton(true)
+        } else {
+            setIsShowButton(false)
+        }
     }
 
     const handleUserNameInput = e => {
         setUsername(e.target.value)
+        validateForm()
     }
 
     const handleSubmit = e => {
@@ -42,6 +50,7 @@ const Login = () => {
 
     const handlePasswordInput = e => {
         setPassword(e.target.value)
+        validateForm()
     }
 
     const authenticateUser = () =>{
@@ -49,21 +58,14 @@ const Login = () => {
             username: username,
             password: password,
         }))
-        let timeout = 3,
-        count = 0;
-        const awaitServer = setInterval(() => {
-        if (auth.isLoggedIn) {
-                setInvalidCredentialsFlag(false)
-                clearInterval(awaitServer);
-                return router.push('/search')
-        } else if (count >= timeout) {
-                clearInterval(awaitServer);
-                setInvalidCredentialsFlag(true)
-                return console.log("failed to auth");
+
+        if(auth.isLoggedIn) {
+            setInvalidCredentialsFlag(false)
+            router.push('/search')
+        } else {
+            setInvalidCredentialsFlag(true)
+            return console.log("failed to auth");
         }
-        count += 1;
-        return;
-        }, 100);
     }
 
     return (
@@ -71,35 +73,54 @@ const Login = () => {
         <Header/>
         <div className={styles.formContainer}>
             <Form className={styles.loginForm} onSubmit={handleSubmit}>
-            <h3 className={styles.loginHeader}>Sign into your account</h3>
-            <Form.Text className="text-muted">
-                Please enter your username and password to log in.
-            </Form.Text>
-            <FormGroup controlId="username">
+            <h3>Sign in to your account</h3>
+            <p>Please enter your CWID and password to log in.</p>
+            <FormGroup controlId="username" style={{marginBottom: '10px'}}>
                 <FormControl
                 autoFocus
                 type="username"
                 value={username}
                 onChange={handleUserNameInput}
                 placeholder="Username"
+                style={{ 
+                        background: `url("../../../images/icon-login-user.png")`,
+                        backgroundSize: '15px 15px',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'left 10px center',
+                        paddingLeft: '32px'
+                    }}
+                required={true}
                 />
             </FormGroup>
-            <FormGroup controlId="password">
+            <FormGroup controlId="password" style={{marginBottom: '10px'}}>
                 <FormControl
                 value={password}
                 onChange={handlePasswordInput}
                 type="password"
                 placeholder="Password"
+                style={{
+                        background: `url("../../../images/icon-login-pass.png")`,
+                        backgroundSize: '15px 15px', 
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'left 10px center',
+                        paddingLeft: '32px'
+                    }}
+                required={true}
                 />
             </FormGroup>
-            <Button
-                className="loginBtn"
-                disabled={!validateForm}
-                onClick={authenticateUser}
-                type="submit"
-            >
-                Sign in
-            </Button>
+            <Row style={{marginTop: '15px'}}>
+                <Col xs={6} className='mt-2 w-100'>
+                    <Button
+                        className="btn btn-danger"
+                        style={{float: 'right'}}
+                        disabled={isShowButton}
+                        onClick={authenticateUser}
+                        type="submit"
+                    >
+                        Sign in
+                    </Button>
+                </Col>
+            </Row>
             {invalidCredentialsFlag ? (
                 <ToastContainerWrapper />
             ) : null}
