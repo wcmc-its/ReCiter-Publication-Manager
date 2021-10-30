@@ -31,29 +31,33 @@ export default MyApp */
 
 import '../../styles/globals.css'
 import "bootstrap/dist/css/bootstrap.min.css"
-import { Provider } from 'react-redux'
+import { Provider as ReduxProvider } from 'react-redux'
 import { useStore } from '../redux/store/store'
 import type { Page } from '../../types/pages'
 import { Fragment } from 'react'
 import type { AppProps } from 'next/app'
+import { Provider } from "next-auth/client"
+
 
 // this should give a better typing
 type Props = AppProps & {
   Component: Page
 }
 
-export default function App({ Component, pageProps }: Props) {
+export default function App({ Component, pageProps: { session, ...pageProps } }: Props) {
   const store = useStore(pageProps.initialReduxState)
   // Use the layout defined at the page level, if available
   const getLayout = Component.getLayout ?? ((page) => page)
   const Layout = Component.layout ?? Fragment
 
   return (
-    <Layout>
-      <Provider store={store}>
-        {getLayout(<Component {...pageProps} />)}
-      </Provider>
-    </Layout>
+    <Provider session={pageProps.session}>
+      <Layout>
+        <ReduxProvider store={store}>
+          {getLayout(<Component {...pageProps} />)}
+        </ReduxProvider>
+      </Layout>
+    </Provider>
   )
   
 }
