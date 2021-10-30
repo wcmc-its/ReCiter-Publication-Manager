@@ -4,61 +4,68 @@ import jwt from 'jsonwebtoken'
 import { reciterConfig } from '../config/local'
 import { Request, Response } from 'express'
 
-export async function authenticate(req: Request){
+export type Credential = {
+    username: string,
+    password: string
+}
+
+export async function authenticate(credential: Credential){
     const hour: number = 3600000 * 8; // 8 hours
     const expires: Date = new Date(Date.now() + hour);
     let cookie = {
         name: 'reciter-pub-manager-session',
         accessToken: '',
-        sid: req.body.username,
+        username: '',
         path: '/',
         expires: expires,
         maxAge: hour,
         secure: true, 
     }
-
-    req.cookies = cookie
-    const credentials = {
-        username: req.body.username,
-        password: req.body.password
-    }
-    return fetch(`${reciterConfig.reciter.reciterPubManagerAuthenticationEndpoint}?${httpBuildQuery(credentials)}`,
-        {
-            method: "POST",
-            headers: {
-                'api-key': reciterConfig.reciter.adminApiKey,
-                'Content-type': 'application/json',
-                'User-Agent': 'reciter-pub-manager-server'
-            },
-        })
-        .then(res=>res.json())
-        .then( async (res) => {
-            if (res === true) {
-                const payload: {
-                    username: string
-                } = {
-                        username: req.body.username
+    if(credential === undefined) {
+        return {
+            statusCode: 401,
+            statusMessage: "Credentials is incorrect"
+        }
+    } else {
+        return fetch(`${reciterConfig.reciter.reciterPubManagerAuthenticationEndpoint}?${httpBuildQuery(credential)}`,
+            {
+                method: "POST",
+                headers: {
+                    'api-key': reciterConfig.reciter.adminApiKey,
+                    'Content-type': 'application/json',
+                    'User-Agent': 'reciter-pub-manager-server'
+                },
+            })
+            .then(res=>res.json())
+            .then( async (res) => {
+                if (res === true) {
+                    const payload: {
+                        username: string
+                    } = {
+                            username: credential.username
+                        }
+                    const token = jwt.sign(payload, reciterConfig.tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' });
+                    return {
+                        statusMessage: {
+                            ...cookie,
+                            accessToken: token,
+                            username: credential.username
+                        },
+                        statusCode: 200
                     }
-                const token = jwt.sign(payload, reciterConfig.tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' });
-                return {
-                    statusMessage: {
-                        ...cookie,
-                        accessToken: token
-                    },
-                    statusCode: 200
+                } else {
+                    console.log("Credentials for user: " + credential.username + " is incorrect")
+                    return {
+                        statusCode: 401,
+                        statusMessage: "Credentials for user: " + credential.username + " is incorrect"
+                    }
                 }
-            } else {
-                console.log("Credentials for user: " + req.body.username + " is incorrect")
-                return {
-                    statusCode: 401,
-                    statusMessage: "Credentials for user: " + req.body.username + " is incorrect"
-                }
-            }
-        })
-        .catch((error) => {
-            console.log('ReCiter Authenticate api is not reachable: ' + error)
-            return error
-        });
+            })
+            .catch((error) => {
+                console.log('ReCiter Authenticate api is not reachable: ' + error)
+                return error
+            });
+    }
 }
 
 export async function withAuth(req: Request, res: Response) {
