@@ -3,17 +3,13 @@ import { Button, Form, FormGroup, FormControl, Row, Col } from "react-bootstrap"
 import styles from "./Login.module.css";
 import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
-import {
-  reciterFetchData,
-  authUser
-} from "../../../redux/actions/actions";
-import { useSelector, useDispatch } from "react-redux";
-import { useRouter } from "next/router";
-import Header from "../Header/Header"; 
+import { useSelector } from "react-redux"
+import Router from "next/router"
+import Header from "../Header/Header"
+import { signIn } from "next-auth/client"
+import { toast } from "react-toastify"
 
 const Login = () => {
-    const router = useRouter()
-    const dispatch = useDispatch()
     const auth = useSelector((state) => state.auth)
     const sid = useSelector((state) => state.sid)
     const reciterFetching = useSelector((state) => state.reciterFetching)
@@ -44,28 +40,42 @@ const Login = () => {
         validateForm()
     }
 
-    const handleSubmit = e => {
+    const handleSubmit = async(e) => {
       e.preventDefault()
+
+      let signInResponse = await signIn("credentials", {
+        username: username,
+        password: password,
+        redirect: false
+       })
+       if (signInResponse.status == 200) {
+            toast.info("Successful Login", {
+                position: "top-right",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+            });
+            Router.push(`${window.location.origin}/search`);
+        } else {
+            setInvalidCredentialsFlag(true)
+            toast.error("Invalid credentials", {
+                position: "top-right",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+            });
+        }
     }
 
     const handlePasswordInput = e => {
         setPassword(e.target.value)
         validateForm()
-    }
-
-    const authenticateUser = () =>{
-        dispatch(authUser({
-            username: username,
-            password: password,
-        }))
-
-        if(auth.isLoggedIn) {
-            setInvalidCredentialsFlag(false)
-            router.push('/search')
-        } else {
-            setInvalidCredentialsFlag(true)
-            return console.log("failed to auth");
-        }
     }
 
     return (
@@ -114,7 +124,6 @@ const Login = () => {
                         className="btn btn-danger"
                         style={{float: 'right'}}
                         disabled={isShowButton}
-                        onClick={authenticateUser}
                         type="submit"
                     >
                         Sign in
