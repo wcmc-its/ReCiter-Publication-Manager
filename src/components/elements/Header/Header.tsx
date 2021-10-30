@@ -2,13 +2,14 @@ import React, { Component } from "react";
 import { Navbar} from "react-bootstrap";
 import styles from "./Header.module.css";
 import { useSelector } from 'react-redux';
+import { signOut, useSession} from 'next-auth/client';
 
 type Props = {
-    username: string
+    session: any
 }
 
 const Header: React.FC<Props> = () => {
-    const username = useSelector((state: any) => state.auth.username)
+    const [session, loading] = useSession()
     return (
         <Navbar bg="primary" className={styles.topNav}>
             <div>
@@ -18,10 +19,10 @@ const Header: React.FC<Props> = () => {
             </div>
             <div>
             <ul className={`nav navbar-nav ${styles.navbarRight}`}>
-                {username !== undefined && username.length > 0 ? 
+                {(session && session.data) ? 
                 <>
-                    <li className={styles.headerNavSignedInAs}><p><b>Signed in as {username}</b></p></li> 
-                    <li><a className={styles.logout} href="/logout">Logout</a></li>
+                    <li className={styles.headerNavSignedInAs}><p><b>Signed in as {session.data.username}</b></p></li> 
+                    <li><a className={styles.logout} onClick={()=>{signOut({ callbackUrl: `${window.location.origin}/login` })}}>Logout</a></li>
                 </> : null}
                 
             </ul>

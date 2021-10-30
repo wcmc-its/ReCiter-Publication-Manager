@@ -49,4 +49,5 @@ a.logout {
   margin-top: 0 auto;
   font-family: "Open Sans", sans-serif, Arial !important;
   text-decoration: none;
+  cursor: pointer;
 }
