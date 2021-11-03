@@ -8,6 +8,7 @@ import TabSuggested from '../TabSuggested/TabSuggested';
 import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../AddPublication/AddPublication';
 import Identity from "../Identity/Identity";
+import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 
 const App = (props) => {
 
@@ -106,6 +107,7 @@ const App = (props) => {
                         <div className={appStyles.tabsContent}>{tabActiveContent}</div>
                     </div>
                 </div>
+                <ToastContainerWrapper />
             </div>
         )
     }

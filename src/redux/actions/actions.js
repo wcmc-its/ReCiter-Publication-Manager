@@ -3,6 +3,7 @@ import fetchWithTimeout from '../../pages/fetchWithTimeout';
 import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
 import { useSession} from 'next-auth/client';
+import { ErrorTwoTone } from '@mui/icons-material';
 
 export const addError = (message) =>
     ({
@@ -34,6 +35,16 @@ export const identityFetchData = uid => dispatch => {
     }, 300000)
         .then(response => {
             if(response.status === 200) {
+                toast.success("Identity Api successfully fetched for " + uid, {
+                    position: "top-right",
+                    autoClose: 1000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: 'dark'
+                });
                 return response.json()
             }else {
                 throw {
@@ -56,6 +67,17 @@ export const identityFetchData = uid => dispatch => {
         })
         .catch(error => {
             console.log(error)
+
+            toast.success("Identity Api failed for " + uid + " - " + error.title, {
+                position: "top-right",
+                autoClose: 1000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: 'dark'
+            });
 
             dispatch(
                 addError(error)
@@ -82,6 +104,16 @@ export const identityFetchAllData = () => dispatch => {
     }, 300000)
         .then(response => {
             if(response.status === 200) {
+                toast.success("Identity All Api successfully fetched", {
+                    position: "top-right",
+                    autoClose: 1000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: 'dark'
+                });
                 return response.json()
             }else {
                 throw {
@@ -105,14 +137,15 @@ export const identityFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
-            toast.error("IdentityAll Api Error" + error.title, {
+            toast.error("Identity All Api failed - " + error.title, {
                 position: "top-right",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
                 draggable: true,
                 progress: undefined,
+                theme: 'dark'
                 });
             dispatch(
                 addError(error)
@@ -144,8 +177,17 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
         }
     }, 300000)
         .then(response => {
-            console.log(response.status)
             if(response.status === 200) {
+                toast.success("Feature generator Api successfully fetched for " + uid, {
+                    position: "top-right",
+                    autoClose: 1000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: 'dark'
+                    });
                 return response.json()
             }else {
                 throw {
@@ -168,6 +210,17 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             })
         })
         .catch(error => {
+
+            toast.error("Feature generator api for " + uid + " failed - " + error.title  , {
+                position: "top-right",
+                autoClose: 2000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: 'dark'
+                });
 
             dispatch(
                 addError(error)
@@ -198,6 +251,16 @@ export const pubmedFetchData = query => dispatch => {
         .then(response => {
             var errorMessage = ''
             if(response.status === 200) {
+                toast.success("Pubmed query " + query + " successfully fetched", {
+                    position: "top-right",
+                    autoClose: 1000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: 'dark'
+                    });
                 return response.json()
             }else {
                 response.json().then(parsedResponse => {
@@ -223,6 +286,17 @@ export const pubmedFetchData = query => dispatch => {
             })
         })
         .catch(error => {
+
+            toast.error("Pubmed query " + query + " failed - " + error.title  , {
+                position: "top-right",
+                autoClose: 2000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: 'dark'
+                });
 
             dispatch(
                 addError(error)
@@ -373,14 +447,15 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     }, 300000)
     .then(response => {
         if(response.status === 200) {
-            toast.success("Update GoldStandard for user" + uid + " success", {
+            toast.success("GoldStandard updated successfully for user" + uid, {
                 position: "top-right",
-                autoClose: 3000,
+                autoClose: 1000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
                 draggable: true,
                 progress: undefined,
+                theme: 'dark'
                 });
             return response.json()
         }else {
@@ -395,14 +470,15 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     .catch(error => {
 
         console.log(error)
-        toast.error("Update GoldStandard Api Error" + error.title, {
+        toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
             position: "top-right",
-            autoClose: 3000,
+            autoClose: 2000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
             draggable: true,
             progress: undefined,
+            theme: 'dark'
             });
 
         dispatch(
