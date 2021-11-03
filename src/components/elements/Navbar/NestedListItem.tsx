@@ -41,11 +41,11 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems}) => 
         {
           menuItems.map((item: MenuItem, index: number) => {
             return (
-              <Box p={2}>
+              <Box p={2} key={index}>
                 <MenuListItem
                   title={item.title}
+                  to='/search'
                   key={index}
-                  to=''
                 />
               </Box>
             )

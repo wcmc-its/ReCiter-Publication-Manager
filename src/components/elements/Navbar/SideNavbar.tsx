@@ -23,6 +23,11 @@ type SideNavBarProps = {
     items: any
 }
 
+type drawer = {
+    theme: any,
+    open: any
+}
+
 const menuItems: Array<MenuItem> = [
   {
     title: 'Find People',
@@ -75,7 +80,7 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 }));
 
 const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
-  ({ theme, open }) => ({
+  ({ theme, open }: drawer) => ({
     width: drawerWidth,
     flexShrink: 0,
     whiteSpace: 'nowrap',
@@ -102,7 +107,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   return (
     <Box sx={{ display: 'flex' }}>
     <CssBaseline />
-    <Drawer variant="permanent" open={open}>
+    <Drawer variant="permanent" open={open} theme={theme}>
       <DrawerHeader>
         <IconButton onClick={handleDrawerToggle}>
           {open ? 'Compact Mode' : ''}
@@ -117,12 +122,13 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                 <NestedListItem 
                   header={item.title}
                   menuItems={item.nestedMenu}
+                  key={index}
                 />
                 :
                 <MenuListItem
                   title={item.title}
                   key={index}
-                  to=''
+                  to='/search'
                 />
             })
           }

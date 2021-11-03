@@ -1,5 +1,4 @@
 import { Container, Row, Col } from "react-bootstrap";
-import { useSelector } from 'react-redux'
 import SideNavbar from "../elements/Navbar/SideNavbar";
 import { Footer } from "../elements/Footer/Footer";
 import Header from "../elements/Header/Header";
@@ -11,7 +10,6 @@ export const AppLayout = ({ children }) => {
             <Header/>
             <Container fluid={true}>
                 <Row>
-                    {/* <AppNavbar /> */ }
                     <Col xs={2} id="navbar-wrapper">
                       <SideNavbar />
                     </Col>
