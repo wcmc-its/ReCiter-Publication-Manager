@@ -1,6 +1,6 @@
-.h6fnhWdegAppLoader {
+.appLoader {
     min-height: 350px;
-    /* background: url('../../../images/main-loader.gif') no-repeat center center; */
+    background: url('../../../../public/images/main-loader.gif') no-repeat center center;
 }
 
 li a span.badge {
@@ -70,14 +70,14 @@ li.active a span.badge {
 
 /* End of changes */
 
-.h6fnhWdegTabsContainer {
+.tabsContainer {
     background-color: #efefef;
     padding: 20px;
     border: 1px solid #ddd;
     border-top: 0px;
 }
 
-.h6fnhWdegTabsContent {
+.tabsContent {
     background-color: #ffffff;
     padding: 20px;
     border: 1px solid #ddd;
@@ -86,7 +86,7 @@ li.active a span.badge {
     border-radius: 4px;
 }
 
-.h6fnhWdegReciterPendingBanner {
+.reciterPendingBanner {
     border: 1px solid #dddddd;
     border-radius: 4px;
     background-color: #fef7af;

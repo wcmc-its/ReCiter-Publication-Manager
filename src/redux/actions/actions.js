@@ -2,6 +2,7 @@ import methods from '../methods/methods'
 import fetchWithTimeout from '../../pages/fetchWithTimeout';
 import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
+import { useSession} from 'next-auth/client';
 
 export const addError = (message) =>
     ({
@@ -27,7 +28,8 @@ export const identityFetchData = uid => dispatch => {
         credentials: "same-origin",
         method: 'GET',
         headers: {
-            Accept: 'application/json'
+            Accept: 'application/json',
+            'Authorization': reciterConfig.backendApiKey
         }
     }, 300000)
         .then(response => {
@@ -137,10 +139,12 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
         credentials: "same-origin",
         method: 'GET',
         headers: {
-            Accept: 'application/json'
+            Accept: 'application/json',
+            'Authorization': reciterConfig.backendApiKey
         }
     }, 300000)
         .then(response => {
+            console.log(response.status)
             if(response.status === 200) {
                 return response.json()
             }else {
@@ -153,6 +157,7 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             }
         })
         .then(data => {
+            console.log(data)
             dispatch({
                 type: methods.RECITER_CHANGE_DATA,
                 payload: data
@@ -186,6 +191,7 @@ export const pubmedFetchData = query => dispatch => {
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
+            'Authorization': reciterConfig.backendApiKey
         },
         body: JSON.stringify(query)
     }, 300000)
@@ -231,6 +237,8 @@ export const pubmedFetchData = query => dispatch => {
 }
 
 export const reciterUpdatePublication = (uid, request) => dispatch => {
+
+    const [session, loading] = useSession()
 
     // Update publications' user assertions state
     request.publications.forEach(function(id){
@@ -281,7 +289,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                     "action": request.userAssertion,
                     "dateTime": new Date(),
                     "pmids": request.publications,
-                    "uid": uid,
+                    "uid": session.data.username,
                     "userVerbose": facultyUserName
                 }
             ],
@@ -295,7 +303,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                     "action": request.userAssertion,
                     "dateTime": new Date(),
                     "pmids": request.publications,
-                    "uid": uid,
+                    "uid": session.data.username,
                     "userVerbose": facultyUserName
                 }
             ],
@@ -309,7 +317,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                     "action": request.userAssertion,
                     "dateTime": new Date(),
                     "pmids": request.publications,
-                    "uid": uid,
+                    "uid": session.data.username,
                     "userVerbose": facultyUserName
                 }
             ],
@@ -324,7 +332,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                     "action": request.userAssertion,
                     "dateTime": new Date(),
                     "pmids": [request.publications[0].pmid],
-                    "uid": uid,
+                    "uid": session.data.username,
                     "userVerbose": facultyUserName
                 }
             ],
@@ -338,7 +346,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                     "action": request.userAssertion,
                     "dateTime": new Date(),
                     "pmids": [request.publications[0].pmid],
-                    "uid": uid,
+                    "uid": session.data.username,
                     "userVerbose": facultyUserName
                 }
             ],
@@ -358,12 +366,22 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         method: 'POST',
         headers: {
             'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': reciterConfig.backendApiKey
         },
         body: JSON.stringify(goldStandard)
     }, 300000)
     .then(response => {
         if(response.status === 200) {
+            toast.success("Update GoldStandard for user" + uid + " success", {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                });
             return response.json()
         }else {
             throw {
@@ -375,6 +393,17 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         }
     })
     .catch(error => {
+
+        console.log(error)
+        toast.error("Update GoldStandard Api Error" + error.title, {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+            });
 
         dispatch(
             addError(error)

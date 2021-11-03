@@ -1,0 +1,22 @@
+.dropdownMenu span {
+    display: block;
+    padding: 3px 20px 4px 20px;
+    clear: both;
+    font-weight: 400;
+    line-height: 1.4em;
+    font-size: 14px;
+    color: #333;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.dropdownMenu span:hover {
+    background-color: #efefef;
+}
+.dropdownSortAsc::after {
+    content: '\2191';
+    padding-left: 10px;
+}
+.dropdownSortDesc::after {
+    content: '\2193';
+    padding-left: 10px;
+}
