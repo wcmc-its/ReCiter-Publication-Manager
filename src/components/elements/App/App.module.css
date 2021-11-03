@@ -1,6 +1,6 @@
 .h6fnhWdegAppLoader {
     min-height: 350px;
-    background: url('../../../images/main-loader.gif') no-repeat center center;
+    /* background: url('../../../images/main-loader.gif') no-repeat center center; */
 }
 
 li a span.badge {

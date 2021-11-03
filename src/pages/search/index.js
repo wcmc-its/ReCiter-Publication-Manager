@@ -23,7 +23,7 @@ export async function getServerSideProps(ctx) {
 
 const SearchPage = () => {
     return (
-        <>  
+        <>
                 {/* <Search /> */}
         </>
     )

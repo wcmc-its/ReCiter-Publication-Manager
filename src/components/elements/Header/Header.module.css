@@ -8,6 +8,11 @@
   justify-content: space-between;
 }
 
+.navbar-expand {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+}
+
 .headerText {
   color: white !important;
 }
@@ -51,3 +56,5 @@ a.logout {
   text-decoration: none;
   cursor: pointer;
 }
+
+
