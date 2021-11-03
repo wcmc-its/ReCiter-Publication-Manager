@@ -1,0 +1,10 @@
+.filterContainer {
+    margin-bottom: 20px;
+}
+.filterSortByLabel {
+    text-align: right;
+}
+.filterSortByLabel span {
+    padding-top: 5px;
+    display: block;
+}

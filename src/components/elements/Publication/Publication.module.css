@@ -1,78 +1,78 @@
-.h6fnhWdegMainContainer {
+.mainContainer {
     font-family: 'Helvetica Neue', Helvetica;
 }
 
 
-.h6fnhWdegPublicationField {
+.publicationField {
     line-height: 1.3em !important;
 }
 
 
-.h6fnhWdegPublicationCitation {
+.publicationCitation {
     display: none;
 }
 
-.h6fnhWdegPublicationShowEvidenceContainer {
+.publicationShowEvidenceContainer {
     display: none;
     margin-top: 20px;
 }
-.h6fnhWdegPublicationShowEvidenceContainer.h6fnhWdegPublicationShowEvidenceContainerOpen {
+.publicationShowEvidenceContainer.publicationShowEvidenceContainerOpen {
     display: block;
 }
-.h6fnhWdegPublicationEvidenceBar {
+.publicationEvidenceBar {
     margin-left: 0px !important;
     margin-bottom: 15px !important;
 }
 
-.h6fnhWdegPublicationShowEvidenceLink h6fnhWdeg-publication-evidence-hide {
+.publicationShowEvidenceLink publication-evidence-hide {
     margin-left: -10px;
 }
 
-.h6fnhWdegPublicationsEvidenceTable {
+.publicationsEvidenceTable {
     font-size: 14px;
 }
-.h6fnhWdegPublicationsEvidenceTable thead th {
+.publicationsEvidenceTable thead th {
     background: #074e7e;
     color: #fff;
     padding: 10px;
     border-left: 1px solid #9cb8cb;
     text-align: center;
 }
-.h6fnhWdegPublicationsEvidenceTable td {
+.publicationsEvidenceTable td {
     padding: 5px 10px;
 }
-.h6fnhWdegPublicationsEvidenceTable thead .h6fnhWdeg-first-cell {
+.publicationsEvidenceTable thead .firstCell {
     text-align: right !important;
     border-left: none;
 }
 
-.h6fnhWdegPublicationsEvidenceTable p {
+.publicationsEvidenceTable p {
     margin: 5px 0px;
 }
 
-.h6fnhWdeg-publication-buttons {
+.publicationButtons {
     width: 190px;
     text-align: center;
     padding-top: 23px !important;
 }
-.h6fnhWdeg-publication-content {
+.publicationContent {
     padding-top: 20px !important;
 }
-.h6fnhWdeg-publication-accept {
+.publicationAccept {
     font-size: 14px;
     font-weight: 600;
     margin-right: 5px;
 }
-.h6fnhWdeg-publication-reject {
+.publicationReject {
     font-size: 14px;
     font-weight: 600;
 }
-.h6fnhWdeg-publication-undo {
+.publicationUndo {
     font-size: 14px;
     font-weight: 600;
     margin-right: 5px;
 }
-.h6fnhWdeg-publication-score {
+.publicationScore {
     display: inline-block;
     background: #fffdd4;
     border-radius: 4px;
@@ -82,62 +82,62 @@
     margin-top: 20px;
     font-size: 14px;
 }
-.h6fnhWdeg-publication-score strong {
+.publicationScore strong {
     display: block;
     font-size: 28px;
     text-align: center;
     padding: 10px 0px 10px 0px;
 }
-.h6fnhWdeg-publication-content p {
+.publicationContent p {
     line-height: 1.1em;
 }
 
-.h6fnhWdeg-publication-row-buttons {
+.publicationRowButtons {
     float: right;
 }
-.h6fnhWdeg-publication-row-buttons a {
+.publicationRowButtons a {
     background-color: #ffffff;
     font-size: 14px;
     border: 1px solid #ccc;
     margin-left: 10px;
     color: #333333;
 }
-.h6fnhWdeg-publication-show-evidence-container {
+.publicationShowEvidenceContainer {
     font-size: 14px;
 }
-.h6fnhWdeg-publication-show-evidence-link {
+.publicationShowEvidenceLink {
     color: #337ab7;
     cursor: pointer;
 }
-.h6fnhWdeg-publication-show-evidence-link.h6fnhWdeg-publication-evidence-show::before {
+.publicationShowEvidenceLink.publicationEvidenceShow::before {
     content: '-';
     padding: 10px;
     font-size: 26px;
 }
 
-.h6fnhWdeg-publication-show-evidence-link.h6fnhWdeg-publication-evidence-hide::before {
+.publicationShowEvidenceLink.publicationEvidenceHide::before {
     content: '+';
     padding: 10px;
     font-size: 26px;
 }
 
-.h6fnhWdeg-publication-show-evidence-link {
+.publicationShowEvidenceLink {
     text-decoration: none !important;
 }
-.h6fnhWdeg-publication-show-evidence-link:hover {
+.publicationShowEvidenceLink:hover {
     text-decoration: none;
 }
 
-.h6fnhWdeg-publication-author-highlighted {
+.publicationAuthorHighlighted {
     background-color: #fffdd4;
 }
 
-.h6fnhWdeg-evidence-score-popup-container {
+.evidenceScorePopupContainer {
     text-align: left;
     max-width: 300px;
 }
 
-.h6fnhWdeg-reciter-type {
+.reciterType {
     display: inline-block;
     border: 1px solid #dedcdc;
     background: #eaeae1;
@@ -149,12 +149,12 @@
     font-size: 13px;
 }
 
-.h6fnhWdeg-publication-undo {
+.publicationUndo {
     color: #777;
     background-color: #ffffff;
     border-color: #ccc;
 }
-.h6fnhWdeg-publication-undo:hover {
+.publicationUndo:hover {
     color: #333;
     border-color: #999;
 }

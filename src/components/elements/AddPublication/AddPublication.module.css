@@ -1,0 +1,9 @@
+.paginationContainer {
+    padding: 0px 10px;
+}
+.paginationContainer .col {
+    padding: 10px;
+}
+.paginationContainer ul.pagination {
+    margin: 0px;
+}
