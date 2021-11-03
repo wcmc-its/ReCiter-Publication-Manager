@@ -1,21 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Form } from "react-bootstrap";
-import 'bootstrap/dist/css/bootstrap.min.css';
 import { identityFetchAllData } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
-import Header from "../Header/Header";
-import { Footer } from "../Footer/Footer";
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
 import Pagination  from '../Pagination/Pagination';
-import Image from 'next/image';
 import appStyles from '../App/App.module.css';
 import publicationStyles from '../Publication/Publication.module.css';
+import { useSession } from 'next-auth/client';
 
 
 
 const Search = () => {
 
+    const [session,loading] = useSession();
     const router = useRouter()
     const dispatch = useDispatch()
 
@@ -121,7 +119,7 @@ const Search = () => {
     }
     if (identityAllData.length <= 0) {
         return (
-                <div className={appStyles.h6fnhWdegAppLoader}> </div>
+                <div className={appStyles.appLoader}> </div>
         );
     } else {
         //const thisObject = this
