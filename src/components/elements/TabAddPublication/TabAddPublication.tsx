@@ -42,26 +42,17 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     const [sort, setSort] = useState<string>("0")
     const [search, setSearch] = useState<string>("")
     const [page, setPage] = useState<number>(1)
-    const [pubmedSearch, setPubmedSearch] = useState<string | undefined>("")
+    const [pubmedSearch, setPubmedSearch] = useState<string>("")
     const [count, setCount] = useState<number>(20)
     const [latestYear, setLatestYear] = useState<any>("")
     const [earliestYear, setEarliestYear] = useState<any>("")
     const [resultMode, setResultMode] = useState<any>("")
-
-    let largeSearchFlag: boolean = false
-
-    //ref
-    const searchField = React.useRef<HTMLInputElement>(null)
 
     const handlePaginationUpdate = (event: React.ChangeEvent<HTMLInputElement>, page: number) => {
         setPage(page)
         if(event.target.value !== undefined) {
             setCount(Number(event.target.value))
         }
-    }
-
-    const handleSearchUpdate = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setPubmedSearch(event.target.value)
     }
 
     const handleFilterUpdate = (filterState: any) => {
@@ -120,99 +111,100 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
         // Filter
         var filteredPublications: Array<any> = [];
-
-        pubmedData.forEach((publication: any) =>{
-            if(!pubmedIds.includes(publication.pmid)) {
-                if(search !== "") {
-                    if(/^[0-9 ]*$/.test(search)) {
-                        var pmids = search.split(" ");
-                        if(pmids.some(pmid => Number(pmid) === publication.pmid )){
-                            filteredPublications.push(publication);
+        if(pubmedData !== undefined && pubmedData.length  > 0) {
+            pubmedData.forEach((publication: any) =>{
+                if(!pubmedIds.includes(publication.pmid)) {
+                    if(search !== "") {
+                        if(/^[0-9 ]*$/.test(search)) {
+                            var pmids = search.split(" ");
+                            if(pmids.some(pmid => Number(pmid) === publication.pmid )){
+                                filteredPublications.push(publication);
+                            }
+                        }else {
+                            var addPublication = true;
+                            // check filter search
+                            if (search !== "") {
+                                addPublication = false;
+                                //pmcid
+                                if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true
+                                }
+                                //publicationTypeCanonical
+                                if(publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true
+                                }
+                                //scopusDocID
+                                if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true
+                                }
+                                //journalTitleISOabbreviation
+                                if(publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true
+                                }
+                                //journalTitleVerbose
+                                if(publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true
+                                }
+                                //publication date display
+                                if(publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true
+                                }
+                                //doi
+                                if(publication.doi !== undefined && publication.doi.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true
+                                }
+                                // title
+                                if (publication.title.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true;
+                                }
+                                // journal
+                                if (publication.journal.toLowerCase().includes(search.toLowerCase())) {
+                                    addPublication = true;
+                                }
+                                //issn
+                                if(publication.issn !== undefined) {
+                                    var issnArray = publication.issn.map((issn: any, issnIndex: number) => {
+                                        return issn.issn
+                                    })
+                                    if(issnArray.join().toLowerCase().includes(search.toLowerCase())) {
+                                        addPublication = true;
+                                    }
+                                }
+                                // authors
+                                if (publication.authors !== undefined) {
+                                    var authorsArray = publication.authors.map(function (author: any, authorIndex: number) {
+                                        return author.authorName;
+                                    });
+                                    if (authorsArray.join().toLowerCase().includes(search.toLowerCase())) {
+                                        addPublication = true;
+                                    }
+                                }
+                                //evidence
+                                if (publication.evidence !== undefined) {
+                                    var evidenceArticleArray = publication.evidence.map(function (evidence: any, evidenceIndex: number) {
+                                        return evidence.articleData;
+                                    });
+                                    var evidenceInstArray = publication.evidence.map(function (evidence: any, evidenceIndex: number) {
+                                        return evidence.institutionalData;
+                                    });
+                                    if (evidenceInstArray.join().toLowerCase().includes(search.toLowerCase())) {
+                                        addPublication = true;
+                                    }
+                                    if (evidenceArticleArray.join().toLowerCase().includes(search.toLowerCase())) {
+                                        addPublication = true;
+                                    }
+                                }
+                            }
+                            if (addPublication) {
+                                filteredPublications.push(publication);
+                            }
                         }
                     }else {
-                        var addPublication = true;
-                        // check filter search
-                        if (search !== "") {
-                            addPublication = false;
-                            //pmcid
-                            if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //publicationTypeCanonical
-                            if(publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //scopusDocID
-                            if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //journalTitleISOabbreviation
-                            if(publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //journalTitleVerbose
-                            if(publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //publication date display
-                            if(publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //doi
-                            if(publication.doi !== undefined && publication.doi.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            // title
-                            if (publication.title.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true;
-                            }
-                            // journal
-                            if (publication.journal.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true;
-                            }
-                            //issn
-                            if(publication.issn !== undefined) {
-                                var issnArray = publication.issn.map((issn: any, issnIndex: number) => {
-                                    return issn.issn
-                                })
-                                if(issnArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                            // authors
-                            if (publication.authors !== undefined) {
-                                var authorsArray = publication.authors.map(function (author: any, authorIndex: number) {
-                                    return author.authorName;
-                                });
-                                if (authorsArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                            //evidence
-                            if (publication.evidence !== undefined) {
-                                var evidenceArticleArray = publication.evidence.map(function (evidence: any, evidenceIndex: number) {
-                                    return evidence.articleData;
-                                });
-                                var evidenceInstArray = publication.evidence.map(function (evidence: any, evidenceIndex: number) {
-                                    return evidence.institutionalData;
-                                });
-                                if (evidenceInstArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                                if (evidenceArticleArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                        }
-                        if (addPublication) {
-                            filteredPublications.push(publication);
-                        }
+                        filteredPublications.push(publication);
                     }
-                }else {
-                    filteredPublications.push(publication);
                 }
-            }
-        })
+            })
+        }
 
         var from = (page - 1) * count
         var to = from + count - 1
@@ -233,8 +225,6 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const searchFunction = () => {
-        const searchText = searchField.current?.value
-        setPubmedSearch(searchText)
         var query = {
             "strategy-query": pubmedSearch,
             start: '',
@@ -264,12 +254,6 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         }
         dispatch(pubmedFetchData(query))
     }
-
-    if(errors && errors.length > 0) {
-        largeSearchFlag = true
-    } else {
-       largeSearchFlag = false
-    }
     const publications = filter();
 
     const reciterPublications: Array<any> = []
@@ -284,16 +268,17 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     var searchAcceptedCount = 0;
     var searchRejectedCount = 0;
 
-    pubmedData.forEach((searchPub: any) => {
-        if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "ACCEPTED")) {
-            searchAcceptedCount++;
-        }
-        if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "REJECTED")) {
-            searchRejectedCount++;
-        }
-    })
-
-    console.log(largeSearchFlag)
+    if(pubmedData !== undefined && pubmedData.length  > 0) {
+            pubmedData.forEach((searchPub: any) => {
+            if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "ACCEPTED")) {
+                searchAcceptedCount++;
+            }
+            if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "REJECTED")) {
+                searchRejectedCount++;
+            }
+        })
+    }
+    console.log(errors)
 
     return (
         <div>
@@ -304,7 +289,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                             type="text"
                             className="form-control"
                             placeholder="Search..."
-                            ref={searchField}
+                            onChange={(e) => {setPubmedSearch(e.target.value)}}
                             defaultValue={(pubmedSearch !== undefined)?pubmedSearch:''}
                         />
                     </div>
@@ -364,20 +349,22 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             {
                 (pubmedFetching) ? <div className={appStyles.appLoader}></div> :
                 <div>
-                    {(pubmedData.length > 0 || largeSearchFlag === true) ?
+                    {(pubmedSearch != "") ?
                         <div>
-                            <div className="row">
-                                <div className="col-md-4">
-                                    <p>Number of results: <strong>{pubmedData.length}</strong></p>
-                                    <p><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
-                                </div>
-                                <div className="col-md-4" style={{float: "right"}}>
-                                    <Filter onChange={handleFilterUpdate} showSort={false}/>
-                                </div>
-                            </div>
+                            {(pubmedData.length > 0)?
+                                <div className="row">
+                                    <div className="col-md-4">
+                                        <p>Number of results: <strong>{pubmedData.length}</strong></p>
+                                        <p><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
+                                    </div>
+                                    <div className="col-md-4" style={{float: "right"}}>
+                                        <Filter onChange={handleFilterUpdate} showSort={false}/>
+                                    </div>
+                                </div>:null
+                            }
 
                             {
-                                (largeSearchFlag === true) ? <div><strong>Too many results. Please provide additional search parameters</strong></div> :
+                                (errors && errors.length == 0) ?
                                     <React.Fragment>
                                         <Pagination total={pubmedData.length} page={page}
                                                     count={count}
@@ -399,9 +386,11 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                                     page={page} count={count}
                                                     onChange={handlePaginationUpdate}/>
                                     </React.Fragment>
+                                    :
+                                    <div><strong>Too many results. Please provide additional search parameters</strong></div>
                             }
 
-                        </div> : (pubmedSearch ==="")?null:<div><b>No Results</b></div>
+                        </div> : null
                     }
                 </div>
             }

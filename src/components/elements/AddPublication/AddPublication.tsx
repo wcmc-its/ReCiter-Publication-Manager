@@ -9,8 +9,6 @@ interface FuncProps {
 }
 
 const AddPublication: FunctionComponent<FuncProps> = (props) => {
-
-    console.log(props)
     const acceptPublication = () => {
         const { item } = props
         props.onAccept(item.pmid);
@@ -56,7 +54,7 @@ const AddPublication: FunctionComponent<FuncProps> = (props) => {
 
                 </span>
             </p>
-            {/* <p className={publicationStyles.publicationField}>
+            <p className={publicationStyles.publicationField}>
                 <strong>Title: </strong>
                 <span>{item.title}</span>
             </p>
@@ -67,7 +65,7 @@ const AddPublication: FunctionComponent<FuncProps> = (props) => {
             <p className={publicationStyles.publicationField}>
                 <strong>Date: </strong>
                 <span>{item.displayDate}</span>
-            </p> */}
+            </p>
         </td>
     </tr>;
 
