@@ -6,7 +6,7 @@ import Tabs from '../Tabs/Tabs'
 import TabAccepted from '../TabAccepted/TabAccepted';
 import TabSuggested from '../TabSuggested/TabSuggested';
 import TabRejected from '../TabRejected/TabRejected';
-import TabAddPublication from '../AddPublication/AddPublication';
+import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 

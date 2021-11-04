@@ -11,10 +11,9 @@ export const addError = (message) =>
         payload: message
     })
 
-export const clearError = index =>
+export const clearError = () =>
     ({
-        type: methods.CLEAR_ERROR,
-        payload: index
+        type: methods.CLEAR_ERROR
     })
 
 export const reciterLogin = login => dispatch => {
@@ -249,9 +248,21 @@ export const pubmedFetchData = query => dispatch => {
         body: JSON.stringify(query)
     }, 300000)
         .then(response => {
-            var errorMessage = ''
-            if(response.status === 200) {
-                toast.success("Pubmed query " + query + " successfully fetched", {
+            return response.json()
+        })
+        .then(data => {
+            console.log(data)
+            if(data.statusCode != 200) {
+                throw {
+                    title: data.reciter.message,
+                    status: data.reciter.status,
+                    limit: data.reciter.limit
+                } 
+            } else {
+                dispatch(
+                    clearError()
+                )
+                toast.success("Pubmed query successfully fetched", {
                     position: "top-right",
                     autoClose: 1000,
                     hideProgressBar: false,
@@ -261,33 +272,19 @@ export const pubmedFetchData = query => dispatch => {
                     progress: undefined,
                     theme: 'dark'
                     });
-                return response.json()
-            }else {
-                response.json().then(parsedResponse => {
-                    errorMessage = parsedResponse.error.message
-                    console.log(errorMessage)
+                dispatch({
+                    type: methods.PUBMED_CHANGE_DATA,
+                    payload: data.reciter
                 })
-                throw {
-                    type: response.type,
-                    title: errorMessage,
-                    status: response.status,
-                    detail: "Error occurred with api " + response.url + ". Please, try again later "
-                } 
-            }
-        })
-        .then(data => {
-            dispatch({
-                type: methods.PUBMED_CHANGE_DATA,
-                payload: data.reciter
-            })
 
-            dispatch({
-                type: methods.PUBMED_CANCEL_FETCHING
-            })
+                dispatch({
+                    type: methods.PUBMED_CANCEL_FETCHING
+                })
+            }
+            
         })
         .catch(error => {
-
-            toast.error("Pubmed query " + query + " failed - " + error.title  , {
+            toast.error("Pubmed query " + query["strategy-query"] + " failed", {
                 position: "top-right",
                 autoClose: 2000,
                 hideProgressBar: false,
@@ -304,6 +301,10 @@ export const pubmedFetchData = query => dispatch => {
 
             dispatch({
                 type: methods.PUBMED_CANCEL_FETCHING
+            })
+
+            dispatch({
+                type: methods.PUBMED_CLEAR_DATA
             })
 
         })

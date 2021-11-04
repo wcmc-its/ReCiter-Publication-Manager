@@ -196,7 +196,7 @@ export const errors = (state=[], action) => {
                 action.payload
             ]
         case methods.CLEAR_ERROR :
-            return state.filter((message, i) => i !== action.payload)
+            return []
         default:
             return state
     }
