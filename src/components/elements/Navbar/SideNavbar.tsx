@@ -1,5 +1,4 @@
 import * as React from 'react';
-import Link from 'next/link'
 import { styled, useTheme } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import MuiDrawer from '@mui/material/Drawer';
@@ -9,15 +8,10 @@ import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import ListItem from '@mui/material/ListItem';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import InboxIcon from '@mui/icons-material/MoveToInbox';
-import MailIcon from '@mui/icons-material/Mail';
 import NestedListItem from './NestedListItem';
-import Image from 'next/image';
 import { MenuItem } from '../../../../types/menu';
 import MenuListItem from './MenuListItem';
+import { ExpandNavContext } from './ExpandNavContext';
 
 type SideNavBarProps = {
     items: any
@@ -50,6 +44,7 @@ const menuItems: Array<MenuItem> = [
 const drawerWidth = 240;
 
 const openedMixin = (theme: any) => ({
+  top: 60,
   width: drawerWidth,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
@@ -59,6 +54,7 @@ const openedMixin = (theme: any) => ({
 });
 
 const closedMixin = (theme: any) => ({
+  top: 60,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
@@ -100,14 +96,17 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const theme = useTheme();
   const [open, setOpen] = React.useState(true);
 
+  const expandNavCotext = React.useContext(ExpandNavContext);
+
   const handleDrawerToggle = () => {
+    expandNavCotext.updateExpand();
     setOpen(!open);
   };
 
   return (
     <Box sx={{ display: 'flex' }}>
     <CssBaseline />
-    <Drawer variant="permanent" open={open} theme={theme}>
+    <Drawer variant="permanent" className='drawer-container' open={open} theme={theme}>
       <DrawerHeader>
         <IconButton onClick={handleDrawerToggle}>
           {open ? 'Compact Mode' : ''}
@@ -127,7 +126,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                 :
                 <MenuListItem
                   title={item.title}
-                  key={index}
+                  id={index}
                   to='/search'
                 />
             })

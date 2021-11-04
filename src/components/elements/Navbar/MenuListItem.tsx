@@ -6,10 +6,10 @@ import ListItemText from '@mui/material/ListItemText';
 import { MenuItem } from "../../../../types/menu";
 import Image from 'next/image';
 
-const MenuListItem: React.FC<MenuItem> = ({ title, to, key }) => {
+const MenuListItem: React.FC<MenuItem> = ({ title, to, id }) => {
   return (
     <>
-    <Link href={to} passHref key={key}>
+    <Link href={to} passHref key={id}>
       <ListItem button component="a">
         <ListItemIcon>
           <Image 

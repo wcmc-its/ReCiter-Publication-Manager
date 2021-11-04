@@ -1,0 +1,13 @@
+.main.mainCompact {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+}
+
+.main {
+  height: 100%;
+  margin-left: 73px;
+}
+
+.containerFluid {
+  height: 100%;
+}
