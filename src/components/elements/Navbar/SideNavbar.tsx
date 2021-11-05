@@ -12,6 +12,10 @@ import NestedListItem from './NestedListItem';
 import { MenuItem } from '../../../../types/menu';
 import MenuListItem from './MenuListItem';
 import { ExpandNavContext } from './ExpandNavContext';
+import facultyIcon from '../../../../public/images/icon-side-faculty_index.png';
+import settingsIcon from '../../../../public/images/icon-side-admin_index.png';
+import chartIcon from '../../../../public/images/icon-side-faculty_report.png';
+import checkMarkIcon from '../../../../public/images/icon-side-check_mark.png';
 
 type SideNavBarProps = {
     items: any
@@ -26,22 +30,27 @@ const menuItems: Array<MenuItem> = [
   {
     title: 'Find People',
     to: '/search',
+    imgUrl: facultyIcon,
   },
   {
     title: 'Curate Publications',
     to: '/search',
+    imgUrl: settingsIcon,
   },
   {
     title: 'Create Reports',
     to: '/search',
+    imgUrl: chartIcon,
   },
   {
     title: 'Perform Analysis',
     to: '/search',
+    imgUrl: checkMarkIcon,
   },
   {
     title: 'Manage Module',
-    nestedMenu: [{title: 'Manage Content', to: '/search',}]
+    imgUrl: settingsIcon,
+    nestedMenu: [{title: 'Manage Content', to: '/search', imgUrl: facultyIcon,}]
   }
 ]
 
@@ -126,6 +135,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                   header={item.title}
                   menuItems={item.nestedMenu}
                   key={index}
+                  imgUrl={item.imgUrl}
                 />
                 :
                 <MenuListItem
@@ -133,6 +143,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                   key={index}
                   id={index}
                   to={item.to}
+                  imgUrl={item.imgUrl}
                 />
             })
           }

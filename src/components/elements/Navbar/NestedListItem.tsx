@@ -14,9 +14,10 @@ import Box from '@mui/material/Box';
 type NestedListItemProps = {
   header: String,
   menuItems: Array<MenuItem>,
+  imgUrl?: string | StaticImport
 }
 
-const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems}) => {
+const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgUrl}) => {
   const [open, setOpen] = React.useState(false);
 
   const handleClick = () => {
@@ -28,7 +29,7 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems}) => 
       <ListItemButton onClick={handleClick}>
         <ListItemIcon>
           <Image 
-              src="/images/icon-side-faculty_index.png"
+              src={imgUrl}
               height={15}
               width={15}
             />
@@ -46,6 +47,7 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems}) => 
                   title={item.title}
                   to='/search'
                   id={index}
+                  imgUrl={item.imgUrl}
                 />
               </Box>
             )
