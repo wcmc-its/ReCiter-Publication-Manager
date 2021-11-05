@@ -25,19 +25,23 @@ type drawer = {
 const menuItems: Array<MenuItem> = [
   {
     title: 'Find People',
+    to: '/search',
   },
   {
     title: 'Curate Publications',
+    to: '/search',
   },
   {
     title: 'Create Reports',
+    to: '/search',
   },
   {
     title: 'Perform Analysis',
+    to: '/search',
   },
   {
     title: 'Manage Module',
-    nestedMenu: [{title: 'Manage Content'}]
+    nestedMenu: [{title: 'Manage Content', to: '/search',}]
   }
 ]
 
@@ -126,8 +130,9 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                 :
                 <MenuListItem
                   title={item.title}
+                  key={index}
                   id={index}
-                  to='/search'
+                  to={item.to}
                 />
             })
           }

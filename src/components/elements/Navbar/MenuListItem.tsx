@@ -9,7 +9,7 @@ import Image from 'next/image';
 const MenuListItem: React.FC<MenuItem> = ({ title, to, id }) => {
   return (
     <>
-    <Link href={to} passHref key={id}>
+    <Link href={to} passHref key={`${title}_${id}`}>
       <ListItem button component="a">
         <ListItemIcon>
           <Image 
