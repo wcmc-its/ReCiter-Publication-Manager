@@ -26,4 +26,13 @@ a {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  overflow-x: hidden;
+}
+
+.row-content {
+  flex: 1;
+}
+
+.drawer-container {
+  height: 0px;
 }

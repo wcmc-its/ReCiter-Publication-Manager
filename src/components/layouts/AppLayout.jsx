@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Container, Row, Col } from "react-bootstrap";
+import { Row, Col } from "react-bootstrap";
 import SideNavbar from "../elements/Navbar/SideNavbar";
 import { Footer } from "../elements/Footer/Footer";
 import Header from "../elements/Header/Header";
@@ -14,18 +14,16 @@ export const AppLayout = ({ children }) => {
 
     return (
         <>
-            <Header/>
-            <Container fluid={true} className={styles.containerFluid}>
-              <div id="navbar-wrapper">
-                <ExpandNavContext.Provider value={{ expand: expandedNav, updateExpand: toggleExpand}}>
-                  <SideNavbar />
-                </ExpandNavContext.Provider>
-              </div>
-              <div className={`d-flex flex-column ${styles.main} ${expandedNav ? styles.mainCompact : ''}`} id="page-content-wrapper">
-                  <Container fluid={true} className={styles.containerFluid}>{children}</Container>
-                  <Footer />
-              </div>
-            </Container>
+          <Header/>
+          <Row className="row-content">
+            <ExpandNavContext.Provider value={{ expand: expandedNav, updateExpand: toggleExpand}}>
+              <SideNavbar />
+            </ExpandNavContext.Provider>
+            <div className={`col-md-12 d-flex flex-column ${styles.main} ${expandedNav ? styles.mainCompact : ''}`} id="page-content-wrapper">
+                <Row className="row-content"><Col className="main-content p-0" lg={12}>{children}</Col></Row>
+                <Row><Footer /></Row>
+            </div>
+          </Row>
         </>
     );
 };

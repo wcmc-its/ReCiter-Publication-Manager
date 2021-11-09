@@ -10,6 +10,7 @@ import { MenuItem } from "../../../../types/menu";
 import Image from 'next/image';
 import MenuListItem from "./MenuListItem";
 import Box from '@mui/material/Box';
+import styles from './Navbar.module.css'
 
 type NestedListItemProps = {
   header: String,
@@ -42,7 +43,7 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgU
         {
           menuItems.map((item: MenuItem, index: number) => {
             return (
-              <Box p={2} key={index}>
+              <Box p={2} key={index} className={styles.subMenu}>
                 <MenuListItem
                   title={item.title}
                   to='/search'

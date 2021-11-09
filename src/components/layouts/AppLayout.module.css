@@ -1,13 +1,13 @@
 .main.mainCompact {
-  margin-left: 240px;
-  width: calc(100% - 240px);
-  margin-top: 60px;
+  margin-left: 250px;
+  width: -webkit-fill-available;
 }
 
 .main {
   height: 100%;
-  margin-left: 73px;
-  margin-top: 60px;
+  margin-left: 82px;
+  padding: 20px 40px;
+  width: -webkit-fill-available;
 }
 
 .containerFluid {
