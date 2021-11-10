@@ -4,4 +4,5 @@ export type MenuItem = {
   nestedMenu?: Array<MenuItem>
   id?: number
   imgUrl?: string | StaticImport
+  imgUrlActive?: string | StaticImport
 }

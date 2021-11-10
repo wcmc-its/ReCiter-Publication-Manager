@@ -46,9 +46,10 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgU
               <Box p={2} key={index} className={styles.subMenu}>
                 <MenuListItem
                   title={item.title}
-                  to='/search'
+                  to={item.to}
                   id={index}
                   imgUrl={item.imgUrl}
+                  imgUrlActive={item.imgUrlActive}
                 />
               </Box>
             )

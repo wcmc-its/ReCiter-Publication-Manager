@@ -23,10 +23,15 @@
   font-weight: 300;
 }
 
+.sidebarControl span:hover {
+  opacity: 0.5;
+}
+
 .drawerHeader {
   min-height: 25px !important;
 }
 
 .subMenu {
   padding: 0px;
+  background: #eaeaea;
 }

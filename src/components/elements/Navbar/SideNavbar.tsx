@@ -14,6 +14,10 @@ import settingsIcon from '../../../../public/images/icon-side-admin_index.png';
 import chartIcon from '../../../../public/images/icon-side-faculty_report.png';
 import checkMarkIcon from '../../../../public/images/icon-side-check_mark.png';
 import styles from './Navbar.module.css'
+import facultyIconActive from '../../../../public/images/icon-side-faculty_index-active.png';
+import settingsIconActive from '../../../../public/images/icon-side-faculty_admin-active.png';
+import chartIconActive from '../../../../public/images/icon-side-faculty_report-active.png';
+import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
 
 type SideNavBarProps = {
     items: any
@@ -29,26 +33,31 @@ const menuItems: Array<MenuItem> = [
     title: 'Find People',
     to: '/search',
     imgUrl: facultyIcon,
+    imgUrlActive: facultyIconActive,
   },
   {
     title: 'Curate Publications',
-    to: '/search',
+    to: '/login',
     imgUrl: settingsIcon,
+    imgUrlActive: settingsIconActive,
   },
   {
     title: 'Create Reports',
-    to: '/search',
+    to: '/login',
     imgUrl: chartIcon,
+    imgUrlActive: chartIconActive,
   },
   {
     title: 'Perform Analysis',
-    to: '/search',
+    to: '/login',
     imgUrl: checkMarkIcon,
+    imgUrlActive: checkMarkIconActive,
   },
   {
     title: 'Manage Module',
     imgUrl: settingsIcon,
-    nestedMenu: [{title: 'Manage Content', to: '/search', imgUrl: facultyIcon,}]
+    imgUrlActive: settingsIconActive,
+    nestedMenu: [{title: 'Manage Content', to: '/login', imgUrl: facultyIcon, imgUrlActive: facultyIconActive}]
   }
 ]
 
@@ -112,19 +121,18 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 const StyledList = styled(List)({
   paddingTop: '0px',
   // selected and (selected + hover) states
-  '&& .Mui-selected, && .Mui-selected:hover': {
+  '&& .Mui-selected': {
     backgroundColor: '#e87722',
     '&, & .MuiListItemIcon-root': {
       color: 'white',
     },
   },
-  // TODO: hover states
-  // '& .MuiListItemButton-root:hover': {
-  //   backgroundColor: '#bd5d16',
-  //   '&, & .MuiListItemIcon-root': {
-  //     color: 'white',
-  //   },
-  // },
+  '&& .Mui-selected:hover': {
+    backgroundColor: '#bd5d16',
+    '&, & .MuiListItemIcon-root': {
+      color: 'white',
+    },
+  },
   '& .MuiButtonBase-root:hover': {
     backgroundColor: '#eee',
     '&, & .MuiListItemIcon-root': {
@@ -187,6 +195,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                   id={index}
                   to={item.to}
                   imgUrl={item.imgUrl}
+                  imgUrlActive={item.imgUrlActive}
                 />
             })
           }
