@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "target": "ES6",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -13,8 +17,25 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "typeRoots": [
+      "node_modules/@types"
+    ],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "src/redux/store/store.tsx", "src/pages/login/index.js", "src/components/layouts/AppLayout.jsx"],
-  "exclude": ["node_modules"]
+  "skipLibCheck": true,
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "src/redux/store/store.tsx",
+    "src/pages/login/index.js",
+    "src/components/elements/Navbar/Navbar.jsx",
+    "src/components/layouts/AppLayout.jsx",
+    "src/components/elements/Auth/Auth.jsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }
