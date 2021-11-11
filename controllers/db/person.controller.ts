@@ -24,7 +24,21 @@ export const findAllOrgUnits = async (req: NextApiRequest, res: NextApiResponse)
         const persons = await models.Person.findAll({
             attributes: [
                 [Sequelize.fn('DISTINCT', Sequelize.col('primaryOrganizationalUnit')), 'primaryOrganizationalUnit']
-            ]
+            ],
+            where: {
+                [Op.and]: [
+                    {
+                        primaryOrganizationalUnit:  {
+                            [Op.ne]: ''
+                        }
+                    },
+                    {
+                        primaryOrganizationalUnit: {
+                            [Op.ne]: null
+                        }
+                    }
+                ]
+            }
         });
 
         res.send(persons);
