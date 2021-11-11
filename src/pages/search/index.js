@@ -33,4 +33,4 @@ SearchPage.getLayout = (page) => (
     <AppLayout>{page}</AppLayout>
 );
 
-export default SearchPage;
+export default SearchPage

@@ -36,4 +36,4 @@ AppPage.getLayout = (page) => (
     <AppLayout>{page}</AppLayout>
 );
 
-export default AppPage;
+export default AppPage
