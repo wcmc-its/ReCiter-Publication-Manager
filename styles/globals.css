@@ -36,3 +36,12 @@ a {
 .drawer-container {
   height: 0px;
 }
+
+.btn-primary.primary {
+  background: #337ab7;
+}
+
+.btn-primary.primary:hover {
+  background: #549ad8;
+  
+}

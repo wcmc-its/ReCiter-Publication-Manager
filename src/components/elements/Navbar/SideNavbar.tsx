@@ -57,7 +57,7 @@ const menuItems: Array<MenuItem> = [
     title: 'Manage Module',
     imgUrl: settingsIcon,
     imgUrlActive: settingsIconActive,
-    nestedMenu: [{title: 'Manage Content', to: '/login', imgUrl: facultyIcon, imgUrlActive: facultyIconActive}]
+    nestedMenu: [{title: 'Add Users', to: '/admin/add/users', imgUrl: facultyIcon, imgUrlActive: facultyIconActive}]
   }
 ]
 

@@ -33,6 +33,7 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgU
               src={imgUrl}
               height={15}
               width={15}
+              alt='Menu Icon'
             />
         </ListItemIcon>
         <ListItemText primary={header} />
