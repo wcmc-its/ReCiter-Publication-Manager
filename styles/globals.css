@@ -37,6 +37,11 @@ a {
   height: 0px;
 }
 
-.btn-primary {
-  background-color: #347AB7;
+.btn-primary.primary {
+  background: #337ab7;
+}
+
+.btn-primary.primary:hover {
+  background: #549ad8;
+  
 }
