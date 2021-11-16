@@ -94,3 +94,7 @@ li.active a span.badge {
     padding: 15px 20px;
     color: #555;
 }
+
+.btn-primary.primary {
+  background-color: #347AB7;
+}

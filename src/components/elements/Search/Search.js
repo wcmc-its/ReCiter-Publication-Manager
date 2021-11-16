@@ -9,6 +9,7 @@ import appStyles from '../App/App.module.css';
 import publicationStyles from '../Publication/Publication.module.css';
 import { useSession } from 'next-auth/client';
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import SearchBar from "./SearchBar";
 
 
 
@@ -88,11 +89,11 @@ const Search = () => {
             console.log(searchResults)
             var searchResults = []
             searchResults = identityAllData.filter(identity => {
-                if(identity.uid === searchText 
+                if(identity.id === searchText 
                     || 
-                    identity.primaryName.firstName.toLowerCase().includes(searchText.toLowerCase())
+                    identity.firstName.toLowerCase().includes(searchText.toLowerCase())
                     ||
-                    identity.primaryName.lastName.toLowerCase().includes(searchText.toLowerCase())) {
+                    identity.lastName.toLowerCase().includes(searchText.toLowerCase())) {
                     return identity
                 }
             })
@@ -131,10 +132,10 @@ const Search = () => {
                     <Name identity={identity}></Name>
                 </td>
                 <td key="1" width="40%">
-                    <List list={identity.organizationalUnits} orgUnit="true"></List>
+                    <List list={identity.primaryOrganizationalUnit} orgUnit="true"></List>
                 </td>
                 <td key="2" width="40%">
-                    <List list={identity.institutions} orgUnit="false"></List>
+                    <List list={identity.primaryInstitution} orgUnit="false"></List>
                 </td>
             </tr>;
         })
@@ -145,15 +146,8 @@ const Search = () => {
                 </div> */}
                 <div className={styles.searchContentContainer}>
                     <div className={styles.searchBar}>
-                        <h1>Find a scholar(s)</h1>
-                        <Form.Group controlId="formSearch">
-                            <Form.Control
-                                type="input"
-                                placeholder="Enter name or person identifier"
-                                ref={searchValue}
-                            />
-                        </Form.Group>
-                        <Button className="primary" onClick={searchData} >Search</Button>
+                      <h1>Find People</h1>
+                      <SearchBar searchData={() => this.searchData()}/>
                         <div>
                             <br/>
                             <div className="row">
@@ -194,7 +188,7 @@ const Search = () => {
 
 
 function List(props) {
-    if(props.list === undefined || props.list === null) {
+    if(props.list === undefined || props.list === null || props.list === "") {
         return null
     } 
     let listArray = []
@@ -221,15 +215,15 @@ function Name(props) {
         else
             imageUrl = '../../../images/generic-headshot.png'
     }
-    if(props.identity.primaryName !== undefined) {
-        const nameString = props.identity.primaryName.firstName + ((props.identity.primaryName.middleName !== undefined) ? ' ' + props.identity.primaryName.middleName + ' ' : ' ') + props.identity.primaryName.lastName
-        nameArray.push(<p key="0"><img src={`${imageUrl}`} width="80" style={{float: "left"}} alt="Headshot"/> <a href={`/app/${props.identity.uid}`} target="_blank" rel="noreferrer">
+    if(props.identity.firstName !== undefined) {
+        const nameString = props.identity.firstName + ((props.identity.middleName !== undefined) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
+        nameArray.push(<p key="0"><img src={`${imageUrl}`} width="80" style={{float: "left"}} alt="Headshot"/> <a href={`/app/${props.identity.id}`} target="_blank" rel="noreferrer">
             <b>{nameString}</b>
             </a></p>)
         
     }
-    if(props.identity.title !== undefined) {
-        nameArray.push(<p key="1"><span>{props.identity.title}</span></p>)
+    if(props.title !== undefined) {
+        nameArray.push(<p key="1"><span>{props.title}</span></p>)
     }
     return (
         nameArray

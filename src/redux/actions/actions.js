@@ -93,12 +93,12 @@ export const identityFetchAllData = () => dispatch => {
     dispatch({
         type: methods.IDENTITY_FETCH_ALL_DATA
     })
-    fetchWithTimeout('/api/reciter/getAllIdentity', {
+    fetchWithTimeout('/api/db/users', {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
-            'Authorization': reciterConfig.backendApiKey
+            "Content-Type": "application/json",
         }
     }, 300000)
         .then(response => {
@@ -124,10 +124,9 @@ export const identityFetchAllData = () => dispatch => {
             }
         })
         .then(data => {
-            console.log(data.identity)
             dispatch({
                 type: methods.IDENTITY_CHANGE_ALL_DATA,
-                payload: data.identity
+                payload: data
             })
 
             dispatch({
@@ -576,4 +575,118 @@ export const getSession = sid => dispatch => {
             addError(err)
         )
     })
+}
+
+export const orgUnitsFetchAllData = () => dispatch => {
+  dispatch({
+      type: methods.ORGUNITS_FETCH_ALL_DATA
+  })
+  fetchWithTimeout('/api/db/users/orgunits', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+      }
+  }, 300000)
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.ORGUNITS_CHANGE_ALL_DATA,
+              payload: data
+          })
+
+          dispatch({
+              type: methods.ORGUNITS_CANCEL_ALL_FETCHING
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Organizational Units Api failed - " + error.title, {
+              position: "top-right",
+              autoClose: 2000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined,
+              theme: 'dark'
+              });
+          dispatch(
+              addError(error)
+          )
+
+          dispatch({
+              type: methods.ORGUNITS_CANCEL_ALL_FETCHING
+          })
+
+      })
+}
+
+export const institutionsFetchAllData = () => dispatch => {
+  dispatch({
+      type: methods.INSTITUTIONS_FETCH_ALL_DATA
+  })
+  fetchWithTimeout('/api/db/users/institutions', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+      }
+  }, 300000)
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.INSTITUTIONS_CHANGE_ALL_DATA,
+              payload: data
+          })
+
+          dispatch({
+              type: methods.INSTITUTIONS_CANCEL_ALL_FETCHING
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Institutional Units Api failed - " + error.title, {
+              position: "top-right",
+              autoClose: 2000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined,
+              theme: 'dark'
+              });
+          dispatch(
+              addError(error)
+          )
+
+          dispatch({
+              type: methods.INSTITUTIONS_CANCEL_ALL_FETCHING
+          })
+
+      })
 }

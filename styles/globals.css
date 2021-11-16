@@ -36,3 +36,7 @@ a {
 .drawer-container {
   height: 0px;
 }
+
+.btn-primary {
+  background-color: #347AB7;
+}

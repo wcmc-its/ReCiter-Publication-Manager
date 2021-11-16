@@ -26,8 +26,8 @@ const App = (props) => {
     const [identityData, setIdentityData] = useState({})
 
     useEffect(() => {
-        dispatch(reciterFetchData(props.uid, false))
-        dispatch(identityFetchData(props.uid))
+        dispatch(reciterFetchData(props.id, false))
+        dispatch(identityFetchData(props.id))
     },[])
 
     const tabClickHandler = (str = 'Suggested') => {

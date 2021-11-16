@@ -188,6 +188,70 @@ export const identityAllData = (state=[], action) => {
 
 }
 
+export const orgUnitsFetching = (state=false, action) => {
+
+  switch(action.type) {
+
+      case methods.ORGUNITS_FETCH_ALL_DATA :
+          return true
+
+      case methods.ORGUNITS_CANCEL_ALL_FETCHING :
+          return false
+
+      default:
+          return state
+  }
+
+}
+
+export const orgUnitsData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.ORGUNITS_CLEAR_ALL_DATA :
+          return []
+
+      case methods.ORGUNITS_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const institutionsFetching = (state=false, action) => {
+
+  switch(action.type) {
+
+      case methods.INSTITUTIONS_FETCH_ALL_DATA :
+          return true
+
+      case methods.INSTITUTIONS_CANCEL_ALL_FETCHING :
+          return false
+
+      default:
+          return state
+  }
+
+}
+
+export const institutionsData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.INSTITUTIONS_CLEAR_ALL_DATA :
+          return []
+
+      case methods.INSTITUTIONS_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
 export const errors = (state=[], action) => {
     switch(action.type) {
         case methods.ADD_ERROR :
@@ -213,5 +277,9 @@ export default combineReducers({
     pubmedData,
     errors,
     auth,
-    sessionId
+    sessionId,
+    orgUnitsData,
+    orgUnitsFetching,
+    institutionsData,
+    institutionsFetching,
 })
