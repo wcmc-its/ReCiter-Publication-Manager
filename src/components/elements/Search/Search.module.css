@@ -9,6 +9,7 @@
 .searchBar {
     grid-row-start: search-bar;
     padding: 1rem 3rem;
+    color: #555;
 }
 
 .individualLink {
@@ -26,4 +27,16 @@
   color: #0d6efd;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.searchFormContainer {
+  background: #efefef;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  padding: 20px;
+}
+
+.searchFormLabel {
+  font-weight: bold;
+  color: #333;
 }

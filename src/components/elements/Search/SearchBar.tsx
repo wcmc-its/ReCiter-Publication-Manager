@@ -1,21 +1,30 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Form, Row, Col, Container , Dropdown, InputGroup } from "react-bootstrap";
 import { orgUnitsFetchAllData, institutionsFetchAllData } from '../../../redux/actions/actions';
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import styles from './Search.module.css'
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
 import { styled } from '@mui/material/styles';
+import { Identity } from "../../../../types/identity";
 
-const SearchBar = (props) => {
+const SearchBar = ({ 
+  searchData 
+} : { 
+  searchData: (
+    searchQuery: string, 
+    orgUnitQuery: Array<string>, 
+    insitutionQuery: Array<string>
+  ) => void;}) => {
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [orgUnitQuery, setOrgUnitQuery] = useState('');
-  const [insitutionQuery, setInstitutionQuery] = useState('');
+  const [orgUnitQuery, setOrgUnitQuery] = useState<Array<string>>([]);
+  const [insitutionQuery, setInstitutionQuery] = useState<Array<string>>([]);
 
   const dispatch = useDispatch()
 
-  const orgUnitsData = useSelector((state) => state.orgUnitsData)
-  const institutionsData = useSelector((state) => state.institutionsData)
+  const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
+  const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
 
   useEffect(() => {
     dispatch(institutionsFetchAllData())
@@ -24,8 +33,8 @@ const SearchBar = (props) => {
 
   const clearFilters = () => {
     setSearchQuery('');
-    setOrgUnitQuery('');
-    setInstitutionQuery('');
+    setOrgUnitQuery([]);
+    setInstitutionQuery([]);
   }
 
 
@@ -44,22 +53,24 @@ const SearchBar = (props) => {
   });
 
   return (
-    <Container>
+    <Container className={styles.searchFormContainer}>
       <Form>
         <Form.Group>
-          <Form.Label>Name or CWID(s)</Form.Label>
+          <Form.Label className={styles.searchFormLabel}>Name or CWID(s)</Form.Label>
           <InputGroup>
             <Form.Control type="input" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}></Form.Control>
           </InputGroup>
           <Row className="mt-3 mb-3"> 
             <Col md={4}>
-              <Form.Label>Organizational unit(s)</Form.Label>
+              <Form.Label className={styles.searchFormLabel}>Organizational unit(s)</Form.Label>
               <Autocomplete
                 freeSolo
+                multiple
                 id="organizational units"
                 disableClearable
-                options={orgUnitsData.map((option) => option.primaryOrganizationalUnit)}
-                onChange={(event, value) => console.log(value)}
+                value={orgUnitQuery}
+                options={orgUnitsData.map((option: Identity) => option.primaryOrganizationalUnit)}
+                onChange={(event, value) => setOrgUnitQuery(value as string[])}
                 renderInput={(params) => (
                   <CssTextField
                     variant = "outlined"
@@ -72,13 +83,15 @@ const SearchBar = (props) => {
                 )}
               />
             </Col>
-            <Col md={4}><Form.Label>Institution(s)</Form.Label>
+            <Col md={4}><Form.Label className={styles.searchFormLabel}>Institution(s)</Form.Label>
               <Autocomplete
                   freeSolo
-                  id="organizational units"
+                  multiple
+                  id="institutions"
                   disableClearable
-                  options={institutionsData.map((option) => option.primaryInstitution)}
-                  onChange={(event, value) => console.log(value)}
+                  value={insitutionQuery}
+                  options={institutionsData.map((option: Identity) => option.primaryInstitution)}
+                  onChange={(event, value) => setInstitutionQuery(value as string[])}
                   renderInput={(params) => (
                     <CssTextField
                       variant = "outlined"
@@ -93,7 +106,9 @@ const SearchBar = (props) => {
             </Col>
           </Row>
           <div className="d-flex flex-row align-items-center">
-            <Button className="primary" onClick={props.searchData}>Search</Button>
+            <Col sm={2}>
+              <Button className="primary w-100" onClick={() => searchData(searchQuery, orgUnitQuery, insitutionQuery)}>Search</Button>
+            </Col>
             <div className={`m-3 ${styles.textButton}`} onClick={clearFilters}>Reset</div>
           </div>
         </Form.Group>

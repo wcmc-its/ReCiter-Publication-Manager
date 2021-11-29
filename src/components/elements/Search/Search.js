@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Button, Form } from "react-bootstrap";
 import { identityFetchAllData } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
@@ -81,26 +80,38 @@ const Search = () => {
         }
     }
 
-    const searchData = () => {
-        const searchText = searchValue.current.value
+    const searchData = (searchText, orgUnits, institutions) => {
         setIdentityData(identityAllData)
         setIdentitySearch(searchText)
         if(identityAllData !== undefined) {
-            console.log(searchResults)
-            var searchResults = []
-            searchResults = identityAllData.filter(identity => {
-                if(identity.id === searchText 
-                    || 
-                    identity.firstName.toLowerCase().includes(searchText.toLowerCase())
-                    ||
-                    identity.lastName.toLowerCase().includes(searchText.toLowerCase())) {
-                    return identity
-                }
-            })
-            console.log(searchResults)
+            var searchResults = identityAllData
+
+            if (searchText) {
+              searchResults = identityAllData.filter(identity => {
+                  if(identity.id === searchText 
+                      || 
+                      (identity.firstName && identity.firstName.toLowerCase().includes(searchText.toLowerCase()))
+                      ||
+                      (identity.lastName && identity.lastName.toLowerCase().includes(searchText.toLowerCase()))) {
+                      return identity
+                  }
+              })
+            }
+
+            if (orgUnits && orgUnits.length) {
+              searchResults = searchResults.filter(identity => {
+                return orgUnits.includes(identity.primaryOrganizationalUnit)
+              })
+            }
+
+            if (institutions && institutions.length) {
+              searchResults = searchResults.filter(identity => {
+                return institutions.includes(identity.primaryInstitution)
+              })
+            }
+
             setIdentityData(searchResults)
         }
-        
     }
 
     const identities = filter()
@@ -132,10 +143,10 @@ const Search = () => {
                     <Name identity={identity}></Name>
                 </td>
                 <td key="1" width="40%">
-                    <List list={identity.primaryOrganizationalUnit} orgUnit="true"></List>
+                    {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
                 </td>
                 <td key="2" width="40%">
-                    <List list={identity.primaryInstitution} orgUnit="false"></List>
+                    {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
                 </td>
             </tr>;
         })
@@ -147,7 +158,7 @@ const Search = () => {
                 <div className={styles.searchContentContainer}>
                     <div className={styles.searchBar}>
                       <h1>Find People</h1>
-                      <SearchBar searchData={() => this.searchData()}/>
+                      <SearchBar searchData={searchData}/>
                         <div>
                             <br/>
                             <div className="row">
