@@ -18,6 +18,22 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse, offset:
     }
 };
 
+export const countPersons = async (req: NextApiRequest, res: NextApiResponse) => {
+    
+    try {
+        const persons = await models.Person.findAll({
+            attributes: [
+                [Sequelize.fn('COUNT', Sequelize.col('personIdentifier')), 'countPersonIdentifier'],
+            ]
+        });
+
+        res.send(persons[0]);
+    } catch (e) {
+        console.log(e)
+        res.status(500).send(e);
+    }
+};
+
 export const findAllOrgUnits = async (req: NextApiRequest, res: NextApiResponse) => {
     
     try {
