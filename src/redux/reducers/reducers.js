@@ -266,6 +266,22 @@ export const errors = (state=[], action) => {
     }
 }
 
+const initialFilterState = {
+  orgUnits: [],
+  institutions: [],
+  searchText: [],
+  filterByPending: false,
+}
+
+export const filters = (state={}, action) => {
+  switch(action.type) {
+    case methods.CLEAR_FILTERS :
+      return {}
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,

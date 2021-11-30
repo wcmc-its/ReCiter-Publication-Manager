@@ -9,7 +9,9 @@ import publicationStyles from '../Publication/Publication.module.css';
 import { useSession } from 'next-auth/client';
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import SearchBar from "./SearchBar";
-
+import FilterReview from "./FilterReview";
+import fetchWithTimeout from "../../../pages/fetchWithTimeout";
+import { Button, Table } from "react-bootstrap";
 
 
 const Search = () => {
@@ -29,12 +31,15 @@ const Search = () => {
     const [search, setSearch] = useState("")
     const [page, setPage] = useState(1)
     const [count, setCount] = useState(20)
+    const [filterByPending, setFilterByPending] = useState(false);
+    const [totalCount, setTotalCount] = useState(0);
 
     //ref
     const searchValue = useRef()
 
     useEffect(() => {
         dispatch(identityFetchAllData())
+        fetchCount()
     },[])
 
 
@@ -80,6 +85,37 @@ const Search = () => {
         }
     }
 
+    const fetchCount = () => {
+      fetchWithTimeout('/api/db/users/count', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+        }
+      }, 300000)
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+        if (data.countPersonIdentifier) {
+          setTotalCount(data.countPersonIdentifier);
+        }
+      }) 
+      .catch(error => {
+          console.log(error)
+      })
+    }
+
     const searchData = (searchText, orgUnits, institutions) => {
         setIdentityData(identityAllData)
         setIdentitySearch(searchText)
@@ -110,8 +146,18 @@ const Search = () => {
               })
             }
 
-            setIdentityData(searchResults)
+            setIdentityData(searchResults);
         }
+    }
+
+    const handlePendingFilterUpdate = (value) => {
+      setFilterByPending(true);
+      if (identityAllData !== undefined) {
+        let searchResults = [];
+        searchResults = identityAllData.filter(identity => {
+          return identity.countPendingArticles > 0;
+        })
+      }
     }
 
     const identities = filter()
@@ -139,14 +185,20 @@ const Search = () => {
         let tableBody
         tableBody = identities.paginatedIdentities.map(function (identity, identityIndex) {
             return <tr key={identityIndex}>
-                <td key="0" align="right">
+                <td key="0" width="20%">
                     <Name identity={identity}></Name>
                 </td>
-                <td key="1" width="40%">
+                <td key="1" width="20%">
                     {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
                 </td>
-                <td key="2" width="40%">
+                <td key="2" width="20%">
                     {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
+                </td>
+                <td key="3" width="20%">
+                    {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
+                </td>
+                <td key="4" width="20%">
+                    <Button className={styles.tableButton}>Curate Publications</Button>
                 </td>
             </tr>;
         })
@@ -171,18 +223,20 @@ const Search = () => {
                                             count={count}
                                             onChange={handlePaginationUpdate}/>
                                 <div className="table-responsive">
-                                    <table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} table table-striped`}>
+                                    <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
                                         <thead>
                                             <tr>
                                                 <th key="0">Name</th>
-                                                <th key="1">Organizational units</th>
-                                                <th key="2">Institutions</th>
+                                                <th key="1">Organization</th>
+                                                <th key="2">Institution</th>
+                                                <th key="3">Pending</th>
+                                                <th key="4">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {tableBody}
                                         </tbody>
-                                    </table>
+                                    </Table>
                                 </div>
                                 <Pagination total={(identityData.length > 0 && identitySearch.length > 0)? identitySearch.length: identityAllData.length} page={page}
                                             count={count}
@@ -228,7 +282,7 @@ function Name(props) {
     }
     if(props.identity.firstName !== undefined) {
         const nameString = props.identity.firstName + ((props.identity.middleName !== undefined) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
-        nameArray.push(<p key="0"><img src={`${imageUrl}`} width="80" style={{float: "left"}} alt="Headshot"/> <a href={`/app/${props.identity.id}`} target="_blank" rel="noreferrer">
+        nameArray.push(<p key="0"> <a href={`/app/${props.identity.id}`} target="_blank" rel="noreferrer">
             <b>{nameString}</b>
             </a></p>)
         

@@ -40,3 +40,39 @@
   font-weight: bold;
   color: #333;
 }
+
+.table > thead {
+  background-color: #2E414F;
+  color: #fff;
+}
+
+.table tr {
+  border-color: black;
+}
+
+.table {
+  border: 1px solid;
+  border-left-color: black;
+  border-right-color: black;
+}
+
+.table tbody {
+  background-color: #fff;
+}
+
+.table tr a {
+  text-decoration: none;
+  color: #337ab7;
+}
+
+.tableButton {
+  background-color: #efefef;
+  color: black;
+  border-color: #efefef;
+}
+
+.tableButton:hover {
+  background-color: #f3f3f3;
+  border-color: #efefef;
+  color: black;
+}

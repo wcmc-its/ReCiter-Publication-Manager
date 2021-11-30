@@ -39,6 +39,7 @@ a {
 
 .btn-primary.primary {
   background: #337ab7;
+  border-color: #337ab7;
 }
 
 .btn-primary.primary:hover {
