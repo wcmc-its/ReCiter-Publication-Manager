@@ -12,11 +12,27 @@
     width: 110px;
 }
 .paginationContainer {
-    padding: 0px 10px;
+    padding: 10px 30px;
+    background-color: #efefef;
+    align-items: center;
 }
 .paginationContainer .col {
     padding: 10px;
 }
 .paginationContainer ul.pagination {
     margin: 0px;
+}
+
+.paginationContainer span {
+  background-color: #ffff;
+  padding: 5px;
+  border-radius: 3px;
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+.basicDropdown button {
+  color: #212529 !important;
+  background-color: #fff !important;
+  border-color: #fff !important;
 }

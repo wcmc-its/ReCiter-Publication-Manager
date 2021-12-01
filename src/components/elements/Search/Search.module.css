@@ -8,8 +8,12 @@
 
 .searchBar {
     grid-row-start: search-bar;
-    padding: 1rem 3rem;
+    padding: 1rem 0rem;
     color: #555;
+}
+
+.searchBar h1 {
+  margin-left: 20px;
 }
 
 .individualLink {
@@ -34,6 +38,8 @@
   border-radius: 4px;
   margin-bottom: 20px;
   padding: 20px;
+  margin: inherit;
+  margin-left: 20px;
 }
 
 .searchFormLabel {
@@ -44,6 +50,14 @@
 .table > thead {
   background-color: #2E414F;
   color: #fff;
+}
+
+.table th:first-child {
+  padding-left: 30px;
+}
+
+.table tr td:first-child {
+  padding-left: 30px;
 }
 
 .table tr {

@@ -188,6 +188,18 @@ export const identityAllData = (state=[], action) => {
 
 }
 
+export const identityPaginatedData = (state=[], action) => {
+
+  switch(action.type) {
+    case methods.IDENTITY_CLEAR_PAGINATED_DATA :
+      return []
+    case methods.IDENTITY_CHANGE_PAGINATED_DATA :
+      return action.payload
+    default :
+      return state
+  }
+}
+
 export const orgUnitsFetching = (state=false, action) => {
 
   switch(action.type) {
@@ -273,10 +285,12 @@ const initialFilterState = {
   filterByPending: false,
 }
 
-export const filters = (state={}, action) => {
+export const filters = (state = {}, action) => {
   switch(action.type) {
-    case methods.CLEAR_FILTERS :
+    case methods.FILTERS_CLEAR :
       return {}
+    case methods.FILTERS_CHANGE :
+      return action.payload
     default:
       return state
   }
@@ -290,6 +304,7 @@ export default combineReducers({
     reciterData,
     identityData,
     identityAllData,
+    identityPaginatedData,
     pubmedData,
     errors,
     auth,
@@ -298,4 +313,5 @@ export default combineReducers({
     orgUnitsFetching,
     institutionsData,
     institutionsFetching,
+    filters,
 })

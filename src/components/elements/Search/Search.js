@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData } from '../../../redux/actions/actions'
+import { identityFetchAllData, identityFetchPaginatedData, updateFilters } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -22,6 +22,8 @@ const Search = () => {
 
     const identityAllData = useSelector((state) => state.identityAllData)
     const identityAllFetching = useSelector((state) => state.identityAllFetching)
+    const identityPaginatedData = useSelector((state) => state.identityPaginatedData)
+    const filters = useSelector((state) => state.filters)
     const errors = useSelector((state) => state.errors)
     const auth = useSelector((state) => state.auth)
 
@@ -39,14 +41,22 @@ const Search = () => {
 
     useEffect(() => {
         dispatch(identityFetchAllData())
+        dispatch(identityFetchPaginatedData(page, count))
         fetchCount()
     },[])
 
 
-    const handlePaginationUpdate = (e, page) => {
+    const handlePaginationUpdate = (eventKey, page, updateCount) => {
+        let updatedCount = count
         setPage(page)
-        if (e.target.value !== undefined) {
-            setCount(e.target.value)
+
+        if (updateCount) {
+            setCount(eventKey)
+            updatedCount = eventKey
+        }
+
+        if (Object.keys(filters).length === 0) {
+          dispatch(identityFetchPaginatedData(page, updatedCount))
         }
     }
 
@@ -121,6 +131,7 @@ const Search = () => {
         setIdentitySearch(searchText)
         if(identityAllData !== undefined) {
             var searchResults = identityAllData
+            let updatedFilters = {};
 
             if (searchText) {
               searchResults = identityAllData.filter(identity => {
@@ -132,21 +143,30 @@ const Search = () => {
                       return identity
                   }
               })
+              let filterSearchText = {...updatedFilters, searchText: searchText};
+              updatedFilters = filterSearchText;
             }
 
             if (orgUnits && orgUnits.length) {
               searchResults = searchResults.filter(identity => {
                 return orgUnits.includes(identity.primaryOrganizationalUnit)
               })
+              let filterOrgUnits = {...updatedFilters, orgUnits: orgUnits};
+              updatedFilters = filterOrgUnits;
             }
 
             if (institutions && institutions.length) {
               searchResults = searchResults.filter(identity => {
                 return institutions.includes(identity.primaryInstitution)
               })
+              let filterInstitutions = {...updatedFilters, institutions: institutions};
+              updatedFilters = filterInstitutions;
             }
 
+            dispatch(updateFilters(updatedFilters));
+            setTotalCount(searchResults.length);
             setIdentityData(searchResults);
+            setPage(1);
         }
     }
 
@@ -176,14 +196,15 @@ const Search = () => {
             </div>
         );
     }
-    if (identityAllData.length <= 0) {
+    if (identityPaginatedData.length <= 0) {
         return (
                 <div className={appStyles.appLoader}> </div>
         );
     } else {
         //const thisObject = this
         let tableBody
-        tableBody = identities.paginatedIdentities.map(function (identity, identityIndex) {
+        let paginatedIdentities = Object.keys(filters).length === 0 ? identityPaginatedData : identities.paginatedIdentities;
+        tableBody = paginatedIdentities.map(function (identity, identityIndex) {
             return <tr key={identityIndex}>
                 <td key="0" width="20%">
                     <Name identity={identity}></Name>
@@ -201,7 +222,7 @@ const Search = () => {
                     <Button className={styles.tableButton}>Curate Publications</Button>
                 </td>
             </tr>;
-        })
+        }) 
         return (
             <div className={appStyles.mainContainer}>
                 {/* <div className="side-nav-position">
@@ -213,13 +234,13 @@ const Search = () => {
                       <SearchBar searchData={searchData}/>
                         <div>
                             <br/>
-                            <div className="row">
+                            <div className="row mx-3">
                                 <div className="col-md-4">
-                                    <h3>Number of results: <strong>{(identityData !==undefined && identityData.length > 0)?identityData.length: identityAllData.length}</strong></h3>
+                                    <h3>Number of results: <strong>{totalCount}</strong></h3>
                                 </div>
                             </div>
                             <React.Fragment>
-                                <Pagination total={(identityData.length > 0 && identitySearch.length > 0)? identitySearch.length: identityAllData.length} page={page}
+                                <Pagination total={totalCount} page={page}
                                             count={count}
                                             onChange={handlePaginationUpdate}/>
                                 <div className="table-responsive">
@@ -238,7 +259,7 @@ const Search = () => {
                                         </tbody>
                                     </Table>
                                 </div>
-                                <Pagination total={(identityData.length > 0 && identitySearch.length > 0)? identitySearch.length: identityAllData.length} page={page}
+                                <Pagination total={totalCount} page={page}
                                             count={count}
                                             onChange={handlePaginationUpdate}/>
                             </React.Fragment>
@@ -282,7 +303,7 @@ function Name(props) {
     }
     if(props.identity.firstName !== undefined) {
         const nameString = props.identity.firstName + ((props.identity.middleName !== undefined) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
-        nameArray.push(<p key="0"> <a href={`/app/${props.identity.id}`} target="_blank" rel="noreferrer">
+        nameArray.push(<p key="0"> <a href={`/app/${props.identity.personIdentifier}`} target="_blank" rel="noreferrer">
             <b>{nameString}</b>
             </a></p>)
         

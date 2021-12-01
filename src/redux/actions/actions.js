@@ -156,6 +156,54 @@ export const identityFetchAllData = () => dispatch => {
         })
 }
 
+export const identityFetchPaginatedData = (page, limit) => dispatch => {
+  const offset = (page - 1) * limit;
+  dispatch({
+      type: methods.IDENTITY_FETCH_PAGINATED_DATA
+  })
+  fetchWithTimeout(`/api/db/users?offset=${offset}&limit=${limit}`, {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+      }
+  }, 300000)
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.IDENTITY_CHANGE_PAGINATED_DATA,
+              payload: data
+          })
+
+          dispatch({
+              type: methods.IDENTITY_CANCEL_PAGINATED_FETCHING
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          dispatch(
+              addError(error)
+          )
+
+          dispatch({
+              type: methods.IDENTITY_CANCEL_PAGINATED_FETCHING
+          })
+
+      })
+}
+
 export const reciterFetchData = (uid, refresh) => dispatch => {
 
     dispatch({
@@ -689,4 +737,11 @@ export const institutionsFetchAllData = () => dispatch => {
           })
 
       })
+}
+
+export const updateFilters = ( filter ) => dispatch => {
+  dispatch({
+    type: methods.FILTERS_CHANGE,
+    payload: filter
+  })
 }

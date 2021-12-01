@@ -1,5 +1,8 @@
 import React, { Component } from "react";
 import styles from './Pagination.module.css';
+import { ArrowRight } from "@mui/icons-material";
+import { ArrowLeft } from "@mui/icons-material";
+import { DropdownButton, Dropdown } from "react-bootstrap";
 
 const Pagination = (props) => {
   const propsTotal = parseInt(props.total, 10);
@@ -44,68 +47,22 @@ const Pagination = (props) => {
     }
 
     return (
-      <div className={`row ${styles.paginationContainer}`}>
+      <div className={`row ${styles.paginationContainer} justify-content-between`}>
         <div className="col-lg-3 col-md-4 col-sm-4 col">
           <div className={styles.showRows}>
             <label>Show records</label>
-            <select
-              className="form-control"
-              value={propsCount}
-              onChange={(event) => props.onChange(event, 1)}
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+            <DropdownButton className={styles.basicDropdown} id="dropdown-basic-button" title={propsCount} onSelect={(eventKey) => props.onChange(eventKey, 1, true)}>
+              <Dropdown.Item eventKey="10">10</Dropdown.Item>
+              <Dropdown.Item eventKey="20">20</Dropdown.Item>
+              <Dropdown.Item eventKey="50">50</Dropdown.Item>
+              <Dropdown.Item eventKey="100">100</Dropdown.Item>
+            </DropdownButton>
           </div>
         </div>
-        <div className="col-lg-9 col-md-8 col-sm-8 col">
-          <div>
-            <ul className="pagination">
-              <li className={`page-item ${propsPage === 1 ? "disabled" : ""}`}>
-                <span
-                  className="page-link"
-                  onClick={(event) =>
-                    props.onChange(event, propsPage - 1)
-                  }
-                >
-                  &laquo;
-                </span>
-              </li>
-              {pages.map(function (page, index) {
-                return (
-                  <li
-                    className={`page-item ${page.isActive ? "active" : ""}`}
-                    key={`page-item-${page.title}`}
-                  >
-                    <span
-                      className="page-link"
-                      onClick={(event) =>
-                        props.onChange(event, page.title)
-                      }
-                    >
-                      {page.title}
-                    </span>
-                  </li>
-                );
-              })}
-              <li
-                className={`page-item ${
-                  propsPage === totalPages ? "disabled" : ""
-                }`}
-              >
-                <span
-                  className="page-link"
-                  onClick={(event) =>
-                    props.onChange(event, propsPage + 1)
-                  }
-                >
-                  &raquo;
-                </span>
-              </li>
-            </ul>
-          </div>
+        <div className="col-lg-2 col-md-4 col-sm-4 col">
+          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={(event) => props.onChange(event, propsPage - 1, false)}></ArrowLeft>
+          Page <span>{propsPage}</span> of {totalPages}
+          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={(event) => props.onChange(event, propsPage + 1, false)}></ArrowRight>
         </div>
       </div>
     );
