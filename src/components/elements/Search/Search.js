@@ -40,9 +40,9 @@ const Search = () => {
     const searchValue = useRef()
 
     useEffect(() => {
-        dispatch(identityFetchAllData())
         dispatch(identityFetchPaginatedData(page, count))
         fetchCount()
+        dispatch(identityFetchAllData())
     },[])
 
 
@@ -83,12 +83,7 @@ const Search = () => {
                 if (identityData[i] !== undefined) {
                     identities.push(identityData[i]);
                 }
-            } else {
-                if (identityAllData[i] !== undefined) {
-                    identities.push(identityAllData[i]);
-                }
-            }
-            
+            } 
         }
         return {
             paginatedIdentities: identities
@@ -117,7 +112,7 @@ const Search = () => {
           }
       })
       .then(data => {
-        if (data.countPersonIdentifier) {
+        if (data.countPersonIdentifier && Object.keys(filters).length === 0) {
           setTotalCount(data.countPersonIdentifier);
         }
       }) 
@@ -134,15 +129,16 @@ const Search = () => {
             let updatedFilters = {};
 
             if (searchText) {
+              let searchWords = searchText.split(' ');
               searchResults = identityAllData.filter(identity => {
-                  if(identity.id === searchText 
-                      || 
-                      (identity.firstName && identity.firstName.toLowerCase().includes(searchText.toLowerCase()))
-                      ||
-                      (identity.lastName && identity.lastName.toLowerCase().includes(searchText.toLowerCase()))) {
-                      return identity
-                  }
+                if ((identity.firstName && searchWords.some(text => text.toLowerCase() === identity.firstName.toLowerCase())) ||
+                    (identity.lastName && searchWords.some(text => text.toLowerCase() === identity.firstName.toLowerCase())) ||
+                    (searchWords.some(text => text === identity.personIdentifier))
+                    ) {
+                  return identity;
+                }
               })
+
               let filterSearchText = {...updatedFilters, searchText: searchText};
               updatedFilters = filterSearchText;
             }
@@ -196,7 +192,9 @@ const Search = () => {
             </div>
         );
     }
-    if (identityPaginatedData.length <= 0) {
+    // if filters are applied load all data, if not load paginated data
+    let filtersOn = Object.keys(filters).length === 0 ? false : true;
+    if ((identityPaginatedData.length <= 0 && !filtersOn && totalCount <= 0) || (filtersOn && identityAllData.length <= 0)) {
         return (
                 <div className={appStyles.appLoader}> </div>
         );
@@ -305,7 +303,7 @@ function Name(props) {
         const nameString = props.identity.firstName + ((props.identity.middleName !== undefined) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
         nameArray.push(<p key="0"> <a href={`/app/${props.identity.personIdentifier}`} target="_blank" rel="noreferrer">
             <b>{nameString}</b>
-            </a></p>)
+            </a><br />{props.identity.personIdentifier}</p>)
         
     }
     if(props.title !== undefined) {
