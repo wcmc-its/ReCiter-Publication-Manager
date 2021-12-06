@@ -78,15 +78,3 @@
   text-decoration: none;
   color: #337ab7;
 }
-
-.tableButton {
-  background-color: #efefef;
-  color: black;
-  border-color: #efefef;
-}
-
-.tableButton:hover {
-  background-color: #f3f3f3;
-  border-color: #efefef;
-  color: black;
-}

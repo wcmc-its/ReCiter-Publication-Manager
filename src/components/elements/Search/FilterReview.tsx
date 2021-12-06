@@ -1,13 +1,24 @@
 import React, { useState, MouseEvent } from "react";
-import { Button, Row, Col } from "react-bootstrap";
+import { Row, Col } from "react-bootstrap";
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { styled } from '@mui/material/styles';
+import { ListItem } from "../../../../types/listItem";
+import SplitDropdown from "../Dropdown/SplitDropdown";
+
+const dropdownItems: Array<ListItem> = 
+ [
+    { title: 'Create Reports', to: '/create-reports'},
+    { title: 'Perform Analysis', to: '/perform-analysis'},
+ ]
+
 
 const FilterReview = ({
-  onToggle
+  onToggle,
+  count,
 } : {
   onToggle: (value: boolean) => void;
+  count: number,
 }) => {
   const [filter, setFilter] = useState(false);
 
@@ -33,9 +44,16 @@ const FilterReview = ({
   }));
 
   return (
-    <Row>
-      <Col><h2>people found using filters</h2></Col>
-      <Col><Button className="primary">Curate Publications</Button></Col>
+    <Row className="mx-3 pb-2 pt-2">
+      <Col><h2>{`${count}`} people found using filters</h2></Col>
+      <Col>
+        <SplitDropdown
+          title="Curate Publications"
+          to='/curate-publications'
+          id="curate-publications"
+          listItems={dropdownItems}
+          />
+      </Col>
       <Col className="d-flex flex-row">
       <div>Show only people with <br /> pending suggestions</div>
       <StyledToggleButtonGroup

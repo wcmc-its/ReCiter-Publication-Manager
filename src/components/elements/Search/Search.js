@@ -11,8 +11,13 @@ import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrappe
 import SearchBar from "./SearchBar";
 import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../pages/fetchWithTimeout";
-import { Button, Table } from "react-bootstrap";
+import { Table } from "react-bootstrap";
+import SplitDropdown from "../Dropdown/SplitDropdown";
 
+const dropdownItems =  [
+  { title: 'Create Reports', to: '/create-reports'},
+  { title: 'Perform Analysis', to: '/perform-analysis'},
+]
 
 const Search = () => {
 
@@ -167,13 +172,27 @@ const Search = () => {
     }
 
     const handlePendingFilterUpdate = (value) => {
-      setFilterByPending(true);
-      if (identityAllData !== undefined) {
+      setFilterByPending(value);
+
+      if (identityData !== undefined) {
         let searchResults = [];
-        searchResults = identityAllData.filter(identity => {
-          return identity.countPendingArticles > 0;
-        })
+
+        if (value) {
+          searchResults = identityData.filter(identity => {
+            return identity.countPendingArticles > 0;
+          }) 
+
+          setIdentityData(searchResults);
+          setTotalCount(searchResults.length);
+        } else {
+          let searchText = filters.searchText ? filters.searchText : "";
+          let orgUnits = filters.orgUnits ? filters.orgUnits : [];
+          let institutions = filters.institutions ? filters.institutions : [];
+          searchData(searchText, orgUnits, institutions);
+        }
       }
+      let updatedFilters = { ...filters, filterByPending: value};
+      dispatch(updateFilters(updatedFilters));
     }
 
     const identities = filter()
@@ -217,7 +236,13 @@ const Search = () => {
                     {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
                 </td>
                 <td key="4" width="20%">
-                    <Button className={styles.tableButton}>Curate Publications</Button>
+                  <SplitDropdown
+                    title='Curate Publications'
+                    to='/curate-publications'
+                    id="curate-publications"
+                    listItems={dropdownItems}
+                    secondary={true}
+                    />
                 </td>
             </tr>;
         }) 
@@ -237,6 +262,7 @@ const Search = () => {
                                     <h3>Number of results: <strong>{totalCount}</strong></h3>
                                 </div>
                             </div>
+                            {filtersOn && <FilterReview count={totalCount} onToggle={handlePendingFilterUpdate}/>}
                             <React.Fragment>
                                 <Pagination total={totalCount} page={page}
                                             count={count}
