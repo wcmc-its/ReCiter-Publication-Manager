@@ -126,7 +126,7 @@ const Search = () => {
       })
     }
 
-    const searchData = (searchText, orgUnits, institutions) => {
+    const searchData = (searchText, orgUnits, institutions, personTypes) => {
         setIdentityData(identityAllData)
         setIdentitySearch(searchText)
         if(identityAllData !== undefined) {
@@ -162,6 +162,17 @@ const Search = () => {
               })
               let filterInstitutions = {...updatedFilters, institutions: institutions};
               updatedFilters = filterInstitutions;
+            }
+
+            if (personTypes && personTypes.length) {
+              searchResults = searchResults.filter(identity => {
+                if (identity.groupPersonTypes) {
+                  let groupPersonTypesList = identity.groupPersonTypes.split(',');
+                  return groupPersonTypesList.some(personType => personTypes.includes(personType));
+                }
+              })
+              let filterPersonTypes = {...updatedFilters, personTypes: personTypes}
+              updatedFilters = filterPersonTypes;
             }
 
             dispatch(updateFilters(updatedFilters));

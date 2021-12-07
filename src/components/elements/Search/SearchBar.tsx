@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Form, Row, Col, Container , Dropdown, InputGroup } from "react-bootstrap";
-import { orgUnitsFetchAllData, institutionsFetchAllData } from '../../../redux/actions/actions';
+import { orgUnitsFetchAllData, institutionsFetchAllData, personTypesFetchAllData } from '../../../redux/actions/actions';
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import styles from './Search.module.css'
 import TextField from '@mui/material/TextField';
@@ -20,22 +20,26 @@ const SearchBar = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [orgUnitQuery, setOrgUnitQuery] = useState<Array<string>>([]);
   const [insitutionQuery, setInstitutionQuery] = useState<Array<string>>([]);
+  const [personTypeQuery, setPersonTypeQuery] = useState<Array<string>>([]);
 
   const dispatch = useDispatch()
 
   const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
   const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
+  const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
 
   useEffect(() => {
     dispatch(institutionsFetchAllData())
     dispatch(orgUnitsFetchAllData())
+    dispatch(personTypesFetchAllData())
 },[])
 
   const clearFilters = () => {
     setSearchQuery('');
     setOrgUnitQuery([]);
     setInstitutionQuery([]);
-    searchData('', [], []);
+    setPersonTypeQuery([]);
+    searchData('', [], [], []);
   }
 
 
@@ -105,10 +109,31 @@ const SearchBar = ({
                   )}
                 />
             </Col>
+            <Col md={4}><Form.Label className={styles.searchFormLabel}>Person Type(s)</Form.Label>
+              <Autocomplete
+                  freeSolo
+                  multiple
+                  id="person-types"
+                  disableClearable
+                  value={personTypeQuery}
+                  options={personTypesData.map((option: any) => option.personType)}
+                  onChange={(event, value) => setPersonTypeQuery(value as string[])}
+                  renderInput={(params) => (
+                    <CssTextField
+                      variant = "outlined"
+                      {...params}
+                      InputProps={{
+                        ...params.InputProps,
+                        type: 'search',
+                      }}
+                    />
+                  )}
+                />
+            </Col>
           </Row>
           <div className="d-flex flex-row align-items-center">
             <Col sm={2}>
-              <Button className="primary w-100" onClick={() => searchData(searchQuery, orgUnitQuery, insitutionQuery)}>Search</Button>
+              <Button className="primary w-100" onClick={() => searchData(searchQuery, orgUnitQuery, insitutionQuery, personTypeQuery)}>Search</Button>
             </Col>
             <div className={`m-3 ${styles.textButton}`} onClick={clearFilters}>Reset</div>
           </div>

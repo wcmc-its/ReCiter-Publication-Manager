@@ -264,6 +264,38 @@ export const institutionsData = (state=[], action) => {
 
 }
 
+export const personTypesFetching = (state=false, action) => {
+
+  switch(action.type) {
+
+      case methods.PERSON_TYPES_FETCH_ALL_DATA :
+          return true
+
+      case methods.PERSON_TYPES_CANCEL_ALL_FETCHING :
+          return false
+
+      default:
+          return state
+  }
+
+}
+
+export const personTypesData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.PERSON_TYPES_CLEAR_ALL_DATA :
+          return []
+
+      case methods.PERSON_TYPES_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
 export const errors = (state=[], action) => {
     switch(action.type) {
         case methods.ADD_ERROR :
@@ -313,5 +345,7 @@ export default combineReducers({
     orgUnitsFetching,
     institutionsData,
     institutionsFetching,
+    personTypesData,
+    personTypesFetching,
     filters,
 })

@@ -739,6 +739,63 @@ export const institutionsFetchAllData = () => dispatch => {
       })
 }
 
+export const personTypesFetchAllData = () => dispatch => {
+  dispatch({
+      type: methods.PERSON_TYPES_FETCH_ALL_DATA
+  })
+  fetchWithTimeout('/api/db/users/persontypes', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+      }
+  }, 300000)
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.PERSON_TYPES_CHANGE_ALL_DATA,
+              payload: data
+          })
+
+          dispatch({
+              type: methods.PERSON_TYPES_CANCEL_ALL_FETCHING
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Person Types Api failed - " + error.title, {
+              position: "top-right",
+              autoClose: 2000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined,
+              theme: 'dark'
+              });
+          dispatch(
+              addError(error)
+          )
+
+          dispatch({
+              type: methods.PERSON_TYPES_CANCEL_ALL_FETCHING
+          })
+
+      })
+}
+
 export const updateFilters = ( filter ) => dispatch => {
   dispatch({
     type: methods.FILTERS_CHANGE,
