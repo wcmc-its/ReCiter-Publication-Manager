@@ -269,7 +269,7 @@ const Search = () => {
                       <SearchBar searchData={searchData}/>
                         <div>
                             <br/>
-                            <div className="row mx-3">
+                            <div className="row">
                                 <div className="col-md-4">
                                     <h3>Number of results: <strong>{totalCount}</strong></h3>
                                 </div>

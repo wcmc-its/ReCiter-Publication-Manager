@@ -12,10 +12,6 @@
     color: #555;
 }
 
-.searchBar h1 {
-  margin-left: 20px;
-}
-
 .individualLink {
     color: #337ab7;
     cursor: pointer;
@@ -39,7 +35,6 @@
   margin-bottom: 20px;
   padding: 20px;
   margin: inherit;
-  margin-left: 20px;
 }
 
 .searchFormLabel {
