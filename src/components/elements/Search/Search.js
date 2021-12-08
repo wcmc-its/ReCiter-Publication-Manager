@@ -331,42 +331,6 @@ function List(props) {
 function Name(props) {
     let nameArray = []
     let imageUrl = ''
-
-    const [identity, setIdentity] = useState({});
-
-    useEffect(() => {
-      fetchIdentity(props.identity.personIdentifier)
-  },[])
-
-    const fetchIdentity = (uid) => {
-      fetchWithTimeout('/api/reciter/getidentity/' + uid, {
-        credentials: "same-origin",
-        method: 'GET',
-        headers: {
-            Accept: 'application/json',
-            'Authorization': reciterConfig.backendApiKey
-        }
-      }, 300000)
-      .then(response => {
-          if(response.status === 200) {
-              return response.json()
-          }else {
-              throw {
-                  type: response.type,
-                  title: response.statusText,
-                  status: response.status,
-                  detail: "Error occurred with api " + response.url + ". Please, try again later "
-              }
-          }
-      })
-      .then(data => {
-        setIdentity(data.identity)
-      }) 
-      .catch(error => {
-          console.log(error)
-      })
-    }
-
     if(props.identity.identityImageEndpoint !== undefined) {
         if(props.identity.identityImageEndpoint.length > 0) 
             imageUrl = props.identity.identityImageEndpoint
@@ -379,7 +343,7 @@ function Name(props) {
             <b>{nameString}</b>
             </a>
             <br />
-            {identity && identity.title && <>{identity.title}<br /></>}
+            {props.identity.title && <>{props.identity.title}<br /></>}
             CWID: {props.identity.personIdentifier}</p>)
         
     }
