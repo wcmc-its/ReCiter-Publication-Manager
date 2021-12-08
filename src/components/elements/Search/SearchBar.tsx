@@ -14,7 +14,8 @@ const SearchBar = ({
   searchData: (
     searchQuery: string, 
     orgUnitQuery: Array<string>, 
-    insitutionQuery: Array<string>
+    insitutionQuery: Array<string>,
+    personTypeQuery: Array<string>,
   ) => void;}) => {
 
   const [searchQuery, setSearchQuery] = useState('');
