@@ -225,7 +225,7 @@ const Search = () => {
     }
     // if filters are applied load all data, if not load paginated data
     let filtersOn = Object.keys(filters).length === 0 ? false : true;
-    if ((identityPaginatedData.length <= 0 && !filtersOn && totalCount <= 0) || (filtersOn && identityAllData.length <= 0)) {
+    if ((identityPaginatedData.length <= 0 && !filtersOn) || (filtersOn && identityAllData.length <= 0) || (totalCount <= 0)) {
         return (
                 <div className={appStyles.appLoader}> </div>
         );
@@ -235,23 +235,23 @@ const Search = () => {
         let paginatedIdentities = Object.keys(filters).length === 0 ? identityPaginatedData : identities.paginatedIdentities;
         tableBody = paginatedIdentities.map(function (identity, identityIndex) {
             return <tr key={identityIndex}>
-                <td key="0" width="20%">
+                <td key={`${identityIndex}__name`} width="20%">
                     <Name identity={identity}></Name>
                 </td>
-                <td key="1" width="20%">
+                <td key={`${identityIndex}__orgUnit`} width="20%">
                     {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
                 </td>
-                <td key="2" width="20%">
+                <td key={`${identityIndex}__institutioon`} width="20%">
                     {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
                 </td>
-                <td key="3" width="20%">
+                <td key={`${identityIndex}__pending`} width="20%">
                     {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
                 </td>
-                <td key="4" width="20%">
+                <td key={`${identityIndex}__dropdown`} width="20%">
                   <SplitDropdown
                     title='Curate Publications'
-                    to='/curate-publications'
-                    id="curate-publications"
+                    to={`/app/${identity.personIdentifier}`}
+                    id={`curate-publications_${identity.personIdentifier}`}
                     listItems={dropdownItems}
                     secondary={true}
                     />
@@ -269,11 +269,12 @@ const Search = () => {
                       <SearchBar searchData={searchData}/>
                         <div>
                             <br/>
-                            <div className="row">
+                            {!filtersOn && 
+                              <div className="row">
                                 <div className="col-md-4">
                                     <h3>Number of results: <strong>{totalCount}</strong></h3>
                                 </div>
-                            </div>
+                              </div>}
                             {filtersOn && <FilterReview count={totalCount} onToggle={handlePendingFilterUpdate}/>}
                             <React.Fragment>
                                 <Pagination total={totalCount} page={page}

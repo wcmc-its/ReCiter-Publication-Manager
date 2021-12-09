@@ -30,6 +30,7 @@ const FilterReview = ({
   const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
     marginLeft: '20px',
     marginRight: '20px',
+    maxHeight: '40px',
     '& .MuiToggleButtonGroup-grouped': {
       textTransform: 'none',
     },

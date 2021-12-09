@@ -47,7 +47,7 @@ const Pagination = (props) => {
     }
 
     return (
-      <div className={`row ${styles.paginationContainer} justify-content-between`}>
+      <div className={`row g-0 ${styles.paginationContainer} justify-content-between`}>
         <div className="col-lg-3 col-md-4 col-sm-4 col">
           <div className={styles.showRows}>
             <label>Show records</label>
