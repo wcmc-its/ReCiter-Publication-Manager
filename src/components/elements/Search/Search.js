@@ -150,17 +150,17 @@ const Search = () => {
             }
 
             if (orgUnits && orgUnits.length) {
-              searchResults = searchResults.filter(identity => {
-                return orgUnits.includes(identity.primaryOrganizationalUnit)
-              })
+                searchResults = searchResults.filter(identity => {
+                  return orgUnits.includes(identity.primaryOrganizationalUnit)
+                })
               let filterOrgUnits = {...updatedFilters, orgUnits: orgUnits};
               updatedFilters = filterOrgUnits;
             }
 
             if (institutions && institutions.length) {
-              searchResults = searchResults.filter(identity => {
-                return institutions.includes(identity.primaryInstitution)
-              })
+                searchResults = searchResults.filter(identity => {
+                  return institutions.includes(identity.primaryInstitution)
+                })
               let filterInstitutions = {...updatedFilters, institutions: institutions};
               updatedFilters = filterInstitutions;
             }
@@ -225,7 +225,9 @@ const Search = () => {
     }
     // if filters are applied load all data, if not load paginated data
     let filtersOn = Object.keys(filters).length === 0 ? false : true;
-    if ((identityPaginatedData.length <= 0 && !filtersOn) || (filtersOn && identityAllData.length <= 0) || (totalCount <= 0)) {
+    if ((!filtersOn && totalCount < 0) ||
+        (!filtersOn && identityPaginatedData.length <= 0 ) || 
+        (filtersOn && identityAllData.length <= 0)) {
         return (
                 <div className={appStyles.appLoader}> </div>
         );
