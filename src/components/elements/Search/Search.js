@@ -54,7 +54,7 @@ const Search = () => {
 
     const handlePaginationUpdate = (eventKey, page, updateCount) => {
         let updatedCount = count
-        setPage(page)
+          setPage(page)
 
         if (updateCount) {
             setCount(eventKey)
@@ -237,7 +237,7 @@ const Search = () => {
         let paginatedIdentities = Object.keys(filters).length === 0 ? identityPaginatedData : identities.paginatedIdentities;
         tableBody = paginatedIdentities.map(function (identity, identityIndex) {
             return <tr key={identityIndex}>
-                <td key={`${identityIndex}__name`} width="20%">
+                <td key={`${identityIndex}__name`} width="30%">
                     <Name identity={identity}></Name>
                 </td>
                 <td key={`${identityIndex}__orgUnit`} width="20%">
@@ -246,7 +246,7 @@ const Search = () => {
                 <td key={`${identityIndex}__institutioon`} width="20%">
                     {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
                 </td>
-                <td key={`${identityIndex}__pending`} width="20%">
+                <td key={`${identityIndex}__pending`} width="10%">
                     {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
                 </td>
                 <td key={`${identityIndex}__dropdown`} width="20%">
@@ -274,7 +274,7 @@ const Search = () => {
                             {!filtersOn && 
                               <div className="row">
                                 <div className="col-md-4">
-                                    <h3>Number of results: <strong>{totalCount}</strong></h3>
+                                    <h3><strong>{totalCount.toLocaleString("en-US")}</strong> people</h3>
                                 </div>
                               </div>}
                             {filtersOn && <FilterReview count={totalCount} onToggle={handlePendingFilterUpdate}/>}

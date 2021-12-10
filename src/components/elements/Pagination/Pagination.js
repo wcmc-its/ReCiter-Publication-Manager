@@ -46,6 +46,18 @@ const Pagination = (props) => {
       });
     }
 
+    const onClickNext = (event) => {
+      if (propsPage !== totalPages) {
+        props.onChange(event, propsPage + 1, false);
+      }
+    }
+
+    const onClickPrev = (event) => {
+      if (propsPage !== 1) {
+        props.onChange(event, propsPage - 1, false);
+      }
+    }
+
     return (
       <div className={`row g-0 ${styles.paginationContainer} justify-content-between`}>
         <div className="col-lg-3 col-md-4 col-sm-4 col">
@@ -60,9 +72,9 @@ const Pagination = (props) => {
           </div>
         </div>
         <div className="col-lg-2 col-md-4 col-sm-4 col">
-          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={(event) => props.onChange(event, propsPage - 1, false)}></ArrowLeft>
+          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={(event) => onClickPrev(event)}></ArrowLeft>
           Page <span>{propsPage}</span> of {totalPages}
-          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={(event) => props.onChange(event, propsPage + 1, false)}></ArrowRight>
+          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={(event) => onClickNext(event)}></ArrowRight>
         </div>
       </div>
     );

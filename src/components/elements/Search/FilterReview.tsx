@@ -45,7 +45,7 @@ const FilterReview = ({
   }));
 
   return (
-    <Row className="mx-3 pb-2 pt-2">
+    <Row className="pb-2 pt-2">
       <Col><h2>{`${count}`} people found using filters</h2></Col>
       <Col>
         <SplitDropdown
