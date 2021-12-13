@@ -5,7 +5,7 @@ html,
 
 body {
   height: 100vh;
-  background: whitesmoke !important;
+  background: #fff !important;
 }
 
 #root > div {

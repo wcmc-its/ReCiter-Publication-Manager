@@ -37,7 +37,7 @@ const menuItems: Array<MenuItem> = [
   },
   {
     title: 'Curate Publications',
-    to: '/login',
+    to: '/publications',
     imgUrl: settingsIcon,
     imgUrlActive: settingsIconActive,
   },

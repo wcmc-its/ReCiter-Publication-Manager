@@ -50,8 +50,8 @@ const FilterReview = ({
       <Col>
         <SplitDropdown
           title="Curate Publications"
-          to='/curate-publications'
-          id="curate-publications"
+          to='/publications'
+          id="publications"
           listItems={dropdownItems}
           />
       </Col>
