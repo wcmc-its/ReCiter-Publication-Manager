@@ -48,7 +48,7 @@ export const reciterConfig = {
                  * This flag specifies if reciter will re-compute suggestions. Use if you want to re-compute. This will take more time and resources.
                  * Type: Boolean
                  */
-                analysisRefreshFlag: false,
+                analysisRefreshFlag: 'false',
                 /**
                  * This flag specifies if reciter will re-retrieve all publication from upstream sources. Specify to refresh all retrieval.
                  * Type: String
@@ -59,6 +59,24 @@ export const reciterConfig = {
                  * Type: String
                  */
                 filterByFeedback: 'ALL'
+            }
+        },
+        /**
+         * This is the api to fetch all the publication for a list of unique ids with all the eivdence.
+         */
+         featureGeneratorByGroup: {
+            featureGeneratorByGroupEndpoint: 'https://reciter.weill.cornell.edu/reciter/feature-generator/by/group',
+            featureGeneratorByGroupApiParams: {
+                /**
+                 * This is the minimum score that the publication will be filtered on.
+                 * Type: Number
+                 */
+                totalStandardizedArticleScore: 4,
+                /**
+                 * The maximum number of pending publications that will be return per person.
+                 * Type: Number
+                 */
+                 maxArticlesPerPerson: 4,
             }
         },
         /**
@@ -91,5 +109,10 @@ export const reciterConfig = {
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
      * Make sure its a good secret with good mix of alpha numeric characters.
      */
-    tokenSecret: 'API_TOKEN'
+    tokenSecret: 'API_TOKEN',
+    /**
+     * ReCiter-Publication-Manager has its own apis in src/pages/api folder and they are secured using this api key. In order to access the apis you need 
+     * to pass Authorization header with this token.
+     */
+     backendApiKey: 'BACKEND_API_TOKEN'
 }
