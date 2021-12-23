@@ -43,10 +43,10 @@ export async function findUserFeedback(uid: string | string[])  {
                     statusText: responseText
                 }
              } else  {
-                let data: any = await res.json()
+                let data: any = JSON.parse(responseText)
                 return {
                     statusCode: res.status,
-                    statusText: data
+                    userFeedback: data
                 }
              }
          })
