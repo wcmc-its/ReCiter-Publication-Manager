@@ -802,3 +802,10 @@ export const updateFilters = ( filter ) => dispatch => {
     payload: filter
   })
 }
+
+export const updateFilteredIds = (ids) => dispatch => {
+  dispatch({
+    type: methods.FILTERED_IDS_CHANGE,
+    payload: ids
+  })
+}

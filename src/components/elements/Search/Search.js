@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, identityFetchPaginatedData, updateFilters } from '../../../redux/actions/actions'
+import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -13,7 +13,6 @@ import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../pages/fetchWithTimeout";
 import { Table } from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
-import { reciterConfig } from '../../../../config/local';
 
 const dropdownItems =  [
   { title: 'Create Reports', to: '/create-reports'},
@@ -180,6 +179,9 @@ const Search = () => {
             setTotalCount(searchResults.length);
             setIdentityData(searchResults);
             setPage(1);
+
+            let filteredIds = searchResults.length > 0 ? searchResults.map(person => person.personIdentifier) : [];
+            dispatch(updateFilteredIds(filteredIds));
         }
     }
 
@@ -200,7 +202,8 @@ const Search = () => {
           let searchText = filters.searchText ? filters.searchText : "";
           let orgUnits = filters.orgUnits ? filters.orgUnits : [];
           let institutions = filters.institutions ? filters.institutions : [];
-          searchData(searchText, orgUnits, institutions);
+          let personTypes = filters.personTypes ? filters.personTypes : [];
+          searchData(searchText, orgUnits, institutions, personTypes);
         }
       }
       let updatedFilters = { ...filters, filterByPending: value};

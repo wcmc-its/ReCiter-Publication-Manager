@@ -32,14 +32,16 @@
     font-size: 14px;
 }
 .publicationsEvidenceTable thead th {
-    background: #074e7e;
+    background: #202B3C;
     color: #fff;
     padding: 10px;
-    border-left: 1px solid #9cb8cb;
     text-align: center;
 }
 .publicationsEvidenceTable td {
     padding: 5px 10px;
+}
+.publicationsEvidenceTable tbody {
+  border-top: none;
 }
 .publicationsEvidenceTable thead .firstCell {
     text-align: right !important;
@@ -51,9 +53,9 @@
 }
 
 .publicationButtons {
-    width: 190px;
     text-align: center;
     padding-top: 23px !important;
+    padding-left: 0px;
 }
 .publicationContent {
     padding-top: 20px !important;
@@ -74,7 +76,8 @@
 }
 .publicationScore {
     display: inline-block;
-    background: #fffdd4;
+    background: #202B3C;
+    color: #ffffff;
     border-radius: 4px;
     text-align: center;
     padding: 7px 15px;
@@ -95,12 +98,17 @@
 .publicationRowButtons {
     float: right;
 }
-.publicationRowButtons a {
+.publicationRowButtons button {
     background-color: #ffffff;
     font-size: 14px;
     border: 1px solid #ccc;
     margin-left: 10px;
     color: #333333;
+}
+.publicationRowButtons button:hover {
+  background-color: #f5f5f5;
+  color: #333333;
+  border-color: #ccc;
 }
 .publicationShowEvidenceContainer {
     font-size: 14px;
@@ -157,4 +165,67 @@
 .publicationUndo:hover {
     color: #333;
     border-color: #999;
+}
+
+.facultyTitle {
+  color: #007bff;
+  font-size: 1.5rem;
+}
+
+.facultyHeader {
+  font-size: 18px;
+  color: #777;
+}
+
+.publicationsSummary {
+  text-align: left;
+}
+
+.listInline {
+  list-style: none;
+  padding: 0;
+  display: inline;
+}
+
+.listInline > li {
+  display: inline;
+}
+
+.btnNoStyling {
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+}
+
+.midDot::before {
+  content: "•";
+}
+
+.publicationContainer {
+  background-color: #ffffff;
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+.publicationHeader>button {
+  background-color: transparent !important;
+  color: transparent !important;
+  display: block !important;
+}
+
+.highlighted {
+  background-color: #D9D9D9;
+  font-weight: strong;
+}
+
+.publicationAdditionalInfo span {
+  color: #65686B;
+}
+
+.publicationAdditionalInfo .midDot:first-of-type::before {
+  content: "";
+}
+
+.highlightedAuthor {
+  background-color: #EBF4BC;
 }

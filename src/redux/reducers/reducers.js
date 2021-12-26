@@ -328,6 +328,17 @@ export const filters = (state = {}, action) => {
   }
 }
 
+export const filteredIds = (state = [], action) => {
+  switch(action.type) {
+    case methods.FILTERED_IDS_CLEAR :
+      return []
+    case methods.FILTERED_IDS_CHANGE :
+      return action.payload
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -348,4 +359,5 @@ export default combineReducers({
     personTypesData,
     personTypesFetching,
     filters,
+    filteredIds,
 })

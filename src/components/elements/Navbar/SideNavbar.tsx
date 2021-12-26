@@ -37,13 +37,13 @@ const menuItems: Array<MenuItem> = [
   },
   {
     title: 'Curate Publications',
-    to: '/publications',
+    to: '/curate',
     imgUrl: settingsIcon,
     imgUrlActive: settingsIconActive,
   },
   {
     title: 'Create Reports',
-    to: '/login',
+    to: '/report',
     imgUrl: chartIcon,
     imgUrlActive: chartIconActive,
   },

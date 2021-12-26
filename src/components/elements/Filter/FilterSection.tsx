@@ -24,7 +24,7 @@ const FilteSection: React.FC<SectionProps> = (props) => {
             props.list && props.list.map((item: DropdownProps) => {
               return (
                 <Col lg={2} md={4} sm={6}>
-                  <Dropdown>
+                  <Dropdown key={item.title}>
                     <Dropdown.Toggle className={item.children ? `${styles.filterDropdown} ${styles.filled}` : styles.filterDropdown } key={item.title} id={item.title}>
                     {item.title}
                     </Dropdown.Toggle>
