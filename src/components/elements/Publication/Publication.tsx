@@ -5,7 +5,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import ClearIcon from '@mui/icons-material/Clear';
 import UndoIcon from '@mui/icons-material/Undo';
 import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
-import { Author } from '../../../../types/publication';
+import type { Author } from '../../../../types/publication';
 import { useRouter } from 'next/router'
 
 interface FuncProps {

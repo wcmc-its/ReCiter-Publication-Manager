@@ -22,7 +22,8 @@
       "node_modules/@types"
     ],
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "incremental": true
   },
   "skipLibCheck": true,
   "include": [

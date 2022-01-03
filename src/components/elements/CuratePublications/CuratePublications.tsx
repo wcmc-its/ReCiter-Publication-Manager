@@ -18,35 +18,6 @@ const filtersList = [
   { title: 'Person Type', value: 'personTypes'}
 ]
 
-///TEMP
-const faculty = {
-  firstName: 'Rainu',
-  lastName: 'Kaishal',
-  title: 'Chairman of Healthcare Policy and Research',
-}
-
-const item = {
-  evidence: [
-    {label: 'evidence label', institutionalData: 'instittutional data', articleData: 'article data'}
-  ],
-  standardScore: 10,
-  authors: [
-    {authorName: 'Evan T Shole 1'},
-    {authorName: 'Evan T Shole 2'},
-    {authorName: 'Evan T Shole 3'},
-    {authorName: 'Evan T Shole 4'},
-    {authorName: 'Evan T Shole 5'},
-    {authorName: 'Evan T Shole 6'},
-    {authorName: 'Evan T Shole 7'},
-    {authorName: 'Evan T Shole 8'},
-  ],
-  title: 'A Method to Improve Availability and Quality of Patient Race',
-  journal: 'Applied Clinical Informatics',
-  displayDate: '2020 Nov 25',
-  pmid: 2342342,
-  userAssertion: "NULL",
-}
-
 const CuratePublications = () => {
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
@@ -81,10 +52,6 @@ const CuratePublications = () => {
         count={count}
         onChange={handlePaginationUpdate}/>
       <div className={styles.publicationsContainer}>
-        <Publication
-          faculty={faculty}
-          item={item}
-          ></Publication>
       </div>
       <Pagination total={filteredIds.length} page={page}
         count={count}
