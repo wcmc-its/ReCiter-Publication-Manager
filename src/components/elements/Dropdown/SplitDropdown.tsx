@@ -24,7 +24,7 @@ const SplitDropdown: React.FC<DropdownProps> = ({ title, to, id, listItems, seco
         >
           {listItems.map((item: ListItem, index: number) => {
             return (
-              <Link href={item.to} passHref><Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`} eventKey={index}>{item.title}</Dropdown.Item></Link>
+              <Link key={index} href={item.to} passHref><Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`} eventKey={index}>{item.title}</Dropdown.Item></Link>
             )
           })}
         </SplitButton>

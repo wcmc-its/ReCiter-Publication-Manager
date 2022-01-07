@@ -10,7 +10,7 @@ import { useSession } from 'next-auth/client';
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import SearchBar from "./SearchBar";
 import FilterReview from "./FilterReview";
-import fetchWithTimeout from "../../../pages/fetchWithTimeout";
+import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { Table } from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 

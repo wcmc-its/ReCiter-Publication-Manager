@@ -1,5 +1,5 @@
 import methods from '../methods/methods'
-import fetchWithTimeout from '../../pages/fetchWithTimeout';
+import fetchWithTimeout from '../../utils/fetchWithTimeout';
 import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
 import { useSession} from 'next-auth/client';

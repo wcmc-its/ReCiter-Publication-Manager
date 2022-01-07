@@ -12,10 +12,12 @@ import MenuListItem from "./MenuListItem";
 import Box from '@mui/material/Box';
 import styles from './Navbar.module.css'
 
+type ImageSourcePropType = React.ComponentProps<typeof Image>['src']
+
 type NestedListItemProps = {
   header: String,
   menuItems: Array<MenuItem>,
-  imgUrl?: string | StaticImport
+  imgUrl?: string | ImageSourcePropType
 }
 
 const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgUrl}) => {
@@ -30,7 +32,7 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgU
       <ListItemButton onClick={handleClick}>
         <ListItemIcon>
           <Image 
-              src={imgUrl}
+              src={imgUrl || ""}
               height={15}
               width={15}
               alt='Menu Icon'
