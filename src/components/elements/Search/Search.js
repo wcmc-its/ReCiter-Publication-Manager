@@ -238,7 +238,8 @@ const Search = () => {
         //const thisObject = this
         let tableBody
         let paginatedIdentities = Object.keys(filters).length === 0 ? identityPaginatedData : identities.paginatedIdentities;
-        tableBody = paginatedIdentities.map(function (identity, identityIndex) {
+        if (totalCount > 0)  {
+          tableBody = paginatedIdentities.map(function (identity, identityIndex) {
             return <tr key={identityIndex}>
                 <td key={`${identityIndex}__name`} width="30%">
                     <Name identity={identity}></Name>
@@ -246,7 +247,7 @@ const Search = () => {
                 <td key={`${identityIndex}__orgUnit`} width="20%">
                     {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
                 </td>
-                <td key={`${identityIndex}__institutioon`} width="20%">
+                <td key={`${identityIndex}__institution`} width="20%">
                     {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
                 </td>
                 <td key={`${identityIndex}__pending`} width="10%">
@@ -262,7 +263,19 @@ const Search = () => {
                     />
                 </td>
             </tr>;
-        }) 
+        }) } else {
+          console.log(totalCount);
+          tableBody = (
+            <tr>
+              <td colspan="5">
+                  <p className={styles.noitemsList}>
+                      No records found
+                  </p>
+              </td>
+            </tr>
+          )
+          
+        } 
         return (
             <div className={appStyles.mainContainer}>
                 {/* <div className="side-nav-position">
