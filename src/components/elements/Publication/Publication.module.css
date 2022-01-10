@@ -35,7 +35,6 @@
     background: #202B3C;
     color: #fff;
     padding: 10px;
-    text-align: center;
 }
 .publicationsEvidenceTable td {
     padding: 5px 10px;
@@ -146,15 +145,23 @@
 }
 
 .reciterType {
-    display: inline-block;
-    border: 1px solid #dedcdc;
-    background: #eaeae1;
-    border-radius: 2px;
-    text-align: center;
-    padding: 5px 5px;
-    line-height: 1.0em;
-    margin-top: 8px;
-    font-size: 13px;
+  display: inline-block;
+  background: #d9d9d9;
+  border-radius: 2px;
+  text-align: center;
+  padding: 5px;
+  line-height: 1em;
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  font-stretch: normal;
+  font-style: normal;
+  line-height: normal;
+  letter-spacing: normal;
+  color: #0a0e13;
+  margin-left: 6px;
+  letter-spacing: .11px;
+  font-weight: 700;
 }
 
 .publicationUndo {
@@ -168,7 +175,7 @@
 }
 
 .facultyTitle {
-  color: #007bff;
+  color: #337ab7;
   font-size: 1.5rem;
 }
 
@@ -219,6 +226,10 @@
 }
 
 .publicationAdditionalInfo span {
+  color: #65686B;
+}
+
+.publicationAdditionalInfo a {
   color: #65686B;
 }
 

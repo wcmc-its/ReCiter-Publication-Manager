@@ -809,3 +809,59 @@ export const updateFilteredIds = (ids) => dispatch => {
     payload: ids
   })
 }
+
+export const updateFilteredIdentities = (identities) => dispatch => {
+  dispatch({
+    type: methods.FILTERED_IDENTITIES_CHANGE,
+    payload: identities
+  })
+}
+
+export const publicationsFetchGroupData = ( ids ) => dispatch => {
+  dispatch({
+    type: methods.PUBLICATIONS_FETCH_GROUP_DATA
+  })
+  fetchWithTimeout('/api/reciter/feature-generator/group', {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(ids)
+  }, 300000)
+    .then(response => {
+        if(response.status === 200) {
+            return response.json()
+        }else {
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        }
+    })
+    .then(data => {
+        dispatch({
+            type: methods.PUBLICATIONS_CHANGE_GROUP_DATA,
+            payload: data
+        })
+
+        dispatch({
+            type: methods.PUBLICATIONS_CANCEL_GROUP_DATA
+        })
+    })
+    .catch(error => {
+        console.log(error)
+        dispatch(
+            addError(error)
+        )
+
+        dispatch({
+            type: methods.PUBLICATIONS_CANCEL_GROUP_DATA
+        })
+
+    })
+}

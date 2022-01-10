@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds } from '../../../redux/actions/actions'
+import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds, updateFilteredIdentities } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -126,6 +126,22 @@ const Search = () => {
       })
     }
 
+    const fullName = (person) => {
+      let userName = "";
+      if(person !== undefined) {
+          if(person.firstName !== undefined) {
+            userName += person.firstName + ' ';
+          }
+          if(person.middleName !== undefined) {
+            userName += person.middleName + ' ';
+          }
+          if(person.lastName !== undefined) {
+            userName += person.lastName + ' ';
+          }
+      }
+      return userName; 
+    }
+
     const searchData = (searchText, orgUnits, institutions, personTypes) => {
         setIdentityData(identityAllData)
         setIdentitySearch(searchText)
@@ -182,6 +198,13 @@ const Search = () => {
 
             let filteredIds = searchResults.length > 0 ? searchResults.map(person => person.personIdentifier) : [];
             dispatch(updateFilteredIds(filteredIds));
+
+            let filteredIdentities = {};
+            searchResults.forEach((person) => {
+              let personFullName = fullName(person);
+              filteredIdentities = {...filteredIdentities, [person.personIdentifier] : { title: person.title, fullName: personFullName}}
+            })
+            dispatch(updateFilteredIdentities(filteredIdentities))
         }
     }
 
