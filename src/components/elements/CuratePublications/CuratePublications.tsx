@@ -6,6 +6,7 @@ import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import  Publication from "../Publication/Publication";
 import Pagination  from '../Pagination/Pagination';
 import { publicationsFetchGroupData } from '../../../redux/actions/actions';
+import Loader from "../Common/Loader";
 
 interface DropdownProps {
   title: string,
@@ -55,7 +56,7 @@ const CuratePublications = () => {
         buttonTitle="Update Search"
         buttonUrl="/search"
         ></FilterSection>
-      { publicationsGroupDataFetching ? <div className={appStyles.appLoader}> </div> : 
+      { publicationsGroupDataFetching ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
           <Pagination total={filteredIds.length} page={page}

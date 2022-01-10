@@ -13,6 +13,7 @@ import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { Table } from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
+import Loader from "../Common/Loader";
 
 const dropdownItems =  [
   { title: 'Create Reports', to: '/create-reports'},
@@ -255,7 +256,7 @@ const Search = () => {
         (!filtersOn && identityPaginatedData.length <= 0 ) || 
         (filtersOn && identityAllData.length <= 0)) {
         return (
-                <div className={appStyles.appLoader}> </div>
+          <Loader />
         );
     } else {
         //const thisObject = this
@@ -287,7 +288,6 @@ const Search = () => {
                 </td>
             </tr>;
         }) } else {
-          console.log(totalCount);
           tableBody = (
             <tr>
               <td colspan="5">
