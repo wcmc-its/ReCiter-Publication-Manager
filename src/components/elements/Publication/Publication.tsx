@@ -498,7 +498,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 <p>
                   <strong>{Object.values(title)}</strong>
                   <br></br>
-                  {source && <small>(<a href={source}>source</a>)</small>}
+                  {source && <small>(<a href={source} target="_blank">source</a>)</small>}
                   {<small>{`${points} points`}</small>}
                 </p>
               </td>
@@ -565,8 +565,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   <span className={styles.midDot}> {reciterArticle.publicationType.publicationTypeCanonical} </span>
                   <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
                   <div className={styles.publicationAdditionalInfo}>
-                    <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`}>{reciterArticle.pmid}</a>{' '}</span>
-                    <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.pmid}`}>DOI</a>{' '}</span>
+                    <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank">{reciterArticle.pmid}</a>{' '}</span>
+                    <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.pmid}`} target="_blank">DOI</a>{' '}</span>
                     <span className={styles.midDot}> Show History </span>
                   </div>
                   {
