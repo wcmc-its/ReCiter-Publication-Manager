@@ -1,38 +1,64 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { Sequelize, Op } from "sequelize"
+import { Person } from '../../src/db/models/Person'
 
 models.Person.hasOne(models.PersonPersonType)
 models.PersonPersonType.hasMany(models.Person)
 
-export const findAll = async (req: NextApiRequest, res: NextApiResponse, offset: number, limit: number) => {
+export const findAll = async (req: NextApiRequest, res: NextApiResponse, offset: string, limit: string) => {
     
     try {
-        const persons = await models.Person.findAll({
-            attributes: {
-                include: [
-                    [Sequelize.fn('GROUP_CONCAT', Sequelize.literal("PersonPersonType.personType SEPARATOR ','")), 'groupPersonTypes']
-                ],
-                exclude: [
-                    'PersonPersonTypeId'
-                ]
-            },
-            include: [
-                {
-                    model: models.PersonPersonType, required: false,
-                    on: {
-                        col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonType.personIdentifier'))
-                    },
-                    attributes: []
+        let persons: Person[] = []
+        if(offset && limit) {
+            persons = await models.Person.findAll({
+                attributes: {
+                    include: [
+                        [Sequelize.fn('GROUP_CONCAT', Sequelize.literal("PersonPersonType.personType SEPARATOR ','")), 'groupPersonTypes']
+                    ],
+                    exclude: [
+                        'PersonPersonTypeId'
+                    ]
                 },
-            ],
-            order: [["personIdentifier", "ASC"]],
-            group: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title', 'primaryOrganizationalUnit', 'primaryInstitution',
-            'dateAdded', 'dateUpdated', 'precision', 'recall', 'countSuggestedArticles' , 'countPendingArticles', 'overallAccuracy', 'mode'],
-            offset: offset,
-            limit: limit
-        });
-
+                include: [
+                    {
+                        model: models.PersonPersonType, required: false,
+                        on: {
+                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonType.personIdentifier'))
+                        },
+                        attributes: []
+                    },
+                ],
+                order: [["personIdentifier", "ASC"]],
+                group: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title', 'primaryOrganizationalUnit', 'primaryInstitution',
+                'dateAdded', 'dateUpdated', 'precision', 'recall', 'countSuggestedArticles' , 'countPendingArticles', 'overallAccuracy', 'mode'],
+                offset: Number.parseInt(offset),
+                limit: Number.parseInt(limit)
+            });
+        } else {
+            persons = await models.Person.findAll({
+                attributes: {
+                    include: [
+                        [Sequelize.fn('GROUP_CONCAT', Sequelize.literal("PersonPersonType.personType SEPARATOR ','")), 'groupPersonTypes']
+                    ],
+                    exclude: [
+                        'PersonPersonTypeId'
+                    ]
+                },
+                include: [
+                    {
+                        model: models.PersonPersonType, required: false,
+                        on: {
+                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonType.personIdentifier'))
+                        },
+                        attributes: []
+                    },
+                ],
+                order: [["personIdentifier", "ASC"]],
+                group: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title', 'primaryOrganizationalUnit', 'primaryInstitution',
+                'dateAdded', 'dateUpdated', 'precision', 'recall', 'countSuggestedArticles' , 'countPendingArticles', 'overallAccuracy', 'mode']
+            });
+        }
         res.send(persons);
     } catch (e) {
         console.log(e)
