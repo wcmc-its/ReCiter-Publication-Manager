@@ -8,7 +8,7 @@ ARG RECITER_DB_HOST
 ARG RECITER_DB_NAME
 ARG RECITER_DB_USERNAME
 ARG RECITER_DB_PASSWORD
-COPY package.json package-lock.json ./
+COPY package.json ./
 RUN npm install --frozen-lockfile
 
 # Rebuild the source code only when needed
