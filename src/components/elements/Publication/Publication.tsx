@@ -537,8 +537,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           </Accordion.Header>
           <Accordion.Body> 
           {item.reCiterArticleFeatures.length > 0 &&
-            displayArticleIndexes.map((index: number) => {
-              reciterArticle = item.reCiterArticleFeatures[index];
+            displayArticleIndexes.map((pos: number, index: number) => {
+              reciterArticle = item.reCiterArticleFeatures[pos];
               return(
             <Row>
               <Col md={3} className={styles.publicationButtons}>

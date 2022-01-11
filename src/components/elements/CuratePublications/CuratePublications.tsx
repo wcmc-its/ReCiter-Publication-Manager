@@ -44,8 +44,34 @@ const CuratePublications = () => {
     }
   })
 
-  const handlePaginationUpdate = () => {
-    console.log('update');
+  const handlePaginationUpdate = (eventKey, page, updateCount) => {
+    let updatedCount = count
+    setPage(page)
+
+    if (updateCount) {
+      setCount(eventKey)
+      updatedCount = eventKey
+    }
+  }
+ 
+  const PublicationsList = () => {
+    let from = (page - 1) * count;
+    let to = from + count;
+    let dataList = [];
+    if (publicationsGroupData.reciter && publicationsGroupData.reciter.length > 0) {
+      dataList = publicationsGroupData.reciter.slice(from, to);
+    }
+    return(
+      <>
+      {dataList.map((reciterItem: any) => {
+        return (
+          <Publication 
+            item={reciterItem}
+            />
+        )
+      })}
+    </>
+    )
   }
 
   return (
@@ -59,21 +85,15 @@ const CuratePublications = () => {
       { publicationsGroupDataFetching ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
-          <Pagination total={filteredIds.length} page={page}
+          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
             count={count}
             onChange={handlePaginationUpdate}/>
           <div className={styles.publicationsContainer}>
             {
-              publicationsGroupData.reciter && publicationsGroupData.reciter.map((reciterItem: any) => {
-                return (
-                  <Publication 
-                    item={reciterItem}
-                    />
-                )
-              })
+              <PublicationsList />
             }
           </div>
-          <Pagination total={filteredIds.length} page={page}
+          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
             count={count}
             onChange={handlePaginationUpdate}/>
         </>
