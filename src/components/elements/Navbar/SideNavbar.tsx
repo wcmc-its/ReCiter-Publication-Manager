@@ -18,6 +18,7 @@ import facultyIconActive from '../../../../public/images/icon-side-faculty_index
 import settingsIconActive from '../../../../public/images/icon-side-faculty_admin-active.png';
 import chartIconActive from '../../../../public/images/icon-side-faculty_report-active.png';
 import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
+import { useSelector, RootStateOrAny } from "react-redux";
 
 type SideNavBarProps = {
     items: any
@@ -27,39 +28,6 @@ type drawer = {
     theme: any,
     open: any
 }
-
-const menuItems: Array<MenuItem> = [
-  {
-    title: 'Find People',
-    to: '/search',
-    imgUrl: facultyIcon,
-    imgUrlActive: facultyIconActive,
-  },
-  {
-    title: 'Curate Publications',
-    to: '/curate',
-    imgUrl: settingsIcon,
-    imgUrlActive: settingsIconActive,
-  },
-  {
-    title: 'Create Reports',
-    to: '/report',
-    imgUrl: chartIcon,
-    imgUrlActive: chartIconActive,
-  },
-  {
-    title: 'Perform Analysis',
-    to: '/login',
-    imgUrl: checkMarkIcon,
-    imgUrlActive: checkMarkIconActive,
-  },
-  {
-    title: 'Manage Module',
-    imgUrl: settingsIcon,
-    imgUrlActive: settingsIconActive,
-    nestedMenu: [{title: 'Add Users', to: '/admin/add/users', imgUrl: facultyIcon, imgUrlActive: facultyIconActive}]
-  }
-]
 
 const drawerWidth = 240;
 
@@ -143,6 +111,12 @@ const StyledList = styled(List)({
         minWidth: '30px',
     },
   },
+  '& .MuiListItem-root': {
+    borderBottom: '1px solid #ccc',
+      '&, & .MuiListItemIcon-root': {
+        minWidth: '30px',
+    },
+  },
   '& .MuiListItemText-primary': {
     fontSize: '14px',
     marginTop: '0px',
@@ -159,6 +133,44 @@ const StyledList = styled(List)({
 const SideNavbar: React.FC<SideNavBarProps> = () => {
   const theme = useTheme();
   const [open, setOpen] = React.useState(true);
+  const filters = useSelector((state: RootStateOrAny) => state.filters)
+
+  const menuItems: Array<MenuItem> = [
+    {
+      title: 'Find People',
+      to: '/search',
+      imgUrl: facultyIcon,
+      imgUrlActive: facultyIconActive,
+      disabled: false,
+    },
+    {
+      title: 'Curate Publications',
+      to: '/curate',
+      imgUrl: settingsIcon,
+      imgUrlActive: settingsIconActive,
+      disabled: (Object.keys(filters).length === 0),
+    },
+    {
+      title: 'Create Reports',
+      to: '/report',
+      imgUrl: chartIcon,
+      imgUrlActive: chartIconActive,
+      disabled: false,
+    },
+    {
+      title: 'Perform Analysis',
+      to: '/login',
+      imgUrl: checkMarkIcon,
+      imgUrlActive: checkMarkIconActive,
+      disabled: false,
+    },
+    {
+      title: 'Manage Module',
+      imgUrl: settingsIcon,
+      imgUrlActive: settingsIconActive,
+      nestedMenu: [{title: 'Add Users', to: '/admin/add/users', imgUrl: facultyIcon, imgUrlActive: facultyIconActive, disabled: false,}]
+    }
+  ]
 
   const expandNavCotext = React.useContext(ExpandNavContext);
 
@@ -194,6 +206,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                   to={item.to}
                   imgUrl={item.imgUrl}
                   imgUrlActive={item.imgUrlActive}
+                  disabled={item.disabled}
                 />
             })
           }

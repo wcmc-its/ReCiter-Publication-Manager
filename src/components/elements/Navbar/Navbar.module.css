@@ -35,3 +35,11 @@
   padding: 0px;
   background: #eaeaea;
 }
+
+.disabled {
+  color: #aaa;
+}
+
+.disabledLink {
+  pointer-events: none;
+}

@@ -5,4 +5,5 @@ export type MenuItem = {
   id?: number
   imgUrl?: string | StaticImport
   imgUrlActive?: string | StaticImport
+  disabled?: boolean
 }
