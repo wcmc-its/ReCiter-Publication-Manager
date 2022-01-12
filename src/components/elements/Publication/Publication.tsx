@@ -5,20 +5,20 @@ import CheckIcon from '@mui/icons-material/Check';
 import ClearIcon from '@mui/icons-material/Clear';
 import UndoIcon from '@mui/icons-material/Undo';
 import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
-import type { Author } from '../../../../types/publication';
+import type { Author } from '../../../../types/Author';
 import { useRouter } from 'next/router';
 import { useSelector, RootStateOrAny } from "react-redux";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
 
-
+//TEMP: update to required
 interface FuncProps {
-    onAccept(id: number): void,
-    onReject(id: number): void,
-    onUndo(id: number): void,
+    onAccept?(id: number): void,
+    onReject?(id: number): void,
+    onUndo?(id: number): void,
     item: any,
-    faculty: any,
+    faculty?: any,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
@@ -97,7 +97,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       return (
         <ul className={styles.listInline}>
           {
-            authors && authors.map((author, i) => <Author author={author} key={`${author.authorName}_${i}`} index={i} count={authors.length}></Author>  )
+            authors && authors.map((author, i) => <Author author={author} key={i} index={i} count={authors.length}></Author>  )
           }
         </ul>
       )
@@ -117,7 +117,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <AuthorsList authors={authorsDefaultDisplay}></AuthorsList>
             <button className={styles.btnNoStyling} onClick={() => {setExpandedAuthors(true)}}>[...]</button>
             <ul className={styles.listInline}>
-              <Author author={lastAuthor} key={`${lastAuthor.authorName}_${authCount - 1}`} index={authCount - 1} count={authCount}></Author>
+              <Author author={lastAuthor} index={authCount - 1} count={authCount}></Author>
             </ul>
           </>
         )
