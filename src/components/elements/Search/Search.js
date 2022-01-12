@@ -290,7 +290,7 @@ const Search = () => {
         }) } else {
           tableBody = (
             <tr>
-              <td colspan="5">
+              <td colSpan="5">
                   <p className={styles.noitemsList}>
                       No records found
                   </p>

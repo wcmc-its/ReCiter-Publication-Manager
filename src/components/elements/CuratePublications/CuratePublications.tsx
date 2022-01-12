@@ -63,9 +63,10 @@ const CuratePublications = () => {
     }
     return(
       <>
-      {dataList.map((reciterItem: any) => {
+      {dataList.map((reciterItem: any, index: number) => {
         return (
           <Publication 
+            key={index}
             item={reciterItem}
             />
         )

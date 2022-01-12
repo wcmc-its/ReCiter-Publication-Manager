@@ -19,6 +19,7 @@ interface FuncProps {
     onUndo?(id: number): void,
     item: any,
     faculty?: any,
+    key: number,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
@@ -234,12 +235,12 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         <>
           {props.list.map((item, index) => {
             return (
-              <p>
+              <p key={index}>
                 {item.name}
                 {
                   item.tags.map((tag, index) => {
                     return (
-                      <span className={styles.reciterType}>{tag}</span>
+                      <span className={styles.reciterType} key={index}>{tag}</span>
                     )
                   })
                 }
@@ -499,12 +500,12 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           }
           
           return (
-            <tr>
+            <tr key={evidence.pmid}>
               <td align="right" width="30%">
                 <p>
                   <strong>{Object.values(title)}</strong>
                   <br></br>
-                  {source && <small>(<a href={source} target="_blank">source</a>)</small>}
+                  {source && <small>(<a href={source} target="_blank" rel="noreferrer">source</a>)</small>}
                   {<small>{`${points} points`}</small>}
                 </p>
               </td>
@@ -521,7 +522,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     }
 
     return (
-      <Container className={`${styles.publicationContainer} p-0`} fluid>
+      <Container className={`${styles.publicationContainer} p-0`} fluid key={props.key}>
         <Accordion>
          <Accordion.Item eventKey="0">
           <Accordion.Header className={styles.publicationHeader}> 
@@ -546,7 +547,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             displayArticleIndexes.map((pos: number, index: number) => {
               reciterArticle = item.reCiterArticleFeatures[pos];
               return(
-            <Row className={styles.articleContainer}>
+            <Row className={styles.articleContainer} key={index}>
               <Col md={3} className={styles.publicationButtons}>
                 <Buttons pmid={reciterArticle.pmid} index={index} userAssertion={reciterArticle.userAssertion}></Buttons>
                   <div className="clear-both"></div>
@@ -571,8 +572,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   <span className={styles.midDot}> {reciterArticle.publicationType.publicationTypeCanonical} </span>
                   <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
                   <div className={styles.publicationAdditionalInfo}>
-                    <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank">{reciterArticle.pmid}</a>{' '}</span>
-                    <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank">DOI</a>{' '}</span>
+                    <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
+                    <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
                     <span className={styles.midDot}> Show History </span>
                   </div>
                   {
