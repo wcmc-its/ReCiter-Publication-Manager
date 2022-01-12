@@ -144,3 +144,20 @@ export const findAllInstitutions = async (req: NextApiRequest, res: NextApiRespo
         res.status(500).send(e);
     }
 };
+
+
+export const findOnePerson = async (uid: string) => {
+    
+    try {
+        const person = await models.Person.findOne({
+            where: {
+                personIdentifier: uid
+            },
+            attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]
+        });
+        return person
+    } catch (e) {
+        console.log(e)
+    }
+    
+};
