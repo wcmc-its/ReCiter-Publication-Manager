@@ -1,6 +1,5 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Sequelize, Op } from "sequelize"
 
 export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResponse) => {
     const { uid } = req.query;
