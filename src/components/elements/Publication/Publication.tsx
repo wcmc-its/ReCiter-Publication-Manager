@@ -153,14 +153,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       switch (userAssertion) { 
         case "NULL" :
           return (
-            <Row className="d-flex justify-content-md-between">
-            <Col xs lg={6}><button
+            <Row className="d-flex justify-content-md-between px-5">
+            <Col xs lg={6} className="p-1"><button
                 className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
                 onClick={() => acceptPublication(pmid, index)}
             ><CheckIcon/> Accept
             </button>
             </Col>
-            <Col xs lg={6}>
+            <Col xs lg={6} className="p-1">
             <button
                 className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
                 onClick={() => rejectPublication(pmid, index)}
@@ -171,16 +171,16 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           )
         case "ACCEPTED" :
           return (
-            <Row className="d-flex justify-content-md-between">
+            <Row className="d-flex justify-content-md-between px-4">
               <Col xs lg={6}><button
-                className={`btn btn-default ${styles.publicationUndo}`}
+                className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
                 onClick={() => undoPublication(pmid, index)}
               ><UndoIcon />Undo
               </button>
               </Col>
-              <Col>
+              <Col xs lg={6} className="p-1">
                 <button
-                  className={`btn btn-danger ${styles.publicationReject}`}
+                  className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
                   onClick={() => rejectPublication(pmid, index)}
                 ><ClearIcon />Reject
                 </button>
@@ -189,18 +189,22 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           )
         case "REJECTED" : 
           return (
-            <div>
-              <button
-                  className={`btn btn-success ${styles.publicationAccept}`}
-                  onClick={() => acceptPublication(pmid, index)}
-              > <CheckIcon/> Accept
-              </button>
-              <button
-                  className={`btn btn-default ${styles.publicationUndo}`}
-                  onClick={() => undoPublication(pmid, index)}
-              ><UndoIcon /> Undo
-              </button>
-          </div>
+            <Row className="d-flex justify-content-md-between px-4">
+              <Col xs lg={6} className="p-1">
+                <button
+                    className={`btn btn-success ${styles.publicationAccept}`}
+                    onClick={() => acceptPublication(pmid, index)}
+                > <CheckIcon/> Accept
+                </button>
+              </Col>
+              <Col xs lg={6} className="p-1">
+                <button
+                    className={`btn btn-default ${styles.publicationUndo}`}
+                    onClick={() => undoPublication(pmid, index)}
+                ><UndoIcon /> Undo
+                </button>
+              </Col>
+            </Row>
           )
         default:
           return (
@@ -435,8 +439,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   institutionalData = evidence[rowName].identityBachelorYear + ' - Bachelors'
                 }
                 if (evidence[rowName].identityDoctoralYear !== undefined) {
-                  institutionalData = institutionalData + evidence[rowName].identityDoctoralYear + ' - Doctoral'
+                  institutionalData = (institutionalData === '-') ? evidence[rowName].identityDoctoralYear + ' - Doctoral' : institutionalData + ' , ' + evidence[rowName].identityDoctoralYear + ' - Doctoral';
                 }
+
+                points = Math.abs(evidence[rowName].discrepancyDegreeYearBachelorScore + evidence[rowName].discrepancyDegreeYearDoctoralScore).toString()
               }
 
               if (rowName === 'genderEvidence') {
@@ -540,7 +546,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             displayArticleIndexes.map((pos: number, index: number) => {
               reciterArticle = item.reCiterArticleFeatures[pos];
               return(
-            <Row>
+            <Row className={styles.articleContainer}>
               <Col md={3} className={styles.publicationButtons}>
                 <Buttons pmid={reciterArticle.pmid} index={index} userAssertion={reciterArticle.userAssertion}></Buttons>
                   <div className="clear-both"></div>
@@ -566,7 +572,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
                   <div className={styles.publicationAdditionalInfo}>
                     <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank">{reciterArticle.pmid}</a>{' '}</span>
-                    <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.pmid}`} target="_blank">DOI</a>{' '}</span>
+                    <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank">DOI</a>{' '}</span>
                     <span className={styles.midDot}> Show History </span>
                   </div>
                   {
