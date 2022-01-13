@@ -49,6 +49,14 @@ const Search = () => {
         dispatch(identityFetchPaginatedData(page, count))
         fetchCount()
         dispatch(identityFetchAllData())
+
+        if (Object.keys(filters).length > 0 && identityData.length === 0) {
+          let searchText = filters.searchText ? filters.searchText : "";
+          let orgUnits = filters.orgUnits ? filters.orgUnits : [];
+          let institutions = filters.institutions ? filters.institutions : [];
+          let personTypes = filters.personTypes ? filters.personTypes : [];
+          searchData(searchText, orgUnits, institutions, personTypes);
+        }
     },[])
 
 
