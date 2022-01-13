@@ -105,7 +105,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const { reciterArticle } = props;
 
-    var evidancePopoverHtml = "<strong>" + reciterArticle.totalScoreNonStandardized + " :</strong> Raw score<br/><strong>" + reciterArticle.totalScoreStandardized + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+filteredIdentities[props.personIdentifier].fullName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
+    var evidancePopoverHtml = "<strong>" + reciterArticle.totalArticleScoreNonStandardized + " :</strong> Raw score<br/><strong>" + reciterArticle.totalArticleScoreStandardized + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+filteredIdentities[props.personIdentifier].fullName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
 
     const Buttons = ({index, pmid, userAssertion} : {
       index: number,
