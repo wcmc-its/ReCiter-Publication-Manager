@@ -232,7 +232,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        email: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
        organizationalUnitEvidence: { dataFormat: 'true' },
        affiliationEvidence: { scopusUrl: 'https://www.scopus.com/affil/profile.uri?afid=', dataFormat: 'true' } ,
-       grantEvidence: { institutionalData: 'articleGrant', articleData: 'articleGrant'},
+       grantEvidence: { dataFormat: 'true' },
        journalCategoryEvidence: { points: 'journalSubfieldScore', dataFormat: 'true'},
        educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
@@ -434,6 +434,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               if(evidence[rowName].grants !== undefined && evidence[rowName].grants.length > 0) {
                 evidence[rowName].grants.forEach((grant: any) => {
                     scoreTotal = scoreTotal + grant.grantMatchScore
+                    displayInstDataList = true;
+                    displayArticleDataList = true;
+                    institutionalDataList.push({ name: grant.institutionGrant, tags: []})
+                    articleDataList.push({ name: grant.articleGrant, tags: []})
                 })
                 points = Math.abs(scoreTotal).toString();
               }
