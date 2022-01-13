@@ -198,6 +198,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             return (
               <p key={index}>
                 {item.name}
+                {item.url && <a href={item.url} target="_blank" rel="noreferrer">{item.urlName}</a>}
                 {
                   item.tags.map((tag, index) => {
                     return (
@@ -224,6 +225,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { genderEvidence: 'Inferred gender of name'},
       { articleCountEvidence: 'Candidate article count'},
       { averageClusteringEvidence: 'Clustering'},
+      { coAuthorAffiliationEvidence: 'Co-authors\'s institutional affiliation'},
     ]
 
     const evidenceTableCellFields = {
@@ -238,7 +240,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
        articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
        averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreAverage'},
-       personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'}
+       personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
+       coAuthorAffiliationEvidence: { dataFormat: 'true'},
     }
 
     const displayRow = (row, evidence) => {
@@ -252,7 +255,13 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         } else {
           return true
         }
-      } else {
+      } else if (Object.keys(row)[0] === 'coAuthorAffiliationEvidence') {
+        if(evidence.affiliationEvidence !== undefined) {
+          if (evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation !== undefined) {
+            return true;
+          }
+        }
+      } else{
         return false;
       }
     }
@@ -462,6 +471,32 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 articleData = evidence[rowName][rowFields['articleData']];
               }
             }
+          }
+
+          if (rowName === 'coAuthorAffiliationEvidence') {
+            let scopusNonTargetAuthorAffiliationScore = evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationScore;
+            if(evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchKnownInstitution !== undefined) {
+              displayInstDataList = true;
+              displayArticleDataList = true;
+              evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchKnownInstitution.forEach((matchingKnownInst: any) => {
+                  let knownInst = matchingKnownInst.split(', ')
+                  let articleDataName = knownInst[2] + ' author(s) from ' + knownInst[0]
+                  institutionalDataList.push({ name: knownInst[0], tags: ['Individual Affiliation']})
+                  articleDataList.push({ name: articleDataName + ' ', tags: ['Scopus'], url: "https://www.scopus.com/affil/profile.uri?afid=" + knownInst[1], urlName: knownInst[1]})
+              })
+            }
+
+            if(evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution !== undefined) {
+              displayInstDataList = true;
+              displayArticleDataList = true;
+              evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution.forEach((matchingCollabInst: any) => {
+                let collabInst = matchingCollabInst.split(', ')
+                institutionalDataList.push({ name: collabInst[0], tags: ['Collaborating Institution']})
+                articleDataList.push({ name: collabInst[2] + ' author(s) from ' + collabInst[0] + ' ', url: "https://www.scopus.com/affil/profile.uri?afid=" + collabInst[1], urlName: collabInst[1], tags: ['Scupus']})
+              })
+            }
+
+            points = Math.abs(scopusNonTargetAuthorAffiliationScore).toString()
           }
           
           return (
