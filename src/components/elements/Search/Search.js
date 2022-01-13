@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds } from '../../../redux/actions/actions'
+import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds, updateFilteredIdentities } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -13,6 +13,7 @@ import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { Table } from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
+import Loader from "../Common/Loader";
 
 const dropdownItems =  [
   { title: 'Create Reports', to: '/create-reports'},
@@ -126,6 +127,22 @@ const Search = () => {
       })
     }
 
+    const fullName = (person) => {
+      let userName = "";
+      if(person !== undefined) {
+          if(person.firstName !== undefined) {
+            userName += person.firstName + ' ';
+          }
+          if(person.middleName !== undefined) {
+            userName += person.middleName + ' ';
+          }
+          if(person.lastName !== undefined) {
+            userName += person.lastName + ' ';
+          }
+      }
+      return userName; 
+    }
+
     const searchData = (searchText, orgUnits, institutions, personTypes) => {
         setIdentityData(identityAllData)
         setIdentitySearch(searchText)
@@ -182,6 +199,13 @@ const Search = () => {
 
             let filteredIds = searchResults.length > 0 ? searchResults.map(person => person.personIdentifier) : [];
             dispatch(updateFilteredIds(filteredIds));
+
+            let filteredIdentities = {};
+            searchResults.forEach((person) => {
+              let personFullName = fullName(person);
+              filteredIdentities = {...filteredIdentities, [person.personIdentifier] : { title: person.title, fullName: personFullName}}
+            })
+            dispatch(updateFilteredIdentities(filteredIdentities))
         }
     }
 
@@ -232,13 +256,14 @@ const Search = () => {
         (!filtersOn && identityPaginatedData.length <= 0 ) || 
         (filtersOn && identityAllData.length <= 0)) {
         return (
-                <div className={appStyles.appLoader}> </div>
+          <Loader />
         );
     } else {
         //const thisObject = this
         let tableBody
         let paginatedIdentities = Object.keys(filters).length === 0 ? identityPaginatedData : identities.paginatedIdentities;
-        tableBody = paginatedIdentities.map(function (identity, identityIndex) {
+        if (totalCount > 0)  {
+          tableBody = paginatedIdentities.map(function (identity, identityIndex) {
             return <tr key={identityIndex}>
                 <td key={`${identityIndex}__name`} width="30%">
                     <Name identity={identity}></Name>
@@ -246,7 +271,7 @@ const Search = () => {
                 <td key={`${identityIndex}__orgUnit`} width="20%">
                     {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
                 </td>
-                <td key={`${identityIndex}__institutioon`} width="20%">
+                <td key={`${identityIndex}__institution`} width="20%">
                     {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
                 </td>
                 <td key={`${identityIndex}__pending`} width="10%">
@@ -262,7 +287,18 @@ const Search = () => {
                     />
                 </td>
             </tr>;
-        }) 
+        }) } else {
+          tableBody = (
+            <tr>
+              <td colSpan="5">
+                  <p className={styles.noitemsList}>
+                      No records found
+                  </p>
+              </td>
+            </tr>
+          )
+          
+        } 
         return (
             <div className={appStyles.mainContainer}>
                 {/* <div className="side-nav-position">

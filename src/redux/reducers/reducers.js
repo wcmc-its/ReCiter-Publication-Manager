@@ -339,6 +339,41 @@ export const filteredIds = (state = [], action) => {
   }
 }
 
+export const filteredIdentities = (state = {}, action) => {
+  switch(action.type) {
+    case methods.FILTERED_IDENTITIES_CLEAR :
+      return {}
+    case methods.FILTERED_IDENTITIES_CHANGE :
+      return action.payload
+    default:
+      return state
+  }
+}
+
+export const publicationsGroupData = (state = {}, action) => {
+
+  switch(action.type) {
+      
+      case methods.PUBLICATIONS_CHANGE_GROUP_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const publicationsGroupDataFetching = (state=false, action) => {
+  switch(action.type) {
+    case methods.PUBLICATIONS_FETCH_GROUP_DATA :
+      return true
+    case methods.PUBLICATIONS_CANCEL_GROUP_DATA :
+      return false
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -360,4 +395,7 @@ export default combineReducers({
     personTypesFetching,
     filters,
     filteredIds,
+    filteredIdentities,
+    publicationsGroupData,
+    publicationsGroupDataFetching,
 })

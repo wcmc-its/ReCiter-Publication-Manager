@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import styles from './CuratePublications.module.css';
 import appStyles from '../App/App.module.css';
 import FilterSection from "../Filter/FilterSection";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
-import  Publication from "../Publication/Publication";
+import  PublicationsPane from "../Publication/PublicationsPane";
 import Pagination  from '../Pagination/Pagination';
+import { publicationsFetchGroupData } from '../../../redux/actions/actions';
+import Loader from "../Common/Loader";
 
 interface DropdownProps {
   title: string,
@@ -21,9 +23,16 @@ const filtersList = [
 const CuratePublications = () => {
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
+  const dispatch = useDispatch()
   const filters = useSelector((state: RootStateOrAny) => state.filters)
   const filteredIds = useSelector((state: RootStateOrAny) => state.filteredIds)
   let filterSectionList: Array<DropdownProps> = [];
+  const publicationsGroupDataFetching = useSelector((state: RootStateOrAny) => state.publicationsGroupDataFetching)
+  const publicationsGroupData = useSelector((state: RootStateOrAny) => state.publicationsGroupData)
+
+  useEffect(() => {
+    dispatch(publicationsFetchGroupData(filteredIds))
+  }, [])
 
 
   filtersList.forEach( filter => {
@@ -35,8 +44,35 @@ const CuratePublications = () => {
     }
   })
 
-  const handlePaginationUpdate = () => {
-    console.log('update');
+  const handlePaginationUpdate = (eventKey, page, updateCount) => {
+    let updatedCount = count
+    setPage(page)
+
+    if (updateCount) {
+      setCount(eventKey)
+      updatedCount = eventKey
+    }
+  }
+ 
+  const PublicationsList = () => {
+    let from = (page - 1) * count;
+    let to = from + count;
+    let dataList = [];
+    if (publicationsGroupData.reciter && publicationsGroupData.reciter.length > 0) {
+      dataList = publicationsGroupData.reciter.slice(from, to);
+    }
+    return(
+      <>
+      {dataList.map((reciterItem: any, index: number) => {
+        return (
+          <PublicationsPane 
+            key={index}
+            item={reciterItem}
+            />
+        )
+      })}
+    </>
+    )
   }
 
   return (
@@ -47,15 +83,22 @@ const CuratePublications = () => {
         buttonTitle="Update Search"
         buttonUrl="/search"
         ></FilterSection>
-      <h2>{`${filteredIds.length} people with pending publications`}</h2>
-      <Pagination total={filteredIds.length} page={page}
-        count={count}
-        onChange={handlePaginationUpdate}/>
-      <div className={styles.publicationsContainer}>
-      </div>
-      <Pagination total={filteredIds.length} page={page}
-        count={count}
-        onChange={handlePaginationUpdate}/>
+      { publicationsGroupDataFetching ? <Loader /> : 
+        <>
+          {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
+          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
+            count={count}
+            onChange={handlePaginationUpdate}/>
+          <div className={styles.publicationsContainer}>
+            {
+              <PublicationsList />
+            }
+          </div>
+          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
+            count={count}
+            onChange={handlePaginationUpdate}/>
+        </>
+      }
     </div>
   )
 }

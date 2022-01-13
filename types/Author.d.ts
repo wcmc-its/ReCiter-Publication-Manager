@@ -1,4 +1,5 @@
 export type Author = {
-  authorName: string
-  target: boolean
+  firstName: string
+  lastName: string
+  targetAuthor: boolean
 }

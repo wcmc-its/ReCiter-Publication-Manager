@@ -73,3 +73,11 @@
   text-decoration: none;
   color: #337ab7;
 }
+
+.noitemsList {
+  text-align: center;
+  margin: 10px 0px;
+  padding: 0px;
+  font-size: 16px;
+  font-weight: 300;
+}
