@@ -3,7 +3,7 @@ import styles from './CuratePublications.module.css';
 import appStyles from '../App/App.module.css';
 import FilterSection from "../Filter/FilterSection";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
-import  Publication from "../Publication/Publication";
+import  PublicationsPane from "../Publication/PublicationsPane";
 import Pagination  from '../Pagination/Pagination';
 import { publicationsFetchGroupData } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
@@ -65,7 +65,7 @@ const CuratePublications = () => {
       <>
       {dataList.map((reciterItem: any, index: number) => {
         return (
-          <Publication 
+          <PublicationsPane 
             key={index}
             item={reciterItem}
             />

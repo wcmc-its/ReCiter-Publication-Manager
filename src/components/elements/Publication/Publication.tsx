@@ -14,21 +14,22 @@ const doiUrl = 'https://doi.org/';
 
 //TEMP: update to required
 interface FuncProps {
-    onAccept?(id: number): void,
-    onReject?(id: number): void,
-    onUndo?(id: number): void,
-    item: any,
+    onAccept?(pmid: number, id: number): void,
+    onReject?(pmid: number, id: number): void,
+    onUndo?(pmid: number, id: number): void,
+    item?: any,
     faculty?: any,
     key: number,
+    reciterArticle: any,
+    index: number,
+    personIdentifier: string,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const [showEvidence, setShowEvidence] = useState<boolean>(false)
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
-    const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
-    const [displayArticleIndexes, setDisplayArticleIndexes] = useState<number[] | []>(props.item.reCiterArticleFeatures.length > 1 ? [0, 1] : [0])
 
     const router = useRouter()
 
@@ -37,43 +38,15 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const acceptPublication = ( pmid: number, index: number ) => {
-
-        if ( countPendingArticles > 0 ) {
-          setCountPendingArticles(countPendingArticles - 1);
-        }
-        // props.onAccept(pmid);
-        let currArticleIndexes = [...displayArticleIndexes];
-        displayArticleIndexes.forEach((pos, i) => {
-          if (index === pos) {
-            if (displayArticleIndexes.length > 1) {
-              let currMax = Math.max(displayArticleIndexes[0], displayArticleIndexes[1]);
-              if (currMax === props.item.reCiterArticleFeatures.length - 1) {
-                currArticleIndexes.splice(i, 1);
-              } else {
-                currArticleIndexes.splice(i, 1, currMax + 1);
-              }
-            } else {
-              currArticleIndexes = [];
-            }
-          }
-        })
-        setDisplayArticleIndexes(currArticleIndexes);
+      props.onAccept(pmid, index);
     }
 
     const rejectPublication = (pmid: number, index: number) => {
-      if ( countPendingArticles > 0 ) {
-        setCountPendingArticles(countPendingArticles - 1);
-      }
-      props.onReject(pmid)
+      props.onReject(pmid, index)
     }
 
     const undoPublication = (pmid: number, index: number) => {
-      setCountPendingArticles(countPendingArticles + 1);
-      props.onUndo(pmid)
-    }
-
-    const handleProfileClick = (uid: string) => {
-      return router.push('/app/' + uid)
+      props.onUndo(pmid, index)
     }
 
     const Author = ({author, index, count} : {
@@ -129,22 +102,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const { item } = props;
-    var facultyUserName = "";
-    let reciterArticle = item.reCiterArticleFeatures.length > 0 ? item.reCiterArticleFeatures[0] : {};
-    if(props.faculty !== undefined) {
 
-        if(props.faculty.firstName !== undefined) {
-            facultyUserName += props.faculty.firstName + ' ';
-        }
-        if(props.faculty.middleName !== undefined) {
-            facultyUserName += props.faculty.middleName + ' ';
-        }
-        if(props.faculty.lastName !== undefined) {
-            facultyUserName += props.faculty.lastName + ' ';
-        }
-    }
+    const { reciterArticle } = props;
 
-    var evidancePopoverHtml = "<strong>" + item.rawScore + " :</strong> Raw score<br/><strong>" + item.standardScore + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+facultyUserName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
+    var evidancePopoverHtml = "<strong>" + reciterArticle.totalScoreNonStandardized + " :</strong> Raw score<br/><strong>" + reciterArticle.totalScoreStandardized + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+filteredIdentities[props.personIdentifier].fullName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
 
     const Buttons = ({index, pmid, userAssertion} : {
       index: number,
@@ -522,109 +483,77 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     }
 
     return (
-      <Container className={`${styles.publicationContainer} p-0`} fluid key={props.key}>
-        <Accordion>
-         <Accordion.Item eventKey="0">
-          <Accordion.Header className={styles.publicationHeader}> 
-            <Row>
-              <Col md={8} className={styles.facultyHeader}>
-                {filteredIdentities[item.personIdentifier] && <p><span className={styles.facultyTitle}>{filteredIdentities[item.personIdentifier].fullName}</span>{filteredIdentities[item.personIdentifier].title}</p>}
-              </Col>
-              <Col md={3}>
-                <div className={styles.publicationRowButtons}>
-                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>
-                    View Profile
-                  </Button>
-                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>
-                    {`View All ${countPendingArticles} Pending`}
-                  </Button>
-                </div>
-              </Col>
-            </Row>
-          </Accordion.Header>
-          <Accordion.Body> 
-          {item.reCiterArticleFeatures.length > 0 &&
-            displayArticleIndexes.map((pos: number, index: number) => {
-              reciterArticle = item.reCiterArticleFeatures[pos];
-              return(
-            <Row className={styles.articleContainer} key={index}>
-              <Col md={3} className={styles.publicationButtons}>
-                <Buttons pmid={reciterArticle.pmid} index={index} userAssertion={reciterArticle.userAssertion}></Buttons>
-                  <div className="clear-both"></div>
-                  {(reciterArticle.evidence !==undefined)?
-                      <React.Fragment>
-                          <p className={styles.publicationScore} data-tip={evidancePopoverHtml} data-place="right"
-                              data-effect="solid" data-html={true} data-class={styles.evidenceScorePopupContainer}>
-                              Evidence<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
-                          </p>
-                          < ReactTooltip />
-                      </React.Fragment>: <p></p>
-                  }
-              </Col>
-              <Col md={9} className={`${styles.publicationButtons} ${styles.publicationsSummary}`}>
-                <Row><strong>{reciterArticle.journalTitleVerbose}</strong></Row>
-                  <div className={styles.publicationField}>
-                      <span>
-                        {item.reCiterArticleFeatures.length > 0 &&
-                        displayAuthors(item.reCiterArticleFeatures[0].reCiterArticleAuthorFeatures)}
-                      </span>
-                  </div>
-                  <span className={styles.midDot}> {reciterArticle.publicationType.publicationTypeCanonical} </span>
-                  <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
-                  <div className={styles.publicationAdditionalInfo}>
-                    <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
-                    <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
-                    <span className={styles.midDot}> Show History </span>
-                  </div>
-                  {
-                      (reciterArticle.evidence !== undefined) ?
-                          <div className={styles.publicationEvidenceBar}>
-                              <p onClick={toogleEvidence}>
-                                  {
-                                      (showEvidence) ?
-                                          <span
-                                              className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
-                                          :
-                                          <span
-                                              className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Show evidence behind this suggestion</span>
-                                  }
-                              </p>
-
-
-                              <div
-                                  className={`${styles.publicationShowEvidenceContainer} ${(showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
-                                  <div className="table-responsive">
-                                      <table className={`${styles.publicationsEvidenceTable} table table-striped`}>
-                                          <thead>
-                                          <tr>
-                                              <th key="0" className={styles.firstCell}>Evidence</th>
-                                              <th key="1">Institutional Data</th>
-                                              <th key="2">Article Data</th>
-                                          </tr>
-                                          </thead>
-                                          <tbody>
-                                            <>{formatEvidenceTable(reciterArticle.evidence)}</>
-                                          </tbody>
-                                      </table>
-                                  </div>
-                              </div>
-
-
-                          </div>
-                          : <div>
-                              <span></span>
-                          </div>
-                  }
-                  <div className="clear-both"></div>
-              </Col>
-            </Row>
-              )
-            })
+      <Row className={styles.articleContainer} key={props.key}>
+        <Col md={3} className={styles.publicationButtons}>
+          <Buttons pmid={reciterArticle.pmid} index={props.index} userAssertion={reciterArticle.userAssertion}></Buttons>
+            <div className="clear-both"></div>
+            {(reciterArticle.evidence !==undefined)?
+                <React.Fragment>
+                    <p className={styles.publicationScore} data-tip={evidancePopoverHtml} data-place="right"
+                        data-effect="solid" data-html={true} data-class={styles.evidenceScorePopupContainer}>
+                        Evidence<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
+                    </p>
+                    < ReactTooltip />
+                </React.Fragment>: <p></p>
             }
-         </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
-    </Container>
+        </Col>
+        <Col md={9} className={`${styles.publicationButtons} ${styles.publicationsSummary}`}>
+          <Row><strong>{reciterArticle.journalTitleVerbose}</strong></Row>
+            <div className={styles.publicationField}>
+                <span>
+                  {reciterArticle.reCiterArticleAuthorFeatures.length > 0 &&
+                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
+                </span>
+            </div>
+            <span className={styles.midDot}> {reciterArticle.publicationType.publicationTypeCanonical} </span>
+            <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
+            <div className={styles.publicationAdditionalInfo}>
+              <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
+              <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
+              <span className={styles.midDot}> Show History </span>
+            </div>
+            {
+                (reciterArticle.evidence !== undefined) ?
+                    <div className={styles.publicationEvidenceBar}>
+                        <p onClick={toogleEvidence}>
+                            {
+                                (showEvidence) ?
+                                    <span
+                                        className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
+                                    :
+                                    <span
+                                        className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Show evidence behind this suggestion</span>
+                            }
+                        </p>
+
+
+                        <div
+                            className={`${styles.publicationShowEvidenceContainer} ${(showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
+                            <div className="table-responsive">
+                                <table className={`${styles.publicationsEvidenceTable} table table-striped`}>
+                                    <thead>
+                                    <tr>
+                                        <th key="0" className={styles.firstCell}>Evidence</th>
+                                        <th key="1">Institutional Data</th>
+                                        <th key="2">Article Data</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                      <>{formatEvidenceTable(reciterArticle.evidence)}</>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+
+                    </div>
+                    : <div>
+                        <span></span>
+                    </div>
+            }
+            <div className="clear-both"></div>
+        </Col>
+      </Row>
   ); 
 }
 
