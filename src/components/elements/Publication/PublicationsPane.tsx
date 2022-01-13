@@ -96,6 +96,12 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
             </Row>
           </Accordion.Header>
           <Accordion.Body> 
+          {
+            item.reCiterArticleFeatures.length === 0 &&
+              <div className="d-flex justify-content-center">
+                <p className="text-align-center">No pending publications</p>
+              </div>
+          }
           {item.reCiterArticleFeatures.length > 0 &&
             displayArticleIndexes.map((pos: number, index: number) => {
               return(
