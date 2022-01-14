@@ -18,6 +18,7 @@ interface FuncProps {
     item: any,
     faculty?: any,
     key: number,
+    index: number,
 }
 
 const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
@@ -76,7 +77,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
 
     return (
       <Container className={`${styles.publicationContainer} p-0`} fluid key={props.key}>
-        <Accordion>
+        <Accordion defaultActiveKey={props.index === 0 ? "0" : "1"}>
          <Accordion.Item eventKey="0">
           <Accordion.Header className={styles.publicationHeader}> 
             <Row>

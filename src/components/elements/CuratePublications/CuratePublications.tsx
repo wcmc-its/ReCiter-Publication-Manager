@@ -67,6 +67,7 @@ const CuratePublications = () => {
         return (
           <PublicationsPane 
             key={index}
+            index={index}
             item={reciterItem}
             />
         )
