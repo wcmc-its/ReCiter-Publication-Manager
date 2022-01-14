@@ -9,6 +9,8 @@ import type { Author } from '../../../../types/Author';
 import { useRouter } from 'next/router';
 import { useSelector, RootStateOrAny } from "react-redux";
 import Publication from "./Publication";
+import { reciterConfig } from "../../../../config/local";
+import Divider from "../Common/Divider";
 
 //TEMP: update to required
 interface FuncProps {
@@ -28,6 +30,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const [displayArticleIndexes, setDisplayArticleIndexes] = useState<number[] | []>(props.item.reCiterArticleFeatures.length > 1 ? [0, 1] : [0])
 
     const router = useRouter()
+
+    const maxArticlesPerPerson = reciterConfig.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams.maxArticlesPerPerson;
 
     // TODO
     const acceptPublication = ( pmid: number, index: number ) => {
@@ -115,6 +119,15 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                   />
               )
             })
+            }
+            {
+              countPendingArticles > maxArticlesPerPerson && 
+              <Row>
+                <Divider></Divider>
+                <div className={`d-flex justify-content-center ${styles.publicationRowButtons}`}>
+                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>View All</Button>
+                </div>
+              </Row>
             }
          </Accordion.Body>
         </Accordion.Item>
