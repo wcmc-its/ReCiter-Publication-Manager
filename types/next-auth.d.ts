@@ -10,8 +10,12 @@ declare module "next-auth" {
     address: string
     },
     data: {
-    /** The user name */
-    username: string
+      /** The user name */
+      username: string,
+      databaseUser: {
+        userID: number,
+        status: number,
+      }
     }
   }
 }

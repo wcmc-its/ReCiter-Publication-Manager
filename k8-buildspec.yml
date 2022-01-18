@@ -1,0 +1,52 @@
+---
+version: 0.2
+phases:
+  install:
+    commands:
+      - kubectl version --short --client
+  pre_build:
+      commands:
+        - TAG="${BRANCH}-$CODEBUILD_BUILD_NUMBER.$(date +%Y-%m-%d.%H.%M.%S).$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
+        - echo "${CODEBUILD_WEBHOOK_HEAD_REF}"
+        - echo "${BRANCH}"
+        - |
+          if expr "${BRANCH}" : ".*dev" >/dev/null; then
+            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-dev"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
+          fi
+        - |
+          if expr "${BRANCH}" : ".*master" >/dev/null; then
+            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-prod"'@'  config/local.js;
+          fi
+        - $(aws ecr get-login --no-include-email)
+        - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
+        - sed -i -e "s/TOKEN_SECRET/$TOKEN_SECRET/g" config/local.js
+        - cat config/local.js
+        # #Install Trivy for container and dependency scanning
+        # - curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+        # - apt-get install wget apt-transport-https gnupg lsb-release
+        # - wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | apt-key add -
+        # - echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | tee -a /etc/apt/sources.list.d/trivy.list
+        # - apt-get update
+        # - apt-get install -y trivy
+        # trivy --no-progress --exit-code 1 --severity HIGH,CRITICAL $REPOSITORY_URI:$TAG
+  build:
+    commands:
+      - |
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
+          docker build --tag $REPOSITORY_URI:$TAG .
+        fi
+
+
+  post_build:
+    commands:
+      - |
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
+          docker push $REPOSITORY_URI:$TAG
+          aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region us-east-1 --role-arn $EKS_KUBECTL_ROLE_ARN
+        fi
+        if expr "${BRANCH}" : ".*master" >/dev/null; then
+          kubectl set image deployment/reciter-pm-prod reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
+        fi
+        if expr "${BRANCH}" : ".*dev" >/dev/null; then
+          kubectl set image deployment/reciter-pm-dev reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
+        fi

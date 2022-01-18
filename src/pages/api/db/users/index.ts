@@ -7,9 +7,6 @@ export default async function handler(req: NextApiRequest,
     if (req.method === "GET") {
         const offset = req.query.offset as string
         const limit = req.query.limit as string
-        if(offset && limit)
-            await findAll(req, res, Number.parseInt(offset), Number.parseInt(limit))
-        else
         await findAll(req, res, offset, limit)
     } else {
         // Default this to a bad request for now
