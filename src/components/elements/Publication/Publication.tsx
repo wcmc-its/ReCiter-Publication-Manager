@@ -267,7 +267,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const formatEvidenceTable = (evidence: any) => {
-      return (
+      let evidenceTableRows = []
+      
         evidenceTableRowTitles.filter((row) => displayRow(row, evidence)).map((title, index) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
@@ -498,27 +499,59 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
             points = Math.abs(scopusNonTargetAuthorAffiliationScore).toString()
           }
-          
-          return (
-            <tr key={evidence.pmid}>
-              <td align="right" width="30%">
-                <p>
-                  <strong>{Object.values(title)}</strong>
-                  <br></br>
-                  {source && <small>(<a href={source} target="_blank" rel="noreferrer">source</a>)</small>}
-                  {<small>{`${points} points`}</small>}
-                </p>
-              </td>
-              <td width="30%">
-                {displayInstDataList ? <TableCellWithTypes list={institutionalDataList}></TableCellWithTypes> : institutionalData}
-              </td>
-              <td width="30%">
-                {displayArticleDataList ? <TableCellWithTypes list={articleDataList}></TableCellWithTypes> : articleData}
-              </td>
-            </tr>
-          )
+
+          let evidenceTableRowData = { 
+            title: Object.values(title),
+            name: Object.keys(title)[0],
+            points: points,
+            institutionalData: institutionalData,
+            articleData: articleData,
+            displayInstDataList: displayInstDataList,
+            displayArticleDataList: displayArticleDataList,
+            institutionalDataList: institutionalDataList,
+            articleDataList: articleDataList,
+            source: source,
+          }
+
+          evidenceTableRows.push(evidenceTableRowData);
         })
-      )
+
+        // Sort Evidence Rows by highest score first
+        evidenceTableRows.sort((a: any, b: any) => b.points - a.points)
+
+        // Keep Author Name Evidence at the top
+        const authorNameEvidenceIndex = evidenceTableRows.findIndex((evidence) => evidence.name === 'authorNameEvidence');
+        
+        if (authorNameEvidenceIndex > 0) {
+          const authorNameEvidenceData = evidenceTableRows[authorNameEvidenceIndex];
+          evidenceTableRows.splice(authorNameEvidenceIndex, 1);
+          evidenceTableRows.unshift(authorNameEvidenceData);
+        }
+
+        return (
+          <>{
+            evidenceTableRows.map((evidenceRow: any, index: number) => {
+              return (
+                <tr key={index}>
+                  <td align="right" width="30%">
+                    <p>
+                      <strong>{evidenceRow.title}</strong>
+                      {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
+                      <br></br>
+                      {<small>{`${evidenceRow.points} points`}</small>}
+                    </p>
+                  </td>
+                  <td width="30%">
+                    {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList}></TableCellWithTypes> : evidenceRow.institutionalData}
+                  </td>
+                  <td width="30%">
+                    {evidenceRow.displayArticleDataList ? <TableCellWithTypes list={evidenceRow.articleDataList}></TableCellWithTypes> : evidenceRow.articleData}
+                  </td>
+                </tr>
+              )
+            })
+          }</>
+        )
     }
 
     return (
