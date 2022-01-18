@@ -27,7 +27,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
 
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
-    const [displayArticleIndexes, setDisplayArticleIndexes] = useState<number[] | []>(props.item.reCiterArticleFeatures.length > 1 ? [0, 1] : [0])
+    const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
 
     const router = useRouter()
 
@@ -40,24 +40,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           setCountPendingArticles(countPendingArticles - 1);
         }
         // props.onAccept(pmid);
-        let currArticleIndexes = [...displayArticleIndexes];
-        displayArticleIndexes.forEach((pos, i) => {
-          if (index === pos) {
-            if (displayArticleIndexes.length > 1) {
-              let currMax = Math.max(displayArticleIndexes[0], displayArticleIndexes[1]);
-              if (currMax === props.item.reCiterArticleFeatures.length - 1) {
-                currArticleIndexes.splice(i, 1);
-              } else {
-                currArticleIndexes.splice(i, 1, currMax + 1);
-                currArticleIndexes.sort((a, b) => a - b)
-              }
-            } else {
-              currArticleIndexes = [];
-            }
-          }
-        })
-        console.log(currArticleIndexes);
-        setDisplayArticleIndexes(currArticleIndexes);
+        let updatedArticlesList = articles.filter((article) => { article.pmid !== pmid});
+        setArticles(updatedArticlesList);
     }
 
     //TODO
@@ -102,18 +86,18 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           </Accordion.Header>
           <Accordion.Body> 
           {
-            item.reCiterArticleFeatures.length === 0 &&
+            (item.reCiterArticleFeatures.length === 0 || countPendingArticles === 0) &&
               <div className="d-flex justify-content-center">
                 <p className="text-align-center">No pending publications</p>
               </div>
           }
           {item.reCiterArticleFeatures.length > 0 &&
-            displayArticleIndexes.map((pos: number, index: number) => {
+            articles.map((article: any, index: number) => {
               return(
                 <Publication
-                  key={pos}
-                  index={pos}
-                  reciterArticle={item.reCiterArticleFeatures[pos]}
+                  key={index}
+                  index={index}
+                  reciterArticle={article}
                   personIdentifier={item.personIdentifier}
                   onAccept={acceptPublication}
                   />
