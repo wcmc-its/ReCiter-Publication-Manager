@@ -9,6 +9,7 @@ import type { Author } from '../../../../types/Author';
 import { useRouter } from 'next/router';
 import { useSelector, RootStateOrAny } from "react-redux";
 import Publication from "./Publication";
+import Profile from "../Profile/Profile";
 
 //TEMP: update to required
 interface FuncProps {
@@ -118,6 +119,9 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
          </Accordion.Body>
         </Accordion.Item>
       </Accordion>
+      <Profile 
+        uid={item.personIdentifier}
+      />
     </Container>
   ); 
 }

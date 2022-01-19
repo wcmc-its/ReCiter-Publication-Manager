@@ -1,0 +1,31 @@
+.profileTable {
+  margin-right: 0px;
+}
+
+.profileTable tr {
+  border-bottom: 1px solid black;
+}
+
+.profileTable tr:last-of-type {
+  border-bottom: none;
+}
+
+.highlighted {
+  display: inline-block;
+  background: #d9d9d9;
+  border-radius: 2px;
+  text-align: center;
+  padding: 5px;
+  line-height: 1em;
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  font-stretch: normal;
+  font-style: normal;
+  line-height: normal;
+  letter-spacing: normal;
+  color: #0a0e13;
+  margin-left: 6px;
+  letter-spacing: .11px;
+  font-weight: 700;
+}

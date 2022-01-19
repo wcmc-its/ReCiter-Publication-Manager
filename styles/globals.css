@@ -44,5 +44,12 @@ a {
 
 .btn-primary.primary:hover {
   background: #549ad8;
-  
+}
+
+.modal-backdrop {
+  z-index: 2000;
+}
+
+.modal {
+  z-index: 2055;
 }
