@@ -24,7 +24,6 @@ const imageLoader = ({ src, width, quality }) => {
   return src;
 }
 
-//TODO: add props: uid, open/close, onOpen/onClose
 const Profile = ({ 
   uid,
   modalShow,
@@ -39,11 +38,13 @@ const Profile = ({
   const dispatch = useDispatch()
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
+  const relationshipsDisplayed = 10;
 
   useEffect(() => {
-    //TODO: call an api only when open
-    dispatch(identityFetchData(uid));
-  }, [])
+    if (modalShow) {
+      dispatch(identityFetchData(uid));
+    }
+  }, [modalShow])
 
   if (identityFetching) {
     return (
@@ -58,6 +59,32 @@ const Profile = ({
     return (
       <h2>{formattedName}</h2>
     )
+  }
+
+  const DisplayRelationships = ({
+    relationships,
+    defaultNumber
+  } : {
+    relationships: string[],
+    defaultNumber: number,
+  }) => {
+    const [displayAll, setDisplayAll] = useState<boolean>(false);
+
+    let fullList = relationships.reduce((rel, acc, i) => [rel, acc].join(i === relationships.length - 1 ? '' : ', '));
+    let defaultList = relationships.slice(0, defaultNumber).reduce((rel, acc, i) => [rel, acc].join(', '));
+    if (displayAll) {
+      return (
+        <p>{fullList}</p>
+      )
+    } else {
+      return (
+        <p>
+          {defaultList}
+          {" "}
+          {relationships.length > defaultNumber ? <span className={styles.textButton} onClick={() => setDisplayAll(true)}>Show more</span> : ''}
+        </p>
+      )
+    }
   }
 
   const TableRows = ({ list }) => {
@@ -84,9 +111,9 @@ const Profile = ({
         let formattedUnitData: TableRow = { name: unit.organizationalUnitLabel}
         let formattedDate = '';
         if (unit.startDate) {
-          formattedDate = unit.strartDate;
+          formattedDate = unit.startDate.split('-')[0];
           if (unit.endDate) {
-            formattedDate = formattedDate + ' - ' + unit.endDate;
+            formattedDate = formattedDate + ' - ' + unit.endDate.split('-')[0];
           } else {
             formattedDate = formattedDate + ' - ' + 'Present';
           }
@@ -106,7 +133,7 @@ const Profile = ({
         degreeYears.push({ name: list.degreeYear.bachelorYear + ' - Bachelor\'s'})
       }
       if (list.degreeYear.doctoralYear !== 0) {
-        degreeYears.push({ name: list.degreeYear.bachelorYear + ' - PhD'})
+        degreeYears.push({ name: list.degreeYear.doctoralYear + ' - PhD'})
       }
       if (degreeYears.length > 0) {
         rows.push({ title: 'Degrees', values: degreeYears})
@@ -136,13 +163,17 @@ const Profile = ({
       }
     }
 
-    //TODO
+    let formattedRelationships = [];
     if (list.knownRelationships) {
-
+      list.knownRelationships.forEach((relationship: any) => {
+        let formattedName = fullName(relationship.name);
+        if (relationship.type) formattedName = formattedName + ' (' + relationship.type + ')'
+        formattedRelationships.push(formattedName);
+      })
     }
 
     if (list.grants) {
-
+      rows.push({ title: 'Grants', values: list.grants.map((grant) => {return {name: grant}})})
     }
 
     return(
@@ -166,6 +197,22 @@ const Profile = ({
               </tr>
             )
           })
+        } 
+        {
+          list.knownRelationships && list.knownRelationships.length > 0 &&
+          <tr key={rows.length}>
+            <td align="right" width="20%">
+              <div className="m-3">
+                <b>Known Relationships</b>
+              </div>
+            </td>
+            <td width="80%">
+              <DisplayRelationships
+                defaultNumber={relationshipsDisplayed}
+                relationships={formattedRelationships}
+              />
+            </td>
+          </tr>
         }
       </>
     )
