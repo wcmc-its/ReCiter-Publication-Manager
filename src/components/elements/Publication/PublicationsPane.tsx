@@ -94,13 +94,17 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           {item.reCiterArticleFeatures.length > 0 &&
             articles.map((article: any, index: number) => {
               return(
-                <Publication
-                  key={index}
-                  index={index}
-                  reciterArticle={article}
-                  personIdentifier={item.personIdentifier}
-                  onAccept={acceptPublication}
-                  />
+                <>
+                  <Publication
+                    key={index}
+                    index={index}
+                    reciterArticle={article}
+                    personIdentifier={item.personIdentifier}
+                    onAccept={acceptPublication}
+                    fullName={filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
+                    />
+                    {index < articles.length - 1 && <Divider></Divider>}
+                </>
               )
             })
             }
