@@ -46,10 +46,14 @@ a {
   background: #549ad8;
 }
 
-.modal-backdrop {
-  z-index: 2000;
+.modal-backdrop.show {
+  z-index: 2055;
 }
 
-.modal {
+.modal.show {
   z-index: 2055;
+}
+
+.modal.show {
+  z-index: 2055 ;
 }
