@@ -389,89 +389,30 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     })
 
     // Send request to the API to update publications
-    var facultyUserName = "";
-    /* if(request.faculty !== undefined) {
-        if(request.faculty.firstName !== undefined) {
-            facultyUserName += request.faculty.firstName + ' ';
-        }
-        if(request.faculty.middleName !== undefined) {
-            facultyUserName += request.faculty.middleName + ' ';
-        }
-        if(request.faculty.lastName !== undefined) {
-            facultyUserName += request.faculty.lastName + ' ';
-        }
-    } */
-
-    facultyUserName = request.faculty.primaryName.firstName + ((request.faculty.primaryName.middleName !== undefined)? ' ' + request.faculty.primaryName.middleName + ' ':' ') + request.faculty.primaryName.lastName
 
     if(request.userAssertion === 'ACCEPTED' && !request.manuallyAddedFlag) {
         var goldStandard = {
-            "auditLog": [
-                {
-                    "action": request.userAssertion,
-                    "dateTime": new Date(),
-                    "pmids": request.publications,
-                    "uid": session.data.username,
-                    "userVerbose": facultyUserName
-                }
-            ],
             "knownPmids": request.publications,
             "uid": uid
         };
     } else if(request.userAssertion === 'REJECTED' && !request.manuallyAddedFlag) {
         var goldStandard = {
-            "auditLog": [
-                {
-                    "action": request.userAssertion,
-                    "dateTime": new Date(),
-                    "pmids": request.publications,
-                    "uid": session.data.username,
-                    "userVerbose": facultyUserName
-                }
-            ],
             "rejectedPmids": request.publications,
             "uid": uid
         };
     } else if(request.userAssertion === 'NULL' && !request.manuallyAddedFlag) {
         var goldStandard = {
-            "auditLog": [
-                {
-                    "action": request.userAssertion,
-                    "dateTime": new Date(),
-                    "pmids": request.publications,
-                    "uid": session.data.username,
-                    "userVerbose": facultyUserName
-                }
-            ],
             "knownPmids": request.publications,
             "rejectedPmids": request.publications,
             "uid": uid
         };
     } else if(request.userAssertion === 'ACCEPTED' && request.manuallyAddedFlag) {
         var goldStandard = {
-            "auditLog": [
-                {
-                    "action": request.userAssertion,
-                    "dateTime": new Date(),
-                    "pmids": [request.publications[0].pmid],
-                    "uid": session.data.username,
-                    "userVerbose": facultyUserName
-                }
-            ],
             "knownPmids": [request.publications[0].pmid],
             "uid": uid
         };
     } else if(request.userAssertion === 'REJECTED' && request.manuallyAddedFlag) {
         var goldStandard = {
-            "auditLog": [
-                {
-                    "action": request.userAssertion,
-                    "dateTime": new Date(),
-                    "pmids": [request.publications[0].pmid],
-                    "uid": session.data.username,
-                    "userVerbose": facultyUserName
-                }
-            ],
             "rejectedPmids": [request.publications[0].pmid],
             "uid": uid
         };
@@ -502,8 +443,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                 closeOnClick: true,
                 pauseOnHover: true,
                 draggable: true,
-                progress: undefined,
-                theme: 'dark'
+                progress: undefined
                 });
             return response.json()
         }else {
@@ -525,8 +465,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
             closeOnClick: true,
             pauseOnHover: true,
             draggable: true,
-            progress: undefined,
-            theme: 'dark'
+            progress: undefined
             });
 
         dispatch(
@@ -538,6 +477,75 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         })
 
     })
+
+    //update adminFeedbackLog table
+    const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
+    if(request.userID && 
+        request.personIdentifier && 
+        request.articleIdentifier &&
+        request.feedback
+        ) {
+            let adminFeedbackRequestBody = {
+                "userID": request.userID,
+                "personIdentifier": uid,
+                "articleIdentifier": request.articleIdentifier,
+                "feedback": request.feedback
+            }
+            fetchWithTimeout(adminFeedbackLogUrl, {
+                credentials: "same-origin",
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'Authorization': reciterConfig.backendApiKey
+                },
+                body: JSON.stringify(adminFeedbackRequestBody)
+            }, 300000)
+            .then(response => {
+                if(response.status === 200) {
+                    toast.success("Feedback log updated in database for " + uid, {
+                        position: "top-right",
+                        autoClose: 1000,
+                        hideProgressBar: false,
+                        closeOnClick: true,
+                        pauseOnHover: true,
+                        draggable: true,
+                        progress: undefined
+                        });
+                    return response.json()
+                }else {
+                    throw {
+                        type: response.type,
+                        title: response.statusText,
+                        status: response.status,
+                        detail: "Error occurred with api " + response.url + ". Please, try again later "
+                    }
+                }
+            })
+            .catch(error => {
+        
+                console.log(error)
+                toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
+                    position: "top-right",
+                    autoClose: 2000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    });
+        
+                dispatch(
+                    addError(error)
+                )
+        
+                dispatch({
+                    type: methods.RECITER_CANCEL_FETCHING
+                })
+        
+            })
+    }
+    
 
 }
 
