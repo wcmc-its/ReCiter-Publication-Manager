@@ -105,7 +105,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const { reciterArticle } = props;
 
-    var evidancePopoverHtml = "<strong>" + reciterArticle.totalScoreNonStandardized + " :</strong> Raw score<br/><strong>" + reciterArticle.totalScoreStandardized + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+filteredIdentities[props.personIdentifier].fullName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
+    var evidancePopoverHtml = "<strong>" + reciterArticle.totalArticleScoreNonStandardized + " :</strong> Raw score<br/><strong>" + reciterArticle.totalArticleScoreStandardized + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+filteredIdentities[props.personIdentifier].fullName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
 
     const Buttons = ({index, pmid, userAssertion} : {
       index: number,
@@ -198,6 +198,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             return (
               <p key={index}>
                 {item.name}
+                {item.url && <a href={item.url} target="_blank" rel="noreferrer">{item.urlName}</a>}
                 {
                   item.tags.map((tag, index) => {
                     return (
@@ -224,6 +225,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { genderEvidence: 'Inferred gender of name'},
       { articleCountEvidence: 'Candidate article count'},
       { averageClusteringEvidence: 'Clustering'},
+      { coAuthorAffiliationEvidence: 'Co-authors\'s institutional affiliation'},
     ]
 
     const evidenceTableCellFields = {
@@ -232,13 +234,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        email: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
        organizationalUnitEvidence: { dataFormat: 'true' },
        affiliationEvidence: { scopusUrl: 'https://www.scopus.com/affil/profile.uri?afid=', dataFormat: 'true' } ,
-       grantEvidence: { institutionalData: 'articleGrant', articleData: 'articleGrant'},
+       grantEvidence: { dataFormat: 'true' },
        journalCategoryEvidence: { points: 'journalSubfieldScore', dataFormat: 'true'},
        educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
        articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
        averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreAverage'},
-       personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'}
+       personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
+       coAuthorAffiliationEvidence: { dataFormat: 'true'},
     }
 
     const displayRow = (row, evidence) => {
@@ -252,13 +255,20 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         } else {
           return true
         }
-      } else {
+      } else if (Object.keys(row)[0] === 'coAuthorAffiliationEvidence') {
+        if(evidence.affiliationEvidence !== undefined) {
+          if (evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation !== undefined) {
+            return true;
+          }
+        }
+      } else{
         return false;
       }
     }
 
     const formatEvidenceTable = (evidence: any) => {
-      return (
+      let evidenceTableRows = []
+      
         evidenceTableRowTitles.filter((row) => displayRow(row, evidence)).map((title, index) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
@@ -434,6 +444,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               if(evidence[rowName].grants !== undefined && evidence[rowName].grants.length > 0) {
                 evidence[rowName].grants.forEach((grant: any) => {
                     scoreTotal = scoreTotal + grant.grantMatchScore
+                    displayInstDataList = true;
+                    displayArticleDataList = true;
+                    institutionalDataList.push({ name: grant.institutionGrant, tags: []})
+                    articleDataList.push({ name: grant.articleGrant, tags: []})
                 })
                 points = Math.abs(scoreTotal).toString();
               }
@@ -459,27 +473,85 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               }
             }
           }
-          
-          return (
-            <tr key={evidence.pmid}>
-              <td align="right" width="30%">
-                <p>
-                  <strong>{Object.values(title)}</strong>
-                  <br></br>
-                  {source && <small>(<a href={source} target="_blank" rel="noreferrer">source</a>)</small>}
-                  {<small>{`${points} points`}</small>}
-                </p>
-              </td>
-              <td width="30%">
-                {displayInstDataList ? <TableCellWithTypes list={institutionalDataList}></TableCellWithTypes> : institutionalData}
-              </td>
-              <td width="30%">
-                {displayArticleDataList ? <TableCellWithTypes list={articleDataList}></TableCellWithTypes> : articleData}
-              </td>
-            </tr>
-          )
+
+          if (rowName === 'coAuthorAffiliationEvidence') {
+            let scopusNonTargetAuthorAffiliationScore = evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationScore;
+            if(evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchKnownInstitution !== undefined) {
+              displayInstDataList = true;
+              displayArticleDataList = true;
+              evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchKnownInstitution.forEach((matchingKnownInst: any) => {
+                  let knownInst = matchingKnownInst.split(', ')
+                  let articleDataName = knownInst[2] + ' author(s) from ' + knownInst[0]
+                  institutionalDataList.push({ name: knownInst[0], tags: ['Individual Affiliation']})
+                  articleDataList.push({ name: articleDataName + ' ', tags: ['Scopus'], url: "https://www.scopus.com/affil/profile.uri?afid=" + knownInst[1], urlName: knownInst[1]})
+              })
+            }
+
+            if(evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution !== undefined) {
+              displayInstDataList = true;
+              displayArticleDataList = true;
+              evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution.forEach((matchingCollabInst: any) => {
+                let collabInst = matchingCollabInst.split(', ')
+                institutionalDataList.push({ name: collabInst[0], tags: ['Collaborating Institution']})
+                articleDataList.push({ name: collabInst[2] + ' author(s) from ' + collabInst[0] + ' ', url: "https://www.scopus.com/affil/profile.uri?afid=" + collabInst[1], urlName: collabInst[1], tags: ['Scupus']})
+              })
+            }
+
+            points = Math.abs(scopusNonTargetAuthorAffiliationScore).toString()
+          }
+
+          let evidenceTableRowData = { 
+            title: Object.values(title),
+            name: Object.keys(title)[0],
+            points: points,
+            institutionalData: institutionalData,
+            articleData: articleData,
+            displayInstDataList: displayInstDataList,
+            displayArticleDataList: displayArticleDataList,
+            institutionalDataList: institutionalDataList,
+            articleDataList: articleDataList,
+            source: source,
+          }
+
+          evidenceTableRows.push(evidenceTableRowData);
         })
-      )
+
+        // Sort Evidence Rows by highest score first
+        evidenceTableRows.sort((a: any, b: any) => b.points - a.points)
+
+        // Keep Author Name Evidence at the top
+        const authorNameEvidenceIndex = evidenceTableRows.findIndex((evidence) => evidence.name === 'authorNameEvidence');
+        
+        if (authorNameEvidenceIndex > 0) {
+          const authorNameEvidenceData = evidenceTableRows[authorNameEvidenceIndex];
+          evidenceTableRows.splice(authorNameEvidenceIndex, 1);
+          evidenceTableRows.unshift(authorNameEvidenceData);
+        }
+
+        return (
+          <>{
+            evidenceTableRows.map((evidenceRow: any, index: number) => {
+              return (
+                <tr key={index}>
+                  <td align="right" width="30%">
+                    <p>
+                      <strong>{evidenceRow.title}</strong>
+                      {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
+                      <br></br>
+                      {<small>{`${evidenceRow.points} points`}</small>}
+                    </p>
+                  </td>
+                  <td width="30%">
+                    {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList}></TableCellWithTypes> : evidenceRow.institutionalData}
+                  </td>
+                  <td width="30%">
+                    {evidenceRow.displayArticleDataList ? <TableCellWithTypes list={evidenceRow.articleDataList}></TableCellWithTypes> : evidenceRow.articleData}
+                  </td>
+                </tr>
+              )
+            })
+          }</>
+        )
     }
 
     return (
