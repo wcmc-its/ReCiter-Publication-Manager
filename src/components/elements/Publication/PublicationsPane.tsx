@@ -26,6 +26,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [displayArticleIndexes, setDisplayArticleIndexes] = useState<number[] | []>(props.item.reCiterArticleFeatures.length > 1 ? [0, 1] : [0])
+    const [modalShow, setModalShow] = useState(false);
 
     const router = useRouter()
 
@@ -73,6 +74,9 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
       return router.push('/app/' + uid)
     }
 
+    const handleClose = () => setModalShow(false);
+    const handleShow = () => setModalShow(true);
+
     const { item } = props;
 
     return (
@@ -86,7 +90,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               </Col>
               <Col md={3}>
                 <div className={styles.publicationRowButtons}>
-                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>
+                  <Button onClick={handleShow}>
                     View Profile
                   </Button>
                   <Button onClick={() => handleProfileClick(item.personIdentifier)}>
@@ -121,6 +125,9 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
       </Accordion>
       <Profile 
         uid={item.personIdentifier}
+        modalShow={modalShow}
+        handleShow={handleShow}
+        handleClose={handleClose}
       />
     </Container>
   ); 

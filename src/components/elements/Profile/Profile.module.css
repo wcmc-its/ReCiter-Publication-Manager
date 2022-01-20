@@ -29,3 +29,7 @@
   letter-spacing: .11px;
   font-weight: 700;
 }
+
+.modalHeader {
+  align-items: start;
+}

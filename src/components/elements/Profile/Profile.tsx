@@ -26,12 +26,17 @@ const imageLoader = ({ src, width, quality }) => {
 
 //TODO: add props: uid, open/close, onOpen/onClose
 const Profile = ({ 
-  uid
+  uid,
+  modalShow,
+  handleShow,
+  handleClose,
  } : {
-   uid: string
+   uid: string,
+   modalShow: boolean,
+   handleShow: () => void,
+   handleClose: () => void,
  }) => {
   const dispatch = useDispatch()
-  const [modalShow, setModalShow] = useState(false);
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
 
@@ -167,11 +172,11 @@ const Profile = ({
   }
 
   return (
-    <Modal show={modalShow} size="lg">
+    <Modal show={modalShow} size="lg" onHide={handleClose}>
       {
         !identityFetching && 
         <>
-        <Modal.Header>
+        <Modal.Header closeButton className={styles.modalHeader}>
           <Container>
             <Row>
               <div className="img-container">
