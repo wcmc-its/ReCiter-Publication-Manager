@@ -161,3 +161,39 @@ export const findOnePerson = async (uid: string) => {
     }
     
 };
+
+export const updatePendingArticleCount = async (uid: string, feedback: string) => {
+    try {
+        if(feedback == "ACCEPTED" || feedback == "REJECTED") {
+            const articleCountUpdate = await models.Person.increment({
+                countPendingArticles: -1
+                }, 
+                {
+                    where: {
+                        personIdentifier: uid,
+                        countPendingArticles: {
+                            [Op.gt]: 0
+                        } 
+
+                    }
+            })
+            console.log('countPendingArticles decreased(ACCEPTED || REJECTED) in person table for uid ' + uid + ' by ' + articleCountUpdate)
+        } else {
+            const articleCountUpdate = await models.Person.increment({
+                countPendingArticles: 1
+                }, 
+                {
+                    where: {
+                        personIdentifier: uid,
+                        countPendingArticles: {
+                            [Op.gt]: 0
+                        }
+                    }
+            })
+            console.log('countPendingArticles inreased(NULL) in person table for uid ' + uid + ' by ' + articleCountUpdate)
+        }
+
+    } catch (e) {
+        console.log(e)
+    }
+};
