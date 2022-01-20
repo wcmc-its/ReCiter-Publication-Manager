@@ -1,5 +1,6 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { updatePendingArticleCount } from './person.controller'
 
 export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResponse) => {
     const { uid } = req.query;
@@ -44,6 +45,9 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
                 await feedbackModel.save()
                 res.status(201).send(feedbackModel)
                 console.log('Successful creation of feedbacklog ' + JSON.stringify(feedbackModel.toJSON()))
+
+                //Update pending count for articles in person table
+                await updatePendingArticleCount(personIdentifier, feedback)
             } else {
                 res.status(401).send('userID ' + userID + ' is unauthorized to provide feedback')
                 console.log('userID ' + userID + ' is unauthorized to provide feedback')
