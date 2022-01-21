@@ -1,5 +1,6 @@
 import React from "react";
 import Publication from "../Publication/Publication";
+import Divider from "../Common/Divider";
 
 interface TabContentProps {
   tabType: string,
@@ -21,13 +22,16 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     <>
       {props.publications.map((publication: any, index: number) => {
         return (
-          <Publication 
-            index={index}
-            key={index}
-            reciterArticle={publication}
-            personIdentifier={props.personIdentifier}
-            fullName={props.fullName}
-          />
+          <>
+            <Publication 
+              index={index}
+              key={index}
+              reciterArticle={publication}
+              personIdentifier={props.personIdentifier}
+              fullName={props.fullName}
+            />
+            <Divider />
+          </>
         )
       })}
     </>
