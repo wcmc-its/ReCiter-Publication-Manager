@@ -8,6 +8,7 @@ import { Container, Button } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
 import InferredKeywords from "./InferredKeywords"
+import SuggestionsBanner from "./SuggestionsBanner";
 
 interface PrimaryName {
   firstInitial?: string,
@@ -64,6 +65,12 @@ const CurateIndividual = () => {
             <Button className="transparent-btn">View Profile</Button>
           </div>
         </Container>
+      }
+      { reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
+        <SuggestionsBanner
+          uid={id}
+          count={reciterData.reciterPending.length}
+        />
       }
     </div>
   )
