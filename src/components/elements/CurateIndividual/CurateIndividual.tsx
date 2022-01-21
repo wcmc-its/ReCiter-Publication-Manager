@@ -75,6 +75,7 @@ const CurateIndividual = () => {
       }
       <ReciterTabs 
         reciterData={reciterData}
+        fullName={fullName(identityData.primaryName)}
       />
     </div>
   )

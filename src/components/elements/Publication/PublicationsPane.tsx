@@ -111,6 +111,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                   reciterArticle={item.reCiterArticleFeatures[pos]}
                   personIdentifier={item.personIdentifier}
                   onAccept={acceptPublication}
+                  fullName={ filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
                   />
               )
             })
