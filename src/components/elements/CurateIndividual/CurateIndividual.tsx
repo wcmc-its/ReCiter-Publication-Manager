@@ -9,6 +9,7 @@ import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
 import InferredKeywords from "./InferredKeywords"
 import SuggestionsBanner from "./SuggestionsBanner";
+import ReciterTabs from "./ReciterTabs";
 
 interface PrimaryName {
   firstInitial?: string,
@@ -72,6 +73,9 @@ const CurateIndividual = () => {
           count={reciterData.reciterPending.length}
         />
       }
+      <ReciterTabs 
+        reciterData={reciterData}
+      />
     </div>
   )
 }

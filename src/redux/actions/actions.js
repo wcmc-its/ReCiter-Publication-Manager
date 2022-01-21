@@ -245,7 +245,6 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             }
         })
         .then(data => {
-            console.log(data)
             dispatch({
                 type: methods.RECITER_CHANGE_DATA,
                 payload: data

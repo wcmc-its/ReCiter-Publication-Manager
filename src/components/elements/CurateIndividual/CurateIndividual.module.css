@@ -17,3 +17,28 @@
 .suggestionsBanner {
   background-color: #FEF7B8;
 }
+
+.count {
+  background-color: #474747;
+  padding: 5px;
+  margin: 5px;
+  border-radius: 20px;
+  color: white;
+}
+
+.activeCount {
+  background-color: #2458D1;
+  color: white;
+}
+
+.tabTitle {
+  color: #282828;
+}
+
+.activeTab {
+  font-weight: bold;
+}
+
+.nav-tabs .nav-link.active .tabTitle {
+  font-weight: bold;
+}
