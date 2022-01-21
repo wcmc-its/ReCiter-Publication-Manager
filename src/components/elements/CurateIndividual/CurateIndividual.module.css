@@ -9,3 +9,7 @@
 .greyText {
   color: #666363;
 }
+
+.highlighted {
+  background-color: #f5f5f5
+}

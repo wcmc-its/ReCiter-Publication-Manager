@@ -1,12 +1,13 @@
 import React, { useEffect } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import { Container, Button } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
+import InferredKeywords from "./InferredKeywords"
 
 interface PrimaryName {
   firstInitial?: string,
@@ -22,9 +23,12 @@ const CurateIndividual = () => {
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
+  const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
+  const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
 
   useEffect(() => {
     dispatch(identityFetchData(id));
+    dispatch(reciterFetchData(id, false));
   }, [])
 
   const DisplayName = ({ name } : { name: PrimaryName}) => {
@@ -34,7 +38,7 @@ const CurateIndividual = () => {
     )
   }
 
-  if (identityFetching) {
+  if (identityFetching || reciterFetching) {
     return (
       <Loader />
     )
@@ -52,6 +56,11 @@ const CurateIndividual = () => {
             />
             <b>{identityData.title}</b>
             <p className={styles.greyText}>{identityData.primaryOrganizationalUnit}</p>
+            {reciterData && reciterData.reciter &&
+              <InferredKeywords
+                reciter={reciterData.reciter}
+                />
+            }
             <Button className="transparent-btn">View Profile</Button>
           </div>
         </Container>
