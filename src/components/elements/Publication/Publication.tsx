@@ -499,15 +499,16 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             }
         </Col>
         <Col md={9} className={`${styles.publicationButtons} ${styles.publicationsSummary}`}>
-          <Row><strong>{reciterArticle.journalTitleVerbose}</strong></Row>
+          <Row><strong>{reciterArticle.articleTitle}</strong></Row>
             <div className={styles.publicationField}>
                 <span>
                   {reciterArticle.reCiterArticleAuthorFeatures.length > 0 &&
                   displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
                 </span>
             </div>
-            <span className={styles.midDot}> {reciterArticle.publicationType.publicationTypeCanonical} </span>
+            <span className={styles.midDot}> {reciterArticle.journalTitleVerbose} </span>
             <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
+            <span className={styles.midDot}> {reciterArticle.publicationType.publicationTypeCanonical} </span>
             <div className={styles.publicationAdditionalInfo}>
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
               <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
