@@ -37,8 +37,14 @@ const CuratePublications = () => {
 
   filtersList.forEach( filter => {
     if (Object.keys(filters).length > 0 && filters.hasOwnProperty(filter.value)) {
-      let dropdownItem = { title: filter.title, children: filters[filter.value]}
-      filterSectionList.push(dropdownItem)
+      if (filter.value === 'searchText') {
+        let searchWords = filters[filter.value].split(' ');
+        let dropdownItem = { title: filter.title, children: searchWords}
+        filterSectionList.push(dropdownItem)
+      } else {
+        let dropdownItem = { title: filter.title, children: filters[filter.value]}
+        filterSectionList.push(dropdownItem)
+      }
     } else {
       filterSectionList.push({ title: filter.title})
     }
@@ -67,6 +73,7 @@ const CuratePublications = () => {
         return (
           <PublicationsPane 
             key={index}
+            index={index}
             item={reciterItem}
             />
         )

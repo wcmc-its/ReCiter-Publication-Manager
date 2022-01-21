@@ -18,10 +18,12 @@ const SearchBar = ({
     personTypeQuery: Array<string>,
   ) => void;}) => {
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [orgUnitQuery, setOrgUnitQuery] = useState<Array<string>>([]);
-  const [insitutionQuery, setInstitutionQuery] = useState<Array<string>>([]);
-  const [personTypeQuery, setPersonTypeQuery] = useState<Array<string>>([]);
+  const filters = useSelector((state: RootStateOrAny) => state.filters)
+
+  const [searchQuery, setSearchQuery] = useState(filters.searchText ? filters.searchText : '');
+  const [orgUnitQuery, setOrgUnitQuery] = useState<Array<string>>(filters.orgUnits ? filters.orgUnits : []);
+  const [insitutionQuery, setInstitutionQuery] = useState<Array<string>>(filters.institutions ? filters.institutions : []);
+  const [personTypeQuery, setPersonTypeQuery] = useState<Array<string>>(filters.personTypes ? filters.personTypes : []);
 
   const dispatch = useDispatch()
 

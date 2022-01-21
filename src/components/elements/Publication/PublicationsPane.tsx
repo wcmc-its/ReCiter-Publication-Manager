@@ -9,6 +9,8 @@ import type { Author } from '../../../../types/Author';
 import { useRouter } from 'next/router';
 import { useSelector, RootStateOrAny } from "react-redux";
 import Publication from "./Publication";
+import { reciterConfig } from "../../../../config/local";
+import Divider from "../Common/Divider";
 
 //TEMP: update to required
 interface FuncProps {
@@ -18,15 +20,18 @@ interface FuncProps {
     item: any,
     faculty?: any,
     key: number,
+    index: number,
 }
 
 const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
 
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
-    const [displayArticleIndexes, setDisplayArticleIndexes] = useState<number[] | []>(props.item.reCiterArticleFeatures.length > 1 ? [0, 1] : [0])
+    const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
 
     const router = useRouter()
+
+    const maxArticlesPerPerson = reciterConfig.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams.maxArticlesPerPerson;
 
     // TODO
     const acceptPublication = ( pmid: number, index: number ) => {
@@ -35,24 +40,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           setCountPendingArticles(countPendingArticles - 1);
         }
         // props.onAccept(pmid);
-        let currArticleIndexes = [...displayArticleIndexes];
-        displayArticleIndexes.forEach((pos, i) => {
-          if (index === pos) {
-            if (displayArticleIndexes.length > 1) {
-              let currMax = Math.max(displayArticleIndexes[0], displayArticleIndexes[1]);
-              if (currMax === props.item.reCiterArticleFeatures.length - 1) {
-                currArticleIndexes.splice(i, 1);
-              } else {
-                currArticleIndexes.splice(i, 1, currMax + 1);
-                currArticleIndexes.sort((a, b) => a - b)
-              }
-            } else {
-              currArticleIndexes = [];
-            }
-          }
-        })
-        console.log(currArticleIndexes);
-        setDisplayArticleIndexes(currArticleIndexes);
+        let updatedArticlesList = articles.filter((article) => { article.pmid !== pmid});
+        setArticles(updatedArticlesList);
     }
 
     //TODO
@@ -76,7 +65,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
 
     return (
       <Container className={`${styles.publicationContainer} p-0`} fluid key={props.key}>
-        <Accordion>
+        <Accordion defaultActiveKey={props.index === 0 ? "0" : "1"}>
          <Accordion.Item eventKey="0">
           <Accordion.Header className={styles.publicationHeader}> 
             <Row>
@@ -97,24 +86,36 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           </Accordion.Header>
           <Accordion.Body> 
           {
-            item.reCiterArticleFeatures.length === 0 &&
+            (item.reCiterArticleFeatures.length === 0 || countPendingArticles === 0) &&
               <div className="d-flex justify-content-center">
                 <p className="text-align-center">No pending publications</p>
               </div>
           }
           {item.reCiterArticleFeatures.length > 0 &&
-            displayArticleIndexes.map((pos: number, index: number) => {
+            articles.map((article: any, index: number) => {
               return(
-                <Publication
-                  key={pos}
-                  index={pos}
-                  reciterArticle={item.reCiterArticleFeatures[pos]}
-                  personIdentifier={item.personIdentifier}
-                  onAccept={acceptPublication}
-                  fullName={ filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
-                  />
+                <>
+                  <Publication
+                    key={index}
+                    index={index}
+                    reciterArticle={article}
+                    personIdentifier={item.personIdentifier}
+                    onAccept={acceptPublication}
+                    fullName={filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
+                    />
+                    {index < articles.length - 1 && <Divider></Divider>}
+                </>
               )
             })
+            }
+            {
+              countPendingArticles > maxArticlesPerPerson && 
+              <Row>
+                <Divider></Divider>
+                <div className={`d-flex justify-content-center ${styles.publicationRowButtons}`}>
+                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>View All</Button>
+                </div>
+              </Row>
             }
          </Accordion.Body>
         </Accordion.Item>

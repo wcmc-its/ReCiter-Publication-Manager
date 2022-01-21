@@ -49,6 +49,14 @@ const Search = () => {
         dispatch(identityFetchPaginatedData(page, count))
         fetchCount()
         dispatch(identityFetchAllData())
+
+        if (Object.keys(filters).length > 0 && identityData.length === 0) {
+          let searchText = filters.searchText ? filters.searchText : "";
+          let orgUnits = filters.orgUnits ? filters.orgUnits : [];
+          let institutions = filters.institutions ? filters.institutions : [];
+          let personTypes = filters.personTypes ? filters.personTypes : [];
+          searchData(searchText, orgUnits, institutions, personTypes);
+        }
     },[])
 
 
@@ -197,14 +205,18 @@ const Search = () => {
             setIdentityData(searchResults);
             setPage(1);
 
-            let filteredIds = searchResults.length > 0 ? searchResults.map(person => person.personIdentifier) : [];
-            dispatch(updateFilteredIds(filteredIds));
+            let filteredIds = [];
 
             let filteredIdentities = {};
-            searchResults.forEach((person) => {
-              let personFullName = fullName(person);
-              filteredIdentities = {...filteredIdentities, [person.personIdentifier] : { title: person.title, fullName: personFullName}}
-            })
+
+            if ((searchText !== '' || orgUnits.length > 0 || institutions.length > 0 || personTypes.length > 0)) {
+              filteredIds = searchResults.length > 0 ? searchResults.map(person => person.personIdentifier) : [];
+              searchResults.forEach((person) => {
+                let personFullName = fullName(person);
+                filteredIdentities = {...filteredIdentities, [person.personIdentifier] : { title: person.title, fullName: personFullName}}
+              })
+            }
+            dispatch(updateFilteredIds(filteredIds));
             dispatch(updateFilteredIdentities(filteredIdentities))
         }
     }
