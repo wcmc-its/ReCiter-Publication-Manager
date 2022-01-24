@@ -46,7 +46,7 @@ export async function findUserFeedback(uid: string | string[])  {
                 let data: any = JSON.parse(responseText)
                 return {
                     statusCode: res.status,
-                    userFeedback: data
+                    statusText: data
                 }
              }
          })
@@ -59,7 +59,7 @@ export async function findUserFeedback(uid: string | string[])  {
          });
  }
 
- export async function saveUserFeedback(req: NextApiRequest, uid: string | string[])  {
+ export async function saveUserFeedback(req: NextApiRequest, uid: string | string[], userFeedback: any)  {
     
     return fetch(`${reciterConfig.reciter.reciterUserFeedbackEndpoints.saveUserFeedback}` +'?uid=' + uid, {
          method: "POST",
@@ -69,7 +69,7 @@ export async function findUserFeedback(uid: string | string[])  {
              'Content-Type': 'application/json',
              'Content-Length' : req.body.length
          },
-         body: JSON.stringify(req.body)
+         body: JSON.stringify(userFeedback)
      })
          .then(async (res) => {
             let data: any = await res.json()
