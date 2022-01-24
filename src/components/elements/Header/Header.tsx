@@ -1,8 +1,8 @@
 import React, { Component } from "react";
 import { Navbar, Container} from "react-bootstrap";
 import styles from "./Header.module.css";
-import { useSelector } from 'react-redux';
 import { signOut, useSession} from 'next-auth/client';
+import { getSigninUrl } from '../../../utils/loginHelper'
 
 type Props = {
     session: any
@@ -22,7 +22,7 @@ const Header: React.FC<Props> = () => {
               {(session && session.data) ? 
               <>
                   <li className={styles.headerNavSignedInAs}><p><b>Signed in as {session.data.username}</b></p></li> 
-                  <li><a className={styles.logout} onClick={()=>{signOut({ callbackUrl: `${window.location.origin}/login` })}}>Logout</a></li>
+                  <li><a className={styles.logout} onClick={()=>{signOut({ callbackUrl: getSigninUrl() })}}>Logout</a></li>
               </> : null}
               
           </ul>
