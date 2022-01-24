@@ -1,15 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { identityFetchData, reciterFetchData } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
-import { Container, Button } from "react-bootstrap";
+import { Container, Button, Row } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
 import InferredKeywords from "./InferredKeywords"
 import SuggestionsBanner from "./SuggestionsBanner";
 import ReciterTabs from "./ReciterTabs";
+import Image from "next/image";
 
 interface PrimaryName {
   firstInitial?: string,
@@ -27,6 +28,7 @@ const CurateIndividual = () => {
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
   const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
+  const [displayImage, setDisplayImage] = useState<boolean>(true);
 
   useEffect(() => {
     dispatch(identityFetchData(id));
@@ -51,7 +53,20 @@ const CurateIndividual = () => {
       <h1 className={styles.header}>Curate Publications</h1>
       {
         identityData &&
-        <Container className="indentity-data-container">
+        <Container className="indentity-data-container" fluid={true}>
+          <div className="d-flex">
+          {
+            displayImage &&
+            <div className={styles.profileImgWrapper}>
+              <Image
+                src={identityData.identityImageEndpoint}
+                alt="Profile photo"
+                width={144}
+                height={217}
+                onError={() => setDisplayImage(false)}
+                />
+            </div>
+          }
           <div className="flex-grow-1">
             <DisplayName 
               name={identityData.primaryName}
@@ -64,6 +79,7 @@ const CurateIndividual = () => {
                 />
             }
             <Button className="transparent-btn">View Profile</Button>
+          </div>
           </div>
         </Container>
       }
