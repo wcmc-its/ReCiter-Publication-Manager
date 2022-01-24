@@ -1,6 +1,8 @@
 import React from "react";
 import Publication from "../Publication/Publication";
 import Divider from "../Common/Divider";
+import FilterPubSection from "./FilterPubSection";
+import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 
 interface TabContentProps {
   tabType: string,
@@ -18,8 +20,17 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       </div>
     )
   }
+
+  const searchTextUpdate = (searchText: string) => {
+    // TODO: update the list
+    let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
+  }
+
   return (
     <>
+      <FilterPubSection 
+        searchTextUpdate={searchTextUpdate}
+      />
       {props.publications.map((publication: any, index: number) => {
         return (
           <>

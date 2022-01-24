@@ -42,3 +42,11 @@
 .nav-tabs .nav-link.active .tabTitle {
   font-weight: bold;
 }
+
+.filterPubSection {
+  background-color: #EFEFEF;
+}
+
+.whiteBtn {
+  background-color: white;
+}
