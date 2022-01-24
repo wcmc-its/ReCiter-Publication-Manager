@@ -482,14 +482,14 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
     if(request.userID && 
         request.personIdentifier && 
-        request.articleIdentifier &&
-        request.feedback
+        request.publications &&
+        request.userAssertion
         ) {
             let adminFeedbackRequestBody = {
                 "userID": request.userID,
                 "personIdentifier": uid,
-                "articleIdentifier": request.articleIdentifier,
-                "feedback": request.feedback
+                "articleIdentifier": request.publications,
+                "feedback": request.userAssertion
             }
             fetchWithTimeout(adminFeedbackLogUrl, {
                 credentials: "same-origin",
