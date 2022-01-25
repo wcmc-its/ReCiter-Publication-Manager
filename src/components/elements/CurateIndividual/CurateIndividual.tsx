@@ -11,6 +11,7 @@ import InferredKeywords from "./InferredKeywords"
 import SuggestionsBanner from "./SuggestionsBanner";
 import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
+import Profile from "../Profile/Profile";
 
 interface PrimaryName {
   firstInitial?: string,
@@ -29,6 +30,7 @@ const CurateIndividual = () => {
   const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
+  const [modalShow, setModalShow] = useState(false);
 
   useEffect(() => {
     dispatch(identityFetchData(id));
@@ -41,6 +43,9 @@ const CurateIndividual = () => {
       <h2>{formattedName}</h2>
     )
   }
+
+  const handleClose = () => setModalShow(false);
+  const handleShow = () => setModalShow(true);
 
   if (identityFetching || reciterFetching) {
     return (
@@ -78,7 +83,7 @@ const CurateIndividual = () => {
                 reciter={reciterData.reciter}
                 />
             }
-            <Button className="transparent-btn">View Profile</Button>
+            <Button className="transparent-btn" onClick={handleShow}>View Profile</Button>
           </div>
           </div>
         </Container>
@@ -92,7 +97,13 @@ const CurateIndividual = () => {
       <ReciterTabs 
         reciterData={reciterData}
         fullName={fullName(identityData.primaryName)}
-      />
+      /> 
+        <Profile 
+          uid={identityData.uid}
+          modalShow={modalShow}
+          handleShow={handleShow}
+          handleClose={handleClose}
+        />
     </div>
   )
 }

@@ -41,7 +41,7 @@ const Profile = ({
   const relationshipsDisplayed = 10;
 
   useEffect(() => {
-    if (modalShow) {
+    if (modalShow && !identityData) {
       dispatch(identityFetchData(uid));
     }
   }, [modalShow])
