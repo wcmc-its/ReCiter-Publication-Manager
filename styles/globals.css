@@ -44,5 +44,30 @@ a {
 
 .btn-primary.primary:hover {
   background: #549ad8;
-  
+}
+
+.transparent-btn.btn.btn-primary {
+  background-color: #ffffff;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  margin-left: 10px;
+  color: #333333;
+}
+
+.text-btn {
+  color: #0d6efd;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.modal-backdrop.show {
+  z-index: 2055;
+}
+
+.modal.show {
+  z-index: 2055;
+}
+
+.modal.show {
+  z-index: 2055 ;
 }

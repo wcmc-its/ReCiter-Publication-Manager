@@ -30,8 +30,7 @@ export async function getPublications(uid: string | string[], req: NextApiReques
                     }
                 } else {
                     let data: any = await res.json()
-                    let formattedData = formatPublications(data)
-                    let finalData = await getPendingFeedback(uid, formattedData)
+                    let finalData = await getPendingFeedback(uid, data)
                     return {
                         statusCode: res.status,
                         statusText: finalData

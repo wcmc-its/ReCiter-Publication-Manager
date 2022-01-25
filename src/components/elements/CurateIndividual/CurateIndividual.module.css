@@ -1,0 +1,56 @@
+.header {
+  font-weight: 200;
+  color: #666363;
+  font-size: 20px;
+  font-family: Open Sans, sans-serif, Arial;
+  padding-bottom: 10px;
+}
+
+.greyText {
+  color: #666363;
+}
+
+.highlighted {
+  background-color: #f5f5f5
+}
+
+.suggestionsBanner {
+  background-color: #FEF7B8;
+}
+
+.count {
+  background-color: #474747;
+  padding: 5px;
+  margin: 5px;
+  border-radius: 20px;
+  color: white;
+}
+
+.activeCount {
+  background-color: #2458D1;
+  color: white;
+}
+
+.tabTitle {
+  color: #282828;
+}
+
+.activeTab {
+  font-weight: bold;
+}
+
+.nav-tabs .nav-link.active .tabTitle {
+  font-weight: bold;
+}
+
+.filterPubSection {
+  background-color: #EFEFEF;
+}
+
+.whiteBtn {
+  background-color: white;
+}
+
+.profileImgWrapper {
+  padding-right: 2rem;
+}
