@@ -8,11 +8,9 @@ export default async function handler(req, res) {
         const { data, headers } = await axios.get("/api/auth/csrf", {
             baseURL: "https://" + req.headers.host,
         });
-        console.log(data)
         const { csrfToken } = data;
 
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
-        console.log(encodedSAMLBody)
 
         res.setHeader("set-cookie", headers["set-cookie"] ?? "");
         return res.send(
@@ -31,7 +29,7 @@ export default async function handler(req, res) {
     }
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-    const createLoginRequestUrl = (idp, options = {}) =>
+    const createLoginRequestUrl = (idp, options = {relay_state: "search"}) =>
         new Promise((resolve, reject) => {
             sp.create_login_request_url(idp, options, (error, loginUrl) => {
                 if (error) {
