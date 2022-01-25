@@ -32,6 +32,7 @@ const ReciterTabs = ({ reciterData, fullName } : {reciterData: any, fullName: st
             return (
               <Tab
               eventKey={tabData.value}
+              key={tabData.value}
               title={
                 <div className={key === tabData.value ? `${styles.activeTab} ${styles.tabTitle}` : styles.tabTitle}>{tabData.name}<span className={key === tabData.value ? `${styles.activeCount} ${styles.count}` : styles.count}>{tabData.count}</span></div>
               }>

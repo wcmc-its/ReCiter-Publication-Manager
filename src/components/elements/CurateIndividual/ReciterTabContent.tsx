@@ -15,7 +15,7 @@ interface TabContentProps {
 }
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
-  const [sort, setSort] = useState<number>(0)
+  const [sort, setSort] = useState<string>("0")
   const [publications, setPublications] = useState<any>(props.publications);
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
@@ -33,7 +33,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setPublications(filteredPublications);
   }
 
-  const sortUpdate = (sort: number) => {
+  const sortUpdate = (sort: string) => {
     setSort(sort);
     let sortedPublications = sortPublications(props.publications, sort);
     setPublications(sortedPublications);

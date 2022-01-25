@@ -4,18 +4,18 @@ import styles from "./CurateIndividual.module.css";
 
 interface FilterPubSectionProps {
   searchTextUpdate: (searchText: string) => void
-  sortUpdate: (sort: number) => void
+  sortUpdate: (sort: string) => void
 }
 
 const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
   const [searchText, setSearchText] = useState<string>('');
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) =>{
+  const handleInputChange = (e: any) =>{
     setSearchText(e.target.value);
     props.searchTextUpdate(e.target.value);
   }
 
-  const handleSortChange = (e: number) => {
+  const handleSortChange = (e: string) => {
     props.sortUpdate(e);
   }
 
@@ -30,8 +30,8 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
           <Form.Control type="text" placeholder="Filter..." value={searchText} onChange={(e) => handleInputChange(e)}/>
         </Form>
         <DropdownButton className={`${styles.basicDropdown} mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(eventKey) => handleSortChange(eventKey)}>
-          <Dropdown.Item eventKey={1}>Sort by Score</Dropdown.Item>
-          <Dropdown.Item eventKey={2}>Sort by Date</Dropdown.Item>
+          <Dropdown.Item eventKey="1">Sort by Score</Dropdown.Item>
+          <Dropdown.Item eventKey="2">Sort by Date</Dropdown.Item>
         </DropdownButton>
       </div>
     </div>
