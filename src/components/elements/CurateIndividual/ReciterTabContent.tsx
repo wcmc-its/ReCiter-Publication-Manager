@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import Publication from "../Publication/Publication";
 import Divider from "../Common/Divider";
 import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
+import sortPublications from "../../../utils/sortPublications";
 
 interface TabContentProps {
   tabType: string,
@@ -13,6 +14,9 @@ interface TabContentProps {
 }
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
+  const [sort, setSort] = useState<number>(0)
+  const [publications, setPublications] = useState<any>(props.publications);
+
   if (!props.publications.length) {
     return (
       <div className="text-center">
@@ -22,16 +26,23 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   }
 
   const searchTextUpdate = (searchText: string) => {
-    // TODO: update the list
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
+    setPublications(filteredPublications);
+  }
+
+  const sortUpdate = (sort: number) => {
+    setSort(sort);
+    let sortedPublications = sortPublications(props.publications, sort);
+    setPublications(sortedPublications);
   }
 
   return (
     <>
       <FilterPubSection 
         searchTextUpdate={searchTextUpdate}
+        sortUpdate={sortUpdate}
       />
-      {props.publications.map((publication: any, index: number) => {
+      {publications.map((publication: any, index: number) => {
         return (
           <>
             <Publication 
