@@ -12,6 +12,9 @@ phases:
         - |
           if expr "${BRANCH}" : ".*dev" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-dev"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
+            aws s3 cp s3://reciter-config/config/dev/saml/idp.crt ./config/certs/idp.crt
+            aws s3 cp s3://reciter-config/config/dev/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
+            aws s3 cp s3://reciter-config/config/dev/saml/reciter-saml.key ./config/certs/reciter-saml.key
           fi
         - |
           if expr "${BRANCH}" : ".*master" >/dev/null; then
