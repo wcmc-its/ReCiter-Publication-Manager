@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Providers from "next-auth/providers";
+import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findOrCreateAdminUsers } from '../../../../controllers/db/admin.users.controller'
@@ -32,6 +33,7 @@ const options = {
             name: "SAML",
             authorize: async ({ samlBody }) => {
                 samlBody = JSON.parse(decodeURIComponent(samlBody));
+                console.log(samlBody)
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
 
                 const postAssert = (identityProvider, samlBody) =>
