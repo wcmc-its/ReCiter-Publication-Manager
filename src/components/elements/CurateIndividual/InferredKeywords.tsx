@@ -15,14 +15,6 @@ const InferredKeywords = ({
 }) => {
   let keyWordsList: Array<Keyword> = [];
 
-  const popover = (
-      <Popover id="keyword-information">
-        <Popover.Body>
-          {` accepted publications are indexed with this keyword.`}
-        </Popover.Body>
-      </Popover>
-    );
-
   return (
     <> 
     {
