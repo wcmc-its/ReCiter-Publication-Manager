@@ -20,7 +20,7 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
   }
 
   return (
-    <div className={`${styles.filterPubSection} py-4 d-flex justify-space-between`}>
+    <div className={`${styles.filterPubSection} py-4 d-flex justify-content-between`}>
       <div className="filter-section-buttons d-flex flex-basis-content">
         <Button className="m-2" variant="primary">Accept All</Button>
         <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary">Reject All</Button>
