@@ -4,6 +4,7 @@ import Divider from "../Common/Divider";
 import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
+import Pagination  from '../Pagination/Pagination';
 
 interface TabContentProps {
   tabType: string,
@@ -16,6 +17,8 @@ interface TabContentProps {
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [sort, setSort] = useState<number>(0)
   const [publications, setPublications] = useState<any>(props.publications);
+  const [page, setPage] = useState(1)
+  const [count, setCount] = useState(20)
 
   if (!props.publications.length) {
     return (
@@ -36,13 +39,37 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setPublications(sortedPublications);
   }
 
+  const handlePaginationUpdate = (eventKey, page, updateCount) => {
+    let updatedCount = count
+    setPage(page)
+
+    if (updateCount) {
+      setCount(eventKey)
+      updatedCount = eventKey
+    }
+  }
+
+  const getPaginatedData = () => {
+    let from = (page - 1) * count;
+    let to = from + count;
+    let dataList = [];
+    if (publications) {
+      dataList = publications;
+    }
+    return dataList.slice(from, to);
+  };
+
   return (
     <>
       <FilterPubSection 
         searchTextUpdate={searchTextUpdate}
         sortUpdate={sortUpdate}
       />
-      {publications.map((publication: any, index: number) => {
+      <Pagination total={publications.length} page={page}
+        count={count}
+        onChange={handlePaginationUpdate}
+        />
+      {getPaginatedData().map((publication: any, index: number) => {
         return (
           <>
             <Publication 
