@@ -16,7 +16,7 @@ const options = {
             async authorize(credentials) {
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
-
+                console.log(apiResponse)
                   if (apiResponse.statusCode == 200) {
                         const adminUser = await findOrCreateAdminUsers(credentials.username)
                         apiResponse.databaseUser = adminUser
@@ -61,16 +61,15 @@ const options = {
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     }
+                    console.log(user)
 
                     if (cwid) {
-                        const adminUser = await findUserByCwid(cwid);
+                        const adminUser = await findOrCreateAdminUsers(cwid)
+                        adminUser.databaseUser = adminUser
 
                         if (adminUser) {
-                            return {
-                                id: adminUser.id,
-                                cwid,
-                                has_access: adminUser.has_access,
-                            };
+                            console.log(adminUser)
+                            return adminUser;
                         }
                     }
 
@@ -91,10 +90,14 @@ const options = {
             return session
         },
         async jwt(token, apiResponse) {
-            if(apiResponse !== undefined && apiResponse.statusMessage && apiResponse.databaseUser) {
-              token.accessToken = apiResponse.statusMessage.accessToken
-              token.username = apiResponse.statusMessage.username
-              token.databaseUser = apiResponse.databaseUser
+            if(apiResponse) {
+              if(apiResponse.statusMessage) {
+                token.accessToken = apiResponse.statusMessage.accessToken
+                token.username = apiResponse.statusMessage.username
+              }
+              if(apiResponse.databaseUser) {
+                token.databaseUser = apiResponse.databaseUser
+              }
             }
             return token
         },
