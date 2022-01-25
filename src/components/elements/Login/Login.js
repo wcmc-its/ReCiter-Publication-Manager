@@ -43,7 +43,7 @@ const Login = () => {
     const handleSubmit = async(e) => {
       e.preventDefault()
 
-      let signInResponse = await signIn("credentials", {
+      let signInResponse = await signIn("direct_login", {
         username: username,
         password: password,
         redirect: false
