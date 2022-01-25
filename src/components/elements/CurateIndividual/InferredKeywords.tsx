@@ -1,10 +1,11 @@
 import React from "react";
 import styles from "./CurateIndividual.module.css";
+import { Popover, OverlayTrigger } from "react-bootstrap";
 
 interface Keyword {
   keyword: string,
   type: string,
-  cout: number
+  count: number
 }
 
 const InferredKeywords = ({
@@ -13,6 +14,14 @@ const InferredKeywords = ({
   reciter: any
 }) => {
   let keyWordsList: Array<Keyword> = [];
+
+  const popover = (
+      <Popover id="keyword-information">
+        <Popover.Body>
+          {` accepted publications are indexed with this keyword.`}
+        </Popover.Body>
+      </Popover>
+    );
 
   return (
     <> 
@@ -24,7 +33,16 @@ const InferredKeywords = ({
         reciter.articleKeywordsAcceptedArticles.map((articleKeyword: Keyword, key: number) => {
           return (
             <>
-              <span className={styles.highlighted}>{articleKeyword.keyword}</span><span>{' '}</span>
+              <OverlayTrigger 
+                trigger={"hover"} 
+                overlay={(      
+                  <Popover id="keyword-information">
+                    <Popover.Body>
+                      {`${articleKeyword.count} accepted publications are indexed with this keyword.`}
+                    </Popover.Body>
+                  </Popover>)} placement="top"><span className={styles.highlighted}>{articleKeyword.keyword}</span>
+              </OverlayTrigger>
+              <span>{' '}</span>
             </>
           )
         })
