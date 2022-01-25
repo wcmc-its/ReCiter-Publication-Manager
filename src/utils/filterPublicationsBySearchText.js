@@ -19,6 +19,10 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                   if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(search.toLowerCase())) {
                       addPublication = true
                   }
+                  //pmid
+                  if(publication.pmid !== undefined && publication.pmid.toLowerCase().includes(search.toLowerCase())) {
+                    addPublication = true
+                  }
                   //publicationTypeCanonical
                   if(publication.publicationType !== undefined && publication.publicationType.publicationTypeCanonical !== undefined &&  publication.publicationType.publicationTypeCanonical.toLowerCase().includes(search.toLowerCase())) {
                       addPublication = true
