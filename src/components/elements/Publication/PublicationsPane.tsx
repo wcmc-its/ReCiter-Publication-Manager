@@ -11,6 +11,7 @@ import { useSelector, RootStateOrAny } from "react-redux";
 import Publication from "./Publication";
 import { reciterConfig } from "../../../../config/local";
 import Divider from "../Common/Divider";
+import Profile from "../Profile/Profile";
 
 //TEMP: update to required
 interface FuncProps {
@@ -28,6 +29,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
+    const [modalShow, setModalShow] = useState(false);
 
     const router = useRouter()
 
@@ -61,6 +63,9 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
       return router.push('/app/' + uid)
     }
 
+    const handleClose = () => setModalShow(false);
+    const handleShow = () => setModalShow(true);
+
     const { item } = props;
 
     return (
@@ -74,7 +79,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               </Col>
               <Col md={3}>
                 <div className={styles.publicationRowButtons}>
-                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>
+                  <Button onClick={handleShow}>
                     View Profile
                   </Button>
                   <Button onClick={() => handleProfileClick(item.personIdentifier)}>
@@ -120,6 +125,12 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
          </Accordion.Body>
         </Accordion.Item>
       </Accordion>
+      <Profile 
+        uid={item.personIdentifier}
+        modalShow={modalShow}
+        handleShow={handleShow}
+        handleClose={handleClose}
+      />
     </Container>
   ); 
 }

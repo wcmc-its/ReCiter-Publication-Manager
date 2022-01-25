@@ -156,12 +156,12 @@ export const pubmedData = (state=[], action) => {
 
 }
 
-export const identityData = (state=[], action) => {
+export const identityData = (state={}, action) => {
 
     switch(action.type) {
         
         case methods.IDENTITY_CLEAR_DATA :
-            return []
+            return {}
 
         case methods.IDENTITY_CHANGE_DATA :
             return action.payload
