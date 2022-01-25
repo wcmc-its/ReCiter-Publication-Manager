@@ -55,3 +55,9 @@
 .profileImgWrapper {
   padding-right: 2rem;
 }
+
+.basicDropdown {
+  color: black;
+  background-color: white;
+  border-color: #ccc;
+}

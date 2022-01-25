@@ -5,6 +5,7 @@ import styles from "./CurateIndividual.module.css";
 interface FilterPubSectionProps {
   searchTextUpdate: (searchText: string) => void
   sortUpdate: (sort: string) => void
+  publications: any
 }
 
 const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
@@ -19,11 +20,16 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
     props.sortUpdate(e);
   }
 
+  const updateAll = (userAssertion: string) => {
+    // TODO: call redux action
+    let filteredIds = props.publications.map((publication: any) => publication.pmid);
+  }
+
   return (
     <div className={`${styles.filterPubSection} py-4 d-flex justify-content-between`}>
       <div className="filter-section-buttons d-flex flex-basis-content">
-        <Button className="m-2" variant="primary">Accept All</Button>
-        <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary">Reject All</Button>
+        <Button className="m-2" variant="primary" onClick={() => updateAll('ACCEPT')}>Accept All</Button>
+        <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('REJECT')}>Reject All</Button>
       </div>
       <div className="d-flex align-items-end">
         <Form className="d-flex flex-basis-content mx-2">
