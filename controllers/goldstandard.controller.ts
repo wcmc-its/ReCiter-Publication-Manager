@@ -4,8 +4,14 @@ import url from 'url'
 import { saveUserFeedback } from './userfeedback.controller'
 
 export async function updateGoldStandard(req: NextApiRequest)  {
+
+    const {
+        query: { goldStandardUpdateFlag }
+      } = req;
+
+    console.log(goldStandardUpdateFlag);
     
-   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}`, {
+   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
@@ -56,5 +62,5 @@ async function callUserFeedbackApi(goldStandard: any, req: NextApiRequest) {
         'rejectedPmids': rejectedPmids,
         'feedbackDate': new Date()
     }
-    console.log(await saveUserFeedback(req, goldStandard.uid))
+    console.log(await saveUserFeedback(req, goldStandard.uid, userFeedback))
 }

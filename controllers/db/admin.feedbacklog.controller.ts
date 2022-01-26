@@ -1,5 +1,6 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { updatePendingArticleCount } from './person.controller'
 
 export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResponse) => {
     const { uid } = req.query;
@@ -34,16 +35,22 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
             })
             if(isUserExistAndActive) {
                 console.log('UserID ' + userID + ' for request createFeedbackLog exist and active')
-                const feedbackModel = models.AdminFeedbackLog.build({
-                    userID: isUserExistAndActive.userID,
-                    personIdentifier: personIdentifier,
-                    articleIdentifier: articleIdentifier,
-                    feedback: feedback,
-                    createTimestamp: new Date()
-                })
-                await feedbackModel.save()
-                res.status(201).send(feedbackModel)
-                console.log('Successful creation of feedbacklog ' + JSON.stringify(feedbackModel.toJSON()))
+                let data = []
+                articleIdentifier.forEach((element: number) => {
+                    data.push({
+                        userID: isUserExistAndActive.userID,
+                        personIdentifier: personIdentifier,
+                        articleIdentifier: element,
+                        feedback: feedback,
+                        createTimestamp: new Date()
+                    })
+                });
+                const feedbackLog = await models.AdminFeedbackLog.bulkCreate(data)
+                res.status(201).send(feedbackLog)
+                console.log('Successful creation of feedbacklog ' + feedbackLog.length)
+
+                //Update pending count for articles in person table
+                await updatePendingArticleCount(personIdentifier, feedback)
             } else {
                 res.status(401).send('userID ' + userID + ' is unauthorized to provide feedback')
                 console.log('userID ' + userID + ' is unauthorized to provide feedback')

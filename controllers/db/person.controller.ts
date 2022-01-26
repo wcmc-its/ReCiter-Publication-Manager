@@ -2,6 +2,7 @@ import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { Sequelize, Op } from "sequelize"
 import { Person } from '../../src/db/models/Person'
+import { findUserFeedback } from '../userfeedback.controller'
 
 models.Person.hasOne(models.PersonPersonType)
 models.PersonPersonType.hasMany(models.Person)
@@ -160,4 +161,50 @@ export const findOnePerson = async (uid: string) => {
         console.log(e)
     }
     
+};
+
+export const updatePendingArticleCount = async (uid: string, feedback: string) => {
+
+    try {
+        const userfeedback = await findUserFeedback(uid)
+        let totalPendingCount: number = 0
+        if(userfeedback.statusCode && userfeedback.statusCode == 200) {
+            if(feedback == "ACCEPTED" || feedback == "REJECTED") {
+                if(userfeedback.statusCode && userfeedback.statusCode.rejectedPmids) {
+                    totalPendingCount = totalPendingCount + userfeedback.statusCode.rejectedPmids.length
+                }
+                if(userfeedback.statusCode && userfeedback.statusCode.acceptedPmids) {
+                    totalPendingCount = totalPendingCount + userfeedback.statusCode.acceptedPmids.length
+                }
+                const articleCountUpdate = await models.Person.increment({
+                    countPendingArticles: -totalPendingCount
+                    }, 
+                    {
+                        where: {
+                            personIdentifier: uid,
+                            countPendingArticles: {
+                                [Op.gt]: 0
+                            } 
+
+                        }
+                })
+                console.log('countPendingArticles decreased(ACCEPTED || REJECTED) in person table for uid ' + uid + ' by ' + articleCountUpdate)
+            } else {
+                const articleCountUpdate = await models.Person.increment({
+                    countPendingArticles: totalPendingCount
+                    }, 
+                    {
+                        where: {
+                            personIdentifier: uid,
+                            countPendingArticles: {
+                                [Op.gt]: 0
+                            }
+                        }
+                })
+                console.log('countPendingArticles inreased(NULL) in person table for uid ' + uid + ' by ' + articleCountUpdate)
+            }
+        }
+    } catch (e) {
+        console.log(e)
+    }
 };
