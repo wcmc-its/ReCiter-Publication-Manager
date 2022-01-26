@@ -59,24 +59,28 @@ async function getPendingFeedback(uid: string | string[], data: any) {
             reciterData: data,
             reciterPendingData: []
         }
-    } else if(userFeedbackResponse.statusCode == 200 && userFeedbackResponse.userFeedback !== undefined) {
+    } else if(userFeedbackResponse.statusCode == 200 && userFeedbackResponse.statusText !== undefined) {
         let pendingPublications: any = []
-            if(userFeedbackResponse.userFeedback.userFeedback.acceptedPmids !== undefined) {
-                userFeedbackResponse.userFeedback.userFeedback.acceptedPmids.forEach((acceptedPmid: any) => {
-                    let foundIndex = data.findIndex((item: any) => item.pmid == acceptedPmid)
-                    data[foundIndex].userAssertion = 'ACCEPTED'
-                    pendingPublications.push(
-                        data[foundIndex]
-                    )
+            if(userFeedbackResponse.statusText.acceptedPmids !== undefined) {
+                userFeedbackResponse.statusText.acceptedPmids.forEach((acceptedPmid: any) => {
+                    let foundIndex = data.reCiterArticleFeatures.findIndex((item: any) => item.pmid == acceptedPmid)
+                    if(foundIndex >= 0) {
+                        data.reCiterArticleFeatures[foundIndex].userAssertion = 'ACCEPTED'
+                        pendingPublications.push(
+                            data.reCiterArticleFeatures[foundIndex].pmid
+                        )
+                    }
                 })
             }
-            if(userFeedbackResponse.userFeedback.userFeedback.rejectedPmids !== undefined) {
-                userFeedbackResponse.userFeedback.userFeedback.rejectedPmids.forEach((rejectedPmid: any) => {
-                    let foundIndex = data.findIndex((item: any) => item.pmid == rejectedPmid)
-                    data[foundIndex].userAssertion = 'REJECTED'
-                    pendingPublications.push(
-                        data[foundIndex]
-                    )
+            if(userFeedbackResponse.statusText.rejectedPmids !== undefined) {
+                userFeedbackResponse.statusText.rejectedPmids.forEach((rejectedPmid: any) => {
+                    let foundIndex = data.reCiterArticleFeatures.findIndex((item: any) => item.pmid == rejectedPmid)
+                    if(foundIndex >= 0) {
+                        data.reCiterArticleFeatures[foundIndex].userAssertion = 'REJECTED'
+                        pendingPublications.push(
+                            data.reCiterArticleFeatures[foundIndex].pmid
+                        )
+                    }
                 })
             }
             reciterData = {
