@@ -1,11 +1,12 @@
 import React, { useState, ChangeEvent } from "react";
 import { Button, Row, Form, Dropdown, DropdownButton } from "react-bootstrap";
+import { Publication } from "../../../../types/publication";
 import styles from "./CurateIndividual.module.css";
 
 interface FilterPubSectionProps {
   searchTextUpdate: (searchText: string) => void
   sortUpdate: (sort: string) => void
-  publications: any
+  publications: Array<Publication>
 }
 
 const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
@@ -22,7 +23,7 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
 
   const updateAll = (userAssertion: string) => {
     // TODO: call redux action
-    let filteredIds = props.publications.map((publication: any) => publication.pmid);
+    let filteredIds = props.publications.map((publication: Publication) => publication.pmid);
   }
 
   return (
