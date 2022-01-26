@@ -62,5 +62,6 @@ async function callUserFeedbackApi(goldStandard: any, req: NextApiRequest) {
         'rejectedPmids': rejectedPmids,
         'feedbackDate': new Date()
     }
-    console.log(await saveUserFeedback(req, goldStandard.uid, userFeedback))
+    req.body = userFeedback
+    console.log(await saveUserFeedback(req, goldStandard.uid))
 }
