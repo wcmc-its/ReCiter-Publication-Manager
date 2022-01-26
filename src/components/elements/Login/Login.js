@@ -3,18 +3,12 @@ import { Button, Form, FormGroup, FormControl, Row, Col } from "react-bootstrap"
 import styles from "./Login.module.css";
 import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
-import { useSelector } from "react-redux"
 import Router from "next/router"
 import Header from "../Header/Header"
 import { signIn } from "next-auth/client"
 import { toast } from "react-toastify"
 
 const Login = () => {
-    const auth = useSelector((state) => state.auth)
-    const sid = useSelector((state) => state.sid)
-    const reciterFetching = useSelector((state) => state.reciterFetching)
-    const reciterData = useSelector((state) => state.reciterData)
-    const errors = useSelector((state) => state.errors)
 
     const [invalidCredentialsFlag, setInvalidCredentialsFlag] = useState(false)
     const [username, setUsername] = useState("")
@@ -51,24 +45,16 @@ const Login = () => {
        if (signInResponse.status == 200) {
             toast.info("Successful Login", {
                 position: "top-right",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
+                autoClose: 2000,
+                theme: "colored"
             });
             Router.push(`${window.location.origin}/search`);
         } else {
             setInvalidCredentialsFlag(true)
             toast.error("Invalid credentials", {
                 position: "top-right",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
+                autoClose: 2000,
+                theme: "colored"
             });
         }
     }
