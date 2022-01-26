@@ -14,8 +14,12 @@ export async function getServerSideProps(ctx) {
     }
 
     return {
-        props: {
+       /*  props: {
             session: session,
+        }, */
+        redirect: {
+            destination: "/",
+            permanent: false,
         },
     };
 }
