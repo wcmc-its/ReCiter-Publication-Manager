@@ -21,6 +21,15 @@ export async function getServerSideProps(ctx) {
         };
     }
 
+    if(process.env.LOGIN_PROVIDER == "SAML") {
+        return {
+            redirect: {
+                destination: "/api/saml/assert?callbackUrl=/search",
+                permanent: false,
+            },
+        };
+    }
+
     return {
        props: {
             session: session,
