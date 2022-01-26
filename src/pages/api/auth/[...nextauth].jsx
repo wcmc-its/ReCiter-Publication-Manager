@@ -33,7 +33,6 @@ const options = {
             name: "SAML",
             authorize: async ({ samlBody }) => {
                 samlBody = JSON.parse(decodeURIComponent(samlBody));
-                console.log(samlBody)
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
 
                 const postAssert = (identityProvider, samlBody) =>
@@ -66,7 +65,6 @@ const options = {
                     console.log(user)
 
                     if (cwid) {
-                        console.log(cwid)
                         const adminUser = await findOrCreateAdminUsers(cwid)
 
                         adminUser.databaseUser = adminUser
@@ -85,15 +83,14 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
-            console.log(apiResponse)
             return apiResponse
         },
         async session(session, token) {
             session.data = token
+            console.log(session)
             return session
         },
         async jwt(token, apiResponse) {
-            console.log(apiResponse)
             if(apiResponse) {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
