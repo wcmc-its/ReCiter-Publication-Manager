@@ -5,6 +5,14 @@ export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
 
     if (session && session.data) {
+        if(session.data.databaseUser && session.data.databaseUser.status == 0) {
+            return {
+                redirect: {
+                    destination: "/noaccess",
+                    permanent: false,
+                },
+            };
+        }
         return {
             redirect: {
                 destination: "/search",
@@ -14,12 +22,8 @@ export async function getServerSideProps(ctx) {
     }
 
     return {
-       /*  props: {
+       props: {
             session: session,
-        }, */
-        redirect: {
-            destination: "/",
-            permanent: false,
         },
     };
 }
