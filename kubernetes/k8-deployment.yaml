@@ -60,6 +60,8 @@ spec:
               secretKeyRef:
                 name: reciter-pm-dev-secrets
                 key: RECITER_DB_HOST
+          - name: LOGIN_PROVIDER
+            value: SAML
         ports:
           - containerPort: 3000
             name: reciter-pm
