@@ -74,19 +74,6 @@ const Search = () => {
         }
     }
 
-    const handleSearchUpdate = e => {
-        setIdentitySearch(e.target.value)
-    }
-
-    const handleFilterUpdate = filterState => {
-        setSearch(filterState.search)
-        setPage(1)
-    }
-
-    const handleRedirect = uid => {
-        return router.push('/app/' + uid)
-    }
-
     const filter = () => {
         var from = (parseInt(page, 10) - 1) * parseInt(count, 10);
         var to = from + parseInt(count, 10) - 1;
@@ -393,7 +380,7 @@ function Name(props) {
     }
     if(props.identity.firstName !== undefined) {
         const nameString = props.identity.firstName + ((props.identity.middleName !== undefined) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
-        nameArray.push(<p key="0"> <a href={`/app/${props.identity.personIdentifier}`} target="_blank" rel="noreferrer">
+        nameArray.push(<p key="0"> <a href={`/curate/${props.identity.personIdentifier}`}>
             <b>{nameString}</b>
             </a>
             <br />
