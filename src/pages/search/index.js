@@ -2,7 +2,7 @@ import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
 import { getSession } from "next-auth/client"
 
-export async function getServerSideProps(ctx) {
+/* export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
 
     if (!session || !session.data) {
@@ -19,7 +19,7 @@ export async function getServerSideProps(ctx) {
             session: session,
         },
     };
-}
+} */
 
 const SearchPage = () => {
     return (
