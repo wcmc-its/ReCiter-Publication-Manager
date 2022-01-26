@@ -4,6 +4,14 @@ export async function getServerSideProps(ctx) {
     if(process.env.LOGIN_PROVIDER !== "SAML") {
         //Redirect to search after login
         if(session && session.data) {
+            if(session.data.databaseUser && session.data.databaseUser.status == 0) {
+                return {
+                    redirect: {
+                        destination: "/noaccess",
+                        permanent: false,
+                    },
+                };
+            }
             return {
                 redirect: {
                     destination: "/search",
@@ -20,6 +28,14 @@ export async function getServerSideProps(ctx) {
     }
     //Redirect to search after login
     if(session && session.data) {
+        if(session.data.databaseUser && session.data.databaseUser.status == 0) {
+            return {
+                redirect: {
+                    destination: "/noaccess",
+                    permanent: false,
+                },
+            };
+        }
         return {
             redirect: {
                 destination: "/search",
