@@ -43,8 +43,6 @@ export default async function handler(req, res) {
     try {
         const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
         const loginUrl = await createLoginRequestUrl(idp);
-        console.log(loginUrl)
-
         return res.redirect(loginUrl);
     } catch (error) {
         console.error(error);
