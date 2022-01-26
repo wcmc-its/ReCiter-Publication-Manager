@@ -101,7 +101,6 @@ const options = {
                 token.databaseUser = apiResponse.databaseUser
               }
             }
-            console.log(token)
             return token
         },
     },
