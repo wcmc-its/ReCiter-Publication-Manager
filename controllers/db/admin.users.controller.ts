@@ -3,18 +3,18 @@ import { findOnePerson } from './person.controller'
 
 export const findOrCreateAdminUsers = async (uid: string) => {
     try {
-        //const person = await findOnePerson(uid)
+        const person = await findOnePerson(uid)
         const [user, created] = await models.AdminUser.findOrCreate({
             where: {
                 personIdentifier: uid,
-                status: 1
             },
             defaults: {
                 personIdentifier: uid,
-                //nameFirst: person.firstName,
-                //nameMiddle: person.middleName,
-                //nameLast: person.lastName,
-                createTimestamp: new Date()
+                nameFirst: (person && person.firstName)?person.firstName:null,
+                nameMiddle: (person && person.middleName)?person.middleName:null,
+                nameLast: (person && person.lastName)?person.lastName:null,
+                createTimestamp: new Date(),
+                status: 0//Start of with no access for everybody(person && person.personIdentifier)? 1:0
             }
         })
 
