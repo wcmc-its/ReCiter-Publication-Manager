@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     }
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-    const createLoginRequestUrl = (idp, options = {relay_state: "search"}) =>
+    const createLoginRequestUrl = (idp, options = {}) =>
         new Promise((resolve, reject) => {
             sp.create_login_request_url(idp, options, (error, loginUrl) => {
                 if (error) {
