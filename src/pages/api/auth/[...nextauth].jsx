@@ -66,13 +66,13 @@ const options = {
                     console.log(user)
 
                     if (cwid) {
+                        console.log(cwid)
                         const adminUser = await findOrCreateAdminUsers(cwid)
-                        adminUser.databaseUser = adminUser
 
-                        if (adminUser) {
-                            console.log(adminUser)
-                            return adminUser;
-                        }
+                        adminUser.databaseUser = adminUser
+                        adminUser.personIdentifier
+                        console.log(adminUser)
+                        return adminUser;
                     }
 
                     return { cwid, has_access: false };
@@ -85,6 +85,7 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
+            console.log(apiResponse)
             return apiResponse
         },
         async session(session, token) {
@@ -92,15 +93,18 @@ const options = {
             return session
         },
         async jwt(token, apiResponse) {
+            console.log(apiResponse)
             if(apiResponse) {
               if(apiResponse.statusMessage) {
-                token.accessToken = apiResponse.statusMessage.accessToken
                 token.username = apiResponse.statusMessage.username
               }
               if(apiResponse.databaseUser) {
+                if(apiResponse.databaseUser.personIdentifier)
+                    token.username = apiResponse.databaseUser.personIdentifier
                 token.databaseUser = apiResponse.databaseUser
               }
             }
+            console.log(token)
             return token
         },
     },
