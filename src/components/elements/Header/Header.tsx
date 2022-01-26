@@ -4,11 +4,7 @@ import styles from "./Header.module.css";
 import { signOut, useSession} from 'next-auth/client';
 import { getSigninUrl } from '../../../utils/loginHelper'
 
-type Props = {
-    session: any
-}
-
-const Header: React.FC<Props> = () => {
+const Header = () => {
     const [session, loading] = useSession()
     return (
         <Navbar bg="primary" className={styles.topNav}>
