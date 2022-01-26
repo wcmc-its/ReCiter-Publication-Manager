@@ -21,8 +21,6 @@ export const AppLayout = ({ children }) => {
   }, [session, router, loading]);
 
   const [expandedNav, setExpandedNav] = useState(true);
-  console.log(loading);
-  console.log(session);
   const toggleExpand = () => {
     setExpandedNav(!expandedNav);
   };
