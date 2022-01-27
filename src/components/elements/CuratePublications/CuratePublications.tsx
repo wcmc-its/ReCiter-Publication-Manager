@@ -4,10 +4,9 @@ import appStyles from '../App/App.module.css';
 import FilterSection from "../Filter/FilterSection";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import  PublicationsPane from "../Publication/PublicationsPane";
-import Pagination  from '../Pagination/Pagination';
 import { publicationsFetchGroupData } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
-import { Button } from "react-bootstrap";
+import { Button, Spinner } from "react-bootstrap";
 
 interface DropdownProps {
   title: string,
@@ -27,6 +26,7 @@ const CuratePublications = () => {
   const filteredIds = useSelector((state: RootStateOrAny) => state.filteredIds)
   let filterSectionList: Array<DropdownProps> = [];
   const publicationsGroupDataFetching = useSelector((state: RootStateOrAny) => state.publicationsGroupDataFetching)
+  const publicationsMoreDataFetching = useSelector((state: RootStateOrAny) => state.publicationsMoreDataFetching)
   const publicationsGroupData = useSelector((state: RootStateOrAny) => state.publicationsGroupData)
   const [loadCount, setLoadCount] = useState(20);
   const defaultCount = 20;
@@ -60,7 +60,7 @@ const CuratePublications = () => {
   const PublicationsList = () => {
     return(
       <>
-      {publicationsGroupData.reciter.map((reciterItem: any, index: number) => {
+      {publicationsGroupData && publicationsGroupData.reciter?.map((reciterItem: any, index: number) => {
         return (
           <PublicationsPane 
             key={index}
@@ -91,7 +91,22 @@ const CuratePublications = () => {
           </div>
           { filteredIds.length > loadCount &&
             <div className="d-flex align-items-center p-3 justify-content-center">
-              <Button className="primary" onClick={fetchPublications}>View More</Button>
+              <Button className="primary" onClick={fetchPublications} disabled={publicationsMoreDataFetching}>
+                {
+                  publicationsMoreDataFetching ? 
+                  <>
+                    <Spinner
+                      as="span"
+                      animation="border"
+                      size="sm"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                    {' '} Loading...
+                  </>
+                  : <>View More</>
+                }
+              </Button>
             </div>
           }
         </>

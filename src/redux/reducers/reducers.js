@@ -415,4 +415,5 @@ export default combineReducers({
     filteredIdentities,
     publicationsGroupData,
     publicationsGroupDataFetching,
+    publicationsMoreDataFetching,
 })
