@@ -357,6 +357,12 @@ export const publicationsGroupData = (state = {}, action) => {
       case methods.PUBLICATIONS_CHANGE_GROUP_DATA :
           return action.payload
 
+      case methods.PUBLICATIONS_UPDATE_GROUP_DATA :
+        return {
+          ...state,
+          reciter: [...state.reciter, ...action.payload.reciter]
+        }
+
       default :
           return state
   }
@@ -366,6 +372,17 @@ export const publicationsGroupData = (state = {}, action) => {
 export const publicationsGroupDataFetching = (state=false, action) => {
   switch(action.type) {
     case methods.PUBLICATIONS_FETCH_GROUP_DATA :
+      return true
+    case methods.PUBLICATIONS_CANCEL_GROUP_DATA :
+      return false
+    default:
+      return state
+  }
+}
+
+export const publicationsMoreDataFetching = (state=false, action) => {
+  switch(action.type) {
+    case methods.PUBLICATIONS_FETCH_MORE_DATA :
       return true
     case methods.PUBLICATIONS_CANCEL_GROUP_DATA :
       return false

@@ -816,10 +816,17 @@ export const updateFilteredIdentities = (identities) => dispatch => {
   })
 }
 
-export const publicationsFetchGroupData = ( ids ) => dispatch => {
-  dispatch({
-    type: methods.PUBLICATIONS_FETCH_GROUP_DATA
-  })
+export const publicationsFetchGroupData = ( ids, refresh ) => dispatch => {
+  if (refresh) {
+    dispatch({
+      type: methods.PUBLICATIONS_FETCH_GROUP_DATA
+    })
+  } else {
+    dispatch({
+      type: methods.PUBLICATIONS_FETCH_MORE_DATA
+    })
+  }
+
   fetchWithTimeout('/api/reciter/feature-generator/group', {
       credentials: "same-origin",
       method: 'POST',
@@ -843,10 +850,17 @@ export const publicationsFetchGroupData = ( ids ) => dispatch => {
         }
     })
     .then(data => {
+      if (refresh) {
         dispatch({
-            type: methods.PUBLICATIONS_CHANGE_GROUP_DATA,
-            payload: data
+          type: methods.PUBLICATIONS_CHANGE_GROUP_DATA,
+          payload: data
         })
+      } else {
+        dispatch({
+          type: methods.PUBLICATIONS_UPDATE_GROUP_DATA,
+          payload: data
+        })
+      }
 
         dispatch({
             type: methods.PUBLICATIONS_CANCEL_GROUP_DATA

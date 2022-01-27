@@ -7,6 +7,7 @@ import  PublicationsPane from "../Publication/PublicationsPane";
 import Pagination  from '../Pagination/Pagination';
 import { publicationsFetchGroupData } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
+import { Button } from "react-bootstrap";
 
 interface DropdownProps {
   title: string,
@@ -29,9 +30,11 @@ const CuratePublications = () => {
   let filterSectionList: Array<DropdownProps> = [];
   const publicationsGroupDataFetching = useSelector((state: RootStateOrAny) => state.publicationsGroupDataFetching)
   const publicationsGroupData = useSelector((state: RootStateOrAny) => state.publicationsGroupData)
+  const [loadCount, setLoadCount] = useState(20);
+  const defaultCount = 20;
 
   useEffect(() => {
-    dispatch(publicationsFetchGroupData(filteredIds))
+    dispatch(publicationsFetchGroupData(filteredIds.slice(0, defaultCount), true));
   }, [])
 
 
@@ -58,6 +61,12 @@ const CuratePublications = () => {
       setCount(eventKey)
       updatedCount = eventKey
     }
+  }
+
+  const fetchPublications = () => {
+    let updatedCount = loadCount + defaultCount;
+    dispatch(publicationsFetchGroupData(filteredIds.slice(loadCount, updatedCount), false));
+    setLoadCount(updatedCount);
   }
  
   const PublicationsList = () => {
@@ -101,6 +110,11 @@ const CuratePublications = () => {
               <PublicationsList />
             }
           </div>
+          { filteredIds.length > loadCount &&
+            <div className="d-flex align-items-center p-3 justify-content-center">
+              <Button className="primary" onClick={fetchPublications}>View More</Button>
+            </div>
+          }
           <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
             count={count}
             onChange={handlePaginationUpdate}/>
