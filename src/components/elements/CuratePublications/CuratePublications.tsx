@@ -22,8 +22,6 @@ const filtersList = [
 ]
 
 const CuratePublications = () => {
-  const [page, setPage] = useState(1)
-  const [count, setCount] = useState(20)
   const dispatch = useDispatch()
   const filters = useSelector((state: RootStateOrAny) => state.filters)
   const filteredIds = useSelector((state: RootStateOrAny) => state.filteredIds)
@@ -53,16 +51,6 @@ const CuratePublications = () => {
     }
   })
 
-  const handlePaginationUpdate = (eventKey, page, updateCount) => {
-    let updatedCount = count
-    setPage(page)
-
-    if (updateCount) {
-      setCount(eventKey)
-      updatedCount = eventKey
-    }
-  }
-
   const fetchPublications = () => {
     let updatedCount = loadCount + defaultCount;
     dispatch(publicationsFetchGroupData(filteredIds.slice(loadCount, updatedCount), false));
@@ -70,15 +58,9 @@ const CuratePublications = () => {
   }
  
   const PublicationsList = () => {
-    let from = (page - 1) * count;
-    let to = from + count;
-    let dataList = [];
-    if (publicationsGroupData.reciter && publicationsGroupData.reciter.length > 0) {
-      dataList = publicationsGroupData.reciter.slice(from, to);
-    }
     return(
       <>
-      {dataList.map((reciterItem: any, index: number) => {
+      {publicationsGroupData.reciter.map((reciterItem: any, index: number) => {
         return (
           <PublicationsPane 
             key={index}
@@ -102,9 +84,6 @@ const CuratePublications = () => {
       { publicationsGroupDataFetching ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
-          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
-            count={count}
-            onChange={handlePaginationUpdate}/>
           <div className={styles.publicationsContainer}>
             {
               <PublicationsList />
@@ -115,9 +94,6 @@ const CuratePublications = () => {
               <Button className="primary" onClick={fetchPublications}>View More</Button>
             </div>
           }
-          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
-            count={count}
-            onChange={handlePaginationUpdate}/>
         </>
       }
     </div>
