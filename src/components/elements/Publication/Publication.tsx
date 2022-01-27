@@ -17,6 +17,7 @@ interface FuncProps {
     onAccept?(pmid: number, id: number): void,
     onReject?(pmid: number, id: number): void,
     onUndo?(pmid: number, id: number): void,
+    updatePublication?(uid: string, pmid: number, userAssertion: string): void,
     item?: any,
     faculty?: any,
     key: number,
@@ -119,7 +120,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-5">
             <Col xs lg={6} className="p-1"><button
                 className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                onClick={() => acceptPublication(pmid, index)}
+                onClick={() => props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED')}
             ><CheckIcon/> Accept
             </button>
             </Col>
@@ -134,8 +135,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           )
         case "ACCEPTED" :
           return (
-            <Row className="d-flex justify-content-md-between px-4">
-              <Col xs lg={6}><button
+            <Row className="d-flex justify-content-md-between px-5">
+              <Col xs lg={6} className="p-1"><button
                 className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
                 onClick={() => undoPublication(pmid, index)}
               ><UndoIcon />Undo
@@ -152,17 +153,17 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           )
         case "REJECTED" : 
           return (
-            <Row className="d-flex justify-content-md-between px-4">
+            <Row className="d-flex justify-content-md-between px-5">
               <Col xs lg={6} className="p-1">
                 <button
-                    className={`btn btn-success ${styles.publicationAccept}`}
-                    onClick={() => acceptPublication(pmid, index)}
+                    className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
+                    onClick={() => props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED')}
                 > <CheckIcon/> Accept
                 </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
-                    className={`btn btn-default ${styles.publicationUndo}`}
+                    className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
                     onClick={() => undoPublication(pmid, index)}
                 ><UndoIcon /> Undo
                 </button>

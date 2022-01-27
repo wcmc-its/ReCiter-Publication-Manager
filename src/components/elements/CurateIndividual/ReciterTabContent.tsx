@@ -5,6 +5,7 @@ import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
+import { useSession } from "next-auth/client";
 
 interface TabContentProps {
   tabType: string,
@@ -19,6 +20,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [publications, setPublications] = useState<any>(props.publications);
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
+  const [session, loading] = useSession();
 
   if (!props.publications.length) {
     return (
@@ -59,6 +61,19 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     return dataList.slice(from, to);
   };
 
+  const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
+    const userId = session?.data?.databaseUser?.userID;
+    const request = {
+      publications: [pmid],
+      userAssertion: userAssertion,
+      manuallyAddedFlag: false,
+      userId: userId,
+      personIdentifier: uid,
+    }
+    // TODO: send request
+    console.log(request);
+  }
+
   return (
     <>
       <FilterPubSection 
@@ -78,6 +93,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               reciterArticle={publication}
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
+              updatePublication={handleUpdatePublication}
             />
             <Divider />
           </>
