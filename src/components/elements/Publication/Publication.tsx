@@ -127,7 +127,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Col xs lg={6} className="p-1">
             <button
                 className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                onClick={() => rejectPublication(pmid, index)}
+                onClick={() => props.updatePublication(props.personIdentifier, pmid, 'REJECTED')}
             ><ClearIcon/> Reject
             </button>
             </Col>
@@ -138,14 +138,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-5">
               <Col xs lg={6} className="p-1"><button
                 className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                onClick={() => undoPublication(pmid, index)}
+                onClick={() => props.updatePublication(props.personIdentifier, pmid, 'NULL')}
               ><UndoIcon />Undo
               </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
                   className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                  onClick={() => rejectPublication(pmid, index)}
+                  onClick={() => props.updatePublication(props.personIdentifier, pmid, 'REJECTED')}
                 ><ClearIcon />Reject
                 </button>
               </Col>
@@ -164,7 +164,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <Col xs lg={6} className="p-1">
                 <button
                     className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                    onClick={() => undoPublication(pmid, index)}
+                    onClick={() => props.updatePublication(props.personIdentifier, pmid, 'NULL')}
                 ><UndoIcon /> Undo
                 </button>
               </Col>

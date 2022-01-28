@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Publication from "../Publication/Publication";
 import Divider from "../Common/Divider";
 import FilterPubSection from "./FilterPubSection";
@@ -6,6 +6,8 @@ import filterPublicationsBySearchText from "../../../utils/filterPublicationsByS
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
 import { useSession } from "next-auth/client";
+import { reciterUpdatePublication } from "../../../redux/actions/actions";
+import { useDispatch } from "react-redux"; 
 
 interface TabContentProps {
   tabType: string,
@@ -13,6 +15,7 @@ interface TabContentProps {
   index: number,
   personIdentifier: string,
   fullName: string,
+  updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
 }
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
@@ -21,6 +24,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
   const [session, loading] = useSession();
+  const dispatch = useDispatch();
 
   if (!props.publications.length) {
     return (
@@ -55,8 +59,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     let from = (page - 1) * count;
     let to = from + count;
     let dataList = [];
-    if (publications) {
-      dataList = publications;
+    if (props.publications) {
+      dataList = props.publications;
     }
     return dataList.slice(from, to);
   };
@@ -72,6 +76,20 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     }
     // TODO: send request
     console.log(request);
+    //dispatch(reciterUpdatePublication(uid, request));
+    
+    // update user assertion of the publication
+    let updatedPublication = {};
+    let index = publications.findIndex(publication => publication.pmid === pmid);
+    if (index > -1) { 
+      updatedPublication = { 
+        ...publications[index],
+        userAssertion: userAssertion
+      };
+    }
+
+    // move updated data to the right Tab
+    props.updatePublicationAssertion(updatedPublication, userAssertion, props.tabType);
   }
 
   return (
