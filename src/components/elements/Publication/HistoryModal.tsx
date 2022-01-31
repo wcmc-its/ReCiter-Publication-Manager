@@ -26,18 +26,21 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
         <p>No history found</p>
       )
     } else {
+      let feedbacksToDisplay = showAll ? props.feedbacklog[props.id] : props.feedbacklog[props.id].slice(0, defaultLogsSize);
       return (
         <>
         {
-          props.feedbacklog[props.id].map((feedback) => {
+          feedbacksToDisplay.map((feedback, i) => {
             return (
               <Feedbacklog 
+                key={i}
                 userId={feedback.userID}
                 timestamp={feedback.modifyTimestamp}
                 />
             )
           })
         }
+        {props.feedbacklog[props.id].length > defaultLogsSize && !showAll && <div className="text-btn text-center" onClick={() => setShowAll(true)}>Show More</div>}
         </>
       )
     }
