@@ -62,7 +62,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     }
 
     const handleProfileClick = (uid: string) => {
-      return router.push('/app/' + uid)
+      return router.push('/curate/' + uid)
     }
 
     const handleClose = () => setModalShow(false);
