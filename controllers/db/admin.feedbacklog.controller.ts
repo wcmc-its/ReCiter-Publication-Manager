@@ -1,12 +1,18 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { updatePendingArticleCount } from './person.controller'
+import { Sequelize, Op } from "sequelize"
 
+models.AdminUser.hasMany(models.AdminFeedbackLog, { foreignKey: 'userID'})
+models.AdminFeedbackLog.belongsTo(models.AdminUser, {foreignKey: 'userID'})
 export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResponse) => {
     const { uid } = req.query;
     try {
         const feedbackLog = await models.AdminFeedbackLog.findAll({
             order: [["modifyTimestamp", "DESC"]],
+            include: [
+                models.AdminUser
+            ],
             where: {
                 personIdentifier: uid
             }
