@@ -12,6 +12,7 @@ interface TabContentProps {
   index: number,
   personIdentifier: string,
   fullName: string,
+  feedbacklog: any,
 }
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
@@ -79,6 +80,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               reciterArticle={publication}
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
+              feedbacklog={props.feedbacklog}
             />
             <Divider />
           </>

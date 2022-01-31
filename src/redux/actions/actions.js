@@ -878,3 +878,43 @@ export const publicationsFetchGroupData = ( ids, refresh ) => dispatch => {
 
     })
 }
+
+export const fetchFeedbacklog = ( id ) => dispatch => {
+  dispatch({
+    type: methods.FEEDBACKLOG_FETCH_DATA
+  })
+
+  fetch(`/api/db/admin/feedbacklog/${id}`, {
+    credentials: "same-origin",
+    method: 'GET',
+    headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+    }
+  }).then(response => {
+    return response.json()
+  }).then(data => {
+    let articleIds = data.map((feedback) => {return feedback.articleIdentifier})
+    articleIds = articleIds.filter((feedback, i) => {return articleIds.indexOf(feedback) === i});
+    let feedbacklogData = {};
+    articleIds.forEach((articleId) => {
+      let articleFeedbacks = data.map((feedback) => { if (feedback.articleIdentifier === articleId) return feedback});
+      // sort by Date
+      articleFeedbacks.sort((a, b) => { return new Date(a.modifyTimestamp) - new Date(b.modifyTimestamp) });
+      feedbacklogData[articleId] = articleFeedbacks;
+    })
+
+    dispatch({
+      type: methods.FEEDBACKLOG_CHANGE_DATA,
+      payload: feedbacklogData
+    })
+  
+    }).catch(error => {
+      console.log(error);
+
+      dispatch({
+        type: methods.FEEDBACKLOG_CANCEL_FETCHING
+      })
+  })       
+}
