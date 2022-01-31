@@ -7,12 +7,14 @@ import { deleteUserFeedback, findUserFeedback } from './userfeedback.controller'
 export async function getPublications(uid: string | string[], req: NextApiRequest)  {
 
     let uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}` +'?uid=' + uid + '&' + `${httpBuildQuery(reciterConfig.reciter.featureGenerator.featutreGeneratorApiParams)}`
-    /*if(req.query !== undefined) {
-        if(req.query.analysisRefreshFlag !== undefined && req.query.retrievalRefreshFlag !== undefined) {
-            uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}`+ '?uid=' + uid + '&' + httpBuildQuery(req.query)
+    const {
+        query: { analysisRefreshFlag, retrievalRefreshFlag }
+      } = req;
+
+    if(analysisRefreshFlag && retrievalRefreshFlag) {
+        uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}`+ '?uid=' + uid + '&analysisRefreshFlag=' + analysisRefreshFlag + '&retrievalRefreshFlag=' + retrievalRefreshFlag
             clearPendingFeedback(uid)
-        }
-    }*/
+    }
     
     return fetch(uri, {
             method: "GET",
@@ -59,7 +61,7 @@ async function getPendingFeedback(uid: string | string[], data: any) {
             reciterData: data,
             reciterPendingData: []
         }
-    } else if(userFeedbackResponse.statusCode == 200 && userFeedbackResponse.statusText !== undefined) {
+    } else if(userFeedbackResponse.statusCode == 200 && userFeedbackResponse.statusText !== undefined && data && data.reCiterArticleFeatures) {
         let pendingPublications: any = []
             if(userFeedbackResponse.statusText.acceptedPmids !== undefined) {
                 userFeedbackResponse.statusText.acceptedPmids.forEach((acceptedPmid: any) => {
