@@ -47,8 +47,11 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
   }
 
   return (
-    <Modal show={props.showModal} onHide={props.onClose}>
-      <ModalContent />
+    <Modal show={props.showModal} onHide={props.onClose} size="lg">
+      <Modal.Header closeButton>Feedback History</Modal.Header>
+      <Modal.Body>
+        <ModalContent />
+      </Modal.Body>
     </Modal>
   )
 }
