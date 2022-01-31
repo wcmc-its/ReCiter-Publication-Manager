@@ -4,7 +4,7 @@ import { Tab, Tabs } from "react-bootstrap";
 import ReciterTabContent from "./ReciterTabContent";
 import styles from "./CurateIndividual.module.css";
 
-const ReciterTabs = ({ reciterData, fullName } : {reciterData: any, fullName: string}) => {
+const ReciterTabs = ({ reciterData, fullName, feedbacklog } : {reciterData: any, fullName: string, feedbacklog: any}) => {
   //default tab
   const [key, setKey] = useState('NULL');
 
@@ -42,6 +42,7 @@ const ReciterTabs = ({ reciterData, fullName } : {reciterData: any, fullName: st
                   index={index}
                   personIdentifier={reciterData.reciter.personIdentifier}
                   fullName={fullName}
+                  feedbacklog={feedbacklog}
                 />
               </Tab>
             )

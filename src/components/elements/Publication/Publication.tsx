@@ -8,6 +8,7 @@ import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
 import { useRouter } from 'next/router';
 import { useSelector, RootStateOrAny } from "react-redux";
+import HistoryModal from "./HistoryModal";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -24,6 +25,7 @@ interface FuncProps {
     index: number,
     personIdentifier: string,
     fullName: string,
+    feedbacklog?: any,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
@@ -31,8 +33,12 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const [showEvidence, setShowEvidence] = useState<boolean>(false)
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
+    const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
 
     const router = useRouter()
+
+    const onOpenModal = () => setShowHistoryModal(true)
+    const onCloseModal = () => setShowHistoryModal(false)
 
     const toogleEvidence = () => {
         setShowEvidence((showEvidence)?false:true)
@@ -423,14 +429,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   if(Number(evidence[rowName].enderScoreIdentity) >= 0.5) {
                       institutionalData = 'Male - ' + (Number(evidence[rowName].genderScoreIdentity) * 100) + '% probability'
                   } else {
-                    institutionalData = 'Female - ' + ((1 - Number(evidence[rowName].genderScoreIdentity)) * 100) + '% probability'
+                    institutionalData = 'Female - ' + Math.round(((1 - Number(evidence[rowName].genderScoreIdentity)) * 100)) + '% probability'
                   }
                 }
                 if (evidence[rowName].hasOwnProperty('genderScoreArticle')) {
                   if(Number(evidence[rowName].genderScoreArticle) >= 0.5) {
                     articleData = 'Male - ' + (Number(evidence[rowName].genderScoreArticle) * 100) + '% probability'
                 } else {
-                    articleData = 'Female - ' + ((1 - Number(evidence[rowName].genderScoreArticle)) * 100) + '% probability'
+                    articleData = 'Female - ' + Math.round(((1 - Number(evidence[rowName].genderScoreArticle)) * 100)) + '% probability'
                 }
                 }
               }
@@ -584,7 +590,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <div className={styles.publicationAdditionalInfo}>
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
               <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
-              <span className={styles.midDot}> Show History </span>
+              <span className={styles.midDot} onClick={onOpenModal}> <div className="text-decoration-underline d-inline">Show History</div> </span>
             </div>
             {
                 (reciterArticle.evidence !== undefined) ?
@@ -627,6 +633,13 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             }
             <div className="clear-both"></div>
         </Col>
+        <HistoryModal
+          showModal={showHistoryModal}
+          onOpen={onOpenModal}
+          onClose={onCloseModal}
+          id={reciterArticle.pmid}
+          feedbacklog={props.feedbacklog}
+          />
       </Row>
   ); 
 }

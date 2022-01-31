@@ -4,9 +4,9 @@ import appStyles from '../App/App.module.css';
 import FilterSection from "../Filter/FilterSection";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import  PublicationsPane from "../Publication/PublicationsPane";
-import Pagination  from '../Pagination/Pagination';
-import { publicationsFetchGroupData } from '../../../redux/actions/actions';
+import { publicationsFetchGroupData, fetchGroupFeedbacklog } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
+import { Button, Spinner } from "react-bootstrap";
 
 interface DropdownProps {
   title: string,
@@ -21,17 +21,21 @@ const filtersList = [
 ]
 
 const CuratePublications = () => {
-  const [page, setPage] = useState(1)
-  const [count, setCount] = useState(20)
   const dispatch = useDispatch()
   const filters = useSelector((state: RootStateOrAny) => state.filters)
   const filteredIds = useSelector((state: RootStateOrAny) => state.filteredIds)
   let filterSectionList: Array<DropdownProps> = [];
   const publicationsGroupDataFetching = useSelector((state: RootStateOrAny) => state.publicationsGroupDataFetching)
+  const publicationsMoreDataFetching = useSelector((state: RootStateOrAny) => state.publicationsMoreDataFetching)
   const publicationsGroupData = useSelector((state: RootStateOrAny) => state.publicationsGroupData)
+  const feedbacklogGroup = useSelector((state: RootStateOrAny) => state.feedbacklogGroup)
+  const feedbacklogGroupFetching = useSelector((state: RootStateOrAny) => state.feedbacklogGroupFetching)
+  const [loadCount, setLoadCount] = useState(20);
+  const defaultCount = 20;
 
   useEffect(() => {
-    dispatch(publicationsFetchGroupData(filteredIds))
+    dispatch(publicationsFetchGroupData(filteredIds.slice(0, defaultCount), true));
+    dispatch(fetchGroupFeedbacklog(filteredIds.slice(0, defaultCount)));
   }, [])
 
 
@@ -50,31 +54,22 @@ const CuratePublications = () => {
     }
   })
 
-  const handlePaginationUpdate = (eventKey, page, updateCount) => {
-    let updatedCount = count
-    setPage(page)
-
-    if (updateCount) {
-      setCount(eventKey)
-      updatedCount = eventKey
-    }
+  const fetchPublications = () => {
+    let updatedCount = loadCount + defaultCount;
+    dispatch(publicationsFetchGroupData(filteredIds.slice(loadCount, updatedCount), false));
+    setLoadCount(updatedCount);
   }
  
   const PublicationsList = () => {
-    let from = (page - 1) * count;
-    let to = from + count;
-    let dataList = [];
-    if (publicationsGroupData.reciter && publicationsGroupData.reciter.length > 0) {
-      dataList = publicationsGroupData.reciter.slice(from, to);
-    }
     return(
       <>
-      {dataList.map((reciterItem: any, index: number) => {
+      {publicationsGroupData && publicationsGroupData.reciter?.map((reciterItem: any, index: number) => {
         return (
           <PublicationsPane 
             key={index}
             index={index}
             item={reciterItem}
+            feedbacklogGroup={feedbacklogGroup}
             />
         )
       })}
@@ -90,20 +85,34 @@ const CuratePublications = () => {
         buttonTitle="Update Search"
         buttonUrl="/search"
         ></FilterSection>
-      { publicationsGroupDataFetching ? <Loader /> : 
+      { (publicationsGroupDataFetching ||  feedbacklogGroupFetching) ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
-          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
-            count={count}
-            onChange={handlePaginationUpdate}/>
           <div className={styles.publicationsContainer}>
             {
               <PublicationsList />
             }
           </div>
-          <Pagination total={publicationsGroupData.reciter ? publicationsGroupData.reciter.length : 0} page={page}
-            count={count}
-            onChange={handlePaginationUpdate}/>
+          { filteredIds.length > loadCount &&
+            <div className="d-flex align-items-center p-3 justify-content-center">
+              <Button className="primary" onClick={fetchPublications} disabled={publicationsMoreDataFetching}>
+                {
+                  publicationsMoreDataFetching ? 
+                  <>
+                    <Spinner
+                      as="span"
+                      animation="border"
+                      size="sm"
+                      role="status"
+                      aria-hidden="true"
+                    />
+                    {' '} Loading...
+                  </>
+                  : <>View More</>
+                }
+              </Button>
+            </div>
+          }
         </>
       }
     </div>
