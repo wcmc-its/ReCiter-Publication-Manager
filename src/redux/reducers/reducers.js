@@ -417,6 +417,32 @@ export const feedbacklogFetching = (state=false, action) => {
   }
 }
 
+export const feedbacklogGroup = (state = [], action) => {
+  switch(action.type) {
+    case methods.FEEDBACKLOG_CHANGE_DATA_GROUP :
+      return action.payload
+
+    case methods.FEEDBACKLOG_CLEAR_DATA_GROUP :
+      return []
+    
+      default:
+        return state
+  }
+}
+
+export const feedbacklogGroupFetching = (state=false, action) => {
+  switch(action.type) {
+    case methods.FEEDBACKLOG_FETCH_DATA_GROUP :
+      return true
+    
+    case methods.FEEDBACKLOG_CANCEL_FETCHING_GROUP :
+      return false
+    
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -444,4 +470,6 @@ export default combineReducers({
     publicationsMoreDataFetching,
     feedbacklog,
     feedbacklogFetching,
+    feedbacklogGroup,
+    feedbacklogGroupFetching,
 })

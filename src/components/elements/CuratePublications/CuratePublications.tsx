@@ -4,7 +4,7 @@ import appStyles from '../App/App.module.css';
 import FilterSection from "../Filter/FilterSection";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import  PublicationsPane from "../Publication/PublicationsPane";
-import { publicationsFetchGroupData } from '../../../redux/actions/actions';
+import { publicationsFetchGroupData, fetchGroupFeedbacklog } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
 import { Button, Spinner } from "react-bootstrap";
 
@@ -28,11 +28,14 @@ const CuratePublications = () => {
   const publicationsGroupDataFetching = useSelector((state: RootStateOrAny) => state.publicationsGroupDataFetching)
   const publicationsMoreDataFetching = useSelector((state: RootStateOrAny) => state.publicationsMoreDataFetching)
   const publicationsGroupData = useSelector((state: RootStateOrAny) => state.publicationsGroupData)
+  const feedbacklogGroup = useSelector((state: RootStateOrAny) => state.feedbacklogGroup)
+  const feedbacklogGroupFetching = useSelector((state: RootStateOrAny) => state.feedbacklogGroupFetching)
   const [loadCount, setLoadCount] = useState(20);
   const defaultCount = 20;
 
   useEffect(() => {
     dispatch(publicationsFetchGroupData(filteredIds.slice(0, defaultCount), true));
+    dispatch(fetchGroupFeedbacklog(filteredIds.slice(0, defaultCount)));
   }, [])
 
 
@@ -66,6 +69,7 @@ const CuratePublications = () => {
             key={index}
             index={index}
             item={reciterItem}
+            feedbacklogGroup={feedbacklogGroup}
             />
         )
       })}
@@ -81,7 +85,7 @@ const CuratePublications = () => {
         buttonTitle="Update Search"
         buttonUrl="/search"
         ></FilterSection>
-      { publicationsGroupDataFetching ? <Loader /> : 
+      { (publicationsGroupDataFetching ||  feedbacklogGroupFetching) ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
           <div className={styles.publicationsContainer}>

@@ -899,7 +899,7 @@ export const fetchFeedbacklog = ( id ) => dispatch => {
     articleIds = articleIds.filter((feedback, i) => {return articleIds.indexOf(feedback) === i});
     let feedbacklogData = {};
     articleIds.forEach((articleId) => {
-      let articleFeedbacks = data.map((feedback) => { if (feedback.articleIdentifier === articleId) return feedback});
+      let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog});
       // sort by Date
       articleFeedbacks.sort((a, b) => { return new Date(a.modifyTimestamp) - new Date(b.modifyTimestamp) });
       feedbacklogData[articleId] = articleFeedbacks;
@@ -917,4 +917,53 @@ export const fetchFeedbacklog = ( id ) => dispatch => {
         type: methods.FEEDBACKLOG_CANCEL_FETCHING
       })
   })       
+}
+
+export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
+  dispatch({
+    type: methods.FEEDBACKLOG_FETCH_DATA_GROUP
+  })
+
+  let feedbackLogs = [];
+  for (let id of ids) {
+     fetch(`/api/db/admin/feedbacklog/${id}`, {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    }).then(response => {
+      return response.json()
+    }).then(data => {
+      if (data?.length) {
+        let articleIds = data.map((feedback) => {return feedback.articleIdentifier})
+        articleIds = articleIds.filter((feedback, i) => {return articleIds.indexOf(feedback) === i});
+        let feedbacklogData = {};
+        articleIds.forEach((articleId) => {
+          let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog});
+          // sort by Date
+          articleFeedbacks.sort((a, b) => { return new Date(a.modifyTimestamp) - new Date(b.modifyTimestamp) });
+          feedbacklogData[articleId] = articleFeedbacks;
+        })
+        feedbackLogs.push({ [id] : feedbacklogData});
+      }
+    }).catch(error => {
+      console.log(error);
+
+      dispatch({
+        type: methods.FEEDBACKLOG_CANCEL_FETCHING_GROUP
+      })
+    })
+  }
+
+  dispatch({
+    type: methods.FEEDBACKLOG_CHANGE_DATA_GROUP,
+    payload: feedbackLogs
+  })
+
+  dispatch({
+    type: methods.FEEDBACKLOG_CANCEL_FETCHING_GROUP
+})
 }
