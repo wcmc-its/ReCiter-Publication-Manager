@@ -72,12 +72,11 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       publications: [pmid],
       userAssertion: userAssertion,
       manuallyAddedFlag: false,
-      userId: userId,
+      userID: userId,
       personIdentifier: uid,
     }
     // TODO: send request
-    console.log(request);
-    //dispatch(reciterUpdatePublication(uid, request));
+    dispatch(reciterUpdatePublication(uid, request));
     
     // update user assertion of the publication
     let updatedPublication = {};
@@ -93,12 +92,28 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     props.updatePublicationAssertion(updatedPublication, userAssertion, props.tabType);
   }
 
+  const handleUpdatePublicationAll = (userAssertion: string) => {
+    const userId = session?.data?.databaseUser?.userID;
+    const pmids = getPaginatedData().map((publication) => {return publication.pmid});
+    const request = {
+      publications: pmids,
+      userAssertion: userAssertion,
+      manuallyAddedFlag: false,
+      userID: userId,
+      personIdentifier: props.personIdentifier,
+    }
+
+    dispatch(reciterUpdatePublication(props.personIdentifier, request));
+    //TODO Update publications list in the tab
+  }
+
   return (
     <>
       <FilterPubSection 
         searchTextUpdate={searchTextUpdate}
         sortUpdate={sortUpdate}
         publications={publications}
+        updateAll={handleUpdatePublicationAll}
       />
       <Pagination total={publications.length} page={page}
         count={count}

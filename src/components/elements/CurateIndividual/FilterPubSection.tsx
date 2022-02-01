@@ -7,6 +7,7 @@ interface FilterPubSectionProps {
   searchTextUpdate: (searchText: string) => void
   sortUpdate: (sort: string) => void
   publications: Array<Publication>
+  updateAll: any
 }
 
 const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
@@ -23,14 +24,15 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
 
   const updateAll = (userAssertion: string) => {
     // TODO: call redux action
+    props.updateAll(userAssertion);
     let filteredIds = props.publications.map((publication: Publication) => publication.pmid);
   }
 
   return (
     <div className={`${styles.filterPubSection} py-4 d-flex justify-content-between`}>
       <div className="filter-section-buttons d-flex flex-basis-content">
-        <Button className="m-2" variant="primary" onClick={() => updateAll('ACCEPT')}>Accept All</Button>
-        <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('REJECT')}>Reject All</Button>
+        <Button className="m-2" variant="primary" onClick={() => updateAll('ACCEPTED')}>Accept All</Button>
+        <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('REJECTED')}>Reject All</Button>
       </div>
       <div className="d-flex align-items-end">
         <Form className="d-flex flex-basis-content mx-2">
