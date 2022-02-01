@@ -22,6 +22,7 @@ interface FuncProps {
     faculty?: any,
     key: number,
     index: number,
+    feedbacklogGroup: any,
 }
 
 const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
@@ -30,6 +31,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
     const [modalShow, setModalShow] = useState(false);
+    const feedbacklog = props.feedbacklogGroup.find(feedback => feedback.hasOwnProperty(props.item.personIdentifier)) || {};
 
     const router = useRouter()
 
@@ -60,7 +62,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     }
 
     const handleProfileClick = (uid: string) => {
-      return router.push('/app/' + uid)
+      return router.push('/curate/' + uid)
     }
 
     const handleClose = () => setModalShow(false);
@@ -107,6 +109,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     personIdentifier={item.personIdentifier}
                     onAccept={acceptPublication}
                     fullName={filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
+                    feedbacklog={feedbacklog[item.personIdentifier] ? feedbacklog[item.personIdentifier] : {}}
                     />
                     {index < articles.length - 1 && <Divider></Divider>}
                 </>

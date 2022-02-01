@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData, reciterFetchData } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData, fetchFeedbacklog } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import { Container, Button, Row } from "react-bootstrap";
@@ -31,10 +31,13 @@ const CurateIndividual = () => {
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
+  const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
+  const feedbacklogFetching = useSelector((state: RootStateOrAny) => state.feedbacklogFetching)
 
   useEffect(() => {
     dispatch(identityFetchData(id));
     dispatch(reciterFetchData(id, false));
+    dispatch(fetchFeedbacklog(id));
   }, [])
 
   const DisplayName = ({ name } : { name: PrimaryName}) => {
@@ -97,6 +100,7 @@ const CurateIndividual = () => {
       <ReciterTabs 
         reciterData={reciterData}
         fullName={fullName(identityData.primaryName)}
+        feedbacklog={feedbacklog}
       /> 
         <Profile 
           uid={identityData.uid}

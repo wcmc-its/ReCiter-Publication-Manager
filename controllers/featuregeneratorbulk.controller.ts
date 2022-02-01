@@ -49,26 +49,36 @@ async function getPendingFeedback(uids: string[], data: any) {
         if(userFeedbackResponse.statusCode != 200) {
             let updatedPersonIdentifier = {...data[personIdentifierIndex], reciterPendingData: []};
             data[personIdentifierIndex] = updatedPersonIdentifier;
-        } else if(userFeedbackResponse.statusCode == 200 && userFeedbackResponse.userFeedback !== undefined) {
+        } else if(userFeedbackResponse.statusCode == 200 && userFeedbackResponse.statusText !== undefined && personIdentifierIndex >=0 && data[personIdentifierIndex] && data[personIdentifierIndex].reCiterArticleFeatures) {
             let pendingPublications: any = []
-                if(userFeedbackResponse.userFeedback.acceptedPmids !== undefined) {
-                    userFeedbackResponse.userFeedback.acceptedPmids.forEach((acceptedPmid: any) => {
+            if(userFeedbackResponse.statusText && userFeedbackResponse.statusText.acceptedPmids) {
+                pendingPublications = [...userFeedbackResponse.statusText.acceptedPmids]
+            }
+            if(userFeedbackResponse.statusText && userFeedbackResponse.statusText.rejectedPmids) {
+                pendingPublications = [...userFeedbackResponse.statusText.rejectedPmids]
+            }
+                /* if(userFeedbackResponse.statusText.acceptedPmids !== undefined) {
+                    userFeedbackResponse.statusText.acceptedPmids.forEach((acceptedPmid: any) => {
                         let foundIndex = data[personIdentifierIndex].reCiterArticleFeatures.findIndex((item: any) => item.pmid == acceptedPmid)
-                        data[personIdentifierIndex].reCiterArticleFeatures[foundIndex].userAssertion = 'ACCEPTED'
-                        pendingPublications.push(
-                            data[personIdentifierIndex].reCiterArticleFeatures[foundIndex]
-                        )
+                        if(foundIndex >= 0) {
+                            data[personIdentifierIndex].reCiterArticleFeatures[foundIndex].userAssertion = 'ACCEPTED'
+                            pendingPublications.push(
+                                data[personIdentifierIndex].reCiterArticleFeatures[foundIndex].pmid
+                            )
+                        }
                     })
                 }
-                if(userFeedbackResponse.userFeedback.rejectedPmids !== undefined) {
-                    userFeedbackResponse.userFeedback.rejectedPmids.forEach((rejectedPmid: any) => {
+                if(userFeedbackResponse.statusText.rejectedPmids !== undefined) {
+                    userFeedbackResponse.statusText.rejectedPmids.forEach((rejectedPmid: any) => {
                         let foundIndex = data[personIdentifierIndex].reCiterArticleFeatures.findIndex((item: any) => item.pmid == rejectedPmid)
-                        data[personIdentifierIndex].reCiterArticleFeatures[foundIndex].userAssertion = 'REJECTED'
-                        pendingPublications.push(
-                            data[personIdentifierIndex].reCiterArticleFeatures[foundIndex]
-                        )
+                        if(foundIndex >= 0) {
+                            data[personIdentifierIndex].reCiterArticleFeatures[foundIndex].userAssertion = 'REJECTED'
+                            pendingPublications.push(
+                                data[personIdentifierIndex].reCiterArticleFeatures[foundIndex].pmid
+                            )
+                        }
                     })
-                }
+                } */
                 let updatedPersonIdentifier = {...data[personIdentifierIndex], reciterPendingData: pendingPublications}
                 data[personIdentifierIndex] = updatedPersonIdentifier
         }

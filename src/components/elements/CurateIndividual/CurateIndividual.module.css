@@ -45,6 +45,7 @@
 
 .filterPubSection {
   background-color: #EFEFEF;
+  border-bottom: 1px solid #ced4da;
 }
 
 .whiteBtn {
@@ -53,4 +54,10 @@
 
 .profileImgWrapper {
   padding-right: 2rem;
+}
+
+.basicDropdown {
+  color: black;
+  background-color: white;
+  border-color: #ccc;
 }

@@ -20,7 +20,7 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                       addPublication = true
                   }
                   //pmid
-                  if(publication.pmid !== undefined && publication.pmid.toLowerCase().includes(search.toLowerCase())) {
+                  if(publication.pmid !== undefined && publication.pmid.includes == Number(search.toLowerCase())) {
                     addPublication = true
                   }
                   //publicationTypeCanonical
@@ -75,8 +75,6 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                     if (publication.evidence.relationshipEvidence?.relationshipPositiveMatch) {
                       let relationshipEvidence = [];
                       publication.evidence.relationshipEvidence.relationshipPositiveMatch.forEach((relationshipItem) =>{
-                        relationshipEvidence.push(relationshipItem.relationshipNameIdentity.firstName);
-                        relationshipEvidence.push(relationshipItem.relationshipNameIdentity.lastName);
                         relationshipItem.relationshipType.map((relationshipType) => {
                           relationshipEvidence.push(relationshipType);
                         })
@@ -90,7 +88,6 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                     // Authors
                     if (publication.evidence.authorNameEvidence) {
                       let authorEvidence = [];
-                      authorEvidence.push(publication.evidence.authorNameEvidence.institutionalAuthorName)
                       authorEvidence.push(publication.evidence.authorNameEvidence.articleAuthorName)
                       if (authorEvidence.join().toLowerCase().includes(search.toLowerCase())) {
                         addPublication = true;
@@ -99,6 +96,9 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                     // Email
                     if (publication.evidence.email) {
                       if (publication.evidence.email.emailMatchScore.includes(search.toLowerCase)) {
+                        addPublication = true;
+                      }
+                      if (publication.evidence.emailEvidence.emailMatch.includes(search.toLowerCase)) {
                         addPublication = true;
                       }
                     }
@@ -129,7 +129,6 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                           }
       
                           if (matchType !== 'No data available') {
-                            affiliationEvidenceList.push(targetAuthorInstitutionalAffiliationIdentity);
                             let targetAuthorInstitutionalAffiliationArticleScopusLabel = ''
                             if (scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationArticleScopusLabel')) {
                                 targetAuthorInstitutionalAffiliationArticleScopusLabel = scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationArticleScopusLabel
@@ -160,9 +159,6 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                       let itemCount = 0
                       publication.evidence.organizationalUnitEvidence.forEach((orgUnitItem) => {
                         itemCount++
-                        if (orgUnitItem.organizationalUnitType) {
-                          orgUnitEvidence.push(orgUnitItem.identityOrganizationalUnit)
-                        }
                         if(itemCount === 1) {
                           orgUnitEvidence.push(orgUnitItem.articleAffiliation)
                         }
@@ -175,9 +171,6 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                     // Journal Category
                     if (publication.evidence.journalCategoryEvidence) {
                       let journalCategoryEvidence = [];
-                      if (publication.evidence.journalCategoryEvidence.journalSubfieldDepartment !== 'NO_MATCH') {
-                        journalCategoryEvidence.push(publication.evidence.journalCategoryEvidence.journalSubfieldDepartment)
-                      }
                       journalCategoryEvidence.push(publication.evidence.journalCategoryEvidence.journalSubfieldScienceMetrixLabel);
                       if (journalCategoryEvidence.join().toLowerCase().includes(search.toLowerCase())) {
                         addPublication = true;
@@ -187,12 +180,7 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                     // Education Year Evidence
                     if (publication.evidence.educationYearEvidence) {
                       let educationYearEvidence = [];
-                      if (publication.evidence.educationYearEvidence.identityBachelorYear !== undefined) {
-                        educationYearEvidence.push(publication.evidence.educationYearEvidence.identityBachelorYear + ' - Bachelors');
-                      }
-                      if (publication.evidence.educationYearEvidence.identityDoctoralYear !== undefined) {
-                        educationYearEvidence.push(publication.evidence.educationYearEvidence.identityDoctoralYear + ' - Bachelors')
-                      }
+                      educationYearEvidence.push(publication.evidence.educationYearEvidence.articleYear);
                       if (educationYearEvidence.join().toLowerCase().includes(search.toLowerCase())) {
                         addPublication = true;
                       }

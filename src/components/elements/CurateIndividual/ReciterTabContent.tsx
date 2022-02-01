@@ -16,6 +16,7 @@ interface TabContentProps {
   personIdentifier: string,
   fullName: string,
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
+  feedbacklog: any,
 }
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
@@ -97,6 +98,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       <FilterPubSection 
         searchTextUpdate={searchTextUpdate}
         sortUpdate={sortUpdate}
+        publications={publications}
       />
       <Pagination total={publications.length} page={page}
         count={count}
@@ -112,6 +114,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
               updatePublication={handleUpdatePublication}
+              feedbacklog={props.feedbacklog}
             />
             <Divider />
           </>

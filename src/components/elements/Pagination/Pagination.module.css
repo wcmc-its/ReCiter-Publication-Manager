@@ -24,11 +24,8 @@
 }
 
 .paginationContainer span {
-  background-color: #ffff;
   padding: 5px;
   border-radius: 3px;
-  margin-left: 2px;
-  margin-right: 2px;
 }
 
 .basicDropdown button {
