@@ -42,6 +42,28 @@ const ReciterTabs = ({ reciterData, fullName, feedbacklog } : {reciterData: any,
     setFilteredData(updatedFilteredData);
   }
 
+  const updatePublicationAssertionBulk = (reciterArticles: any, userAssertion: string, prevUserAssertion: string) => {
+    let updatedFilteredData = [...filteredData];
+    updatedFilteredData.forEach((tabData) => {
+      // If Tab matches the updated user assertion, add the article in the tab
+      if (tabData.value == userAssertion) {
+        tabData.data.push(...reciterArticles);
+        tabData.count = tabData.count + reciterArticles.length;
+      } else if (tabData.value == prevUserAssertion) {
+        // If Tab matches the previous user assertion, remove from that tab
+        let count = tabData.count;
+        reciterArticles.forEach((reciterArticle) => {
+          let index = tabData.data.findIndex(i => i.pmid === reciterArticle.pmid);
+          if (index > -1) { tabData.data.splice(index, 1)}
+          if (count > 0) { count--; }
+        })
+        tabData.count = count;
+      }
+    })
+
+    setFilteredData(updatedFilteredData);
+  }
+
   return (
     <>
       <Tabs
@@ -66,6 +88,7 @@ const ReciterTabs = ({ reciterData, fullName, feedbacklog } : {reciterData: any,
                   fullName={fullName}
                   updatePublicationAssertion={updatePublicationAssertion}
                   feedbacklog={feedbacklog}
+                  updatePublicationAssertionBulk={updatePublicationAssertionBulk}
                 />
               </Tab>
             )

@@ -16,6 +16,7 @@ interface TabContentProps {
   personIdentifier: string,
   fullName: string,
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
+  updatePublicationAssertionBulk: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   feedbacklog: any,
 }
 
@@ -76,7 +77,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       personIdentifier: uid,
     }
     // TODO: send request
-    dispatch(reciterUpdatePublication(uid, request));
+    // dispatch(reciterUpdatePublication(uid, request));
     
     // update user assertion of the publication
     let updatedPublication = {};
@@ -103,8 +104,23 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       personIdentifier: props.personIdentifier,
     }
 
-    dispatch(reciterUpdatePublication(props.personIdentifier, request));
+    // dispatch(reciterUpdatePublication(props.personIdentifier, request));
     //TODO Update publications list in the tab
+    let paginatedPublications = getPaginatedData();
+    let updatedPublications = []; 
+    pmids.forEach((pmid) => {
+      let updatedPublication = {};
+      let index = paginatedPublications.findIndex(publication => publication.pmid === pmid);
+      if (index > -1) { 
+        updatedPublication = { 
+          ...publications[index],
+          userAssertion: userAssertion
+        };
+        updatedPublications.push(updatedPublication);
+      }
+    })
+
+    props.updatePublicationAssertionBulk(updatedPublications, userAssertion, props.tabType);
   }
 
   return (
