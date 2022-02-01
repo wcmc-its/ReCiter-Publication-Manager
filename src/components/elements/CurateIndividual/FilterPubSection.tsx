@@ -8,6 +8,7 @@ interface FilterPubSectionProps {
   sortUpdate: (sort: string) => void
   publications: Array<Publication>
   updateAll: any
+  tabType: string
 }
 
 const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
@@ -31,8 +32,9 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
   return (
     <div className={`${styles.filterPubSection} py-4 d-flex justify-content-between`}>
       <div className="filter-section-buttons d-flex flex-basis-content">
-        <Button className="m-2" variant="primary" onClick={() => updateAll('ACCEPTED')}>Accept All</Button>
-        <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('REJECTED')}>Reject All</Button>
+        { props.tabType !== 'ACCEPTED' && <Button className="m-2" variant="primary" onClick={() => updateAll('ACCEPTED')}>Accept All</Button>}
+        { props.tabType !== 'REJECTED' && <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('REJECTED')}>Reject All</Button>}
+        { props.tabType !== 'NULL' && <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('NULL')}>Undo All</Button>}
       </div>
       <div className="d-flex align-items-end">
         <Form className="d-flex flex-basis-content mx-2">

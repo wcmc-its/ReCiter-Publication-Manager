@@ -130,6 +130,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         sortUpdate={sortUpdate}
         publications={publications}
         updateAll={handleUpdatePublicationAll}
+        tabType={props.tabType}
       />
       <Pagination total={publications.length} page={page}
         count={count}
