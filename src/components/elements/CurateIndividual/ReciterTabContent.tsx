@@ -6,7 +6,7 @@ import filterPublicationsBySearchText from "../../../utils/filterPublicationsByS
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
 import { useSession } from "next-auth/client";
-import { reciterUpdatePublication } from "../../../redux/actions/actions";
+import { fetchFeedbacklog, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { useDispatch } from "react-redux"; 
 
 interface TabContentProps {
@@ -39,6 +39,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   useEffect(() => {
     let sortedPublications = sortPublications(props.publications, sort);
     setPublications(sortedPublications);
+    dispatch(fetchFeedbacklog(props.personIdentifier));
   }, [publications.length])
 
   const searchTextUpdate = (searchText: string) => {
