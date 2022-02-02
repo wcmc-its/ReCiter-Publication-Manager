@@ -2,6 +2,8 @@ import React, { useState, ChangeEvent } from "react";
 import { Button, Row, Form, Dropdown, DropdownButton } from "react-bootstrap";
 import { Publication } from "../../../../types/publication";
 import styles from "./CurateIndividual.module.css";
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 interface FilterPubSectionProps {
   searchTextUpdate: (searchText: string) => void
@@ -41,8 +43,10 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
           <Form.Control type="text" placeholder="Filter..." value={searchText} onChange={(e) => handleInputChange(e)}/>
         </Form>
         <DropdownButton className={`${styles.basicDropdown} mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(eventKey) => handleSortChange(eventKey)}>
-          <Dropdown.Item eventKey="1">Sort by Score</Dropdown.Item>
-          <Dropdown.Item eventKey="2">Sort by Date</Dropdown.Item>
+          <Dropdown.Item eventKey="1">Score <ArrowDownwardIcon /></Dropdown.Item>
+          <Dropdown.Item eventKey="2">Date <ArrowDownwardIcon /></Dropdown.Item>
+          <Dropdown.Item eventKey="3">Score <ArrowUpwardIcon /></Dropdown.Item>
+          <Dropdown.Item eventKey="4">Date <ArrowUpwardIcon /></Dropdown.Item>
         </DropdownButton>
       </div>
     </div>
