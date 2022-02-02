@@ -12,6 +12,7 @@ import Publication from "./Publication";
 import { reciterConfig } from "../../../../config/local";
 import Divider from "../Common/Divider";
 import Profile from "../Profile/Profile";
+import SuggestionsBanner from "../CurateIndividual/SuggestionsBanner";
 
 //TEMP: update to required
 interface FuncProps {
@@ -97,6 +98,12 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               <div className="d-flex justify-content-center">
                 <p className="text-align-center">No pending publications</p>
               </div>
+          }
+          {item.reciterPendingData && item.reciterPendingData.length > 0 && 
+            <SuggestionsBanner
+              uid={item.personIdentifier}
+              count={item.reciterPendingData.length}
+              />
           }
           {item.reCiterArticleFeatures.length > 0 &&
             articles.map((article: any, index: number) => {
