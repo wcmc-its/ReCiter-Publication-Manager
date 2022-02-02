@@ -36,6 +36,11 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     )
   }
 
+  useEffect(() => {
+    let sortedPublications = sortPublications(props.publications, sort);
+    setPublications(sortedPublications);
+  }, [publications.length])
+
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
     setPublications(filteredPublications);
