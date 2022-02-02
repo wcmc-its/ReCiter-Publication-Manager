@@ -359,7 +359,6 @@ export const pubmedFetchData = query => dispatch => {
 
 export const reciterUpdatePublication = (uid, request) => dispatch => {
 
-    const [session, loading] = useSession()
 
     // Update publications' user assertions state
     request.publications.forEach(function(id){
@@ -501,7 +500,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                 body: JSON.stringify(adminFeedbackRequestBody)
             }, 300000)
             .then(response => {
-                if(response.status === 200) {
+                if(response.status === 200 || response.status === 201) {
                     toast.success("Feedback log updated in database for " + uid, {
                         position: "top-right",
                         autoClose: 1000,
