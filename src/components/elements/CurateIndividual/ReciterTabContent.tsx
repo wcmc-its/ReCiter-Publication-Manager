@@ -36,11 +36,12 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     )
   }
 
-  useEffect(() => {
-    let sortedPublications = sortPublications(props.publications, sort);
-    setPublications(sortedPublications);
-    dispatch(fetchFeedbacklog(props.personIdentifier));
-  }, [publications.length])
+  // TODO: update history
+  // useEffect(() => {
+  //   let sortedPublications = sortPublications(props.publications, sort);
+  //   setPublications(sortedPublications);
+  //   dispatch(fetchFeedbacklog(props.personIdentifier));
+  // }, [publications.length])
 
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
@@ -83,7 +84,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       personIdentifier: uid,
     }
     // TODO: send request
-    // dispatch(reciterUpdatePublication(uid, request));
+    dispatch(reciterUpdatePublication(uid, request));
     
     // update user assertion of the publication
     let updatedPublication = {};
@@ -110,7 +111,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       personIdentifier: props.personIdentifier,
     }
 
-    // dispatch(reciterUpdatePublication(props.personIdentifier, request));
+    dispatch(reciterUpdatePublication(props.personIdentifier, request));
     //TODO Update publications list in the tab
     let paginatedPublications = getPaginatedData();
     let updatedPublications = []; 
