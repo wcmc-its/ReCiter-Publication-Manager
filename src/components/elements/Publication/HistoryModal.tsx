@@ -13,10 +13,28 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
   const [showAll, setShowAll] = useState<boolean>(false);
   const defaultLogsSize: number = 20;
 
-  const Feedbacklog = ({ userId, timestamp}) => {
+  const getAction = (feedback) => {
+    switch (feedback) {
+      case 'ACCEPTED':
+        return 'Accepted';
+        break;
+      case 'REJECTED':
+        return 'Rejected';
+        break;
+      case 'NULL':
+        return 'Suggested';
+        break;
+      default:
+        return 'Suggested';
+        break;
+    }
+  }
+
+  const Feedbacklog = ({ userId, timestamp, feedback}) => {
     let date = new Date(timestamp);
+    let action = getAction(feedback);
     return (
-      <p>{`Modified by ${userId} at ${date}`}</p>
+      <p>{`${action} by ${userId} at ${date}`}</p>
     )
   };
   
@@ -34,8 +52,9 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
             return (
               <Feedbacklog 
                 key={i}
-                userId={feedback.userID}
+                userId={feedback.AdminUser?.personIdentifier}
                 timestamp={feedback.modifyTimestamp}
+                feedback={feedback.feedback}
                 />
             )
           })

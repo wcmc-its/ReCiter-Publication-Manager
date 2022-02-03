@@ -1,6 +1,6 @@
 const filterPublications = (reciterData, tabType, search) => {
   const filteredPublications = []
-  reciterData.reciter.reCiterArticleFeatures.forEach((publication) => {
+  reciterData.reciter.reCiterArticleFeatures?.forEach((publication) => {
     // Check publication status
     if(publication.userAssertion === tabType) {
         // Check search and sort
