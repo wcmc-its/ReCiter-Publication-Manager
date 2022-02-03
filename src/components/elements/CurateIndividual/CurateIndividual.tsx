@@ -64,7 +64,7 @@ const CurateIndividual = () => {
         <Container className="indentity-data-container" fluid={true}>
           <div className="d-flex">
           {
-            displayImage &&
+            displayImage && identityData.identityImageEndpoint &&
             <div className={styles.profileImgWrapper}>
               <Image
                 src={identityData.identityImageEndpoint}

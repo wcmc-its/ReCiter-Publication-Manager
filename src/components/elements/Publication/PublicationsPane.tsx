@@ -103,7 +103,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               return(
                 <>
                   <Publication
-                    key={index}
+                    key={index.toString()}
                     index={index}
                     reciterArticle={article}
                     personIdentifier={item.personIdentifier}

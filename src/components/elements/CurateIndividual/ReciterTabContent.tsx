@@ -40,24 +40,20 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setPublications(sortedPublications);
   }
 
-  const handlePaginationUpdate = (eventKey, page, updateCount) => {
-    let updatedCount = count
+  const handlePaginationUpdate = ( page ) => {
     setPage(page)
+  }
 
-    if (updateCount) {
-      setCount(eventKey)
-      updatedCount = eventKey
+  const handleCountUpdate = (count) => {
+    if (count) {
+      setPage(1);
+      setCount(parseInt(count));
     }
   }
 
   const getPaginatedData = () => {
-    let from = (page - 1) * count;
-    let to = from + count;
-    let dataList = [];
-    if (publications) {
-      dataList = publications;
-    }
-    return dataList.slice(from, to);
+    let dataList = publications.slice(page * count, (page + 1) * count)
+    return dataList;
   };
 
   return (
@@ -70,20 +66,20 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       <Pagination total={publications.length} page={page}
         count={count}
         onChange={handlePaginationUpdate}
+        onCountChange={handleCountUpdate}
         />
       {getPaginatedData().map((publication: any, index: number) => {
         return (
-          <>
+          <div key={publication.pmid}>
             <Publication 
               index={index}
-              key={index}
               reciterArticle={publication}
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
               feedbacklog={props.feedbacklog}
             />
             <Divider />
-          </>
+          </div>
         )
       })}
     </>

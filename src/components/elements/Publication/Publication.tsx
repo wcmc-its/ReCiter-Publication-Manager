@@ -6,7 +6,6 @@ import ClearIcon from '@mui/icons-material/Clear';
 import UndoIcon from '@mui/icons-material/Undo';
 import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
-import { useRouter } from 'next/router';
 import { useSelector, RootStateOrAny } from "react-redux";
 import HistoryModal from "./HistoryModal";
 
@@ -20,7 +19,6 @@ interface FuncProps {
     onUndo?(pmid: number, id: number): void,
     item?: any,
     faculty?: any,
-    key: number,
     reciterArticle: any,
     index: number,
     personIdentifier: string,
@@ -34,8 +32,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
-
-    const router = useRouter()
 
     const onOpenModal = () => setShowHistoryModal(true)
     const onCloseModal = () => setShowHistoryModal(false)
@@ -562,7 +558,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     }
 
     return (
-      <Row className={styles.articleContainer} key={props.key}>
+      <Row className={styles.articleContainer}>
         <Col md={3} className={styles.publicationButtons}>
           <Buttons pmid={reciterArticle.pmid} index={props.index} userAssertion={reciterArticle.userAssertion}></Buttons>
             <div className="clear-both"></div>
@@ -580,7 +576,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           <Row><strong>{reciterArticle.articleTitle}</strong></Row>
             <div className={styles.publicationField}>
                 <span>
-                  {reciterArticle.reCiterArticleAuthorFeatures.length > 0 &&
+                  {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
                   displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
                 </span>
             </div>

@@ -46,15 +46,15 @@ const Pagination = (props) => {
       });
     }
 
-    const onClickNext = (event) => {
+    const onClickNext = () => {
       if (propsPage !== totalPages) {
-        props.onChange(event, propsPage + 1, false);
+        props.onChange(propsPage + 1);
       }
     }
 
-    const onClickPrev = (event) => {
+    const onClickPrev = () => {
       if (propsPage !== 1) {
-        props.onChange(event, propsPage - 1, false);
+        props.onChange(propsPage - 1);
       }
     }
 
@@ -63,11 +63,11 @@ const Pagination = (props) => {
         <div className="col-lg-3 col-md-4 col-sm-4 col">
           <div className={styles.showRows}>
             <label>Show records</label>
-            <DropdownButton className={styles.basicDropdown} id="dropdown-basic-button" title={propsCount} onSelect={(eventKey) => props.onChange(eventKey, 1, true)}>
-              <Dropdown.Item eventKey="10">10</Dropdown.Item>
-              <Dropdown.Item eventKey="20">20</Dropdown.Item>
-              <Dropdown.Item eventKey="50">50</Dropdown.Item>
-              <Dropdown.Item eventKey="100">100</Dropdown.Item>
+            <DropdownButton className={styles.basicDropdown} id="dropdown-basic-button" title={propsCount} onSelect={(eventKey) => props.onCountChange(eventKey)}>
+              <Dropdown.Item eventKey={10}>10</Dropdown.Item>
+              <Dropdown.Item eventKey={20}>20</Dropdown.Item>
+              <Dropdown.Item eventKey={50}>50</Dropdown.Item>
+              <Dropdown.Item eventKey={100}>100</Dropdown.Item>
             </DropdownButton>
           </div>
         </div>
