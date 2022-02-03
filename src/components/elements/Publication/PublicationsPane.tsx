@@ -15,7 +15,7 @@ import Profile from "../Profile/Profile";
 import SuggestionsBanner from "../CurateIndividual/SuggestionsBanner";
 import { useSession } from "next-auth/client";
 import { useDispatch } from "react-redux";
-import { reciterUpdatePublication } from "../../../redux/actions/actions"; 
+import { reciterUpdatePublicationGroup } from "../../../redux/actions/actions"; 
 
 //TEMP: update to required
 interface FuncProps {
@@ -81,15 +81,27 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
       if ( countPendingArticles > 0 ) {
         setCountPendingArticles(countPendingArticles - 1);
       }
-      dispatch(reciterUpdatePublication(uid, request));
+
+      dispatch(reciterUpdatePublicationGroup(uid, request));
       // Remove publication from the pane
       let updatedArticles = articles;
       updatedArticles.filter(article => article.pmid !== pmid);
+
       setArticles(updatedArticles);
     }
 
     const handleProfileClick = (uid: string) => {
       return router.push('/curate/' + uid)
+    }
+
+    const filterByPmid = (articles, reciterPendingData) => {
+      if (reciterPendingData && reciterPendingData.length) {
+        let filteredArticles = articles.filter(article => !reciterPendingData.includes(article.pmid));
+
+        return filteredArticles;
+      } else {
+        return articles;
+      } 
     }
 
     const handleClose = () => setModalShow(false);
@@ -120,7 +132,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           </Accordion.Header>
           <Accordion.Body> 
           {
-            (item.reCiterArticleFeatures.length === 0 || countPendingArticles === 0) &&
+            (item.reCiterArticleFeatures?.length === 0 || countPendingArticles === 0) &&
               <div className="d-flex justify-content-center">
                 <p className="text-align-center">No pending publications</p>
               </div>
@@ -131,8 +143,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               count={item.reciterPendingData.length}
               />
           }
-          {item.reCiterArticleFeatures.length > 0 &&
-            articles.map((article: any, index: number) => {
+          {articles.length > 0 &&
+            filterByPmid(articles, item.reciterPendingData).map((article: any, index: number) => {
               return(
                 <>
                   <Publication
