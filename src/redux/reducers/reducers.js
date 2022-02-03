@@ -342,6 +342,34 @@ export const publicationsGroupData = (state = {}, action) => {
           reciter: [...state.reciter, ...action.payload.reciter]
         }
 
+      case methods.ACCEPT_PUBLICATION_GROUP :
+        let updatedPublicationsAccept = state.reciter.map(publication => {
+          if (publication.personIdentifier == action.payload.personIdentifier) {
+            publication.reciterPendingData.push(action.payload.pmid);
+            return publication;
+          } else {
+            return publication;
+          }
+        });
+
+        return {
+            ...state,
+            reciter: updatedPublicationsAccept
+        }
+      case methods.REJECT_PUBLICATION_GROUP :
+        let updatedPublicationsReject = state.reciter.map(publication => {
+          if (publication.personIdentifier == action.payload.personIdentifier) {
+            publication.reciterPendingData.push(action.payload.pmid);
+            return publication;
+          } else {
+            return publication;
+          }
+        });
+
+        return {
+            ...state,
+            reciter: updatedPublicationsReject
+        }
       default :
           return state
   }

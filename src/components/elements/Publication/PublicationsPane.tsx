@@ -12,6 +12,10 @@ import Publication from "./Publication";
 import { reciterConfig } from "../../../../config/local";
 import Divider from "../Common/Divider";
 import Profile from "../Profile/Profile";
+import SuggestionsBanner from "../CurateIndividual/SuggestionsBanner";
+import { useSession } from "next-auth/client";
+import { useDispatch } from "react-redux";
+import { reciterUpdatePublicationGroup } from "../../../redux/actions/actions"; 
 
 //TEMP: update to required
 interface FuncProps {
@@ -31,6 +35,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
     const [modalShow, setModalShow] = useState(false);
+    const [session, loading] = useSession();
+    const dispatch = useDispatch();
     const feedbacklog = props.feedbacklogGroup.find(feedback => feedback.hasOwnProperty(props.item.personIdentifier)) || {};
 
     const router = useRouter()
@@ -61,8 +67,41 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
       props.onUndo(pmid)
     }
 
+    const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
+      const userId = session?.data?.databaseUser?.userID;
+      const request = {
+        publications: [pmid],
+        userAssertion: userAssertion,
+        manuallyAddedFlag: false,
+        userID: userId,
+        personIdentifier: uid,
+      }
+
+      // Update count
+      if ( countPendingArticles > 0 ) {
+        setCountPendingArticles(countPendingArticles - 1);
+      }
+
+      dispatch(reciterUpdatePublicationGroup(uid, request));
+      // Remove publication from the pane
+      let updatedArticles = articles;
+      updatedArticles.filter(article => article.pmid !== pmid);
+
+      setArticles(updatedArticles);
+    }
+
     const handleProfileClick = (uid: string) => {
       return router.push('/curate/' + uid)
+    }
+
+    const filterByPmid = (articles, reciterPendingData) => {
+      if (reciterPendingData && reciterPendingData.length) {
+        let filteredArticles = articles.filter(article => !reciterPendingData.includes(article.pmid));
+
+        return filteredArticles;
+      } else {
+        return articles;
+      } 
     }
 
     const handleClose = () => setModalShow(false);
@@ -93,13 +132,19 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           </Accordion.Header>
           <Accordion.Body> 
           {
-            (item.reCiterArticleFeatures.length === 0 || countPendingArticles === 0) &&
+            (item.reCiterArticleFeatures?.length === 0 || countPendingArticles === 0) &&
               <div className="d-flex justify-content-center">
                 <p className="text-align-center">No pending publications</p>
               </div>
           }
-          {item.reCiterArticleFeatures.length > 0 &&
-            articles.map((article: any, index: number) => {
+          {item.reciterPendingData && item.reciterPendingData.length > 0 && 
+            <SuggestionsBanner
+              uid={item.personIdentifier}
+              count={item.reciterPendingData.length}
+              />
+          }
+          {articles.length > 0 &&
+            filterByPmid(articles, item.reciterPendingData).map((article: any, index: number) => {
               return(
                 <>
                   <Publication
@@ -110,6 +155,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     onAccept={acceptPublication}
                     fullName={filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
                     feedbacklog={feedbacklog[item.personIdentifier] ? feedbacklog[item.personIdentifier] : {}}
+                    updatePublication={handleUpdatePublication}
                     />
                     {index < articles.length - 1 && <Divider></Divider>}
                 </>

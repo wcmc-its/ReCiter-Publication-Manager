@@ -13,8 +13,8 @@ const SuggestionsBanner = ({ uid, count } : { uid : string | string[], count: nu
  
   return (
     <>
-    <Row className={`${styles.suggestionsBanner} my-2`}>
-      <p>{`You have provided feedback on ${count} record(s). `}<span className="text-btn" onClick={refreshSuggestions}>Refresh</span> suggestions</p>
+    <Row className={`${styles.suggestionsBanner} my-2 p-1`}>
+      <p className="mt-3">{`You have provided feedback on ${count} record(s). `}<span className="text-btn" onClick={refreshSuggestions}>Refresh</span> suggestions</p>
     </Row>
     </>
   )
