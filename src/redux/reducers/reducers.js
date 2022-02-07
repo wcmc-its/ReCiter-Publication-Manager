@@ -79,59 +79,38 @@ export const reciterData = (state=[], action) => {
         case methods.ACCEPT_PUBLICATION :
             var publications = []
             var pendingPublications = state.reciterPending
-            state.reciter.forEach(function(publication){
-                if(publication.pmid === action.payload) {
-                    publication.userAssertion = 'ACCEPTED'
-                    pendingPublications.push(publication)
-                }else {
-                    publications.push(publication)
-                }
-            })
+
+            pendingPublications.push(action.payload)
 
             if(action.manuallyAddedFlag) {
                 pendingPublications.push(action.payload)
             }
 
             return {
-                faculty: state.faculty,
                 reciter: publications,
                 reciterPending: pendingPublications
             }
         case methods.REJECT_PUBLICATION :
             var publications = []
             pendingPublications = state.reciterPending
-            state.reciter.forEach(function(publication){
-                if(publication.pmid === action.payload) {
-                    publication.userAssertion = 'REJECTED'
-                    pendingPublications.push(publication)
-                }else {
-                    publications.push(publication)
-                }
-            })
+
+            pendingPublications.push(action.payload)
 
             if(action.manuallyAddedFlag) {
                 pendingPublications.push(action.payload)
             }
 
             return {
-                faculty: state.faculty,
-                reciter: publications,
+                reciter: state.reciter,
                 reciterPending: pendingPublications
             }
         case methods.UNDO_PUBLICATION :
             var publications = []
             pendingPublications = state.reciterPending
-            state.reciter.forEach(function(publication){
-                if(publication.pmid === action.payload) {
-                    publication.userAssertion = 'NULL'
-                    pendingPublications.push(publication)
-                }else {
-                    publications.push(publication)
-                }
-            })
+
+            pendingPublications.push(action.payload)
             return {
-                faculty: state.faculty,
-                reciter: publications,
+                reciter: state.reciter,
                 reciterPending: pendingPublications
             }
         default :
@@ -363,6 +342,34 @@ export const publicationsGroupData = (state = {}, action) => {
           reciter: [...state.reciter, ...action.payload.reciter]
         }
 
+      case methods.ACCEPT_PUBLICATION_GROUP :
+        let updatedPublicationsAccept = state.reciter.map(publication => {
+          if (publication.personIdentifier == action.payload.personIdentifier) {
+            publication.reciterPendingData.push(action.payload.pmid);
+            return publication;
+          } else {
+            return publication;
+          }
+        });
+
+        return {
+            ...state,
+            reciter: updatedPublicationsAccept
+        }
+      case methods.REJECT_PUBLICATION_GROUP :
+        let updatedPublicationsReject = state.reciter.map(publication => {
+          if (publication.personIdentifier == action.payload.personIdentifier) {
+            publication.reciterPendingData.push(action.payload.pmid);
+            return publication;
+          } else {
+            return publication;
+          }
+        });
+
+        return {
+            ...state,
+            reciter: updatedPublicationsReject
+        }
       default :
           return state
   }

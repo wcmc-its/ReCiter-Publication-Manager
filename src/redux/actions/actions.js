@@ -359,7 +359,6 @@ export const pubmedFetchData = query => dispatch => {
 
 export const reciterUpdatePublication = (uid, request) => dispatch => {
 
-    const [session, loading] = useSession()
 
     // Update publications' user assertions state
     request.publications.forEach(function(id){
@@ -501,7 +500,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                 body: JSON.stringify(adminFeedbackRequestBody)
             }, 300000)
             .then(response => {
-                if(response.status === 200) {
+                if(response.status === 200 || response.status === 201) {
                     toast.success("Feedback log updated in database for " + uid, {
                         position: "top-right",
                         autoClose: 1000,
@@ -545,6 +544,182 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
             })
     }
     
+
+}
+
+export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
+
+
+  // Update publications' user assertions state
+  request.publications.forEach(function(id){
+      switch(request.userAssertion) {
+          case "ACCEPTED":
+              dispatch({
+                  type: methods.ACCEPT_PUBLICATION_GROUP,
+                  payload: {pmid: id, personIdentifier: uid},
+                  manuallyAddedFlag: request.manuallyAddedFlag
+              })
+              break
+          case "REJECTED":
+              dispatch({
+                  type: methods.REJECT_PUBLICATION_GROUP,
+                  payload: {pmid: id, personIdentifier: uid},
+                  manuallyAddedFlag: request.manuallyAddedFlag
+              })
+              break
+      }
+  })
+
+  // Send request to the API to update publications
+
+  if(request.userAssertion === 'ACCEPTED' && !request.manuallyAddedFlag) {
+      var goldStandard = {
+          "knownPmids": request.publications,
+          "uid": uid
+      };
+  } else if(request.userAssertion === 'REJECTED' && !request.manuallyAddedFlag) {
+      var goldStandard = {
+          "rejectedPmids": request.publications,
+          "uid": uid
+      };
+  } else if(request.userAssertion === 'NULL' && !request.manuallyAddedFlag) {
+      var goldStandard = {
+          "knownPmids": request.publications,
+          "rejectedPmids": request.publications,
+          "uid": uid
+      };
+  } else if(request.userAssertion === 'ACCEPTED' && request.manuallyAddedFlag) {
+      var goldStandard = {
+          "knownPmids": [request.publications[0].pmid],
+          "uid": uid
+      };
+  } else if(request.userAssertion === 'REJECTED' && request.manuallyAddedFlag) {
+      var goldStandard = {
+          "rejectedPmids": [request.publications[0].pmid],
+          "uid": uid
+      };
+  }
+
+
+  var url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=UPDATE';
+  if(request.userAssertion === 'NULL') {
+      url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=DELETE'
+  }
+
+  fetchWithTimeout(url, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(goldStandard)
+  }, 300000)
+  .then(response => {
+      if(response.status === 200) {
+          toast.success("GoldStandard updated successfully for user" + uid, {
+              position: "top-right",
+              autoClose: 1000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined
+              });
+          return response.json()
+      }else {
+          throw {
+              type: response.type,
+              title: response.statusText,
+              status: response.status,
+              detail: "Error occurred with api " + response.url + ". Please, try again later "
+          }
+      }
+  })
+  .catch(error => {
+
+      console.log(error)
+      toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
+          position: "top-right",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined
+          });
+
+      dispatch(
+          addError(error)
+      )
+
+  })
+
+  //update adminFeedbackLog table
+  const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
+  if(request.userID && 
+      request.personIdentifier && 
+      request.publications &&
+      request.userAssertion
+      ) {
+          let adminFeedbackRequestBody = {
+              "userID": request.userID,
+              "personIdentifier": uid,
+              "articleIdentifier": request.publications,
+              "feedback": request.userAssertion
+          }
+          fetchWithTimeout(adminFeedbackLogUrl, {
+              credentials: "same-origin",
+              method: 'POST',
+              headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'Authorization': reciterConfig.backendApiKey
+              },
+              body: JSON.stringify(adminFeedbackRequestBody)
+          }, 300000)
+          .then(response => {
+              if(response.status === 200 || response.status === 201) {
+                  toast.success("Feedback log updated in database for " + uid, {
+                      position: "top-right",
+                      autoClose: 1000,
+                      hideProgressBar: false,
+                      closeOnClick: true,
+                      pauseOnHover: true,
+                      draggable: true,
+                      progress: undefined
+                      });
+                  return response.json()
+              }else {
+                  throw {
+                      type: response.type,
+                      title: response.statusText,
+                      status: response.status,
+                      detail: "Error occurred with api " + response.url + ". Please, try again later "
+                  }
+              }
+          })
+          .catch(error => {
+      
+              console.log(error)
+              toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
+                  position: "top-right",
+                  autoClose: 2000,
+                  hideProgressBar: false,
+                  closeOnClick: true,
+                  pauseOnHover: true,
+                  draggable: true,
+                  progress: undefined,
+                  });
+      
+              dispatch(
+                  addError(error)
+              )
+      
+          })
+  }
+  
 
 }
 

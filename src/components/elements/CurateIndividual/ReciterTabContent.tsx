@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Publication from "../Publication/Publication";
 import Divider from "../Common/Divider";
 import FilterPubSection from "./FilterPubSection";
@@ -6,6 +6,9 @@ import filterPublicationsBySearchText from "../../../utils/filterPublicationsByS
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
 import slice from "lodash/slice";
+import { useSession } from "next-auth/client";
+import { fetchFeedbacklog, reciterUpdatePublication } from "../../../redux/actions/actions";
+import { useDispatch } from "react-redux"; 
 
 interface TabContentProps {
   tabType: string,
@@ -13,6 +16,8 @@ interface TabContentProps {
   index: number,
   personIdentifier: string,
   fullName: string,
+  updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
+  updatePublicationAssertionBulk: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   feedbacklog: any,
 }
 
@@ -21,6 +26,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [publications, setPublications] = useState<any>(props.publications);
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
+  const [session, loading] = useSession();
+  const dispatch = useDispatch();
 
   if (!props.publications.length) {
     return (
@@ -29,6 +36,13 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       </div>
     )
   }
+
+  // TODO: update history
+  // useEffect(() => {
+  //   let sortedPublications = sortPublications(props.publications, sort);
+  //   setPublications(sortedPublications);
+  //   dispatch(fetchFeedbacklog(props.personIdentifier));
+  // }, [publications.length])
 
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
@@ -53,11 +67,72 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   }
 
   const getPaginatedData = () => {
-    let dataList = slice(publications, page * count, (page + 1) * count)
-    return dataList;
+    let from = (page - 1) * count;
+    let to = from + count;
+    let dataList = [];
+    if (props.publications) {
+      dataList = props.publications;
+    }
+    return dataList.slice(from, to);
   };
 
-  let publicationsPaginatedData = slice(page * count, (page + 1) * count);
+  let publicationsPaginatedData = slice(publications, page * count, (page + 1) * count);
+
+  const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
+    const userId = session?.data?.databaseUser?.userID;
+    const request = {
+      publications: [pmid],
+      userAssertion: userAssertion,
+      manuallyAddedFlag: false,
+      userID: userId,
+      personIdentifier: uid,
+    }
+    // TODO: send request
+    dispatch(reciterUpdatePublication(uid, request));
+    
+    // update user assertion of the publication
+    let updatedPublication = {};
+    let index = publications.findIndex(publication => publication.pmid === pmid);
+    if (index > -1) { 
+      updatedPublication = { 
+        ...publications[index],
+        userAssertion: userAssertion
+      };
+    }
+
+    // move updated data to the right Tab
+    props.updatePublicationAssertion(updatedPublication, userAssertion, props.tabType);
+  }
+
+  const handleUpdatePublicationAll = (userAssertion: string) => {
+    const userId = session?.data?.databaseUser?.userID;
+    const pmids = getPaginatedData().map((publication) => {return publication.pmid});
+    const request = {
+      publications: pmids,
+      userAssertion: userAssertion,
+      manuallyAddedFlag: false,
+      userID: userId,
+      personIdentifier: props.personIdentifier,
+    }
+
+    dispatch(reciterUpdatePublication(props.personIdentifier, request));
+    //TODO Update publications list in the tab
+    let paginatedPublications = getPaginatedData();
+    let updatedPublications = []; 
+    pmids.forEach((pmid) => {
+      let updatedPublication = {};
+      let index = paginatedPublications.findIndex(publication => publication.pmid === pmid);
+      if (index > -1) { 
+        updatedPublication = { 
+          ...publications[index],
+          userAssertion: userAssertion
+        };
+        updatedPublications.push(updatedPublication);
+      }
+    })
+
+    props.updatePublicationAssertionBulk(updatedPublications, userAssertion, props.tabType);
+  }
 
   return (
     <>
@@ -65,6 +140,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         searchTextUpdate={searchTextUpdate}
         sortUpdate={sortUpdate}
         publications={publications}
+        updateAll={handleUpdatePublicationAll}
+        tabType={props.tabType}
       />
       <Pagination total={publications.length} page={page}
         count={count}
@@ -79,6 +156,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               reciterArticle={publication}
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
+              updatePublication={handleUpdatePublication}
               feedbacklog={props.feedbacklog}
             />
             <Divider />
