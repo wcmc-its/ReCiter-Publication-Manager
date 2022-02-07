@@ -5,6 +5,7 @@ import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
+import slice from "lodash/slice";
 
 interface TabContentProps {
   tabType: string,
@@ -52,11 +53,11 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   }
 
   const getPaginatedData = () => {
-    let dataList = publications.slice(page * count, (page + 1) * count)
+    let dataList = slice(publications, page * count, (page + 1) * count)
     return dataList;
   };
 
-  let publicationsPaginatedData = publications.slice(page * count, (page + 1) * count);
+  let publicationsPaginatedData = slice(page * count, (page + 1) * count);
 
   return (
     <>

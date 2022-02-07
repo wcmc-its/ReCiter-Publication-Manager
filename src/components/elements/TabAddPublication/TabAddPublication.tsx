@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, FunctionComponent, useRef, useEffect } from "react";
 import styles from './TabAddPublication.module.css';
 import appStyles from '../App/App.module.css';
