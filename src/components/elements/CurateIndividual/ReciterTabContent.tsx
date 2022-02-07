@@ -56,6 +56,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     return dataList;
   };
 
+  let publicationsPaginatedData = publications.slice(page * count, (page + 1) * count);
+
   return (
     <>
       <FilterPubSection 
@@ -68,7 +70,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         onChange={handlePaginationUpdate}
         onCountChange={handleCountUpdate}
         />
-      {getPaginatedData().map((publication: any, index: number) => {
+      {publicationsPaginatedData.map((publication: any, index: number) => {
         return (
           <div key={publication.pmid}>
             <Publication 

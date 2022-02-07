@@ -4,14 +4,22 @@ import { ArrowRight } from "@mui/icons-material";
 import { ArrowLeft } from "@mui/icons-material";
 import { DropdownButton, Dropdown } from "react-bootstrap";
 
-const Pagination = (props) => {
-  const propsTotal = parseInt(props.total, 10);
-  const propsPage = parseInt(props.page, 10);
-  const propsCount = parseInt(props.count, 10);
+interface PaginationProps {
+  count: number,
+  total: number,
+  page: number,
+  onChange: (page: number) => void,
+  onCountChange: (count: number) => void, 
+}
+
+const Pagination: React.FC<PaginationProps> = (props) => {
+  const propsTotal = props.total;
+  const propsPage = props.page;
+  const propsCount = props.count;
 
   if (propsTotal > 0) {
     // Calculate total pages
-    var totalPages = parseInt(propsTotal / propsCount, 10);
+    var totalPages = Math.ceil(propsTotal / propsCount);
     if (propsTotal > totalPages * propsCount) totalPages++;
     // Calculate first page number
     var firstPage = propsPage - 5;
@@ -72,9 +80,9 @@ const Pagination = (props) => {
           </div>
         </div>
         <div className="col-lg-2 col-md-4 col-sm-4 col">
-          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={(event) => onClickPrev(event)}></ArrowLeft>
+          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={() => onClickPrev()}></ArrowLeft>
           Page <span>{propsPage}</span> of {totalPages}
-          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={(event) => onClickNext(event)}></ArrowRight>
+          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={() => onClickNext()}></ArrowRight>
         </div>
       </div>
     );
