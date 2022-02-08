@@ -83,8 +83,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
 
       dispatch(reciterUpdatePublicationGroup(uid, request));
       // Remove publication from the pane
-      let updatedArticles = articles;
-      updatedArticles.filter(article => article.pmid !== pmid);
+      let updatedArticles = articles.filter(article => article.pmid !== pmid);
 
       setArticles(updatedArticles);
     }
