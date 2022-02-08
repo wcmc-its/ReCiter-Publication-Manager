@@ -9,6 +9,7 @@ import { ExpandNavContext } from "../elements/Navbar/ExpandNavContext";
 import styles from "./AppLayout.module.css";
 import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
+import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
 
 export const AppLayout = ({ children }) => {
   const router = useRouter();
@@ -51,6 +52,7 @@ export const AppLayout = ({ children }) => {
             <Col className="main-content p-0" lg={12}>
               {children}
             </Col>
+            <ToastContainerWrapper/>
           </Row>
           <Row>
             <Footer />
