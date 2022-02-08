@@ -7,7 +7,6 @@ import Pagination  from '../Pagination/Pagination';
 import appStyles from '../App/App.module.css';
 import publicationStyles from '../Publication/Publication.module.css';
 import { useSession } from 'next-auth/client';
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import SearchBar from "./SearchBar";
 import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
@@ -340,7 +339,6 @@ const Search = () => {
                                             count={count}
                                             onChange={handlePaginationUpdate}/>
                             </React.Fragment>
-                            <ToastContainerWrapper />
                         </div>
                     </div>
                 </div>
