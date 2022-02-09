@@ -4,14 +4,22 @@ import { ArrowRight } from "@mui/icons-material";
 import { ArrowLeft } from "@mui/icons-material";
 import { DropdownButton, Dropdown } from "react-bootstrap";
 
-const Pagination = (props) => {
-  const propsTotal = parseInt(props.total, 10);
-  const propsPage = parseInt(props.page, 10);
-  const propsCount = parseInt(props.count, 10);
+interface PaginationProps {
+  count: number,
+  total: number,
+  page: number,
+  onChange: (page: number) => void,
+  onCountChange: (count: string) => void, 
+}
+
+const Pagination: React.FC<PaginationProps> = (props) => {
+  const propsTotal = props.total;
+  const propsPage = props.page;
+  const propsCount = props.count;
 
   if (propsTotal > 0) {
     // Calculate total pages
-    var totalPages = parseInt(propsTotal / propsCount, 10);
+    var totalPages = Math.ceil(propsTotal / propsCount);
     if (propsTotal > totalPages * propsCount) totalPages++;
     // Calculate first page number
     var firstPage = propsPage - 5;
@@ -46,15 +54,15 @@ const Pagination = (props) => {
       });
     }
 
-    const onClickNext = (event) => {
+    const onClickNext = () => {
       if (propsPage !== totalPages) {
-        props.onChange(event, propsPage + 1, false);
+        props.onChange(propsPage + 1);
       }
     }
 
-    const onClickPrev = (event) => {
+    const onClickPrev = () => {
       if (propsPage !== 1) {
-        props.onChange(event, propsPage - 1, false);
+        props.onChange(propsPage - 1);
       }
     }
 
@@ -63,18 +71,17 @@ const Pagination = (props) => {
         <div className="col-lg-3 col-md-4 col-sm-4 col">
           <div className={styles.showRows}>
             <label>Show records</label>
-            <DropdownButton className={styles.basicDropdown} id="dropdown-basic-button" title={propsCount} onSelect={(eventKey) => props.onChange(eventKey, 1, true)}>
-              <Dropdown.Item eventKey="10">10</Dropdown.Item>
-              <Dropdown.Item eventKey="20">20</Dropdown.Item>
-              <Dropdown.Item eventKey="50">50</Dropdown.Item>
-              <Dropdown.Item eventKey="100">100</Dropdown.Item>
+            <DropdownButton className={styles.basicDropdown} id="dropdown-basic-button" title={propsCount} onSelect={(eventKey) => props.onCountChange(eventKey)}>
+              <Dropdown.Item eventKey={10}>10</Dropdown.Item>
+              <Dropdown.Item eventKey={20}>20</Dropdown.Item>
+              <Dropdown.Item eventKey={50}>50</Dropdown.Item>
             </DropdownButton>
           </div>
         </div>
         <div className="col-lg-2 col-md-4 col-sm-4 col">
-          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={(event) => onClickPrev(event)}></ArrowLeft>
+          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={() => onClickPrev()}></ArrowLeft>
           Page <span>{propsPage}</span> of {totalPages}
-          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={(event) => onClickNext(event)}></ArrowRight>
+          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={() => onClickNext()}></ArrowRight>
         </div>
       </div>
     );

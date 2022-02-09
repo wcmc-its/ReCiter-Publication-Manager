@@ -19,14 +19,14 @@ const InferredKeywords = ({
     <> 
     {
       reciter.articleKeywordsAcceptedArticles && reciter.articleKeywordsAcceptedArticles.length > 0 &&
-      <p>
+      <div>
         <b> Inferred keywords: </b>
       {
         reciter.articleKeywordsAcceptedArticles.map((articleKeyword: Keyword, key: number) => {
           return (
-            <>
+            <div className="d-inline" key={`inferred-keyword__${key.toString()}`}>
               <OverlayTrigger 
-                trigger={"hover"} 
+                trigger={["focus", "hover"]} 
                 overlay={(      
                   <Popover id="keyword-information">
                     <Popover.Body>
@@ -35,11 +35,11 @@ const InferredKeywords = ({
                   </Popover>)} placement="top"><span className={styles.highlighted}>{articleKeyword.keyword}</span>
               </OverlayTrigger>
               <span>{' '}</span>
-            </>
+            </div>
           )
         })
      }
-    </p>
+    </div>
     }
     </>
   )

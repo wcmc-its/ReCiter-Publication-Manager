@@ -5,6 +5,7 @@ import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
+import slice from "lodash/slice";
 import { useSession } from "next-auth/client";
 import { fetchFeedbacklog, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { useDispatch } from "react-redux"; 
@@ -54,13 +55,14 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setPublications(sortedPublications);
   }
 
-  const handlePaginationUpdate = (eventKey, page, updateCount) => {
-    let updatedCount = count
+  const handlePaginationUpdate = ( page ) => {
     setPage(page)
+  }
 
-    if (updateCount) {
-      setCount(eventKey)
-      updatedCount = eventKey
+  const handleCountUpdate = (count) => {
+    if (count) {
+      setPage(1);
+      setCount(parseInt(count));
     }
   }
 
@@ -73,6 +75,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     }
     return dataList.slice(from, to);
   };
+
+  let publicationsPaginatedData = slice(publications, page * count, (page + 1) * count);
 
   const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
     const userId = session?.data?.databaseUser?.userID;
@@ -142,13 +146,13 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       <Pagination total={publications.length} page={page}
         count={count}
         onChange={handlePaginationUpdate}
+        onCountChange={handleCountUpdate}
         />
-      {getPaginatedData().map((publication: any, index: number) => {
+      {publicationsPaginatedData.map((publication: any, index: number) => {
         return (
-          <>
+          <div key={publication.pmid}>
             <Publication 
               index={index}
-              key={index}
               reciterArticle={publication}
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
@@ -156,7 +160,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               feedbacklog={props.feedbacklog}
             />
             <Divider />
-          </>
+          </div>
         )
       })}
     </>

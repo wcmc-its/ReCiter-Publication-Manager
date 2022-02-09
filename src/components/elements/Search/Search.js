@@ -60,18 +60,19 @@ const Search = () => {
     },[])
 
 
-    const handlePaginationUpdate = (eventKey, page, updateCount) => {
-        let updatedCount = count
-          setPage(page)
-
-        if (updateCount) {
-            setCount(eventKey)
-            updatedCount = eventKey
-        }
+    const handlePaginationUpdate = ( page ) => {
+        setPage(page)
 
         if (Object.keys(filters).length === 0) {
-          dispatch(identityFetchPaginatedData(page, updatedCount))
+          dispatch(identityFetchPaginatedData(page, count))
         }
+    }
+
+    const handleCountUpdate = (count) => {
+      if (count) {
+        setPage(1);
+        setCount(parseInt(count));
+      }
     }
 
     const filter = () => {
@@ -319,7 +320,9 @@ const Search = () => {
                             <React.Fragment>
                                 <Pagination total={totalCount} page={page}
                                             count={count}
-                                            onChange={handlePaginationUpdate}/>
+                                            onChange={handlePaginationUpdate}
+                                            onCountChange={handleCountUpdate}
+                                            />
                                 <div className="table-responsive">
                                     <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
                                         <thead>
@@ -338,7 +341,9 @@ const Search = () => {
                                 </div>
                                 <Pagination total={totalCount} page={page}
                                             count={count}
-                                            onChange={handlePaginationUpdate}/>
+                                            onChange={handlePaginationUpdate}
+                                            onCountChange={handleCountUpdate}
+                                            />
                             </React.Fragment>
                             <ToastContainerWrapper />
                         </div>
