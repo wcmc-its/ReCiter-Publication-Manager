@@ -36,13 +36,8 @@ export const identityFetchData = uid => dispatch => {
             if(response.status === 200) {
                 toast.success("Identity Api successfully fetched for " + uid, {
                     position: "top-right",
-                    autoClose: 1000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
-                    theme: 'dark'
+                    autoClose: 2000,
+                    theme: 'colored'
                 });
                 return response.json()
             }else {
@@ -67,15 +62,10 @@ export const identityFetchData = uid => dispatch => {
         .catch(error => {
             console.log(error)
 
-            toast.success("Identity Api failed for " + uid + " - " + error.title, {
+            toast.error("Identity Api failed for " + uid + " - " + error.title, {
                 position: "top-right",
-                autoClose: 1000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: 'dark'
+                autoClose: 2000,
+                theme: 'colored'
             });
 
             dispatch(
@@ -105,13 +95,8 @@ export const identityFetchAllData = () => dispatch => {
             if(response.status === 200) {
                 toast.success("Identity All Api successfully fetched", {
                     position: "top-right",
-                    autoClose: 1000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
-                    theme: 'dark'
+                    autoClose: 2000,
+                    theme: 'colored'
                 });
                 return response.json()
             }else {
@@ -138,12 +123,7 @@ export const identityFetchAllData = () => dispatch => {
             toast.error("Identity All Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: 'dark'
+                theme: 'colored'
                 });
             dispatch(
                 addError(error)
@@ -193,6 +173,11 @@ export const identityFetchPaginatedData = (page, limit) => dispatch => {
       })
       .catch(error => {
           console.log(error)
+          toast.error("Identity Fetch PaginatedData Api failed - " + error.title, {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+            });
           dispatch(
               addError(error)
           )
@@ -226,13 +211,8 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             if(response.status === 200) {
                 toast.success("Feature generator Api successfully fetched for " + uid, {
                     position: "top-right",
-                    autoClose: 1000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
-                    theme: 'dark'
+                    autoClose: 2000,
+                    theme: 'colored'
                     });
                 return response.json()
             }else {
@@ -259,12 +239,7 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             toast.error("Feature generator api for " + uid + " failed - " + error.title  , {
                 position: "top-right",
                 autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: 'dark'
+                theme: 'colored'
                 });
 
             dispatch(
@@ -310,13 +285,8 @@ export const pubmedFetchData = query => dispatch => {
                 )
                 toast.success("Pubmed query successfully fetched", {
                     position: "top-right",
-                    autoClose: 1000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
-                    theme: 'dark'
+                    autoClose: 2000,
+                    theme: 'colored'
                     });
                 dispatch({
                     type: methods.PUBMED_CHANGE_DATA,
@@ -333,12 +303,7 @@ export const pubmedFetchData = query => dispatch => {
             toast.error("Pubmed query " + query["strategy-query"] + " failed", {
                 position: "top-right",
                 autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: 'dark'
+                theme: 'colored'
                 });
 
             dispatch(
@@ -436,12 +401,8 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         if(response.status === 200) {
             toast.success("GoldStandard updated successfully for user" + uid, {
                 position: "top-right",
-                autoClose: 1000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined
+                autoClose: 2000,
+                theme: 'colored'
                 });
             return response.json()
         }else {
@@ -459,11 +420,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
             position: "top-right",
             autoClose: 2000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-            progress: undefined
+            theme: 'colored'
             });
 
         dispatch(
@@ -503,12 +460,8 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                 if(response.status === 200 || response.status === 201) {
                     toast.success("Feedback log updated in database for " + uid, {
                         position: "top-right",
-                        autoClose: 1000,
-                        hideProgressBar: false,
-                        closeOnClick: true,
-                        pauseOnHover: true,
-                        draggable: true,
-                        progress: undefined
+                        autoClose: 2000,
+                        theme: 'colored'
                         });
                     return response.json()
                 }else {
@@ -526,11 +479,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
                 toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
                     position: "top-right",
                     autoClose: 2000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true,
-                    progress: undefined,
+                    theme: 'colored'
                     });
         
                 dispatch(
@@ -619,13 +568,9 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
   .then(response => {
       if(response.status === 200) {
           toast.success("GoldStandard updated successfully for user" + uid, {
-              position: "top-right",
-              autoClose: 1000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              progress: undefined
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
               });
           return response.json()
       }else {
@@ -641,13 +586,9 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
 
       console.log(error)
       toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
-          position: "top-right",
-          autoClose: 2000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-          progress: undefined
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
           });
 
       dispatch(
@@ -682,13 +623,9 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
           .then(response => {
               if(response.status === 200 || response.status === 201) {
                   toast.success("Feedback log updated in database for " + uid, {
-                      position: "top-right",
-                      autoClose: 1000,
-                      hideProgressBar: false,
-                      closeOnClick: true,
-                      pauseOnHover: true,
-                      draggable: true,
-                      progress: undefined
+                        position: "top-right",
+                        autoClose: 2000,
+                        theme: 'colored'
                       });
                   return response.json()
               }else {
@@ -704,13 +641,9 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
       
               console.log(error)
               toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
-                  position: "top-right",
-                  autoClose: 2000,
-                  hideProgressBar: false,
-                  closeOnClick: true,
-                  pauseOnHover: true,
-                  draggable: true,
-                  progress: undefined,
+                    position: "top-right",
+                    autoClose: 2000,
+                    theme: 'colored'
                   });
       
               dispatch(
@@ -844,14 +777,9 @@ export const orgUnitsFetchAllData = () => dispatch => {
       .catch(error => {
           console.log(error)
           toast.error("Organizational Units Api failed - " + error.title, {
-              position: "top-right",
-              autoClose: 2000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              progress: undefined,
-              theme: 'dark'
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
               });
           dispatch(
               addError(error)
@@ -901,14 +829,9 @@ export const institutionsFetchAllData = () => dispatch => {
       .catch(error => {
           console.log(error)
           toast.error("Institutional Units Api failed - " + error.title, {
-              position: "top-right",
-              autoClose: 2000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              progress: undefined,
-              theme: 'dark'
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
               });
           dispatch(
               addError(error)
@@ -958,14 +881,9 @@ export const personTypesFetchAllData = () => dispatch => {
       .catch(error => {
           console.log(error)
           toast.error("Person Types Api failed - " + error.title, {
-              position: "top-right",
-              autoClose: 2000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              progress: undefined,
-              theme: 'dark'
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
               });
           dispatch(
               addError(error)
@@ -1051,6 +969,11 @@ export const publicationsFetchGroupData = ( ids, refresh ) => dispatch => {
     })
     .catch(error => {
         console.log(error)
+        toast.error("Feature generator by group Api failed - " + error.title, {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+          });
         dispatch(
             addError(error)
         )
@@ -1076,15 +999,22 @@ export const fetchFeedbacklog = ( id ) => dispatch => {
         'Authorization': reciterConfig.backendApiKey
     }
   }).then(response => {
-    return response.json()
+        if(response.status === 200) {
+            return response.json()
+        } else {
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        }
   }).then(data => {
     let articleIds = data.map((feedback) => {return feedback.articleIdentifier})
     articleIds = articleIds.filter((feedback, i) => {return articleIds.indexOf(feedback) === i});
     let feedbacklogData = {};
     articleIds.forEach((articleId) => {
       let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog});
-      // sort by Date
-      articleFeedbacks.sort((a, b) => { return new Date(a.modifyTimestamp) - new Date(b.modifyTimestamp) });
       feedbacklogData[articleId] = articleFeedbacks;
     })
 
@@ -1092,9 +1022,21 @@ export const fetchFeedbacklog = ( id ) => dispatch => {
       type: methods.FEEDBACKLOG_CHANGE_DATA,
       payload: feedbacklogData
     })
+
+    dispatch({
+        type: methods.FEEDBACKLOG_CANCEL_FETCHING
+    })
   
     }).catch(error => {
-      console.log(error);
+      console.log(error)
+      toast.error("Feedback log Api failed for " + id +" - " + error.title, {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+      dispatch(
+          addError(error)
+      )
 
       dispatch({
         type: methods.FEEDBACKLOG_CANCEL_FETCHING
@@ -1126,8 +1068,6 @@ export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
         let feedbacklogData = {};
         articleIds.forEach((articleId) => {
           let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog});
-          // sort by Date
-          articleFeedbacks.sort((a, b) => { return new Date(a.modifyTimestamp) - new Date(b.modifyTimestamp) });
           feedbacklogData[articleId] = articleFeedbacks;
         })
         feedbackLogs.push({ [id] : feedbacklogData});
