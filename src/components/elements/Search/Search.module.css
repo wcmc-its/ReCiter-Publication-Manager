@@ -81,3 +81,10 @@
   font-size: 16px;
   font-weight: 300;
 }
+
+.btnLink {
+  text-decoration: none;
+  color: #337ab7;
+  background: none;
+  border: none;
+}

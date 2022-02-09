@@ -136,6 +136,12 @@ export const identityFetchAllData = () => dispatch => {
         })
 }
 
+export const identityClearAllData = () => dispatch => {
+  dispatch({
+    type: methods.IDENTITY_CLEAR_ALL_DATA
+  })
+}
+
 export const identityFetchPaginatedData = (page, limit) => dispatch => {
   const offset = (page - 1) * limit;
   dispatch({

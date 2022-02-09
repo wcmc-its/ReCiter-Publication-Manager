@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds, updateFilteredIdentities } from '../../../redux/actions/actions'
+import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -233,6 +233,13 @@ const Search = () => {
       dispatch(updateFilters(updatedFilters));
     }
 
+    const onCLickProfile = (personIdentifier) => {
+      router.push(`/curate/${personIdentifier}`);
+      if (identityAllData && !identityAllFetching) {
+        dispatch(identityClearAllData())
+      }
+    }
+
     const identities = filter()
 
     if(errors && errors.length > 0) {
@@ -265,7 +272,7 @@ const Search = () => {
           tableBody = paginatedIdentities.map(function (identity, identityIndex) {
             return <tr key={identityIndex}>
                 <td key={`${identityIndex}__name`} width="30%">
-                    <Name identity={identity}></Name>
+                    <Name identity={identity} onCLickProfile={() => onCLickProfile(identity.personIdentifier)}></Name>
                 </td>
                 <td key={`${identityIndex}__orgUnit`} width="20%">
                     {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
@@ -383,9 +390,9 @@ function Name(props) {
     }
     if(props.identity.firstName !== undefined) {
         const nameString = props.identity.firstName + ((props.identity.middleName !== undefined) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
-        nameArray.push(<p key="0"> <a href={`/curate/${props.identity.personIdentifier}`}>
+        nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onCLickProfile}>
             <b>{nameString}</b>
-            </a>
+            </button>
             <br />
             {props.identity.title && <>{props.identity.title}<br /></>}
             CWID: {props.identity.personIdentifier}</p>)
