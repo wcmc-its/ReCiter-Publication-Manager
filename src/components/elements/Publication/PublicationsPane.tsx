@@ -138,9 +138,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           {articles.length > 0 &&
             filterByPmid(articles, item.reciterPendingData).map((article: any, index: number) => {
               return(
-                <>
+                <div key={article.pmid || index}>
                   <Publication
-                    key={index.toString()}
                     index={index}
                     reciterArticle={article}
                     personIdentifier={item.personIdentifier}
@@ -150,7 +149,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     updatePublication={handleUpdatePublication}
                     />
                     {index < articles.length - 1 && <Divider></Divider>}
-                </>
+                </div>
               )
             })
             }
