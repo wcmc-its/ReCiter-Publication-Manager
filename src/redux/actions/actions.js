@@ -999,15 +999,22 @@ export const fetchFeedbacklog = ( id ) => dispatch => {
         'Authorization': reciterConfig.backendApiKey
     }
   }).then(response => {
-    return response.json()
+        if(response.status === 200) {
+            return response.json()
+        } else {
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        }
   }).then(data => {
     let articleIds = data.map((feedback) => {return feedback.articleIdentifier})
     articleIds = articleIds.filter((feedback, i) => {return articleIds.indexOf(feedback) === i});
     let feedbacklogData = {};
     articleIds.forEach((articleId) => {
       let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog});
-      // sort by Date
-      articleFeedbacks.sort((a, b) => { return new Date(a.modifyTimestamp) - new Date(b.modifyTimestamp) });
       feedbacklogData[articleId] = articleFeedbacks;
     })
 
@@ -1015,9 +1022,21 @@ export const fetchFeedbacklog = ( id ) => dispatch => {
       type: methods.FEEDBACKLOG_CHANGE_DATA,
       payload: feedbacklogData
     })
+
+    dispatch({
+        type: methods.FEEDBACKLOG_CANCEL_FETCHING
+    })
   
     }).catch(error => {
-      console.log(error);
+      console.log(error)
+      toast.error("Feedback log Api failed for " + id +" - " + error.title, {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+      dispatch(
+          addError(error)
+      )
 
       dispatch({
         type: methods.FEEDBACKLOG_CANCEL_FETCHING
@@ -1049,8 +1068,6 @@ export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
         let feedbacklogData = {};
         articleIds.forEach((articleId) => {
           let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog});
-          // sort by Date
-          articleFeedbacks.sort((a, b) => { return new Date(a.modifyTimestamp) - new Date(b.modifyTimestamp) });
           feedbacklogData[articleId] = articleFeedbacks;
         })
         feedbackLogs.push({ [id] : feedbacklogData});
