@@ -5,7 +5,6 @@ import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
-import slice from "lodash/slice";
 import { useSession } from "next-auth/client";
 import { fetchFeedbacklog, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { useDispatch } from "react-redux"; 
@@ -76,7 +75,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     return dataList.slice(from, to);
   };
 
-  let publicationsPaginatedData = slice(publications, page * count, (page + 1) * count);
+  let publicationsPaginatedData = publications.slice((page - 1) * count, page * count);
 
   const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
     const userId = session?.data?.databaseUser?.userID;
