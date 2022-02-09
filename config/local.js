@@ -114,5 +114,9 @@ export const reciterConfig = {
      * ReCiter-Publication-Manager has its own apis in src/pages/api folder and they are secured using this api key. In order to access the apis you need 
      * to pass Authorization header with this token.
      */
-     backendApiKey: 'test'
+     backendApiKey: 'test',
+    /**
+     * ReCiter-Publication-Manager has api status notifications for all pages. This field accepts boolean so to enable it mark it as true.
+     */
+    showToasts: true
 }
