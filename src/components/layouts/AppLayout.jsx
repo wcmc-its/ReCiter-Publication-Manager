@@ -10,17 +10,21 @@ import styles from "./AppLayout.module.css";
 import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
-import { reciterConfig } from "../../../config/local"
+import { reciterConfig } from "../../../config/local";
+import { useSelector } from "react-redux";
 
 export const AppLayout = ({ children }) => {
   const router = useRouter();
   const [session, loading] = useSession();
+  const errors = useSelector((state) => state.errors);
 
   useEffect(() => {
     if (!session && !loading) {
       router.push("/");
+    } else if (errors.length) {
+      router.push("/_error");
     }
-  }, [session, router, loading]);
+  }, [session, router, loading, errors]);
 
   const [expandedNav, setExpandedNav] = useState(true);
   const toggleExpand = () => {
