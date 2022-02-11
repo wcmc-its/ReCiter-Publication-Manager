@@ -7,6 +7,7 @@ import  PublicationsPane from "../Publication/PublicationsPane";
 import { publicationsFetchGroupData, fetchGroupFeedbacklog } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
 import { Button, Spinner } from "react-bootstrap";
+import fullName  from "../../../utils/fullName";
 
 interface DropdownProps {
   title: string,
@@ -23,7 +24,10 @@ const filtersList = [
 const CuratePublications = () => {
   const dispatch = useDispatch()
   const filters = useSelector((state: RootStateOrAny) => state.filters)
-  const filteredIds = useSelector((state: RootStateOrAny) => state.filteredIds)
+  const filteredIds = useSelector((state: RootStateOrAny) => state.identityAllData.map((identity) => identity.personIdentifier))
+
+  const filteredIdentities = useSelector((state: RootStateOrAny) => state.identityAllData.reduce((acc, identity) => {return {...acc, [identity.personIdentifier] : { title: identity.title, fullName: fullName(identity)} }}, {}))
+
   let filterSectionList: Array<DropdownProps> = [];
   const publicationsGroupDataFetching = useSelector((state: RootStateOrAny) => state.publicationsGroupDataFetching)
   const publicationsMoreDataFetching = useSelector((state: RootStateOrAny) => state.publicationsMoreDataFetching)
@@ -70,6 +74,7 @@ const CuratePublications = () => {
             index={index}
             item={reciterItem}
             feedbacklogGroup={feedbacklogGroup}
+            filteredIdentities={filteredIdentities}
             />
         )
       })}

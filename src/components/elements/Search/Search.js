@@ -13,6 +13,7 @@ import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { Table } from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
+import { reciterConfig } from "../../../../config/local";
 
 const dropdownItems =  [
   { title: 'Create Reports', to: '/create-reports'},
@@ -115,6 +116,7 @@ const Search = () => {
         headers: {
             Accept: 'application/json',
             "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey,
         }
       }, 300000)
       .then(response => {

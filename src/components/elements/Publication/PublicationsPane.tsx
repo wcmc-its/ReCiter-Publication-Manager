@@ -26,12 +26,12 @@ interface FuncProps {
     key: number,
     index: number,
     feedbacklogGroup: any,
+    filteredIdentities: any,
 }
 
 const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
 
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
-    const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
     const [modalShow, setModalShow] = useState(false);
     const [session, loading] = useSession();
@@ -53,18 +53,6 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
         setArticles(updatedArticlesList);
     }
 
-    //TODO
-    const rejectPublication = (pmid: number, index: number) => {
-      if ( countPendingArticles > 0 ) {
-        setCountPendingArticles(countPendingArticles - 1);
-      }
-      props.onReject(pmid)
-    }
-
-    const undoPublication = (pmid: number, index: number) => {
-      setCountPendingArticles(countPendingArticles + 1);
-      props.onUndo(pmid)
-    }
 
     const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
       const userId = session?.data?.databaseUser?.userID;
@@ -114,7 +102,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           <Accordion.Header className={styles.publicationHeader}> 
             <Row>
               <Col md={8} className={styles.facultyHeader}>
-                {filteredIdentities[item.personIdentifier] && <p><span className={styles.facultyTitle}>{filteredIdentities[item.personIdentifier].fullName}</span>{filteredIdentities[item.personIdentifier].title}</p>}
+                {props.filteredIdentities[item.personIdentifier] && <p><span className={styles.facultyTitle}>{props.filteredIdentities[item.personIdentifier].fullName}</span>{props.filteredIdentities[item.personIdentifier].title}</p>}
               </Col>
               <Col md={3}>
                 <div className={styles.publicationRowButtons}>
@@ -144,7 +132,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     reciterArticle={article}
                     personIdentifier={item.personIdentifier}
                     onAccept={acceptPublication}
-                    fullName={filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
+                    fullName={props.filteredIdentities[item.personIdentifier] ? props.filteredIdentities[item.personIdentifier].fullName : ''}
                     feedbacklog={feedbacklog[item.personIdentifier] ? feedbacklog[item.personIdentifier] : {}}
                     updatePublication={handleUpdatePublication}
                     />
