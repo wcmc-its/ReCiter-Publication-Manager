@@ -89,6 +89,7 @@ export const identityFetchAllData = () => dispatch => {
         headers: {
             Accept: 'application/json',
             "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
         }
     }, 300000)
         .then(response => {
@@ -153,6 +154,7 @@ export const identityFetchPaginatedData = (page, limit) => dispatch => {
       headers: {
           Accept: 'application/json',
           "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
       }
   }, 300000)
       .then(response => {
@@ -756,6 +758,7 @@ export const orgUnitsFetchAllData = () => dispatch => {
       headers: {
           Accept: 'application/json',
           "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
       }
   }, 300000)
       .then(response => {
@@ -808,6 +811,7 @@ export const institutionsFetchAllData = () => dispatch => {
       headers: {
           Accept: 'application/json',
           "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
       }
   }, 300000)
       .then(response => {
@@ -860,6 +864,7 @@ export const personTypesFetchAllData = () => dispatch => {
       headers: {
           Accept: 'application/json',
           "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
       }
   }, 300000)
       .then(response => {
