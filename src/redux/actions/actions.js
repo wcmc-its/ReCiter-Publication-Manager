@@ -79,17 +79,18 @@ export const identityFetchData = uid => dispatch => {
         })
 }
 
-export const identityFetchAllData = () => dispatch => {
+export const identityFetchAllData = (request) => dispatch => {
     dispatch({
         type: methods.IDENTITY_FETCH_ALL_DATA
     })
     fetchWithTimeout('/api/db/users', {
         credentials: "same-origin",
-        method: 'GET',
+        method: 'POST',
         headers: {
             Accept: 'application/json',
             "Content-Type": "application/json",
-        }
+        },
+        body: JSON.stringify(request),
     }, 300000)
         .then(response => {
             if(response.status === 200) {
@@ -144,16 +145,18 @@ export const identityClearAllData = () => dispatch => {
 
 export const identityFetchPaginatedData = (page, limit) => dispatch => {
   const offset = (page - 1) * limit;
+  const request = { limit, offset };
   dispatch({
       type: methods.IDENTITY_FETCH_PAGINATED_DATA
   })
-  fetchWithTimeout(`/api/db/users?offset=${offset}&limit=${limit}`, {
+  fetchWithTimeout(`/api/db/users`, {
       credentials: "same-origin",
-      method: 'GET',
+      method: 'POST',
       headers: {
           Accept: 'application/json',
           "Content-Type": "application/json",
-      }
+      },
+      body: JSON.stringify(request),
   }, 300000)
       .then(response => {
           if(response.status === 200) {
