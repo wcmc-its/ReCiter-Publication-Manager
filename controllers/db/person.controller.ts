@@ -61,7 +61,7 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                     },
                 ],
                 where: where,
-                order: [["personIdentifier", "ASC"]],
+                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
                 offset: apiBody.offset,
                 limit: apiBody.limit
             });
@@ -82,7 +82,7 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                     },
                 ],
                 where: where,
-                order: [["personIdentifier", "ASC"]]
+                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]]
             });
         }
         res.send(persons);
