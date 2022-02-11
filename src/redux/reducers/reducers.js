@@ -1,6 +1,7 @@
 import methods from '../methods/methods'
 import { combineReducers } from 'redux'
 import auth, { sessionId } from '../store/auth'
+import { reciterConfig } from '../../../config/local'
 
 export const reciterFetching = (state=true, action) => {
 
@@ -337,15 +338,49 @@ export const publicationsGroupData = (state = {}, action) => {
           return action.payload
 
       case methods.PUBLICATIONS_UPDATE_GROUP_DATA :
-        return {
-          ...state,
-          reciter: [...state.reciter, ...action.payload.reciter]
+        if (state.reciter.length >= reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView) {
+          let previousReciterResults = state.reciter.slice(reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy);
+          return {
+            ...state,
+            reciter: [...previousReciterResults, ...action.payload.reciter]
+          }
+        } else {
+          return {
+            ...state,
+            reciter: [...state.reciter, ...action.payload.reciter]
+          }
+        }
+      
+      case methods.PUBLICATIONS_PREVIOUS_GROUP_DATA :
+        let resultsCount = state.reciter?.length || 0;
+        if (resultsCount >= reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView) {
+          let updatedResults = state.reciter.slice(resultsCount - reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy);
+          return {
+            ...state,
+            reciter: [...action.payload.reciter, ...updatedResults]
+          }
+        } else {
+          return {
+            ...state,
+            reciter: [...action.payload.reciter, ...state.reciter]
+          }
         }
       
       default :
           return state
   }
 
+}
+
+export const publicationsGroupDataIds = (state = [], action) => {
+  switch(action.type) {
+    case methods.PUBLICATIONS_UPDATE_GROUP_DATA_IDS :
+      return [...state, ...action.payload.reciter.map(result => result.personIdentifier).filter(id => !state.includes(id))]
+    case methods.PUBLICATIONS_CLEAR_GROUP_DATA_IDS :
+      return []
+    default :
+    return state
+  }
 }
 
 export const publicationsGroupDataFetching = (state=false, action) => {
@@ -362,6 +397,17 @@ export const publicationsGroupDataFetching = (state=false, action) => {
 export const publicationsMoreDataFetching = (state=false, action) => {
   switch(action.type) {
     case methods.PUBLICATIONS_FETCH_MORE_DATA :
+      return true
+    case methods.PUBLICATIONS_CANCEL_GROUP_DATA :
+      return false
+    default:
+      return state
+  }
+}
+
+export const publicationsPreviousDataFetching = (state=false, action) => {
+  switch(action.type) {
+    case methods.PUBLICATIONS_FETCH_PREVIOUS_DATA :
       return true
     case methods.PUBLICATIONS_CANCEL_GROUP_DATA :
       return false
@@ -446,7 +492,9 @@ export default combineReducers({
     filteredIdentities,
     publicationsGroupData,
     publicationsGroupDataFetching,
+    publicationsPreviousDataFetching,
     publicationsMoreDataFetching,
+    publicationsGroupDataIds,
     feedbacklog,
     feedbacklogFetching,
     feedbacklogGroup,
