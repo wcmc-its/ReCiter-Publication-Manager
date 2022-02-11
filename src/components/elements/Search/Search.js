@@ -162,19 +162,19 @@ const Search = () => {
         let updatedFilters = {}
         if (searchText) {
           let searchWords = searchText.split(' ');
-          updatedFilters = { ...updateFilters, nameOrUids: searchWords};
+          updatedFilters = { ...updatedFilters, nameOrUids: searchWords};
         }
 
         if (orgUnits && orgUnits.length) {
-          updatedFilters = { ...updateFilters, orgUnits: [...orgUnits]};
+          updatedFilters = { ...updatedFilters, orgUnits: [...orgUnits]};
         }
 
         if (institutions && institutions.length) {
-          updatedFilters = { ...updateFilters, institutions: [...institutions]};
+          updatedFilters = { ...updatedFilters, institutions: [...institutions]};
         }
 
         if (personTypes && personTypes.length) {
-          updatedFilters = { ...updateFilters, personTypes: [...personTypes]};
+          updatedFilters = { ...updatedFilters, personTypes: [...personTypes]};
         }
 
         let request = {
@@ -184,13 +184,6 @@ const Search = () => {
         dispatch(updateFilters(updatedFilters));
         dispatch(identityFetchAllData(request));
         setPage(1);
-
-        // TODO: update filteredIds & filteredIdentities
-        // setTotalCount 
-        /*
-        dispatch(updateFilteredIds(filteredIds));
-            dispatch(updateFilteredIdentities(filteredIdentities))
-            */
     }
 
     const handlePendingFilterUpdate = (value) => {
