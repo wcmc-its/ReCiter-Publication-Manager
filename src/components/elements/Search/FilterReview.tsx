@@ -53,6 +53,7 @@ const FilterReview = ({
           to='/curate'
           id="publications"
           listItems={dropdownItems}
+          disabled={count === 0}
           />
       </Col>
       <Col className="d-flex flex-row">
