@@ -36,13 +36,13 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
   }
 
   return (
-    <div className={`${styles.filterPubSection} py-4 d-flex justify-content-between`}>
-      <div className="filter-section-buttons d-flex flex-basis-content">
+    <div className={`${styles.filterPubSection} d-flex justify-content-between`}>
+      <div className={`${styles.filterSectionButtons} d-flex flex-basis-content`}>
         { props.tabType !== 'ACCEPTED' && <Button className="m-2" variant="primary" onClick={() => updateAll('ACCEPTED')}>Accept All</Button>}
         { props.tabType !== 'REJECTED' && <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('REJECTED')}>Reject All</Button>}
         { props.tabType !== 'NULL' && <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('NULL')}>Undo All</Button>}
       </div>
-      <div className="d-flex align-items-end">
+      <div className={`${styles.filterSort} d-flex align-items-end`}>
         <Form className="d-flex flex-basis-content mx-2" onSubmit={(event) => handleFormSubmit(event)}>
           <Form.Control type="text" placeholder="Filter..." value={searchText} onChange={(e) => handleInputChange(e)}/>
         </Form>

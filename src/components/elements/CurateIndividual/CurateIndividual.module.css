@@ -46,6 +46,16 @@
 .filterPubSection {
   background-color: #EFEFEF;
   border-bottom: 1px solid #ced4da;
+  padding: 10px 30px;
+}
+
+.filterSectionButtons button:first-of-type {
+  margin-left: 0px !important;
+}
+
+.filterSort {
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .whiteBtn {
