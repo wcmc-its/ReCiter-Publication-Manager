@@ -235,7 +235,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const evidenceTableCellFields = {
        authorNameEvidence: { points: 'nameScoreTotal', dataFormat: 'true' },
        relationshipEvidence: { points: 'relationshipEvidenceTotalScore', dataFormat: 'true'},
-       email: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
+       emailEvidence: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
        organizationalUnitEvidence: { dataFormat: 'true' },
        affiliationEvidence: { scopusUrl: 'https://www.scopus.com/affil/profile.uri?afid=', dataFormat: 'true' } ,
        grantEvidence: { dataFormat: 'true' },
@@ -546,10 +546,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                     </p>
                   </td>
                   <td width="30%">
-                    {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList}></TableCellWithTypes> : evidenceRow.institutionalData}
+                    {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList}></TableCellWithTypes> : <p>{evidenceRow.institutionalData}</p>}
                   </td>
                   <td width="30%">
-                    {evidenceRow.displayArticleDataList ? <TableCellWithTypes list={evidenceRow.articleDataList}></TableCellWithTypes> : evidenceRow.articleData}
+                    {evidenceRow.displayArticleDataList ? <TableCellWithTypes list={evidenceRow.articleDataList}></TableCellWithTypes> : <p>{evidenceRow.articleData}</p>}
                   </td>
                 </tr>
               )
