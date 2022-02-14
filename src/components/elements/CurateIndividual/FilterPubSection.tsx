@@ -48,8 +48,8 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
         </Form>
         <DropdownButton className={`${styles.basicDropdown} mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(eventKey) => handleSortChange(eventKey)}>
           <Dropdown.Item eventKey="1">Score <ArrowDownwardIcon /></Dropdown.Item>
-          <Dropdown.Item eventKey="2">Date <ArrowDownwardIcon /></Dropdown.Item>
           <Dropdown.Item eventKey="3">Score <ArrowUpwardIcon /></Dropdown.Item>
+          <Dropdown.Item eventKey="2">Date <ArrowDownwardIcon /></Dropdown.Item>
           <Dropdown.Item eventKey="4">Date <ArrowUpwardIcon /></Dropdown.Item>
         </DropdownButton>
       </div>
