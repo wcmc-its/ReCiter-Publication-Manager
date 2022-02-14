@@ -26,6 +26,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
   const [session, loading] = useSession();
+  const [totalCount, setTotalCount] = useState<number>(publications.length || 0);
   const dispatch = useDispatch();
 
   if (!props.publications.length) {
@@ -46,6 +47,10 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
     setPublications(filteredPublications);
+    setTotalCount(filteredPublications.length);
+     if (page !== 1) {
+       setPage(1);
+     }
   }
 
   const sortUpdate = (sort: string) => {
@@ -54,10 +59,12 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setPublications(sortedPublications);
   }
 
+  // Update the page
   const handlePaginationUpdate = ( page ) => {
     setPage(page)
   }
 
+  // Update the count per page
   const handleCountUpdate = (count) => {
     if (count) {
       setPage(1);
@@ -142,7 +149,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         updateAll={handleUpdatePublicationAll}
         tabType={props.tabType}
       />
-      <Pagination total={publications.length} page={page}
+      <Pagination total={totalCount} page={page}
         count={count}
         onChange={handlePaginationUpdate}
         onCountChange={handleCountUpdate}
