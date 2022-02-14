@@ -42,23 +42,16 @@ const Search = () => {
     const [count, setCount] = useState(20)
     const [filterByPending, setFilterByPending] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
+    const [countAllData, setCountAllData] = useState(0);
 
     //ref
     const searchValue = useRef()
 
     useEffect(() => {
-        // dispatch(identityFetchPaginatedData(page, count))
-        fetchPaginatedData()
-        fetchCount()
-        // fetchIdentityData()
-
-        // if (Object.keys(filters).length > 0 && identityData.length === 0) {
-        //   let searchText = filters.searchText ? filters.searchText : "";
-        //   let orgUnits = filters.orgUnits ? filters.orgUnits : [];
-        //   let institutions = filters.institutions ? filters.institutions : [];
-        //   let personTypes = filters.personTypes ? filters.personTypes : [];
-        //   searchData(searchText, orgUnits, institutions, personTypes);
-        // }
+        if (identityAllData.length === 0) {
+          fetchPaginatedData()
+          fetchCount()
+        }
     },[])
 
     const fetchIdentityData = () => {
@@ -134,6 +127,7 @@ const Search = () => {
       .then(data => {
         if (data.countPersonIdentifier && Object.keys(filters).length === 0) {
           setTotalCount(data.countPersonIdentifier);
+          setCountAllData(data.countPersonIdentifier);
         }
       }) 
       .catch(error => {
@@ -160,6 +154,10 @@ const Search = () => {
     const searchData = (searchText, orgUnits, institutions, personTypes) => {
         setIdentitySearch(searchText)
         let updatedFilters = {}
+
+        if (!searchText && !orgUnits.length && !institutions.length && !personTypes.length) {
+          setTotalCount(countAllData);
+        }
         if (searchText) {
           let searchWords = searchText.split(' ');
           updatedFilters = { ...updatedFilters, nameOrUids: searchWords};
@@ -274,9 +272,6 @@ const Search = () => {
     } 
     return (
         <div className={appStyles.mainContainer}>
-            {/* <div className="side-nav-position">
-                <SideNav uid={this.props.match.params.uid} history={this.props.history} />
-            </div> */}
             <div className={styles.searchContentContainer}>
                 <div className={styles.searchBar}>
                   <h1>Find People</h1>
@@ -290,7 +285,7 @@ const Search = () => {
                         {!filtersOn && 
                           <div className="row">
                             <div className="col-md-4">
-                                <h3><strong>{totalCount.toLocaleString("en-US")}</strong> people</h3>
+                                {totalCount !== undefined && <h3><strong>{totalCount.toLocaleString("en-US")}</strong> people</h3>}
                             </div>
                           </div>}
                         {filtersOn && <FilterReview count={identityAllData.length} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate}/>}
