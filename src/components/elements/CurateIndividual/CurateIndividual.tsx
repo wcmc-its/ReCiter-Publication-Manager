@@ -43,7 +43,7 @@ const CurateIndividual = () => {
   const DisplayName = ({ name } : { name: PrimaryName}) => {
     let formattedName = fullName(name);
     return (
-      <h2>{formattedName}</h2>
+      <h2 className="mb-1">{formattedName}</h2>
     )
   }
 
@@ -80,7 +80,7 @@ const CurateIndividual = () => {
               name={identityData.primaryName}
             />
             <b>{identityData.title}</b>
-            <p className={styles.greyText}>{identityData.primaryOrganizationalUnit}</p>
+            <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
             {reciterData && reciterData.reciter &&
               <InferredKeywords
                 reciter={reciterData.reciter}
