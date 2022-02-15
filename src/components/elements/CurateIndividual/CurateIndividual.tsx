@@ -61,7 +61,7 @@ const CurateIndividual = () => {
       <h1 className={styles.header}>Curate Publications</h1>
       {
         identityData &&
-        <Container className="indentity-data-container" fluid={true}>
+        <Container className={styles.indentityDataContainer} fluid={true}>
           <div className="d-flex">
           {
             displayImage && identityData.identityImageEndpoint &&
