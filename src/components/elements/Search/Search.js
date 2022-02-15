@@ -319,7 +319,7 @@ const Search = () => {
                             {!filtersOn && 
                               <div className="row">
                                 <div className="col-md-4">
-                                    <h3><strong>{totalCount.toLocaleString("en-US")}</strong> people</h3>
+                                    <h4><strong>{totalCount.toLocaleString("en-US")} people</strong></h4>
                                 </div>
                               </div>}
                             {filtersOn && <FilterReview count={totalCount} onToggle={handlePendingFilterUpdate}/>}
