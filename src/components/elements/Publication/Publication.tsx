@@ -84,7 +84,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const displayAuthors = (authors: Author[]) => {
       let authCount = authors.length;
       if ( authCount > 0) {
-        if ( authCount < 6 || expandedAuthors) {
+        if ( authCount <= 6 || expandedAuthors) {
           return (<AuthorsList authors={authors}></AuthorsList>)
       } else {
         let authorsDefaultDisplay = authors.slice(0, 6);
