@@ -25,10 +25,14 @@
 
 .count {
   background-color: #474747;
-  padding: 5px;
-  margin: 5px;
-  border-radius: 20px;
   color: white;
+  width: 30px;
+  line-height: 30px;
+  border-radius: 50%;
+  text-align: center;
+  font-size: 16px;
+  display: inline-block;
+  margin-left: 8px;
 }
 
 .activeCount {
@@ -42,6 +46,7 @@
 
 .activeTab {
   font-weight: bold;
+  margin-top: 2px;
 }
 
 .nav-tabs .nav-link.active .tabTitle {
