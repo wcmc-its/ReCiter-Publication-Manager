@@ -539,7 +539,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             evidenceTableRows.map((evidenceRow: any, index: number) => {
               return (
                 <tr key={index}>
-                  <td align="right" width="30%">
+                  <td align="right" width="20%">
                     <p>
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
@@ -547,10 +547,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       {<small>{`${evidenceRow.points} points`}</small>}
                     </p>
                   </td>
-                  <td width="30%">
+                  <td width="40%">
                     {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList}></TableCellWithTypes> : <p>{evidenceRow.institutionalData}</p>}
                   </td>
-                  <td width="30%">
+                  <td width="40%">
                     {evidenceRow.displayArticleDataList ? <TableCellWithTypes list={evidenceRow.articleDataList}></TableCellWithTypes> : <p>{evidenceRow.articleData}</p>}
                   </td>
                 </tr>
