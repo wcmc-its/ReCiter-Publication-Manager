@@ -423,7 +423,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
               if (rowName === 'genderEvidence') {
                 if(evidence[rowName].hasOwnProperty('genderScoreIdentity')) {
-                  if(Number(evidence[rowName].enderScoreIdentity) >= 0.5) {
+                  if(Number(evidence[rowName].genderScoreIdentity) >= 0.5) {
                       institutionalData = 'Male - ' + (Number(evidence[rowName].genderScoreIdentity) * 100) + '% probability'
                   } else {
                     institutionalData = 'Female - ' + Math.round(((1 - Number(evidence[rowName].genderScoreIdentity)) * 100)) + '% probability'
