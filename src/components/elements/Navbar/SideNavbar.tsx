@@ -112,6 +112,7 @@ const StyledList = styled(List)({
     },
   },
   '& .MuiListItem-root': {
+    fontSize: '14px',
     borderBottom: '1px solid #ccc',
       '&, & .MuiListItemIcon-root': {
         minWidth: '30px',
