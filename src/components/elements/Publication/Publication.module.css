@@ -60,16 +60,16 @@
     padding-top: 20px !important;
 }
 .publicationAccept {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     margin-right: 5px;
 }
 .publicationReject {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
 }
 .publicationUndo {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     margin-right: 5px;
 }
@@ -99,7 +99,7 @@
 }
 .publicationRowButtons button {
     background-color: #ffffff;
-    font-size: 14px;
+    font-size: 12px;
     border: 1px solid #ccc;
     margin-left: 10px;
     color: #333333;
@@ -118,13 +118,13 @@
 }
 .publicationShowEvidenceLink.publicationEvidenceShow::before {
     content: '-';
-    padding: 10px;
+    padding: 10px 10px 10px 0;
     font-size: 26px;
 }
 
 .publicationShowEvidenceLink.publicationEvidenceHide::before {
     content: '+';
-    padding: 10px;
+    padding: 10px 10px 10px 0;
     font-size: 26px;
 }
 
@@ -207,6 +207,8 @@
 
 .midDot::before {
   content: "•";
+  padding-left: 5px;
+  padding-right: 5px;
 }
 
 .publicationContainer {
