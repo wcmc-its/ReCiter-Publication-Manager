@@ -2,7 +2,7 @@ import methods from '../methods/methods'
 import { combineReducers } from 'redux'
 import auth, { sessionId } from '../store/auth'
 
-export const reciterFetching = (state=true, action) => {
+export const reciterFetching = (state=false, action) => {
 
     switch(action.type) {
 
