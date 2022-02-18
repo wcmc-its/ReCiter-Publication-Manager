@@ -71,3 +71,11 @@ a {
 .modal.show {
   z-index: 2055 ;
 }
+
+h1 {
+  font-weight: 200 !important;
+  color: #666363;
+  font-size: 20px !important;
+  font-family: Open Sans, sans-serif, Arial;
+  padding-bottom: 10px;
+}
