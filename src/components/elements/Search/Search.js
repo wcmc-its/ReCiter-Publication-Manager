@@ -220,6 +220,7 @@ const Search = () => {
         );
     }
 
+    // Spinner for when Search gets updated
     const isDisplayLoader = () => {
       if ((!filtersOn && identityPaginatedFetching && page === 1) ||
         (!filtersOn && identityPaginatedData.length <= 0 ) || 
@@ -228,6 +229,14 @@ const Search = () => {
         } else {
           return false;
        }
+    }
+
+    // Spinner when navigating between pages
+    const isDisplayLoaderTable = () => {
+      if (!filtersOn && identityPaginatedFetching) {
+        return true;
+      }
+      return false;
     }
     // if filters are applied load all data, if not load paginated data
     let filtersOn = Object.keys(filters).length === 0 ? false : true;
@@ -290,30 +299,29 @@ const Search = () => {
                           </div>}
                         {filtersOn && <FilterReview count={identityAllData.length} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate}/>}
                         <React.Fragment>
-                          {
-
-                          }
                             <Pagination total={filtersOn ? identityAllData.length : totalCount} page={page}
                                         count={count}
                                         onChange={handlePaginationUpdate}
                                         onCountChange={handleCountUpdate}
                                         />
-                            <div className="table-responsive">
-                                <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
-                                    <thead>
-                                        <tr>
-                                            <th key="0">Name</th>
-                                            <th key="1">Organization</th>
-                                            <th key="2">Institution</th>
-                                            <th key="3">Pending</th>
-                                            <th key="4">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {tableBody}
-                                    </tbody>
-                                </Table>
-                            </div>
+                            {isDisplayLoaderTable() ? <Loader /> :
+                              <div className="table-responsive">
+                                  <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
+                                      <thead>
+                                          <tr>
+                                              <th key="0">Name</th>
+                                              <th key="1">Organization</th>
+                                              <th key="2">Institution</th>
+                                              <th key="3">Pending</th>
+                                              <th key="4">Actions</th>
+                                          </tr>
+                                      </thead>
+                                      <tbody>
+                                          {tableBody}
+                                      </tbody>
+                                  </Table>
+                              </div>
+                              }
                             <Pagination total={filtersOn ? identityAllData.length : totalCount} page={page}
                                         count={count}
                                         onChange={handlePaginationUpdate}
