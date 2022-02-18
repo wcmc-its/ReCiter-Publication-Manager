@@ -79,3 +79,11 @@ h1 {
   font-family: Open Sans, sans-serif, Arial;
   padding-bottom: 10px;
 }
+
+.table {
+  vertical-align: middle !important;
+}
+
+.table > tbody > tr > td {
+  /* vertical-align: middle; */
+}

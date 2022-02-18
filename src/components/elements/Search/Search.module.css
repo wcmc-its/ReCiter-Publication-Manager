@@ -55,6 +55,12 @@
   padding-left: 30px;
 }
 
+.table tr td p {
+  margin: auto;
+  line-height: 1.3;
+  padding: 0.2rem 0;
+}
+
 .table tr {
   border-color: black;
 }
@@ -63,6 +69,7 @@
   border: 1px solid;
   border-left-color: black;
   border-right-color: black;
+  /* vertical-align: middle !important; */
 }
 
 .table tbody {
