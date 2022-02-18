@@ -83,7 +83,3 @@ h1 {
 .table {
   vertical-align: middle !important;
 }
-
-.table > tbody > tr > td {
-  /* vertical-align: middle; */
-}
