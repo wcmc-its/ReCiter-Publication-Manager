@@ -78,7 +78,7 @@ const Pagination: React.FC<PaginationProps> = (props) => {
             </DropdownButton>
           </div>
         </div>
-        <div className="col-lg-2 col-md-4 col-sm-4 col">
+        <div className="col-md-auto">
           <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={() => onClickPrev()}></ArrowLeft>
           Page <span>{propsPage}</span> of {totalPages}
           <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={() => onClickNext()}></ArrowRight>
