@@ -162,7 +162,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               <Row>
                 <Divider></Divider>
                 <div className={`d-flex justify-content-center ${styles.publicationRowButtons}`}>
-                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>View All</Button>
+                  <Button onClick={(e) => handleProfileClick(item.personIdentifier, e)}>View All</Button>
                 </div>
               </Row>
             }
