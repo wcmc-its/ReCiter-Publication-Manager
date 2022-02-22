@@ -354,7 +354,7 @@ export const publicationsGroupData = (state = {}, action) => {
       case methods.PUBLICATIONS_PREVIOUS_GROUP_DATA :
         let resultsCount = state.reciter?.length || 0;
         if (resultsCount >= reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView) {
-          let updatedResults = state.reciter.slice(resultsCount - reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy);
+          let updatedResults = state.reciter.slice(0, resultsCount - reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy);
           return {
             ...state,
             reciter: [...action.payload.reciter, ...updatedResults]
