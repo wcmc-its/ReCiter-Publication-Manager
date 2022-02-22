@@ -25,7 +25,6 @@
 
 .textButton {
   color: #0d6efd;
-  text-decoration: underline;
   cursor: pointer;
 }
 
@@ -35,6 +34,7 @@
   margin-bottom: 20px;
   padding: 20px;
   margin: inherit;
+  margin-bottom: 30px;
 }
 
 .searchFormLabel {
@@ -53,6 +53,12 @@
 
 .table tr td:first-child {
   padding-left: 30px;
+}
+
+.table tr td p {
+  margin: auto;
+  line-height: 1.3;
+  padding: 0.2rem 0;
 }
 
 .table tr {

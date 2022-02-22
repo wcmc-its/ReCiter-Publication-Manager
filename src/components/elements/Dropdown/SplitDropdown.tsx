@@ -10,9 +10,10 @@ interface DropdownProps {
   id: string, 
   listItems: Array<ListItem>,
   secondary?: boolean,
+  disabled?: boolean,
 }
 
-const SplitDropdown: React.FC<DropdownProps> = ({ title, to, id, listItems, secondary}) => {
+const SplitDropdown: React.FC<DropdownProps> = ({ title, to, id, listItems, secondary, disabled}) => {
   return (
     <div className="mt-2">
       <Link href={to} passHref>
@@ -21,6 +22,7 @@ const SplitDropdown: React.FC<DropdownProps> = ({ title, to, id, listItems, seco
           title={title}
           id={id}
           key={id}
+          disabled={disabled}
         >
           {listItems.map((item: ListItem, index: number) => {
             return (
