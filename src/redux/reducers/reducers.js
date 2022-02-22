@@ -335,34 +335,44 @@ export const publicationsGroupData = (state = {}, action) => {
   switch(action.type) {
       
       case methods.PUBLICATIONS_CHANGE_GROUP_DATA :
-          return action.payload
+          return {
+            ...action.payload,
+            startIndex: 0,
+            endIndex: action.payload.reciter?.length - 1 || 0,
+          }
 
       case methods.PUBLICATIONS_UPDATE_GROUP_DATA :
         if (state.reciter.length >= reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView) {
           let previousReciterResults = state.reciter.slice(reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy);
           return {
             ...state,
-            reciter: [...previousReciterResults, ...action.payload.reciter]
+            reciter: [...previousReciterResults, ...action.payload.reciter],
+            startIndex: state.startIndex + reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy,
+            endIndex: state.endIndex + action.payload.reciter?.length
           }
         } else {
           return {
             ...state,
-            reciter: [...state.reciter, ...action.payload.reciter]
+            reciter: [...state.reciter, ...action.payload.reciter],
+            endIndex: state.endIndex + action.payload.reciter?.length
           }
         }
       
       case methods.PUBLICATIONS_PREVIOUS_GROUP_DATA :
         let resultsCount = state.reciter?.length || 0;
         if (resultsCount >= reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView) {
-          let updatedResults = state.reciter.slice(0, resultsCount - reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy);
+          let updatedResults = state.reciter.slice(0,  -reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy);
           return {
             ...state,
-            reciter: [...action.payload.reciter, ...updatedResults]
+            reciter: [...action.payload.reciter, ...updatedResults],
+            startIndex: state.startIndex - reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy,
+            endIndex: state.endIndex - reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy
           }
         } else {
           return {
             ...state,
-            reciter: [...action.payload.reciter, ...state.reciter]
+            reciter: [...action.payload.reciter, ...state.reciter],
+            startIndex: state.startIndex - reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy
           }
         }
       

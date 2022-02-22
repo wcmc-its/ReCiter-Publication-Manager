@@ -35,10 +35,7 @@ const CuratePublications = () => {
   const publicationsGroupDataIds = useSelector((state: RootStateOrAny) => state.publicationsGroupDataIds)
   const maxResults = reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView;
   const incrementBy = reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy;
-  const [loadCount, setLoadCount] = useState(maxResults || 20);
-  const [startAt, setStartAt] = useState(0);
-  const [endAt, setEndAt] = useState(0);
-  const [viewPrevious, setViewPrevious] = useState(false);
+  const [loadCount, setLoadCount] = useState(incrementBy || 20);
 
   useEffect(() => {
     if (filteredIds.length) {
@@ -64,36 +61,16 @@ const CuratePublications = () => {
   })
 
   const fetchPublications = () => {
-    let updatedCount = loadCount + incrementBy;
-
-    if (publicationsGroupData.reciter.length >= maxResults) {
-      setViewPrevious(true);
-      setStartAt(startAt + incrementBy);
+    if (publicationsGroupDataIds.length - 1 === publicationsGroupData.endIndex) {
+      dispatch(publicationsFetchGroupData(filteredIds.slice(loadCount, loadCount + incrementBy), 'more'));
+      setLoadCount(loadCount + incrementBy);
+    } else {
+      dispatch(publicationsFetchGroupData(publicationsGroupDataIds.slice(publicationsGroupData.endIndex, publicationsGroupData.endIndex + incrementBy), 'more')) 
     }
-
-    let ids = endAt > 0 ? publicationsGroupDataIds.slice(endAt, endAt + incrementBy) : filteredIds.slice(loadCount, updatedCount);
-    
-    dispatch(publicationsFetchGroupData(ids, 'more'));
-    setLoadCount(updatedCount);
   }
 
   const fetchPreviousPublications = () => {
-    let updatedStartAt = startAt - loadCount;
-    updatedStartAt = updatedStartAt >= 0 ? updatedStartAt : 0;
-    let totalPubsCount = publicationsGroupData.reciter.length;
-    if (totalPubsCount >= maxResults) {
-      // if results are at max than update the ending index
-      if (endAt === 0) {
-        setEndAt(publicationsGroupDataIds.length - incrementBy);
-      } else {
-        setEndAt(endAt - incrementBy);
-      }
-    }
-    dispatch(publicationsFetchGroupData(publicationsGroupDataIds.slice(updatedStartAt, startAt), 'previous'));
-    setStartAt(updatedStartAt);
-    if (updatedStartAt === 0) {
-      setViewPrevious(false);
-    }
+    dispatch(publicationsFetchGroupData(publicationsGroupDataIds.slice(publicationsGroupData.startIndex - incrementBy, publicationsGroupData.startIndex), 'previous'))
   }
  
   const PublicationsList = () => {
@@ -124,7 +101,7 @@ const CuratePublications = () => {
       { (publicationsGroupDataFetching ||  feedbacklogGroupFetching) ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
-          { (viewPrevious || publicationsPreviousDataFetching) && 
+          { (publicationsGroupData.startIndex > 0 || publicationsPreviousDataFetching) && 
             <div className="d-flex align-items-center p-3 justify-content-center">
               <Button className="primary" onClick={fetchPreviousPublications} disabled={publicationsPreviousDataFetching}>
               {
