@@ -19,7 +19,7 @@ const InferredKeywords = ({
     <> 
     {
       reciter.articleKeywordsAcceptedArticles && reciter.articleKeywordsAcceptedArticles.length > 0 &&
-      <div>
+      <div className="mb-1">
         <b> Inferred keywords: </b>
       {
         reciter.articleKeywordsAcceptedArticles.map((articleKeyword: Keyword, key: number) => {

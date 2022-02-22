@@ -20,7 +20,7 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                       addPublication = true
                   }
                   //pmid
-                  if(publication.pmid !== undefined && publication.pmid.includes == Number(search.toLowerCase())) {
+                  if(publication.pmid !== undefined && publication.pmid.includes(search.toLowerCase())) {
                     addPublication = true
                   }
                   //publicationTypeCanonical

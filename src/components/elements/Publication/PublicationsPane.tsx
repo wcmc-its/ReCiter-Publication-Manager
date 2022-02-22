@@ -1,10 +1,10 @@
-import React, { useState, FunctionComponent } from "react"
+import React, { useState, FunctionComponent, MouseEvent } from "react"
 import styles from './Publication.module.css';
 import ReactTooltip from 'react-tooltip';
 import CheckIcon from '@mui/icons-material/Check';
 import ClearIcon from '@mui/icons-material/Clear';
 import UndoIcon from '@mui/icons-material/Undo';
-import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
+import { Container, Row, Col, Button, Accordion, Card, ButtonProps } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
 import { useRouter } from 'next/router';
 import { useSelector, RootStateOrAny } from "react-redux";
@@ -25,12 +25,12 @@ interface FuncProps {
     faculty?: any,
     key: number,
     index: number,
+    filteredIdentities: any,
 }
 
 const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
 
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
-    const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
     const [modalShow, setModalShow] = useState(false);
     const [session, loading] = useSession();
@@ -51,18 +51,6 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
         setArticles(updatedArticlesList);
     }
 
-    //TODO
-    const rejectPublication = (pmid: number, index: number) => {
-      if ( countPendingArticles > 0 ) {
-        setCountPendingArticles(countPendingArticles - 1);
-      }
-      props.onReject(pmid)
-    }
-
-    const undoPublication = (pmid: number, index: number) => {
-      setCountPendingArticles(countPendingArticles + 1);
-      props.onUndo(pmid)
-    }
 
     const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
       const userId = session?.data?.databaseUser?.userID;
@@ -86,8 +74,9 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
       setArticles(updatedArticles);
     }
 
-    const handleProfileClick = (uid: string) => {
-      return router.push('/curate/' + uid)
+    const handleProfileClick = (uid: string, event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      return router.push('/curate/' + uid);
     }
 
     const filterByPmid = (articles, reciterPendingData) => {
@@ -101,7 +90,10 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     }
 
     const handleClose = () => setModalShow(false);
-    const handleShow = () => setModalShow(true);
+    const handleShow = (e: MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      setModalShow(true);
+    };
 
     const { item } = props;
 
@@ -112,14 +104,14 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
           <Accordion.Header className={styles.publicationHeader}> 
             <Row>
               <Col md={8} className={styles.facultyHeader}>
-                {filteredIdentities[item.personIdentifier] && <p><span className={styles.facultyTitle}>{filteredIdentities[item.personIdentifier].fullName}</span>{filteredIdentities[item.personIdentifier].title}</p>}
+                {props.filteredIdentities[item.personIdentifier] && <p><span className={styles.facultyTitle}>{props.filteredIdentities[item.personIdentifier].fullName}</span>{props.filteredIdentities[item.personIdentifier].title}</p>}
               </Col>
               <Col md={3}>
                 <div className={styles.publicationRowButtons}>
-                  <Button onClick={handleShow}>
+                  <Button onClick={(e) => handleShow(e)}>
                     View Profile
                   </Button>
-                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>
+                  <Button onClick={(e) => handleProfileClick(item.personIdentifier, e)}>
                     {`View All ${countPendingArticles} Pending`}
                   </Button>
                 </div>
@@ -142,7 +134,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     reciterArticle={article}
                     personIdentifier={item.personIdentifier}
                     onAccept={acceptPublication}
-                    fullName={filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
+                    fullName={props.filteredIdentities[item.personIdentifier] ? props.filteredIdentities[item.personIdentifier].fullName : ''}
                     updatePublication={handleUpdatePublication}
                     />
                     {index < articles.length - 1 && <Divider></Divider>}
@@ -155,7 +147,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               <Row>
                 <Divider></Divider>
                 <div className={`d-flex justify-content-center ${styles.publicationRowButtons}`}>
-                  <Button onClick={() => handleProfileClick(item.personIdentifier)}>View All</Button>
+                  <Button onClick={(e) => handleProfileClick(item.personIdentifier, e)}>View All</Button>
                 </div>
               </Row>
             }

@@ -16,9 +16,11 @@ const dropdownItems: Array<ListItem> =
 const FilterReview = ({
   onToggle,
   count,
+  filterByPending,
 } : {
   onToggle: (value: boolean) => void;
   count: number,
+  filterByPending: boolean,
 }) => {
   const [filter, setFilter] = useState(false);
 
@@ -46,20 +48,21 @@ const FilterReview = ({
 
   return (
     <Row className="pb-2 pt-2">
-      <Col><h2>{`${count}`} people found using filters</h2></Col>
+      <Col className="d-flex my-auto"><h4><strong>{`${count}`} people found using filters</strong></h4></Col>
       <Col>
         <SplitDropdown
           title="Curate Publications"
           to='/curate'
           id="publications"
           listItems={dropdownItems}
+          disabled={count === 0}
           />
       </Col>
       <Col className="d-flex flex-row">
       <div>Show only people with <br /> pending suggestions</div>
       <StyledToggleButtonGroup
         color="primary"
-        value={filter}
+        value={filterByPending}
         exclusive
         onChange={handleChange}
       >

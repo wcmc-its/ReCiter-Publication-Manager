@@ -11,9 +11,9 @@ import styles from './Navbar.module.css'
 const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive, disabled }) => {
   const router = useRouter();
   const pathName = router.pathname;
-  const selected = pathName === to;
+  const selected = pathName.includes(to);
 
-  if (disabled) {
+  if (disabled && !selected) {
     return (
       <>
         <ListItem component="a" selected={selected}>

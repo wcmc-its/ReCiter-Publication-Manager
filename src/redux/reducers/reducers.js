@@ -3,7 +3,7 @@ import { combineReducers } from 'redux'
 import auth, { sessionId } from '../store/auth'
 import { reciterConfig } from '../../../config/local'
 
-export const reciterFetching = (state=true, action) => {
+export const reciterFetching = (state=false, action) => {
 
     switch(action.type) {
 
@@ -48,6 +48,22 @@ export const identityAllFetching = (state=false, action) => {
         default:
             return state
     }
+
+}
+
+export const identityPaginatedFetching = (state=false, action) => {
+
+  switch(action.type) {
+
+      case methods.IDENTITY_FETCH_PAGINATED_DATA :
+          return true
+
+      case methods.IDENTITY_CANCEL_PAGINATED_FETCHING :
+          return false
+
+      default:
+          return state
+  }
 
 }
 
@@ -487,6 +503,7 @@ export default combineReducers({
     identityData,
     identityAllData,
     identityPaginatedData,
+    identityPaginatedFetching,
     pubmedData,
     errors,
     auth,

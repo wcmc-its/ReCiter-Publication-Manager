@@ -3,61 +3,86 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { Sequelize, Op } from "sequelize"
 import { Person } from '../../src/db/models/Person'
 import { findUserFeedback } from '../userfeedback.controller'
+import { PersonApiBody } from '../../types/personapi.body'
 
-models.Person.hasOne(models.PersonPersonType)
-models.PersonPersonType.hasMany(models.Person)
+models.Person.hasMany(models.PersonPersonType)
+models.PersonPersonType.belongsTo(models.Person)
 
-export const findAll = async (req: NextApiRequest, res: NextApiResponse, offset: string, limit: string) => {
+export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
     
     try {
+        let apiBody:PersonApiBody =  req.body
+        const where = {}
+        if(apiBody.filters) {
+            if(apiBody.filters.personTypes || apiBody.filters.institutions || apiBody.filters.orgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
+                where[Op.and] = []
+                if(apiBody.filters.institutions) {
+                    where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: apiBody.filters.institutions }})
+                }
+                if(apiBody.filters.orgUnits) {
+                    where[Op.and].push({'$Person.primaryOrganizationalUnit$': { [Op.in]: apiBody.filters.orgUnits }})
+                }
+                if(apiBody.filters.nameOrUids) {
+                    where[Op.and].push({[Op.or]:[
+                        {'$Person.personIdentifier$': { [Op.in]: apiBody.filters.nameOrUids }},
+                        {'$Person.firstName$': { [Op.like]: `%${apiBody.filters.nameOrUids}%` }},
+                        {'$Person.middleName$': { [Op.like]: `%${apiBody.filters.nameOrUids}%` }},
+                        {'$Person.lastName$': { [Op.like]: `%${apiBody.filters.nameOrUids}%` }}
+                    ]})
+                }
+                if(apiBody.filters.showOnlyPending) {
+                    where[Op.and].push({'$Person.countPendingArticles$': { [Op.gt]: 0 }})
+                }
+            }
+        }
+        let joinWhere = {}
+        if(apiBody.filters && apiBody.filters.personTypes) {
+            joinWhere = {
+                personType: {
+                    [Op.in]: apiBody.filters.personTypes
+                }
+            }
+        }
         let persons: Person[] = []
-        if(offset && limit) {
+        if(apiBody.limit != undefined && apiBody.offset != undefined) {
             persons = await models.Person.findAll({
-                attributes: {
-                    include: [
-                        [Sequelize.fn('GROUP_CONCAT', Sequelize.literal("PersonPersonType.personType SEPARATOR ','")), 'groupPersonTypes']
-                    ],
-                    exclude: [
-                        'PersonPersonTypeId'
-                    ]
-                },
                 include: [
                     {
-                        model: models.PersonPersonType, required: false,
+                        model: models.PersonPersonType, 
+                        as: 'PersonPersonTypes',
+                        required: false,
                         on: {
-                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonType.personIdentifier'))
+                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
-                        attributes: []
+                        where: joinWhere,
+                        attributes: [
+                        ]
+                        
                     },
                 ],
-                order: [["personIdentifier", "ASC"]],
-                group: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title', 'primaryOrganizationalUnit', 'primaryInstitution',
-                'dateAdded', 'dateUpdated', 'precision', 'recall', 'countSuggestedArticles' , 'countPendingArticles', 'overallAccuracy', 'mode'],
-                offset: Number.parseInt(offset),
-                limit: Number.parseInt(limit)
+                where: where,
+                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                offset: apiBody.offset,
+                limit: apiBody.limit
             });
         } else {
             persons = await models.Person.findAll({
-                attributes: {
-                    include: [
-                        [Sequelize.fn('GROUP_CONCAT', Sequelize.literal("PersonPersonType.personType SEPARATOR ','")), 'groupPersonTypes']
-                    ],
-                    exclude: [
-                        'PersonPersonTypeId'
-                    ]
-                },
                 include: [
                     {
-                        model: models.PersonPersonType, required: false,
+                        model: models.PersonPersonType, 
+                        as: 'PersonPersonTypes',
+                        required: false,
                         on: {
-                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonType.personIdentifier'))
+                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
-                        attributes: []
+                        where: joinWhere,
+                        attributes: [
+                        ]
+                        
                     },
                 ],
-                order: [["personIdentifier", "ASC"]],
-                group: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title', 'primaryOrganizationalUnit', 'primaryInstitution',
-                'dateAdded', 'dateUpdated', 'precision', 'recall', 'countSuggestedArticles' , 'countPendingArticles', 'overallAccuracy', 'mode']
+                where: where,
+                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]]
             });
         }
         res.send(persons);

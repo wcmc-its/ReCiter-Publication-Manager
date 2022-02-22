@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, MouseEvent } from "react";
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { identityFetchData } from "../../../redux/actions/actions";
 import { Modal, Container, Row, Button, Col } from "react-bootstrap";
@@ -32,7 +32,7 @@ const Profile = ({
  } : {
    uid: string,
    modalShow: boolean,
-   handleShow: () => void,
+   handleShow: (e: MouseEvent<HTMLButtonElement>) => void,
    handleClose: () => void,
  }) => {
   const dispatch = useDispatch()

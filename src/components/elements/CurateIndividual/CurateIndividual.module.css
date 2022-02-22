@@ -11,7 +11,12 @@
 }
 
 .highlighted {
-  background-color: #f5f5f5
+  background-color: #f5f5f5;
+  padding: 5px;
+  border-radius: 3px;
+  line-height: 2.3;
+  margin: 0 2px 0 2px;
+  white-space: nowrap;
 }
 
 .suggestionsBanner {
@@ -20,10 +25,14 @@
 
 .count {
   background-color: #474747;
-  padding: 5px;
-  margin: 5px;
-  border-radius: 20px;
   color: white;
+  width: 30px;
+  line-height: 30px;
+  border-radius: 50%;
+  text-align: center;
+  font-size: 16px;
+  display: inline-block;
+  margin-left: 8px;
 }
 
 .activeCount {
@@ -37,6 +46,7 @@
 
 .activeTab {
   font-weight: bold;
+  margin-top: 2px;
 }
 
 .nav-tabs .nav-link.active .tabTitle {
@@ -46,6 +56,16 @@
 .filterPubSection {
   background-color: #EFEFEF;
   border-bottom: 1px solid #ced4da;
+  padding: 10px 30px;
+}
+
+.filterSectionButtons button:first-of-type {
+  margin-left: 0px !important;
+}
+
+.filterSort {
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .whiteBtn {
@@ -53,11 +73,15 @@
 }
 
 .profileImgWrapper {
-  padding-right: 2rem;
+  padding-right: 1.5rem;
 }
 
 .basicDropdown {
   color: black;
   background-color: white;
   border-color: #ccc;
+}
+
+.indentityDataContainer {
+  margin-bottom: 100px;
 }

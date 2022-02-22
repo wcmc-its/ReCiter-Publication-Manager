@@ -40,7 +40,7 @@ const CurateIndividual = () => {
   const DisplayName = ({ name } : { name: PrimaryName}) => {
     let formattedName = fullName(name);
     return (
-      <h2>{formattedName}</h2>
+      <h2 className="mb-1">{formattedName}</h2>
     )
   }
 
@@ -58,7 +58,7 @@ const CurateIndividual = () => {
       <h1 className={styles.header}>Curate Publications</h1>
       {
         identityData &&
-        <Container className="indentity-data-container" fluid={true}>
+        <Container className={styles.indentityDataContainer} fluid={true}>
           <div className="d-flex">
           {
             displayImage && identityData.identityImageEndpoint &&
@@ -77,7 +77,7 @@ const CurateIndividual = () => {
               name={identityData.primaryName}
             />
             <b>{identityData.title}</b>
-            <p className={styles.greyText}>{identityData.primaryOrganizationalUnit}</p>
+            <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
             {reciterData && reciterData.reciter &&
               <InferredKeywords
                 reciter={reciterData.reciter}
