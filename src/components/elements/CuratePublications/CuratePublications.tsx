@@ -40,7 +40,6 @@ const CuratePublications = () => {
   useEffect(() => {
     if (filteredIds.length) {
       dispatch(publicationsFetchGroupData(filteredIds.slice(0, incrementBy), 'refresh'));
-      dispatch(fetchGroupFeedbacklog(filteredIds.slice(0, incrementBy)));
     }
   }, [])
 
@@ -82,7 +81,6 @@ const CuratePublications = () => {
             key={index}
             index={index}
             item={reciterItem}
-            feedbacklogGroup={feedbacklogGroup}
             />
         )
       })}
@@ -98,7 +96,7 @@ const CuratePublications = () => {
         buttonTitle="Update Search"
         buttonUrl="/search"
         ></FilterSection>
-      { (publicationsGroupDataFetching ||  feedbacklogGroupFetching) ? <Loader /> : 
+      { (publicationsGroupDataFetching) ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
           { (publicationsGroupData.startIndex > 0 || publicationsPreviousDataFetching) && 

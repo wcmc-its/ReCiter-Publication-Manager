@@ -25,7 +25,6 @@ interface FuncProps {
     faculty?: any,
     key: number,
     index: number,
-    feedbacklogGroup: any,
 }
 
 const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
@@ -36,7 +35,6 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const [modalShow, setModalShow] = useState(false);
     const [session, loading] = useSession();
     const dispatch = useDispatch();
-    const feedbacklog = props.feedbacklogGroup.find(feedback => feedback.hasOwnProperty(props.item.personIdentifier)) || {};
 
     const router = useRouter()
 
@@ -145,7 +143,6 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     personIdentifier={item.personIdentifier}
                     onAccept={acceptPublication}
                     fullName={filteredIdentities[item.personIdentifier] ? filteredIdentities[item.personIdentifier].fullName : ''}
-                    feedbacklog={feedbacklog[item.personIdentifier] ? feedbacklog[item.personIdentifier] : {}}
                     updatePublication={handleUpdatePublication}
                     />
                     {index < articles.length - 1 && <Divider></Divider>}

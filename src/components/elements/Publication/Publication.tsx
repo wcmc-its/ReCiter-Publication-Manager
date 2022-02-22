@@ -24,7 +24,6 @@ interface FuncProps {
     index: number,
     personIdentifier: string,
     fullName: string,
-    feedbacklog?: any,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
@@ -635,7 +634,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           onOpen={onOpenModal}
           onClose={onCloseModal}
           id={reciterArticle.pmid}
-          feedbacklog={props.feedbacklog}
+          userId={props.personIdentifier}
           />
       </Row>
   ); 

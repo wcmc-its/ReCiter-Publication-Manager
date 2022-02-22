@@ -31,13 +31,10 @@ const CurateIndividual = () => {
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
-  const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
-  const feedbacklogFetching = useSelector((state: RootStateOrAny) => state.feedbacklogFetching)
 
   useEffect(() => {
     dispatch(identityFetchData(id));
     dispatch(reciterFetchData(id, false));
-    dispatch(fetchFeedbacklog(id));
   }, [])
 
   const DisplayName = ({ name } : { name: PrimaryName}) => {
@@ -100,7 +97,6 @@ const CurateIndividual = () => {
       <ReciterTabs 
         reciterData={reciterData}
         fullName={fullName(identityData.primaryName)}
-        feedbacklog={feedbacklog}
       /> 
         <Profile 
           uid={identityData.uid}

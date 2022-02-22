@@ -1,17 +1,30 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal } from "react-bootstrap";
+import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
+import { fetchFeedbacklog } from "../../../redux/actions/actions";
+import Loader from "../Common/Loader";
+
 
 interface HistoryModalProps {
   showModal: boolean
   onOpen: () => void
   onClose: () => void
   id: string
-  feedbacklog: any
+  userId: string
 }
 
 const HistoryModal: React.FC<HistoryModalProps> = (props) => {
   const [showAll, setShowAll] = useState<boolean>(false);
   const defaultLogsSize: number = 20;
+  const dispatch = useDispatch();
+  const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
+  const feedbacklogFetching = useSelector((state: RootStateOrAny) => state.feedbacklogFetching)
+
+  useEffect(() => {
+    if (props.showModal) {
+      dispatch(fetchFeedbacklog(props.userId));
+    }
+  }, [props.showModal])
 
   const getAction = (feedback) => {
     switch (feedback) {
@@ -39,12 +52,12 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
   };
   
   const ModalContent = () => {
-    if (!props.feedbacklog[props.id]) {
+    if (!feedbacklog[props.id]) {
       return (
         <p>No history found</p>
       )
     } else {
-      let feedbacksToDisplay = showAll ? props.feedbacklog[props.id] : props.feedbacklog[props.id].slice(0, defaultLogsSize);
+      let feedbacksToDisplay = showAll ? feedbacklog[props.id] : feedbacklog[props.id].slice(0, defaultLogsSize);
       return (
         <>
         {
@@ -59,7 +72,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
             )
           })
         }
-        {props.feedbacklog[props.id].length > defaultLogsSize && !showAll && <div className="text-btn text-center" onClick={() => setShowAll(true)}>Show More</div>}
+        {feedbacklog[props.id].length > defaultLogsSize && !showAll && <div className="text-btn text-center" onClick={() => setShowAll(true)}>Show More</div>}
         </>
       )
     }
@@ -69,7 +82,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
     <Modal show={props.showModal} onHide={props.onClose} size="lg">
       <Modal.Header closeButton>Feedback History</Modal.Header>
       <Modal.Body>
-        <ModalContent />
+       {feedbacklogFetching ? <Loader/> : <ModalContent />}
       </Modal.Body>
     </Modal>
   )
