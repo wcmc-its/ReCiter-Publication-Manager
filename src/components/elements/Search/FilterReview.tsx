@@ -16,9 +16,11 @@ const dropdownItems: Array<ListItem> =
 const FilterReview = ({
   onToggle,
   count,
+  filterByPending,
 } : {
   onToggle: (value: boolean) => void;
   count: number,
+  filterByPending: boolean,
 }) => {
   const [filter, setFilter] = useState(false);
 
@@ -60,7 +62,7 @@ const FilterReview = ({
       <div>Show only people with <br /> pending suggestions</div>
       <StyledToggleButtonGroup
         color="primary"
-        value={filter}
+        value={filterByPending}
         exclusive
         onChange={handleChange}
       >

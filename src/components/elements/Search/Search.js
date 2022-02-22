@@ -13,6 +13,7 @@ import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { Table } from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
+import { reciterConfig } from "../../../../config/local";
 
 const dropdownItems =  [
   { title: 'Create Reports', to: '/create-reports'},
@@ -28,6 +29,7 @@ const Search = () => {
     const identityAllData = useSelector((state) => state.identityAllData)
     const identityAllFetching = useSelector((state) => state.identityAllFetching)
     const identityPaginatedData = useSelector((state) => state.identityPaginatedData)
+    const identityPaginatedFetching = useSelector((state) => state.identityPaginatedFetching)
     const filters = useSelector((state) => state.filters)
     const errors = useSelector((state) => state.errors)
     const auth = useSelector((state) => state.auth)
@@ -40,23 +42,25 @@ const Search = () => {
     const [count, setCount] = useState(20)
     const [filterByPending, setFilterByPending] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
+    const [countAllData, setCountAllData] = useState(0);
 
     //ref
     const searchValue = useRef()
 
     useEffect(() => {
-        dispatch(identityFetchPaginatedData(page, count))
-        fetchCount()
-        dispatch(identityFetchAllData())
-
-        if (Object.keys(filters).length > 0 && identityData.length === 0) {
-          let searchText = filters.searchText ? filters.searchText : "";
-          let orgUnits = filters.orgUnits ? filters.orgUnits : [];
-          let institutions = filters.institutions ? filters.institutions : [];
-          let personTypes = filters.personTypes ? filters.personTypes : [];
-          searchData(searchText, orgUnits, institutions, personTypes);
+        if (identityAllData.length === 0) {
+          fetchPaginatedData()
+          fetchCount()
         }
     },[])
+
+    const fetchIdentityData = () => {
+      dispatch(identityFetchAllData(filters));
+    }
+
+    const fetchPaginatedData = () => {
+      dispatch(identityFetchPaginatedData(page, count))
+    }
 
 
     const handlePaginationUpdate = ( page ) => {
@@ -75,20 +79,27 @@ const Search = () => {
     }
 
     const filter = () => {
+
+      if (Object.keys(filters).length === 0)  {
+        return {
+          paginatedIdentities: identityPaginatedData
+        }
+      } else {
         var from = (parseInt(page, 10) - 1) * parseInt(count, 10);
         var to = from + parseInt(count, 10) - 1;
         var identities = [];
         var i = from;
         for (i; i <= to; i++) {
-            if(identityData !== undefined && identityData.length > 0) {
-                if (identityData[i] !== undefined) {
-                    identities.push(identityData[i]);
+            if(identityAllData !== undefined && identityAllData.length > 0) {
+                if (identityAllData[i] !== undefined) {
+                    identities.push(identityAllData[i]);
                 }
             } 
         }
         return {
             paginatedIdentities: identities
         }
+      }
     }
 
     const fetchCount = () => {
@@ -98,6 +109,7 @@ const Search = () => {
         headers: {
             Accept: 'application/json',
             "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey,
         }
       }, 300000)
       .then(response => {
@@ -115,6 +127,7 @@ const Search = () => {
       .then(data => {
         if (data.countPersonIdentifier && Object.keys(filters).length === 0) {
           setTotalCount(data.countPersonIdentifier);
+          setCountAllData(data.countPersonIdentifier);
         }
       }) 
       .catch(error => {
@@ -139,98 +152,48 @@ const Search = () => {
     }
 
     const searchData = (searchText, orgUnits, institutions, personTypes) => {
-        setIdentityData(identityAllData)
         setIdentitySearch(searchText)
-        if(identityAllData !== undefined) {
-            var searchResults = identityAllData
-            let updatedFilters = {};
+        let updatedFilters = {}
 
-            if (searchText) {
-              let searchWords = searchText.split(' ');
-              searchResults = identityAllData.filter(identity => {
-                if ((identity.firstName && searchWords.some(text => text.toLowerCase() === identity.firstName.toLowerCase())) ||
-                    (identity.lastName && searchWords.some(text => text.toLowerCase() === identity.firstName.toLowerCase())) ||
-                    (searchWords.some(text => text === identity.personIdentifier))
-                    ) {
-                  return identity;
-                }
-              })
-
-              let filterSearchText = {...updatedFilters, searchText: searchText};
-              updatedFilters = filterSearchText;
-            }
-
-            if (orgUnits && orgUnits.length) {
-                searchResults = searchResults.filter(identity => {
-                  return orgUnits.includes(identity.primaryOrganizationalUnit)
-                })
-              let filterOrgUnits = {...updatedFilters, orgUnits: orgUnits};
-              updatedFilters = filterOrgUnits;
-            }
-
-            if (institutions && institutions.length) {
-                searchResults = searchResults.filter(identity => {
-                  return institutions.includes(identity.primaryInstitution)
-                })
-              let filterInstitutions = {...updatedFilters, institutions: institutions};
-              updatedFilters = filterInstitutions;
-            }
-
-            if (personTypes && personTypes.length) {
-              searchResults = searchResults.filter(identity => {
-                if (identity.groupPersonTypes) {
-                  let groupPersonTypesList = identity.groupPersonTypes.split(',');
-                  return groupPersonTypesList.some(personType => personTypes.includes(personType));
-                }
-              })
-              let filterPersonTypes = {...updatedFilters, personTypes: personTypes}
-              updatedFilters = filterPersonTypes;
-            }
-
-            dispatch(updateFilters(updatedFilters));
-            setTotalCount(searchResults.length);
-            setIdentityData(searchResults);
-            setPage(1);
-
-            let filteredIds = [];
-
-            let filteredIdentities = {};
-
-            if ((searchText !== '' || orgUnits.length > 0 || institutions.length > 0 || personTypes.length > 0)) {
-              filteredIds = searchResults.length > 0 ? searchResults.map(person => person.personIdentifier) : [];
-              searchResults.forEach((person) => {
-                let personFullName = fullName(person);
-                filteredIdentities = {...filteredIdentities, [person.personIdentifier] : { title: person.title, fullName: personFullName}}
-              })
-            }
-            dispatch(updateFilteredIds(filteredIds));
-            dispatch(updateFilteredIdentities(filteredIdentities))
+        if (!searchText && !orgUnits.length && !institutions.length && !personTypes.length) {
+          setTotalCount(countAllData);
         }
+        if (searchText) {
+          let searchWords = searchText.split(' ');
+          updatedFilters = { ...updatedFilters, nameOrUids: searchWords};
+        }
+
+        if (orgUnits && orgUnits.length) {
+          updatedFilters = { ...updatedFilters, orgUnits: [...orgUnits]};
+        }
+
+        if (institutions && institutions.length) {
+          updatedFilters = { ...updatedFilters, institutions: [...institutions]};
+        }
+
+        if (personTypes && personTypes.length) {
+          updatedFilters = { ...updatedFilters, personTypes: [...personTypes]};
+        }
+
+        let request = {
+          filters: {...updatedFilters}
+        }
+
+        dispatch(updateFilters(updatedFilters));
+        dispatch(identityFetchAllData(request));
+        setPage(1);
     }
 
     const handlePendingFilterUpdate = (value) => {
-      setFilterByPending(value);
-
-      if (identityData !== undefined) {
-        let searchResults = [];
-
-        if (value) {
-          searchResults = identityData.filter(identity => {
-            return identity.countPendingArticles > 0;
-          }) 
-
-          setIdentityData(searchResults);
-          setTotalCount(searchResults.length);
-        } else {
-          let searchText = filters.searchText ? filters.searchText : "";
-          let orgUnits = filters.orgUnits ? filters.orgUnits : [];
-          let institutions = filters.institutions ? filters.institutions : [];
-          let personTypes = filters.personTypes ? filters.personTypes : [];
-          searchData(searchText, orgUnits, institutions, personTypes);
-        }
+      const filterPending = value ? value : false;
+      setFilterByPending(filterPending);
+      let updatedFilters = {...filters, showOnlyPending: filterPending};
+      let request = {
+        filters: {...updatedFilters}
       }
-      let updatedFilters = { ...filters, filterByPending: value};
+      dispatch(identityFetchAllData(request));
       dispatch(updateFilters(updatedFilters));
+      setPage(1);
     }
 
     const onCLickProfile = (personIdentifier) => {
@@ -256,127 +219,122 @@ const Search = () => {
             </div>
         );
     }
+
+    // Spinner for when Search gets updated
+    const isDisplayLoader = () => {
+      if ((!filtersOn && identityPaginatedFetching && page === 1) ||
+        (!filtersOn && identityPaginatedData.length <= 0 ) || 
+        (filtersOn && identityAllFetching)) {
+          return true;
+        } else {
+          return false;
+       }
+    }
+
+    // Spinner when navigating between pages
+    const isDisplayLoaderTable = () => {
+      if (!filtersOn && identityPaginatedFetching) {
+        return true;
+      }
+      return false;
+    }
     // if filters are applied load all data, if not load paginated data
     let filtersOn = Object.keys(filters).length === 0 ? false : true;
-    if ((!filtersOn && totalCount < 0) ||
-        (!filtersOn && identityPaginatedData.length <= 0 ) || 
-        (filtersOn && identityAllData.length <= 0)) {
-        return (
-          <Loader />
-        );
-    } else {
-        //const thisObject = this
-        let tableBody
-        let paginatedIdentities = Object.keys(filters).length === 0 ? identityPaginatedData : identities.paginatedIdentities;
-        if (totalCount > 0)  {
-          tableBody = paginatedIdentities.map(function (identity, identityIndex) {
-            return <tr key={identityIndex}>
-                <td key={`${identityIndex}__name`} width="30%">
-                    <Name identity={identity} onCLickProfile={() => onCLickProfile(identity.personIdentifier)}></Name>
-                </td>
-                <td key={`${identityIndex}__orgUnit`} width="20%">
-                    {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
-                </td>
-                <td key={`${identityIndex}__institution`} width="20%">
-                    {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
-                </td>
-                <td key={`${identityIndex}__pending`} width="10%">
-                    {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
-                </td>
-                <td key={`${identityIndex}__dropdown`} width="20%">
-                  <SplitDropdown
-                    title='Curate Publications'
-                    to={`/app/${identity.personIdentifier}`}
-                    id={`curate-publications_${identity.personIdentifier}`}
-                    listItems={dropdownItems}
-                    secondary={true}
-                    />
-                </td>
-            </tr>;
-        }) } else {
-          tableBody = (
-            <tr>
-              <td colSpan="5">
-                  <p className={styles.noitemsList}>
-                      No records found
-                  </p>
-              </td>
-            </tr>
-          )
-          
-        } 
-        return (
-            <div className={appStyles.mainContainer}>
-                {/* <div className="side-nav-position">
-                    <SideNav uid={this.props.match.params.uid} history={this.props.history} />
-                </div> */}
-                <div className={styles.searchContentContainer}>
-                    <div className={styles.searchBar}>
-                      <h1>Find People</h1>
-                      <SearchBar searchData={searchData}/>
-                        <div>
-                            <br/>
-                            {!filtersOn && 
-                              <div className="row">
-                                <div className="col-md-4">
-                                    <h4><strong>{totalCount.toLocaleString("en-US")} people</strong></h4>
-                                </div>
-                              </div>}
-                            {filtersOn && <FilterReview count={totalCount} onToggle={handlePendingFilterUpdate}/>}
-                            <React.Fragment>
-                                <Pagination total={totalCount} page={page}
-                                            count={count}
-                                            onChange={handlePaginationUpdate}
-                                            onCountChange={handleCountUpdate}
-                                            />
-                                <div className="table-responsive">
-                                    <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
-                                        <thead>
-                                            <tr>
-                                                <th key="0">Name</th>
-                                                <th key="1">Organization</th>
-                                                <th key="2">Institution</th>
-                                                <th key="3">Pending</th>
-                                                <th key="4">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {tableBody}
-                                        </tbody>
-                                    </Table>
-                                </div>
-                                <Pagination total={totalCount} page={page}
-                                            count={count}
-                                            onChange={handlePaginationUpdate}
-                                            onCountChange={handleCountUpdate}
-                                            />
-                            </React.Fragment>
-                        </div>
-                    </div>
+    let tableBody;
+    let paginatedIdentities = identities.paginatedIdentities;
+    if (paginatedIdentities.length > 0)  {
+      tableBody = paginatedIdentities.map(function (identity, identityIndex) {
+        return <tr key={identityIndex}>
+            <td key={`${identityIndex}__name`} width="30%">
+                <Name identity={identity} onCLickProfile={() => onCLickProfile(identity.personIdentifier)}></Name>
+            </td>
+            <td key={`${identityIndex}__orgUnit`} width="20%">
+                {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
+            </td>
+            <td key={`${identityIndex}__institution`} width="20%">
+                {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
+            </td>
+            <td key={`${identityIndex}__pending`} width="10%">
+                {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
+            </td>
+            <td key={`${identityIndex}__dropdown`} width="20%">
+              <SplitDropdown
+                title='Curate Publications'
+                to={`/app/${identity.personIdentifier}`}
+                id={`curate-publications_${identity.personIdentifier}`}
+                listItems={dropdownItems}
+                secondary={true}
+                />
+            </td>
+        </tr>;
+    }) } else {
+      tableBody = (
+        <tr>
+          <td colSpan="5">
+              <p className={styles.noitemsList}>
+                  No records found
+              </p>
+          </td>
+        </tr>
+      )
+      
+    } 
+    return (
+        <div className={appStyles.mainContainer}>
+            <div className={styles.searchContentContainer}>
+                <div className={styles.searchBar}>
+                  <h1>Find People</h1>
+                  <SearchBar searchData={searchData}/>
+                  { (isDisplayLoader()) ? 
+                   (
+                     <Loader />
+                   ) : (
+                      <div>
+                        <br/>
+                        {!filtersOn && 
+                          <div className="row">
+                            <div className="col-md-4">
+                                {totalCount !== undefined && <h3><strong>{totalCount.toLocaleString("en-US")}</strong> people</h3>}
+                            </div>
+                          </div>}
+                        {filtersOn && <FilterReview count={identityAllData.length} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate}/>}
+                        <React.Fragment>
+                            <Pagination total={filtersOn ? identityAllData.length : totalCount} page={page}
+                                        count={count}
+                                        onChange={handlePaginationUpdate}
+                                        onCountChange={handleCountUpdate}
+                                        />
+                            {isDisplayLoaderTable() ? <Loader /> :
+                              <div className="table-responsive">
+                                  <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
+                                      <thead>
+                                          <tr>
+                                              <th key="0">Name</th>
+                                              <th key="1">Organization</th>
+                                              <th key="2">Institution</th>
+                                              <th key="3">Pending</th>
+                                              <th key="4">Actions</th>
+                                          </tr>
+                                      </thead>
+                                      <tbody>
+                                          {tableBody}
+                                      </tbody>
+                                  </Table>
+                              </div>
+                              }
+                            <Pagination total={filtersOn ? identityAllData.length : totalCount} page={page}
+                                        count={count}
+                                        onChange={handlePaginationUpdate}
+                                        onCountChange={handleCountUpdate}
+                                        />
+                        </React.Fragment>
+                      </div>
+                   )
+                  }
                 </div>
             </div>
-        );
-    }
-}
-
-
-function List(props) {
-    if(props.list === undefined || props.list === null || props.list === "") {
-        return null
-    } 
-    let listArray = []
-    if(props.orgUnit === "true") {
-        props.list.map((item, idx) => {
-            listArray.push(<li key={idx}>{item.organizationalUnitLabel}</li>)
-        })
-    } else {
-        props.list.map((item, idx) => {
-            listArray.push(<li key={idx}>{item}</li>)
-        })
-    }
-    return(
-        (<ul>{listArray}</ul>)
-    )
+        </div>
+    );
 }
 
 function Name(props) {
