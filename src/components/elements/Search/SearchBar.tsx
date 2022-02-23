@@ -56,6 +56,9 @@ const SearchBar = ({
       padding: '.375rem .75rem',
       '& fieldset': {
         top: '0px',
+        '& legend': {
+          display: 'none'
+        }
       },
       '&:hover fieldset': {
         borderColor: '#ced4da',
