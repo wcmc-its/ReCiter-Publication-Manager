@@ -260,7 +260,7 @@ const Search = () => {
             <td key={`${identityIndex}__dropdown`} width="20%">
               <SplitDropdown
                 title='Curate Publications'
-                to={`/app/${identity.personIdentifier}`}
+                to={`/curate/${identity.personIdentifier}`}
                 id={`curate-publications_${identity.personIdentifier}`}
                 listItems={dropdownItems}
                 secondary={true}
