@@ -7,6 +7,7 @@ import  PublicationsPane from "../Publication/PublicationsPane";
 import { publicationsFetchGroupData, fetchGroupFeedbacklog } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
 import { Button, Spinner } from "react-bootstrap";
+import { reciterConfig } from "../../../../config/local";
 import fullName  from "../../../utils/fullName";
 
 interface DropdownProps {
@@ -34,12 +35,16 @@ const CuratePublications = () => {
   const publicationsGroupData = useSelector((state: RootStateOrAny) => state.publicationsGroupData)
   const feedbacklogGroup = useSelector((state: RootStateOrAny) => state.feedbacklogGroup)
   const feedbacklogGroupFetching = useSelector((state: RootStateOrAny) => state.feedbacklogGroupFetching)
-  const [loadCount, setLoadCount] = useState(20);
-  const defaultCount = 20;
+  const publicationsPreviousDataFetching = useSelector((state: RootStateOrAny) => state.publicationsPreviousDataFetching)
+  const publicationsGroupDataIds = useSelector((state: RootStateOrAny) => state.publicationsGroupDataIds)
+  const maxResults = reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView;
+  const incrementBy = reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy;
+  const [loadCount, setLoadCount] = useState(incrementBy || 20);
 
   useEffect(() => {
-    dispatch(publicationsFetchGroupData(filteredIds.slice(0, defaultCount), true));
-    dispatch(fetchGroupFeedbacklog(filteredIds.slice(0, defaultCount)));
+    if (filteredIds.length) {
+      dispatch(publicationsFetchGroupData(filteredIds.slice(0, incrementBy), 'refresh'));
+    }
   }, [])
 
 
@@ -59,9 +64,16 @@ const CuratePublications = () => {
   })
 
   const fetchPublications = () => {
-    let updatedCount = loadCount + defaultCount;
-    dispatch(publicationsFetchGroupData(filteredIds.slice(loadCount, updatedCount), false));
-    setLoadCount(updatedCount);
+    if (publicationsGroupDataIds.length - 1 === publicationsGroupData.endIndex) {
+      dispatch(publicationsFetchGroupData(filteredIds.slice(loadCount, loadCount + incrementBy), 'more'));
+      setLoadCount(loadCount + incrementBy);
+    } else {
+      dispatch(publicationsFetchGroupData(publicationsGroupDataIds.slice(publicationsGroupData.endIndex, publicationsGroupData.endIndex + incrementBy), 'more')) 
+    }
+  }
+
+  const fetchPreviousPublications = () => {
+    dispatch(publicationsFetchGroupData(publicationsGroupDataIds.slice(publicationsGroupData.startIndex - incrementBy, publicationsGroupData.startIndex), 'previous'))
   }
  
   const PublicationsList = () => {
@@ -73,7 +85,6 @@ const CuratePublications = () => {
             key={index}
             index={index}
             item={reciterItem}
-            feedbacklogGroup={feedbacklogGroup}
             filteredIdentities={filteredIdentities}
             />
         )
@@ -90,9 +101,29 @@ const CuratePublications = () => {
         buttonTitle="Update Search"
         buttonUrl="/search"
         ></FilterSection>
-      { (publicationsGroupDataFetching ||  feedbacklogGroupFetching) ? <Loader /> : 
+      { (publicationsGroupDataFetching) ? <Loader /> : 
         <>
           {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
+          { (publicationsGroupData.startIndex > 0 || publicationsPreviousDataFetching) && 
+            <div className="d-flex align-items-center p-3 justify-content-center">
+              <Button className="primary" onClick={fetchPreviousPublications} disabled={publicationsPreviousDataFetching}>
+              {
+                publicationsPreviousDataFetching ? 
+                <>
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  {' '} Loading...
+                </>
+                : <>View Previous Results</>
+              }
+              </Button>
+            </div>
+          }
           <div className={styles.publicationsContainer}>
             {
               <PublicationsList />

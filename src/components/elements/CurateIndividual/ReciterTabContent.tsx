@@ -6,7 +6,7 @@ import filterPublicationsBySearchText from "../../../utils/filterPublicationsByS
 import sortPublications from "../../../utils/sortPublications";
 import Pagination  from '../Pagination/Pagination';
 import { useSession } from "next-auth/client";
-import { fetchFeedbacklog, reciterUpdatePublication } from "../../../redux/actions/actions";
+import { reciterUpdatePublication } from "../../../redux/actions/actions";
 import { useDispatch } from "react-redux"; 
 
 interface TabContentProps {
@@ -17,7 +17,6 @@ interface TabContentProps {
   fullName: string,
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   updatePublicationAssertionBulk: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
-  feedbacklog: any,
 }
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
@@ -36,13 +35,6 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       </div>
     )
   }
-
-  // TODO: update history
-  // useEffect(() => {
-  //   let sortedPublications = sortPublications(props.publications, sort);
-  //   setPublications(sortedPublications);
-  //   dispatch(fetchFeedbacklog(props.personIdentifier));
-  // }, [publications.length])
 
   const searchTextUpdate = (searchText: string) => {
     let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
@@ -163,7 +155,6 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
               updatePublication={handleUpdatePublication}
-              feedbacklog={props.feedbacklog}
             />
             <Divider />
           </div>

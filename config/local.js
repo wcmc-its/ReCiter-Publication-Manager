@@ -77,7 +77,9 @@ export const reciterConfig = {
                  * Type: Number
                  */
                  maxArticlesPerPerson: 4,
-            }
+            },
+            maxResultsOnGroupView: 60,
+            incrementResultsBy: 20,
         },
         /**
          * This is the endpoint in ReCiter-Publication-Manager controller for authentication.

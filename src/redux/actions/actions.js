@@ -932,16 +932,13 @@ export const updateFilteredIdentities = (identities) => dispatch => {
   })
 }
 
-export const publicationsFetchGroupData = ( ids, refresh ) => dispatch => {
-  if (refresh) {
-    dispatch({
-      type: methods.PUBLICATIONS_FETCH_GROUP_DATA
-    })
-  } else {
-    dispatch({
-      type: methods.PUBLICATIONS_FETCH_MORE_DATA
-    })
-  }
+export const publicationsFetchGroupData = ( ids, updateData ) => dispatch => {
+  const fetchGroupDataLoading = {
+    'refresh': () => dispatch({type: methods.PUBLICATIONS_FETCH_GROUP_DATA}),
+    'more': () => dispatch({type: methods.PUBLICATIONS_FETCH_MORE_DATA}),
+    'previous': () => dispatch({type: methods.PUBLICATIONS_FETCH_PREVIOUS_DATA})
+  };
+  fetchGroupDataLoading[updateData]();
 
   fetchWithTimeout('/api/reciter/feature-generator/group', {
       credentials: "same-origin",
@@ -966,16 +963,39 @@ export const publicationsFetchGroupData = ( ids, refresh ) => dispatch => {
         }
     })
     .then(data => {
-      if (refresh) {
-        dispatch({
-          type: methods.PUBLICATIONS_CHANGE_GROUP_DATA,
-          payload: data
-        })
-      } else {
-        dispatch({
-          type: methods.PUBLICATIONS_UPDATE_GROUP_DATA,
-          payload: data
-        })
+      switch (updateData) {
+        case 'refresh':
+          dispatch({
+            type: methods.PUBLICATIONS_CHANGE_GROUP_DATA,
+            payload: data
+          })
+          dispatch({
+            type:methods.PUBLICATIONS_UPDATE_GROUP_DATA_IDS,
+            payload: data
+          })
+          break;
+        case 'more':
+          dispatch({
+            type: methods.PUBLICATIONS_UPDATE_GROUP_DATA,
+            payload: data
+          })
+          dispatch({
+            type:methods.PUBLICATIONS_UPDATE_GROUP_DATA_IDS,
+            payload: data
+          })
+          break;
+        case 'previous':
+          dispatch({
+            type: methods.PUBLICATIONS_PREVIOUS_GROUP_DATA,
+            payload: data
+          })
+          break;
+        default:
+          dispatch({
+            type: methods.PUBLICATIONS_CHANGE_GROUP_DATA,
+            payload: data
+          })
+          break;
       }
 
         dispatch({
