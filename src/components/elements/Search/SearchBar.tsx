@@ -9,14 +9,16 @@ import { styled } from '@mui/material/styles';
 import { Identity } from "../../../../types/identity";
 
 const SearchBar = ({ 
-  searchData 
+  searchData,
+  resetData 
 } : { 
   searchData: (
     searchQuery: string, 
     orgUnitQuery: Array<string>, 
     insitutionQuery: Array<string>,
     personTypeQuery: Array<string>,
-  ) => void;}) => {
+  ) => void;
+  resetData: () => void}) => {
 
   const filters = useSelector((state: RootStateOrAny) => state.filters)
 
@@ -45,7 +47,7 @@ const SearchBar = ({
     setOrgUnitQuery([]);
     setInstitutionQuery([]);
     setPersonTypeQuery([]);
-    searchData('', [], [], []);
+    resetData();
   }
 
 
@@ -56,6 +58,9 @@ const SearchBar = ({
       padding: '.375rem .75rem',
       '& fieldset': {
         top: '0px',
+        '& legend': {
+          display: 'none'
+        }
       },
       '&:hover fieldset': {
         borderColor: '#ced4da',

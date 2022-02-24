@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, identityFetchPaginatedData, updateFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData } from '../../../redux/actions/actions'
+import { identityFetchAllData, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -43,6 +43,7 @@ const Search = () => {
     const [filterByPending, setFilterByPending] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
     const [countAllData, setCountAllData] = useState(0);
+    const [isCountLoading, setIsCountLoading] = useState(false);
 
     //ref
     const searchValue = useRef()
@@ -103,6 +104,7 @@ const Search = () => {
     }
 
     const fetchCount = () => {
+      setIsCountLoading(true);
       fetchWithTimeout('/api/db/users/count', {
         credentials: "same-origin",
         method: 'GET',
@@ -125,13 +127,15 @@ const Search = () => {
           }
       })
       .then(data => {
-        if (data.countPersonIdentifier && Object.keys(filters).length === 0) {
+        if (data.countPersonIdentifier) {
           setTotalCount(data.countPersonIdentifier);
           setCountAllData(data.countPersonIdentifier);
         }
+        setIsCountLoading(false);
       }) 
       .catch(error => {
           console.log(error)
+          setIsCountLoading(false);
       })
     }
 
@@ -200,7 +204,14 @@ const Search = () => {
       router.push(`/curate/${personIdentifier}`);
       if (identityAllData && !identityAllFetching) {
         dispatch(identityClearAllData())
+        dispatch(clearFilters())
       }
+    }
+
+    const resetData = () => {
+      dispatch(clearFilters())
+      fetchPaginatedData()
+      fetchCount()
     }
 
     const identities = filter()
@@ -222,7 +233,7 @@ const Search = () => {
 
     // Spinner for when Search gets updated
     const isDisplayLoader = () => {
-      if ((!filtersOn && identityPaginatedFetching && page === 1) ||
+      if ((!filtersOn && (identityPaginatedFetching || isCountLoading) && page === 1) ||
         (!filtersOn && identityPaginatedData.length <= 0 ) || 
         (filtersOn && identityAllFetching)) {
           return true;
@@ -260,7 +271,7 @@ const Search = () => {
             <td key={`${identityIndex}__dropdown`} width="20%">
               <SplitDropdown
                 title='Curate Publications'
-                to={`/app/${identity.personIdentifier}`}
+                to={`/curate/${identity.personIdentifier}`}
                 id={`curate-publications_${identity.personIdentifier}`}
                 listItems={dropdownItems}
                 secondary={true}
@@ -284,7 +295,7 @@ const Search = () => {
             <div className={styles.searchContentContainer}>
                 <div className={styles.searchBar}>
                   <h1>Find People</h1>
-                  <SearchBar searchData={searchData}/>
+                  <SearchBar searchData={searchData} resetData={resetData}/>
                   { (isDisplayLoader()) ? 
                    (
                      <Loader />
