@@ -61,8 +61,8 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                       }
                   }
                   // authors
-                  if (publication.reciterArticleAuthorFeatures !== undefined) {
-                      var authorsArray = publication.reciterArticleAuthorFeatures.map(function (author, authorIndex) {
+                  if (publication.reCiterArticleAuthorFeatures !== undefined) {
+                      var authorsArray = publication.reCiterArticleAuthorFeatures.map(function (author, authorIndex) {
                           return fullName(author);
                       });
                       if (authorsArray.join().toLowerCase().includes(search.toLowerCase())) {

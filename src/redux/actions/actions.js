@@ -918,6 +918,12 @@ export const updateFilters = ( filter ) => dispatch => {
   })
 }
 
+export const clearFilters = () => dispatch => {
+  dispatch({
+    type: methods.FILTERS_CLEAR
+  })
+}
+
 export const updateFilteredIds = (ids) => dispatch => {
   dispatch({
     type: methods.FILTERED_IDS_CHANGE,
