@@ -9,6 +9,9 @@ import Loader from "../Common/Loader";
 import { Button, Spinner } from "react-bootstrap";
 import { reciterConfig } from "../../../../config/local";
 import fullName  from "../../../utils/fullName";
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
+
 
 interface DropdownProps {
   title: string,
@@ -40,6 +43,7 @@ const CuratePublications = () => {
   const maxResults = reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView;
   const incrementBy = reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy;
   const [loadCount, setLoadCount] = useState(incrementBy || 20);
+  const [page, setPage] = useState<number>(1);
 
   useEffect(() => {
     if (filteredIds.length) {
@@ -63,17 +67,9 @@ const CuratePublications = () => {
     }
   })
 
-  const fetchPublications = () => {
-    if (publicationsGroupDataIds.length - 1 === publicationsGroupData.endIndex) {
-      dispatch(publicationsFetchGroupData(filteredIds.slice(loadCount, loadCount + incrementBy), 'more'));
-      setLoadCount(loadCount + incrementBy);
-    } else {
-      dispatch(publicationsFetchGroupData(publicationsGroupDataIds.slice(publicationsGroupData.endIndex, publicationsGroupData.endIndex + incrementBy), 'more')) 
-    }
-  }
-
-  const fetchPreviousPublications = () => {
-    dispatch(publicationsFetchGroupData(publicationsGroupDataIds.slice(publicationsGroupData.startIndex - incrementBy, publicationsGroupData.startIndex), 'previous'))
+  const handlePageUpdate = (updatedPage: number) => {
+    setPage(updatedPage);
+    dispatch(publicationsFetchGroupData(filteredIds.slice((updatedPage - 1) * incrementBy, updatedPage * incrementBy), 'refresh'));
   }
  
   const PublicationsList = () => {
@@ -103,52 +99,18 @@ const CuratePublications = () => {
         ></FilterSection>
       { (publicationsGroupDataFetching) ? <Loader /> : 
         <>
-          {publicationsGroupData.reciter  && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
-          { (publicationsGroupData.startIndex > 0 || publicationsPreviousDataFetching) && 
-            <div className="d-flex align-items-center p-3 justify-content-center">
-              <Button className="primary" onClick={fetchPreviousPublications} disabled={publicationsPreviousDataFetching}>
-              {
-                publicationsPreviousDataFetching ? 
-                <>
-                  <Spinner
-                    as="span"
-                    animation="border"
-                    size="sm"
-                    role="status"
-                    aria-hidden="true"
-                  />
-                  {' '} Loading...
-                </>
-                : <>View Previous Results</>
-              }
-              </Button>
+          <div className="d-flex justify-content-between">
+            {publicationsGroupData.reciter && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
+            <div className={styles.paginationContainer}>
+              <Button className="primary m-2" disabled={page === 1} onClick={() => handlePageUpdate(page - 1)}><NavigateBeforeIcon /> Previous </Button>
+              <Button className="primary m-2" disabled={page * incrementBy >= filteredIds.length } onClick={() => handlePageUpdate(page + 1)}>Next <NavigateNextIcon /></Button>
             </div>
-          }
+          </div>
           <div className={styles.publicationsContainer}>
             {
               <PublicationsList />
             }
           </div>
-          { filteredIds.length > loadCount &&
-            <div className="d-flex align-items-center p-3 justify-content-center">
-              <Button className="primary" onClick={fetchPublications} disabled={publicationsMoreDataFetching}>
-                {
-                  publicationsMoreDataFetching ? 
-                  <>
-                    <Spinner
-                      as="span"
-                      animation="border"
-                      size="sm"
-                      role="status"
-                      aria-hidden="true"
-                    />
-                    {' '} Loading...
-                  </>
-                  : <>View More</>
-                }
-              </Button>
-            </div>
-          }
         </>
       }
     </div>
