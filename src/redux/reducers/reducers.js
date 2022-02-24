@@ -104,7 +104,7 @@ export const reciterData = (state=[], action) => {
             }
 
             return {
-                reciter: publications,
+                reciter: state.reciter,
                 reciterPending: pendingPublications
             }
         case methods.REJECT_PUBLICATION :
