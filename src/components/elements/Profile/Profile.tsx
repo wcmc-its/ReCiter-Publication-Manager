@@ -6,6 +6,7 @@ import Image from 'next/image'
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import styles from "./Profile.module.css";
+import { reciterConfig } from '../../../../config/local';
 
 interface PrimaryName {
   firstInitial?: string,
@@ -36,23 +37,45 @@ const Profile = ({
    handleClose: () => void,
  }) => {
   const dispatch = useDispatch()
-  const identityData = useSelector((state: RootStateOrAny) => state.identityData)
-  const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
   const relationshipsDisplayed = 10;
+  const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
+  const [identity, setIdentity] = useState<any>({});
 
   useEffect(() => {
-    if (modalShow && (Object.keys(identityData).length === 0 || identityData?.uid !== uid)) {
-      dispatch(identityFetchData(uid));
+    if (modalShow) {
+      setIsLoading(true);
+      fetch('/api/reciter/getidentity/' + uid, {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'Authorization': reciterConfig.backendApiKey
+        }
+      })
+        .then(response => {
+          if (response.status === 200) {
+            return response.json()
+          } else {
+            throw {
+              type: response.type,
+              title: response.statusText,
+              status: response.status,
+              detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+          }
+        })
+        .then(data => {
+          setIdentity(data.identity);
+          setIsLoading(false);
+        })
+        .catch(error => {
+          console.log(error)
+          setIsError(true);
+          setIsLoading(false);
+        })
     }
   }, [modalShow])
-
-  if (identityFetching) {
-    return (
-      <Modal>
-        <Loader />
-      </Modal>
-    )
-  }
 
   const DisplayName = ({ name } : { name: PrimaryName}) => {
     let formattedName = fullName(name);
@@ -221,7 +244,10 @@ const Profile = ({
   return (
     <Modal show={modalShow} size="lg" onHide={handleClose}>
       {
-        !identityFetching && 
+        isLoading ? 
+        <Modal.Body><Loader /></Modal.Body> : 
+        isError ? 
+        <Modal.Body><p>Something went wrong. Please try again later.</p></Modal.Body> :
         <>
         <Modal.Header closeButton className={styles.modalHeader}>
           <Container>
@@ -237,10 +263,10 @@ const Profile = ({
               </div>
               <div className="flex-grow-1">
                 <DisplayName 
-                  name={identityData.primaryName}
+                  name={identity.primaryName}
                 />
-                <b>{identityData.title}</b>
-                <p>{identityData.primaryOrganizationalUnit}</p>
+                <b>{identity.title}</b>
+                <p>{identity.primaryOrganizationalUnit}</p>
                 <div className="index-data"></div>
                   <Button variant="warning" className="m-2">Export articles as CSV</Button>
                   <Button variant="warning" className="m-2">Export articles as RTF</Button>
@@ -255,7 +281,7 @@ const Profile = ({
             <table id="profile-table" className={styles.profileTable}>
               <tbody>
                 <TableRows
-                  list={identityData}
+                  list={identity}
                 />
               </tbody>
             </table>
