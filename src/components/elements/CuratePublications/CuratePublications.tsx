@@ -44,6 +44,7 @@ const CuratePublications = () => {
   const incrementBy = reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy;
   const [loadCount, setLoadCount] = useState(incrementBy || 20);
   const [page, setPage] = useState<number>(1);
+  const totalCount = useSelector((state: RootStateOrAny) => state.identityAllData.reduce((acc, identity) => {return (identity.countPendingArticles > 0) ? acc + 1 : acc;}, 0));
 
   useEffect(() => {
     if (filteredIds.length) {
@@ -100,7 +101,7 @@ const CuratePublications = () => {
       { (publicationsGroupDataFetching) ? <Loader /> : 
         <>
           <div className="d-flex justify-content-between">
-            {publicationsGroupData.reciter && <h2 className={styles.sectionHeader}>{`${publicationsGroupData.reciter.length} people with pending publications`}</h2>}
+            {publicationsGroupData.reciter && <h2 className={styles.sectionHeader}>{`About ${totalCount} people with pending publications`}</h2>}
             <div className={styles.paginationContainer}>
               <Button className="primary m-2" disabled={page === 1} onClick={() => handlePageUpdate(page - 1)}><NavigateBeforeIcon /> Previous </Button>
               <Button className="primary m-2" disabled={page * incrementBy >= filteredIds.length } onClick={() => handlePageUpdate(page + 1)}>Next <NavigateNextIcon /></Button>
