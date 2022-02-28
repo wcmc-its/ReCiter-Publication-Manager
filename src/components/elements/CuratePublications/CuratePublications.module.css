@@ -13,3 +13,7 @@
   font-weight: 500;
   line-height: 40px;
 }
+
+.paginationContainer button {
+  min-width: 120px;
+}
