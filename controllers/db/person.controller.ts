@@ -1,9 +1,9 @@
-import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Sequelize, Op } from "sequelize"
+import { Op, Sequelize } from "sequelize"
 import { Person } from '../../src/db/models/Person'
-import { findUserFeedback } from '../userfeedback.controller'
+import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
+import { findUserFeedback } from '../userfeedback.controller'
 
 models.Person.hasMany(models.PersonPersonType)
 models.PersonPersonType.belongsTo(models.Person)
@@ -16,19 +16,23 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
         if(apiBody.filters) {
             if(apiBody.filters.personTypes || apiBody.filters.institutions || apiBody.filters.orgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
                 where[Op.and] = []
+                if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > 0) {
+                    where[Op.and].push({[Op.or]:[
+                        {'$Person.personIdentifier$': { [Op.in]: apiBody.filters.nameOrUids }},
+                    ]})
+                    if(where[Op.and][0][Op.or]) {
+                        apiBody.filters.nameOrUids.forEach((name: string) => {
+                            where[Op.and][0][Op.or].push({'$Person.firstName$': { [Op.like]: `%${name}%`}})
+                            where[Op.and][0][Op.or].push({'$Person.middleName$': { [Op.like]: `%${name}%`}})
+                            where[Op.and][0][Op.or].push({'$Person.lastName$': { [Op.like]: `%${name}%`}})
+                        })
+                     }
+                }
                 if(apiBody.filters.institutions) {
                     where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: apiBody.filters.institutions }})
                 }
                 if(apiBody.filters.orgUnits) {
                     where[Op.and].push({'$Person.primaryOrganizationalUnit$': { [Op.in]: apiBody.filters.orgUnits }})
-                }
-                if(apiBody.filters.nameOrUids) {
-                    where[Op.and].push({[Op.or]:[
-                        {'$Person.personIdentifier$': { [Op.in]: apiBody.filters.nameOrUids }},
-                        {'$Person.firstName$': { [Op.like]: `%${apiBody.filters.nameOrUids}%` }},
-                        {'$Person.middleName$': { [Op.like]: `%${apiBody.filters.nameOrUids}%` }},
-                        {'$Person.lastName$': { [Op.like]: `%${apiBody.filters.nameOrUids}%` }}
-                    ]})
                 }
                 if(apiBody.filters.showOnlyPending) {
                     where[Op.and].push({'$Person.countPendingArticles$': { [Op.gt]: 0 }})
