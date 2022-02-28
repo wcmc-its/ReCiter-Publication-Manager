@@ -5,8 +5,8 @@ import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import { findUserFeedback } from '../userfeedback.controller'
 
-models.Person.hasMany(models.PersonPersonType)
-models.PersonPersonType.belongsTo(models.Person)
+models.Person.hasMany(models.PersonPersonType, {constraints: false})
+models.PersonPersonType.belongsTo(models.Person, {constraints: false})
 
 export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
     
@@ -54,7 +54,7 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                     {
                         model: models.PersonPersonType, 
                         as: 'PersonPersonTypes',
-                        required: false,
+                        required: true,
                         on: {
                             col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
@@ -67,7 +67,8 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                 where: where,
                 order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
                 offset: apiBody.offset,
-                limit: apiBody.limit
+                limit: apiBody.limit,
+                subQuery: false
             });
         } else {
             persons = await models.Person.findAll({
@@ -75,7 +76,7 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                     {
                         model: models.PersonPersonType, 
                         as: 'PersonPersonTypes',
-                        required: false,
+                        required: true,
                         on: {
                             col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
@@ -86,7 +87,8 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                     },
                 ],
                 where: where,
-                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]]
+                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                subQuery: false
             });
         }
         res.send(persons);
