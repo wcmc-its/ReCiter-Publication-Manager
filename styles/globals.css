@@ -1,3 +1,7 @@
+:root {
+  --wcm-orange: #cf4520;
+}
+
 html,
 #root {
   height: 100vh;
@@ -27,6 +31,7 @@ a {
   flex-direction: column;
   flex-shrink: 0;
   overflow-x: hidden;
+  overflow-y: scroll;
 }
 
 .row-content {
@@ -72,6 +77,10 @@ a {
   z-index: 2055 ;
 }
 
+.modal.fade {
+  transition: none;
+}
+
 h1 {
   font-weight: 200 !important;
   color: #666363;
@@ -82,4 +91,11 @@ h1 {
 
 .table {
   vertical-align: middle !important;
+}
+
+.wcm-primary-lg.btn {
+  background-color: var(--wcm-orange);
+  border: none;
+  font-size: 1.3rem;
+  padding: 0.525rem 1.25rem;
 }
