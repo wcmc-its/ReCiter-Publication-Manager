@@ -25,7 +25,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
   useEffect(() => {
     if (props.showModal) {
       setFeedbacklogFetching(true);
-      fetch(`/api/db/admin/feedbacklog/${props.id}`, {
+      fetch(`/api/db/admin/feedbacklog/${props.userId}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
