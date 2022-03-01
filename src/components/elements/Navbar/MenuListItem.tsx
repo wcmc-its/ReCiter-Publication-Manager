@@ -48,7 +48,7 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
           </ListItemIcon>
           <ListItemText 
             disableTypography
-            primary={<span className={disabled ? styles.disabled : ''}>{title}</span>} 
+            primary={<span className={(disabled && !selected) ? styles.disabled : ''}>{title}</span>} 
             />
         </ListItem>
       </Link>
