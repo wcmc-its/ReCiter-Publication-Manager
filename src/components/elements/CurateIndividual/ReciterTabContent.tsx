@@ -155,6 +155,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
               updatePublication={handleUpdatePublication}
+              userId={session?.data?.username}
             />
             <Divider />
           </div>

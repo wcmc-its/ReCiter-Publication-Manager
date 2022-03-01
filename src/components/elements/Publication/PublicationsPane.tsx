@@ -136,6 +136,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     onAccept={acceptPublication}
                     fullName={props.filteredIdentities[item.personIdentifier] ? props.filteredIdentities[item.personIdentifier].fullName : ''}
                     updatePublication={handleUpdatePublication}
+                    userId={session?.data?.username}
                     />
                     {index < articles.length - 1 && <Divider></Divider>}
                 </div>
