@@ -1,3 +1,7 @@
+:root {
+  --wcm-orange: #cf4520;
+}
+
 html,
 #root {
   height: 100vh;
@@ -82,4 +86,11 @@ h1 {
 
 .table {
   vertical-align: middle !important;
+}
+
+.wcm-primary-lg.btn {
+  background-color: var(--wcm-orange);
+  border: none;
+  font-size: 1.3rem;
+  padding: 0.525rem 1.25rem;
 }

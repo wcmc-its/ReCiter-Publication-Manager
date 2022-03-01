@@ -19,8 +19,9 @@
   white-space: nowrap;
 }
 
-.suggestionsBanner {
-  background-color: #FEF7B8;
+.suggestionsBanner div[role=alert] {
+  width: fit-content;
+  margin-left: 0; 
 }
 
 .count {

@@ -1,5 +1,5 @@
 import React from "react";
-import { Row } from "react-bootstrap";
+import { Row, Alert, Button, Container } from "react-bootstrap";
 import styles from "./CurateIndividual.module.css";
 import { useDispatch } from "react-redux";
 import { reciterFetchData } from "../../../redux/actions/actions";
@@ -13,9 +13,10 @@ const SuggestionsBanner = ({ uid, count } : { uid : string | string[], count: nu
  
   return (
     <>
-    <Row className={`${styles.suggestionsBanner} my-2 p-1`}>
-      <p className="mt-3">{`You have provided feedback on ${count} record(s). `}<span className="text-btn" onClick={refreshSuggestions}>Refresh</span> suggestions</p>
-    </Row>
+    <Container fluid className={`${styles.suggestionsBanner} my-2 p-1`}>
+      <Alert variant="warning" className="mt-3">{`You have provided feedback on ${count} record(s). `}</Alert>
+      <Button className="wcm-primary-lg" onClick={refreshSuggestions}>Refresh Suggestions</Button>
+    </Container>
     </>
   )
 }
