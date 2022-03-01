@@ -76,6 +76,10 @@ a {
   z-index: 2055 ;
 }
 
+.modal.fade {
+  transition: none;
+}
+
 h1 {
   font-weight: 200 !important;
   color: #666363;
