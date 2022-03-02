@@ -522,7 +522,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         })
 
         // Sort Evidence Rows by highest score first
-        evidenceTableRows.sort((a: any, b: any) => b.points - a.points)
+        evidenceTableRows.sort((a: any, b: any) => Math.abs(b.points) - Math.abs(a.points))
 
         // Keep Author Name Evidence at the top
         const authorNameEvidenceIndex = evidenceTableRows.findIndex((evidence) => evidence.name === 'authorNameEvidence');
