@@ -163,7 +163,7 @@ const Search = () => {
           setTotalCount(countAllData);
         }
         if (searchText) {
-          let searchWords = searchText.split(' ');
+          let searchWords = searchText.trim().split(' ');
           updatedFilters = { ...updatedFilters, nameOrUids: searchWords};
         }
 
