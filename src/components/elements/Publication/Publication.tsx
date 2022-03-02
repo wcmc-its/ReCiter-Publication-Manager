@@ -65,7 +65,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         authorFullName += author.lastName;
       }
 
-      return <li key={"author" + index} className={author.targetAuthor ? styles.highlightedAuthor : ""}>{authorFullName}{(index < count - 1)?", ":""}</li>
+      return <li key={"author" + index}><span className={author.targetAuthor ? styles.highlightedAuthor : ""}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
     }
 
     const AuthorsList = ({ authors } : {
