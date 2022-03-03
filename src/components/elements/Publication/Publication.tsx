@@ -568,7 +568,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 <React.Fragment>
                     <p className={styles.publicationScore} data-tip={evidancePopoverHtml} data-place="right"
                         data-effect="solid" data-html={true} data-class={styles.evidenceScorePopupContainer}>
-                        Evidence<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
+                        Matching<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
                     </p>
                     < ReactTooltip />
                 </React.Fragment>: <p></p>
