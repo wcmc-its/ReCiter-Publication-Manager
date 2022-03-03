@@ -212,6 +212,10 @@
   padding-right: 5px;
 }
 
+.midDot:first-of-type::before {
+  display: none;
+}
+
 .publicationContainer {
   background-color: #ffffff;
   margin-top: 5px;
