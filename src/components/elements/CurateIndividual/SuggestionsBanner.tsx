@@ -1,8 +1,9 @@
 import React from "react";
-import { Row, Alert, Button, Container } from "react-bootstrap";
+import { Button, Container } from "react-bootstrap";
 import styles from "./CurateIndividual.module.css";
 import { useDispatch } from "react-redux";
 import { reciterFetchData } from "../../../redux/actions/actions";
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 
 const SuggestionsBanner = ({ uid, count } : { uid : string | string[], count: number}) => {
   const dispatch = useDispatch();
@@ -14,8 +15,8 @@ const SuggestionsBanner = ({ uid, count } : { uid : string | string[], count: nu
   return (
     <>
     <Container fluid className={`${styles.suggestionsBanner} my-2 p-1`}>
-      <Alert variant="warning" className="mt-3">{`You have provided feedback on ${count} record(s). `}</Alert>
-      <Button className="wcm-primary-lg" onClick={refreshSuggestions}>Refresh Suggestions</Button>
+      <Button className="wcm-primary-lg" onClick={refreshSuggestions}>Refresh Suggestions <AutorenewIcon /></Button>
+      <span className="mx-4">{`You have provided feedback on`} <b>{count}</b> {`record(s). `}</span>
     </Container>
     </>
   )
