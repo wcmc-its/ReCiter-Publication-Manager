@@ -25,15 +25,34 @@
 }
 
 .count {
+  overflow: visible;
+  height: 0;
+  margin-top: -1.5em;
+}
+
+.circle:after {
+  content: '';
+  display: block;
+  height: 0;
+  /* width: 100%; */
+  padding-bottom: 100%;
+}
+
+.circle {
+  margin-left: 8px;
+  border-radius: 50%;
   background-color: #474747;
   color: white;
-  width: 30px;
-  line-height: 30px;
-  border-radius: 50%;
-  text-align: center;
-  font-size: 16px;
-  display: inline-block;
-  margin-left: 8px;
+  padding: 0.25em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21.5px;
+  min-height: 21.5px;
+}
+
+.circle.active {
+  background-color: #2458D1;
 }
 
 .activeCount {
