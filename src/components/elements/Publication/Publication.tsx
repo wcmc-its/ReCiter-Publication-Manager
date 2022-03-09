@@ -382,6 +382,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               if (rowName === 'organizationalUnitEvidence') {
                 let scoreTotal = 0
                 let itemCount = 0
+                displayInstDataList = true;
+                displayArticleDataList = true;
                 evidence[rowName].forEach((orgUnitItem: any) => {
                     itemCount++
                     scoreTotal = scoreTotal + Number(orgUnitItem.organizationalUnitMatchingScore + orgUnitItem.organizationalUnitModifierScore)
