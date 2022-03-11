@@ -65,7 +65,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         authorFullName += author.lastName;
       }
 
-      return <li key={"author" + index} className={author.targetAuthor ? styles.highlightedAuthor : ""}>{authorFullName}{(index < count - 1)?", ":""}</li>
+      return <li key={"author" + index}><span className={author.targetAuthor ? styles.highlightedAuthor : ""}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
     }
 
     const AuthorsList = ({ authors } : {
@@ -382,6 +382,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               if (rowName === 'organizationalUnitEvidence') {
                 let scoreTotal = 0
                 let itemCount = 0
+                displayInstDataList = true;
+                displayArticleDataList = true;
                 evidence[rowName].forEach((orgUnitItem: any) => {
                     itemCount++
                     scoreTotal = scoreTotal + Number(orgUnitItem.organizationalUnitMatchingScore + orgUnitItem.organizationalUnitModifierScore)
@@ -522,7 +524,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         })
 
         // Sort Evidence Rows by highest score first
-        evidenceTableRows.sort((a: any, b: any) => b.points - a.points)
+        evidenceTableRows.sort((a: any, b: any) => Math.abs(b.points) - Math.abs(a.points))
 
         // Keep Author Name Evidence at the top
         const authorNameEvidenceIndex = evidenceTableRows.findIndex((evidence) => evidence.name === 'authorNameEvidence');
@@ -568,7 +570,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 <React.Fragment>
                     <p className={styles.publicationScore} data-tip={evidancePopoverHtml} data-place="right"
                         data-effect="solid" data-html={true} data-class={styles.evidenceScorePopupContainer}>
-                        Evidence<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
+                        Matching<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
                     </p>
                     < ReactTooltip />
                 </React.Fragment>: <p></p>

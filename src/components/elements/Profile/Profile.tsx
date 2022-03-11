@@ -166,7 +166,11 @@ const Profile = ({
     if (list.institutions) {
       if (list.institutions.length > 0) {
         let institutions = [];
-        list.institutions.forEach((institution) => {
+        // remove duplicates
+        let uniqueInstitutions = list.institutions.filter((institution, index) => {
+          return list.institutions.indexOf(institution) !== index
+        });
+        uniqueInstitutions.forEach((institution) => {
           if (institution === list.primaryInstitution) {
             institutions.push({ name: institution, tag: 'Primary'})
           } else {

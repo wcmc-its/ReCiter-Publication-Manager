@@ -22,7 +22,7 @@ const SearchBar = ({
 
   const filters = useSelector((state: RootStateOrAny) => state.filters)
 
-  const [searchQuery, setSearchQuery] = useState(filters.searchText ? filters.searchText : '');
+  const [searchQuery, setSearchQuery] = useState(filters.nameOrUids ? filters.nameOrUids.join(" ") : '');
   const [orgUnitQuery, setOrgUnitQuery] = useState<Array<string>>(filters.orgUnits ? filters.orgUnits : []);
   const [insitutionQuery, setInstitutionQuery] = useState<Array<string>>(filters.institutions ? filters.institutions : []);
   const [personTypeQuery, setPersonTypeQuery] = useState<Array<string>>(filters.personTypes ? filters.personTypes : []);
