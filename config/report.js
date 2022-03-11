@@ -13,3 +13,13 @@ export const reportConfig = {
     journalRank: true
   }
 }
+
+export const sortOptions = {
+  datePublicationAddedToEntrez: true,
+  journalImpactScore1: true,
+  percentileNIH: true,
+  citationCountNIH: true,
+  trendingPubsScore: true,
+  readersMendeley: false,
+  publicationDateStandarized: false
+}
