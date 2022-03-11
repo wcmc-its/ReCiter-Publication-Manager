@@ -1,6 +1,17 @@
-import { Button } from "react-bootstrap";
+import { Button, Dropdown, DropdownButton } from "react-bootstrap";
 import { useState } from "react";
 import ExportModal from "./ExportModal";
+import { sortOptions } from "../../../../config/report";
+
+const SortOptionTitles = {
+  datePublicationAddedToEntrez: "date added",
+  journalImpactScore1: "journal impact score",
+  percentileNIH: "percentile NIH",
+  citationCountNIH: "citation count NIH",
+  trendingPubsScore: "trending Publication score",
+  readersMendeley: "reader's mendeley",
+  publicationDateStandarized: "date standardized"
+}
 
 const SearchSummary = ({ count }, { count: number}) => {
   const [openCSV, setOpenCSV] = useState(false);
@@ -11,6 +22,15 @@ const SearchSummary = ({ count }, { count: number}) => {
       <div className="d-flex justify-content-between align-items-center">
         <p className="mb-0"><b>{count} publications</b></p>
         <div className="search-summary-buttons">
+        <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={() => console.log('sort')}>
+          {
+            Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption) => {
+              return (
+                <Dropdown.Item eventKey="1" value={sortOption}>{SortOptionTitles[sortOption]}</Dropdown.Item>
+              )
+            })
+          }
+        </DropdownButton>
           <Button variant="warning" className="m-2" onClick={() => setOpenCSV(true)}>Export to CSV</Button>
           <Button variant="warning" className="m-2" onClick={() => setOpenRTF(true)}>Export to RTF</Button>
         </div>
