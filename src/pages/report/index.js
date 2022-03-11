@@ -1,6 +1,6 @@
 import { AppLayout } from "../../components/layouts/AppLayout"
 import { getSession } from "next-auth/client"
-import Report from '../report/Report';
+import Report from '../../components/elements/Report/Report'
 
 /* export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
