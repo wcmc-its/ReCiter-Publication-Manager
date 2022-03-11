@@ -102,11 +102,11 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
         <Accordion defaultActiveKey={props.index === 0 ? "0" : "1"}>
          <Accordion.Item eventKey="0">
           <Accordion.Header className={styles.publicationHeader}> 
-            <Row>
-              <Col md={8} className={styles.facultyHeader}>
+            <div className="d-flex justify-content-between">
+              <div className={styles.facultyHeader}>
                 {props.filteredIdentities[item.personIdentifier] && <p><span className={styles.facultyTitle}>{props.filteredIdentities[item.personIdentifier].fullName}</span>{props.filteredIdentities[item.personIdentifier].title}</p>}
-              </Col>
-              <Col md={3}>
+              </div>
+              <div>
                 <div className={styles.publicationRowButtons}>
                   <Button onClick={(e) => handleShow(e)}>
                     View Profile
@@ -115,8 +115,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
                     {`View All ${countPendingArticles} Pending`}
                   </Button>
                 </div>
-              </Col>
-            </Row>
+              </div>
+            </div>
           </Accordion.Header>
           <Accordion.Body> 
           {

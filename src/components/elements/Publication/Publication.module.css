@@ -176,14 +176,13 @@
 }
 
 .facultyTitle {
-  color: #337ab7;
+  color: #173A7F;
   font-size: 1.5rem;
 }
 
 .facultyHeader {
   font-size: 18px;
   color: #777;
-  font-weight: bold;
 }
 
 .publicationsSummary {
@@ -210,6 +209,10 @@
   content: "•";
   padding-left: 5px;
   padding-right: 5px;
+}
+
+.midDot:first-of-type::before {
+  display: none;
 }
 
 .publicationContainer {

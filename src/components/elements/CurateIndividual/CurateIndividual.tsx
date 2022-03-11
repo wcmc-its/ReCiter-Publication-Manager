@@ -83,7 +83,7 @@ const CurateIndividual = () => {
                 reciter={reciterData.reciter}
                 />
             }
-            <Button className="transparent-btn" onClick={handleShow}>View Profile</Button>
+            <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
           </div>
           </div>
         </Container>

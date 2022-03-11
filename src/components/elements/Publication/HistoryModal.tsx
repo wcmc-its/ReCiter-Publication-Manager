@@ -80,10 +80,10 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
   }
 
   const Feedbacklog = ({ userId, timestamp, feedback}) => {
-    let date = new Date(timestamp);
+    let date = new Date(timestamp).toUTCString();
     let action = getAction(feedback);
     return (
-      <p>{`${action} by ${userId} at ${date}`}</p>
+      <p>{`Marked as ${action.toLowerCase()} by ${userId} at ${date}`}</p>
     )
   };
   

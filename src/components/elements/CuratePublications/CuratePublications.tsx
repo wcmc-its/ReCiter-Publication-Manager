@@ -89,7 +89,7 @@ const CuratePublications = () => {
       <h1 className={styles.header}>Curate Publications</h1>
       <FilterSection 
         list={filterSectionList}
-        buttonTitle="Update Search"
+        buttonTitle="Update Search..."
         buttonUrl="/search"
         ></FilterSection>
       { (publicationsGroupDataFetching) ? <Loader /> : 
