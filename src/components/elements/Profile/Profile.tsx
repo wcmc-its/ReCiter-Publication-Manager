@@ -41,6 +41,7 @@ const Profile = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
+  const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
 
   useEffect(() => {
     if (modalShow) {
@@ -200,7 +201,13 @@ const Profile = ({
     }
 
     if (list.grants) {
-      rows.push({ title: 'Grants', values: list.grants.map((grant) => {return {name: grant}})})
+      let grantsList = formatter.format(list.grants);
+      rows.push({ title: 'Grants', values: [{ name: grantsList }]})
+    }
+
+    if (list.personTypes) {
+      let personTypesList = formatter.format(list.personTypes);
+      rows.push({ title: 'Person Types', values: [{ name: personTypesList }]})
     }
 
     return(
