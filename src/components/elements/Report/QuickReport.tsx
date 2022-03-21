@@ -3,7 +3,7 @@ import Link from "next/link";
 const QuickReport = () => {
   return (
     <div>
-      <p>To create a report, select one or more filters and click on the "Search" button.</p>
+      <p>To create a report, select one or more filters and click on the &quot;Search&quot; button.</p>
       <br></br>
       <p>You can also click on one of the following:</p>
       <ul>

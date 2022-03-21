@@ -24,9 +24,9 @@ const SearchSummary = ({ count }, { count: number}) => {
         <div className="search-summary-buttons">
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={() => console.log('sort')}>
           {
-            Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption) => {
+            Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
               return (
-                <Dropdown.Item eventKey="1" value={sortOption}>{SortOptionTitles[sortOption]}</Dropdown.Item>
+                <Dropdown.Item eventKey={index} key={index} value={sortOption}>{SortOptionTitles[sortOption]}</Dropdown.Item>
               )
             })
           }
