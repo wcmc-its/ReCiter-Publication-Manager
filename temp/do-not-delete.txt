@@ -1,0 +1,1 @@
+This folder is necessary for temporary stoage of files. Please do not delete this.
