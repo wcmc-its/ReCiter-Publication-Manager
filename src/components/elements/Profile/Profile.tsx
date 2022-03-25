@@ -78,6 +78,31 @@ const Profile = ({
     }
   }, [modalShow])
 
+  const generateBiblioAnalysis = () => {
+    fetch('/api/db/reports/bibliometric-analysis/' + uid, {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      }
+    })
+      .then(response => {
+        return response.blob();
+      })
+      .then(fileBlob => {
+        var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+        link.href = window.URL.createObjectURL(fileBlob)
+        link.click()
+        link.remove();
+      })
+      .catch(error => {
+        console.log(error)
+        setIsError(true);
+        setIsLoading(false);
+      })
+  }
+
   const DisplayName = ({ name } : { name: PrimaryName}) => {
     let formattedName = fullName(name);
     return (
@@ -281,7 +306,7 @@ const Profile = ({
                 <div className="index-data"></div>
                   <Button variant="warning" className="m-2">Export articles as CSV</Button>
                   <Button variant="warning" className="m-2">Export articles as RTF</Button>
-                  <Button variant="warning" className="m-2">Generate bibliometric analysis</Button>
+                  <Button variant="warning" onClick={() => generateBiblioAnalysis()} className="m-2">Generate bibliometric analysis</Button>
               </div>
             </Row>
           </Container>
