@@ -41,42 +41,76 @@ const Profile = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
+  const [showBiblioBtn, isShowBiblioBtn] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
 
   useEffect(() => {
     if (modalShow) {
-      setIsLoading(true);
-      fetch('/api/reciter/getidentity/' + uid, {
-        credentials: "same-origin",
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'Authorization': reciterConfig.backendApiKey
-        }
-      })
-        .then(response => {
-          if (response.status === 200) {
-            return response.json()
-          } else {
-            throw {
-              type: response.type,
-              title: response.statusText,
-              status: response.status,
-              detail: "Error occurred with api " + response.url + ". Please, try again later "
-            }
-          }
-        })
-        .then(data => {
-          setIdentity(data.identity);
-          setIsLoading(false);
-        })
-        .catch(error => {
-          console.log(error)
-          setIsError(true);
-          setIsLoading(false);
-        })
+     setIsLoading(true);
+     const fetchIdentityPromise = fetchIdentity();
+     const showBiblioAnalysisPromise = showBiblioAnalysis();
+     Promise.all([fetchIdentityPromise, showBiblioAnalysisPromise]).then(() => { setIsLoading(false); })
     }
   }, [modalShow])
+
+  const fetchIdentity = async () => {
+    return await fetch('/api/reciter/getidentity/' + uid, {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      }
+    })
+      .then(response => {
+        if (response.status === 200) {
+          return response.json()
+        } else {
+          throw {
+            type: response.type,
+            title: response.statusText,
+            status: response.status,
+            detail: "Error occurred with api " + response.url + ". Please, try again later "
+          }
+        }
+      })
+      .then(data => {
+        setIdentity(data.identity);
+      })
+      .catch(error => {
+        console.log(error)
+        setIsError(true);
+      })
+  }
+
+  const showBiblioAnalysis = async () => {
+    return await fetch('/api/db/reports/bibliometric-analysis/show-button/' + uid, {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      }
+    }).then(response => {
+      if (response.status === 200) {
+        return response.json()
+      } else {
+        throw {
+          type: response.type,
+          title: response.statusText,
+          status: response.status,
+          detail: "Error occurred with api " + response.url + ". Please, try again later "
+        }
+      }
+    })
+    .then(data => {
+      isShowBiblioBtn(data);
+    })
+    .catch(error => {
+      console.log(error)
+      setIsError(true);
+    })
+  }
 
   const generateBiblioAnalysis = () => {
     fetch('/api/db/reports/bibliometric-analysis/' + uid, {
@@ -91,8 +125,10 @@ const Profile = ({
         return response.blob();
       })
       .then(fileBlob => {
+        let fileName = uid + ".rtf";
         var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
         link.href = window.URL.createObjectURL(fileBlob)
+        link.download = fileName;
         link.click()
         link.remove();
       })
@@ -306,7 +342,7 @@ const Profile = ({
                 <div className="index-data"></div>
                   <Button variant="warning" className="m-2">Export articles as CSV</Button>
                   <Button variant="warning" className="m-2">Export articles as RTF</Button>
-                  <Button variant="warning" onClick={() => generateBiblioAnalysis()} className="m-2">Generate bibliometric analysis</Button>
+                  {showBiblioBtn && <Button variant="warning" onClick={() => generateBiblioAnalysis()} className="m-2">Generate bibliometric analysis</Button>}
               </div>
             </Row>
           </Container>
