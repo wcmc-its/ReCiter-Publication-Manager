@@ -9,11 +9,12 @@ export interface PersonArticleAuthorAttributes {
   authorLastName?: string;
   targetAuthor?: string;
   rank?: number;
+  orcid?: string;
 }
 
 export type PersonArticleAuthorPk = "id";
 export type PersonArticleAuthorId = PersonArticleAuthor[PersonArticleAuthorPk];
-export type PersonArticleAuthorOptionalAttributes = "id" | "personIdentifier" | "pmid" | "authorFirstName" | "authorLastName" | "targetAuthor" | "rank";
+export type PersonArticleAuthorOptionalAttributes = "id" | "personIdentifier" | "pmid" | "authorFirstName" | "authorLastName" | "targetAuthor" | "rank" | "orcid";
 export type PersonArticleAuthorCreationAttributes = Optional<PersonArticleAuthorAttributes, PersonArticleAuthorOptionalAttributes>;
 
 export class PersonArticleAuthor extends Model<PersonArticleAuthorAttributes, PersonArticleAuthorCreationAttributes> implements PersonArticleAuthorAttributes {
@@ -24,6 +25,7 @@ export class PersonArticleAuthor extends Model<PersonArticleAuthorAttributes, Pe
   authorLastName?: string;
   targetAuthor?: string;
   rank?: number;
+  orcid?: string;
 
 
   static initModel(sequelize: Sequelize.Sequelize): typeof PersonArticleAuthor {
@@ -49,7 +51,7 @@ export class PersonArticleAuthor extends Model<PersonArticleAuthorAttributes, Pe
       defaultValue: "'NULL'"
     },
     authorLastName: {
-      type: DataTypes.STRING(128),
+      type: DataTypes.STRING(150),
       allowNull: true,
       defaultValue: "'NULL'"
     },
@@ -62,6 +64,10 @@ export class PersonArticleAuthor extends Model<PersonArticleAuthorAttributes, Pe
       type: DataTypes.INTEGER,
       allowNull: true,
       defaultValue: 0
+    },
+    orcid: {
+      type: DataTypes.STRING(50),
+      allowNull: true
     }
   }, {
     sequelize,
