@@ -132,6 +132,13 @@ export class Person extends Model<PersonAttributes, PersonCreationAttributes> im
           { name: "personIdentifier" },
         ]
       },
+      {
+        name: "id",
+        using: "BTREE",
+        fields: [
+          { name: "id" },
+        ]
+      },
     ]
   });
   return Person;
