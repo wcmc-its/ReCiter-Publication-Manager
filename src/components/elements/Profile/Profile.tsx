@@ -91,8 +91,10 @@ const Profile = ({
         return response.blob();
       })
       .then(fileBlob => {
+        let fileName = uid + ".rtf";
         var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
         link.href = window.URL.createObjectURL(fileBlob)
+        link.download = fileName;
         link.click()
         link.remove();
       })
