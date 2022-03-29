@@ -204,12 +204,12 @@ export class PersonArticle extends Model<PersonArticleAttributes, PersonArticleC
       allowNull: true
     },
     journalTitleVerbose: {
-      type: DataTypes.STRING(500),
+      type: DataTypes.STRING(2000),
       allowNull: true,
       defaultValue: "NULL"
     },
     articleTitle: {
-      type: DataTypes.STRING(1000),
+      type: DataTypes.STRING(5000),
       allowNull: true,
       defaultValue: "'NULL'"
     },
