@@ -1,5 +1,6 @@
 import { reportConfig } from "../../../../config/report"
 import { Button } from "react-bootstrap";
+import styles from "./FilterSection.module.css";
 
 const Buttons = () => {
   return (
@@ -12,9 +13,9 @@ const Buttons = () => {
 
 const FilterRow = ({title, filters}) => {
   return (
-    <div className="filter-row">
-      <div className="title">{title}</div>
-      <div className="filters-container">
+    <div className="filter-row flex-grow-1">
+      <div className={`title ${styles.filterName}`}>{title}</div>
+      <div className={`filters-container ${styles.filtersContainer}`}>
         {Object.keys(filters).map((filter) => {
           return (
             <Button>{filters[filter].name}</Button>
@@ -27,7 +28,7 @@ const FilterRow = ({title, filters}) => {
 
 export const FilterSection = () => {
   return (
-    <div>
+    <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
         return (
           <>
@@ -35,7 +36,7 @@ export const FilterSection = () => {
               title={reportConfig[config].name}
               filters={reportConfig[config].list}
               />
-             {index < Object.keys(reportConfig).length && <div className="break"></div>}
+              {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
           </>
         )
       })}

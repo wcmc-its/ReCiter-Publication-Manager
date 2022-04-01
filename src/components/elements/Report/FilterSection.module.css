@@ -1,0 +1,20 @@
+.filterContainer {
+  background-color: #f5f5f5;
+  padding: 20px;
+}
+
+.filterContainer button {
+  margin: 0 7px;
+}
+
+.filterContainer button:first-child {
+  margin-left: 0px;
+}
+
+.filterName {
+  margin-bottom: 0.5rem;
+}
+
+.filtersContainer {
+  margin-bottom: 1rem;
+}
