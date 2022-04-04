@@ -11,7 +11,7 @@ interface SliderFilterProps {
   handleChange: () => void
   getAriaValueText?: (text: number) => string
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ name, value, getAriaValueText, handleChange }) => {
+export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, value, getAriaValueText, handleChange }) => {
   return (
     <Dropdown>
       <Dropdown.Toggle variant="primary" id="dropdown-basic">
@@ -22,9 +22,9 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ name, value, getAria
         <Box sx={{ width: 250 }}>
           <Slider
             value={value}
-            min={5}
+            min={min}
             step={1}
-            max={30}
+            max={max}
             onChange={handleChange}
             aria-labelledby="non-linear-slider"
             disableSwap
