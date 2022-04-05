@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { DateRangePicker, SingleDatePicker, DayPickerRangeController } from 'react-dates';
 import 'react-dates/initialize';
 import 'react-dates/lib/css/_datepicker.css';
+import moment from 'moment';
 
 export const DatePicker = () => {
   const [startDate, setStartDate] = useState(null);
@@ -12,6 +13,13 @@ export const DatePicker = () => {
     setStartDate(startDate);
     setEndDate(endDate);
   };
+
+  // TODO: pass from props
+  const minDate = moment("1948-06-01");
+  const maxDate = moment("2022-03-23");
+
+  const isOutsideRange = day =>
+    day.isAfter(maxDate) || day.isBefore(minDate);
   
   return (
     <div>
@@ -23,6 +31,7 @@ export const DatePicker = () => {
         onDatesChange={handleDatesChange} // PropTypes.func.isRequired,
         focusedInput={focusedInput} // PropTypes.oneOf([START_DATE, END_DATE]) or null,
         onFocusChange={focusedInput => setFocusedInput(focusedInput)} // PropTypes.func.isRequired,
+        isOutsideRange={isOutsideRange}
       />
     </div>
   )

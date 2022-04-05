@@ -1,6 +1,7 @@
 import { reportConfig } from "../../../../config/report"
 import { Button } from "react-bootstrap";
 import styles from "./FilterSection.module.css";
+import { DatePicker } from "./DatePicker";
 
 const Buttons = () => {
   return (
@@ -16,9 +17,9 @@ const FilterRow = ({title, filters}) => {
     <div className="filter-row flex-grow-1">
       <div className={`title ${styles.filterName}`}>{title}</div>
       <div className={`filters-container ${styles.filtersContainer}`}>
-        {Object.keys(filters).map((filter) => {
+        {Object.keys(filters).map((filter, index) => {
           return (
-            <Button>{filters[filter].name}</Button>
+            <Button key={index}>{filters[filter].name}</Button>
           )
         })}
       </div>
