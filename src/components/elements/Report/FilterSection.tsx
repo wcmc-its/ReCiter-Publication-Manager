@@ -12,6 +12,22 @@ const Buttons = () => {
   )
 }
 
+const DisplayFilter = ({ filter, index}) => {
+  let filterType = filter.filterType || undefined;
+  switch (filterType) {
+    case ("DateRange"):
+      return (
+        <DatePicker 
+          name={filter.name}
+        />
+      )
+    default:
+      return (
+        <Button key={index}>{filter.name}</Button>
+      )
+  }
+}
+
 const FilterRow = ({title, filters}) => {
   return (
     <div className="filter-row flex-grow-1">
@@ -19,7 +35,10 @@ const FilterRow = ({title, filters}) => {
       <div className={`filters-container ${styles.filtersContainer}`}>
         {Object.keys(filters).map((filter, index) => {
           return (
-            <Button key={index}>{filters[filter].name}</Button>
+            <DisplayFilter 
+              filter={filters[filter]}
+              index={index}
+              />
           )
         })}
       </div>

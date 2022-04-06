@@ -1,4 +1,4 @@
-export enum FilterType {
+export const enum FilterType {
   MultiSelect,
   Range,
   DateRange
