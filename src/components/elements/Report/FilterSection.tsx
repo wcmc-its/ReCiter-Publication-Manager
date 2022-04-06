@@ -2,6 +2,7 @@ import { reportConfig } from "../../../../config/report"
 import { Button } from "react-bootstrap";
 import styles from "./FilterSection.module.css";
 import { DatePicker } from "./DatePicker";
+import { SliderFilter } from "./SliderFilter";
 
 const Buttons = () => {
   return (
@@ -18,6 +19,12 @@ const DisplayFilter = ({ filter, index}) => {
     case ("DateRange"):
       return (
         <DatePicker 
+          name={filter.name}
+        />
+      )
+    case "Range":
+      return (
+        <SliderFilter 
           name={filter.name}
         />
       )

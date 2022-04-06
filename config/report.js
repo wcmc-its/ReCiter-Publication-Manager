@@ -30,6 +30,7 @@ export const reportConfig = {
       date: {
         name: "Date",
         isEnabled: true,
+        filterType: "DateRange",
       },
       type: {
         name: "Type",
@@ -42,6 +43,7 @@ export const reportConfig = {
       journalRank: {
         name: "Journal Rank",
         isEnabled: true,
+        filterType: "Range",
       }
     }
   }
