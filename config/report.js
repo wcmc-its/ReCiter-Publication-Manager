@@ -1,16 +1,49 @@
 export const reportConfig = {
   authorFilters: {
-    author: true,
-    organization: true,
-    institution: true,
-    personType: true,
-    order: true
+    name: "Author Filters",
+    list: {
+      author: {
+        name: "Author",
+        isEnabled: true,
+      },
+      organization: {
+        name: "Organization",
+        isEnabled: true,
+      },
+      institution: {
+        name: "Institution",
+        isEnabled: true,
+      },
+      personType: {
+        name: "Person Type",
+        isEnabled: true,
+      },
+      order: {
+        name: "Order",
+        isEnabled: true,
+      }
+    }
   },
   articleFilters: {
-    date: true,
-    type: true,
-    journal: true,
-    journalRank: true
+    name: "Article Filters",
+    list: {
+      date: {
+        name: "Date",
+        isEnabled: true,
+      },
+      type: {
+        name: "Type",
+        isEnabled: true,
+      },
+      journal: {
+        name: "Journal",
+        isEnabled: true,
+      },
+      journalRank: {
+        name: "Journal Rank",
+        isEnabled: true,
+      }
+    }
   }
 }
 
