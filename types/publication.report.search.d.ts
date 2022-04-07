@@ -11,7 +11,9 @@ export type PublicationSearchFilter = {
         journalTitleVerbose: Array<string>,
         journalImpactScoreLowerBound: number,
         journalImpactScoreUpperBound: number
-    }
+    },
+    limit?: number,
+    offset?: number
 }
 export enum AuthorPosition {
     first,
