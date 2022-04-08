@@ -3,6 +3,7 @@ import { Button } from "react-bootstrap";
 import styles from "./FilterSection.module.css";
 import { DatePicker } from "./DatePicker";
 import { SliderFilter } from "./SliderFilter";
+import { CheckList } from "./CheckList";
 
 const Buttons = () => {
   return (
@@ -26,6 +27,13 @@ const DisplayFilter = ({ filter, index}) => {
       return (
         <SliderFilter 
           name={filter.name}
+        />
+      )
+    case "Checklist":
+      return (
+        <CheckList
+          title={filter.name}
+          options={filter.options}
         />
       )
     default:

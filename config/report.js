@@ -21,6 +21,15 @@ export const reportConfig = {
       order: {
         name: "Order",
         isEnabled: true,
+      }, 
+      authorPosition: {
+        name: "Author Position",
+        isEnabled: true,
+        options: [
+          {key: "first", label: "First"},
+          {key: "last", label: "Last"}
+        ],
+        filterType: "Checklist",
       }
     }
   },
