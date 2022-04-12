@@ -25,11 +25,20 @@ const DisplayFilter = ({ filter, index, filterOptions}) => {
         />
       )
     case "Range":
-      return (
-        <SliderFilter 
-          name={filter.name}
-        />
-      )
+      {
+        let rangeDates = filterOptions[filter.options];
+        let range = rangeDates.length ? rangeDates[0] : {};
+        let values = Object.keys(range).map((r) => range[r]);
+        let min = values.length ? values[0] : 0;
+        let max = values.length ? values[1] : 100;
+        return (
+          <SliderFilter 
+            name={filter.name}
+            min={min}
+            max={max}
+          />
+        )
+      }
     case "Checklist":
       return (
         <CheckList

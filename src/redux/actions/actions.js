@@ -1243,7 +1243,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
 
   // Journal Filter
   const getJournalFilter = () => async(dispatch) => {
-    return fetch('/api/db/reports/journal', {
+    return fetch('/api/db/reports/filter/journal', {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -1285,7 +1285,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
 
   // Journal Rank Filter 
   const getJournalRank = () => async(dispatch) => {
-    return fetch('/api/db/reports/journalrank', {
+    return fetch('/api/db/reports/filter/journalrank', {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -1335,7 +1335,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
       dispatch(getDateFilter()),
       dispatch(getArticleTypeFilter()),
       // dispatch(getJournalFilter()),
-      // dispatch(getJournalRank),
+      dispatch(getJournalRank()),
     ]).then(() => {
       dispatch({
         type: methods.REPORTING_FILTERS_CANCEL_LOADING

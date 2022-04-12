@@ -11,7 +11,7 @@ interface SliderFilterProps {
   handleChange?: () => void
   getAriaValueText?: (text: number) => string
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, value = [0, 100], getAriaValueText, handleChange }) => {
+export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, value = [0, 10], getAriaValueText, handleChange }) => {
   return (
     <Dropdown className="d-inline-block">
       <Dropdown.Toggle variant="primary" id="dropdown-basic">
