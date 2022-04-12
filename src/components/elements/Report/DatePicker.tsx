@@ -5,20 +5,24 @@ import 'react-dates/lib/css/_datepicker.css';
 import moment from 'moment';
 import { Dropdown } from "react-bootstrap";
 
-export const DatePicker = ({ name }) => {
+export const DatePicker = ({ name, range }) => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [focusedInput, setFocusedInput] = useState(null);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
+
+  if (!range || range.length == 0) {
+    return null;
+  }
 
   const handleDatesChange = ({ startDate, endDate }) => {
     setStartDate(startDate);
     setEndDate(endDate);
   };
 
-  // TODO: pass from props
-  const minDate = moment("1948-06-01");
-  const maxDate = moment("2022-03-23");
+  const rangeDates = range[0];
+  const minDate = moment(rangeDates.minDate);
+  const maxDate = moment(rangeDates.maxDate);
 
   const isOutsideRange = day =>
     day.isAfter(maxDate) || day.isBefore(minDate);

@@ -38,19 +38,23 @@ export const reportConfig = {
     list: {
       date: {
         name: "Date",
+        options: "dateFilterData",
         isEnabled: true,
         filterType: "DateRange",
       },
       type: {
         name: "Type",
+        options: "articleTypeFilterData",
         isEnabled: true,
       },
       journal: {
         name: "Journal",
+        options: "journalFilterData",
         isEnabled: true,
       },
       journalRank: {
         name: "Journal Rank",
+        options: "journalRankFilterData",
         isEnabled: true,
         filterType: "Range",
       }

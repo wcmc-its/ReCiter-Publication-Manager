@@ -14,13 +14,14 @@ const Buttons = () => {
   )
 }
 
-const DisplayFilter = ({ filter, index}) => {
+const DisplayFilter = ({ filter, index, filterOptions}) => {
   let filterType = filter.filterType || undefined;
   switch (filterType) {
     case ("DateRange"):
       return (
         <DatePicker 
           name={filter.name}
+          range={filterOptions[filter.options]}
         />
       )
     case "Range":
@@ -43,7 +44,7 @@ const DisplayFilter = ({ filter, index}) => {
   }
 }
 
-const FilterRow = ({title, filters}) => {
+const FilterRow = ({title, filters, filterOptions}) => {
   return (
     <div className="filter-row flex-grow-1">
       <div className={`title ${styles.filterName}`}>{title}</div>
@@ -53,6 +54,7 @@ const FilterRow = ({title, filters}) => {
             <DisplayFilter 
               filter={filters[filter]}
               index={index}
+              filterOptions={filterOptions}
               />
           )
         })}
@@ -61,7 +63,7 @@ const FilterRow = ({title, filters}) => {
   )
 }
 
-export const FilterSection = () => {
+export const FilterSection = ({ filterOptions }) => {
   return (
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
@@ -70,6 +72,7 @@ export const FilterSection = () => {
             <FilterRow
               title={reportConfig[config].name}
               filters={reportConfig[config].list}
+              filterOptions={filterOptions}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
           </>
