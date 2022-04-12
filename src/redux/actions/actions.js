@@ -1131,3 +1131,214 @@ export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
     type: methods.FEEDBACKLOG_CANCEL_FETCHING_GROUP
 })
 }
+
+/* Reporting Filters */
+
+// Authors Filter
+const getAuthorsFilter = () => async(dispatch) => {
+  let authorF = {"authorFilter":""};
+  console.log(JSON.stringify(authorF));
+    fetch('/api/db/reports/filter/author', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(authorF),
+    }).then(response => {
+      console.log(response);
+      return response.json()
+    }).then(data => {
+      console.log('data');
+      dispatch({
+        type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
+        payload: data
+      })
+    }).catch(error => {
+      console.log(error);
+      toast.error("Author Filter Api failed - " + error.title, {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
+      dispatch(
+          addError(error)
+      )
+    })
+}
+
+// Date Filter
+const getDateFilter = () => async(dispatch) => {
+  fetch('/api/db/reports/filter/date', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    }).then(response => {
+      return response.json()
+    }).then(data => {
+      dispatch({
+        type: methods.DATE_FILTER_CHANGE_ALL_DATA,
+        payload: data
+      })
+    }).catch(error => {
+      console.log(error);
+      toast.error("Date Filter Api failed - " + error.title, {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
+      dispatch(
+          addError(error)
+      )
+    })
+}
+
+// Article Type Filter
+const getArticleTypeFilter = () => async(dispatch) => {
+  fetch('/api/db/reports/filter/articletype', {
+    credentials: "same-origin",
+    method: 'GET',
+    headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+    }
+  })
+    .then(response => {
+        if(response.status === 200) {
+            return response.json()
+        }else {
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        }
+    })
+    .then(data => {
+        dispatch({
+            type: methods.ARTICLE_FILTER_CHANGE_ALL_DATA,
+            payload: data
+        })
+    })
+    .catch(error => {
+        console.log(error)
+        toast.error("Article Type Filter Api failed - " + error.title, {
+              position: "top-right",
+              autoClose: 2000,
+              theme: 'colored'
+            });
+        dispatch(
+            addError(error)
+        )
+    })
+}
+
+  // Journal Filter
+  const getJournalFilter = () => async(dispatch) => {
+    return fetch('/api/db/reports/journal', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    })
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.JOURNAL_FILTER_CHANGE_ALL_DATA,
+              payload: data
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Journal Filter Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+          dispatch(
+              addError(error)
+          )
+      })
+  }
+
+  // Journal Rank Filter 
+  const getJournalRank = () => async(dispatch) => {
+    return fetch('/api/db/reports/journalrank', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    })
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.JOURNAL_RANK_CHANGE_ALL_DATA,
+              payload: data
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Journal Rank Filter Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+          dispatch(
+              addError(error)
+          )
+  })}
+  
+  // Fetch All Filters
+  export const reportsFilters = () => dispatch => {
+    dispatch({
+      type: methods.REPORTING_FILTERS_SET_LOADING
+    })
+
+    Promise.all([
+      // dispatch(getAuthorsFilter()),
+      dispatch(getDateFilter()),
+      dispatch(getArticleTypeFilter()),
+      // dispatch(getJournalFilter()),
+      // dispatch(getJournalRank),
+    ]).then(() => {
+      dispatch({
+        type: methods.REPORTING_FILTERS_CANCEL_LOADING
+      })
+    });
+  }
