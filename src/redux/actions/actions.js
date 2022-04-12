@@ -1136,9 +1136,7 @@ export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
 
 // Authors Filter
 const getAuthorsFilter = () => async(dispatch) => {
-  let authorF = {"authorFilter":""};
-  console.log(JSON.stringify(authorF));
-    fetch('/api/db/reports/filter/author', {
+    fetch('/api/db/reports/filter/author?authorFilter=', {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -1146,12 +1144,10 @@ const getAuthorsFilter = () => async(dispatch) => {
           "Content-Type": "application/json",
           'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(authorF),
     }).then(response => {
-      console.log(response);
       return response.json()
     }).then(data => {
-      console.log('data');
+      console.log(data);
       dispatch({
         type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
         payload: data
@@ -1243,7 +1239,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
 
   // Journal Filter
   const getJournalFilter = () => async(dispatch) => {
-    return fetch('/api/db/reports/filter/journal', {
+    return fetch('/api/db/reports/filter/journal?journalFilter?=', {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -1331,10 +1327,10 @@ const getArticleTypeFilter = () => async(dispatch) => {
     })
 
     Promise.all([
-      // dispatch(getAuthorsFilter()),
+      dispatch(getAuthorsFilter()),
       dispatch(getDateFilter()),
       dispatch(getArticleTypeFilter()),
-      // dispatch(getJournalFilter()),
+      dispatch(getJournalFilter()),
       dispatch(getJournalRank()),
     ]).then(() => {
       dispatch({
