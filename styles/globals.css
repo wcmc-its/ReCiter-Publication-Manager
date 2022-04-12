@@ -114,3 +114,24 @@ h1 {
   display: flex !important;
   align-items: center;
 }
+
+.border-right-0 {
+  border-right: 0px !important;
+}
+
+.border-top-right-radius-0 {
+  border-top-right-radius: 0px !important;
+}
+
+.border-bottom-right-radius-0 {
+  border-bottom-right-radius: 0px !important;
+}
+
+.border-grey {
+  border: 1px solid #ced4da;
+}
+
+.rounded-right {
+  border-top-right-radius: 0.25rem;
+  border-bottom-right-radius: 0.25rem;
+}
