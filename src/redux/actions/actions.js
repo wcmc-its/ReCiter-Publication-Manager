@@ -284,7 +284,6 @@ export const pubmedFetchData = query => dispatch => {
             return response.json()
         })
         .then(data => {
-            console.log(data)
             if(data.statusCode != 200) {
                 throw {
                     title: data.reciter.message,
@@ -1135,7 +1134,7 @@ export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
 /* Reporting Filters */
 
 // Authors Filter
-const getAuthorsFilter = () => async(dispatch) => {
+const getAuthorsFilter = ( authorInput ) => async(dispatch) => {
     fetch('/api/db/reports/filter/author?authorFilter=', {
       credentials: "same-origin",
       method: 'GET',
@@ -1147,7 +1146,6 @@ const getAuthorsFilter = () => async(dispatch) => {
     }).then(response => {
       return response.json()
     }).then(data => {
-      console.log(data);
       dispatch({
         type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
         payload: data
@@ -1238,7 +1236,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
 }
 
   // Journal Filter
-  const getJournalFilter = () => async(dispatch) => {
+  const getJournalFilter = ( journalInput ) => async(dispatch) => {
     return fetch('/api/db/reports/filter/journal?journalFilter?=', {
       credentials: "same-origin",
       method: 'GET',
@@ -1447,16 +1445,16 @@ const getArticleTypeFilter = () => async(dispatch) => {
   }
   
   // Fetch All Filters
-  export const reportsFilters = () => dispatch => {
+  export const reportsFilters = (authorFilter, journalFilter) => dispatch => {
     dispatch({
       type: methods.REPORTING_FILTERS_SET_LOADING
     })
 
     Promise.all([
-      dispatch(getAuthorsFilter()),
+      dispatch(getAuthorsFilter(authorFilter)),
       dispatch(getDateFilter()),
       dispatch(getArticleTypeFilter()),
-      dispatch(getJournalFilter()),
+      dispatch(getJournalFilter(journalFilter)),
       dispatch(getJournalRank()),
       dispatch(getOrgUnits()),
       dispatch(getInstitutions()),
