@@ -1,9 +1,30 @@
+import React, { useState } from "react";
 import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
 
-export const CheckboxSelect = ({ title, options, formatOptionTitle, optionLabel}) => {
+export const CheckboxSelect: React.FC<any> = ({ title, options, formatOptionTitle, optionLabel}) => {
+  const [userInput, setUserInput] = useState<string>('');
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let newInput = e.target.value;
+    setUserInput(newInput);
+  }
+
+  const filteredOptions = (options) => {
+    if (userInput != '') {
+      let optionsList = options.filter(option => getLabel(option).includes(userInput));
+      return optionsList;
+    } else 
+    return options;
+  }
+
+  const getLabel = (option) => {
+    let label = formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label;
+    return label;
+  }
+
   return (
     <DropdownWrapper title={title}>
       <div className={styles.dropdownContainer}>
@@ -13,19 +34,20 @@ export const CheckboxSelect = ({ title, options, formatOptionTitle, optionLabel}
             placeholder="Search"
             aria-label={title}
             aria-describedby={title}
+            value={userInput}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onInputChange(e)}
           />
             <div className="d-flex border-grey p-1 rounded-right align-items-center">
               <AiOutlineSearch style={{ marginTop: "-2px" }} />
             </div>
        </InputGroup>
         {
-          options.map((option) => {
-            let label = formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label;
+          filteredOptions(options).map((option) => {
             return (
               <Form.Check
                 type="checkbox"
                 id={option.key}
-                label={label}
+                label={getLabel(option)}
                 />
             )
           })
