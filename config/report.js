@@ -4,6 +4,9 @@ export const reportConfig = {
     list: {
       author: {
         name: "Author",
+        options: "authorFilterData",
+        formatOptionTitle: "formatAuthorName",
+        filterType: "CheckboxSelect",
         isEnabled: true,
       },
       organization: {
@@ -50,6 +53,8 @@ export const reportConfig = {
       journal: {
         name: "Journal",
         options: "journalFilterData",
+        filterType: "CheckboxSelect",
+        optionLabel: "journalTitleVerbose",
         isEnabled: true,
       },
       journalRank: {

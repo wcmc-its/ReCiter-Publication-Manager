@@ -4,6 +4,8 @@ import styles from "./FilterSection.module.css";
 import { DatePicker } from "./DatePicker";
 import { SliderFilter } from "./SliderFilter";
 import { CheckList } from "./CheckList";
+import { CheckboxSelect } from "./CheckboxSelect";
+import * as utils from "../../../utils/reportFilters";
 
 const Buttons = () => {
   return (
@@ -39,6 +41,15 @@ const DisplayFilter = ({ filter, index, filterOptions}) => {
           />
         )
       }
+    case "CheckboxSelect":
+      return (
+        <CheckboxSelect
+          title={filter.name}
+          options={filterOptions[filter.options]}
+          formatOptionTitle={filter.formatOptionTitle ? utils[filter.formatOptionTitle] : null}
+          optionLabel={filter.optionLabel ? filter.optionLabel : ""}
+        />
+      )
     case "Checklist":
       return (
         <CheckList

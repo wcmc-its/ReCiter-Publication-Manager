@@ -1,11 +1,12 @@
 import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
+import styles from "./ChecboxSelect.module.css";
 
-export const CheckboxSelect = ({ title, options}) => {
+export const CheckboxSelect = ({ title, options, formatOptionTitle, optionLabel}) => {
   return (
     <DropdownWrapper title={title}>
-      <div>
+      <div className={styles.dropdownContainer}>
       <InputGroup className="mb-3">         
        <FormControl
             className="border-right-0 border-top-right-radius-0 border-bottom-right-radius-0"
@@ -19,11 +20,12 @@ export const CheckboxSelect = ({ title, options}) => {
        </InputGroup>
         {
           options.map((option) => {
+            let label = formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label;
             return (
               <Form.Check
                 type="checkbox"
                 id={option.key}
-                label={option.label}
+                label={label}
                 />
             )
           })
