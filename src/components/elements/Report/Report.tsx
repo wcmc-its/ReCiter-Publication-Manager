@@ -14,13 +14,19 @@ const Report = () => {
   const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
   const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
   const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
+  const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
+  const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
+  const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
 
   let filters = {
     articleTypeFilterData : [...articleTypeFilterData],
     authorFilterData: [...authorFilterData],
     dateFilterData: [...dateFilterData],
     journalFilterData: [...journalFilterData],
-    journalRankFilterData: [...journalRankFilterData]
+    journalRankFilterData: [...journalRankFilterData],
+    orgUnitsData: [...orgUnitsData],
+    institutionsData: [...institutionsData],
+    personTypesData: [...personTypesData],
   }
 
   useEffect(() => {

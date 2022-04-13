@@ -1319,6 +1319,132 @@ const getArticleTypeFilter = () => async(dispatch) => {
               addError(error)
           )
   })}
+
+  // Organization Filter
+  export const getOrgUnits = () => async(dispatch) => {
+    return fetch('/api/db/users/orgunits', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if(response.status === 200) {
+                return response.json()
+            }else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.ORGUNITS_CHANGE_ALL_DATA,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("Organizational Units Api failed - " + error.title, {
+                  position: "top-right",
+                  autoClose: 2000,
+                  theme: 'colored'
+                });
+            dispatch(
+                addError(error)
+            )
+        })
+  }
+  
+  // Institution Filter
+  export const getInstitutions = () => async(dispatch) => {
+    return fetch('/api/db/users/institutions', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if(response.status === 200) {
+                return response.json()
+            }else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.INSTITUTIONS_CHANGE_ALL_DATA,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("Institutional Units Api failed - " + error.title, {
+                  position: "top-right",
+                  autoClose: 2000,
+                  theme: 'colored'
+                });
+            dispatch(
+                addError(error)
+            )
+        })
+  }
+  
+  // Person Type Filter
+  export const getPersonTypes = () => async(dispatch) => {
+    return fetch('/api/db/users/persontypes', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if(response.status === 200) {
+                return response.json()
+            }else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.PERSON_TYPES_CHANGE_ALL_DATA,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("Person Types Api failed - " + error.title, {
+                  position: "top-right",
+                  autoClose: 2000,
+                  theme: 'colored'
+                });
+            dispatch(
+                addError(error)
+            )
+        })
+  }
   
   // Fetch All Filters
   export const reportsFilters = () => dispatch => {
@@ -1332,6 +1458,9 @@ const getArticleTypeFilter = () => async(dispatch) => {
       dispatch(getArticleTypeFilter()),
       dispatch(getJournalFilter()),
       dispatch(getJournalRank()),
+      dispatch(getOrgUnits()),
+      dispatch(getInstitutions()),
+      dispatch(getPersonTypes()),
     ]).then(() => {
       dispatch({
         type: methods.REPORTING_FILTERS_CANCEL_LOADING

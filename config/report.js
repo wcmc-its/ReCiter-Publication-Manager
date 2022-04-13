@@ -11,14 +11,23 @@ export const reportConfig = {
       },
       organization: {
         name: "Organization",
+        options: "orgUnitsData",
+        optionLabel: "primaryOrganizationalUnit",
+        filterType: "CheckboxSelect",
         isEnabled: true,
       },
       institution: {
         name: "Institution",
+        options: "institutionsData",
+        optionLabel: "primaryInstitution",
+        filterType: "CheckboxSelect",
         isEnabled: true,
       },
       personType: {
         name: "Person Type",
+        options: "personTypesData",
+        optionLabel: "personType",
+        filterType: "CheckboxSelect",
         isEnabled: true,
       },
       order: {
@@ -48,6 +57,8 @@ export const reportConfig = {
       type: {
         name: "Type",
         options: "articleTypeFilterData",
+        optionLabel: "publicationTypeCanonical",
+        filterType: "CheckboxSelect",
         isEnabled: true,
       },
       journal: {
