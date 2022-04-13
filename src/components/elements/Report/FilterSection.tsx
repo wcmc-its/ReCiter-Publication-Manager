@@ -16,7 +16,7 @@ const Buttons = () => {
   )
 }
 
-const DisplayFilter = ({ filter, index, filterOptions}) => {
+const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) => {
   let filterType = filter.filterType || undefined;
   switch (filterType) {
     case ("DateRange"):
@@ -48,6 +48,9 @@ const DisplayFilter = ({ filter, index, filterOptions}) => {
           options={filterOptions[filter.options]}
           formatOptionTitle={filter.formatOptionTitle ? utils[filter.formatOptionTitle] : null}
           optionLabel={filter.optionLabel ? filter.optionLabel : ""}
+          filterUpdateOptions={filterUpdateOptions}
+          isDynamicFetch={filter.dynamicFetchOptions}
+          value={filter.options}
         />
       )
     case "Checklist":
@@ -64,7 +67,7 @@ const DisplayFilter = ({ filter, index, filterOptions}) => {
   }
 }
 
-const FilterRow = ({title, filters, filterOptions}) => {
+const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
   return (
     <div className="filter-row flex-grow-1">
       <div className={`title ${styles.filterName}`}>{title}</div>
@@ -75,6 +78,7 @@ const FilterRow = ({title, filters, filterOptions}) => {
               filter={filters[filter]}
               index={index}
               filterOptions={filterOptions}
+              filterUpdateOptions={filterUpdateOptions}
               />
           )
         })}
@@ -83,7 +87,7 @@ const FilterRow = ({title, filters, filterOptions}) => {
   )
 }
 
-export const FilterSection = ({ filterOptions }) => {
+export const FilterSection = ({ filterOptions, filterUpdateOptions }) => {
   return (
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
@@ -93,6 +97,7 @@ export const FilterSection = ({ filterOptions }) => {
               title={reportConfig[config].name}
               filters={reportConfig[config].list}
               filterOptions={filterOptions}
+              filterUpdateOptions={filterUpdateOptions}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
           </>

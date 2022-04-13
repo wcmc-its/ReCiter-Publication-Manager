@@ -1,3 +1,4 @@
+import React, { useState } from "react"; 
 import appStyles from '../App/App.module.css';
 import styles from './Report.module.css';
 import QuickReport from './QuickReport';
@@ -17,6 +18,16 @@ const Report = () => {
   const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
   const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
   const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
+  const [authorInput, setAuthorInput] = useState<string>('');
+  const [journalInput, setJournalInput] = useState<string>('');
+
+  // fetch filters on mount
+  useEffect(() => {
+    dispatch(reportsFilters(authorInput, journalInput));
+  }, [])
+
+  // TODO: fetch author on update input
+  // TODO: fetch journal on update input
 
   let filters = {
     articleTypeFilterData : [...articleTypeFilterData],
@@ -29,9 +40,10 @@ const Report = () => {
     personTypesData: [...personTypesData],
   }
 
-  useEffect(() => {
-    dispatch(reportsFilters());
-  }, [])
+  let filterUpdateOptions = {
+    authorFilterData: (input: string) => setAuthorInput(input),
+    journalFilterData: (input: string) => setJournalInput(input),
+  }
 
   return (
     <div>
@@ -39,6 +51,7 @@ const Report = () => {
         <h1 className={styles.header}>Create Reports</h1>
         <FilterSection 
           filterOptions={filters}
+          filterUpdateOptions={filterUpdateOptions}
           />
         <QuickReport />
         <SearchSummary count={0}/>

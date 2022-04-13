@@ -8,6 +8,7 @@ export const reportConfig = {
         formatOptionTitle: "formatAuthorName",
         filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: true,
       },
       organization: {
         name: "Organization",
@@ -15,6 +16,7 @@ export const reportConfig = {
         optionLabel: "primaryOrganizationalUnit",
         filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       institution: {
         name: "Institution",
@@ -22,6 +24,7 @@ export const reportConfig = {
         optionLabel: "primaryInstitution",
         filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       personType: {
         name: "Person Type",
@@ -29,6 +32,7 @@ export const reportConfig = {
         optionLabel: "personType",
         filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       order: {
         name: "Order",
@@ -42,6 +46,7 @@ export const reportConfig = {
           {key: "last", label: "Last"}
         ],
         filterType: "Checklist",
+        dynamicFetchOptions: false,
       }
     }
   },
@@ -60,6 +65,7 @@ export const reportConfig = {
         optionLabel: "publicationTypeCanonical",
         filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       journal: {
         name: "Journal",
@@ -67,6 +73,7 @@ export const reportConfig = {
         filterType: "CheckboxSelect",
         optionLabel: "journalTitleVerbose",
         isEnabled: true,
+        dynamicFetchOptions: true,
       },
       journalRank: {
         name: "Journal Rank",
