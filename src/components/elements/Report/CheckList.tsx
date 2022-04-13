@@ -11,6 +11,7 @@ export const CheckList = ({ title, options }) => {
               <Form.Check
                 type="checkbox"
                 id={option.key}
+                key={option.key}
                 label={option.label}
                 />
             )

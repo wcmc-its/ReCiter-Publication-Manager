@@ -49,6 +49,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
               <Form.Check
                 type="checkbox"
                 id={option.key}
+                key={option.key}
                 label={getLabel(option)}
                 />
             )

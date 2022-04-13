@@ -77,6 +77,7 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
             <DisplayFilter 
               filter={filters[filter]}
               index={index}
+              key={index}
               filterOptions={filterOptions}
               filterUpdateOptions={filterUpdateOptions}
               />
