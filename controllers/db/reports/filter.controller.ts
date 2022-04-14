@@ -11,7 +11,7 @@ export const authorFilter = async (
   res: NextApiResponse
 ) => {
   try {
-    let apiBody: AuthorFilter = req.body;
+    const { authorFilter } = req.query;
     const persons = await models.Person.findAll({
       //order: [["personType", "ASC"]],
       attributes: [
@@ -24,22 +24,22 @@ export const authorFilter = async (
         [Op.or]: [
           {
             personIdentifier: {
-              [Op.like]: `%${apiBody.authorFilter}%`,
+              [Op.like]: `%${authorFilter}%`,
             },
           },
           {
             firstName: {
-              [Op.like]: `%${apiBody.authorFilter}%`,
+              [Op.like]: `%${authorFilter}%`,
             },
           },
           {
             middleName: {
-              [Op.like]: `%${apiBody.authorFilter}%`,
+              [Op.like]: `%${authorFilter}%`,
             },
           },
           {
             lastName: {
-              [Op.like]: `%${apiBody.authorFilter}%`,
+              [Op.like]: `%${authorFilter}%`,
             },
           },
         ],
@@ -101,11 +101,11 @@ export const journalFilter = async (
 ) => {
   try {
     let where = {};
-    let apiBody: JournalFilter = req.body;
-    if (apiBody && apiBody.journalFilter) {
+    const { journalFilter } = req.query;
+    if (journalFilter) {
       where = {
         journalTitleVerbose: {
-          [Op.like]: `%${apiBody.journalFilter}%`,
+          [Op.like]: `%${journalFilter}%`,
         },
       };
     }

@@ -494,6 +494,100 @@ export const feedbacklogGroupFetching = (state=false, action) => {
   }
 }
 
+export const articleTypeFilterData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.ARTICLE_FILTER_CLEAR_ALL_DATA :
+          return []
+
+      case methods.ARTICLE_FILTER_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const authorFilterData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.AUTHOR_FILTER_CLEAR_ALL_DATA :
+          return []
+
+      case methods.AUTHOR_FILTER_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const dateFilterData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.DATE_FILTER_CLEAR_ALL_DATA :
+          return []
+
+      case methods.DATE_FILTER_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const journalFilterData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.JOURNAL_FILTER_CLEAR_ALL_DATA :
+          return []
+
+      case methods.JOURNAL_FILTER_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const journalRankFilterData = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.JOURNAL_RANK_CLEAR_ALL_DATA :
+          return []
+
+      case methods.JOURNAL_RANK_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const reportingFiltersLoading = (state=false, action) => {
+  switch (action.type) {
+
+    case methods.REPORTING_FILTERS_SET_LOADING :
+      return true 
+
+    case methods.REPORTING_FILTERS_CANCEL_LOADING :
+      return false 
+    
+      default :
+        return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -526,4 +620,10 @@ export default combineReducers({
     feedbacklogFetching,
     feedbacklogGroup,
     feedbacklogGroupFetching,
+    articleTypeFilterData,
+    authorFilterData,
+    dateFilterData,
+    journalFilterData,
+    journalRankFilterData,
+    reportingFiltersLoading,
 })

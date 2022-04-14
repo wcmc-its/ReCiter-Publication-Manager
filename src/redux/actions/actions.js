@@ -284,7 +284,6 @@ export const pubmedFetchData = query => dispatch => {
             return response.json()
         })
         .then(data => {
-            console.log(data)
             if(data.statusCode != 200) {
                 throw {
                     title: data.reciter.message,
@@ -1131,3 +1130,338 @@ export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
     type: methods.FEEDBACKLOG_CANCEL_FETCHING_GROUP
 })
 }
+
+/* Reporting Filters */
+
+// Authors Filter
+const getAuthorsFilter = ( authorInput ) => async(dispatch) => {
+    fetch('/api/db/reports/filter/author?authorFilter=', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      },
+    }).then(response => {
+      return response.json()
+    }).then(data => {
+      dispatch({
+        type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
+        payload: data
+      })
+    }).catch(error => {
+      console.log(error);
+      toast.error("Author Filter Api failed - " + error.title, {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
+      dispatch(
+          addError(error)
+      )
+    })
+}
+
+// Date Filter
+const getDateFilter = () => async(dispatch) => {
+  fetch('/api/db/reports/filter/date', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    }).then(response => {
+      return response.json()
+    }).then(data => {
+      dispatch({
+        type: methods.DATE_FILTER_CHANGE_ALL_DATA,
+        payload: data
+      })
+    }).catch(error => {
+      console.log(error);
+      toast.error("Date Filter Api failed - " + error.title, {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
+      dispatch(
+          addError(error)
+      )
+    })
+}
+
+// Article Type Filter
+const getArticleTypeFilter = () => async(dispatch) => {
+  fetch('/api/db/reports/filter/articletype', {
+    credentials: "same-origin",
+    method: 'GET',
+    headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+    }
+  })
+    .then(response => {
+        if(response.status === 200) {
+            return response.json()
+        }else {
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        }
+    })
+    .then(data => {
+        dispatch({
+            type: methods.ARTICLE_FILTER_CHANGE_ALL_DATA,
+            payload: data
+        })
+    })
+    .catch(error => {
+        console.log(error)
+        toast.error("Article Type Filter Api failed - " + error.title, {
+              position: "top-right",
+              autoClose: 2000,
+              theme: 'colored'
+            });
+        dispatch(
+            addError(error)
+        )
+    })
+}
+
+  // Journal Filter
+  const getJournalFilter = ( journalInput ) => async(dispatch) => {
+    return fetch('/api/db/reports/filter/journal?journalFilter?=', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    })
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.JOURNAL_FILTER_CHANGE_ALL_DATA,
+              payload: data
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Journal Filter Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+          dispatch(
+              addError(error)
+          )
+      })
+  }
+
+  // Journal Rank Filter 
+  const getJournalRank = () => async(dispatch) => {
+    return fetch('/api/db/reports/filter/journalrank', {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    })
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.JOURNAL_RANK_CHANGE_ALL_DATA,
+              payload: data
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Journal Rank Filter Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+          dispatch(
+              addError(error)
+          )
+  })}
+
+  // Organization Filter
+  export const getOrgUnits = () => async(dispatch) => {
+    return fetch('/api/db/users/orgunits', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if(response.status === 200) {
+                return response.json()
+            }else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.ORGUNITS_CHANGE_ALL_DATA,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("Organizational Units Api failed - " + error.title, {
+                  position: "top-right",
+                  autoClose: 2000,
+                  theme: 'colored'
+                });
+            dispatch(
+                addError(error)
+            )
+        })
+  }
+  
+  // Institution Filter
+  export const getInstitutions = () => async(dispatch) => {
+    return fetch('/api/db/users/institutions', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if(response.status === 200) {
+                return response.json()
+            }else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.INSTITUTIONS_CHANGE_ALL_DATA,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("Institutional Units Api failed - " + error.title, {
+                  position: "top-right",
+                  autoClose: 2000,
+                  theme: 'colored'
+                });
+            dispatch(
+                addError(error)
+            )
+        })
+  }
+  
+  // Person Type Filter
+  export const getPersonTypes = () => async(dispatch) => {
+    return fetch('/api/db/users/persontypes', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if(response.status === 200) {
+                return response.json()
+            }else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.PERSON_TYPES_CHANGE_ALL_DATA,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("Person Types Api failed - " + error.title, {
+                  position: "top-right",
+                  autoClose: 2000,
+                  theme: 'colored'
+                });
+            dispatch(
+                addError(error)
+            )
+        })
+  }
+  
+  // Fetch All Filters
+  export const reportsFilters = (authorFilter, journalFilter) => dispatch => {
+    dispatch({
+      type: methods.REPORTING_FILTERS_SET_LOADING
+    })
+
+    Promise.all([
+      dispatch(getAuthorsFilter(authorFilter)),
+      dispatch(getDateFilter()),
+      dispatch(getArticleTypeFilter()),
+      dispatch(getJournalFilter(journalFilter)),
+      dispatch(getJournalRank()),
+      dispatch(getOrgUnits()),
+      dispatch(getInstitutions()),
+      dispatch(getPersonTypes()),
+    ]).then(() => {
+      dispatch({
+        type: methods.REPORTING_FILTERS_CANCEL_LOADING
+      })
+    });
+  }

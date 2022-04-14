@@ -5,15 +5,15 @@ import { Dropdown } from "react-bootstrap";
 
 interface SliderFilterProps {
   name: string
-  value: number | Array<number>
+  value?: number | Array<number>
   min?: number
   max?: number
-  handleChange: () => void
+  handleChange?: () => void
   getAriaValueText?: (text: number) => string
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, value, getAriaValueText, handleChange }) => {
+export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, value = [0, 10], getAriaValueText, handleChange }) => {
   return (
-    <Dropdown>
+    <Dropdown className="d-inline-block">
       <Dropdown.Toggle variant="primary" id="dropdown-basic">
         {name}
       </Dropdown.Toggle>

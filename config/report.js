@@ -4,23 +4,49 @@ export const reportConfig = {
     list: {
       author: {
         name: "Author",
+        options: "authorFilterData",
+        formatOptionTitle: "formatAuthorName",
+        filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: true,
       },
       organization: {
         name: "Organization",
+        options: "orgUnitsData",
+        optionLabel: "primaryOrganizationalUnit",
+        filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       institution: {
         name: "Institution",
+        options: "institutionsData",
+        optionLabel: "primaryInstitution",
+        filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       personType: {
         name: "Person Type",
+        options: "personTypesData",
+        optionLabel: "personType",
+        filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       order: {
         name: "Order",
         isEnabled: true,
+      }, 
+      authorPosition: {
+        name: "Author Position",
+        isEnabled: true,
+        options: [
+          {key: "first", label: "First"},
+          {key: "last", label: "Last"}
+        ],
+        filterType: "Checklist",
+        dynamicFetchOptions: false,
       }
     }
   },
@@ -29,19 +55,31 @@ export const reportConfig = {
     list: {
       date: {
         name: "Date",
+        options: "dateFilterData",
         isEnabled: true,
+        filterType: "DateRange",
       },
       type: {
         name: "Type",
+        options: "articleTypeFilterData",
+        optionLabel: "publicationTypeCanonical",
+        filterType: "CheckboxSelect",
         isEnabled: true,
+        dynamicFetchOptions: false,
       },
       journal: {
         name: "Journal",
+        options: "journalFilterData",
+        filterType: "CheckboxSelect",
+        optionLabel: "journalTitleVerbose",
         isEnabled: true,
+        dynamicFetchOptions: true,
       },
       journalRank: {
         name: "Journal Rank",
+        options: "journalRankFilterData",
         isEnabled: true,
+        filterType: "Range",
       }
     }
   }
