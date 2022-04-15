@@ -3,7 +3,6 @@ import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form } from "react-bootstrap";
 
 export const CheckList = ({ title, options, onUpdateFilter, filterName, selectedOptions }) => {
-  const [selected, setSelected] = useState<Array<string>>([]);
 
   const onSelect = (event) => {
     let value = event.target.value;
@@ -11,13 +10,12 @@ export const CheckList = ({ title, options, onUpdateFilter, filterName, selected
     let updatedSelected = [];
 
     if (checked) {
-      updatedSelected = [...selected, value]
+      updatedSelected = [...selectedOptions, value]
     } else {
-      updatedSelected = selected.filter(option => option != value)
+      updatedSelected = selectedOptions.filter(option => option != value)
     }
 
     onUpdateFilter(filterName, updatedSelected);
-    setSelected(updatedSelected);
   }
 
   return (

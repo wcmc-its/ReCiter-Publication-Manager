@@ -20,11 +20,11 @@ const filterNameToState = {
   journalRank: ["journalImpactScoreLowerBound", "journalImpactScoreUpperBound"],
 }
 
-const Buttons = () => {
+const Buttons = ({ clearFilters }) => {
   return (
     <div className="d-flex align-items-center">
       <Button variant="warning">Search</Button>
-      <div className="m-3 text-button">Reset</div>
+      <Button className="m-3 text-button transparent-button" onClick={clearFilters}>Reset</Button>
     </div>
   )
 }
@@ -121,7 +121,7 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSea
   )
 }
 
-export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters }) => {
+export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters, clearFilters }) => {
   return (
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
@@ -140,7 +140,9 @@ export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchF
           </>
         )
       })}
-      <Buttons />
+      <Buttons 
+        clearFilters={clearFilters}
+      />
     </div>
   )
 }

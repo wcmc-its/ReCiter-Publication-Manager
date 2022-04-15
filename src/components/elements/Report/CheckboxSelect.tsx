@@ -6,7 +6,6 @@ import styles from "./ChecboxSelect.module.css";
 
 export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
-  const [selected, setSelected] = useState<Array<string>>([]);
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newInput = e.target.value;
@@ -34,13 +33,12 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     let updatedSelected = [];
 
     if (checked) {
-      updatedSelected = [...selected, value]
+      updatedSelected = [...selectedOptions, value]
     } else {
-      updatedSelected = selected.filter(option => option != value)
+      updatedSelected = selectedOptions.filter(option => option != value)
     }
     
     onUpdateFilter(filterName, updatedSelected);
-    setSelected(updatedSelected);
   }
 
   return (

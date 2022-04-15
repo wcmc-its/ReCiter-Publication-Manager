@@ -15,11 +15,9 @@ interface SliderFilterProps {
   values: Array<number>
 }
 export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getAriaValueText, handleChange, filterLowerName, filterUpperName, values }) => {
-  const [value, setValue] = useState<Array<number>>([min, max]);
 
   const onSliderUpdate = (event, newValue) => {
-    setValue(newValue);
-    handleChange(filterLowerName, filterUpperName, value[0], value[1]);
+    handleChange(filterLowerName, filterUpperName, newValue[0], newValue[1]);
   }
 
   return (
@@ -31,7 +29,7 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getA
       <Dropdown.Menu className="px-4">
         <Box sx={{ width: 250 }}>
           <Slider
-            value={value}
+            value={values.some(value => value === undefined) ? [min, max] : values}
             min={min}
             step={1}
             max={max}
@@ -40,8 +38,8 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getA
             disableSwap
           />
           <div id="input-slider" className="slider-label d-flex justify-content-between">
-            <span>{value[0]}</span>
-            <span>{value[1]}</span>
+            <span>{values[0] ? values[0] : min}</span>
+            <span>{values[1] ? values[1] : max}</span>
           </div>
         </Box>
       </Dropdown.Menu>

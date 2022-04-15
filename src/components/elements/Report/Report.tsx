@@ -6,7 +6,7 @@ import SearchSummary from './SearchSummary';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
-import { reportsFilters, updatePubSearchFilters } from '../../../redux/actions/actions';
+import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters } from '../../../redux/actions/actions';
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -79,6 +79,10 @@ const Report = () => {
     dispatch(updatePubSearchFilters(updatedSearchFilter));
   }
 
+  const clearFilters = () => {
+    dispatch(clearPubSearchFilters());
+  }
+
   return (
     <div>
       <div className={appStyles.mainContainer}>
@@ -89,6 +93,7 @@ const Report = () => {
           onSetSearchFilters={onSetSearchFilters}
           onSetRangeFilters={onSetRangeFilters}
           selectedFilters={pubSearchFilter.filters}
+          clearFilters={clearFilters}
           />
         <SearchSummary count={0}/>
       </div>
