@@ -88,6 +88,7 @@ const Report = () => {
           filterUpdateOptions={filterUpdateOptions}
           onSetSearchFilters={onSetSearchFilters}
           onSetRangeFilters={onSetRangeFilters}
+          selectedFilters={pubSearchFilter.filters}
           />
         <SearchSummary count={0}/>
       </div>

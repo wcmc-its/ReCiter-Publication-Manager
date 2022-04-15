@@ -4,7 +4,7 @@ import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
 
-export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter }) => {
+export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
   const [selected, setSelected] = useState<Array<string>>([]);
 
@@ -68,6 +68,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
                 key={option.key}
                 label={getLabel(option)}
                 value={option[optionValue]}
+                checked={selectedOptions && selectedOptions.includes(option[optionValue]) }
                 onChange={(e) => onSelect(e)}
                 />
             )

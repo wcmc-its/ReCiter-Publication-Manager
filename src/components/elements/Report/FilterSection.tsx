@@ -16,7 +16,7 @@ const filterNameToState = {
   authorPosition: "authorPosition",
   date: ["datePublicationAddedToEntrezLowerBound", "datePublicationAddedToEntrezUpperBound"],
   type: "publicationTypeCanonical",
-  journal: "",
+  journal: "journalTitleVerbose",
   journalRank: ["journalImpactScoreLowerBound", "journalImpactScoreUpperBound"],
 }
 
@@ -29,7 +29,7 @@ const Buttons = () => {
   )
 }
 
-const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters }) => {
+const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
   let filterType = filter.filterType || undefined;
   switch (filterType) {
     case ("DateRange"):
@@ -40,6 +40,8 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
           handleChange={onSetRangeFilters}
           filterLowerName={filterName[0]}
           filterUpperName={filterName[1]}
+          selectedStartDate={selectedFilters[filterName[0]]}
+          selectedEndDate={selectedFilters[filterName[1]]}
         />
       )
     case "Range":
@@ -57,6 +59,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
             handleChange={onSetRangeFilters}
             filterLowerName={filterName[0]}
             filterUpperName={filterName[1]}
+            values={[selectedFilters[filterName[0]], selectedFilters[filterName[1]]]}
           />
         )
       }
@@ -73,6 +76,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
           optionValue={filter.value}
           filterName={filterName}
           onUpdateFilter={onSetSearchFilters}
+          selectedOptions={selectedFilters[filterName]}
         />
       )
     case "Checklist":
@@ -82,6 +86,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
           options={filter.options}
           onUpdateFilter={onSetSearchFilters}
           filterName={filterName}
+          selectedOptions={selectedFilters[filterName]}
         />
       )
     default:
@@ -91,7 +96,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
   }
 }
 
-const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters}) => {
+const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters}) => {
   return (
     <div className="filter-row flex-grow-1">
       <div className={`title ${styles.filterName}`}>{title}</div>
@@ -107,6 +112,7 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSea
               onSetSearchFilters={onSetSearchFilters}
               filterName={filterNameToState[filter]}
               onSetRangeFilters={onSetRangeFilters}
+              selectedFilters={selectedFilters}
               />
           )
         })}
@@ -115,7 +121,7 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSea
   )
 }
 
-export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters }) => {
+export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters }) => {
   return (
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
@@ -128,6 +134,7 @@ export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchF
               filterUpdateOptions={filterUpdateOptions}
               onSetSearchFilters={onSetSearchFilters}
               onSetRangeFilters={onSetRangeFilters}
+              selectedFilters={selectedFilters}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
           </>

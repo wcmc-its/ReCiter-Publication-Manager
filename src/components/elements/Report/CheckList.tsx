@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form } from "react-bootstrap";
 
-export const CheckList = ({ title, options, onUpdateFilter, filterName }) => {
+export const CheckList = ({ title, options, onUpdateFilter, filterName, selectedOptions }) => {
   const [selected, setSelected] = useState<Array<string>>([]);
 
   const onSelect = (event) => {
@@ -32,6 +32,7 @@ export const CheckList = ({ title, options, onUpdateFilter, filterName }) => {
                 key={option.key}
                 label={option.label}
                 value={option.label}
+                checked={selectedOptions.includes(option.label)}
                 onChange={(e) => onSelect(e)}
                 />
             )

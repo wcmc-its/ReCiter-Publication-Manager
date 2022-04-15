@@ -12,9 +12,10 @@ interface SliderFilterProps {
   getAriaValueText?: (text: number) => string
   filterLowerName: string
   filterUpperName: string
+  values: Array<number>
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, range = [0, 10], getAriaValueText, handleChange, filterLowerName, filterUpperName }) => {
-  const [value, setValue] = useState<Array<number>>(range);
+export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getAriaValueText, handleChange, filterLowerName, filterUpperName, values }) => {
+  const [value, setValue] = useState<Array<number>>([min, max]);
 
   const onSliderUpdate = (event, newValue) => {
     setValue(newValue);
