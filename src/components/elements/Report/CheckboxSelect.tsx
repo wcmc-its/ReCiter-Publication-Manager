@@ -4,8 +4,9 @@ import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
 
-export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch }) => {
+export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter }) => {
   const [userInput, setUserInput] = useState<string>('');
+  const [selected, setSelected] = useState<Array<string>>([]);
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newInput = e.target.value;
@@ -25,6 +26,21 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
   const getLabel = (option) => {
     let label = formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label;
     return label;
+  }
+
+  const onSelect = (event) => {
+    let value = event.target.value;
+    let checked = event.target.checked;
+    let updatedSelected = [];
+
+    if (checked) {
+      updatedSelected = [...selected, value]
+    } else {
+      updatedSelected = selected.filter(option => option != value)
+    }
+    
+    onUpdateFilter(filterName, updatedSelected);
+    setSelected(updatedSelected);
   }
 
   return (
@@ -51,6 +67,8 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
                 id={option.key}
                 key={option.key}
                 label={getLabel(option)}
+                value={option[optionValue]}
+                onChange={(e) => onSelect(e)}
                 />
             )
           })

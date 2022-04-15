@@ -5,7 +5,7 @@ import 'react-dates/lib/css/_datepicker.css';
 import moment from 'moment';
 import { Dropdown } from "react-bootstrap";
 
-export const DatePicker = ({ name, range }) => {
+export const DatePicker = ({ name, range, handleChange, filterLowerName, filterUpperName }) => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [focusedInput, setFocusedInput] = useState(null);
@@ -16,6 +16,7 @@ export const DatePicker = ({ name, range }) => {
   }
 
   const handleDatesChange = ({ startDate, endDate }) => {
+    handleChange(filterLowerName, filterUpperName, startDate, endDate);
     setStartDate(startDate);
     setEndDate(endDate);
   };

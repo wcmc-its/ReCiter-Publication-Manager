@@ -6,10 +6,12 @@ import SearchSummary from './SearchSummary';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
-import { reportsFilters } from '../../../redux/actions/actions';
+import { reportsFilters, updatePubSearchFilters } from '../../../redux/actions/actions';
 
 const Report = () => {
   const dispatch = useDispatch()
+
+  // list of options for filters
   const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
   const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
   const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
@@ -18,6 +20,10 @@ const Report = () => {
   const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
   const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
   const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
+
+  // selected filter options
+  const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
+
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
 
@@ -45,6 +51,34 @@ const Report = () => {
     journalFilterData: (input: string) => setJournalInput(input),
   }
 
+  const onSetSearchFilters = (filter, value) => {
+    // update the filter object
+    let updatedSearchFilter = { 
+      ...pubSearchFilter, 
+      filters: {
+        ...pubSearchFilter.filters,
+        [filter]: value
+      }
+    };
+    // dispatch redux state update
+    dispatch(updatePubSearchFilters(updatedSearchFilter));
+  }
+
+  // filters that determine range are different since they accept 2 values: upper and lower bound
+  const onSetRangeFilters = (filterLower, filterUpper, lowerBound, upperBound) => {
+    // update the filter object
+    let updatedSearchFilter = { 
+      ...pubSearchFilter, 
+      filters: {
+        ...pubSearchFilter.filters,
+        [filterLower]: lowerBound,
+        [filterUpper]: upperBound
+      }
+    };
+    // dispatch redux state update
+    dispatch(updatePubSearchFilters(updatedSearchFilter));
+  }
+
   return (
     <div>
       <div className={appStyles.mainContainer}>
@@ -52,8 +86,9 @@ const Report = () => {
         <FilterSection 
           filterOptions={filters}
           filterUpdateOptions={filterUpdateOptions}
+          onSetSearchFilters={onSetSearchFilters}
+          onSetRangeFilters={onSetRangeFilters}
           />
-        <QuickReport />
         <SearchSummary count={0}/>
       </div>
     </div>

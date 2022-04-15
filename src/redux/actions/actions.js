@@ -1465,3 +1465,16 @@ const getArticleTypeFilter = () => async(dispatch) => {
       })
     });
   }
+
+  export const updatePubSearchFilters = ( filter ) => dispatch => {
+    dispatch({
+      type: methods.PUB_FILTER_UPDATE,
+      payload: filter
+    })
+  }
+  
+  export const clearPubSearchFilters = () => dispatch => {
+    dispatch({
+      type: methods.PUB_FILTER_CLEAR
+    })
+  }

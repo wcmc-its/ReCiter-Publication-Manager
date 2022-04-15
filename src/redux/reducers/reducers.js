@@ -588,6 +588,42 @@ export const reportingFiltersLoading = (state=false, action) => {
   }
 }
 
+const initialStatePubSearchFilter = {
+  filters: {
+    personIdentifers: [],
+    personTypes: [],
+    institutions: [],
+    orgUnits: [],
+    datePublicationAddedToEntrezLowerBound: "",
+    datePublicationAddedToEntrezUpperBound: "",
+    publicationTypeCanonical: [],
+    authorPosition :[],
+    // journalImpactScoreLowerBound: 2,
+    // journalImpactScoreUpperBound: 42
+  },
+  limit: 10,
+  offset: 0,
+  sort: {
+    datePublicationAddedToEntrez: true,
+    citationCountNIH: true,
+    journalImpactScore1: true
+  }
+}
+
+export const pubSearchFilter = ( state = initialStatePubSearchFilter, action) => {
+  switch (action.type) {
+
+    case methods.PUB_FILTER_UPDATE :
+      return action.payload 
+    
+    case methods.PUB_FILTER_CLEAR:
+      return initialStatePubSearchFilter
+
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -626,4 +662,5 @@ export default combineReducers({
     journalFilterData,
     journalRankFilterData,
     reportingFiltersLoading,
+    pubSearchFilter,
 })

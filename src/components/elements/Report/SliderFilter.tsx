@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
 import { Dropdown } from "react-bootstrap";
@@ -8,10 +8,19 @@ interface SliderFilterProps {
   value?: number | Array<number>
   min?: number
   max?: number
-  handleChange?: () => void
+  handleChange?: (filterLowerBoundName: string, filterUpperBoundName: string, valueLower: number, valueUpper: number) => void
   getAriaValueText?: (text: number) => string
+  filterLowerName: string
+  filterUpperName: string
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, value = [0, 10], getAriaValueText, handleChange }) => {
+export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, range = [0, 10], getAriaValueText, handleChange, filterLowerName, filterUpperName }) => {
+  const [value, setValue] = useState<Array<number>>(range);
+
+  const onSliderUpdate = (event, newValue) => {
+    setValue(newValue);
+    handleChange(filterLowerName, filterUpperName, value[0], value[1]);
+  }
+
   return (
     <Dropdown className="d-inline-block">
       <Dropdown.Toggle variant="primary" id="dropdown-basic">
@@ -25,7 +34,7 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, valu
             min={min}
             step={1}
             max={max}
-            onChange={handleChange}
+            onChange={onSliderUpdate}
             aria-labelledby="non-linear-slider"
             disableSwap
           />

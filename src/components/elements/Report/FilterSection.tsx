@@ -7,6 +7,19 @@ import { CheckList } from "./CheckList";
 import { CheckboxSelect } from "./CheckboxSelect";
 import * as utils from "../../../utils/reportFilters";
 
+// given filter name which redux state object property should be updated
+const filterNameToState = {
+  author: "personIdentifers",
+  organization: "orgUnits",
+  institution: "institutions",
+  personType: "personTypes",
+  authorPosition: "authorPosition",
+  date: ["datePublicationAddedToEntrezLowerBound", "datePublicationAddedToEntrezUpperBound"],
+  type: "publicationTypeCanonical",
+  journal: "",
+  journalRank: ["journalImpactScoreLowerBound", "journalImpactScoreUpperBound"],
+}
+
 const Buttons = () => {
   return (
     <div className="d-flex align-items-center">
@@ -16,7 +29,7 @@ const Buttons = () => {
   )
 }
 
-const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) => {
+const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters }) => {
   let filterType = filter.filterType || undefined;
   switch (filterType) {
     case ("DateRange"):
@@ -24,6 +37,9 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
         <DatePicker 
           name={filter.name}
           range={filterOptions[filter.options]}
+          handleChange={onSetRangeFilters}
+          filterLowerName={filterName[0]}
+          filterUpperName={filterName[1]}
         />
       )
     case "Range":
@@ -38,6 +54,9 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
             name={filter.name}
             min={min}
             max={max}
+            handleChange={onSetRangeFilters}
+            filterLowerName={filterName[0]}
+            filterUpperName={filterName[1]}
           />
         )
       }
@@ -51,6 +70,9 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
           filterUpdateOptions={filterUpdateOptions}
           isDynamicFetch={filter.dynamicFetchOptions}
           value={filter.options}
+          optionValue={filter.value}
+          filterName={filterName}
+          onUpdateFilter={onSetSearchFilters}
         />
       )
     case "Checklist":
@@ -58,6 +80,8 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
         <CheckList
           title={filter.name}
           options={filter.options}
+          onUpdateFilter={onSetSearchFilters}
+          filterName={filterName}
         />
       )
     default:
@@ -67,7 +91,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
   }
 }
 
-const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
+const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters}) => {
   return (
     <div className="filter-row flex-grow-1">
       <div className={`title ${styles.filterName}`}>{title}</div>
@@ -80,6 +104,9 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
               key={index}
               filterOptions={filterOptions}
               filterUpdateOptions={filterUpdateOptions}
+              onSetSearchFilters={onSetSearchFilters}
+              filterName={filterNameToState[filter]}
+              onSetRangeFilters={onSetRangeFilters}
               />
           )
         })}
@@ -88,7 +115,7 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
   )
 }
 
-export const FilterSection = ({ filterOptions, filterUpdateOptions }) => {
+export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters }) => {
   return (
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
@@ -99,6 +126,8 @@ export const FilterSection = ({ filterOptions, filterUpdateOptions }) => {
               filters={reportConfig[config].list}
               filterOptions={filterOptions}
               filterUpdateOptions={filterUpdateOptions}
+              onSetSearchFilters={onSetSearchFilters}
+              onSetRangeFilters={onSetRangeFilters}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
           </>
