@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
 import { Dropdown } from "react-bootstrap";
@@ -8,10 +8,18 @@ interface SliderFilterProps {
   value?: number | Array<number>
   min?: number
   max?: number
-  handleChange?: () => void
+  handleChange?: (filterLowerBoundName: string, filterUpperBoundName: string, valueLower: number, valueUpper: number) => void
   getAriaValueText?: (text: number) => string
+  filterLowerName: string
+  filterUpperName: string
+  values: Array<number>
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, value = [0, 10], getAriaValueText, handleChange }) => {
+export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getAriaValueText, handleChange, filterLowerName, filterUpperName, values }) => {
+
+  const onSliderUpdate = (event, newValue) => {
+    handleChange(filterLowerName, filterUpperName, newValue[0], newValue[1]);
+  }
+
   return (
     <Dropdown className="d-inline-block">
       <Dropdown.Toggle variant="primary" id="dropdown-basic">
@@ -21,17 +29,17 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, valu
       <Dropdown.Menu className="px-4">
         <Box sx={{ width: 250 }}>
           <Slider
-            value={value}
+            value={values.some(value => value === undefined) ? [min, max] : values}
             min={min}
             step={1}
             max={max}
-            onChange={handleChange}
+            onChange={onSliderUpdate}
             aria-labelledby="non-linear-slider"
             disableSwap
           />
           <div id="input-slider" className="slider-label d-flex justify-content-between">
-            <span>{value[0]}</span>
-            <span>{value[1]}</span>
+            <span>{values[0] ? values[0] : min}</span>
+            <span>{values[1] ? values[1] : max}</span>
           </div>
         </Box>
       </Dropdown.Menu>

@@ -5,9 +5,7 @@ import 'react-dates/lib/css/_datepicker.css';
 import moment from 'moment';
 import { Dropdown } from "react-bootstrap";
 
-export const DatePicker = ({ name, range }) => {
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+export const DatePicker = ({ name, range, handleChange, filterLowerName, filterUpperName, selectedStartDate, selectedEndDate }) => {
   const [focusedInput, setFocusedInput] = useState(null);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
@@ -16,8 +14,7 @@ export const DatePicker = ({ name, range }) => {
   }
 
   const handleDatesChange = ({ startDate, endDate }) => {
-    setStartDate(startDate);
-    setEndDate(endDate);
+    handleChange(filterLowerName, filterUpperName, startDate, endDate);
   };
 
   const rangeDates = range[0];
@@ -38,9 +35,9 @@ export const DatePicker = ({ name, range }) => {
       </Dropdown.Toggle>
       <Dropdown.Menu className="px-4">
         <DateRangePicker
-          startDate={startDate} // momentPropTypes.momentObj or null,
+          startDate={selectedStartDate || null} // momentPropTypes.momentObj or null,
           startDateId="date_picker_start_date_id" // PropTypes.string.isRequired,
-          endDate={endDate} // momentPropTypes.momentObj or null,
+          endDate={selectedEndDate || null} // momentPropTypes.momentObj or null,
           endDateId="date_picker_end_date_id" // PropTypes.string.isRequired,
           onDatesChange={handleDatesChange} // PropTypes.func.isRequired,
           focusedInput={focusedInput} // PropTypes.oneOf([START_DATE, END_DATE]) or null,

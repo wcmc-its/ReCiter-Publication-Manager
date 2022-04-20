@@ -7,16 +7,29 @@ import { CheckList } from "./CheckList";
 import { CheckboxSelect } from "./CheckboxSelect";
 import * as utils from "../../../utils/reportFilters";
 
-const Buttons = () => {
+// given filter name which redux state object property should be updated
+const filterNameToState = {
+  author: "personIdentifers",
+  organization: "orgUnits",
+  institution: "institutions",
+  personType: "personTypes",
+  authorPosition: "authorPosition",
+  date: ["datePublicationAddedToEntrezLowerBound", "datePublicationAddedToEntrezUpperBound"],
+  type: "publicationTypeCanonical",
+  journal: "journalTitleVerbose",
+  journalRank: ["journalImpactScoreLowerBound", "journalImpactScoreUpperBound"],
+}
+
+const Buttons = ({ clearFilters }) => {
   return (
     <div className="d-flex align-items-center">
       <Button variant="warning">Search</Button>
-      <div className="m-3 text-button">Reset</div>
+      <Button className="m-3 text-button transparent-button" onClick={clearFilters}>Reset</Button>
     </div>
   )
 }
 
-const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) => {
+const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
   let filterType = filter.filterType || undefined;
   switch (filterType) {
     case ("DateRange"):
@@ -24,6 +37,11 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
         <DatePicker 
           name={filter.name}
           range={filterOptions[filter.options]}
+          handleChange={onSetRangeFilters}
+          filterLowerName={filterName[0]}
+          filterUpperName={filterName[1]}
+          selectedStartDate={selectedFilters[filterName[0]]}
+          selectedEndDate={selectedFilters[filterName[1]]}
         />
       )
     case "Range":
@@ -38,6 +56,10 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
             name={filter.name}
             min={min}
             max={max}
+            handleChange={onSetRangeFilters}
+            filterLowerName={filterName[0]}
+            filterUpperName={filterName[1]}
+            values={[selectedFilters[filterName[0]], selectedFilters[filterName[1]]]}
           />
         )
       }
@@ -51,6 +73,10 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
           filterUpdateOptions={filterUpdateOptions}
           isDynamicFetch={filter.dynamicFetchOptions}
           value={filter.options}
+          optionValue={filter.value}
+          filterName={filterName}
+          onUpdateFilter={onSetSearchFilters}
+          selectedOptions={selectedFilters[filterName]}
         />
       )
     case "Checklist":
@@ -58,6 +84,9 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
         <CheckList
           title={filter.name}
           options={filter.options}
+          onUpdateFilter={onSetSearchFilters}
+          filterName={filterName}
+          selectedOptions={selectedFilters[filterName]}
         />
       )
     default:
@@ -67,7 +96,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions }) =>
   }
 }
 
-const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
+const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters}) => {
   return (
     <div className="filter-row flex-grow-1">
       <div className={`title ${styles.filterName}`}>{title}</div>
@@ -80,6 +109,10 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
               key={index}
               filterOptions={filterOptions}
               filterUpdateOptions={filterUpdateOptions}
+              onSetSearchFilters={onSetSearchFilters}
+              filterName={filterNameToState[filter]}
+              onSetRangeFilters={onSetRangeFilters}
+              selectedFilters={selectedFilters}
               />
           )
         })}
@@ -88,7 +121,7 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions}) => {
   )
 }
 
-export const FilterSection = ({ filterOptions, filterUpdateOptions }) => {
+export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters, clearFilters }) => {
   return (
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
@@ -99,12 +132,17 @@ export const FilterSection = ({ filterOptions, filterUpdateOptions }) => {
               filters={reportConfig[config].list}
               filterOptions={filterOptions}
               filterUpdateOptions={filterUpdateOptions}
+              onSetSearchFilters={onSetSearchFilters}
+              onSetRangeFilters={onSetRangeFilters}
+              selectedFilters={selectedFilters}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
           </>
         )
       })}
-      <Buttons />
+      <Buttons 
+        clearFilters={clearFilters}
+      />
     </div>
   )
 }
