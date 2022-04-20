@@ -1135,7 +1135,7 @@ export const fetchGroupFeedbacklog = ( ids ) => dispatch => {
 
 // Authors Filter
 const getAuthorsFilter = ( authorInput ) => async(dispatch) => {
-    fetch('/api/db/reports/filter/author?authorFilter=', {
+    return fetch('/api/db/reports/filter/author?authorFilter=', {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -1165,7 +1165,7 @@ const getAuthorsFilter = ( authorInput ) => async(dispatch) => {
 
 // Date Filter
 const getDateFilter = () => async(dispatch) => {
-  fetch('/api/db/reports/filter/date', {
+  return fetch('/api/db/reports/filter/date', {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -1195,7 +1195,7 @@ const getDateFilter = () => async(dispatch) => {
 
 // Article Type Filter
 const getArticleTypeFilter = () => async(dispatch) => {
-  fetch('/api/db/reports/filter/articletype', {
+  return fetch('/api/db/reports/filter/articletype', {
     credentials: "same-origin",
     method: 'GET',
     headers: {
@@ -1442,6 +1442,78 @@ const getArticleTypeFilter = () => async(dispatch) => {
                 addError(error)
             )
         })
+  }
+
+  // Update Author Filter
+  export const updateAuthorFilter  = ( authorInput ) => (dispatch) => {
+      fetch(`/api/db/reports/filter/author?authorFilter=${authorInput}`, {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        },
+      }).then(response => {
+        return response.json()
+      }).then(data => {
+        dispatch({
+          type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
+          payload: data
+        })
+      }).catch(error => {
+        console.log(error);
+        toast.error("Author Filter Api failed - " + error.title, {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+        dispatch(
+            addError(error)
+        )
+      })
+  }
+
+  // Update Journal Filter
+  export const updateJournalFilter = ( journalInput ) => (dispatch) => {
+    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}`, {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      }
+    })
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.JOURNAL_FILTER_CHANGE_ALL_DATA,
+              payload: data
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Journal Filter Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+          dispatch(
+              addError(error)
+          )
+      })
   }
   
   // Fetch All Filters

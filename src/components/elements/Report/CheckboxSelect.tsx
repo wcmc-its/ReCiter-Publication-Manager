@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
@@ -12,13 +12,19 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     setUserInput(newInput);
   }
 
-  const filteredOptions = (options, isDynamicFetch) => {
+  // fetch data on input change
+  useEffect(() => {
     if (isDynamicFetch) {
       filterUpdateOptions[value](userInput);
-    } else if (userInput != '') {
+    }
+  }, [userInput])
+
+  const filteredOptions = (options, isDynamicFetch) => {
+    if (userInput != '' && !isDynamicFetch) {
       let optionsList = options.filter(option => getLabel(option).includes(userInput));
       return optionsList;
     }
+
     return options;
   }
 

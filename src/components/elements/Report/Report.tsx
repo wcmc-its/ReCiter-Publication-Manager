@@ -6,7 +6,7 @@ import SearchSummary from './SearchSummary';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
-import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters } from '../../../redux/actions/actions';
+import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter } from '../../../redux/actions/actions';
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -32,8 +32,14 @@ const Report = () => {
     dispatch(reportsFilters(authorInput, journalInput));
   }, [])
 
-  // TODO: fetch author on update input
-  // TODO: fetch journal on update input
+
+  const updateAuthorFilterData = (input: string) => {
+    dispatch(updateAuthorFilter(input))
+  }
+
+  const updateJournalFilterData = (input: string) => {
+    dispatch(updateJournalFilter(input));
+  }
 
   let filters = {
     articleTypeFilterData : [...articleTypeFilterData],
@@ -47,8 +53,8 @@ const Report = () => {
   }
 
   let filterUpdateOptions = {
-    authorFilterData: (input: string) => setAuthorInput(input),
-    journalFilterData: (input: string) => setJournalInput(input),
+    authorFilterData: updateAuthorFilterData,
+    journalFilterData: updateJournalFilterData,
   }
 
   const onSetSearchFilters = (filter, value) => {
