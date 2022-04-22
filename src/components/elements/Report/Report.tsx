@@ -114,6 +114,7 @@ const Report = () => {
         {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults.rows.map((row) => {
           return (
             <ReportsResultPane 
+              key={row.pmid}
               title={row.articleTitle}
               pmid={row.pmid}
               doi={row.doi}

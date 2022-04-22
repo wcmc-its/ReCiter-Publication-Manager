@@ -86,6 +86,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmi
                   label={label}
                   title={title}
                   value={value}
+                  key={title}
                 />
               )
             })
