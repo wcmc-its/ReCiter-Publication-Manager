@@ -625,6 +625,20 @@ export const pubSearchFilter = ( state = initialStatePubSearchFilter, action) =>
   }
 }
 
+export const reportsSearchResults = ( state = [], action) => {
+  switch(action.type) {
+
+    case methods.REPORTS_SEARCH_UPDATE :
+      return action.payload 
+
+    case methods.REPORTS_SEARCH_CLEAR :
+      return []
+
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -664,4 +678,5 @@ export default combineReducers({
     journalRankFilterData,
     reportingFiltersLoading,
     pubSearchFilter,
+    reportsSearchResults,
 })

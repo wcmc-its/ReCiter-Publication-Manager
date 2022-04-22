@@ -6,7 +6,8 @@ import SearchSummary from './SearchSummary';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
-import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter } from '../../../redux/actions/actions';
+import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults } from '../../../redux/actions/actions';
+import { ReportsResultPane } from "./ReportsResultPane";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -23,6 +24,9 @@ const Report = () => {
 
   // selected filter options
   const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
+
+  // search results
+  const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
 
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
@@ -89,6 +93,10 @@ const Report = () => {
     dispatch(clearPubSearchFilters());
   }
 
+  const searchResults = () => {
+    dispatch(getReportsResults(pubSearchFilter));
+  }
+
   return (
     <div>
       <div className={appStyles.mainContainer}>
@@ -100,8 +108,24 @@ const Report = () => {
           onSetRangeFilters={onSetRangeFilters}
           selectedFilters={pubSearchFilter.filters}
           clearFilters={clearFilters}
+          searchResults={searchResults}
           />
-        <SearchSummary count={0}/>
+        {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
+        {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults.rows.map((row) => {
+          return (
+            <ReportsResultPane 
+              key={row.pmid}
+              title={row.articleTitle}
+              pmid={row.pmid}
+              doi={row.doi}
+              citationCount={row.citationCountNIH}
+              percentileRank={row.percentileNIH}
+              relativeCitationRatio={row.relativeCitationRatioNIH}
+              trendingPubsScore={row.trendingPubsScore}
+              journalImpactScore1={row.journalImpactScore1}
+            />
+          )
+        })}
       </div>
     </div>
   )
