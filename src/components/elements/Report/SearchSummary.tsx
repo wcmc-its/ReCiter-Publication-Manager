@@ -16,11 +16,12 @@ const SortOptionTitles = {
 const SearchSummary = ({ count }, { count: number}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
+  const formatter = new Intl.NumberFormat('en-US')
 
   return (
     <>
       <div className="d-flex justify-content-between align-items-center">
-        <p className="mb-0"><b>{count} publications</b></p>
+        <p className="mb-0"><b>{formatter.format(count)} publications</b></p>
         <div className="search-summary-buttons">
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={() => console.log('sort')}>
           {

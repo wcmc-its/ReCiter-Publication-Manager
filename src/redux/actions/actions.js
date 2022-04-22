@@ -1550,3 +1550,46 @@ const getArticleTypeFilter = () => async(dispatch) => {
       type: methods.PUB_FILTER_CLEAR
     })
   }
+
+  // Search Results for Create Reports Page
+  export const getReportsResults = ( requestBody ) => dispatch => {
+    fetch(`/api/db/reports/publication/search`, {
+      credentials: "same-origin",
+      method: 'GET',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(requestBody)
+    })
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+          dispatch({
+              type: methods.REPORTS_SEARCH_UPDATE,
+              payload: data
+          })
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Journal Filter Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+          dispatch(
+              addError(error)
+          )
+      })
+  }
