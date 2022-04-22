@@ -251,7 +251,7 @@ export const publicationAuthorSearchWithFilter = async (
         });
       }
     }
-    let searchOutput: PersonArticleAuthor[] = [];
+    let searchOutput: any[] = [];
     searchOutput = await models.PersonArticleAuthor.findAll({
       attributes: [
         "pmid",
@@ -263,6 +263,22 @@ export const publicationAuthorSearchWithFilter = async (
       where: where,
       group: ["pmid", "rank"],
       order: [["pmid", "ASC"],["rank", "ASC"]],
+    }).then((output) => {
+      const authors = output.reduce((authors, result) => {
+        if (!authors[result.pmid]) {
+          authors[result.pmid] = [result];
+        } else {
+          authors[result.pmid].push(result);
+        }
+        return authors
+      }, {});
+      const result = Object.keys(authors).map((pmid) => {
+        return {
+          pmid: pmid,
+          authors: authors[pmid],
+        }
+      })
+      return result;
     });
     return searchOutput;
   } catch (e) {
