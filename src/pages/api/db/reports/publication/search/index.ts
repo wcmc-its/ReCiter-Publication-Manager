@@ -5,7 +5,7 @@ import { PublicationSearchFilter } from '../../../../../../../types/publication.
 
 export default async function handler(req: NextApiRequest,
     res: NextApiResponse<Buffer | string>) {
-    if (req.method === "GET") {
+    if (req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
             const apiBody: PublicationSearchFilter = req.body;
             try{

@@ -1555,7 +1555,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
   export const getReportsResults = ( requestBody ) => dispatch => {
     fetch(`/api/db/reports/publication/search`, {
       credentials: "same-origin",
-      method: 'GET',
+      method: 'POST',
       headers: {
           Accept: 'application/json',
           "Content-Type": "application/json",

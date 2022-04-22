@@ -7,6 +7,7 @@ import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
 import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults } from '../../../redux/actions/actions';
+import { ReportsResultPane } from "./ReportsResultPane";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -93,7 +94,6 @@ const Report = () => {
   }
 
   const searchResults = () => {
-    // TODO: pass filters
     dispatch(getReportsResults(pubSearchFilter));
   }
 
@@ -111,6 +111,20 @@ const Report = () => {
           searchResults={searchResults}
           />
         {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
+        {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults.rows.map((row) => {
+          return (
+            <ReportsResultPane 
+              title={row.articleTitle}
+              pmid={row.pmid}
+              doi={row.doi}
+              citationCount={row.citationCountNIH}
+              percentileRank={row.percentileNIH}
+              relativeCitationRatio={row.relativeCitationRatioNIH}
+              trendingPubsScore={row.trendingPubsScore}
+              journalImpactScore1={row.journalImpactScore1}
+            />
+          )
+        })}
       </div>
     </div>
   )
