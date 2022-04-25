@@ -572,7 +572,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                         data-effect="solid" data-html={true} data-class={styles.evidenceScorePopupContainer}>
                         Matching<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
                     </p>
-                    < ReactTooltip />
+                    <ReactTooltip />
                 </React.Fragment>: <p></p>
             }
         </Col>
