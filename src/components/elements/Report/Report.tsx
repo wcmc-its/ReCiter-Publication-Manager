@@ -111,7 +111,7 @@ const Report = () => {
           searchResults={searchResults}
           />
         {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
-        {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults.rows.map((row) => {
+        {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults?.rows.map((row) => {
           return (
             <ReportsResultPane 
               key={row.pmid}
@@ -123,6 +123,7 @@ const Report = () => {
               relativeCitationRatio={row.relativeCitationRatioNIH}
               trendingPubsScore={row.trendingPubsScore}
               journalImpactScore1={row.journalImpactScore1}
+              authors={row.authors}
             />
           )
         })}

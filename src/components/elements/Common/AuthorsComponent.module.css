@@ -1,0 +1,19 @@
+.listInline {
+  list-style: none;
+  padding: 0;
+  display: inline;
+}
+
+.listInline > li {
+  display: inline;
+}
+
+.btnNoStyling {
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+}
+
+.highlightedAuthor {
+  background-color: #EBF4BC;
+}

@@ -255,10 +255,10 @@ export const publicationAuthorSearchWithFilter = async (
     searchOutput = await models.PersonArticleAuthor.findAll({
       attributes: [
         "pmid",
-        "authorFirstName",
-        "authorLastName",
+        ["authorFirstName", "firstName"],
+        ["authorLastName", "lastName"],
         "rank",
-        [Sequelize.fn("MAX", Sequelize.col("targetAuthor")), "highlightAuthor"],
+        [Sequelize.fn("MAX", Sequelize.col("targetAuthor")), "targetAuthor"],
       ],
       where: where,
       group: ["pmid", "rank"],

@@ -2,6 +2,8 @@ import React from  "react";
 import styles from "./ReportsResultPane.module.css";
 import { Popover, OverlayTrigger } from "react-bootstrap";
 import { infoBubblesConfig } from "../../../../config/report";
+import { AuthorsComponent } from "../Common/AuthorsComponent";
+import { Author } from "../../../../types/Author";
 
 interface ReportsResultPaneProps {
   title: string
@@ -12,9 +14,10 @@ interface ReportsResultPaneProps {
   relativeCitationRatio: number
   trendingPubsScore?: number
   journalImpactScore1?: number
+  authors: Author[]
 }
 
-export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmid, doi, citationCount, percentileRank, relativeCitationRatio, trendingPubsScore, journalImpactScore1 }) => {
+export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmid, doi, citationCount, percentileRank, relativeCitationRatio, trendingPubsScore, journalImpactScore1, authors }) => {
   const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
   const doiUrl = 'https://doi.org/';
 
@@ -75,6 +78,11 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmi
   return (
     <div className="search-result-container">
       <div className="seach-result-title">{title}</div>
+      <div className="authors">
+        <AuthorsComponent 
+          authors={authors}
+          />
+      </div>
       <div className="additional-info">
        <div className={`${styles.reportsAdditionalInfo} pt-2`}>
           <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a>{' '}</span>

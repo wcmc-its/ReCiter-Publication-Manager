@@ -1597,7 +1597,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
 
             dispatch({
               type: methods.REPORTS_SEARCH_UPDATE,
-              payload: results
+              payload: { count: data.count, rows: results}, 
           })
           });
       })
