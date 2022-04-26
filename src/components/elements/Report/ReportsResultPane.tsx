@@ -15,9 +15,25 @@ interface ReportsResultPaneProps {
   trendingPubsScore?: number
   journalImpactScore1?: number
   authors: Author[]
+  journalTitleVerbose: string
+  publicationDateDisplay: string
+  publicationTypeCanonical: string
 }
 
-export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmid, doi, citationCount, percentileRank, relativeCitationRatio, trendingPubsScore, journalImpactScore1, authors }) => {
+export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ 
+  title, 
+  pmid, 
+  doi, 
+  citationCount, 
+  percentileRank, 
+  relativeCitationRatio, 
+  trendingPubsScore, 
+  journalImpactScore1, 
+  authors,
+  journalTitleVerbose,
+  publicationDateDisplay,
+  publicationTypeCanonical,
+ }) => {
   const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
   const doiUrl = 'https://doi.org/';
 
@@ -84,6 +100,11 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmi
           />
       </div>
       <div className="additional-info">
+        <div>
+          <span className={styles.midDot}> {journalTitleVerbose} </span>
+          <span className={styles.midDot}> {publicationDateDisplay} </span>
+          <span className={styles.midDot}> {publicationTypeCanonical} </span>
+        </div>
        <div className={`${styles.reportsAdditionalInfo} pt-2`}>
           <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a>{' '}</span>
           <span className={styles.midDot}>{' '}<a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>

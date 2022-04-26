@@ -124,6 +124,9 @@ const Report = () => {
               trendingPubsScore={row.trendingPubsScore}
               journalImpactScore1={row.journalImpactScore1}
               authors={row.authors}
+              journalTitleVerbose={row.journalTitleVerbose}
+              publicationDateDisplay={row.publicationDateDisplay}
+              publicationTypeCanonical={row.publicationTypeCanonical}
             />
           )
         })}
