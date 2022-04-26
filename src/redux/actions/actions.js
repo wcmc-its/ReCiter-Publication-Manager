@@ -1576,14 +1576,34 @@ const getArticleTypeFilter = () => async(dispatch) => {
           }
       })
       .then(data => {
-          dispatch({
+
+          let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
+
+          getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
+            // given authors data merge it with the rest of the results
+            let results = data.rows.map((row) => {
+              let authorsList = [];
+              authorsData.forEach((authorResult) => {
+                if (parseInt(authorResult.pmid) === row.pmid) {
+                  authorsList = [...authorResult.authors];
+                }
+              })
+              console.log(authorsList);
+              return {
+                ...row,
+                authors: [...authorsList]
+              }
+            })
+
+            dispatch({
               type: methods.REPORTS_SEARCH_UPDATE,
-              payload: data
+              payload: results
           })
+          });
       })
       .catch(error => {
           console.log(error)
-          toast.error("Journal Filter Api failed - " + error.title, {
+          toast.error("Reports Search Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
                 theme: 'colored'
@@ -1593,3 +1613,36 @@ const getArticleTypeFilter = () => async(dispatch) => {
           )
       })
   }
+
+// Get authors of publication
+export const getReportsAuthors = ( pmids ) => {
+  return fetch(`/api/db/reports/publication/search/author`, {
+    credentials: "same-origin",
+    method: 'POST',
+    headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+    },
+    body: JSON.stringify(pmids)
+  })
+    .then(response => {
+        if(response.status === 200) {
+            return response.json()
+        }else {
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        }
+    })
+    .then(data => {
+      console.log(data);
+        return data
+    })
+    .catch(error => {
+        console.log(error)
+    })
+}
