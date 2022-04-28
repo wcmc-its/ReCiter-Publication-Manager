@@ -639,6 +639,17 @@ export const reportsSearchResults = ( state = [], action) => {
   }
 }
 
+export const reportsSearchResultsLoading = ( state = false, action) => {
+  switch(action.type) {
+    case methods.REPORTS_SEARCH_FETCHING :
+      return true
+    case methods.REPORTS_SEARCH_CANCEL_FETCHING :
+      return false
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -679,4 +690,5 @@ export default combineReducers({
     reportingFiltersLoading,
     pubSearchFilter,
     reportsSearchResults,
+    reportsSearchResultsLoading
 })

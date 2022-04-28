@@ -1553,6 +1553,10 @@ const getArticleTypeFilter = () => async(dispatch) => {
 
   // Search Results for Create Reports Page
   export const getReportsResults = ( requestBody ) => dispatch => {
+    dispatch({
+      type: methods.REPORTS_SEARCH_FETCHING
+    })
+
     fetch(`/api/db/reports/publication/search`, {
       credentials: "same-origin",
       method: 'POST',
@@ -1594,11 +1598,16 @@ const getArticleTypeFilter = () => async(dispatch) => {
                 authors: [...authorsList]
               }
             })
+            console.log(results);
 
             dispatch({
               type: methods.REPORTS_SEARCH_UPDATE,
               payload: { count: data.count, rows: results}, 
-          })
+            })
+
+            dispatch({
+              type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+            })
           });
       })
       .catch(error => {
@@ -1611,6 +1620,10 @@ const getArticleTypeFilter = () => async(dispatch) => {
           dispatch(
               addError(error)
           )
+
+          dispatch({
+            type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+          })
       })
   }
 
@@ -1639,7 +1652,6 @@ export const getReportsAuthors = ( pmids ) => {
         }
     })
     .then(data => {
-      console.log(data);
         return data
     })
     .catch(error => {

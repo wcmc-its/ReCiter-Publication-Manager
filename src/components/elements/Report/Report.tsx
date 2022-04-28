@@ -11,9 +11,16 @@ import { ReportsResultPane } from "./ReportsResultPane";
 import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
 import { getOffset } from "../../../utils/pagination";
+import Loader from "../Common/Loader";
 
 const Report = () => {
   const dispatch = useDispatch()
+
+  // filters loading state
+  const reportingFiltersLoading = useSelector((state: RootStateOrAny) => state.reportingFiltersLoading)
+
+  // search results loading state
+  const reportsSearchResultsLoading = useSelector((state: RootStateOrAny) => state.reportsSearchResultsLoading)
 
   // list of options for filters
   const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
@@ -134,7 +141,11 @@ const Report = () => {
     dispatch(getReportsResults(pubSearchFilter));
   }
 
-  return (
+  if (reportingFiltersLoading) {
+    return (
+      <Loader />
+    )
+  } else return (
     <div>
       <div className={appStyles.mainContainer}>
         <h1 className={styles.header}>Create Reports</h1>
@@ -147,33 +158,36 @@ const Report = () => {
           clearFilters={clearFilters}
           searchResults={searchResults}
           />
-        {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
-        <Pagination
-          count={count}
-          total={reportsSearchResults?.count}
-          page={page}
-          onChange={handlePaginationUpdate}
-          onCountChange={handleCountUpdate}
-          />
-        {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults?.rows.map((row) => {
-          return (
-            <ReportsResultPane 
-              key={row.pmid}
-              title={row.articleTitle}
-              pmid={row.pmid}
-              doi={row.doi}
-              citationCount={row.citationCountNIH}
-              percentileRank={row.percentileNIH}
-              relativeCitationRatio={row.relativeCitationRatioNIH}
-              trendingPubsScore={row.trendingPubsScore}
-              journalImpactScore1={row.journalImpactScore1}
-              authors={row.authors}
-              journalTitleVerbose={row.journalTitleVerbose}
-              publicationDateDisplay={row.publicationDateDisplay}
-              publicationTypeCanonical={row.publicationTypeCanonical}
+        {reportsSearchResultsLoading && <Loader />}
+        {!reportsSearchResultsLoading && <div className="search-results-container">
+          {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
+          <Pagination
+            count={count}
+            total={reportsSearchResults?.count}
+            page={page}
+            onChange={handlePaginationUpdate}
+            onCountChange={handleCountUpdate}
             />
-          )
-        })}
+          {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults?.rows.map((row) => {
+            return (
+              <ReportsResultPane
+                key={row.pmid}
+                title={row.articleTitle}
+                pmid={row.pmid}
+                doi={row.doi}
+                citationCount={row.citationCountNIH}
+                percentileRank={row.percentileNIH}
+                relativeCitationRatio={row.relativeCitationRatioNIH}
+                trendingPubsScore={row.trendingPubsScore}
+                journalImpactScore1={row.journalImpactScore1}
+                authors={row.authors}
+                journalTitleVerbose={row.journalTitleVerbose}
+                publicationDateDisplay={row.publicationDateDisplay}
+                publicationTypeCanonical={row.publicationTypeCanonical}
+              />
+            )
+          })}
+        </div>}
       </div>
     </div>
   )
