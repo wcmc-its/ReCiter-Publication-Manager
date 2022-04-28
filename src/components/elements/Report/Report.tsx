@@ -8,6 +8,9 @@ import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
 import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults } from '../../../redux/actions/actions';
 import { ReportsResultPane } from "./ReportsResultPane";
+import { usePagination } from "../../../hooks/usePagination";
+import Pagination from "../Pagination/Pagination";
+import { getOffset } from "../../../utils/pagination";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -31,10 +34,44 @@ const Report = () => {
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
 
+  // pagination
+  const [count, page, handlePaginationUpdate, handleCountUpdate] = usePagination(0);
+
   // fetch filters on mount
   useEffect(() => {
     dispatch(reportsFilters(authorInput, journalInput));
   }, [])
+
+  // fetch new data on page and count update
+  useEffect(() => {
+
+    // update offset and limit
+    let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
+
+    // dispatch redux filter state update
+    dispatch(updatePubSearchFilters(updatedSearchFilter));
+
+    // fetch data
+    dispatch(getReportsResults(updatedSearchFilter));
+
+  }, [page, count])
+
+  const updatePagination = (page: number, count: number, prevPubSearchFilter: any) => {
+    // calculate the offset
+    let offset = getOffset(page, count);
+
+    // update the filter object
+    let updatedSearchFilter = {
+      ...prevPubSearchFilter, 
+      filters: {
+        ...pubSearchFilter.filters,
+        offset: offset,
+        limit: count,
+      }
+    };
+
+    return updatedSearchFilter;
+  }
 
 
   const updateAuthorFilterData = (input: string) => {
@@ -111,6 +148,13 @@ const Report = () => {
           searchResults={searchResults}
           />
         {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
+        <Pagination
+          count={count}
+          total={reportsSearchResults?.count}
+          page={page}
+          onChange={handlePaginationUpdate}
+          onCountChange={handleCountUpdate}
+          />
         {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults?.rows.map((row) => {
           return (
             <ReportsResultPane 

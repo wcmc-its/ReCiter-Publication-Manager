@@ -92,8 +92,8 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   }
 
   return (
-    <div className="search-result-container">
-      <div className="seach-result-title">{title}</div>
+    <div className={styles.searchResultContainer}>
+      <div className="seach-result-title"><b>{title}</b></div>
       <div className="authors">
         <AuthorsComponent 
           authors={authors}

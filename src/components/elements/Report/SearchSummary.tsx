@@ -20,7 +20,7 @@ const SearchSummary = ({ count }, { count: number}) => {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center">
+      <div className="d-flex justify-content-between align-items-center pt-5">
         <p className="mb-0"><b>{formatter.format(count)} publications</b></p>
         <div className="search-summary-buttons">
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={() => console.log('sort')}>

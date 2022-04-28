@@ -1588,7 +1588,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
                   authorsList = [...authorResult.authors];
                 }
               })
-              console.log(authorsList);
+
               return {
                 ...row,
                 authors: [...authorsList]
