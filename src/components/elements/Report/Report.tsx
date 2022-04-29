@@ -6,7 +6,7 @@ import SearchSummary from './SearchSummary';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
-import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults } from '../../../redux/actions/actions';
+import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults, getReportsResultsInitial } from '../../../redux/actions/actions';
 import { ReportsResultPane } from "./ReportsResultPane";
 import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
@@ -15,6 +15,9 @@ import Loader from "../Common/Loader";
 
 const Report = () => {
   const dispatch = useDispatch()
+
+  // state to manage what content to display on inital load
+  const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
 
   // filters loading state
   const reportingFiltersLoading = useSelector((state: RootStateOrAny) => state.reportingFiltersLoading)
@@ -47,19 +50,22 @@ const Report = () => {
   // fetch filters on mount
   useEffect(() => {
     dispatch(reportsFilters(authorInput, journalInput));
+    dispatch(getReportsResultsInitial());
   }, [])
 
   // fetch new data on page and count update
   useEffect(() => {
 
-    // update offset and limit
-    let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
+    if (!isInitialLoad) {
+      // update offset and limit
+      let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
 
-    // dispatch redux filter state update
-    dispatch(updatePubSearchFilters(updatedSearchFilter));
+      // dispatch redux filter state update
+      dispatch(updatePubSearchFilters(updatedSearchFilter));
 
-    // fetch data
-    dispatch(getReportsResults(updatedSearchFilter));
+      // fetch data
+      dispatch(getReportsResults(updatedSearchFilter));
+    }
 
   }, [page, count])
 
@@ -139,6 +145,9 @@ const Report = () => {
 
   const searchResults = () => {
     dispatch(getReportsResults(pubSearchFilter));
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+    }
   }
 
   if (reportingFiltersLoading) {
@@ -159,7 +168,8 @@ const Report = () => {
           searchResults={searchResults}
           />
         {reportsSearchResultsLoading && <Loader />}
-        {!reportsSearchResultsLoading && <div className="search-results-container">
+        {!reportsSearchResultsLoading && 
+        <div className="search-results-container">
           {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
           <Pagination
             count={count}

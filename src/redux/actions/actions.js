@@ -4,6 +4,7 @@ import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
 import { useSession} from 'next-auth/client';
 import { ErrorTwoTone } from '@mui/icons-material';
+import { initialStatePubSearchFilter } from "../reducers/reducers";
 
 export const addError = (message) =>
     ({
@@ -1598,7 +1599,98 @@ const getArticleTypeFilter = () => async(dispatch) => {
                 authors: [...authorsList]
               }
             })
-            console.log(results);
+
+            dispatch({
+              type: methods.REPORTS_SEARCH_UPDATE,
+              payload: { count: data.count, rows: results}, 
+            })
+
+            dispatch({
+              type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+            })
+          });
+      })
+      .catch(error => {
+          console.log(error)
+          toast.error("Reports Search Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+          dispatch(
+              addError(error)
+          )
+
+          dispatch({
+            type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+          })
+      })
+  }
+
+  // Default Data for Create Reports Page
+  export const getReportsResultsInitial = () => dispatch => {
+    dispatch({
+      type: methods.REPORTS_SEARCH_FETCHING
+    })
+
+    // set the search filters to get results from the last 60 days and sorted by date
+    let startDate = new Date();
+    let endDate = new Date();
+    startDate.setDate(endDate.getDate() - 60);
+
+    let pubSearchFilterSortByDate = {
+      ...initialStatePubSearchFilter,
+      filters: {
+        ...initialStatePubSearchFilter.filters,
+        datePublicationAddedToEntrezLowerBound: startDate,
+        datePublicationAddedToEntrezUpperBound: endDate
+      },
+      sort: {
+        datePublicationAddedToEntrez: true,
+      }
+    }
+
+    fetch(`/api/db/reports/publication/search`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(pubSearchFilterSortByDate)
+    })
+      .then(response => {
+          if(response.status === 200) {
+              return response.json()
+          }else {
+              throw {
+                  type: response.type,
+                  title: response.statusText,
+                  status: response.status,
+                  detail: "Error occurred with api " + response.url + ". Please, try again later "
+              }
+          }
+      })
+      .then(data => {
+
+          let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
+
+          getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
+            // given authors data merge it with the rest of the results
+            let results = data.rows.map((row) => {
+              let authorsList = [];
+              authorsData.forEach((authorResult) => {
+                if (parseInt(authorResult.pmid) === row.pmid) {
+                  authorsList = [...authorResult.authors];
+                }
+              })
+
+              return {
+                ...row,
+                authors: [...authorsList]
+              }
+            })
 
             dispatch({
               type: methods.REPORTS_SEARCH_UPDATE,

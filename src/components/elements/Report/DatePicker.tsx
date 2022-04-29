@@ -14,7 +14,9 @@ export const DatePicker = ({ name, range, handleChange, filterLowerName, filterU
   }
 
   const handleDatesChange = ({ startDate, endDate }) => {
-    handleChange(filterLowerName, filterUpperName, startDate, endDate);
+    let formattedStartDate = startDate.format('YYYY-MM-DD');
+    let formattedEndDate = endDate.format('YYYY-MM-DD');
+    handleChange(filterLowerName, filterUpperName, formattedStartDate, formattedEndDate);
   };
 
   const rangeDates = range[0];

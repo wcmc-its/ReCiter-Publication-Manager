@@ -588,7 +588,7 @@ export const reportingFiltersLoading = (state=false, action) => {
   }
 }
 
-const initialStatePubSearchFilter = {
+export const initialStatePubSearchFilter = {
   filters: {
     personIdentifers: [],
     personTypes: [],
