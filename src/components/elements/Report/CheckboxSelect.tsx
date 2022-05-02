@@ -48,7 +48,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
   }
 
   return (
-    <DropdownWrapper title={title}>
+    <DropdownWrapper title={title} variant={ selectedOptions.length > 0 ? "primary" : "white"}>
       <div className={styles.dropdownContainer}>
       <InputGroup className="mb-3">         
        <FormControl

@@ -32,7 +32,7 @@ export const DatePicker = ({ name, range, handleChange, filterLowerName, filterU
   
   return (
     <Dropdown show={showDropdown} className="d-inline-block">
-      <Dropdown.Toggle variant="primary" id="dropdown-basic" onClick={toggleDropdown}>
+      <Dropdown.Toggle variant={(selectedStartDate !== "" || selectedEndDate !== "") ? "primary" : "white"} id="dropdown-basic" onClick={toggleDropdown}>
         {name}
       </Dropdown.Toggle>
       <Dropdown.Menu className="px-4">

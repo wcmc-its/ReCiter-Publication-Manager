@@ -4,12 +4,13 @@ import { Dropdown } from "react-bootstrap";
 interface DropdownWrapperProps {
   title: string,
   children: JSX.Element,
+  variant?: string,
 }
 
-export const DropdownWrapper: React.FC<DropdownWrapperProps> = ({ title, children}) => {
+export const DropdownWrapper: React.FC<DropdownWrapperProps> = ({ title, children, variant = "primary"}) => {
     return (
       <Dropdown className="d-inline-block">
-        <Dropdown.Toggle variant="primary" id="dropdown-basic">
+        <Dropdown.Toggle variant={variant} id="dropdown-basic">
           {title}
         </Dropdown.Toggle>
   
