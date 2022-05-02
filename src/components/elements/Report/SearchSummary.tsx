@@ -1,7 +1,9 @@
-import { Button, Dropdown, DropdownButton } from "react-bootstrap";
+import { Button, Dropdown, DropdownButton, Form } from "react-bootstrap";
 import { useState } from "react";
 import ExportModal from "./ExportModal";
 import { sortOptions } from "../../../../config/report";
+import { AiOutlineCheck } from "react-icons/ai";
+import styles from "./SearchSummary.module.css";
 
 const SortOptionTitles = {
   datePublicationAddedToEntrez: "date added",
@@ -17,17 +19,21 @@ const SearchSummary = ({ count }, { count: number}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
+  const [selected, setSelected] = useState('');
 
   return (
     <>
       <div className="d-flex justify-content-between align-items-center pt-5">
         <p className="mb-0"><b>{formatter.format(count)} publications</b></p>
         <div className="search-summary-buttons">
-        <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={() => console.log('sort')}>
+        <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => setSelected(value)}>
           {
             Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
               return (
-                <Dropdown.Item eventKey={index} key={index} value={sortOption}>{SortOptionTitles[sortOption]}</Dropdown.Item>
+                <Dropdown.Item eventKey={sortOption} key={index} className={`dropdown-item ${sortOption === selected ? styles.selected : styles.dropdownItem}`}>
+                  {sortOption === selected && <AiOutlineCheck />} 
+                  {SortOptionTitles[sortOption]}
+                </Dropdown.Item>
               )
             })
           }
