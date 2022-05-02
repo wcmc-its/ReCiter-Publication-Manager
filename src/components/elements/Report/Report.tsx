@@ -150,6 +150,35 @@ const Report = () => {
     }
   }
 
+  const updateSort = (sort: string, value: boolean) => {
+    let updatedSearchFilter = {
+      ...pubSearchFilter,
+      sort: {
+        ...pubSearchFilter.sort,
+        [sort]: value
+      }
+    }
+
+    // dispatch redux filter state update
+    dispatch(updatePubSearchFilters(updatedSearchFilter));
+
+    // fetch data
+    dispatch(getReportsResults(updatedSearchFilter));
+  }
+
+  const getSelectedValues = (list) => {
+    if (list.sort) {
+      let selected = Object.keys(pubSearchFilter.sort).map((key) => {
+        if (pubSearchFilter.sort[key]) {
+          return key;
+        }
+      })
+      return selected;
+    } else {
+      return [];
+    }
+  }
+
   if (reportingFiltersLoading) {
     return (
       <Loader />
@@ -170,7 +199,13 @@ const Report = () => {
         {reportsSearchResultsLoading && <Loader />}
         {!reportsSearchResultsLoading && 
         <div className="search-results-container">
-          {reportsSearchResults && <SearchSummary count={reportsSearchResults.count}/>}
+          {reportsSearchResults && 
+          <SearchSummary
+            count={reportsSearchResults.count}
+            onClick={updateSort}
+            selected={getSelectedValues(pubSearchFilter)}
+            />
+            }
           <Pagination
             count={count}
             total={reportsSearchResults?.count}
