@@ -153,7 +153,7 @@ export const publicationSearchWithFilter = async (
     }
     let searchOutput: { count?: number; rows?: AnalysisSummaryArticle[] } = {};
     if (apiBody.filters) {
-      searchOutput = await models.AnalysisSummaryArticle.findAndCountAll({
+      let results = await models.AnalysisSummaryArticle.findAndCountAll({
         include: [
           {
             model: models.AnalysisSummaryAuthor,
@@ -186,10 +186,15 @@ export const publicationSearchWithFilter = async (
             as: "PersonPersonTypes",
             required: true,
             on: {
-              col: Sequelize.where(
+              col1: Sequelize.where(
+                Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                "=",
+                Sequelize.col("PersonPersonTypes.personIdentifier"),
+              ),
+              col2: Sequelize.where(
                 Sequelize.col("Person.personIdentifier"),
                 "=",
-                Sequelize.col("PersonPersonTypes.personIdentifier")
+                Sequelize.col("PersonPersonTypes.personIdentifier"),
               ),
             },
             attributes: [],
@@ -199,8 +204,14 @@ export const publicationSearchWithFilter = async (
         subQuery: false,
         limit: apiBody.limit,
         offset: apiBody.offset,
-        order: sort
+        order: sort,
+        group: ["AnalysisSummaryAuthor.pmid"],
+        distinct: true
       });
+      searchOutput = { 
+        ...results,
+        count: results.count.length
+      }
     } else {
       searchOutput = await models.AnalysisSummaryArticle.findAndCountAll({
         where: Sequelize.where(
@@ -219,7 +230,7 @@ export const publicationSearchWithFilter = async (
         ),
         limit: apiBody.limit,
         offset: apiBody.offset,
-        order: sort
+        order: sort,
       });
     }
     return searchOutput;
@@ -258,7 +269,7 @@ export const publicationAuthorSearchWithFilter = async (
         ["authorFirstName", "firstName"],
         ["authorLastName", "lastName"],
         "rank",
-        [Sequelize.fn("MAX", Sequelize.col("targetAuthor")), "targetAuthor"],
+        [Sequelize.fn("MAX", Sequelize.col("targetAuthor")), "highlightAuthor"],
       ],
       where: where,
       group: ["pmid", "rank"],
