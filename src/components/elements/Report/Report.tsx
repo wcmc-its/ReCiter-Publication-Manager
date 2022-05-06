@@ -77,12 +77,9 @@ const Report = () => {
 
     // update the filter object
     let updatedSearchFilter = {
-      ...prevPubSearchFilter, 
-      filters: {
-        ...pubSearchFilter.filters,
-        offset: offset,
-        limit: count,
-      }
+      ...prevPubSearchFilter,
+      offset: offset,
+      limit: count,
     };
 
     return updatedSearchFilter;
@@ -95,6 +92,27 @@ const Report = () => {
 
   const updateJournalFilterData = (input: string) => {
     dispatch(updateJournalFilter(input));
+  }
+
+  const onPaginationUpdate = (newPage: number) => {
+
+    // update the state of pagination
+    handlePaginationUpdate(newPage);
+
+    // fetch data
+    let updatedSearchFilter = updatePagination(newPage, count, pubSearchFilter);
+    dispatch(updatePubSearchFilters(updatedSearchFilter));
+    dispatch(getReportsResults(updatedSearchFilter));
+  }
+
+  const onCountUpdate = (newCount: string) => {
+    // update count state
+    handleCountUpdate(newCount);
+
+    // fetch data
+    let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
+    dispatch(updatePubSearchFilters(updatedSearchFilter));
+    dispatch(getReportsResults(updatedSearchFilter));
   }
 
   let filters = {
@@ -235,8 +253,8 @@ const Report = () => {
             count={count}
             total={reportsSearchResults?.count}
             page={page}
-            onChange={handlePaginationUpdate}
-            onCountChange={handleCountUpdate}
+            onChange={onPaginationUpdate}
+            onCountChange={onCountUpdate}
             />
           {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults?.rows.map((row) => {
             return (
