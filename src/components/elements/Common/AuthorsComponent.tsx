@@ -15,6 +15,12 @@ const Author = ({author, index, count} : {
     authorFullName += author.lastName;
   }
 
+  if (parseInt(author.highlightAuthor)) {
+    return (
+      <li key={"author" + index}><span className={styles.highlightedAuthor}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
+    )
+  }
+
   return <li key={"author" + index}><span className={author.targetAuthor ? styles.highlightedAuthor : ""}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
 }
 

@@ -12,6 +12,8 @@ import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
 import { getOffset } from "../../../utils/pagination";
 import Loader from "../Common/Loader";
+import { Author } from "../../../../types/Author";
+import { PublicationSearchFilter } from "../../../../types/publication.report.search";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -177,6 +179,29 @@ const Report = () => {
     } else {
       return [];
     }
+  }
+
+  // authors that have been selected in tthe filters need to be highlighted
+  const highlightSelectedAuthors = (authors: Author[], pubSearchFilter: PublicationSearchFilter) => {
+    let updatedAuthors = authors.map((author: Author) => {
+      let updatedAuthor;
+      // check if author id is one of selected person idenitfies
+      if (pubSearchFilter.filters.personIdentifers.includes(author.personIdentifier)) {
+        updatedAuthor = {
+          ...author,
+          highlightAuthor: "1"
+        }
+      } else {
+        updatedAuthor = {
+          ...author,
+          highlightAuthor: "0"
+        }
+      }
+
+      return updatedAuthor;
+    });
+
+    return updatedAuthors;
   }
 
   if (reportingFiltersLoading) {
