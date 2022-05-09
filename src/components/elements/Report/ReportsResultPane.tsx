@@ -18,6 +18,7 @@ interface ReportsResultPaneProps {
   journalTitleVerbose: string
   publicationDateDisplay: string
   publicationTypeCanonical: string
+  onClickAuthor?: (personalIdentifier: string) => void
 }
 
 export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ 
@@ -33,6 +34,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   journalTitleVerbose,
   publicationDateDisplay,
   publicationTypeCanonical,
+  onClickAuthor
  }) => {
   const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
   const doiUrl = 'https://doi.org/';
@@ -97,6 +99,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
       <div className="authors">
         <AuthorsComponent 
           authors={authors}
+          onClick={onClickAuthor}
           />
       </div>
       <div className="additional-info">

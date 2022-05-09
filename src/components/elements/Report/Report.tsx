@@ -14,6 +14,8 @@ import { getOffset } from "../../../utils/pagination";
 import Loader from "../Common/Loader";
 import { Author } from "../../../../types/Author";
 import { PublicationSearchFilter } from "../../../../types/publication.report.search";
+import Profile from "../Profile/Profile";
+import { useModal } from "../../../hooks/useModal";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -46,8 +48,12 @@ const Report = () => {
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
 
+  /* Custom Hooks */
   // pagination
   const [count, page, handlePaginationUpdate, handleCountUpdate] = usePagination(0);
+
+  // modal management
+  const [openModal, uid, updateUid, handleClose, handleShow] = useModal();
 
   // fetch filters on mount
   useEffect(() => {
@@ -95,7 +101,6 @@ const Report = () => {
   }
 
   const onPaginationUpdate = (newPage: number) => {
-
     // update the state of pagination
     handlePaginationUpdate(newPage);
 
@@ -222,6 +227,15 @@ const Report = () => {
     return updatedAuthors;
   }
 
+  // open modal on highlighted author click
+  const onClickAuthor = (personIdentifier: string) => {
+    // set author uid
+    updateUid(personIdentifier);
+
+    // // open modal
+    // handleShow();
+  }
+
   if (reportingFiltersLoading) {
     return (
       <Loader />
@@ -272,9 +286,16 @@ const Report = () => {
                 journalTitleVerbose={row.journalTitleVerbose}
                 publicationDateDisplay={row.publicationDateDisplay}
                 publicationTypeCanonical={row.publicationTypeCanonical}
+                onClickAuthor={onClickAuthor}
               />
             )
           })}
+            <Profile 
+              uid={uid}
+              modalShow={openModal}
+              handleShow={handleShow}
+              handleClose={handleClose}
+              />
         </div>}
       </div>
     </div>

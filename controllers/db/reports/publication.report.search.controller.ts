@@ -268,6 +268,7 @@ export const publicationAuthorSearchWithFilter = async (
         "pmid",
         ["authorFirstName", "firstName"],
         ["authorLastName", "lastName"],
+        "personIdentifier",
         "rank",
         [Sequelize.fn("MAX", Sequelize.col("targetAuthor")), "highlightAuthor"],
       ],
