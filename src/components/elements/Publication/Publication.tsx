@@ -1,6 +1,6 @@
 import React, { useState, FunctionComponent } from "react"
 import styles from './Publication.module.css';
-import ReactTooltip from 'react-tooltip';
+import { Popover, OverlayTrigger } from "react-bootstrap";
 import CheckIcon from '@mui/icons-material/Check';
 import ClearIcon from '@mui/icons-material/Clear';
 import UndoIcon from '@mui/icons-material/Undo';
@@ -107,8 +107,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const { item } = props;
 
     const { reciterArticle } = props;
-
-    var evidancePopoverHtml = "<strong>" + reciterArticle.totalArticleScoreNonStandardized + " :</strong> Raw score<br/><strong>" + reciterArticle.totalArticleScoreStandardized + " : </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>"+ props.fullName+"</b> wrote this article. To investigate which evidence is used to generate this score, click on \"Show evidence behind this suggestion.\"";
 
     const Buttons = ({index, pmid, userAssertion} : {
       index: number,
@@ -568,11 +566,19 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <div className="clear-both"></div>
             {(reciterArticle.evidence !==undefined)?
                 <React.Fragment>
-                    <p className={styles.publicationScore} data-tip={evidancePopoverHtml} data-place="right"
-                        data-effect="solid" data-html={true} data-class={styles.evidenceScorePopupContainer}>
-                        Matching<br />Score<br /><strong>{reciterArticle.totalArticleScoreStandardized}</strong>
-                    </p>
-                    <ReactTooltip />
+                    <OverlayTrigger 
+                      trigger={["focus", "hover"]} 
+                      overlay={(      
+                        <Popover id="keyword-information">
+                          <Popover.Body>
+                          <strong>{`${reciterArticle.totalArticleScoreNonStandardized} :`}</strong> Raw score<br/><strong>{`${reciterArticle.totalArticleScoreStandardized} :`} </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>{props.fullName}</b> wrote this article. To investigate which evidence is used to generate this score, click on &quot;Show evidence behind this suggestion.&quot;
+                          </Popover.Body>
+                        </Popover>)} placement="right">
+                          <p className={styles.publicationScore}>
+                            Matching<br />Score<br />
+                            <strong>{reciterArticle.totalArticleScoreStandardized}</strong>
+                          </p>
+                    </OverlayTrigger>
                 </React.Fragment>: <p></p>
             }
         </Col>
