@@ -571,7 +571,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       overlay={(      
                         <Popover id="keyword-information">
                           <Popover.Body>
-                          <strong>{`${reciterArticle.totalArticleScoreNonStandardized} :`}</strong> Raw score<br/><strong>{`${reciterArticle.totalArticleScoreStandardized} :`} </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>{props.fullName}</b> wrote this article. To investigate which evidence is used to generate this score, click on "Show evidence behind this suggestion."
+                          <strong>{`${reciterArticle.totalArticleScoreNonStandardized} :`}</strong> Raw score<br/><strong>{`${reciterArticle.totalArticleScoreStandardized} :`} </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>{props.fullName}</b> wrote this article. To investigate which evidence is used to generate this score, click on &quot;Show evidence behind this suggestion.&quot;
                           </Popover.Body>
                         </Popover>)} placement="right">
                           <p className={styles.publicationScore}>
