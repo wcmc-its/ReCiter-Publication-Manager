@@ -1553,10 +1553,17 @@ const getArticleTypeFilter = () => async(dispatch) => {
   }
 
   // Search Results for Create Reports Page
-  export const getReportsResults = ( requestBody ) => dispatch => {
-    dispatch({
-      type: methods.REPORTS_SEARCH_FETCHING
-    })
+  export const getReportsResults = ( requestBody, paginationUpdate = false ) => dispatch => {
+    // check if fetching different page of the same results and update loading state accordingly
+    if (paginationUpdate) {
+      dispatch({
+        type: methods.REPORTS_SEARCH_PAGINATED_FETCHING
+      })
+    } else {
+      dispatch({
+        type: methods.REPORTS_SEARCH_FETCHING
+      })
+    }
 
     fetch(`/api/db/reports/publication/search`, {
       credentials: "same-origin",
@@ -1605,9 +1612,15 @@ const getArticleTypeFilter = () => async(dispatch) => {
               payload: { count: data.count, rows: results}, 
             })
 
-            dispatch({
-              type: methods.REPORTS_SEARCH_CANCEL_FETCHING
-            })
+            if (paginationUpdate) {
+              dispatch({
+                type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
+              })
+            } else {
+              dispatch({
+                type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+              })
+            }
           });
       })
       .catch(error => {
@@ -1621,9 +1634,15 @@ const getArticleTypeFilter = () => async(dispatch) => {
               addError(error)
           )
 
-          dispatch({
-            type: methods.REPORTS_SEARCH_CANCEL_FETCHING
-          })
+          if (paginationUpdate) {
+            dispatch({
+              type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
+            })
+          } else {
+            dispatch({
+              type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+            })
+          }
       })
   }
 

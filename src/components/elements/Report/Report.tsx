@@ -16,6 +16,7 @@ import { Author } from "../../../../types/Author";
 import { PublicationSearchFilter } from "../../../../types/publication.report.search";
 import Profile from "../Profile/Profile";
 import { useModal } from "../../../hooks/useModal";
+import { Container } from "react-bootstrap";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -72,7 +73,7 @@ const Report = () => {
       dispatch(updatePubSearchFilters(updatedSearchFilter));
 
       // fetch data
-      dispatch(getReportsResults(updatedSearchFilter));
+      dispatch(getReportsResults(updatedSearchFilter, true));
     }
 
   }, [page, count])
@@ -107,7 +108,7 @@ const Report = () => {
     // fetch data
     let updatedSearchFilter = updatePagination(newPage, count, pubSearchFilter);
     dispatch(updatePubSearchFilters(updatedSearchFilter));
-    dispatch(getReportsResults(updatedSearchFilter));
+    dispatch(getReportsResults(updatedSearchFilter, true));
   }
 
   const onCountUpdate = (newCount: string) => {
@@ -188,7 +189,7 @@ const Report = () => {
     dispatch(updatePubSearchFilters(updatedSearchFilter));
 
     // fetch data
-    dispatch(getReportsResults(updatedSearchFilter));
+    dispatch(getReportsResults(updatedSearchFilter, true));
   }
 
   const getSelectedValues = (list) => {
@@ -231,14 +232,13 @@ const Report = () => {
   const onClickAuthor = (personIdentifier: string) => {
     // set author uid
     updateUid(personIdentifier);
-
-    // // open modal
-    // handleShow();
   }
 
   if (reportingFiltersLoading) {
     return (
-      <Loader />
+      <Container fluid className="h-100 justify-content-center align-items-center">
+        <Loader />
+      </Container>
     )
   } else return (
     <div>
@@ -253,7 +253,11 @@ const Report = () => {
           clearFilters={clearFilters}
           searchResults={searchResults}
           />
-        {reportsSearchResultsLoading && <Loader />}
+        {reportsSearchResultsLoading && 
+          <Container fluid className="h-100 p-5">
+            <Loader />
+          </Container>
+        }
         {!reportsSearchResultsLoading && 
         <div className="search-results-container">
           {reportsSearchResults && 
