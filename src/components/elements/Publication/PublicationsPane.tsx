@@ -1,6 +1,5 @@
 import React, { useState, FunctionComponent, MouseEvent } from "react"
 import styles from './Publication.module.css';
-import ReactTooltip from 'react-tooltip';
 import CheckIcon from '@mui/icons-material/Check';
 import ClearIcon from '@mui/icons-material/Clear';
 import UndoIcon from '@mui/icons-material/Undo';
