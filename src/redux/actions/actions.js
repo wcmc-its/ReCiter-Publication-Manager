@@ -1677,7 +1677,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
           "Content-Type": "application/json",
           'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(pubSearchFilterSortByDate)
+      // body: JSON.stringify(pubSearchFilterSortByDate)
     })
       .then(response => {
           if(response.status === 200) {
