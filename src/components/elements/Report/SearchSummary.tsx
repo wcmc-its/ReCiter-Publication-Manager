@@ -1,7 +1,9 @@
-import { Button, Dropdown, DropdownButton } from "react-bootstrap";
+import { Button, Dropdown, DropdownButton, Form } from "react-bootstrap";
 import { useState } from "react";
 import ExportModal from "./ExportModal";
 import { sortOptions } from "../../../../config/report";
+import { AiOutlineCheck } from "react-icons/ai";
+import styles from "./SearchSummary.module.css";
 
 const SortOptionTitles = {
   datePublicationAddedToEntrez: "date added",
@@ -13,21 +15,37 @@ const SortOptionTitles = {
   publicationDateStandarized: "date standardized"
 }
 
-const SearchSummary = ({ count }, { count: number}) => {
+const SearchSummary = ({ 
+  count, 
+  onClick,
+  selected 
+}: { count: number, onClick: (sort: string, value: boolean) => void, selected: string[]}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
 
+  const handleSelect = (option) => {
+    let value = true;
+    if (selected.includes(option)) {
+      value = false;
+    }
+
+    onClick(option, value);
+  }
+
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center">
+      <div className="d-flex justify-content-between align-items-center pt-5">
         <p className="mb-0"><b>{formatter.format(count)} publications</b></p>
         <div className="search-summary-buttons">
-        <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={() => console.log('sort')}>
+        <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
           {
             Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
               return (
-                <Dropdown.Item eventKey={index} key={index} value={sortOption}>{SortOptionTitles[sortOption]}</Dropdown.Item>
+                <Dropdown.Item eventKey={sortOption} key={index} className={`dropdown-item ${selected.includes(sortOption) ? styles.selected : styles.dropdownItem}`}>
+                  {selected.includes(sortOption) && <AiOutlineCheck />} 
+                  {SortOptionTitles[sortOption]}
+                </Dropdown.Item>
               )
             })
           }

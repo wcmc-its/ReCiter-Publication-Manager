@@ -22,7 +22,7 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getA
 
   return (
     <Dropdown className="d-inline-block">
-      <Dropdown.Toggle variant="primary" id="dropdown-basic">
+      <Dropdown.Toggle variant={values.some(value => value === undefined) ? "white" : "primary"} id="dropdown-basic">
         {name}
       </Dropdown.Toggle>
 

@@ -2,6 +2,9 @@ import React from  "react";
 import styles from "./ReportsResultPane.module.css";
 import { Popover, OverlayTrigger } from "react-bootstrap";
 import { infoBubblesConfig } from "../../../../config/report";
+import { AuthorsComponent } from "../Common/AuthorsComponent";
+import { Author } from "../../../../types/Author";
+import { reportConfig } from "../../../../config/report";
 
 interface ReportsResultPaneProps {
   title: string
@@ -12,9 +15,28 @@ interface ReportsResultPaneProps {
   relativeCitationRatio: number
   trendingPubsScore?: number
   journalImpactScore1?: number
+  authors: Author[]
+  journalTitleVerbose: string
+  publicationDateDisplay: string
+  publicationTypeCanonical: string
+  onClickAuthor?: (personalIdentifier: string) => void
 }
 
-export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmid, doi, citationCount, percentileRank, relativeCitationRatio, trendingPubsScore, journalImpactScore1 }) => {
+export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ 
+  title, 
+  pmid, 
+  doi, 
+  citationCount, 
+  percentileRank, 
+  relativeCitationRatio, 
+  trendingPubsScore, 
+  journalImpactScore1, 
+  authors,
+  journalTitleVerbose,
+  publicationDateDisplay,
+  publicationTypeCanonical,
+  onClickAuthor
+ }) => {
   const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
   const doiUrl = 'https://doi.org/';
 
@@ -46,6 +68,8 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmi
     }
   ]
 
+  const HIGHLIGHT_AUTHORS = reportConfig.authorFilters?.list?.author?.isEnabled;
+
   const DisplayInfo = ({ label, title, value}) => {
     if (value) {
       if (infoBubblesConfig[title]) {
@@ -73,9 +97,21 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ title, pmi
   }
 
   return (
-    <div className="search-result-container">
-      <div className="seach-result-title">{title}</div>
+    <div className={styles.searchResultContainer}>
+      <div className="seach-result-title"><b>{title}</b></div>
+      <div className="authors">
+        <AuthorsComponent 
+          authors={authors}
+          onClick={onClickAuthor}
+          highlightAuthors={HIGHLIGHT_AUTHORS}
+          />
+      </div>
       <div className="additional-info">
+        <div>
+          <span className={styles.midDot}> {journalTitleVerbose} </span>
+          <span className={styles.midDot}> {publicationDateDisplay} </span>
+          <span className={styles.midDot}> {publicationTypeCanonical} </span>
+        </div>
        <div className={`${styles.reportsAdditionalInfo} pt-2`}>
           <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a>{' '}</span>
           <span className={styles.midDot}>{' '}<a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>

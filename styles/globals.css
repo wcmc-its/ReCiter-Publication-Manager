@@ -137,3 +137,8 @@ h1 {
   border-top-right-radius: 0.25rem;
   border-bottom-right-radius: 0.25rem;
 }
+
+.dropdown .btn-white {
+  background-color: white;
+  border: 1px solid #ced4da;
+}

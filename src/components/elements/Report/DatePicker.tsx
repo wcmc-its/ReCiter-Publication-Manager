@@ -14,7 +14,9 @@ export const DatePicker = ({ name, range, handleChange, filterLowerName, filterU
   }
 
   const handleDatesChange = ({ startDate, endDate }) => {
-    handleChange(filterLowerName, filterUpperName, startDate, endDate);
+    let formattedStartDate = startDate.format('YYYY-MM-DD');
+    let formattedEndDate = endDate.format('YYYY-MM-DD');
+    handleChange(filterLowerName, filterUpperName, formattedStartDate, formattedEndDate);
   };
 
   const rangeDates = range[0];
@@ -30,7 +32,7 @@ export const DatePicker = ({ name, range, handleChange, filterLowerName, filterU
   
   return (
     <Dropdown show={showDropdown} className="d-inline-block">
-      <Dropdown.Toggle variant="primary" id="dropdown-basic" onClick={toggleDropdown}>
+      <Dropdown.Toggle variant={(selectedStartDate !== "" || selectedEndDate !== "") ? "primary" : "white"} id="dropdown-basic" onClick={toggleDropdown}>
         {name}
       </Dropdown.Toggle>
       <Dropdown.Menu className="px-4">

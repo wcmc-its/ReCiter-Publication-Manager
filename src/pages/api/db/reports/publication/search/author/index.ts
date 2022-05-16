@@ -6,7 +6,7 @@ import { PersonArticleAuthor } from '../../../../../../../db/models/PersonArticl
 
 export default async function handler(req: NextApiRequest,
     res: NextApiResponse<PersonArticleAuthor | string>) {
-    if (req.method === "GET") {
+    if (req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
             const apiBody: PublicationAuthorSearchFilter = req.body;
             try{
@@ -23,6 +23,6 @@ export default async function handler(req: NextApiRequest,
         }
     } else {
          // Default this to a bad request for now
-         res.status(400).send('HTTP Method supported is GET')
+         res.status(400).send('HTTP Method supported is POST')
     }
 }

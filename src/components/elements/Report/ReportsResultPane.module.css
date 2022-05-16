@@ -23,3 +23,7 @@
 .infoTitle {
   text-decoration: underline dotted;
 }
+
+.searchResultContainer {
+  padding: 25px 30px;
+}

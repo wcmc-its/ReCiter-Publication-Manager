@@ -19,7 +19,7 @@ export const CheckList = ({ title, options, onUpdateFilter, filterName, selected
   }
 
   return (
-    <DropdownWrapper title={title}>
+    <DropdownWrapper title={title} variant={ selectedOptions.length > 0 ? "primary" : "white"}>
       <div>
         {
           options.map((option) => {

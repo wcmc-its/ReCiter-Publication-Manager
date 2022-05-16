@@ -5,8 +5,8 @@ export type PublicationSearchFilter = {
         institutions?: Array<string>,
         personTypes?: Array<string>,
         authorPosition?: Array<AuthorPosition>
-        datePublicationAddedToEntrezLowerBound?: string,
-        datePublicationAddedToEntrezUpperBound?: string,
+        datePublicationAddedToEntrezLowerBound?: string, // format: YYYY-MM-DD
+        datePublicationAddedToEntrezUpperBound?: string, // format: YYYY-MM-DD
         publicationTypeCanonical?: Array<string>,
         journalTitleVerbose?: Array<string>,
         journalImpactScoreLowerBound?: number,
