@@ -102,19 +102,23 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSea
       <div className={`title ${styles.filterName}`}>{title}</div>
       <div className={`filters-container ${styles.filtersContainer}`}>
         {Object.keys(filters).map((filter, index) => {
-          return (
-            <DisplayFilter 
-              filter={filters[filter]}
-              index={index}
-              key={index}
-              filterOptions={filterOptions}
-              filterUpdateOptions={filterUpdateOptions}
-              onSetSearchFilters={onSetSearchFilters}
-              filterName={filterNameToState[filter]}
-              onSetRangeFilters={onSetRangeFilters}
-              selectedFilters={selectedFilters}
-              />
-          )
+          if (filters[filter].isEnabled) {
+            return (
+              <DisplayFilter 
+                filter={filters[filter]}
+                index={index}
+                key={index}
+                filterOptions={filterOptions}
+                filterUpdateOptions={filterUpdateOptions}
+                onSetSearchFilters={onSetSearchFilters}
+                filterName={filterNameToState[filter]}
+                onSetRangeFilters={onSetRangeFilters}
+                selectedFilters={selectedFilters}
+                />
+            )
+          } else {
+            return null;
+          }
         })}
       </div>
     </div>
