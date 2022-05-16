@@ -4,6 +4,7 @@ import { Popover, OverlayTrigger } from "react-bootstrap";
 import { infoBubblesConfig } from "../../../../config/report";
 import { AuthorsComponent } from "../Common/AuthorsComponent";
 import { Author } from "../../../../types/Author";
+import { reportConfig } from "../../../../config/report";
 
 interface ReportsResultPaneProps {
   title: string
@@ -67,6 +68,8 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
     }
   ]
 
+  const HIGHLIGHT_AUTHORS = reportConfig.authorFilters?.list?.author?.isEnabled;
+
   const DisplayInfo = ({ label, title, value}) => {
     if (value) {
       if (infoBubblesConfig[title]) {
@@ -100,6 +103,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
         <AuthorsComponent 
           authors={authors}
           onClick={onClickAuthor}
+          highlightAuthors={HIGHLIGHT_AUTHORS}
           />
       </div>
       <div className="additional-info">
