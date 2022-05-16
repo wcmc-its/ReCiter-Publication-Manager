@@ -1647,7 +1647,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
   }
 
   // Default Data for Create Reports Page
-  export const getReportsResultsInitial = () => dispatch => {
+  export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => {
     dispatch({
       type: methods.REPORTS_SEARCH_FETCHING
     })
@@ -1677,7 +1677,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
           "Content-Type": "application/json",
           'Authorization': reciterConfig.backendApiKey
       },
-      // body: JSON.stringify(pubSearchFilterSortByDate)
+      body: JSON.stringify({ limit, offset})
     })
       .then(response => {
           if(response.status === 200) {

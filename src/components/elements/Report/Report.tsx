@@ -74,6 +74,11 @@ const Report = () => {
 
       // fetch data
       dispatch(getReportsResults(updatedSearchFilter, true));
+    } else {
+      // calculate the offset
+      let offset = getOffset(page, count);
+      // dispatch data with default settings by passing limit and offset
+      dispatch(getReportsResultsInitial(count, offset));
     }
 
   }, [page, count])
@@ -105,10 +110,12 @@ const Report = () => {
     // update the state of pagination
     handlePaginationUpdate(newPage);
 
-    // fetch data
-    let updatedSearchFilter = updatePagination(newPage, count, pubSearchFilter);
-    dispatch(updatePubSearchFilters(updatedSearchFilter));
-    dispatch(getReportsResults(updatedSearchFilter, true));
+    if (!isInitialLoad) {
+      // fetch data
+      let updatedSearchFilter = updatePagination(newPage, count, pubSearchFilter);
+      dispatch(updatePubSearchFilters(updatedSearchFilter));
+      dispatch(getReportsResults(updatedSearchFilter, true));
+    }
   }
 
   const onCountUpdate = (newCount: string) => {
