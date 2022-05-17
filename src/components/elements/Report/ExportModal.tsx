@@ -6,10 +6,11 @@ interface ExportModalProps {
   handleClose: () => void,
   countInfo: string,
   exportArticle: () => void,
-  exportAuthorship?: () => void
+  exportAuthorship?: () => void,
+  exportArticlePeople?: () => void, 
 }
 
-const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, exportAuthorship }: ExportModalProps) => {
+const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, exportAuthorship, exportArticlePeople }: ExportModalProps) => {
   return (
     <div>
       <Modal show={show} onHide={handleClose}>
@@ -19,7 +20,8 @@ const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, expor
         <Modal.Body>
           <p>According to the criteria you have set, there are {countInfo}</p>
         {exportAuthorship && <Button variant="warning" className="m-2">Export authorship report</Button>}
-        <Button variant="warning" className="m-2">Export Article Report</Button>
+        <Button variant="warning" className="m-2" onClick={exportArticle}>Export Article Report</Button>
+        {exportArticlePeople && <Button variant="warning" className="m-2">Export articles as RTF</Button>}
         </Modal.Body>
       </Modal>
     </div>

@@ -7,7 +7,7 @@ export const generatePubsRtf = async (
   res: NextApiResponse
 ) => {
   try {
-    let apiBody: GeneratePubsApiBody = req.body;
+    let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
     const generatePubsRtfOutput: any = await sequelize.query(
       "CALL generatePubsRTF (:uids , :pmids)",
       {
