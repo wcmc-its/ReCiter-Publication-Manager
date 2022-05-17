@@ -4,6 +4,8 @@ import ExportModal from "./ExportModal";
 import { sortOptions } from "../../../../config/report";
 import { AiOutlineCheck } from "react-icons/ai";
 import styles from "./SearchSummary.module.css";
+import { reciterConfig } from "../../../../config/local";
+import { useSelector, RootStateOrAny } from "react-redux";
 
 const SortOptionTitles = {
   datePublicationAddedToEntrez: "date added",
@@ -24,6 +26,9 @@ const SearchSummary = ({
   const [openRTF, setOpenRTF] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
 
+  // Search Results
+  const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
+
   const handleSelect = (option) => {
     let value = true;
     if (selected.includes(option)) {
@@ -31,6 +36,48 @@ const SearchSummary = ({
     }
 
     onClick(option, value);
+  }
+
+  const exportArticle = () => {
+    
+    // get person identifiers and pmids from results
+    let pmids = reportsSearchResults?.rows?.map((row) => row.pmid);
+    let personIdentifiers = new Set();
+    reportsSearchResults?.rows?.forEach((row) => {
+      if (row.authors.length > 0) {
+        personIdentifiers.add(row.authors[0].personIdentifier);
+      }
+    });
+    let personIdentifiersArr = Array.from(personIdentifiers);
+
+    fetch(`/api/db/reports/publication`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify({
+        "personIdentifiers" : personIdentifiersArr,
+        "pmids" : pmids
+      })
+    }).then(response => {
+      return response.blob();
+    })
+    .then(fileBlob => {
+      let date = new Date().toISOString().slice(0, 10);
+      let fileName = 'ArticleReport-ReCiter-' + date + ".rtf";
+      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+      link.href = window.URL.createObjectURL(fileBlob)
+      link.download = fileName;
+      link.click()
+      link.remove();
+    })
+    .catch(error => {
+      console.log(error)
+      // setIsError(true);
+      // setIsLoading(false);
+    })
   }
 
   return (
@@ -67,7 +114,8 @@ const SearchSummary = ({
         handleClose={() => setOpenRTF(false)}
         title="RTF"
         countInfo=""
-        exportArticle={() => console.log('Export Article')}
+        exportArticle={exportArticle}
+        exportArticlePeople={() => console.log('Export Article People Only')}
       />
     </>
   )
