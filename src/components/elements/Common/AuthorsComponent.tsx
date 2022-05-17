@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import type { Author } from '../../../../types/Author';
 import styles from "./AuthorsComponent.module.css";
 
-const Author = ({author, index, count, onClick, highlightAuthors} : {
+const AuthorComponent = ({author, index, count, onClick, highlightAuthors} : {
   author: Author,
   index: number,
   count: number,
@@ -34,7 +34,7 @@ const AuthorsList = ({ authors, onClick, highlightAuthors } : {
   return (
     <ul className={styles.listInline}>
       {
-        authors && authors.map((author, i) => <Author author={author} key={i} index={i} count={authors.length} onClick={onClick} highlightAuthors={highlightAuthors}></Author>  )
+        authors && authors.map((author, i) => <AuthorComponent author={author} key={i} index={i} count={authors.length} onClick={onClick} highlightAuthors={highlightAuthors}></AuthorComponent>  )
       }
     </ul>
   )
@@ -60,7 +60,7 @@ export const AuthorsComponent = ({ authors, onClick, highlightAuthors} : { autho
         <AuthorsList authors={authorsDefaultDisplay} onClick={onClick} highlightAuthors={highlightAuthors}></AuthorsList>
         <button className={styles.btnNoStyling} onClick={() => {setExpandedAuthors(true)}}>[...]</button>
         <ul className={styles.listInline}>
-          <Author author={lastAuthor} index={authCount - 1} count={authCount} onClick={onClick} highlightAuthors={highlightAuthors}></Author>
+          <AuthorComponent author={lastAuthor} index={authCount - 1} count={authCount} onClick={onClick} highlightAuthors={highlightAuthors}></AuthorComponent>
         </ul>
       </>
     )
