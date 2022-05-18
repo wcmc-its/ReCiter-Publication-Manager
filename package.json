@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "preinstall": "npm install --package-lock-only --ignore-scripts && npx npm-force-resolutions",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -64,5 +65,8 @@
     "jsonwebtoken": "^8.5.1",
     "sequelize-auto": "^0.8.5",
     "typescript": "4.4.3"
+  },
+  "resolutions": {
+    "@types/react": "^17.0.38"
   }
 }
