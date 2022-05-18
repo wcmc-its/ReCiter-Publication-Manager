@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "preinstall": "npm install --package-lock-only --ignore-scripts && npx npm-force-resolutions",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -55,7 +56,6 @@
     "@types/react": "^17.0.24",
     "@types/react-dates": "^21.8.3",
     "@types/react-redux": "^7.1.20",
-    "@types/react-tooltip": "^4.2.4",
     "@types/saml2-js": "^3.0.0",
     "@types/styled-components": "^5.1.15",
     "@types/validator": "^13.6.6",
@@ -65,5 +65,8 @@
     "jsonwebtoken": "^8.5.1",
     "sequelize-auto": "^0.8.5",
     "typescript": "4.4.3"
+  },
+  "resolutions": {
+    "@types/react": "^17.0.38"
   }
 }
