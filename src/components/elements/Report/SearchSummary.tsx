@@ -80,6 +80,48 @@ const SearchSummary = ({
     })
   }
 
+  const exportArticlePeopleOnly = () => {
+    
+    // get person identifiers and pmids from results
+    let pmids = reportsSearchResults?.rows?.map((row) => row.pmid);
+    let personIdentifiers = new Set();
+    reportsSearchResults?.rows?.forEach((row) => {
+      if (row.authors.length > 0) {
+        personIdentifiers.add(row.authors[0].personIdentifier);
+      }
+    });
+    let personIdentifiersArr = Array.from(personIdentifiers);
+
+    fetch(`/api/db/reports/publication/people-only`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify({
+        "personIdentifiers" : personIdentifiersArr,
+        "pmids" : pmids
+      })
+    }).then(response => {
+      return response.blob();
+    })
+    .then(fileBlob => {
+      let date = new Date().toISOString().slice(0, 10);
+      let fileName = 'ArticleReport-ReCiter-' + date + ".rtf";
+      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+      link.href = window.URL.createObjectURL(fileBlob)
+      link.download = fileName;
+      link.click()
+      link.remove();
+    })
+    .catch(error => {
+      console.log(error)
+      // setIsError(true);
+      // setIsLoading(false);
+    })
+  }
+
   return (
     <>
       <div className="d-flex justify-content-between align-items-center pt-5">
@@ -115,7 +157,7 @@ const SearchSummary = ({
         title="RTF"
         countInfo=""
         exportArticle={exportArticle}
-        exportArticlePeople={() => console.log('Export Article People Only')}
+        exportArticlePeople={exportArticlePeopleOnly}
       />
     </>
   )

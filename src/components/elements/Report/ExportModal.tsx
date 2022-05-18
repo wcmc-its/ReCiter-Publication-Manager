@@ -21,7 +21,7 @@ const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, expor
           <p>According to the criteria you have set, there are {countInfo}</p>
         {exportAuthorship && <Button variant="warning" className="m-2">Export authorship report</Button>}
         <Button variant="warning" className="m-2" onClick={exportArticle}>Export Article Report</Button>
-        {exportArticlePeople && <Button variant="warning" className="m-2">Export articles as RTF</Button>}
+        {exportArticlePeople && <Button variant="warning" className="m-2" onClick={exportArticlePeople}>Export articles as RTF</Button>}
         </Modal.Body>
       </Modal>
     </div>
