@@ -24,6 +24,7 @@ const SearchSummary = ({
 }: { count: number, onClick: (sort: string, value: boolean) => void, selected: string[]}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
+  const [exportError, setExportError] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
 
   // Search Results
@@ -75,7 +76,7 @@ const SearchSummary = ({
     })
     .catch(error => {
       console.log(error)
-      // setIsError(true);
+      setExportError(true);
       // setIsLoading(false);
     })
   }
@@ -117,7 +118,7 @@ const SearchSummary = ({
     })
     .catch(error => {
       console.log(error)
-      // setIsError(true);
+      setExportError(true);
       // setIsLoading(false);
     })
   }
@@ -158,6 +159,7 @@ const SearchSummary = ({
         countInfo=""
         exportArticle={exportArticle}
         exportArticlePeople={exportArticlePeopleOnly}
+        error={exportError}
       />
     </>
   )

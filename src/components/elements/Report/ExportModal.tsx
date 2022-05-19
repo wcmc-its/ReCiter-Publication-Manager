@@ -1,4 +1,4 @@
-import { Modal, Button } from "react-bootstrap";
+import { Modal, Button, Alert } from "react-bootstrap";
 
 interface ExportModalProps {
   title: string,
@@ -8,9 +8,10 @@ interface ExportModalProps {
   exportArticle: () => void,
   exportAuthorship?: () => void,
   exportArticlePeople?: () => void, 
+  error?: boolean
 }
 
-const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, exportAuthorship, exportArticlePeople }: ExportModalProps) => {
+const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, exportAuthorship, exportArticlePeople, error }: ExportModalProps) => {
   return (
     <div>
       <Modal show={show} onHide={handleClose}>
@@ -22,6 +23,7 @@ const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, expor
         {exportAuthorship && <Button variant="warning" className="m-2">Export authorship report</Button>}
         <Button variant="warning" className="m-2" onClick={exportArticle}>Export Article Report</Button>
         {exportArticlePeople && <Button variant="warning" className="m-2" onClick={exportArticlePeople}>Export articles as RTF</Button>}
+        {error && <Alert variant="danger">Error occured exporting, please try again later.</Alert>}
         </Modal.Body>
       </Modal>
     </div>
