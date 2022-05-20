@@ -650,6 +650,17 @@ export const reportsSearchResultsLoading = ( state = false, action) => {
   }
 }
 
+export const reportsPaginatedResultsLoading = (state = false, action) => {
+  switch(action.type) {
+    case methods.REPORTS_SEARCH_PAGINATED_FETCHING :
+      return true
+    case methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING :
+      return false
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -690,5 +701,6 @@ export default combineReducers({
     reportingFiltersLoading,
     pubSearchFilter,
     reportsSearchResults,
-    reportsSearchResultsLoading
+    reportsSearchResultsLoading,
+    reportsPaginatedResultsLoading
 })
