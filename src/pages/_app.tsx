@@ -38,6 +38,7 @@ import { Fragment } from 'react'
 import type { AppProps } from 'next/app'
 import { Provider } from "next-auth/client"
 import type { NextPage } from 'next'
+import type { ReactElement, ReactNode } from 'react'
 
 
 // this should give a better typing
