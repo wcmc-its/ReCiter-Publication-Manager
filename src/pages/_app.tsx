@@ -37,6 +37,7 @@ import type { Page } from '../../types/pages'
 import { Fragment } from 'react'
 import type { AppProps } from 'next/app'
 import { Provider } from "next-auth/client"
+import type { NextPage } from 'next'
 
 
 // this should give a better typing
@@ -44,7 +45,15 @@ type Props = AppProps & {
   Component: Page
 }
 
-export default function App({ Component, pageProps: { session, ...pageProps } }: Props) {
+type NextPageWithLayout = NextPage & {
+  getLayout?: (page: ReactElement) => ReactNode
+}
+
+type AppPropsWithLayout = AppProps & {
+  Component: NextPageWithLayout
+}
+
+export default function App({ Component, pageProps: { session, ...pageProps } }: AppPropsWithLayout) {
   const store = useStore(pageProps.initialReduxState)
   // Use the layout defined at the page level, if available
   const getLayout = Component.getLayout ?? ((page) => page)
