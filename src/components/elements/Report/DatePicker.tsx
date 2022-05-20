@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from "react";
 import { DateRangePicker, SingleDatePicker, DayPickerRangeController } from 'react-dates';
 import 'react-dates/initialize';
