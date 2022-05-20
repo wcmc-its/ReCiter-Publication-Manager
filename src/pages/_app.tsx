@@ -48,15 +48,12 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
   const store = useStore(pageProps.initialReduxState)
   // Use the layout defined at the page level, if available
   const getLayout = Component.getLayout ?? ((page) => page)
-  const Layout = Component.layout ?? Fragment
 
   return (
     <Provider session={pageProps.session}>
-      <Layout>
         <ReduxProvider store={store}>
           {getLayout(<Component {...pageProps} />)}
         </ReduxProvider>
-      </Layout>
     </Provider>
   )
   
