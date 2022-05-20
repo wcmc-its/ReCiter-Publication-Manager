@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { reportConfig } from "../../../../config/report"
 import { Button } from "react-bootstrap";
 import styles from "./FilterSection.module.css";
