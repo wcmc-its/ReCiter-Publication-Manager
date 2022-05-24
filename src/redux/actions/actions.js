@@ -1693,6 +1693,17 @@ const getArticleTypeFilter = () => async(dispatch) => {
       })
       .then(data => {
 
+          if (data.count === 0) {
+            dispatch({
+              type: methods.REPORTS_SEARCH_UPDATE,
+              payload: data, 
+            })
+
+            dispatch({
+              type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+            })
+          }
+          
           let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
 
           getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
