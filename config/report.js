@@ -107,3 +107,7 @@ export const infoBubblesConfig = {
   includeHeadshot: true,
   headshotSyntax: "https://directory.weill.cornell.edu/api/v1/person/profile/{personID}.png?returnGenericOn404=false"
 }
+
+export const limits = {
+  maxCountPubsReturn: 1800
+}
