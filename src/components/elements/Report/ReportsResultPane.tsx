@@ -114,7 +114,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
         </div>
        <div className={`${styles.reportsAdditionalInfo} pt-2`}>
           <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a>{' '}</span>
-          <span className={styles.midDot}>{' '}<a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
+          {doi && <span className={styles.midDot}>{' '}<a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>}
           {
             ADDITIONAL_INFO_CONFIGS.map(({ label, title, value}) => {
               return (
