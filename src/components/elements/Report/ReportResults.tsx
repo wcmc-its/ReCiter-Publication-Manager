@@ -5,7 +5,7 @@ import { ReportsResultPane } from "./ReportsResultPane";
 interface ReportResultsProps  {
   results: any,
   loading: boolean,
-  onClickAuthor: () => void
+  onClickAuthor: (personIdentifier: string) => void
 }
 export const ReportResults: React.FC<ReportResultsProps> = ({ results, loading, onClickAuthor }) => {
   if (loading) {
