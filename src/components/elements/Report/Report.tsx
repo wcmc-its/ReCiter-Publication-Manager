@@ -17,6 +17,7 @@ import { PublicationSearchFilter } from "../../../../types/publication.report.se
 import Profile from "../Profile/Profile";
 import { useModal } from "../../../hooks/useModal";
 import { Container } from "react-bootstrap";
+import { ReportResults } from "./ReportResults";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -29,6 +30,9 @@ const Report = () => {
 
   // search results loading state
   const reportsSearchResultsLoading = useSelector((state: RootStateOrAny) => state.reportsSearchResultsLoading)
+
+  // search results loading state on pagination update
+  const reportsPaginatedResultsLoading = useSelector((state: RootStateOrAny) => state.reportsPaginatedResultsLoading)
 
   // list of options for filters
   const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
@@ -65,20 +69,22 @@ const Report = () => {
   // fetch new data on page and count update
   useEffect(() => {
 
-    if (!isInitialLoad) {
-      // update offset and limit
-      let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
+    if (page !== 1) {
+      if (!isInitialLoad) {
+        // update offset and limit
+        let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
 
-      // dispatch redux filter state update
-      dispatch(updatePubSearchFilters(updatedSearchFilter));
+        // dispatch redux filter state update
+        dispatch(updatePubSearchFilters(updatedSearchFilter));
 
-      // fetch data
-      dispatch(getReportsResults(updatedSearchFilter, true));
-    } else {
-      // calculate the offset
-      let offset = getOffset(page, count);
-      // dispatch data with default settings by passing limit and offset
-      dispatch(getReportsResultsInitial(count, offset));
+        // fetch data
+        dispatch(getReportsResults(updatedSearchFilter, true));
+      } else {
+        // calculate the offset
+        let offset = getOffset(page, count);
+        // dispatch data with default settings by passing limit and offset
+        dispatch(getReportsResultsInitial(count, offset));
+      }
     }
 
   }, [page, count])
@@ -178,6 +184,7 @@ const Report = () => {
 
   const searchResults = () => {
     dispatch(getReportsResults(pubSearchFilter));
+    handlePaginationUpdate(1);
     if (isInitialLoad) {
       setIsInitialLoad(false);
     }
@@ -281,26 +288,11 @@ const Report = () => {
             onChange={onPaginationUpdate}
             onCountChange={onCountUpdate}
             />
-          {Object.keys(reportsSearchResults).length > 0 && reportsSearchResults?.rows.map((row) => {
-            return (
-              <ReportsResultPane
-                key={row.pmid}
-                title={row.articleTitle}
-                pmid={row.pmid}
-                doi={row.doi}
-                citationCount={row.citationCountNIH}
-                percentileRank={row.percentileNIH}
-                relativeCitationRatio={row.relativeCitationRatioNIH}
-                trendingPubsScore={row.trendingPubsScore}
-                journalImpactScore1={row.journalImpactScore1}
-                authors={row.authors}
-                journalTitleVerbose={row.journalTitleVerbose}
-                publicationDateDisplay={row.publicationDateDisplay}
-                publicationTypeCanonical={row.publicationTypeCanonical}
-                onClickAuthor={onClickAuthor}
-              />
-            )
-          })}
+          <ReportResults
+            results={reportsSearchResults}
+            loading={reportsPaginatedResultsLoading}
+            onClickAuthor={onClickAuthor}
+          />
             <Profile 
               uid={uid}
               modalShow={openModal}

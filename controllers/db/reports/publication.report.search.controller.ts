@@ -28,7 +28,7 @@ export const publicationSearchWithFilter = async (
   try {
     let apiBody: PublicationSearchFilter = req.body;
     const where = {};
-    if (apiBody && apiBody.filters) {
+    if (apiBody.filters) {
       where[Op.and] = [];
       if (
         apiBody.filters.journalTitleVerbose &&
