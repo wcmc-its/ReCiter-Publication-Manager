@@ -37,6 +37,8 @@ import { AnalysisSummaryArticle } from "./AnalysisSummaryArticle";
 import type { AnalysisSummaryArticleAttributes, AnalysisSummaryArticleCreationAttributes } from "./AnalysisSummaryArticle";
 import { AnalysisSummaryAuthor } from "./AnalysisSummaryAuthor";
 import type { AnalysisSummaryAuthorAttributes, AnalysisSummaryAuthorCreationAttributes } from "./AnalysisSummaryAuthor";
+import { AnalysisSummaryAuthorList } from "./AnalysisSummaryAuthorList";
+import type { AnalysisSummaryAuthorListAttributes, AnalysisSummaryAuthorListCreationAttributes } from "./AnalysisSummaryAuthorList";
 import { AnalysisSummaryPerson } from "./AnalysisSummaryPerson";
 import type { AnalysisSummaryPersonAttributes, AnalysisSummaryPersonCreationAttributes } from "./AnalysisSummaryPerson";
 import { AnalysisTempArticle } from "./AnalysisTempArticle";
@@ -96,6 +98,7 @@ export {
   AnalysisSpecialCharacter,
   AnalysisSummaryArticle,
   AnalysisSummaryAuthor,
+  AnalysisSummaryAuthorList,
   AnalysisSummaryPerson,
   AnalysisTempArticle,
   AnalysisTempHindex,
@@ -156,6 +159,8 @@ export type {
   AnalysisSummaryArticleCreationAttributes,
   AnalysisSummaryAuthorAttributes,
   AnalysisSummaryAuthorCreationAttributes,
+  AnalysisSummaryAuthorListAttributes,
+  AnalysisSummaryAuthorListCreationAttributes,
   AnalysisSummaryPersonAttributes,
   AnalysisSummaryPersonCreationAttributes,
   AnalysisTempArticleAttributes,
@@ -216,6 +221,7 @@ export function initModels(sequelize: Sequelize) {
   AnalysisSpecialCharacter.initModel(sequelize);
   AnalysisSummaryArticle.initModel(sequelize);
   AnalysisSummaryAuthor.initModel(sequelize);
+  AnalysisSummaryAuthorList.initModel(sequelize);
   AnalysisSummaryPerson.initModel(sequelize);
   AnalysisTempArticle.initModel(sequelize);
   AnalysisTempHindex.initModel(sequelize);
@@ -271,6 +277,7 @@ export function initModels(sequelize: Sequelize) {
     AnalysisSpecialCharacter: AnalysisSpecialCharacter,
     AnalysisSummaryArticle: AnalysisSummaryArticle,
     AnalysisSummaryAuthor: AnalysisSummaryAuthor,
+    AnalysisSummaryAuthorList: AnalysisSummaryAuthorList,
     AnalysisSummaryPerson: AnalysisSummaryPerson,
     AnalysisTempArticle: AnalysisTempArticle,
     AnalysisTempHindex: AnalysisTempHindex,
