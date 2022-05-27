@@ -294,6 +294,8 @@ const Report = () => {
             results={reportsSearchResults}
             loading={reportsPaginatedResultsLoading}
             onClickAuthor={onClickAuthor}
+            pubSearchFilter={pubSearchFilter}
+            highlightSelectedAuthors={highlightSelectedAuthors}
           />
             <Profile 
               uid={uid}

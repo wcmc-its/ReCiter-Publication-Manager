@@ -1,13 +1,17 @@
 import React from "react";
 import Loader from "../Common/Loader";
 import { ReportsResultPane } from "./ReportsResultPane";
+import { PublicationSearchFilter } from "../../../../types/publication.report.search";
+import { Author } from "../../../../types/Author";
 
 interface ReportResultsProps  {
   results: any,
   loading: boolean,
-  onClickAuthor: (personIdentifier: string) => void
+  onClickAuthor: (personIdentifier: string) => void,
+  pubSearchFilter?: PublicationSearchFilter,
+  highlightSelectedAuthors: (authors: Author[], pubSearchFilter: PublicationSearchFilter) => Author[]
 }
-export const ReportResults: React.FC<ReportResultsProps> = ({ results, loading, onClickAuthor }) => {
+export const ReportResults: React.FC<ReportResultsProps> = ({ results, loading, onClickAuthor, pubSearchFilter, highlightSelectedAuthors }) => {
   if (loading) {
     return (
       <div className="m-5">
@@ -31,7 +35,7 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ results, loading, 
             relativeCitationRatio={row.relativeCitationRatioNIH}
             trendingPubsScore={row.trendingPubsScore}
             journalImpactScore1={row.journalImpactScore1}
-            authors={row.authors}
+            authors={highlightSelectedAuthors(row.authors, pubSearchFilter)}
             journalTitleVerbose={row.journalTitleVerbose}
             publicationDateDisplay={row.publicationDateDisplay}
             publicationTypeCanonical={row.publicationTypeCanonical}

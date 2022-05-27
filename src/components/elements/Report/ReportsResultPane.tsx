@@ -103,7 +103,6 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
         <AuthorsComponent 
           authors={authors}
           onClick={onClickAuthor}
-          highlightAuthors={HIGHLIGHT_AUTHORS}
           />
       </div>
       <div className="additional-info">
