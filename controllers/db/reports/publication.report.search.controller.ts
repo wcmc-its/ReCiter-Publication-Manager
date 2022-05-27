@@ -2,7 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import {
   AnalysisSummaryArticle,
-  PersonArticleAuthor
+  PersonArticleAuthor,
+  AnalysisSummaryAuthorList
 } from "../../../src/db/models/init-models";
 import models from "../../../src/db/sequelize";
 import {
@@ -250,27 +251,26 @@ export const publicationAuthorSearchWithFilter = async (
     if (apiBody && apiBody.pmids && apiBody.pmids.length > 0) {
       where[Op.and] = [];
       where[Op.and].push({
-        "$PersonArticleAuthor.pmid$": {
+        "$AnalysisSummaryAuthorList.pmid$": {
           [Op.in]: apiBody.pmids,
         },
       });
       if (apiBody.personIdentifers && apiBody.personIdentifers.length > 0) {
         where[Op.and].push({
-          "$PersonArticleAuthor.personIdentifier$": {
+          "$AnalysisSummaryAuthorList.personIdentifier$": {
             [Op.in]: apiBody.personIdentifers,
           },
         });
       }
     }
     let searchOutput: any[] = [];
-    searchOutput = await models.PersonArticleAuthor.findAll({
+    searchOutput = await models.AnalysisSummaryAuthorList.findAll({
       attributes: [
         "pmid",
         ["authorFirstName", "firstName"],
         ["authorLastName", "lastName"],
         "personIdentifier",
         "rank",
-        [Sequelize.fn("MAX", Sequelize.col("targetAuthor")), "highlightAuthor"],
       ],
       where: where,
       group: ["pmid", "rank"],
