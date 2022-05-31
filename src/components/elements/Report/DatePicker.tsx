@@ -14,8 +14,8 @@ export const DatePicker = ({ name, range, handleChange, filterLowerName, filterU
   }
 
   const handleDatesChange = ({ startDate, endDate }) => {
-    let formattedStartDate = startDate.format('YYYY-MM-DD');
-    let formattedEndDate = endDate.format('YYYY-MM-DD');
+    let formattedStartDate = startDate ? startDate.format('YYYY-MM-DD') : null;
+    let formattedEndDate = endDate ? endDate.format('YYYY-MM-DD') : null;
     handleChange(filterLowerName, filterUpperName, formattedStartDate, formattedEndDate);
   };
 
@@ -37,9 +37,9 @@ export const DatePicker = ({ name, range, handleChange, filterLowerName, filterU
       </Dropdown.Toggle>
       <Dropdown.Menu className="px-4">
         <DateRangePicker
-          startDate={selectedStartDate || null} // momentPropTypes.momentObj or null,
+          startDate={selectedStartDate ? moment(selectedStartDate) : null} // momentPropTypes.momentObj or null,
           startDateId="date_picker_start_date_id" // PropTypes.string.isRequired,
-          endDate={selectedEndDate || null} // momentPropTypes.momentObj or null,
+          endDate={selectedEndDate ? moment(selectedEndDate) : null} // momentPropTypes.momentObj or null,
           endDateId="date_picker_end_date_id" // PropTypes.string.isRequired,
           onDatesChange={handleDatesChange} // PropTypes.func.isRequired,
           focusedInput={focusedInput} // PropTypes.oneOf([START_DATE, END_DATE]) or null,
