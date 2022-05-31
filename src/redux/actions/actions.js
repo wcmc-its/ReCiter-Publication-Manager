@@ -1589,6 +1589,16 @@ const getArticleTypeFilter = () => async(dispatch) => {
       })
       .then(data => {
 
+        if (data.count === 0) {
+          dispatch({
+            type: methods.REPORTS_SEARCH_UPDATE,
+            payload: data, 
+          })
+
+          dispatch({
+            type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+          })
+        } else {
           let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
 
           getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
@@ -1622,6 +1632,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
               })
             }
           });
+        }
       })
       .catch(error => {
           console.log(error)
@@ -1702,35 +1713,35 @@ const getArticleTypeFilter = () => async(dispatch) => {
             dispatch({
               type: methods.REPORTS_SEARCH_CANCEL_FETCHING
             })
-          }
-          
-          let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
+          } else {
+            let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
 
-          getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
-            // given authors data merge it with the rest of the results
-            let results = data.rows.map((row) => {
-              let authorsList = [];
-              authorsData.forEach((authorResult) => {
-                if (parseInt(authorResult.pmid) === row.pmid) {
-                  authorsList = [...authorResult.authors];
+            getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
+              // given authors data merge it with the rest of the results
+              let results = data.rows.map((row) => {
+                let authorsList = [];
+                authorsData.forEach((authorResult) => {
+                  if (parseInt(authorResult.pmid) === row.pmid) {
+                    authorsList = [...authorResult.authors];
+                  }
+                })
+  
+                return {
+                  ...row,
+                  authors: [...authorsList]
                 }
               })
-
-              return {
-                ...row,
-                authors: [...authorsList]
-              }
-            })
-
-            dispatch({
-              type: methods.REPORTS_SEARCH_UPDATE,
-              payload: { count: data.count, rows: results}, 
-            })
-
-            dispatch({
-              type: methods.REPORTS_SEARCH_CANCEL_FETCHING
-            })
-          });
+  
+              dispatch({
+                type: methods.REPORTS_SEARCH_UPDATE,
+                payload: { count: data.count, rows: results}, 
+              })
+  
+              dispatch({
+                type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+              })
+            });
+          }
       })
       .catch(error => {
           console.log(error)

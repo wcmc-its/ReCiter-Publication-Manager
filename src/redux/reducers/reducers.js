@@ -602,7 +602,7 @@ export const initialStatePubSearchFilter = {
     // journalImpactScoreLowerBound: 2,
     // journalImpactScoreUpperBound: 42
   },
-  limit: 10,
+  limit: 20,
   offset: 0,
   sort: {
     datePublicationAddedToEntrez: true,
