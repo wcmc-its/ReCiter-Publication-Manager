@@ -429,7 +429,7 @@ export const publicationSearchWithFilterPmids = async (
       if (apiBody.sort.trendingPubsScore)
         sort.push(["trendingPubsScore", "DESC"]);
     }
-    let searchOutput: number[]  = [];
+    let searchOutput: any  = [];
     if (apiBody.filters) {
       let results = await models.AnalysisSummaryArticle.findAll({
         include: [
@@ -484,7 +484,30 @@ export const publicationSearchWithFilterPmids = async (
         group: ["AnalysisSummaryAuthor.pmid"],
         attributes: ["pmid"]
       });
-      searchOutput = results.map(result => result.pmid);
+      let pmids = results.map(result => result.pmid);
+      let personIdentifers: any[] = [];
+      if (pmids && pmids.length > 0) {
+        // get personIdentifiers
+        const whereAuthors = {};
+        whereAuthors[Op.and] = [];
+        whereAuthors[Op.and].push({
+          "$AnalysisSummaryAuthorList.pmid$": {
+            [Op.in]: pmids,
+          },
+        });
+        personIdentifers = await models.AnalysisSummaryAuthorList.findAll({
+          attributes: [
+            "personIdentifier",
+          ],
+          where: whereAuthors,
+          group: ["personIdentifier"]
+        }).then((output) => {
+          return output.map(result => result.personIdentifier);
+        })
+        console.log(personIdentifers);
+      }
+      // searchOutput = results.map(result => result.pmid);
+      searchOutput = { personIdentifers, pmids };
     } else {
       let results = await models.AnalysisSummaryArticle.findAll({
         where: Sequelize.where(
