@@ -26,6 +26,8 @@ const SearchSummary = ({
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
+  const [exportArticleLoading, setExportArticleLoading] = useState(false);
+  const [exportArticlePplLoading, setExportArticlePplLoading] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
 
   // Search Results
@@ -54,6 +56,7 @@ const SearchSummary = ({
   }
 
   const generateExportArticle = (requestBody: ReporstResultId) => {
+    setExportArticleLoading(true);
     fetch(`/api/db/reports/publication`, {
       credentials: "same-origin",
       method: 'POST',
@@ -73,11 +76,12 @@ const SearchSummary = ({
       link.download = fileName;
       link.click()
       link.remove();
+      setExportArticleLoading(false);
     })
     .catch(error => {
       console.log(error)
       setExportError(true);
-      // setIsLoading(false);
+      setExportArticleLoading(false);
     })
   }
 
@@ -92,6 +96,7 @@ const SearchSummary = ({
   }
 
   const generateRTFPeopleOnly = (requestBody: ReporstResultId) => {
+    setExportArticlePplLoading(true);
     fetch(`/api/db/reports/publication/people-only`, {
       credentials: "same-origin",
       method: 'POST',
@@ -111,11 +116,12 @@ const SearchSummary = ({
       link.download = fileName;
       link.click()
       link.remove();
+      setExportArticlePplLoading(false);
     })
     .catch(error => {
       console.log(error)
       setExportError(true);
-      // setIsLoading(false);
+      setExportArticlePplLoading(false);
     })
   }
 
@@ -154,7 +160,9 @@ const SearchSummary = ({
         title="RTF"
         countInfo=""
         exportArticle={exportArticle}
+        exportArticleLoading={exportArticleLoading}
         exportArticlePeople={exportArticlePeopleOnly}
+        exportArticlePeopleLoading={exportArticlePplLoading}
         error={exportError}
       />
     </>
