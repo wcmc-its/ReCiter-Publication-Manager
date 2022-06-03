@@ -6,6 +6,7 @@ import { AiOutlineCheck } from "react-icons/ai";
 import styles from "./SearchSummary.module.css";
 import { reciterConfig } from "../../../../config/local";
 import { useSelector, RootStateOrAny } from "react-redux";
+import { ReporstResultId } from "../../../../types/publication.report.search";
 
 const SortOptionTitles = {
   datePublicationAddedToEntrez: "date added",
@@ -30,6 +31,9 @@ const SearchSummary = ({
   // Search Results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
 
+  // PersonIdentifiers and pmids of all Search Results
+  const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
+
   const handleSelect = (option) => {
     let value = true;
     if (selected.includes(option)) {
@@ -41,16 +45,15 @@ const SearchSummary = ({
 
   const exportArticle = () => {
     
-    // get person identifiers and pmids from results
-    let pmids = reportsSearchResults?.rows?.map((row) => row.pmid);
-    let personIdentifiers = new Set();
-    reportsSearchResults?.rows?.forEach((row) => {
-      if (row.authors.length > 0) {
-        personIdentifiers.add(row.authors[0].personIdentifier);
+    if (Object.keys(reportsResultsIds)) {
+      generateExportArticle (reportsResultsIds);
+    } else {
+      // TODO: fetch data if it hasn't been on the page load
+     
       }
-    });
-    let personIdentifiersArr = Array.from(personIdentifiers);
+  }
 
+  const generateExportArticle = (requestBody: ReporstResultId) => {
     fetch(`/api/db/reports/publication`, {
       credentials: "same-origin",
       method: 'POST',
@@ -58,10 +61,7 @@ const SearchSummary = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify({
-        "personIdentifiers" : personIdentifiersArr,
-        "pmids" : pmids
-      })
+      body: JSON.stringify(requestBody)
     }).then(response => {
       return response.blob();
     })
@@ -82,17 +82,16 @@ const SearchSummary = ({
   }
 
   const exportArticlePeopleOnly = () => {
-    
-    // get person identifiers and pmids from results
-    let pmids = reportsSearchResults?.rows?.map((row) => row.pmid);
-    let personIdentifiers = new Set();
-    reportsSearchResults?.rows?.forEach((row) => {
-      if (row.authors.length > 0) {
-        personIdentifiers.add(row.authors[0].personIdentifier);
-      }
-    });
-    let personIdentifiersArr = Array.from(personIdentifiers);
 
+    if (Object.keys(reportsResultsIds)) {
+      generateRTFPeopleOnly(reportsResultsIds);
+    } else {
+      // TODO: fetch data if it hasn't been on the page load
+     
+      }
+  }
+
+  const generateRTFPeopleOnly = (requestBody: ReporstResultId) => {
     fetch(`/api/db/reports/publication/people-only`, {
       credentials: "same-origin",
       method: 'POST',
@@ -100,10 +99,7 @@ const SearchSummary = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify({
-        "personIdentifiers" : personIdentifiersArr,
-        "pmids" : pmids
-      })
+      body: JSON.stringify({ personIdentifiers: requestBody.personIdentifiers })
     }).then(response => {
       return response.blob();
     })

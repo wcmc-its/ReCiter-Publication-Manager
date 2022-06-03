@@ -661,6 +661,17 @@ export const reportsPaginatedResultsLoading = (state = false, action) => {
   }
 }
 
+export const reportsResultsIds = (state = {}, action) => {
+  switch(action.type) {
+    case methods.REPORTS_RESULTS_IDS_UPDATE:
+      return action.payload
+    case methods.REPORTS_RESULTS_IDS_CLEAR:
+      return {}
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -702,5 +713,6 @@ export default combineReducers({
     pubSearchFilter,
     reportsSearchResults,
     reportsSearchResultsLoading,
-    reportsPaginatedResultsLoading
+    reportsPaginatedResultsLoading,
+    reportsResultsIds
 })

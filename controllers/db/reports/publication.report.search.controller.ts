@@ -485,7 +485,7 @@ export const publicationSearchWithFilterPmids = async (
         attributes: ["pmid"]
       });
       let pmids = results.map(result => result.pmid);
-      let personIdentifers: any[] = [];
+      let personIdentifiers: any[] = [];
       if (pmids && pmids.length > 0) {
         // get personIdentifiers
         const whereAuthors = {};
@@ -495,7 +495,7 @@ export const publicationSearchWithFilterPmids = async (
             [Op.in]: pmids,
           },
         });
-        personIdentifers = await models.AnalysisSummaryAuthorList.findAll({
+        personIdentifiers = await models.AnalysisSummaryAuthorList.findAll({
           attributes: [
             "personIdentifier",
           ],
@@ -504,10 +504,9 @@ export const publicationSearchWithFilterPmids = async (
         }).then((output) => {
           return output.map(result => result.personIdentifier);
         })
-        console.log(personIdentifers);
       }
       // searchOutput = results.map(result => result.pmid);
-      searchOutput = { personIdentifers, pmids };
+      searchOutput = { personIdentifiers, pmids };
     } else {
       let results = await models.AnalysisSummaryArticle.findAll({
         where: Sequelize.where(
