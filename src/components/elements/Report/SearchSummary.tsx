@@ -6,6 +6,7 @@ import { AiOutlineCheck } from "react-icons/ai";
 import styles from "./SearchSummary.module.css";
 import { reciterConfig } from "../../../../config/local";
 import { useSelector, RootStateOrAny } from "react-redux";
+import { ReporstResultId } from "../../../../types/publication.report.search";
 
 const SortOptionTitles = {
   datePublicationAddedToEntrez: "date added",
@@ -25,10 +26,15 @@ const SearchSummary = ({
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
+  const [exportArticleLoading, setExportArticleLoading] = useState(false);
+  const [exportArticlePplLoading, setExportArticlePplLoading] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
 
   // Search Results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
+
+  // PersonIdentifiers and pmids of all Search Results
+  const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
 
   const handleSelect = (option) => {
     let value = true;
@@ -41,16 +47,16 @@ const SearchSummary = ({
 
   const exportArticle = () => {
     
-    // get person identifiers and pmids from results
-    let pmids = reportsSearchResults?.rows?.map((row) => row.pmid);
-    let personIdentifiers = new Set();
-    reportsSearchResults?.rows?.forEach((row) => {
-      if (row.authors.length > 0) {
-        personIdentifiers.add(row.authors[0].personIdentifier);
+    if (Object.keys(reportsResultsIds)) {
+      generateExportArticle (reportsResultsIds);
+    } else {
+      // TODO: fetch data if it hasn't been on the page load
+     
       }
-    });
-    let personIdentifiersArr = Array.from(personIdentifiers);
+  }
 
+  const generateExportArticle = (requestBody: ReporstResultId) => {
+    setExportArticleLoading(true);
     fetch(`/api/db/reports/publication`, {
       credentials: "same-origin",
       method: 'POST',
@@ -58,10 +64,7 @@ const SearchSummary = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify({
-        "personIdentifiers" : personIdentifiersArr,
-        "pmids" : pmids
-      })
+      body: JSON.stringify(requestBody)
     }).then(response => {
       return response.blob();
     })
@@ -73,26 +76,27 @@ const SearchSummary = ({
       link.download = fileName;
       link.click()
       link.remove();
+      setExportArticleLoading(false);
     })
     .catch(error => {
       console.log(error)
       setExportError(true);
-      // setIsLoading(false);
+      setExportArticleLoading(false);
     })
   }
 
   const exportArticlePeopleOnly = () => {
-    
-    // get person identifiers and pmids from results
-    let pmids = reportsSearchResults?.rows?.map((row) => row.pmid);
-    let personIdentifiers = new Set();
-    reportsSearchResults?.rows?.forEach((row) => {
-      if (row.authors.length > 0) {
-        personIdentifiers.add(row.authors[0].personIdentifier);
-      }
-    });
-    let personIdentifiersArr = Array.from(personIdentifiers);
 
+    if (Object.keys(reportsResultsIds)) {
+      generateRTFPeopleOnly(reportsResultsIds);
+    } else {
+      // TODO: fetch data if it hasn't been on the page load
+     
+      }
+  }
+
+  const generateRTFPeopleOnly = (requestBody: ReporstResultId) => {
+    setExportArticlePplLoading(true);
     fetch(`/api/db/reports/publication/people-only`, {
       credentials: "same-origin",
       method: 'POST',
@@ -100,10 +104,7 @@ const SearchSummary = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify({
-        "personIdentifiers" : personIdentifiersArr,
-        "pmids" : pmids
-      })
+      body: JSON.stringify({ personIdentifiers: requestBody.personIdentifiers })
     }).then(response => {
       return response.blob();
     })
@@ -115,11 +116,12 @@ const SearchSummary = ({
       link.download = fileName;
       link.click()
       link.remove();
+      setExportArticlePplLoading(false);
     })
     .catch(error => {
       console.log(error)
       setExportError(true);
-      // setIsLoading(false);
+      setExportArticlePplLoading(false);
     })
   }
 
@@ -158,7 +160,9 @@ const SearchSummary = ({
         title="RTF"
         countInfo=""
         exportArticle={exportArticle}
+        exportArticleLoading={exportArticleLoading}
         exportArticlePeople={exportArticlePeopleOnly}
+        exportArticlePeopleLoading={exportArticlePplLoading}
         error={exportError}
       />
     </>
