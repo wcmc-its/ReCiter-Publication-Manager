@@ -22,7 +22,7 @@ const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, expor
           <Modal.Title>Export to {title}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p>According to the criteria you have set, there are {countInfo}</p>
+          <p>According to the criteria you have set, there are {countInfo}.</p>
         <ExportButton isDisplay={exportAuthorship != null} onClick={exportAuthorship} title="Export authorship report"/>
         <ExportButton isDisplay={true} onClick={exportArticle} title="Export Article Report" loading={exportArticleLoading} />
         <ExportButton isDisplay={exportArticlePeople != null} onClick={exportArticlePeople} title="Export articles as RTF" loading={exportArticlePeopleLoading} />
