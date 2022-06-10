@@ -44,7 +44,7 @@ export const authorFilter = async (
           },
         ],
       },
-      limit: 20,
+      limit: 10,
     });
 
     res.send(persons);
@@ -118,7 +118,7 @@ export const journalFilter = async (
       ],
       where: where,
       order: [["journalTitleVerbose", "ASC"]],
-      limit: 20,
+      limit: 10,
     });
     res.send(journalTitles);
   } catch (e) {

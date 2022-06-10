@@ -6,6 +6,7 @@ import styles from "./ChecboxSelect.module.css";
 
 export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
+  const [selectedList, setSelectedList] = useState<any>([]);
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newInput = e.target.value;
@@ -40,11 +41,29 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
 
     if (checked) {
       updatedSelected = [...selectedOptions, value]
+
+      // find the option
+      let optionObj = options.find(option => option[optionValue] == value);
+      // add to the selected list state to display at the bottom of the options
+      if (optionObj) {
+        let updatedList = [...selectedList, optionObj];
+        setSelectedList(updatedList);
+      }
     } else {
       updatedSelected = selectedOptions.filter(option => option != value)
+
+      // remove from the selected list state
+      let updatedList = selectedList.filter(item => item[optionValue] != value);
+      setSelectedList(updatedList);
     }
     
     onUpdateFilter(filterName, updatedSelected);
+  }
+
+  const onRemoveSelected = (event) => {
+    // remove from the selected list
+    let updatedList = selectedList.filter(item => item[optionValue] !== event.target.value)
+    setSelectedList(updatedList);
   }
 
   return (
@@ -78,6 +97,24 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
             )
           })
         }
+        <div className={styles.selectFiltersContainer}>
+          <div className={styles.divider}></div>
+            {
+              selectedList.map((item, index) => {
+                return (
+                  <Form.Check
+                    type="checkbox"
+                    id={item.key}
+                    key={`${item.key}_${index}`}
+                    label={getLabel(item)}
+                    value={item[optionValue]}
+                    checked={selectedOptions && selectedOptions.includes(item[optionValue]) }
+                    onChange={(e) => onRemoveSelected(e)}
+                    />
+                )
+              })
+            }
+        </div>
       </div>
     </DropdownWrapper>
   )
