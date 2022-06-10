@@ -82,6 +82,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
               <AiOutlineSearch style={{ marginTop: "-2px" }} />
             </div>
        </InputGroup>
+       <div className={styles.selectListContainer}>
         {
           filteredOptions(options, isDynamicFetch).map((option) => {
             return (
@@ -96,7 +97,8 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
                 />
             )
           })
-        }
+          }
+       </div>
         {
           selectedList.length > 0 && 
           <div className={styles.selectFiltersContainer}>

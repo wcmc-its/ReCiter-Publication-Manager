@@ -6,3 +6,9 @@
   border: 0.5px solid lightgray;
   margin: 0.3rem 0;
 }
+
+.selectListContainer {
+  max-height: 200px;
+  overflow-y: scroll;
+  padding-left: 4px;
+}
