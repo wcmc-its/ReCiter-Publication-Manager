@@ -35,6 +35,7 @@ const SearchSummary = ({
 
   // PersonIdentifiers and pmids of all Search Results
   const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
+  const reposrtResultsLoading = useSelector((state: RootStateOrAny) => state.reposrtResultsLoading)
 
   const handleSelect = (option) => {
     let value = true;
@@ -158,11 +159,12 @@ const SearchSummary = ({
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo=""
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.pmids.length)} articles and ${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships` : ""}
         exportArticle={exportArticle}
         exportArticleLoading={exportArticleLoading}
         exportArticlePeople={exportArticlePeopleOnly}
         exportArticlePeopleLoading={exportArticlePplLoading}
+        loadingResults={reposrtResultsLoading}
         error={exportError}
       />
     </>

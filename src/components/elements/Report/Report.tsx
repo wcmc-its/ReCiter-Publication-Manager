@@ -82,8 +82,10 @@ const Report = () => {
       } else {
         // calculate the offset
         let offset = getOffset(page, count);
-        // dispatch data with default settings by passing limit and offset
+        // fetch data with default settings by passing limit and offset
         dispatch(getReportsResultsInitial(count, offset));
+        // fetch all personidentifiers and pmids
+        dispatch(fetchReportsResultsIds(pubSearchFilter));
       }
     }
 

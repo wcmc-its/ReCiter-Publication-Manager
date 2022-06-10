@@ -672,6 +672,17 @@ export const reportsResultsIds = (state = {}, action) => {
   }
 }
 
+export const reportsResultsIdsLoading = (state = false, action) => {
+  switch(action.type) {
+    case methods.REPORTS_RESULTS_IDS_LOADING:
+      return true
+    case methods.REPORTS_RESULTS_IDS_CANCEL_LOADING:
+      return false
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -714,5 +725,6 @@ export default combineReducers({
     reportsSearchResults,
     reportsSearchResultsLoading,
     reportsPaginatedResultsLoading,
-    reportsResultsIds
+    reportsResultsIds,
+    reportsResultsIdsLoading
 })

@@ -1794,6 +1794,9 @@ export const getReportsAuthors = ( pmids ) => {
 
 // Get personIdentifiers and pmids of results of Create Reports
 export const fetchReportsResultsIds = (requestBody) => dispatch => {
+  dispatch({
+    type: methods.REPORTS_RESULTS_IDS_LOADING
+  })
   fetch(`/api/db/reports/publication/search/pmids`, {
     credentials: "same-origin",
       method: 'POST',
@@ -1819,6 +1822,9 @@ export const fetchReportsResultsIds = (requestBody) => dispatch => {
       type: methods.REPORTS_RESULTS_IDS_UPDATE,
       payload: data
     })
+    dispatch({
+      type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+    })
   }).catch(error => {
     console.log(error)
     toast.error("Reports Search Pmids Api failed - " + error.title, {
@@ -1829,5 +1835,8 @@ export const fetchReportsResultsIds = (requestBody) => dispatch => {
     dispatch(
         addError(error)
     )
+    dispatch({
+      type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+    })
   })
 }
