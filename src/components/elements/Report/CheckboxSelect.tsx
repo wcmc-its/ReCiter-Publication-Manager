@@ -97,24 +97,27 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
             )
           })
         }
-        <div className={styles.selectFiltersContainer}>
-          <div className={styles.divider}></div>
-            {
-              selectedList.map((item, index) => {
-                return (
-                  <Form.Check
-                    type="checkbox"
-                    id={item.key}
-                    key={`${item.key}_${index}`}
-                    label={getLabel(item)}
-                    value={item[optionValue]}
-                    checked={selectedOptions && selectedOptions.includes(item[optionValue]) }
-                    onChange={(e) => onRemoveSelected(e)}
-                    />
-                )
-              })
-            }
-        </div>
+        {
+          selectedList.length > 0 && 
+          <div className={styles.selectFiltersContainer}>
+            <div className={styles.divider}></div>
+              {
+                selectedList.map((item, index) => {
+                  return (
+                    <Form.Check
+                      type="checkbox"
+                      id={item.key}
+                      key={`${item.key}_${index}`}
+                      label={getLabel(item)}
+                      value={item[optionValue]}
+                      checked={selectedOptions && selectedOptions.includes(item[optionValue]) }
+                      onChange={(e) => onRemoveSelected(e)}
+                      />
+                  )
+                })
+              }
+          </div>
+        }
       </div>
     </DropdownWrapper>
   )
