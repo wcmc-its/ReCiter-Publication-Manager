@@ -158,7 +158,7 @@ const SearchSummary = ({
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${reportsResultsIds.pmids.length} articles and ${reportsResultsIds.personIdentifiers.length} known authorships` : ""}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.pmids.length)} articles and ${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships` : ""}
         exportArticle={exportArticle}
         exportArticleLoading={exportArticleLoading}
         exportArticlePeople={exportArticlePeopleOnly}
