@@ -1,5 +1,6 @@
 import { Modal, Button, Alert } from "react-bootstrap";
 import { ExportButton } from "./ExportButton";
+import Loader from "../Common/Loader";
 
 interface ExportModalProps {
   title: string,
@@ -11,10 +12,19 @@ interface ExportModalProps {
   exportAuthorship?: () => void,
   exportArticlePeople?: () => void, 
   exportArticlePeopleLoading?: boolean,
+  loadingResults?: boolean,
   error?: boolean
 }
 
-const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, exportAuthorship, exportArticlePeople, error, exportArticleLoading, exportArticlePeopleLoading }: ExportModalProps) => {
+const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, exportAuthorship, exportArticlePeople, error, exportArticleLoading, exportArticlePeopleLoading, loadingResults }: ExportModalProps) => {
+  if (loadingResults) {
+    return (
+      <div className="d-flex justify-content-center align-items-center">
+        <Loader />
+      </div>
+    )
+  }
+
   return (
     <div>
       <Modal show={show} onHide={handleClose}>

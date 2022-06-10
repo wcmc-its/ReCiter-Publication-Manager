@@ -35,6 +35,7 @@ const SearchSummary = ({
 
   // PersonIdentifiers and pmids of all Search Results
   const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
+  const reposrtResultsLoading = useSelector((state: RootStateOrAny) => state.reposrtResultsLoading)
 
   const handleSelect = (option) => {
     let value = true;
@@ -163,6 +164,7 @@ const SearchSummary = ({
         exportArticleLoading={exportArticleLoading}
         exportArticlePeople={exportArticlePeopleOnly}
         exportArticlePeopleLoading={exportArticlePplLoading}
+        loadingResults={reposrtResultsLoading}
         error={exportError}
       />
     </>
