@@ -106,12 +106,12 @@ const Report = () => {
   }
 
 
-  const updateAuthorFilterData = (input: string) => {
-    dispatch(updateAuthorFilter(input))
+  const updateAuthorFilterData = (input: string, count: number = 10) => {
+    dispatch(updateAuthorFilter(input, count))
   }
 
-  const updateJournalFilterData = (input: string) => {
-    dispatch(updateJournalFilter(input));
+  const updateJournalFilterData = (input: string, count: number = 10) => {
+    dispatch(updateJournalFilter(input, count));
   }
 
   const onPaginationUpdate = (newPage: number) => {

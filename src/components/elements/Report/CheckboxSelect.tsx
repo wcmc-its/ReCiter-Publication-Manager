@@ -7,6 +7,7 @@ import styles from "./ChecboxSelect.module.css";
 export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
   const [selectedList, setSelectedList] = useState<any>([]);
+  const [totalCount, setTotalCount] = useState<number>(10);
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newInput = e.target.value;
@@ -66,6 +67,12 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     setSelectedList(updatedList);
   }
 
+  const onLoadMore = () => {
+    let updatedCount = totalCount + 12;
+    setTotalCount(updatedCount);
+    filterUpdateOptions[value](userInput, updatedCount);
+  }
+
   return (
     <DropdownWrapper title={title} variant={ selectedOptions.length > 0 ? "primary" : "white"}>
       <div className={styles.dropdownContainer}>
@@ -99,6 +106,12 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
           })
           }
        </div>
+       {
+         isDynamicFetch &&
+         <div className="d-flex justify-content-center">
+           <Button className="transparent-button" onClick={onLoadMore}>See More</Button>
+         </div>
+       }
         {
           selectedList.length > 0 && 
           <div className={styles.selectFiltersContainer}>
