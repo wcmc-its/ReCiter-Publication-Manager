@@ -6,6 +6,8 @@ import styles from "./ChecboxSelect.module.css";
 
 export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
+  const [selectedList, setSelectedList] = useState<any>([]);
+  const [totalCount, setTotalCount] = useState<number>(10);
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newInput = e.target.value;
@@ -40,11 +42,35 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
 
     if (checked) {
       updatedSelected = [...selectedOptions, value]
+
+      // find the option
+      let optionObj = options.find(option => option[optionValue] == value);
+      // add to the selected list state to display at the bottom of the options
+      if (optionObj) {
+        let updatedList = [...selectedList, optionObj];
+        setSelectedList(updatedList);
+      }
     } else {
       updatedSelected = selectedOptions.filter(option => option != value)
+
+      // remove from the selected list state
+      let updatedList = selectedList.filter(item => item[optionValue] != value);
+      setSelectedList(updatedList);
     }
     
     onUpdateFilter(filterName, updatedSelected);
+  }
+
+  const onRemoveSelected = (event) => {
+    // remove from the selected list
+    let updatedList = selectedList.filter(item => item[optionValue] !== event.target.value)
+    setSelectedList(updatedList);
+  }
+
+  const onLoadMore = () => {
+    let updatedCount = totalCount + 12;
+    setTotalCount(updatedCount);
+    filterUpdateOptions[value](userInput, updatedCount);
   }
 
   return (
@@ -63,13 +89,14 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
               <AiOutlineSearch style={{ marginTop: "-2px" }} />
             </div>
        </InputGroup>
+       <div className={styles.selectListContainer}>
         {
-          filteredOptions(options, isDynamicFetch).map((option) => {
+          filteredOptions(options, isDynamicFetch).map((option, index) => {
             return (
               <Form.Check
                 type="checkbox"
                 id={option.key}
-                key={option.key}
+                key={option[optionValue]}
                 label={getLabel(option)}
                 value={option[optionValue]}
                 checked={selectedOptions && selectedOptions.includes(option[optionValue]) }
@@ -77,6 +104,34 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
                 />
             )
           })
+          }
+       </div>
+       {
+         isDynamicFetch &&
+         <div className="d-flex justify-content-center">
+           <Button className="transparent-button" onClick={onLoadMore}>See More</Button>
+         </div>
+       }
+        {
+          selectedList.length > 0 && 
+          <div className={styles.selectFiltersContainer}>
+            <div className={styles.divider}></div>
+              {
+                selectedList.map((item, index) => {
+                  return (
+                    <Form.Check
+                      type="checkbox"
+                      id={item.key}
+                      key={`${item[optionValue]}_${index}_selected`}
+                      label={getLabel(item)}
+                      value={item[optionValue]}
+                      checked={selectedOptions && selectedOptions.includes(item[optionValue]) }
+                      onChange={(e) => onRemoveSelected(e)}
+                      />
+                  )
+                })
+              }
+          </div>
         }
       </div>
     </DropdownWrapper>

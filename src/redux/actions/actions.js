@@ -1446,8 +1446,8 @@ const getArticleTypeFilter = () => async(dispatch) => {
   }
 
   // Update Author Filter
-  export const updateAuthorFilter  = ( authorInput ) => (dispatch) => {
-      fetch(`/api/db/reports/filter/author?authorFilter=${authorInput}`, {
+  export const updateAuthorFilter  = ( authorInput, count ) => (dispatch) => {
+      fetch(`/api/db/reports/filter/author?authorFilter=${authorInput}&count=${count}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
@@ -1476,8 +1476,8 @@ const getArticleTypeFilter = () => async(dispatch) => {
   }
 
   // Update Journal Filter
-  export const updateJournalFilter = ( journalInput ) => (dispatch) => {
-    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}`, {
+  export const updateJournalFilter = ( journalInput, count ) => (dispatch) => {
+    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}&count=${count}`, {
       credentials: "same-origin",
       method: 'GET',
       headers: {
