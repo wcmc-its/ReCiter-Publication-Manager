@@ -91,12 +91,12 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
        </InputGroup>
        <div className={styles.selectListContainer}>
         {
-          filteredOptions(options, isDynamicFetch).map((option) => {
+          filteredOptions(options, isDynamicFetch).map((option, index) => {
             return (
               <Form.Check
                 type="checkbox"
                 id={option.key}
-                key={option.key}
+                key={option[optionValue]}
                 label={getLabel(option)}
                 value={option[optionValue]}
                 checked={selectedOptions && selectedOptions.includes(option[optionValue]) }
@@ -122,7 +122,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
                     <Form.Check
                       type="checkbox"
                       id={item.key}
-                      key={`${item.key}_${index}`}
+                      key={`${item[optionValue]}_${index}_selected`}
                       label={getLabel(item)}
                       value={item[optionValue]}
                       checked={selectedOptions && selectedOptions.includes(item[optionValue]) }
