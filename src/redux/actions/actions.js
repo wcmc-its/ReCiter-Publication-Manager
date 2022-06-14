@@ -1446,8 +1446,8 @@ const getArticleTypeFilter = () => async(dispatch) => {
   }
 
   // Update Author Filter
-  export const updateAuthorFilter  = ( authorInput ) => (dispatch) => {
-      fetch(`/api/db/reports/filter/author?authorFilter=${authorInput}`, {
+  export const updateAuthorFilter  = ( authorInput, count ) => (dispatch) => {
+      fetch(`/api/db/reports/filter/author?authorFilter=${authorInput}&count=${count}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
@@ -1476,8 +1476,8 @@ const getArticleTypeFilter = () => async(dispatch) => {
   }
 
   // Update Journal Filter
-  export const updateJournalFilter = ( journalInput ) => (dispatch) => {
-    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}`, {
+  export const updateJournalFilter = ( journalInput, count ) => (dispatch) => {
+    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}&count=${count}`, {
       credentials: "same-origin",
       method: 'GET',
       headers: {
@@ -1589,6 +1589,16 @@ const getArticleTypeFilter = () => async(dispatch) => {
       })
       .then(data => {
 
+        if (data.count === 0) {
+          dispatch({
+            type: methods.REPORTS_SEARCH_UPDATE,
+            payload: data, 
+          })
+
+          dispatch({
+            type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+          })
+        } else {
           let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
 
           getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
@@ -1622,6 +1632,7 @@ const getArticleTypeFilter = () => async(dispatch) => {
               })
             }
           });
+        }
       })
       .catch(error => {
           console.log(error)
@@ -1693,33 +1704,44 @@ const getArticleTypeFilter = () => async(dispatch) => {
       })
       .then(data => {
 
-          let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
-
-          getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
-            // given authors data merge it with the rest of the results
-            let results = data.rows.map((row) => {
-              let authorsList = [];
-              authorsData.forEach((authorResult) => {
-                if (parseInt(authorResult.pmid) === row.pmid) {
-                  authorsList = [...authorResult.authors];
-                }
-              })
-
-              return {
-                ...row,
-                authors: [...authorsList]
-              }
-            })
-
+          if (data.count === 0) {
             dispatch({
               type: methods.REPORTS_SEARCH_UPDATE,
-              payload: { count: data.count, rows: results}, 
+              payload: data, 
             })
 
             dispatch({
               type: methods.REPORTS_SEARCH_CANCEL_FETCHING
             })
-          });
+          } else {
+            let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
+
+            getReportsAuthors({pmids: [...pmids]}).then(authorsData => {
+              // given authors data merge it with the rest of the results
+              let results = data.rows.map((row) => {
+                let authorsList = [];
+                authorsData.forEach((authorResult) => {
+                  if (parseInt(authorResult.pmid) === row.pmid) {
+                    authorsList = [...authorResult.authors];
+                  }
+                })
+  
+                return {
+                  ...row,
+                  authors: [...authorsList]
+                }
+              })
+  
+              dispatch({
+                type: methods.REPORTS_SEARCH_UPDATE,
+                payload: { count: data.count, rows: results}, 
+              })
+  
+              dispatch({
+                type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+              })
+            });
+          }
       })
       .catch(error => {
           console.log(error)
@@ -1768,4 +1790,53 @@ export const getReportsAuthors = ( pmids ) => {
     .catch(error => {
         console.log(error)
     })
+}
+
+// Get personIdentifiers and pmids of results of Create Reports
+export const fetchReportsResultsIds = (requestBody) => dispatch => {
+  dispatch({
+    type: methods.REPORTS_RESULTS_IDS_LOADING
+  })
+  fetch(`/api/db/reports/publication/search/pmids`, {
+    credentials: "same-origin",
+      method: 'POST',
+      headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(requestBody)
+  }).then(response => {
+    if(response.status === 200) {
+      return response.json()
+    } else {
+        throw {
+            type: response.type,
+            title: response.statusText,
+            status: response.status,
+            detail: "Error occurred with api " + response.url + ". Please, try again later "
+        }
+    }
+  }).then(data => {
+    dispatch({
+      type: methods.REPORTS_RESULTS_IDS_UPDATE,
+      payload: data
+    })
+    dispatch({
+      type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+    })
+  }).catch(error => {
+    console.log(error)
+    toast.error("Reports Search Pmids Api failed - " + error.title, {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+    dispatch(
+        addError(error)
+    )
+    dispatch({
+      type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+    })
+  })
 }

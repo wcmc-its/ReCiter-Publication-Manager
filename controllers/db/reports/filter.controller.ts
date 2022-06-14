@@ -12,6 +12,8 @@ export const authorFilter = async (
 ) => {
   try {
     const { authorFilter } = req.query;
+    const count = req.query.count as string;
+    let limit = parseInt(count) || 10;
     const persons = await models.Person.findAll({
       //order: [["personType", "ASC"]],
       attributes: [
@@ -44,7 +46,7 @@ export const authorFilter = async (
           },
         ],
       },
-      limit: 20,
+      limit: limit,
     });
 
     res.send(persons);
@@ -102,6 +104,8 @@ export const journalFilter = async (
   try {
     let where = {};
     const { journalFilter } = req.query;
+    const count = req.query.count as string;
+    let limit = parseInt(count) || 10;
     if (journalFilter) {
       where = {
         journalTitleVerbose: {
@@ -118,7 +122,7 @@ export const journalFilter = async (
       ],
       where: where,
       order: [["journalTitleVerbose", "ASC"]],
-      limit: 20,
+      limit: limit,
     });
     res.send(journalTitles);
   } catch (e) {

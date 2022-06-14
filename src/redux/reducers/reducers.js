@@ -602,7 +602,7 @@ export const initialStatePubSearchFilter = {
     // journalImpactScoreLowerBound: 2,
     // journalImpactScoreUpperBound: 42
   },
-  limit: 10,
+  limit: 20,
   offset: 0,
   sort: {
     datePublicationAddedToEntrez: true,
@@ -650,6 +650,39 @@ export const reportsSearchResultsLoading = ( state = false, action) => {
   }
 }
 
+export const reportsPaginatedResultsLoading = (state = false, action) => {
+  switch(action.type) {
+    case methods.REPORTS_SEARCH_PAGINATED_FETCHING :
+      return true
+    case methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING :
+      return false
+    default:
+      return state
+  }
+}
+
+export const reportsResultsIds = (state = {}, action) => {
+  switch(action.type) {
+    case methods.REPORTS_RESULTS_IDS_UPDATE:
+      return action.payload
+    case methods.REPORTS_RESULTS_IDS_CLEAR:
+      return {}
+    default:
+      return state
+  }
+}
+
+export const reportsResultsIdsLoading = (state = false, action) => {
+  switch(action.type) {
+    case methods.REPORTS_RESULTS_IDS_LOADING:
+      return true
+    case methods.REPORTS_RESULTS_IDS_CANCEL_LOADING:
+      return false
+    default:
+      return state
+  }
+}
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -690,5 +723,8 @@ export default combineReducers({
     reportingFiltersLoading,
     pubSearchFilter,
     reportsSearchResults,
-    reportsSearchResultsLoading
+    reportsSearchResultsLoading,
+    reportsPaginatedResultsLoading,
+    reportsResultsIds,
+    reportsResultsIdsLoading
 })

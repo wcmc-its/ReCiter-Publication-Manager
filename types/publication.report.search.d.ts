@@ -35,3 +35,8 @@ export type PublicationSort = {
     readersMendeley?: boolean
     publicationDateStandarized?: boolean
 }
+
+export type ReporstResultId = {
+  personIdentifiers: string[],
+  pmids: string[]
+}
