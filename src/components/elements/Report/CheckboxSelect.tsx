@@ -62,9 +62,13 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
   }
 
   const onRemoveSelected = (event) => {
+    let value = event.target.value;
     // remove from the selected list
-    let updatedList = selectedList.filter(item => item[optionValue] !== event.target.value)
+    let updatedList = selectedList.filter(item => item[optionValue] !== value)
     setSelectedList(updatedList);
+    // update filters state
+    let updatedSelected = selectedOptions.filter(option => option != value);
+    onUpdateFilter(filterName, updatedSelected);
   }
 
   const onLoadMore = () => {
