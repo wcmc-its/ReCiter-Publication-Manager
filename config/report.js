@@ -111,3 +111,48 @@ export const infoBubblesConfig = {
 export const limits = {
   maxCountPubsReturn: 1800
 }
+
+/******** Article-level Configuration ********/
+// Metrics to display in CSV report
+export const metrics = {
+  journalImpactScore1: true,
+  journalImpactScore2: false,
+  readersMendeley: true,
+  percentileNIH: true,
+  relativeCitationRatioNIH: false,
+  trendingPubsScore: true,
+  citationCountNIH: true,
+  citationCountScopus: false
+}
+
+// Labels for CSV columns
+export const labels = {
+  person: {
+    personLabel: "CWID",
+    hindexNIH: "h-index (NIH)",
+    h5indexNIH: "h5-index (NIH)",
+    hindexScopus: "h-index (Scopus)",
+    h5indexScopus: "h5-index (Scopus)",
+  },
+  article: {
+    citationCountNIH: "Citation count (NIH)",
+    citationCountScopus: "Citation count (Scopus)",
+    journalImpactScore1: "Scimago Journal Rank",
+    journalImpactScore2: "Journal impact",
+    readersMendeley: "Mendeley readers",
+    percentileNIH: "NIH Percentile Rank",
+    relativeCitationRatioNIH: "Relative Citation Ratio (NIH)",
+    trendingPubsScore: "TrendingPubs score",
+    datePublicationAddedToEntrez: "Date added"
+  },
+  reporting: {
+    name: "Author",
+    primaryOrganizationalUnit: "Organization",
+    primaryInstitution: "Institution",
+    personType: "Person type",
+    journalTitleVerbose: "Journal",
+    authorPosition: "Position",
+    datePublicationAddedToEntrez: "Date added"
+  }
+}
+
