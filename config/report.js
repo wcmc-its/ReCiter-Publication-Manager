@@ -107,3 +107,64 @@ export const infoBubblesConfig = {
   includeHeadshot: true,
   headshotSyntax: "https://directory.weill.cornell.edu/api/v1/person/profile/{personID}.png?returnGenericOn404=false"
 }
+
+export const limits = {
+  maxCountPubsReturn: 1800
+}
+
+/******** Article-level Configuration ********/
+// Metrics to display in CSV report
+export const metrics = {
+  person: {
+    hindexNIH: true,
+    h5indexNIH: true,
+    hindexScopus: true,
+    h5indexScopus: true,
+  },
+  article: {
+    journalImpactScore1: true,
+    journalImpactScore2: false,
+    readersMendeley: true,
+    percentileNIH: true,
+    relativeCitationRatioNIH: false,
+    trendingPubsScore: true,
+    citationCountNIH: true,
+    citationCountScopus: false
+  }
+}
+
+// Labels for CSV columns
+export const labels = {
+  person: {
+    // personLabel: "CWID",
+    // hindexNIH: "h-index (NIH)",
+    // h5indexNIH: "h5-index (NIH)",
+    // hindexScopus: "h-index (Scopus)",
+    // h5indexScopus: "h5-index (Scopus)",
+    personIdentifier: "personIdentifier",
+    firstName: "First Name",
+    lastName: "Last Name",
+  },
+  article: {
+    citationCountNIH: "Citation count (NIH)",
+    citationCountScopus: "Citation count (Scopus)",
+    journalImpactScore1: "Scimago Journal Rank",
+    journalImpactScore2: "Journal impact",
+    readersMendeley: "Mendeley readers",
+    percentileNIH: "NIH Percentile Rank",
+    relativeCitationRatioNIH: "Relative Citation Ratio (NIH)",
+    trendingPubsScore: "TrendingPubs score",
+    citationCountNIH: "Citation count (NIH)",
+    citationCountScopus: "Citation count (Scopus)",
+  },
+  reporting: {
+    name: "Author",
+    primaryOrganizationalUnit: "Organization",
+    primaryInstitution: "Institution",
+    personType: "Person type",
+    journalTitleVerbose: "Journal",
+    authorPosition: "Position",
+    datePublicationAddedToEntrez: "Date added"
+  }
+}
+

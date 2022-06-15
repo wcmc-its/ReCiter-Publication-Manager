@@ -1,17 +1,13 @@
 import { Button, Spinner } from "react-bootstrap";
 
 interface ExportButtonTypes {
-  isDisplay: boolean, 
+  isDisplay?: boolean, 
   onClick?: () => void, 
   loading?: boolean,
   title: string
 }
 
-export const ExportButton = ({ isDisplay, onClick, loading, title }: ExportButtonTypes) => {
-  if (!isDisplay) {
-    return null
-  }
-
+export const ExportButton = ({ onClick, loading, title }: ExportButtonTypes) => {
   if (loading) {
     return (
       <Button variant="warning" className="m-2" disabled>

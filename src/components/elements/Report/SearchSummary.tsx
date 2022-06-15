@@ -5,8 +5,10 @@ import { sortOptions } from "../../../../config/report";
 import { AiOutlineCheck } from "react-icons/ai";
 import styles from "./SearchSummary.module.css";
 import { reciterConfig } from "../../../../config/local";
+import { metrics, labels } from "../../../../config/report";
 import { useSelector, RootStateOrAny } from "react-redux";
-import { ReporstResultId } from "../../../../types/publication.report.search";
+import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publication.report.search";
+import Excel from 'exceljs';
 
 const SortOptionTitles = {
   datePublicationAddedToEntrez: "date added",
@@ -28,14 +30,23 @@ const SearchSummary = ({
   const [exportError, setExportError] = useState(false);
   const [exportArticleLoading, setExportArticleLoading] = useState(false);
   const [exportArticlePplLoading, setExportArticlePplLoading] = useState(false);
+  const [exportAuthorshipCsvLoading, setExportAuthorshipCsvLoading] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
 
   // Search Results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
 
+  // Selected Filters
+  const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
+
   // PersonIdentifiers and pmids of all Search Results
   const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
   const reportsResultsIdsLoading = useSelector((state: RootStateOrAny) => state.reportsResultsIdsLoading)
+
+  // for CSV Report
+  const workbook = new Excel.Workbook();
+  let date = new Date().toISOString().slice(0, 10);
+  let authorshipFileName = `Authorship-ReCiter-${date}`;
 
   const handleSelect = (option) => {
     let value = true;
@@ -126,6 +137,85 @@ const SearchSummary = ({
     })
   }
 
+  const exportAuthorshipCSV = (requestBody: PublicationSearchFilter) => {
+    setExportAuthorshipCsvLoading(true);
+    fetch(`/api/db/reports/publication/authorship`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(requestBody)
+    }).then(response => {
+      return response.json();
+    }).then(result => {
+      generateAuthorshipCSV(result);
+      setExportAuthorshipCsvLoading(false);
+    }).catch(error => {
+      setExportAuthorshipCsvLoading(false);
+      console.log(error);
+    })
+  }
+
+  const generateAuthorshipCSV = async (data) => {
+    let columns = [];
+    let metricsKeys = Object.keys(metrics);
+    Object.keys(labels).forEach(labelItem => {
+      if (metricsKeys.includes(labelItem)) {
+        // filter ones to display that are set in config file to true
+        Object.keys(labels[labelItem]).forEach((labelField) => {
+          if (metrics[labelItem][labelField] === true) {
+            let labelObj = { header: labels[labelItem][labelField], key: labelField};
+            columns = [ ...columns, labelObj];
+          }
+        })
+      } else {
+        Object.keys(labels[labelItem]).forEach((labelField) => {
+          let labelObj = { header: labels[labelItem][labelField], key: labelField};
+          columns = [ ...columns, labelObj];
+        })
+      }
+    })
+    try {
+      // creating one worksheet in workbook
+      const worksheet = workbook.addWorksheet(authorshipFileName);
+      // add worksheet columns
+      // each columns contains header and its mapping key from data
+      worksheet.columns = columns;
+      
+      // process the data and add rows to worksheet
+      data.forEach(item => {
+        let itemRow = {};
+        Object.keys(item).forEach(obj => {
+          if (obj === 'PersonPersonTypes') {
+            let personTypes = item[obj].map(personType => personType.personType).join('|');
+            itemRow = {...itemRow, personType: personTypes};
+          } else {
+            itemRow = {...itemRow, ...item[obj]};
+          }
+        })
+        worksheet.addRow(itemRow);
+      })
+
+      // write the content using writeBuffer
+      const buf = await workbook.csv.writeBuffer();
+      let blobFromBuffer = new Blob([buf]);
+      let fileName = `${authorshipFileName}.csv`;
+      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+      link.href = window.URL.createObjectURL(blobFromBuffer);
+      link.download = fileName;
+      link.click()
+      link.remove();
+    } catch (error) {
+      console.error('<<<ERRROR>>>', error);
+      console.error('Something Went Wrong', error.message);
+    } finally {
+      // removing worksheet's instance to create new one
+      workbook.removeWorksheet(authorshipFileName);
+    }
+  }
+
   return (
     <>
       <div className="d-flex justify-content-between align-items-center pt-5">
@@ -151,21 +241,23 @@ const SearchSummary = ({
         show={openCSV}
         handleClose={() => setOpenCSV(false)}
         title="CSV"
-        countInfo=""
-        exportArticle={() => console.log('Export Article')}
-        exportAuthorship={() => console.log('Export Authorship')}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships` : ""}
+        buttonsList={
+          [
+            {title: 'Export Authorship', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV}
+          ]
+        }
       />
       <ExportModal
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.pmids.length)} articles and ${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships` : ""}
-        exportArticle={exportArticle}
-        exportArticleLoading={exportArticleLoading}
-        exportArticlePeople={exportArticlePeopleOnly}
-        exportArticlePeopleLoading={exportArticlePplLoading}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.pmids.length)} articles` : ""}
         loadingResults={reportsResultsIdsLoading}
         error={exportError}
+        buttonsList={[
+          { title: 'Export article report', loading: exportArticleLoading, onClick: exportArticle}
+        ]}
       />
     </>
   )
