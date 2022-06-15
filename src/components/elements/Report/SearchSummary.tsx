@@ -10,16 +10,6 @@ import { useSelector, RootStateOrAny } from "react-redux";
 import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publication.report.search";
 import Excel from 'exceljs';
 
-const SortOptionTitles = {
-  datePublicationAddedToEntrez: "date added",
-  journalImpactScore1: "journal impact score",
-  percentileNIH: "percentile NIH",
-  citationCountNIH: "citation count NIH",
-  trendingPubsScore: "trending Publication score",
-  readersMendeley: "reader's mendeley",
-  publicationDateStandarized: "date standardized"
-}
-
 const SearchSummary = ({ 
   count, 
   onClick,
@@ -227,7 +217,7 @@ const SearchSummary = ({
               return (
                 <Dropdown.Item eventKey={sortOption} key={index} className={`dropdown-item ${selected.includes(sortOption) ? styles.selected : styles.dropdownItem}`}>
                   {selected.includes(sortOption) && <AiOutlineCheck />} 
-                  {SortOptionTitles[sortOption]}
+                  {labels.article[sortOption]}
                 </Dropdown.Item>
               )
             })
