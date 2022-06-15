@@ -244,6 +244,7 @@ const SearchSummary = ({
         countInfo=""
         exportArticle={() => console.log('Export Article')}
         exportAuthorship={() => exportAuthorshipCSV(pubSearchFilter)}
+        exportAuthorshipLoading={exportAuthorshipCsvLoading}
       />
       <ExportModal
         show={openRTF}
