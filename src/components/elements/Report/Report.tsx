@@ -197,7 +197,6 @@ const Report = () => {
     let updatedSearchFilter = {
       ...pubSearchFilter,
       sort: {
-        ...pubSearchFilter.sort,
         [sort]: value
       }
     }
