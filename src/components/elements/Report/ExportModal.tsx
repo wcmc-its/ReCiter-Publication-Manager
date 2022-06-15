@@ -1,23 +1,19 @@
 import { Modal, Button, Alert } from "react-bootstrap";
 import { ExportButton } from "./ExportButton";
 import Loader from "../Common/Loader";
+import { ExportButtonProps } from "../../../../types/Export";
 
 interface ExportModalProps {
   title: string,
   show: boolean,
   handleClose: () => void,
   countInfo: string,
-  exportArticle: () => void,
-  exportArticleLoading?: boolean,
-  exportAuthorship?: () => void,
-  exportAuthorshipLoading?: boolean,
-  exportArticlePeople?: () => void, 
-  exportArticlePeopleLoading?: boolean,
   loadingResults?: boolean,
-  error?: boolean
+  error?: boolean,
+  buttonsList: Array<ExportButtonProps>
 }
 
-const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, exportAuthorship, exportArticlePeople, error, exportArticleLoading, exportArticlePeopleLoading, loadingResults, exportAuthorshipLoading }: ExportModalProps) => {
+const ExportModal = ({ show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
   if (loadingResults) {
     return (
       <div className="d-flex justify-content-center align-items-center">
@@ -34,9 +30,13 @@ const ExportModal = ({ show, handleClose, title, countInfo, exportArticle, expor
         </Modal.Header>
         <Modal.Body>
           <p>According to the criteria you have set, there are {countInfo}.</p>
-        <ExportButton isDisplay={exportAuthorship != null} onClick={exportAuthorship} title="Export authorship report" loading={exportAuthorshipLoading}/>
-        <ExportButton isDisplay={true} onClick={exportArticle} title="Export Article Report" loading={exportArticleLoading} />
-        <ExportButton isDisplay={exportArticlePeople != null} onClick={exportArticlePeople} title="Export articles as RTF" loading={exportArticlePeopleLoading} />
+        {
+          buttonsList.map((btn) => {
+            return (
+              <ExportButton {...btn} />
+            )
+          })
+        }
         {error && <Alert variant="danger">Error occured exporting, please try again later.</Alert>}
         </Modal.Body>
       </Modal>

@@ -241,22 +241,23 @@ const SearchSummary = ({
         show={openCSV}
         handleClose={() => setOpenCSV(false)}
         title="CSV"
-        countInfo=""
-        exportArticle={() => console.log('Export Article')}
-        exportAuthorship={() => exportAuthorshipCSV(pubSearchFilter)}
-        exportAuthorshipLoading={exportAuthorshipCsvLoading}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships` : ""}
+        buttonsList={
+          [
+            {title: 'Export Authorship', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV}
+          ]
+        }
       />
       <ExportModal
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.pmids.length)} articles and ${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships` : ""}
-        exportArticle={exportArticle}
-        exportArticleLoading={exportArticleLoading}
-        exportArticlePeople={exportArticlePeopleOnly}
-        exportArticlePeopleLoading={exportArticlePplLoading}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.pmids.length)} articles` : ""}
         loadingResults={reportsResultsIdsLoading}
         error={exportError}
+        buttonsList={[
+          { title: 'Export article report', loading: exportArticleLoading, onClick: exportArticle}
+        ]}
       />
     </>
   )
