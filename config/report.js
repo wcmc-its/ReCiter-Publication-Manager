@@ -115,24 +115,35 @@ export const limits = {
 /******** Article-level Configuration ********/
 // Metrics to display in CSV report
 export const metrics = {
-  journalImpactScore1: true,
-  journalImpactScore2: false,
-  readersMendeley: true,
-  percentileNIH: true,
-  relativeCitationRatioNIH: false,
-  trendingPubsScore: true,
-  citationCountNIH: true,
-  citationCountScopus: false
+  person: {
+    hindexNIH: true,
+    h5indexNIH: true,
+    hindexScopus: true,
+    h5indexScopus: true,
+  },
+  article: {
+    journalImpactScore1: true,
+    journalImpactScore2: false,
+    readersMendeley: true,
+    percentileNIH: true,
+    relativeCitationRatioNIH: false,
+    trendingPubsScore: true,
+    citationCountNIH: true,
+    citationCountScopus: false
+  }
 }
 
 // Labels for CSV columns
 export const labels = {
   person: {
-    personLabel: "CWID",
-    hindexNIH: "h-index (NIH)",
-    h5indexNIH: "h5-index (NIH)",
-    hindexScopus: "h-index (Scopus)",
-    h5indexScopus: "h5-index (Scopus)",
+    // personLabel: "CWID",
+    // hindexNIH: "h-index (NIH)",
+    // h5indexNIH: "h5-index (NIH)",
+    // hindexScopus: "h-index (Scopus)",
+    // h5indexScopus: "h5-index (Scopus)",
+    personIdentifier: "personIdentifier",
+    firstName: "First Name",
+    lastName: "Last Name",
   },
   article: {
     citationCountNIH: "Citation count (NIH)",
@@ -143,7 +154,8 @@ export const labels = {
     percentileNIH: "NIH Percentile Rank",
     relativeCitationRatioNIH: "Relative Citation Ratio (NIH)",
     trendingPubsScore: "TrendingPubs score",
-    datePublicationAddedToEntrez: "Date added"
+    citationCountNIH: "Citation count (NIH)",
+    citationCountScopus: "Citation count (Scopus)",
   },
   reporting: {
     name: "Author",
