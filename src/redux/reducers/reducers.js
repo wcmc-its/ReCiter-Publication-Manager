@@ -606,7 +606,7 @@ export const initialStatePubSearchFilter = {
   offset: 0,
   sort: {
     type: 'datePublicationAddedToEntrez',
-    order: 'desc'
+    order: 'DESC'
   }
 }
 
