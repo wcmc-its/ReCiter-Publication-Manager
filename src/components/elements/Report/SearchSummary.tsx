@@ -9,12 +9,14 @@ import { metrics, labels } from "../../../../config/report";
 import { useSelector, RootStateOrAny } from "react-redux";
 import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publication.report.search";
 import Excel from 'exceljs';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 const SearchSummary = ({ 
   count, 
   onClick,
   selected 
-}: { count: number, onClick: (sort: string, value: boolean) => void, selected: string[]}) => {
+}: { count: number, onClick: (sort: string, order: string) => void, selected: any}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -39,12 +41,13 @@ const SearchSummary = ({
   let authorshipFileName = `Authorship-ReCiter-${date}`;
 
   const handleSelect = (option) => {
-    let value = true;
-    if (selected.includes(option)) {
-      value = false;
-    }
+    let optionInfo = option.split('_');
 
-    onClick(option, value);
+    if (optionInfo.length) {
+      let optionType = optionInfo[0];
+      let optionOrder = optionInfo[1];
+      onClick(optionType, optionOrder);
+    }
   }
 
   const exportArticle = () => {
@@ -215,10 +218,18 @@ const SearchSummary = ({
           {
             Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
               return (
-                <Dropdown.Item eventKey={sortOption} key={index} className={`dropdown-item ${selected.includes(sortOption) ? styles.selected : styles.dropdownItem}`}>
-                  {selected.includes(sortOption) && <AiOutlineCheck />} 
-                  {labels.article[sortOption]}
-                </Dropdown.Item>
+                <div key={index}>
+                  <Dropdown.Item eventKey={`${sortOption}_DESC`} key={`${sortOption}_DESC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
+                    {selected.type === sortOption && selected.order === 'DESC' && <AiOutlineCheck />} 
+                    {labels.article[sortOption]}
+                    {<ArrowDownwardIcon />}
+                  </Dropdown.Item>
+                  <Dropdown.Item eventKey={`${sortOption}_ASC`} key={`${sortOption}_ASC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
+                    {selected.type === sortOption && selected.order === 'ASC' && <AiOutlineCheck />} 
+                    {labels.article[sortOption]}
+                    {<ArrowUpwardIcon />}
+                  </Dropdown.Item>
+                </div>
               )
             })
           }

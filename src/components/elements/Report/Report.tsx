@@ -193,11 +193,11 @@ const Report = () => {
     }
   }
 
-  const updateSort = (sort: string, value: boolean) => {
+  const updateSort = (sort: string, order: string) => {
     let updatedSearchFilter = {
       ...pubSearchFilter,
       sort: {
-        [sort]: value
+       type: sort, order: order
       }
     }
 
@@ -210,14 +210,9 @@ const Report = () => {
 
   const getSelectedValues = (list) => {
     if (list.sort) {
-      let selected = Object.keys(pubSearchFilter.sort).map((key) => {
-        if (pubSearchFilter.sort[key]) {
-          return key;
-        }
-      })
-      return selected;
+      return list.sort;
     } else {
-      return [];
+      return {};
     }
   }
 
