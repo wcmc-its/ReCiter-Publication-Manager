@@ -31,9 +31,9 @@ const ExportModal = ({ show, handleClose, title, countInfo, error, loadingResult
         <Modal.Body>
           <p>According to the criteria you have set, there are {countInfo}.</p>
         {
-          buttonsList.map((btn) => {
+          buttonsList.map((btn, index) => {
             return (
-              <ExportButton {...btn} />
+              <ExportButton key={index} {...btn} />
             )
           })
         }
