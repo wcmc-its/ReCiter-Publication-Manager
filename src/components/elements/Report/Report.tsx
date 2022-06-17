@@ -243,6 +243,8 @@ const Report = () => {
   const onClickAuthor = (personIdentifier: string) => {
     // set author uid
     updateUid(personIdentifier);
+    // open modal
+    handleShow();
   }
 
   if (reportingFiltersLoading) {
