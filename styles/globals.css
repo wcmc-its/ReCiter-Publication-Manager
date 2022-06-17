@@ -142,3 +142,7 @@ h1 {
   background-color: white;
   border: 1px solid #ced4da;
 }
+
+.text-decoration-underline-dotted {
+  text-decoration: underline dotted;
+}

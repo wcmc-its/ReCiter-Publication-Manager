@@ -27,13 +27,15 @@ export type PublicationAuthorSearchFilter = {
 }
 
 export type PublicationSort = {
-    datePublicationAddedToEntrez?: boolean
-    journalImpactScore1?: boolean
-    percentileNIH?: boolean
-    citationCountNIH?: boolean
-    trendingPubsScore?: boolean
-    readersMendeley?: boolean
-    publicationDateStandarized?: boolean
+    // datePublicationAddedToEntrez?: boolean
+    // journalImpactScore1?: boolean
+    // percentileNIH?: boolean
+    // citationCountNIH?: boolean
+    // trendingPubsScore?: boolean
+    // readersMendeley?: boolean
+    // publicationDateStandarized?: boolean
+    type: string,
+    order: string
 }
 
 export type ReporstResultId = {

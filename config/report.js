@@ -156,6 +156,8 @@ export const labels = {
     trendingPubsScore: "TrendingPubs score",
     citationCountNIH: "Citation count (NIH)",
     citationCountScopus: "Citation count (Scopus)",
+    datePublicationAddedToEntrez: "Date added",
+    publicationDateStandarized: "Date standardized"
   },
   reporting: {
     name: "Author",
@@ -164,7 +166,6 @@ export const labels = {
     personType: "Person type",
     journalTitleVerbose: "Journal",
     authorPosition: "Position",
-    datePublicationAddedToEntrez: "Date added"
   }
 }
 

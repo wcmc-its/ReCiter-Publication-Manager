@@ -605,9 +605,8 @@ export const initialStatePubSearchFilter = {
   limit: 20,
   offset: 0,
   sort: {
-    datePublicationAddedToEntrez: true,
-    citationCountNIH: true,
-    journalImpactScore1: true
+    type: 'datePublicationAddedToEntrez',
+    order: 'DESC'
   }
 }
 

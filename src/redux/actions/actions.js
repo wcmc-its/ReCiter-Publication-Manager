@@ -1668,18 +1668,6 @@ const getArticleTypeFilter = () => async(dispatch) => {
     let endDate = new Date();
     startDate.setDate(endDate.getDate() - 60);
 
-    let pubSearchFilterSortByDate = {
-      ...initialStatePubSearchFilter,
-      filters: {
-        ...initialStatePubSearchFilter.filters,
-        datePublicationAddedToEntrezLowerBound: startDate,
-        datePublicationAddedToEntrezUpperBound: endDate
-      },
-      sort: {
-        datePublicationAddedToEntrez: true,
-      }
-    }
-
     fetch(`/api/db/reports/publication/search`, {
       credentials: "same-origin",
       method: 'POST',

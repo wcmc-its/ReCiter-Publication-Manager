@@ -177,26 +177,28 @@ export const generatePubsPeopleOnlyRtf = async (
       }
       const sort = [];
       if (apiBody && apiBody.sort) {
-        if (apiBody.sort.datePublicationAddedToEntrez)
-          sort.push(["datePublicationAddedToEntrez", "DESC"]);
+        let sortType = apiBody.sort.type;
+        let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
+        if (sortType === 'datePublicationAddedToEntrez')
+          sort.push(["datePublicationAddedToEntrez",sortOrder]);
   
-        if (apiBody.sort.citationCountNIH)
-          sort.push(["citationCountNIH", "DESC"]);
+        if (sortType === 'citationCountNIH')
+          sort.push(["citationCountNIH", sortOrder]);
   
-        if (apiBody.sort.journalImpactScore1)
-          sort.push(["journalImpactScore1", "DESC"]);
+        if (sortType === 'journalImpactScore1')
+          sort.push(["journalImpactScore1", sortOrder]);
   
-        if (apiBody.sort.percentileNIH) 
-          sort.push(["percentileNIH", "DESC"]);
+        if (sortType === 'percentileNIH') 
+          sort.push(["percentileNIH", sortOrder]);
   
-        if (apiBody.sort.publicationDateStandarized)
-          sort.push(["publicationDateStandarized", "DESC"]);
+        if (sortType === 'publicationDateStandarized')
+          sort.push(["publicationDateStandarized", sortOrder]);
   
-        if (apiBody.sort.readersMendeley) 
-          sort.push(["readersMendeley", "DESC"]);
+        if (sortType === 'readersMendeley') 
+          sort.push(["readersMendeley", sortOrder]);
   
-        if (apiBody.sort.trendingPubsScore)
-          sort.push(["trendingPubsScore", "DESC"]);
+        if (sortType === 'trendingPubsScore')
+          sort.push(["trendingPubsScore", sortOrder]);
       }
       let limit = limits.maxCountPubsReturn;
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics[metric]);

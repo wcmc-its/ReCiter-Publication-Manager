@@ -20,6 +20,10 @@ const AuthorComponent = ({author, index, count, onClick} : {
     return (
       <li key={"author" + index}><span className={styles.highlightedAuthor} onClick={() => onClick(author.personIdentifier)}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
     )
+  } else if (author.personIdentifier && author.personIdentifier !== "") {
+    return (
+      <li key={"author" + index}><span className="text-decoration-underline-dotted" onClick={() => onClick(author.personIdentifier)}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
+    )
   }
 
   return <li key={"author" + index}><span className={author.targetAuthor ? styles.highlightedAuthor : ""}>{authorFullName}</span>{(index < count - 1)?", ":""}</li>
