@@ -166,6 +166,19 @@ export const labels = {
     personType: "Person type",
     journalTitleVerbose: "Journal",
     authorPosition: "Position",
+  },
+  articleInfo: {
+    pmid: "pmid",
+    articleTitle: "Article title",
+    pmcid: "pmcid",
+    articleYear: "Article year",
+    publicationDateDisplay: "Publication date display",
+    publicationDateStandarized: "Date standardized",
+    journalTitleVerbose: "Journal",
+    issue: "Issue",
+    pages: "Pages",
+    volume: "Volume",
+    doi: "doi"
   }
 }
 
