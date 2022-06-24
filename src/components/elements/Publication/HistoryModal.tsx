@@ -79,11 +79,12 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
     }
   }
 
-  const Feedbacklog = ({ userId, timestamp, feedback}) => {
+  const Feedbacklog = ({ userId, timestamp, feedback, userDetails}) => {
     let date = new Date(timestamp).toUTCString();
     let action = getAction(feedback);
+    let userFullName = userDetails.nameFirst + " "+ userDetails.nameLast;
     return (
-      <p>{`Marked as ${action.toLowerCase()} by ${userId} at ${date}`}</p>
+      <p>{`Marked as ${action.toLowerCase()} by ${userFullName} (${userId}) at ${date}`}</p>
     )
   };
   
@@ -98,12 +99,14 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
         <>
         {
           feedbacksToDisplay.map((feedback, i) => {
+            console.log("feed back history", feedback);
             return (
               <Feedbacklog 
                 key={i}
                 userId={feedback.AdminUser?.personIdentifier}
                 timestamp={feedback.modifyTimestamp}
                 feedback={feedback.feedback}
+                userDetails={feedback.AdminUser}
                 />
             )
           })

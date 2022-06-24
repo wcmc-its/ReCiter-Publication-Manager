@@ -59,8 +59,8 @@ const Search = () => {
       dispatch(identityFetchAllData(filters));
     }
 
-    const fetchPaginatedData = () => {
-      dispatch(identityFetchPaginatedData(page, count))
+    const fetchPaginatedData = (newCount) => {
+      dispatch(identityFetchPaginatedData(page, newCount ? newCount :count))
     }
 
 
@@ -74,8 +74,9 @@ const Search = () => {
 
     const handleCountUpdate = (count) => {
       if (count) {
-        setPage(1);
+        setPage(page);
         setCount(parseInt(count));
+        fetchPaginatedData(parseInt(count))
       }
     }
 
