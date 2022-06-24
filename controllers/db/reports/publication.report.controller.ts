@@ -201,7 +201,7 @@ export const generatePubsPeopleOnlyRtf = async (
           sort.push(["trendingPubsScore", sortOrder]);
       }
       let limit = limits.maxCountPubsReturn;
-      let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics[metric]);
+      let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let doiUrl = 'https://dx.doi.org/';
       let searchOutput: any[] = [];
       searchOutput = await models.AnalysisSummaryAuthor.findAll({
@@ -267,6 +267,217 @@ export const generatePubsPeopleOnlyRtf = async (
         ],
         where: where,
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
+        order: [],
+        limit: 10,
+        subQuery: false,
+        attributes: []
+      })
+      return searchOutput;
+    } catch (e) {
+      console.log(e);
+      res.status(500).send(e);
+    }
+  };
+
+  export const generateArticleReportCSV = async (
+    req: NextApiRequest,
+    res: NextApiResponse
+  ) => {
+    try {
+      let apiBody: PublicationSearchFilter = req.body;
+      const where = {};
+      if (apiBody.filters) {
+        where[Op.and] = [];
+        if (
+          apiBody.filters.journalTitleVerbose &&
+          apiBody.filters.journalTitleVerbose.length > 0
+        ) {
+          where[Op.and].push({
+            "$AnalysisSummaryArticle.journalTitleVerbose$": {
+              [Op.in]: apiBody.filters.journalTitleVerbose,
+            },
+          });
+        }
+        if (
+          apiBody.filters.personIdentifers &&
+          apiBody.filters.personIdentifers.length > 0
+        ) {
+          where[Op.and].push({
+            "$AnalysisSummaryAuthor.personIdentifier$": {
+              [Op.in]: apiBody.filters.personIdentifers,
+            },
+          });
+        }
+        if (
+          apiBody.filters.authorPosition &&
+          apiBody.filters.authorPosition.length > 0
+        ) {
+          where[Op.and].push({
+            "$AnalysisSummaryAuthor.authorPosition$": {
+              [Op.in]: apiBody.filters.authorPosition,
+            },
+          });
+        }
+        if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
+          where[Op.and].push({
+            "$Person.primaryOrganizationalUnit$": {
+              [Op.in]: apiBody.filters.orgUnits,
+            },
+          });
+        }
+        if (
+          apiBody.filters.institutions &&
+          apiBody.filters.institutions.length > 0
+        ) {
+          where[Op.and].push({
+            "$Person.primaryInstitution$": {
+              [Op.in]: apiBody.filters.institutions,
+            },
+          });
+        }
+        if (
+          apiBody.filters.datePublicationAddedToEntrezLowerBound &&
+          apiBody.filters.datePublicationAddedToEntrezUpperBound
+        ) {
+          where[Op.and].push({
+            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+              [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
+            },
+          });
+          where[Op.and].push({
+            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+              [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
+            },
+          });
+        }
+        if (
+          apiBody.filters.publicationTypeCanonical &&
+          apiBody.filters.publicationTypeCanonical.length > 0
+        ) {
+          where[Op.and].push({
+            "$AnalysisSummaryArticle.publicationTypeCanonical$": {
+              [Op.in]: apiBody.filters.publicationTypeCanonical,
+            },
+          });
+        }
+        if (
+          apiBody.filters.journalImpactScoreLowerBound &&
+          apiBody.filters.journalImpactScoreUpperBound
+        ) {
+          where[Op.and].push({
+            "$AnalysisSummaryArticle.journalImpactScore1$": {
+              [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+            },
+          });
+          where[Op.and].push({
+            "$AnalysisSummaryArticle.journalImpactScore1$": {
+              [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
+            },
+          });
+        }
+        if (
+          apiBody.filters.personTypes &&
+          apiBody.filters.personTypes.length > 0
+        ) {
+          where[Op.and].push({
+            "$PersonPersonTypes.personType$": {
+              [Op.in]: apiBody.filters.personTypes,
+            },
+          });
+        }
+      }
+      const sort = [];
+      if (apiBody && apiBody.sort) {
+        let sortType = apiBody.sort.type;
+        let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
+        if (sortType === 'datePublicationAddedToEntrez')
+          sort.push(["datePublicationAddedToEntrez",sortOrder]);
+  
+        if (sortType === 'citationCountNIH')
+          sort.push(["citationCountNIH", sortOrder]);
+  
+        if (sortType === 'journalImpactScore1')
+          sort.push(["journalImpactScore1", sortOrder]);
+  
+        if (sortType === 'percentileNIH') 
+          sort.push(["percentileNIH", sortOrder]);
+  
+        if (sortType === 'publicationDateStandarized')
+          sort.push(["publicationDateStandarized", sortOrder]);
+  
+        if (sortType === 'readersMendeley') 
+          sort.push(["readersMendeley", sortOrder]);
+  
+        if (sortType === 'trendingPubsScore')
+          sort.push(["trendingPubsScore", sortOrder]);
+      }
+      let limit = limits.maxCountPubsReturn;
+      let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
+      let doiUrl = 'https://dx.doi.org/';
+      let searchOutput: any[] = [];
+      searchOutput = await models.AnalysisSummaryAuthor.findAll({
+        include: [
+          {
+            model: models.AnalysisSummaryArticle,
+            as: "AnalysisSummaryArticle",
+            required: true,
+            on: {
+              col: Sequelize.where(
+                Sequelize.col("AnalysisSummaryArticle.pmid"),
+                "=",
+                Sequelize.col("AnalysisSummaryAuthor.pmid")
+              ),
+            },
+            attributes: [
+              "pmid",
+              "articleTitle",
+              "pmcid",
+              "articleYear",
+              "publicationDateDisplay",
+              "publicationDateStandardized",
+              "datePublicationAddedToEntrez",
+              "journalTitleVerbose",
+              "issue",
+              "pages",
+              "volume",
+              [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+              ...articleLevelMetrics
+            ],
+          },
+          {
+            model: models.Person,
+            as: "Person",
+            required: true,
+            on: {
+              col: Sequelize.where(
+                Sequelize.col("Person.personIdentifier"),
+                "=",
+                Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+              )
+            },
+            attributes: []
+          },
+          {
+            model: models.PersonPersonType,
+            as: "PersonPersonTypes",
+            required: true,
+            on: {
+              col1: Sequelize.where(
+                Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                "=",
+                Sequelize.col("PersonPersonTypes.personIdentifier"),
+              ),
+              col2: Sequelize.where(
+                Sequelize.col("Person.personIdentifier"),
+                "=",
+                Sequelize.col("PersonPersonTypes.personIdentifier"),
+              ),
+            },
+            attributes: ["personType"]
+          }
+        ],
+        where: where,
+        group: ["AnalysisSummaryAuthor.pmid"],
         order: [],
         limit: 10,
         subQuery: false,

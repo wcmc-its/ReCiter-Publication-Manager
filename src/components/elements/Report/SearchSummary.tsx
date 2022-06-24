@@ -23,6 +23,7 @@ const SearchSummary = ({
   const [exportArticleLoading, setExportArticleLoading] = useState(false);
   const [exportArticlePplLoading, setExportArticlePplLoading] = useState(false);
   const [exportAuthorshipCsvLoading, setExportAuthorshipCsvLoading] = useState(false);
+  const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
 
   // Search Results
@@ -38,7 +39,8 @@ const SearchSummary = ({
   // for CSV Report
   const workbook = new Excel.Workbook();
   let date = new Date().toISOString().slice(0, 10);
-  let authorshipFileName = `Authorship-ReCiter-${date}`;
+  let authorshipFileName = `AuthorshipReport-ReCiter-${date}`;
+  let articleFileName = `ArticleReport-ReCiter-${date}`;
 
   const handleSelect = (option) => {
     let optionInfo = option.split('_');
@@ -130,7 +132,8 @@ const SearchSummary = ({
     })
   }
 
-  const exportAuthorshipCSV = (requestBody: PublicationSearchFilter) => {
+  const exportAuthorshipCSV = () => {
+    let requestBody: PublicationSearchFilter = pubSearchFilter;
     setExportAuthorshipCsvLoading(true);
     fetch(`/api/db/reports/publication/authorship`, {
       credentials: "same-origin",
@@ -153,23 +156,30 @@ const SearchSummary = ({
 
   const generateAuthorshipCSV = async (data) => {
     let columns = [];
-    let metricsKeys = Object.keys(metrics);
-    Object.keys(labels).forEach(labelItem => {
-      if (metricsKeys.includes(labelItem)) {
-        // filter ones to display that are set in config file to true
-        Object.keys(labels[labelItem]).forEach((labelField) => {
-          if (metrics[labelItem][labelField] === true) {
-            let labelObj = { header: labels[labelItem][labelField], key: labelField};
-            columns = [ ...columns, labelObj];
-          }
-        })
-      } else {
-        Object.keys(labels[labelItem]).forEach((labelField) => {
-          let labelObj = { header: labels[labelItem][labelField], key: labelField};
-          columns = [ ...columns, labelObj];
-        })
-      }
-    })
+
+    if (labels.person) {
+      Object.keys(labels.person).forEach((labelField) => {
+        let labelObj = { header: labels.person[labelField], key: labelField};
+        columns.push(labelObj);
+      })
+    }
+
+    if (metrics.article && labels.article) {
+      Object.keys(metrics.article).forEach(articleField => {
+        if (metrics.article[articleField] == true) {
+          let labelObj = { header: labels.article[articleField], key: articleField};
+          columns.push(labelObj);
+        }
+      })
+    }
+
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+
     try {
       // creating one worksheet in workbook
       const worksheet = workbook.addWorksheet(authorshipFileName);
@@ -209,6 +219,85 @@ const SearchSummary = ({
     }
   }
 
+  const exportArticleCSV = () => {
+    let requestBody: PublicationSearchFilter = pubSearchFilter;
+    setExportArticleCsvLoading(true);
+    fetch(`/api/db/reports/publication/article`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(requestBody)
+    }).then(response => {
+      return response.json();
+    }).then(result => {
+      generateArticleCSV(result);
+      setExportArticleCsvLoading(false);
+    }).catch(error => {
+      setExportArticleCsvLoading(false);
+      console.log(error);
+    })
+  }
+
+  const generateArticleCSV = async (data) => {
+    let columns = [];
+    if (metrics.article && labels.article) {
+      Object.keys(metrics.article).forEach(articleField => {
+        if (metrics.article[articleField] == true) {
+          let labelObj = { header: labels.article[articleField], key: articleField};
+          columns.push(labelObj);
+        }
+      })
+    }
+
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+
+    try {
+      // creating one worksheet in workbook
+      const worksheet = workbook.addWorksheet(articleFileName);
+      // add worksheet columns
+      // each columns contains header and its mapping key from data
+      worksheet.columns = columns;
+      
+      // process the data and add rows to worksheet
+      data.forEach(item => {
+        let itemRow = {};
+        Object.keys(item).forEach(obj => {
+          if (obj === 'PersonPersonTypes') {
+            let personTypes = item[obj].map(personType => personType.personType).join('|');
+            itemRow = {...itemRow, personType: personTypes};
+          } else {
+            itemRow = {...itemRow, ...item[obj]};
+          }
+        })
+        worksheet.addRow(itemRow);
+      })
+
+      // write the content using writeBuffer
+      const buf = await workbook.csv.writeBuffer();
+      let blobFromBuffer = new Blob([buf]);
+      let fileName = `${articleFileName}.csv`;
+      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+      link.href = window.URL.createObjectURL(blobFromBuffer);
+      link.download = fileName;
+      link.click()
+      link.remove();
+    } catch (error) {
+      console.error('<<<ERRROR>>>', error);
+      console.error('Something Went Wrong', error.message);
+    } finally {
+      // removing worksheet's instance to create new one
+      workbook.removeWorksheet(articleFileName);
+    }
+  }
+
   return (
     <>
       <div className="d-flex justify-content-between align-items-center pt-5">
@@ -242,10 +331,11 @@ const SearchSummary = ({
         show={openCSV}
         handleClose={() => setOpenCSV(false)}
         title="CSV"
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships` : ""}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships and ${formatter.format(reportsResultsIds.pmids.length)} articles` : ""}
         buttonsList={
           [
-            {title: 'Export Authorship', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV}
+            {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
+            {title: 'Export article report', loading: exportArticleCsvLoading, onClick: exportArticleCSV}
           ]
         }
       />
