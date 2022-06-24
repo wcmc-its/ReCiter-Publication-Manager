@@ -5,10 +5,11 @@ import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import { findUserFeedback } from '../userfeedback.controller'
 
+
 models.Person.hasMany(models.PersonPersonType, {constraints: false})
 models.PersonPersonType.belongsTo(models.Person, {constraints: false})
 
-export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
+export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
     
     try {
         let apiBody:PersonApiBody =  req.body
@@ -47,9 +48,10 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                 }
             }
         }
+
         let persons: Person[] = []
         if(apiBody.limit != undefined && apiBody.offset != undefined) {
-            persons = await models.Person.findAll({
+            persons =  await models.Person.findAll({
                 include: [
                     {
                         model: models.PersonPersonType, 
@@ -57,19 +59,21 @@ export const findAll = async (req: NextApiRequest, res: NextApiResponse) => {
                         required: true,
                         on: {
                             col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
-                        },
+                            },
                         where: joinWhere,
                         attributes: [
-                        ]
+                            ]
                         
                     },
                 ],
                 where: where,
+                group: ["personIdentifier"],
                 order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
                 offset: apiBody.offset,
                 limit: apiBody.limit,
                 subQuery: false
             });
+            // console.log("persons Ttesting", JSON.stringify(persons))
         } else {
             persons = await models.Person.findAll({
                 include: [
