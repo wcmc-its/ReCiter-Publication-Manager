@@ -132,7 +132,8 @@ const SearchSummary = ({
     })
   }
 
-  const exportAuthorshipCSV = (requestBody: PublicationSearchFilter) => {
+  const exportAuthorshipCSV = () => {
+    let requestBody: PublicationSearchFilter = pubSearchFilter;
     setExportAuthorshipCsvLoading(true);
     fetch(`/api/db/reports/publication/authorship`, {
       credentials: "same-origin",
@@ -155,23 +156,30 @@ const SearchSummary = ({
 
   const generateAuthorshipCSV = async (data) => {
     let columns = [];
-    let metricsKeys = Object.keys(metrics);
-    Object.keys(labels).forEach(labelItem => {
-      if (metricsKeys.includes(labelItem)) {
-        // filter ones to display that are set in config file to true
-        Object.keys(labels[labelItem]).forEach((labelField) => {
-          if (metrics[labelItem][labelField] === true) {
-            let labelObj = { header: labels[labelItem][labelField], key: labelField};
-            columns = [ ...columns, labelObj];
-          }
-        })
-      } else {
-        Object.keys(labels[labelItem]).forEach((labelField) => {
-          let labelObj = { header: labels[labelItem][labelField], key: labelField};
-          columns = [ ...columns, labelObj];
-        })
-      }
-    })
+
+    if (labels.person) {
+      Object.keys(labels.person).forEach((labelField) => {
+        let labelObj = { header: labels.person[labelField], key: labelField};
+        columns.push(labelObj);
+      })
+    }
+
+    if (metrics.article && labels.article) {
+      Object.keys(metrics.article).forEach(articleField => {
+        if (metrics.article[articleField] == true) {
+          let labelObj = { header: labels.article[articleField], key: articleField};
+          columns.push(labelObj);
+        }
+      })
+    }
+
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+
     try {
       // creating one worksheet in workbook
       const worksheet = workbook.addWorksheet(authorshipFileName);
