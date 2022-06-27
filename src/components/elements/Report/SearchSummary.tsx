@@ -323,8 +323,8 @@ const SearchSummary = ({
             })
           }
         </DropdownButton>
-          <Button variant="warning" className="m-2" onClick={() => setOpenCSV(true)}>Export to CSV</Button>
-          <Button variant="warning" className="m-2" onClick={() => setOpenRTF(true)}>Export to RTF</Button>
+          <Button variant="warning" className="m-2" disabled={Object.keys(reportsResultsIds).length == 0} onClick={() => setOpenCSV(true)}>Export to CSV</Button>
+          <Button variant="warning" className="m-2" disabled={Object.keys(reportsResultsIds).length == 0} onClick={() => setOpenRTF(true)}>Export to RTF</Button>
         </div>
       </div>
       <ExportModal
