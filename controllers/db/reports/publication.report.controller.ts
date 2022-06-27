@@ -268,7 +268,7 @@ export const generatePubsPeopleOnlyRtf = async (
         where: where,
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
         order: [],
-        limit: 10,
+        limit: limit,
         subQuery: false,
         attributes: []
       })
@@ -479,7 +479,7 @@ export const generatePubsPeopleOnlyRtf = async (
         where: where,
         group: ["AnalysisSummaryAuthor.pmid"],
         order: [],
-        limit: 10,
+        limit: limit,
         subQuery: false,
         attributes: []
       })
