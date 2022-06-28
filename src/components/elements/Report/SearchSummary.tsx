@@ -133,16 +133,16 @@ const SearchSummary = ({
   }
 
   const exportAuthorshipCSV = () => {
-    let requestBody: PublicationSearchFilter = pubSearchFilter;
     setExportAuthorshipCsvLoading(true);
     fetch(`/api/db/reports/publication/authorship`, {
       credentials: "same-origin",
       method: 'POST',
       headers: {
         Accept: 'application/json',
+        "Content-Type": "application/json",
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(pubSearchFilter)
     }).then(response => {
       return response.json();
     }).then(result => {
@@ -220,16 +220,16 @@ const SearchSummary = ({
   }
 
   const exportArticleCSV = () => {
-    let requestBody: PublicationSearchFilter = pubSearchFilter;
     setExportArticleCsvLoading(true);
     fetch(`/api/db/reports/publication/article`, {
       credentials: "same-origin",
       method: 'POST',
       headers: {
         Accept: 'application/json',
+        "Content-Type": "application/json",
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(pubSearchFilter)
     }).then(response => {
       return response.json();
     }).then(result => {
