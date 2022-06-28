@@ -4,7 +4,7 @@ import { Tab, Tabs } from "react-bootstrap";
 import ReciterTabContent from "./ReciterTabContent";
 import styles from "./CurateIndividual.module.css";
 
-const ReciterTabs = ({ reciterData, fullName } : {reciterData: any, fullName: string }) => {
+const ReciterTabs = ({ reciterData, fullName,fetchOriginalData } : {reciterData: any, fullName: string,fetchOriginalData: any }) => {
   //default tab
   const [key, setKey] = useState('NULL');
   const [filteredData, setFilteredData] = useState([])
@@ -40,6 +40,8 @@ const ReciterTabs = ({ reciterData, fullName } : {reciterData: any, fullName: st
     })
 
     setFilteredData(updatedFilteredData);
+    fetchOriginalData();
+
   }
 
   const updatePublicationAssertionBulk = (reciterArticles: any, userAssertion: string, prevUserAssertion: string) => {
@@ -60,8 +62,8 @@ const ReciterTabs = ({ reciterData, fullName } : {reciterData: any, fullName: st
         tabData.count = count;
       }
     })
-
     setFilteredData(updatedFilteredData);
+    fetchOriginalData();
   }
 
   return (

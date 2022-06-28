@@ -38,6 +38,9 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 if(apiBody.filters.showOnlyPending) {
                     where[Op.and].push({'$Person.countPendingArticles$': { [Op.gt]: 0 }})
                 }
+                else if(!apiBody.filters.showOnlyPending) {
+                    where[Op.and].push({'$Person.countPendingArticles$': { [Op.eq]: 0 }})
+                }
             }
         }
         let joinWhere = {}
