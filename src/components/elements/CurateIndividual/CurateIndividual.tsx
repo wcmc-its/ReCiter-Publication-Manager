@@ -34,8 +34,12 @@ const CurateIndividual = () => {
 
   useEffect(() => {
     dispatch(identityFetchData(id));
-    dispatch(reciterFetchData(id, false));
+    fetchData();
   }, [])
+
+  const fetchData = ()=>{
+    dispatch(reciterFetchData(id, false));
+  }
 
   const DisplayName = ({ name } : { name: PrimaryName}) => {
     let formattedName = fullName(name);
@@ -97,6 +101,7 @@ const CurateIndividual = () => {
       <ReciterTabs 
         reciterData={reciterData}
         fullName={fullName(identityData.primaryName)}
+        fetchOriginalData={fetchData}
       /> 
         <Profile 
           uid={identityData.uid}
