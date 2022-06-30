@@ -252,19 +252,20 @@ const SearchSummary = ({
 
   const generateArticleCSV = async (data) => {
     let columns = [];
+
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+    
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
           let labelObj = { header: labels.article[articleField], key: articleField};
           columns.push(labelObj);
         }
-      })
-    }
-
-    if (labels.articleInfo) {
-      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
-        columns.push(labelObj);
       })
     }
 
