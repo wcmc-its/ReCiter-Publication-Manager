@@ -133,16 +133,16 @@ const SearchSummary = ({
   }
 
   const exportAuthorshipCSV = () => {
-    let requestBody: PublicationSearchFilter = pubSearchFilter;
     setExportAuthorshipCsvLoading(true);
     fetch(`/api/db/reports/publication/authorship`, {
       credentials: "same-origin",
       method: 'POST',
       headers: {
         Accept: 'application/json',
+        "Content-Type": "application/json",
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(pubSearchFilter)
     }).then(response => {
       return response.json();
     }).then(result => {
@@ -164,6 +164,13 @@ const SearchSummary = ({
       })
     }
 
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
@@ -173,10 +180,12 @@ const SearchSummary = ({
       })
     }
 
-    if (labels.articleInfo) {
-      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
-        columns.push(labelObj);
+    if (labels.article) {
+      Object.keys(labels.article).forEach(label => {
+        if (!metrics.article.hasOwnProperty(label)) {
+          let labelObj = { header: labels.article[label], key: label};
+          columns.push(labelObj);
+        }
       })
     }
 
@@ -193,7 +202,7 @@ const SearchSummary = ({
         Object.keys(item).forEach(obj => {
           if (obj === 'PersonPersonTypes') {
             let personTypes = item[obj].map(personType => personType.personType).join('|');
-            itemRow = {...itemRow, personType: personTypes};
+            itemRow = {...itemRow, personTypes: personTypes};
           } else {
             itemRow = {...itemRow, ...item[obj]};
           }
@@ -220,16 +229,16 @@ const SearchSummary = ({
   }
 
   const exportArticleCSV = () => {
-    let requestBody: PublicationSearchFilter = pubSearchFilter;
     setExportArticleCsvLoading(true);
     fetch(`/api/db/reports/publication/article`, {
       credentials: "same-origin",
       method: 'POST',
       headers: {
         Accept: 'application/json',
+        "Content-Type": "application/json",
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(pubSearchFilter)
     }).then(response => {
       return response.json();
     }).then(result => {
@@ -243,19 +252,20 @@ const SearchSummary = ({
 
   const generateArticleCSV = async (data) => {
     let columns = [];
+
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+    
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
           let labelObj = { header: labels.article[articleField], key: articleField};
           columns.push(labelObj);
         }
-      })
-    }
-
-    if (labels.articleInfo) {
-      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
-        columns.push(labelObj);
       })
     }
 
