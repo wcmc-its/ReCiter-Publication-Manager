@@ -164,6 +164,13 @@ const SearchSummary = ({
       })
     }
 
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
@@ -173,10 +180,12 @@ const SearchSummary = ({
       })
     }
 
-    if (labels.articleInfo) {
-      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
-        columns.push(labelObj);
+    if (labels.article) {
+      Object.keys(labels.article).forEach(label => {
+        if (!metrics.article.hasOwnProperty(label)) {
+          let labelObj = { header: labels.article[label], key: label};
+          columns.push(labelObj);
+        }
       })
     }
 
@@ -193,7 +202,7 @@ const SearchSummary = ({
         Object.keys(item).forEach(obj => {
           if (obj === 'PersonPersonTypes') {
             let personTypes = item[obj].map(personType => personType.personType).join('|');
-            itemRow = {...itemRow, personType: personTypes};
+            itemRow = {...itemRow, personTypes: personTypes};
           } else {
             itemRow = {...itemRow, ...item[obj]};
           }

@@ -142,12 +142,12 @@ export const labels = {
     // hindexScopus: "h-index (Scopus)",
     // h5indexScopus: "h5-index (Scopus)",
     personIdentifier: "personIdentifier",
-    firstName: "First Name",
     lastName: "Last Name",
+    firstName: "First Name",
+    primaryOrganizationalUnit: "Organization",
+    primaryInstitution: "Institution",
   },
   article: {
-    citationCountNIH: "Citation count (NIH)",
-    citationCountScopus: "Citation count (Scopus)",
     journalImpactScore1: "Scimago Journal Rank",
     journalImpactScore2: "Journal impact",
     readersMendeley: "Mendeley readers",
@@ -156,13 +156,10 @@ export const labels = {
     trendingPubsScore: "TrendingPubs score",
     citationCountNIH: "Citation count (NIH)",
     citationCountScopus: "Citation count (Scopus)",
-    datePublicationAddedToEntrez: "Date added",
-    publicationDateStandarized: "Date standardized"
+    personTypes: "Person types"
   },
   reporting: {
     name: "Author",
-    primaryOrganizationalUnit: "Organization",
-    primaryInstitution: "Institution",
     personType: "Person type",
     journalTitleVerbose: "Journal",
     authorPosition: "Position",
@@ -174,11 +171,12 @@ export const labels = {
     articleYear: "Article year",
     publicationDateDisplay: "Publication date display",
     publicationDateStandarized: "Date standardized",
+    datePublicationAddedToEntrez: "Date added",
     journalTitleVerbose: "Journal",
+    doi: "doi",
     issue: "Issue",
     pages: "Pages",
     volume: "Volume",
-    doi: "doi"
   }
 }
 
