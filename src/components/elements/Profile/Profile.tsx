@@ -7,6 +7,9 @@ import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import styles from "./Profile.module.css";
 import { reciterConfig } from '../../../../config/local';
+import { metrics, labels } from "../../../../config/report";
+import Excel from 'exceljs';
+import { ExportButton } from "../Report/ExportButton";
 
 interface PrimaryName {
   firstInitial?: string,
@@ -42,7 +45,14 @@ const Profile = ({
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
   const [showBiblioBtn, isShowBiblioBtn] = useState<boolean>(false);
+  const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState<boolean>(false);
+  const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
+
+  // for CSV Report
+  const workbook = new Excel.Workbook();
+  let date = new Date().toISOString().slice(0, 10);
+  let articleFileName = `ArticleReport-ReCiter-${date}`;
 
   useEffect(() => {
     if (modalShow) {
@@ -313,6 +323,121 @@ const Profile = ({
     )
   }
 
+  const exportArticleCSV = () => {
+    setExportArticleCsvLoading(true);
+
+    let body = {
+      personIdentifiers: [uid]
+    }
+
+    fetch(`/api/db/reports/publication/article`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(body)
+    }).then(response => {
+      return response.json();
+    }).then(result => {
+      generateArticleCSV(result);
+      setExportArticleCsvLoading(false);
+    }).catch(error => {
+      setExportArticleCsvLoading(false);
+      console.log(error);
+    })
+  }
+
+  const generateArticleCSV = async (data) => {
+    let columns = [];
+
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        columns.push(labelObj);
+      })
+    }
+    
+    if (metrics.article && labels.article) {
+      Object.keys(metrics.article).forEach(articleField => {
+        if (metrics.article[articleField] == true) {
+          let labelObj = { header: labels.article[articleField], key: articleField};
+          columns.push(labelObj);
+        }
+      })
+    }
+
+    try {
+      // creating one worksheet in workbook
+      const worksheet = workbook.addWorksheet(articleFileName);
+      // add worksheet columns
+      // each columns contains header and its mapping key from data
+      worksheet.columns = columns;
+      
+      // process the data and add rows to worksheet
+      data.forEach(item => {
+        let itemRow = {};
+        Object.keys(item).forEach(obj => {
+          if (obj === 'PersonPersonTypes') {
+            let personTypes = item[obj].map(personType => personType.personType).join('|');
+            itemRow = {...itemRow, personType: personTypes};
+          } else {
+            itemRow = {...itemRow, ...item[obj]};
+          }
+        })
+        worksheet.addRow(itemRow);
+      })
+
+      // write the content using writeBuffer
+      const buf = await workbook.csv.writeBuffer();
+      let blobFromBuffer = new Blob([buf]);
+      let fileName = `${articleFileName}.csv`;
+      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+      link.href = window.URL.createObjectURL(blobFromBuffer);
+      link.download = fileName;
+      link.click()
+      link.remove();
+    } catch (error) {
+      console.error('<<<ERRROR>>>', error);
+      console.error('Something Went Wrong', error.message);
+    } finally {
+      // removing worksheet's instance to create new one
+      workbook.removeWorksheet(articleFileName);
+    }
+  }
+
+  const generateRTFPeopleOnly = () => {
+    setExportArticleRTFLoading(true);
+  
+    fetch(`/api/db/reports/publication/people-only`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify({ personIdentifiers: [uid] })
+    }).then(response => {
+      return response.blob();
+    })
+    .then(fileBlob => {
+      let date = new Date().toISOString().slice(0, 10);
+      let fileName = 'ArticleReport-ReCiter-' + date + ".rtf";
+      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+      link.href = window.URL.createObjectURL(fileBlob)
+      link.download = fileName;
+      link.click()
+      link.remove();
+      setExportArticleRTFLoading(false);
+    })
+    .catch(error => {
+      console.log(error);
+      setExportArticleRTFLoading(false);
+    })
+  }
+
   return (
     <Modal show={modalShow} size="lg" onHide={handleClose}>
       {
@@ -340,8 +465,8 @@ const Profile = ({
                 <b>{identity.title}</b>
                 <p>{identity.primaryOrganizationalUnit}</p>
                 <div className="index-data"></div>
-                  <Button variant="warning" className="m-2">Export articles as CSV</Button>
-                  <Button variant="warning" className="m-2">Export articles as RTF</Button>
+                  <ExportButton title="Export articles as CSV" onClick={exportArticleCSV} loading={exportArticleCsvLoading} />
+                  <ExportButton title="Export articles as RTF" onClick={generateRTFPeopleOnly} loading={exportArticlRTFLoading} />
                   {showBiblioBtn && <Button variant="warning" onClick={() => generateBiblioAnalysis()} className="m-2">Generate bibliometric analysis</Button>}
               </div>
             </Row>
