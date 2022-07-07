@@ -53,6 +53,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         let persons: Person[] = []
         if(apiBody.limit != undefined && apiBody.offset != undefined) {
             persons =  await models.Person.findAll({
+                attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode'],
                 include: [
                     {
                         model: models.PersonPersonType, 
@@ -62,8 +64,9 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                             col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                             },
                         where: joinWhere,
-                        attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                        'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode']
+                        attributes: [
+
+                        ]
                         
                     },
                 ],
@@ -77,6 +80,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
             // console.log("persons Ttesting", JSON.stringify(persons))
         } else {
             persons = await models.Person.findAll({
+                attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode'],
                 include: [
                     {
                         model: models.PersonPersonType, 
@@ -86,8 +91,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                             col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
                         where: joinWhere,
-                        attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                        'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode'
+                        attributes: [
                         ]
                         
                     },
