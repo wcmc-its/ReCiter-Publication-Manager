@@ -27,15 +27,24 @@ const filtersList = [
 
 const CuratePublications = () => {
   const dispatch = useDispatch()
-  const filters = useSelector((state: RootStateOrAny) => state.filters)
-  const filteredIds = useSelector((state: RootStateOrAny) => state.identityAllData.map((identity) => identity.personIdentifier))
+  
 
-  const filteredIdentities = useSelector((state: RootStateOrAny) => state.identityAllData.reduce((acc, identity) => {return {...acc, [identity.personIdentifier] : { title: identity.title, fullName: fullName(identity)} }}, {}))
+
+  const filters = useSelector((state: RootStateOrAny) => state.filters)
+  
+  const filterPidData = useSelector((state: RootStateOrAny) => state.curateIdsFromSearchPage.filter((identity) => identity.countPendingArticles > 0 ));
+  const filteredIds = filterPidData.map((identity) => identity.personIdentifier);
+
+
+  const curateIdsFromSearchPage = useSelector((state: RootStateOrAny) => state.curateIdsFromSearchPage);
+
+  const filteredIdentities = useSelector((state: RootStateOrAny) => state.curateIdsFromSearchPage.reduce((acc, identity) => {return {...acc, [identity.personIdentifier] : { title: identity.title, fullName: fullName(identity)} }}, {}))
 
   let filterSectionList: Array<DropdownProps> = [];
   const publicationsGroupDataFetching = useSelector((state: RootStateOrAny) => state.publicationsGroupDataFetching)
   const publicationsMoreDataFetching = useSelector((state: RootStateOrAny) => state.publicationsMoreDataFetching)
   const publicationsGroupData = useSelector((state: RootStateOrAny) => state.publicationsGroupData)
+
   const feedbacklogGroup = useSelector((state: RootStateOrAny) => state.feedbacklogGroup)
   const feedbacklogGroupFetching = useSelector((state: RootStateOrAny) => state.feedbacklogGroupFetching)
   const publicationsPreviousDataFetching = useSelector((state: RootStateOrAny) => state.publicationsPreviousDataFetching)
@@ -44,7 +53,7 @@ const CuratePublications = () => {
   const incrementBy = reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy;
   const [loadCount, setLoadCount] = useState(incrementBy || 20);
   const [page, setPage] = useState<number>(1);
-  const totalCount = useSelector((state: RootStateOrAny) => state.identityAllData.reduce((acc, identity) => {return (identity.countPendingArticles > 0) ? acc + 1 : acc;}, 0));
+  const totalCount = useSelector((state: RootStateOrAny) => state.curateIdsFromSearchPage.reduce((acc, identity) => {return (identity.countPendingArticles > 0) ? acc + 1 : acc;}, 0));
 
   useEffect(() => {
     if (filteredIds.length) {

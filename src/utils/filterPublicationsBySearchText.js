@@ -2,6 +2,8 @@ import fullName from "./fullName";
 
 const filterPublicationsBySearchText = (reciterData, search) => {
   const filteredPublications = []
+  var scopusTargetAuthorAffiliationScore = 0
+
   reciterData.forEach((publication) => {
       // Check search and sort
       if(search !== "") {
@@ -107,8 +109,6 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                       if (publication.evidence.affiliationEvidence?.scopusTargetAuthorAffiliation) {
                         let affiliationEvidenceList = [];
                         let matchType = ''
-                        let scopusTargetAuthorAffiliationScore = 0
-                        let pubmedTargetAuthorAffiliationScore = 0
                         publication.evidence.affiliationEvidence.scopusTargetAuthorAffiliation.forEach((scopusTargetAuthorAffiliation) => {
                           scopusTargetAuthorAffiliationScore = scopusTargetAuthorAffiliationScore + scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore
                           if(scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationMatchType')) {
@@ -143,6 +143,8 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                       }
                       if (publication.evidence.affiliationEvidence?.pubmedTargetAuthorAffiliation) {
                         let pubmedEvidence = [];
+                        let pubmedTargetAuthorAffiliationScore = 0
+
                         pubmedTargetAuthorAffiliationScore = Number(publication.evidence.affiliationEvidence.pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore)
                         pubmedEvidence.push(pubmedTargetAuthorAffiliationScore);
                         let totalScore = Math.abs(scopusTargetAuthorAffiliationScore + pubmedTargetAuthorAffiliationScore)

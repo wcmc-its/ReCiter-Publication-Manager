@@ -592,7 +592,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             </div>
             <span className={styles.midDot}> {reciterArticle.journalTitleVerbose} </span>
             <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
-            <span className={styles.midDot}> {reciterArticle.publicationType.publicationTypeCanonical} </span>
+            <span className={styles.midDot}> {reciterArticle.publicationType?.publicationTypeCanonical} </span>
             <div className={`${styles.publicationAdditionalInfo} pt-2`}>
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
               <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
