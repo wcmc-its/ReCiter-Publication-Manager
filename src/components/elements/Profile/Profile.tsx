@@ -9,6 +9,7 @@ import styles from "./Profile.module.css";
 import { reciterConfig } from '../../../../config/local';
 import { metrics, labels } from "../../../../config/report";
 import Excel from 'exceljs';
+import { ExportButton } from "../Report/ExportButton";
 
 interface PrimaryName {
   firstInitial?: string,
@@ -45,6 +46,7 @@ const Profile = ({
   const [identity, setIdentity] = useState<any>({});
   const [showBiblioBtn, isShowBiblioBtn] = useState<boolean>(false);
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState<boolean>(false);
+  const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
 
   // for CSV Report
@@ -406,6 +408,36 @@ const Profile = ({
     }
   }
 
+  const generateRTFPeopleOnly = () => {
+    setExportArticleRTFLoading(true);
+  
+    fetch(`/api/db/reports/publication/people-only`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify({ personIdentifiers: [uid] })
+    }).then(response => {
+      return response.blob();
+    })
+    .then(fileBlob => {
+      let date = new Date().toISOString().slice(0, 10);
+      let fileName = 'ArticleReport-ReCiter-' + date + ".rtf";
+      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+      link.href = window.URL.createObjectURL(fileBlob)
+      link.download = fileName;
+      link.click()
+      link.remove();
+      setExportArticleRTFLoading(false);
+    })
+    .catch(error => {
+      console.log(error);
+      setExportArticleRTFLoading(false);
+    })
+  }
+
   return (
     <Modal show={modalShow} size="lg" onHide={handleClose}>
       {
@@ -433,8 +465,8 @@ const Profile = ({
                 <b>{identity.title}</b>
                 <p>{identity.primaryOrganizationalUnit}</p>
                 <div className="index-data"></div>
-                  <Button variant="warning" className="m-2" onClick={exportArticleCSV}>Export articles as CSV</Button>
-                  <Button variant="warning" className="m-2">Export articles as RTF</Button>
+                  <ExportButton title="Export articles as CSV" onClick={exportArticleCSV} loading={exportArticleCsvLoading} />
+                  <ExportButton title="Export articles as RTF" onClick={generateRTFPeopleOnly} loading={exportArticlRTFLoading} />
                   {showBiblioBtn && <Button variant="warning" onClick={() => generateBiblioAnalysis()} className="m-2">Generate bibliometric analysis</Button>}
               </div>
             </Row>
