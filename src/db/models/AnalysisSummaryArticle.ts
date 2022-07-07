@@ -30,7 +30,7 @@ export interface AnalysisSummaryArticleAttributes {
 }
 
 export type AnalysisSummaryArticlePk = "id";
-export type AnalysisSummaryArticleId = AnalysisSummaryArticle[AnalysisSummaryArticlePk];
+//export type AnalysisSummaryArticleId = AnalysisSummaryArticle[AnalysisSummaryArticlePk];
 export type AnalysisSummaryArticleOptionalAttributes = "id" | "pmid" | "pmcid" | "publicationDateDisplay" | "publicationDateStandardized" | "datePublicationAddedToEntrez" | "articleTitle" | "articleTitleRTF" | "publicationTypeCanonical" | "publicationTypeNIH" | "journalTitleVerbose" | "issn" | "journalImpactScore1" | "journalImpactScore2" | "articleYear" | "doi" | "volume" | "issue" | "pages" | "citationCountScopus" | "citationCountNIH" | "percentileNIH" | "relativeCitationRatioNIH" | "readersMendeley" | "trendingPubsScore";
 export type AnalysisSummaryArticleCreationAttributes = Optional<AnalysisSummaryArticleAttributes, AnalysisSummaryArticleOptionalAttributes>;
 
