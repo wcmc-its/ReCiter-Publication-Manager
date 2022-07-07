@@ -17,10 +17,12 @@ const FilterReview = ({
   onToggle,
   count,
   filterByPending,
+  onCurate,
 } : {
   onToggle: (value: boolean) => void;
   count: number,
   filterByPending: boolean,
+  onCurate: any,
 }) => {
   const [filter, setFilter] = useState(false);
 
@@ -46,6 +48,12 @@ const FilterReview = ({
     }
   }));
 
+  const onDropDownClick = ()=>{
+    onCurate();
+  }
+
+  // console.log("curateData is", curateData)
+
   return (
     <Row className="pb-2 pt-2">
       <Col className="d-flex my-auto"><h4><strong>{`${count}`} people found using filters</strong></h4></Col>
@@ -56,6 +64,7 @@ const FilterReview = ({
           id="publications"
           listItems={dropdownItems}
           disabled={count === 0}
+          onDropDownClick={onDropDownClick}
           />
       </Col>
       <Col className="d-flex flex-row">

@@ -22,10 +22,12 @@ const ReciterTabs = ({ reciterData, fullName,fetchOriginalData } : {reciterData:
       publicationsPerTabs.push({ value: tab.value, name: tab.name, data: filteredReciterData, count: filteredReciterData.length})
     })
     setFilteredData(publicationsPerTabs);
+
   }, [])
 
   const updatePublicationAssertion = (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => {
     let updatedFilteredData = [...filteredData];
+
     updatedFilteredData.forEach((tabData) => {
       // If Tab matches the updated user assertion, add the article in the tab
       if (tabData.value == userAssertion) {
@@ -40,7 +42,7 @@ const ReciterTabs = ({ reciterData, fullName,fetchOriginalData } : {reciterData:
     })
 
     setFilteredData(updatedFilteredData);
-    fetchOriginalData();
+    // fetchOriginalData();
 
   }
 
@@ -63,7 +65,8 @@ const ReciterTabs = ({ reciterData, fullName,fetchOriginalData } : {reciterData:
       }
     })
     setFilteredData(updatedFilteredData);
-    fetchOriginalData();
+
+    // fetchOriginalData();
   }
 
   return (

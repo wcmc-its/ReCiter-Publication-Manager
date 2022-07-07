@@ -911,6 +911,13 @@ export const personTypesFetchAllData = () => dispatch => {
       })
 }
 
+export const curateIdsFromSearch = ( curateData ) => dispatch => {
+    dispatch({
+      type: methods.CURATE_IDS_FROM_SEACH_PAGE,
+      payload: curateData
+    })
+  }
+
 export const updateFilters = ( filter ) => dispatch => {
   dispatch({
     type: methods.FILTERS_CHANGE,
