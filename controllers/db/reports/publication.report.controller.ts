@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import sequelize from "../../../src/db/db";
 import { GeneratePubsApiBody, GeneratePubsPeopleOnlyApiBody } from "../../../types/publication.report.body";
-import { PublicationSearchFilter } from '../../../types/publication.report.search';
+import { PublicationSearchFilter, PublicationAuthorSearchFilter } from '../../../types/publication.report.search';
 import { Op, Sequelize } from "sequelize";
 import { limits, metrics } from "../../../config/report";
 import {
@@ -409,6 +409,100 @@ export const generatePubsPeopleOnlyRtf = async (
   
         if (sortType === 'trendingPubsScore')
           sort.push(["trendingPubsScore", sortOrder]);
+      }
+      let limit = limits.maxCountPubsReturn;
+      let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
+      let doiUrl = 'https://dx.doi.org/';
+      let searchOutput: any[] = [];
+      searchOutput = await models.AnalysisSummaryAuthor.findAll({
+        include: [
+          {
+            model: models.AnalysisSummaryArticle,
+            as: "AnalysisSummaryArticle",
+            required: true,
+            on: {
+              col: Sequelize.where(
+                Sequelize.col("AnalysisSummaryArticle.pmid"),
+                "=",
+                Sequelize.col("AnalysisSummaryAuthor.pmid")
+              ),
+            },
+            attributes: [
+              "pmid",
+              "articleTitle",
+              "pmcid",
+              "articleYear",
+              "publicationDateDisplay",
+              "publicationDateStandardized",
+              "datePublicationAddedToEntrez",
+              "journalTitleVerbose",
+              "issue",
+              "pages",
+              "volume",
+              [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+              ...articleLevelMetrics
+            ],
+          },
+          {
+            model: models.Person,
+            as: "Person",
+            required: true,
+            on: {
+              col: Sequelize.where(
+                Sequelize.col("Person.personIdentifier"),
+                "=",
+                Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+              )
+            },
+            attributes: []
+          },
+          {
+            model: models.PersonPersonType,
+            as: "PersonPersonTypes",
+            required: true,
+            on: {
+              col1: Sequelize.where(
+                Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                "=",
+                Sequelize.col("PersonPersonTypes.personIdentifier"),
+              ),
+              col2: Sequelize.where(
+                Sequelize.col("Person.personIdentifier"),
+                "=",
+                Sequelize.col("PersonPersonTypes.personIdentifier"),
+              ),
+            },
+            attributes: ["personType"]
+          }
+        ],
+        where: where,
+        group: ["AnalysisSummaryAuthor.pmid"],
+        order: [],
+        subQuery: false,
+        attributes: []
+      })
+      return searchOutput;
+    } catch (e) {
+      console.log(e);
+      res.status(500).send(e);
+    }
+  };
+
+  export const generatePersonArticleReportCSV = async (
+    req: NextApiRequest,
+    res: NextApiResponse
+  ) => {
+    try {
+      let apiBody: any = req.body;
+      const where = {};
+      const sort = [];
+      if (apiBody?.personIdentifiers && apiBody.personIdentifiers.length > 0) {
+        where[Op.and] = [];
+        where[Op.and].push({
+          "$AnalysisSummaryAuthor.personIdentifier$": {
+            [Op.in]: apiBody.personIdentifiers,
+          },
+        });
       }
       let limit = limits.maxCountPubsReturn;
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
