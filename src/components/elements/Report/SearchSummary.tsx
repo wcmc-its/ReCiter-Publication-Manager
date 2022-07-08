@@ -320,12 +320,12 @@ const SearchSummary = ({
                 <div key={index}>
                   <Dropdown.Item eventKey={`${sortOption}_DESC`} key={`${sortOption}_DESC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
                     {selected.type === sortOption && selected.order === 'DESC' && <AiOutlineCheck />} 
-                    {labels.article[sortOption]}
+                    {labels.article[sortOption] || labels.articleInfo[sortOption]}
                     {<ArrowDownwardIcon />}
                   </Dropdown.Item>
                   <Dropdown.Item eventKey={`${sortOption}_ASC`} key={`${sortOption}_ASC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
                     {selected.type === sortOption && selected.order === 'ASC' && <AiOutlineCheck />} 
-                    {labels.article[sortOption]}
+                    {labels.article[sortOption] || labels.articleInfo[sortOption]}
                     {<ArrowUpwardIcon />}
                   </Dropdown.Item>
                 </div>
