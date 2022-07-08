@@ -20,10 +20,10 @@ models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
   foreignKey: 'id'
 });
-models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryAuthor, {
-  constraints: false,
-  foreignKey: 'id'
-});
+// models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryAuthor, {
+//   constraints: false,
+//   foreignKey: 'id'
+// });
 
 export const publicationSearchWithFilter = async (
   req: NextApiRequest,
