@@ -14,12 +14,15 @@ import {
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false });
 models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
   constraints: false,
+  foreignKey: 'id'
 });
 models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
+  foreignKey: 'id'
 });
 models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
+  foreignKey: 'id'
 });
 
 export const publicationSearchWithFilter = async (
