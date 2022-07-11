@@ -131,7 +131,7 @@ const Report = () => {
     handleCountUpdate(newCount);
 
     // fetch data
-    let updatedSearchFilter = updatePagination(page, parseInt(count), pubSearchFilter);
+    let updatedSearchFilter = updatePagination(page, parseInt(newCount), pubSearchFilter);
     dispatch(updatePubSearchFilters(updatedSearchFilter));
     dispatch(getReportsResults(updatedSearchFilter));
   }
