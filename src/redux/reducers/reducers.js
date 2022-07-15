@@ -194,6 +194,17 @@ export const curateIdsFromSearchPage = (state=[], action) => {
   }
 }
 
+export const curateSearchtext = (state=[], action) => {
+  switch(action.type) {
+
+      case methods. INDIVIDUVAL_CURATE_IDS_SEARCH_TEXT :
+          return action.payload
+
+      default :
+          return state
+  }
+}
+
 export const identityPaginatedData = (state=[], action) => {
 
   switch(action.type) {
@@ -736,5 +747,7 @@ export default combineReducers({
     reportsPaginatedResultsLoading,
     reportsResultsIds,
     reportsResultsIdsLoading,
-    curateIdsFromSearchPage
+    curateIdsFromSearchPage,
+    curateSearchtext
+    
 })

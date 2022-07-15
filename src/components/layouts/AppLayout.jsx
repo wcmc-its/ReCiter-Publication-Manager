@@ -22,7 +22,7 @@ export const AppLayout = ({ children }) => {
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
-      router.push("/_error");
+      // router.push("/_error");
     }
   }, [session, router, loading, errors]);
 
