@@ -29,7 +29,9 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
   useEffect(() => {
     const { searchedText, userAssertion } = props.isSearchText;
     if (userAssertion === props.tabType) setSearchText(searchedText);
-    if (searchedText =="") props.searchTextUpdate(searchedText);
+    if (searchedText ==""){
+      props.searchTextUpdate(searchedText);
+    } 
   }, [props.isSearchText])
 
   const updateAll = (userAssertion: string) => {
