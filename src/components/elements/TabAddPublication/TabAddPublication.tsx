@@ -11,7 +11,8 @@ import { YearPicker } from 'react-dropdown-date';
 
 interface FuncProps {
     onReject(id: number): void,
-    onUndo(id: Number): void
+    onUndo(id: Number): void,
+    reciterData:any,
 }
 
 const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
@@ -98,16 +99,15 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const filter = () => {
-
         // Get array of PMIDs from pending publications
         const pubmedIds: Array<number> = []
         reciterData.reciterPending.forEach(function(publication: any){
-            pubmedIds.push(publication.pmid)
+            pubmedIds.push(publication)
         })
 
-        reciterData.reciter.forEach(function(publication: any){
+        reciterData.reciter.reCiterArticleFeatures.forEach(function(publication: any){
             if(publication.userAssertion === 'ACCEPTED' || publication.userAssertion === 'REJECTED')
-            pubmedIds.push(publication.pmid)
+            pubmedIds.push(publication)
         })
 
         // Filter
@@ -262,7 +262,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         reciterPublications.push(publication)
     })
 
-    reciterData.reciter.forEach(function(publication: any){
+    reciterData.reciter.reCiterArticleFeatures.forEach(function(publication: any){
         reciterPublications.push(publication)
     })
 
@@ -279,13 +279,12 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             }
         })
     }
-    console.log(errors)
 
     return (
         <div>
             <div className={styles.addPublicationSearchContainer}>
                 <div className="row">
-                    <div className="col-md-6">
+                    <div className="col-md-4">
                         <input
                             type="text"
                             className="form-control"
@@ -294,9 +293,12 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                             defaultValue={(pubmedSearch !== undefined)?pubmedSearch:''}
                         />
                     </div>
+                    <div className="col-md-1" >
+                    <label className={styles.yearLabel}>Earliest</label>
+                    </div>
                     <div className="col-md-2" >
                         <div className="show-rows">
-                            <label className={styles.yearLabel}>Earliest</label>
+                            {/*  */}
                             <YearPicker
                                 defaultValue={''}
                                 // default is 1900
@@ -316,9 +318,12 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                             />
                         </div>
                     </div>
+                    <div className="col-md-1" >
+                    <label className={styles.yearLabel}>Latest</label>
+                    </div>
                     <div className="col-md-2" >
                         <div className="show-rows">
-                            <label className={styles.yearLabel}>Latest</label>
+                            {/* <label className={styles.yearLabel}>Latest</label> */}
                             <YearPicker
                                 defaultValue={''}
                                 // default is 1900
@@ -347,14 +352,14 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                 </div>
             </div>
 
-            {
+             { 
                 (pubmedFetching) ? <div className={appStyles.appLoader}></div> :
                 <div>
                     {(pubmedSearch != "") ?
                         <div>
                             {(pubmedData.length > 0)?
                                 <div className="row">
-                                    <div className="col-md-4">
+                                    <div className="col-md-8">
                                         <p>Number of results: <strong>{pubmedData.length}</strong></p>
                                         <p><span>See also: <strong>{searchAcceptedCount}</strong> already accepted, <strong>{searchRejectedCount}</strong> already rejected</span></p>
                                     </div>

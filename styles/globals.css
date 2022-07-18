@@ -146,3 +146,8 @@ h1 {
 .text-decoration-underline-dotted {
   text-decoration: underline dotted;
 }
+
+.noSpace{
+  margin: 0 !important;
+  padding: 0 !important;
+}

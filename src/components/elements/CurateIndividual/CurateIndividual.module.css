@@ -66,7 +66,8 @@
 
 .activeTab {
   font-weight: bold;
-  margin-top: 2px;
+  /* margin-top: 2px; */
+  border-bottom: 1px solid #ffffff;
 }
 
 .nav-tabs .nav-link.active .tabTitle {
@@ -106,3 +107,33 @@
 .indentityDataContainer {
   margin-bottom: 10px;
 }
+
+.addPubmade{
+  text-align: right;
+  z-index: 1;
+  position: relative;
+  width: 200px;
+  left: 80%;
+}
+.tabDisplayNone{
+  justify-content: flex-end !important;
+  /* background-color: red !important; */
+  width: 35em;
+  display: flex;
+  padding-right: 3px ;
+}
+.pubMadeTab{
+  border: none !important;
+  color: blue !important;
+  padding: 9px 0 0 0;
+}
+.pubMadeTab .nav-tabs .nav-link.active .tabTitle{
+  padding: 6px 0 0 0;
+  /* color: #2458D1; */
+}
+.tabsMain{
+  border-top: 1px solid grey !important;
+  border-right: 1px solid grey !important;
+  border-left: 1px solid grey !important;
+}
+

@@ -4,15 +4,17 @@ import Divider from "../Common/Divider";
 import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
-import Pagination  from '../Pagination/Pagination';
+import Pagination from '../Pagination/Pagination';
 import { useSession } from "next-auth/client";
-import { reciterUpdatePublication } from "../../../redux/actions/actions";
-import { useDispatch } from "react-redux"; 
+import { curateSearchtextAction, reciterUpdatePublication } from "../../../redux/actions/actions";
+import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
+import { FormControlUnstyled } from "@mui/material";
 
 interface TabContentProps {
   tabType: string,
   publications: any,
   index: number,
+  isSearchText: any,
   personIdentifier: string,
   fullName: string,
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
@@ -22,6 +24,8 @@ interface TabContentProps {
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [sort, setSort] = useState<string>("0")
   const [publications, setPublications] = useState<any>(props.publications);
+  const [searchtextCarier, setSearchtextCarier] = useState<any>("");
+
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
   const [session, loading] = useSession();
@@ -37,12 +41,13 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   }
 
   const searchTextUpdate = (searchText: string) => {
-    let filteredPublications = filterPublicationsBySearchText(props.publications, searchText);
+    let filteredPublications = filterPublicationsBySearchText(props.publications, searchText.trim());
     setPublications(filteredPublications);
     setTotalCount(filteredPublications.length);
-     if (page !== 1) {
-       setPage(1);
-     }
+    setSearchtextCarier(searchText);
+    if (page !== 1) {
+      setPage(1);
+    }
   }
 
   const sortUpdate = (sort: string) => {
@@ -52,7 +57,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   }
 
   // Update the page
-  const handlePaginationUpdate = ( page ) => {
+  const handlePaginationUpdate = (page) => {
     setPage(page)
   }
 
@@ -68,8 +73,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     let from = (page - 1) * count;
     let to = from + count;
     let dataList = [];
-    if (props.publications) {
-      dataList = props.publications;
+    if (publications) {
+      dataList = publications;
     }
     return dataList.slice(from, to);
   };
@@ -86,13 +91,20 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       personIdentifier: uid,
     }
     // TODO: send request
+
+    let SearchInfo = {
+      searchedText:searchtextCarier,
+      userAssertion:userAssertion
+    }
+    dispatch(curateSearchtextAction(SearchInfo));
+
     dispatch(reciterUpdatePublication(uid, request));
-    
+
     // update user assertion of the publication
     let updatedPublication = {};
     let index = publications.findIndex(publication => publication.pmid === pmid);
-    if (index > -1) { 
-      updatedPublication = { 
+    if (index > -1) {
+      updatedPublication = {
         ...publications[index],
         userAssertion: userAssertion
       };
@@ -104,7 +116,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
   const handleUpdatePublicationAll = (userAssertion: string) => {
     const userId = session?.data?.databaseUser?.userID;
-    const pmids = getPaginatedData().map((publication) => {return publication.pmid});
+    const pmids = getPaginatedData().map((publication) => { return publication.pmid });
     const request = {
       publications: pmids,
       userAssertion: userAssertion,
@@ -112,16 +124,20 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       userID: userId,
       personIdentifier: props.personIdentifier,
     }
-
+    let SearchInfo = {
+      searchedText:searchtextCarier,
+      userAssertion:userAssertion
+    }
+    dispatch(curateSearchtextAction(SearchInfo));
     dispatch(reciterUpdatePublication(props.personIdentifier, request));
     //TODO Update publications list in the tab
     let paginatedPublications = getPaginatedData();
-    let updatedPublications = []; 
+    let updatedPublications = [];
     pmids.forEach((pmid) => {
       let updatedPublication = {};
       let index = paginatedPublications.findIndex(publication => publication.pmid === pmid);
-      if (index > -1) { 
-        updatedPublication = { 
+      if (index > -1) {
+        updatedPublication = {
           ...publications[index],
           userAssertion: userAssertion
         };
@@ -132,24 +148,26 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     props.updatePublicationAssertionBulk(updatedPublications, userAssertion, props.tabType);
   }
 
+
   return (
     <>
-      <FilterPubSection 
+      <FilterPubSection
         searchTextUpdate={searchTextUpdate}
         sortUpdate={sortUpdate}
         publications={publications}
         updateAll={handleUpdatePublicationAll}
         tabType={props.tabType}
+        isSearchText={props.isSearchText}
       />
       <Pagination total={totalCount} page={page}
         count={count}
         onChange={handlePaginationUpdate}
         onCountChange={handleCountUpdate}
-        />
+      />
       {publicationsPaginatedData.map((publication: any, index: number) => {
         return (
           <div key={publication.pmid}>
-            <Publication 
+            <Publication
               index={index}
               reciterArticle={publication}
               personIdentifier={props.personIdentifier}

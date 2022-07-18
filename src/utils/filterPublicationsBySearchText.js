@@ -1,3 +1,4 @@
+import { PanoramaWideAngleSelect } from "@mui/icons-material";
 import fullName from "./fullName";
 
 const filterPublicationsBySearchText = (reciterData, search) => {
