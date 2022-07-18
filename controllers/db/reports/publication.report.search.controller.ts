@@ -11,7 +11,7 @@ import {
   PublicationSearchFilter
 } from "../../../types/publication.report.search";
 
-models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false });
+models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'id' });
 models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
   constraints: false,
   foreignKey: 'id'
@@ -237,6 +237,7 @@ export const publicationSearchWithFilter = async (
         limit: apiBody.limit,
         offset: apiBody.offset,
         order: sort,
+        attributes: { exclude: ['AnalysisSummaryAuthorId']}
       });
     }
     return searchOutput;
