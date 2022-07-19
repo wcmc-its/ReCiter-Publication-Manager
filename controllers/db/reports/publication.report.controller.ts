@@ -27,13 +27,25 @@ export const generatePubsRtf = async (
 ) => {
   try {
     let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
-    const generatePubsRtfOutput: any = await sequelize.query(
-      "CALL generatePubsRTF (:uids , :pmids)",
-      {
-        replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(',') },
-        raw: true,
-      }
-    );
+    let generatePubsRtfOutput: any = [];
+    if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
+      generatePubsRtfOutput = await sequelize.query(
+        "CALL generatePubsRTF (:uids , :pmids)",
+        {
+          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(',') },
+          raw: true,
+        }
+      );
+    } else {
+      generatePubsRtfOutput = await sequelize.query(
+        "CALL generatePubsNoPeopleRTF ( :pmids)",
+        {
+          replacements: { pmids: apiBody.pmids.join(',') },
+          raw: true,
+        }
+      );
+    }
+    
     return Array.isArray(generatePubsRtfOutput) &&
       generatePubsRtfOutput.length > 0
       ? generatePubsRtfOutput[0].x
