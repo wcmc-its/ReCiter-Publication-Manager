@@ -96,17 +96,21 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
        <div className={styles.selectListContainer}>
         {
           filteredOptions(options, isDynamicFetch).map((option, index) => {
-            return (
-              <Form.Check
-                type="checkbox"
-                id={option.key}
-                key={option[optionValue]}
-                label={getLabel(option)}
-                value={option[optionValue]}
-                checked={selectedOptions && selectedOptions.includes(option[optionValue]) }
-                onChange={(e) => onSelect(e)}
-                />
-            )
+            if (selectedOptions && selectedOptions.includes(option[optionValue])) {
+              return null;
+            } else {
+              return (
+                <Form.Check
+                  type="checkbox"
+                  id={option.key}
+                  key={option[optionValue]}
+                  label={getLabel(option)}
+                  value={option[optionValue]}
+                  checked={selectedOptions && selectedOptions.includes(option[optionValue]) }
+                  onChange={(e) => onSelect(e)}
+                  />
+              )
+            }
           })
           }
        </div>

@@ -45,6 +45,7 @@ export const reportConfig = {
           {key: "last", label: "Last"}
         ],
         filterType: "Checklist",
+        isEnabled: true,
         dynamicFetchOptions: false,
       }
     }
