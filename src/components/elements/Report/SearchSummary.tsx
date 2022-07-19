@@ -64,6 +64,11 @@ const SearchSummary = ({
 
   const generateExportArticle = (requestBody: ReporstResultId) => {
     setExportArticleLoading(true);
+    let personIdentifiers = pubSearchFilter?.filters?.personIdentifers?.length > 0 ? [...pubSearchFilter.filters.personIdentifers] : [];
+    let articlesData = {
+      personIdentifiers,
+      pmids: [...requestBody.pmids]
+    }
     fetch(`/api/db/reports/publication`, {
       credentials: "same-origin",
       method: 'POST',
@@ -71,7 +76,7 @@ const SearchSummary = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(articlesData)
     }).then(response => {
       return response.blob();
     })
