@@ -11,14 +11,14 @@ import {
   PublicationSearchFilter
 } from "../../../types/publication.report.search";
 
-models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'id' });
+models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
 models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
   constraints: false,
-  foreignKey: 'id'
+  foreignKey: 'AnalysisSummaryArticleId'
 });
 models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
-  foreignKey: 'id'
+  foreignKey: 'AnalysisSummaryArticleId'
 });
 // models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryAuthor, {
 //   constraints: false,
