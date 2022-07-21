@@ -64,12 +64,16 @@ const FilterReview = ({
     router.push('/report');
   }
 
-  // console.log("curateData is", curateData)
+  const dropdownItems: Array<ListItem> = 
+ [
+    { title: 'Create Reports', onClick: onClickCurateReports},
+    { title: 'Perform Analysis', to: '/perform-analysis'},
+ ]
 
   return (
     <Row className="pb-2 pt-2">
       <Col className="d-flex my-auto"><h4><strong>{`${count}`} people found using filters</strong></h4></Col>
-      <Col className="d-flex flex-row">
+      <Col>
         <SplitDropdown
           title="Curate Publications"
           to='/curate'
@@ -78,9 +82,6 @@ const FilterReview = ({
           disabled={count === 0}
           onDropDownClick={onDropDownClick}
           />
-          <div className="mt-2 mx-2">
-            <Button className="primary" onClick={onClickCurateReports}>Create Reports</Button>
-          </div>
       </Col>
       <Col className="d-flex flex-row">
       <div>Show only people with <br /> pending suggestions</div>
