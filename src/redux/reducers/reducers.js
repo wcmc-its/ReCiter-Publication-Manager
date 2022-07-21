@@ -640,6 +640,9 @@ export const pubSearchFilter = ( state = initialStatePubSearchFilter, action) =>
     case methods.PUB_FILTER_CLEAR:
       return initialStatePubSearchFilter
 
+    case methods.PUB_POPULATE_SEARCH_FILTERS:
+      return action.payload
+    
     default:
       return state
   }

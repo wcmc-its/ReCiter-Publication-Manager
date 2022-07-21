@@ -6,7 +6,8 @@ import styles from './Dropdown.module.css';
 
 interface DropdownProps {
   title: string,
-  to: string,
+  to?: string,
+  onClick?: () => void,
   id: string, 
   listItems: Array<ListItem>,
   secondary?: boolean,
@@ -14,7 +15,7 @@ interface DropdownProps {
   onDropDownClick:any,
 }
 
-const SplitDropdown: React.FC<DropdownProps> = ({ title, to, id, listItems, secondary,onDropDownClick,disabled}) => {
+const SplitDropdown: React.FC<DropdownProps> = ({ title, to, onClick, id, listItems, secondary,onDropDownClick,disabled}) => {
 
   return (
     <div className="mt-2">
@@ -31,9 +32,17 @@ const SplitDropdown: React.FC<DropdownProps> = ({ title, to, id, listItems, seco
           onClick={()=>onDropDownClick()}
         >
           {listItems.map((item: ListItem, index: number) => {
-            return (
-              <Link key={index} href={item.to} passHref><Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`}   eventKey={index}>{item.title}</Dropdown.Item></Link>
-            )
+            if (item.onClick !== undefined) {
+              return (
+                <Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`} eventKey={index} onClick={item.onClick}>
+                  {item.title}
+                </Dropdown.Item>
+              )
+            } else {
+              return (
+                <Link key={index} href={item.to} passHref><Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`}   eventKey={index}>{item.title}</Dropdown.Item></Link>
+              )
+            }
           })}
         </SplitButton>
       {/* </Link> */}
