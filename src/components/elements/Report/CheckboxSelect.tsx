@@ -19,7 +19,13 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     if (isDynamicFetch) {
       filterUpdateOptions[value](userInput);
     }
-  }, [userInput])
+
+    let updatedSelectedList = selectedOptions.map((selectedOption) => {
+      return options.find(option => option[optionValue] == selectedOption);
+    })
+
+    setSelectedList(updatedSelectedList);
+  }, [userInput, selectedOptions])
 
   const filteredOptions = (options, isDynamicFetch) => {
     if (userInput != '' && !isDynamicFetch) {
