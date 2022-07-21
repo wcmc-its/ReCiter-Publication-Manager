@@ -1,10 +1,13 @@
 import React, { useState, MouseEvent } from "react";
-import { Row, Col } from "react-bootstrap";
+import { Row, Col, Button } from "react-bootstrap";
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { styled } from '@mui/material/styles';
 import { ListItem } from "../../../../types/listItem";
 import SplitDropdown from "../Dropdown/SplitDropdown";
+import { useRouter } from 'next/router';
+import { useDispatch } from "react-redux";
+import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
 
 const dropdownItems: Array<ListItem> = 
  [
@@ -25,6 +28,8 @@ const FilterReview = ({
   onCurate: any,
 }) => {
   const [filter, setFilter] = useState(false);
+  const router = useRouter();
+  const dispatch = useDispatch();
 
   const handleChange = ( event: MouseEvent<HTMLElement, globalThis.MouseEvent>, value: any) => {
     setFilter(value);
@@ -52,12 +57,19 @@ const FilterReview = ({
     onCurate();
   }
 
+  const onClickCurateReports = () => {
+    // update redux state
+    dispatch(updatePubFiltersFromSearch());
+    // navigate to create reports page
+    router.push('/report');
+  }
+
   // console.log("curateData is", curateData)
 
   return (
     <Row className="pb-2 pt-2">
       <Col className="d-flex my-auto"><h4><strong>{`${count}`} people found using filters</strong></h4></Col>
-      <Col>
+      <Col className="d-flex flex-row">
         <SplitDropdown
           title="Curate Publications"
           to='/curate'
@@ -66,6 +78,9 @@ const FilterReview = ({
           disabled={count === 0}
           onDropDownClick={onDropDownClick}
           />
+          <div className="mt-2 mx-2">
+            <Button className="primary" onClick={onClickCurateReports}>Create Reports</Button>
+          </div>
       </Col>
       <Col className="d-flex flex-row">
       <div>Show only people with <br /> pending suggestions</div>

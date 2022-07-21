@@ -1565,6 +1565,35 @@ export const clearPubSearchFilters = () => dispatch => {
     })
 }
 
+// Populate Create Reports Filters by Search Filters Data
+export const updatePubFiltersFromSearch = () => {
+  return (dispatch, getState) => {
+
+    // get filters from Search Page
+    const filters = getState().filters;
+    let reportsSearchFilters = initialStatePubSearchFilter;
+    if (filters.orgUnits) {
+      reportsSearchFilters.filters.orgUnits = [...filters.orgUnits]; 
+    }
+
+    if (filters.insitutions) {
+      reportsSearchFilters.filters.insitutions = [...filters.insitutions];
+    }
+
+    if (filters.personTypes) {
+      reportsSearchFilters.filters.personTypes = [...filters.personTypes];
+    }
+
+    if (filters.nameOrUids) {
+      reportsSearchFilters.filters.personIdentifers = [...filters.nameOrUids];
+    }
+    dispatch({
+      type: methods.PUB_FILTER_CLEAR,
+      payoload: reportsSearchFilters
+    });
+  }
+}
+
 // Search Results for Create Reports Page
 export const getReportsResults = (requestBody, paginationUpdate = false) => dispatch => {
     // check if fetching different page of the same results and update loading state accordingly
