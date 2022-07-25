@@ -212,7 +212,8 @@ export const publicationSearchWithFilter = async (
         offset: apiBody.offset,
         order: sort,
         group: ["AnalysisSummaryAuthor.pmid"],
-        distinct: true
+        distinct: true,
+        attributes: { exclude: ['AnalysisSummaryAuthorId']}
       });
       searchOutput = { 
         ...results,
