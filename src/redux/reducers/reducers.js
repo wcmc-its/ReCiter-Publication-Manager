@@ -326,6 +326,19 @@ export const errors = (state=[], action) => {
             return state
     }
 }
+export const pubmedFetchingMore = (state=false, action) => {
+
+  switch(action.type) {
+
+      
+      case methods.PUBMED_FETCH_DATA_MORE :
+      return action.payload 
+
+      default:
+          return state
+  }
+
+}
 
 const initialFilterState = {
   orgUnits: [],
@@ -751,6 +764,6 @@ export default combineReducers({
     reportsResultsIds,
     reportsResultsIdsLoading,
     curateIdsFromSearchPage,
-    curateSearchtext
-    
+    curateSearchtext,
+    pubmedFetchingMore
 })

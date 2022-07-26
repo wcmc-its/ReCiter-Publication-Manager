@@ -75,6 +75,7 @@ li.active a span.badge {
     padding: 20px;
     border: 1px solid #ddd;
     border-top: 0px;
+    margin:  0 0 !important;
 }
 
 .tabsContent {

@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/client';
 import { ErrorTwoTone } from '@mui/icons-material';
 import { initialStatePubSearchFilter } from "../reducers/reducers";
 
+
 export const addError = (message) =>
 ({
     type: methods.ADD_ERROR,
@@ -15,6 +16,12 @@ export const addError = (message) =>
 export const clearError = () =>
 ({
     type: methods.CLEAR_ERROR
+})
+
+export const addPubMedFetchMoreData = (message) =>
+({
+    type: methods.PUBMED_FETCH_DATA_MORE,
+    payload: message
 })
 
 export const reciterLogin = login => dispatch => {
@@ -286,10 +293,21 @@ export const pubmedFetchData = query => dispatch => {
         })
         .then(data => {
             if (data.statusCode != 200) {
-                throw {
-                    title: data.reciter.message,
-                    status: data.reciter.status,
-                    limit: data.reciter.limit
+                // console.log('data.statuscode', data.reciter.message.indexOf('Your search exceeded 200 results:'));
+                if (data.reciter.status == 500 && data.reciter.message.indexOf('Your search exceeded 200 results:') < 0) {
+                    throw {
+                        title: data.reciter.message,
+                        status: data.reciter.status,
+                        limit: data.reciter.limit
+                    }
+                }
+                else {
+                    dispatch(
+                        addPubMedFetchMoreData(true)
+                    )
+                    dispatch({
+                        type: methods.PUBMED_CANCEL_FETCHING
+                    })
                 }
             } else {
                 dispatch(
@@ -300,6 +318,11 @@ export const pubmedFetchData = query => dispatch => {
                     autoClose: 2000,
                     theme: 'colored'
                 });
+
+                dispatch(
+                    addPubMedFetchMoreData(false)
+                )
+
                 dispatch({
                     type: methods.PUBMED_CHANGE_DATA,
                     payload: data.reciter
@@ -317,10 +340,15 @@ export const pubmedFetchData = query => dispatch => {
                 autoClose: 2000,
                 theme: 'colored'
             });
-
             dispatch(
                 addError(error)
             )
+
+            dispatch({
+                type: methods.PUBMED_CHANGE_DATA,
+                payload: error
+            })
+
 
             dispatch({
                 type: methods.PUBMED_CANCEL_FETCHING
@@ -334,7 +362,7 @@ export const pubmedFetchData = query => dispatch => {
 }
 
 export const reciterUpdatePublication = (uid, request) => dispatch => {
-
+    console.log("request>>",request)
 
     // Update publications' user assertions state
     request.publications.forEach(function (id) {

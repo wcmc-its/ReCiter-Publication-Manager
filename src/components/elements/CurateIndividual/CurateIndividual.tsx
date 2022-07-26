@@ -37,11 +37,11 @@ const CurateIndividual = () => {
     fetchData();
   }, [])
 
-  const fetchData = ()=>{
+  const fetchData = () => {
     dispatch(reciterFetchData(id, false));
   }
 
-  const DisplayName = ({ name } : { name: PrimaryName}) => {
+  const DisplayName = ({ name }: { name: PrimaryName }) => {
     let formattedName = fullName(name);
     return (
       <h2 className="mb-1">{formattedName}</h2>
@@ -58,57 +58,59 @@ const CurateIndividual = () => {
   }
 
   return (
-    <div className={appStyles.mainContainer}>
-      <h1 className={styles.header}>Curate Publications</h1>
-      {
-        identityData &&
-        <Container className={styles.indentityDataContainer} fluid={true}>
-          <div className="d-flex">
-          {
-            displayImage && identityData.identityImageEndpoint &&
-            <div className={styles.profileImgWrapper}>
-              <Image
-                src={identityData.identityImageEndpoint}
-                alt="Profile photo"
-                width={144}
-                height={217}
-                onError={() => setDisplayImage(false)}
+      <div className={appStyles.mainContainer}>
+        <h1 className={styles.header}>Curate Publications</h1>
+        {
+          identityData &&
+          <Container className={styles.indentityDataContainer} fluid={true}>
+            <div className="d-flex">
+              {
+                displayImage && identityData.identityImageEndpoint &&
+                <div className={styles.profileImgWrapper}>
+                  <Image
+                    src={identityData.identityImageEndpoint}
+                    alt="Profile photo"
+                    width={144}
+                    height={217}
+                    onError={() => setDisplayImage(false)}
+                  />
+                </div>
+              }
+              <div className="flex-grow-1">
+                <DisplayName
+                  name={identityData.primaryName}
                 />
+                <b>{identityData.title}</b>
+                <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
+                {reciterData && reciterData.reciter &&
+                  <InferredKeywords
+                    reciter={reciterData.reciter}
+                  />
+                }
+                <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+              </div>
             </div>
-          }
-          <div className="flex-grow-1">
-            <DisplayName 
-              name={identityData.primaryName}
-            />
-            <b>{identityData.title}</b>
-            <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
-            {reciterData && reciterData.reciter &&
-              <InferredKeywords
-                reciter={reciterData.reciter}
-                />
-            }
-            <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
-          </div>
-          </div>
-        </Container>
-      }
-      { reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
+          </Container>
+        }
+
+      {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
         <SuggestionsBanner
           uid={id}
           count={reciterData.reciterPending.length}
         />
       }
-      <ReciterTabs 
+
+      <ReciterTabs
         reciterData={reciterData}
         fullName={fullName(identityData.primaryName)}
         fetchOriginalData={fetchData}
-      /> 
-        <Profile 
-          uid={identityData.uid}
-          modalShow={modalShow}
-          handleShow={handleShow}
-          handleClose={handleClose}
-        />
+      />
+      <Profile
+        uid={identityData.uid}
+        modalShow={modalShow}
+        handleShow={handleShow}
+        handleClose={handleClose}
+      />
     </div>
   )
 }

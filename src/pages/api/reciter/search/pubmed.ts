@@ -33,8 +33,8 @@ export default async function handler(
                     resultMode = 'EMPTY'
                 }
             }
-            res.status((resultMode === 'LARGE_RESULTS' || resultMode === '')? 500: apiResponse.statusCode).send({
-                statusCode: (resultMode === 'LARGE_RESULTS' || resultMode === '')? 500: apiResponse.statusCode,
+            res.status(( resultMode === '')? 500: apiResponse.statusCode).send({
+                statusCode: ( resultMode === '') ? 500: apiResponse.statusCode,
                 reciter: data,
                 resultMode: resultMode
             })
