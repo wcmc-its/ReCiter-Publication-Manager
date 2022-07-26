@@ -60,14 +60,15 @@
 }
 .publicationContent {
     padding-top: 20px !important;
-    width : 880px !important;
+    width : 850px !important;
     
 }
 .publicationAccept {
     font-size: 12px;
     font-weight: 600;
     margin-right: 5px;
-    background-color: green;
+    background-color: #66FF66;
+    color:black;
 }
 .publicationReject {
     font-size: 12px;
