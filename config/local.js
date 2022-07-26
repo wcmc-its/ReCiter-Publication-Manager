@@ -37,7 +37,7 @@ export const reciterConfig = {
                * This is the minimum score that the publication will be filtered on.
                * Type: Number
                */
-              totalStandardizedArticleScore: 4,
+              totalStandardizedArticleScore: 3,
               /**
                * ReCiter runs on Training mode and As evidence mode. Select appropriately since AS_EVIDENCE mode stores the data the rerteival will be faster.
                * Run on training mode to test some users.
@@ -71,7 +71,7 @@ export const reciterConfig = {
                * This is the minimum score that the publication will be filtered on.
                * Type: Number
                */
-              totalStandardizedArticleScore: 4,
+              totalStandardizedArticleScore: 3,
               /**
                * The maximum number of pending publications that will be return per person.
                * Type: Number
