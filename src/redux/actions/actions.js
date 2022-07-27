@@ -293,7 +293,6 @@ export const pubmedFetchData = query => dispatch => {
         })
         .then(data => {
             if (data.statusCode != 200) {
-                // console.log('data.statuscode', data.reciter.message.indexOf('Your search exceeded 200 results:'));
                 if (data.reciter.status == 500 && data.reciter.message.indexOf('Your search exceeded 200 results:') < 0) {
                     throw {
                         title: data.reciter.message,

@@ -114,7 +114,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                     <TabAddPublication 
                     onReject={() => addPub()}
                     onUndo={() => onUndo()}
-                    reciterData={reciterData}
                      />
                     :
                     <ReciterTabContent

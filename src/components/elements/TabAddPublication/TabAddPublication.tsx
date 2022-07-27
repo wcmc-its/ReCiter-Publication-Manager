@@ -13,8 +13,6 @@ import { YearPicker } from 'react-dropdown-date';
 interface FuncProps {
     onReject(id: number): void,
     onUndo(id: Number): void,
-    reciterData: any,
-    // updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
 }
 
 const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
@@ -415,7 +413,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                     }
 
                                 </div>
-                                 : <div className={`${styles.noDataFoundTxet}`}><strong> No results Found. Please provide additional search parameters</strong></div>
+                                 : <div className={`${styles.noDataFoundTxet}`}><strong> No results Found. Please provide some search parameters</strong></div>
 
                             } 
                         </div>
