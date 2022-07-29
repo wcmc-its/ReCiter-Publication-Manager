@@ -73,13 +73,11 @@
 .publicationReject {
     font-size: 12px;
     font-weight: 600;
-    
 }
 .publicationUndo {
     font-size: 12px;
     font-weight: 600;
     margin-right: 5px;
-    background-color: tomato;
 }
 .publicationScore {
     display: inline-block;
@@ -173,15 +171,15 @@
 }
 
 .publicationUndo {
-    /* color: #777; */
-    color: #ffffff;
+    color: #777;
+    /* color: #ffffff; */
     background-color: #ffffff;
     border-color: #ccc;
-    background-color: red;
+    /* background-color: red; */
 }
 .publicationUndo:hover {
-    /* color: #333; */
-    color: #ffffff;
+    color: #333;
+    /* color: #ffffff; */
     border-color: #999;
 }
 
