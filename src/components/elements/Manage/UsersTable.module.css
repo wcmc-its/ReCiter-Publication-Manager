@@ -1,0 +1,16 @@
+.tableHead {
+  border-color: #ddd;
+}
+
+.tableHeadRow {
+  border-top: 0px;
+}
+
+.tableHeadCell {
+  border-left: 0px;
+  border-right: 0px;
+}
+
+.tableBody {
+  border-top: 2px solid #ddd;
+}
