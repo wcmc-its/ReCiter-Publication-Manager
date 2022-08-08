@@ -23,7 +23,12 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
               <tr>
                 <td>{`${user.nameFirst} ${user.nameLast}`}</td>
                 <td>{user.userID}</td>
-                <td><img src="" alt="Edit" /></td>
+                <td>
+                  <div className='d-flex flex-col justify-content-center'>
+                    <Image src="/icons/edit-svgrepo-com.svg" width={20} height={20} alt="Edit" />
+                    <p className='mb-0 p-1'>Edit</p>
+                  </div>
+                </td>
               </tr>
             )
           })
