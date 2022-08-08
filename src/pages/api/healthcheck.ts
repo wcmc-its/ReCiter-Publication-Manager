@@ -1,14 +1,14 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
-import type { NextApiRequest, NextApiResponse } from 'next'
+import type { NextApiRequest, NextApiResponse } from "next";
 
 type Data = {
-  success: string,
-  DB: string
-}
+    success: string;
+    DB: string;
+};
 
 export default function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<Data>
+    __req: NextApiRequest,
+    res: NextApiResponse<Data>
 ) {
-  res.status(200).send({ success: '1', DB: '1'})
+    res.status(200).send({ success: "1", DB: "1" });
 }
