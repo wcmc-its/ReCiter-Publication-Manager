@@ -6,7 +6,7 @@ export const reciterConfig = {
       /*
        * Admin api key to access all the reciter endpoint. If you did not setup security in your reciter APIs then leave it empty.
        */
-      adminApiKey: process.env.NEXT_PUBLIC_RECITER_API_KEY,
+      adminApiKey: process.env.RECITER_API_KEY,
       /**
        * This is where you specify all the Identity endpoints in reciter. Please refer to the Identity controller in swagger-ui for all the related
        * Identity endpoints.
@@ -15,12 +15,12 @@ export const reciterConfig = {
           /**
            * This endpoint get Identity based on supplied unique id.
            */
-          identityByUid: process.env.NEXT_PUBLIC_RECITER_IDENITY_BY_UID,
+          identityByUid: process.env.RECITER_IDENITY_BY_UID,
           /**
            * This endpoint get all identity listed in your database. This API consumes significant resources when making a call.
            * So when in /search page refrain from refreshing the page since that entails a fresh api call.
            */
-          getAllIdentity: process.env.NEXT_PUBLIC_RECITER_GET_ALL_IDENTITY,
+          getAllIdentity: process.env.RECITER_GET_ALL_IDENTITY,
           /**
            * This is the image that is shown in the search page and the Individual page. If you have an api that serves image for each of your identity
            * then specify it here. Otherwise if its blank it uses a stock image specified.
@@ -31,7 +31,7 @@ export const reciterConfig = {
        * This is the api to fetch all the publication related to an individual with all the eivdence.
        */
       featureGenerator: {
-          featureGeneratorEndpoint: process.env.NEXT_PUBLIC_RECITER_FEATURE_GENERATOR_ENDPOINT,
+          featureGeneratorEndpoint: process.env.RECITER_FEATURE_GENERATOR_ENDPOINT,
           featutreGeneratorApiParams: {
               /**
                * This is the minimum score that the publication will be filtered on.
@@ -65,7 +65,7 @@ export const reciterConfig = {
       * This is the api to fetch all the publication for a list of unique ids with all the eivdence.
       */
         featureGeneratorByGroup: {
-          featureGeneratorByGroupEndpoint: process.env.NEXT_PUBLIC_RECITER_FEATURE_GENERATOR_GROUP_ENDPOINT,
+          featureGeneratorByGroupEndpoint: process.env.RECITER_FEATURE_GENERATOR_GROUP_ENDPOINT,
           featureGeneratorByGroupApiParams: {
               /**
                * This is the minimum score that the publication will be filtered on.
@@ -85,19 +85,19 @@ export const reciterConfig = {
       /**
        * This is the endpoint in ReCiter-Publication-Manager controller for authentication.
        */
-      reciterPubManagerAuthenticationEndpoint: process.env.NEXT_PUBLIC_RECITER_AUTHENTICATION_ENDPOINT,
+      reciterPubManagerAuthenticationEndpoint: process.env.RECITER_AUTHENTICATION_ENDPOINT,
       /**
        * This endpoint is to update the feedback for users.
        */
-      reciterUpdateGoldStandardEndpoint: process.env.NEXT_PUBLIC_RECITER_GOLD_STANDARD_ENDPOINT,
+      reciterUpdateGoldStandardEndpoint: process.env.RECITER_GOLD_STANDARD_ENDPOINT,
       /**
        * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
        * the feedback is erased from the database.
        */
       reciterUserFeedbackEndpoints: {
-          saveUserFeedback: process.env.NEXT_PUBLIC_RECITER_SAVE_USER_FEEDBACK,
-          deleteUserFeedback: process.env.NEXT_PUBLIC_RECITER_DELETE_USER_FEEDBACK,
-          findUserFeedback: process.env.NEXT_PUBLIC_RECITER_FIND_USER_FEEDBACK
+          saveUserFeedback: process.env.RECITER_SAVE_USER_FEEDBACK,
+          deleteUserFeedback: process.env.RECITER_DELETE_USER_FEEDBACK,
+          findUserFeedback: process.env.RECITER_FIND_USER_FEEDBACK
       }
   },
   /**
@@ -105,8 +105,8 @@ export const reciterConfig = {
    * for details.
    */
   reciterPubmed: {
-      searchPubmedEndpoint: process.env.NEXT_PUBLIC_RECITER_SEARCH_PUBMED,
-      searchPubmedCountEndpoint: process.env.NEXT_PUBLIC_RECITER_SEARCH_COUNT_PUBMED
+      searchPubmedEndpoint: process.env.RECITER_SEARCH_PUBMED,
+      searchPubmedCountEndpoint: process.env.RECITER_SEARCH_COUNT_PUBMED
   },
   /**
    * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
