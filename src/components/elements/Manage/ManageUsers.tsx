@@ -23,16 +23,19 @@ const ManageUsers = () => {
     }).then(response => response.json())
     .then(data => {
       setUsers(data);
+      setLoading(false);
     })
-    .catch(error => console.log(error));
-    setLoading(false);
+    .catch(error => { 
+      console.log(error)
+      setLoading(false);
+    });
   }, [])
 
   return (
     <div className={appStyles.mainContainer}>
       <PageHeader label="Manage Users" />
       {loading ? 
-      <div className="d-flex justify-content align-items"><Loader /> </div>
+      <div className="d-flex justify-content-center align-items"><Loader /> </div>
       : 
       <>
         <UsersTable data={users} />
