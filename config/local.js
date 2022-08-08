@@ -25,7 +25,8 @@ export const reciterConfig = {
            * This is the image that is shown in the search page and the Individual page. If you have an api that serves image for each of your identity
            * then specify it here. Otherwise if its blank it uses a stock image specified.
            */
-          identityImageEndpoint: process.env.NEXT_PUBLIC_RECITER_IDENTITY_IMAGE_ENDPOINT
+           identityImageEndpoint:
+           "https://directory.weill.cornell.edu/api/v1/person/profile/${uid}.png?returnGenericOn404=true",
       },
       /**
        * This is the api to fetch all the publication related to an individual with all the eivdence.
@@ -77,9 +78,9 @@ export const reciterConfig = {
                * Type: Number
                */
                 maxArticlesPerPerson: 4,
-          },
-          maxResultsOnGroupView: 60,
-          incrementResultsBy: 20,
+            },
+            maxResultsOnGroupView: 60,
+            incrementResultsBy: 20,
         },
 
       /**
