@@ -6,7 +6,7 @@ export const reciterConfig = {
       /*
        * Admin api key to access all the reciter endpoint. If you did not setup security in your reciter APIs then leave it empty.
        */
-      adminApiKey: process.env.NEXT_PUBLIC_RECITER_ADMIN_API_KEY,
+      adminApiKey: process.env.NEXT_PUBLIC_RECITER_API_KEY,
       /**
        * This is where you specify all the Identity endpoints in reciter. Please refer to the Identity controller in swagger-ui for all the related
        * Identity endpoints.
