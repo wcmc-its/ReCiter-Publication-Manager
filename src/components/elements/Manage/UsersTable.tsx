@@ -2,6 +2,7 @@ import React from 'react';
 import Table from 'react-bootstrap/Table';
 import styles from "./UsersTable.module.css";
 import Image from 'next/image'
+import Link from "next/Link";
 
 interface UsersTableProps {
   data: any
@@ -24,10 +25,12 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
                 <td>{`${user.nameFirst} ${user.nameLast}`}</td>
                 <td>{user.userID}</td>
                 <td>
-                  <div className='d-flex flex-col justify-content-center'>
-                    <Image src="/icons/edit-svgrepo-com.svg" width={20} height={20} alt="Edit" />
-                    <p className='mb-0 p-1'>Edit</p>
-                  </div>
+                  <Link href="/">
+                    <div className='d-flex flex-col justify-content-center'>
+                      <Image src="/icons/edit-svgrepo-com.svg" width={20} height={20} alt="Edit" />
+                      <p className='mb-0 p-1'>Edit</p>
+                    </div>
+                  </Link>
                 </td>
               </tr>
             )
