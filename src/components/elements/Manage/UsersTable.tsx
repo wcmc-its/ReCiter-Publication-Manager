@@ -1,6 +1,7 @@
 import React from 'react';
 import Table from 'react-bootstrap/Table';
 import styles from "./UsersTable.module.css";
+import Image from 'next/image'
 
 interface UsersTableProps {
   data: any
@@ -22,6 +23,7 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
               <tr>
                 <td>{`${user.nameFirst} ${user.nameLast}`}</td>
                 <td>{user.userID}</td>
+                <td><img src="" alt="Edit" /></td>
               </tr>
             )
           })
