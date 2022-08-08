@@ -60,6 +60,61 @@ spec:
               secretKeyRef:
                 name: reciter-pm-dev-secrets
                 key: RECITER_DB_HOST
+          - name: RECITER_IDENITY_BY_UID
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_IDENITY_BY_UID
+          - name: RECITER_GET_ALL_IDENTITY
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_GET_ALL_IDENTITY
+          - name: RECITER_FEATURE_GENERATOR_ENDPOINT
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_FEATURE_GENERATOR_ENDPOINT
+          - name: RECITER_FEATURE_GENERATOR_GROUP_ENDPOINT
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_FEATURE_GENERATOR_GROUP_ENDPOINT
+          - name: RECITER_AUTHENTICATION_ENDPOINT
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_AUTHENTICATION_ENDPOINT
+          - name: RECITER_GOLD_STANDARD_ENDPOINT
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_GOLD_STANDARD_ENDPOINT
+          - name: RECITER_SAVE_USER_FEEDBACK
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_SAVE_USER_FEEDBACK
+          - name: RECITER_DELETE_USER_FEEDBACK
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_DELETE_USER_FEEDBACK
+          - name: RECITER_FIND_USER_FEEDBACK
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_FIND_USER_FEEDBACK
+          - name: RECITER_SEARCH_PUBMED
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_SEARCH_PUBMED
+          - name: RECITER_SEARCH_COUNT_PUBMED
+            valueFrom: 
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: RECITER_SEARCH_COUNT_PUBMED        
           - name: LOGIN_PROVIDER
             value: SAML
         ports:
