@@ -2,7 +2,7 @@ import React from 'react';
 import Table from 'react-bootstrap/Table';
 import styles from "./UsersTable.module.css";
 import Image from 'next/image'
-import Link from "next/Link";
+import Link from "next/link";
 
 interface UsersTableProps {
   data: any
@@ -19,9 +19,9 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
       </thead>
       <tbody>
         {
-          data.map((user) => {
+          data.map((user, index) => {
             return (
-              <tr>
+              <tr key={index}>
                 <td>{`${user.nameFirst} ${user.nameLast}`}</td>
                 <td>{user.userID}</td>
                 <td>
