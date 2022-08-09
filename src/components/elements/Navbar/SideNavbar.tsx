@@ -169,7 +169,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       title: 'Manage Module',
       imgUrl: settingsIcon,
       imgUrlActive: settingsIconActive,
-      nestedMenu: [{title: 'Add Users', to: '/admin/add/users', imgUrl: facultyIcon, imgUrlActive: facultyIconActive, disabled: false,}]
+      nestedMenu: [{title: 'Manage Users', to: '/admin/manage/users', imgUrl: facultyIcon, imgUrlActive: facultyIconActive, disabled: false,}]
     }
   ]
 
