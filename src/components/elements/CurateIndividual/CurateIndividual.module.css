@@ -23,6 +23,9 @@
   width: fit-content;
   margin-left: 0; 
 }
+.suggestionsBanner{
+  margin: 2em 0 !important;
+}
 
 .count {
   overflow: visible;
@@ -105,7 +108,7 @@
 }
 
 .indentityDataContainer {
-  margin-bottom: 10px;
+  margin-bottom: 5em;
 }
 
 .addPubmade{
@@ -118,7 +121,7 @@
 .tabDisplayNone{
   justify-content: flex-end !important;
   /* background-color: red !important; */
-  width: 35em;
+  width: 34em;
   display: flex;
   padding-right: 3px ;
 }
@@ -135,5 +138,18 @@
   border-top: 1px solid grey !important;
   border-right: 1px solid grey !important;
   border-left: 1px solid grey !important;
+  /* margin-bottom: 0 !important; */
+}
+/* .curateTabsMain{
+  background-color: red !important;
+} */
+.pubMadeTab .nav .nav-tabs{
+  margin: 0 0 I !important;
+}
+.curateTabsMainPub{
+  background-color: #EFEFEF !important;
+}
+.tab-content>.active{
+  background-color: #EFEFEF !important;
 }
 

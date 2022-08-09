@@ -576,7 +576,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                         </Popover>)} placement="right">
                           <p className={styles.publicationScore}>
                             Matching<br />Score<br />
-                            <strong>{reciterArticle.totalArticleScoreStandardized}</strong>
+                            <strong>{reciterArticle.totalArticleScoreStandardized ? reciterArticle.totalArticleScoreStandardized : "N/A"}</strong>
                           </p>
                     </OverlayTrigger>
                 </React.Fragment>: <p></p>
@@ -591,8 +591,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 </span>
             </div>
             <span className={styles.midDot}> {reciterArticle.journalTitleVerbose} </span>
-            <span className={styles.midDot}> {reciterArticle.publicationDateDisplay} </span>
-            <span className={styles.midDot}> {reciterArticle.publicationType?.publicationTypeCanonical} </span>
+            <span className={reciterArticle.publicationDateDisplay ? styles.midDot : ""}> {reciterArticle.publicationDateDisplay} </span>
+            <span className={reciterArticle.publicationDateDisplay ? styles.midDot : ""}> {reciterArticle.publicationType?.publicationTypeCanonical} </span>
             <div className={`${styles.publicationAdditionalInfo} pt-2`}>
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
               <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>

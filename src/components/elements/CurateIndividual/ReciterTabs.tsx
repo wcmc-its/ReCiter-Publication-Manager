@@ -51,10 +51,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     })
 
     setFilteredData(updatedFilteredData);
-    setKey(userAssertion)
-
-    // fetchOriginalData();
-
+    setKey(prevUserAssertion)
   }
 
   const updatePublicationAssertionBulk = (reciterArticles: any, userAssertion: string, prevUserAssertion: string) => {
@@ -77,7 +74,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     })
     setFilteredData(updatedFilteredData);
     setKey(userAssertion)
-    // fetchOriginalData();
   }
 
   const onTabChange = (k)=>{
@@ -91,22 +87,20 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     }
   }
 
-  const addPub = () => { }
-  const onUndo = () => { }
   return (
     <>
-      {/* <p className={styles.addPubmade}>Add New record: <Badge text="primary" bg="white" className="" onClick={(e) =>{ setPubKey(!pubKey); setKey("AddPub") }}>pubMade</Badge></p>  */}
       <Tabs
         id="controlled-tab-example"
         activeKey={key}
         onSelect={(k) => onTabChange (k)}
-        className={`my-3 ${styles.tabsContainer}`}
+        className={`${styles.tabsContainer}`}
       > {
           filteredData.map((tabData: any, index: number) => {
             return (
               <Tab
                 eventKey={tabData.value}
                 key={tabData.value}
+                className={tabData.value === "AddPub" ? `${styles.curateTabsMainPub}` : `${styles.curateTabsMain}`}
                 disabled={tabData.value === "addNewRecord" ? true : false}
                 tabClassName={tabData.value === "addNewRecord" ? `${styles.tabDisplayNone}` : tabData.value === "AddPub" ? `${styles.pubMadeTab}` : `${styles.tabsMain}`}
                 title={
@@ -114,13 +108,17 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                 }>
                 {
                   key === "AddPub" ?
-                    <TabAddPublication onReject={() => addPub()} onUndo={() => onUndo()} reciterData={reciterData} />
+                    <TabAddPublication 
+                    updatePublicationAssertion={updatePublicationAssertion}
+                    tabType={tabData.value}
+                    personIdentifier={reciterData.reciter?.personIdentifier}
+                     />
                     :
                     <ReciterTabContent
                       tabType={tabData.value}
                       publications={tabData.data}
                       index={index}
-                      personIdentifier={reciterData.reciter.personIdentifier}
+                      personIdentifier={reciterData.reciter?.personIdentifier}
                       fullName={fullName}
                       updatePublicationAssertion={updatePublicationAssertion}
                       updatePublicationAssertionBulk={updatePublicationAssertionBulk}

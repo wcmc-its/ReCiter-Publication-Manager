@@ -14,7 +14,7 @@ const SuggestionsBanner = ({ uid, count } : { uid : string | string[], count: nu
  
   return (
     <>
-    <Container fluid className={`${styles.suggestionsBanner} my-2 p-1`}>
+    <Container fluid className={`${styles.suggestionsBanner} p-1`}>
       <Button className="wcm-primary-lg" onClick={refreshSuggestions}>Refresh Suggestions <AutorenewIcon /></Button>
       <span className="mx-4">{`You have provided feedback on`} <b>{count}</b> {`record(s). `}</span>
     </Container>

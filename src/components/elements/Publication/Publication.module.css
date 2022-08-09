@@ -4,7 +4,7 @@
 
 
 .publicationField {
-    line-height: 1.3em !important;
+    line-height: 1.1em !important;
 }
 
 
@@ -56,14 +56,19 @@
     text-align: center;
     padding-top: 23px !important;
     padding-left: 0px;
+    vertical-align: baseline;
 }
 .publicationContent {
     padding-top: 20px !important;
+    width : 850px !important;
+    
 }
 .publicationAccept {
     font-size: 12px;
     font-weight: 600;
     margin-right: 5px;
+    background-color: #66FF66;
+    color:black;
 }
 .publicationReject {
     font-size: 12px;
@@ -167,11 +172,14 @@
 
 .publicationUndo {
     color: #777;
+    /* color: #ffffff; */
     background-color: #ffffff;
     border-color: #ccc;
+    /* background-color: red; */
 }
 .publicationUndo:hover {
     color: #333;
+    /* color: #ffffff; */
     border-color: #999;
 }
 
@@ -246,4 +254,7 @@
 
 .highlightedAuthor {
   background-color: #EBF4BC;
+}
+.acceptedCheck > i{
+  color : red;
 }

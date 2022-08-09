@@ -7,3 +7,7 @@
 .paginationContainer ul.pagination {
     margin: 0px;
 }
+
+.tableRows{
+    background-color: #ffffff !important;
+}
