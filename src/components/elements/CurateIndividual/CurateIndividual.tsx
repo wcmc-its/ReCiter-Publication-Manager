@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData, reciterFetchData, fetchFeedbacklog } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData, fetchFeedbacklog,reCalcPubMedPubCount, increaseAceeptedCount, increaseRejectedCount  } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import { Container, Button, Row } from "react-bootstrap";
@@ -28,6 +28,7 @@ const CurateIndividual = () => {
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
   const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
+  const pubmedData = useSelector((state: RootStateOrAny) => state.pubmedData)
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
@@ -47,6 +48,40 @@ const CurateIndividual = () => {
       <h2 className="mb-1">{formattedName}</h2>
     )
   }
+
+  
+
+  const updateCount = () => {
+
+    const reciterPublications: Array<any> = []
+    reciterData && reciterData.reciterPending?.forEach(function (publication: any) {
+        reciterPublications.push(publication)
+    })
+
+    reciterData && reciterData.reciter?.reCiterArticleFeatures.forEach(function (publication: any) {
+        reciterPublications.push(publication)
+    })
+
+    if (pubmedData !== undefined && pubmedData.length > 0) {
+        let searchAcceptedCount = 0;
+        let searchRejectedCount = 0;
+        let recordsCount =0;
+        pubmedData.forEach((searchPub: any) => {
+            console.log('iterations*******',recordsCount++);
+            if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "ACCEPTED")) {
+                searchAcceptedCount++;
+                console.log('searchAcceptedCount during filter',searchAcceptedCount);
+            }
+            if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "REJECTED")) {
+                searchRejectedCount++;
+                console.log('searchRejectedCount during filter',searchRejectedCount);
+            }
+        })
+        dispatch(increaseAceeptedCount(searchAcceptedCount))
+        dispatch(increaseRejectedCount(searchRejectedCount))
+        dispatch(reCalcPubMedPubCount(pubmedData.length - searchAcceptedCount - searchRejectedCount))
+    }
+}
 
   const handleClose = () => setModalShow(false);
   const handleShow = () => setModalShow(true);

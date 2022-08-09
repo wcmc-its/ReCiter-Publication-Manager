@@ -74,7 +74,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     })
     setFilteredData(updatedFilteredData);
     setKey(userAssertion)
-    // fetchOriginalData();
   }
 
   const onTabChange = (k)=>{
@@ -88,8 +87,6 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     }
   }
 
-  const addPub = () => { }
-  const onUndo = () => { }
   return (
     <>
       <Tabs
@@ -112,15 +109,16 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                 {
                   key === "AddPub" ?
                     <TabAddPublication 
-                    onReject={() => addPub()}
-                    onUndo={() => onUndo()}
+                    updatePublicationAssertion={updatePublicationAssertion}
+                    tabType={tabData.value}
+                    personIdentifier={reciterData.reciter?.personIdentifier}
                      />
                     :
                     <ReciterTabContent
                       tabType={tabData.value}
                       publications={tabData.data}
                       index={index}
-                      personIdentifier={reciterData.reciter.personIdentifier}
+                      personIdentifier={reciterData.reciter?.personIdentifier}
                       fullName={fullName}
                       updatePublicationAssertion={updatePublicationAssertion}
                       updatePublicationAssertionBulk={updatePublicationAssertionBulk}

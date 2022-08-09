@@ -274,6 +274,34 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
 
 }
 
+export const UpdatePubMadeData = (pubmedData) => dispatch => {
+    dispatch({
+        type: methods.PUBMED_CHANGE_DATA,
+        payload: pubmedData
+    })
+    dispatch({
+        type: methods.PUBMED_CANCEL_FETCHING
+    })
+}
+
+export const UpdateReciterData = (newReciterData) => dispatch => {
+    dispatch({
+        type: methods.RECITER_CHANGE_DATA,
+        payload: newReciterData
+    })
+    dispatch({
+        type: methods.RECITER_CANCEL_FETCHING
+    })
+}
+
+
+export const reCalcPubMedPubCount = (increaseAccepts) => dispatch => {
+    dispatch({
+        type: methods.PUBMED_RECORDS_COUNT,
+        payload: increaseAccepts
+    })
+}
+
 export const pubmedFetchData = query => dispatch => {
     dispatch({
         type: methods.PUBMED_FETCH_DATA
@@ -361,8 +389,6 @@ export const pubmedFetchData = query => dispatch => {
 }
 
 export const reciterUpdatePublication = (uid, request) => dispatch => {
-    console.log("request>>",request)
-
     // Update publications' user assertions state
     request.publications.forEach(function (id) {
         switch (request.userAssertion) {
@@ -409,12 +435,12 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         };
     } else if (request.userAssertion === 'ACCEPTED' && request.manuallyAddedFlag) {
         var goldStandard = {
-            "knownPmids": [request.publications[0].pmid],
+            "knownPmids": request.publications,
             "uid": uid
         };
     } else if (request.userAssertion === 'REJECTED' && request.manuallyAddedFlag) {
         var goldStandard = {
-            "rejectedPmids": [request.publications[0].pmid],
+            "rejectedPmids": request.publications,
             "uid": uid
         };
     }
@@ -634,6 +660,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
             )
 
         })
+
 
     //update adminFeedbackLog table
     const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
