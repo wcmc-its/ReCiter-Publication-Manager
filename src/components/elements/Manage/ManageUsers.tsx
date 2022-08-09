@@ -5,10 +5,13 @@ import { PageHeader } from '../Common/PageHeader';
 import Loader from '../Common/Loader';
 import { reciterConfig } from '../../../../config/local';
 import UsersTable from "./UsersTable";
+import { useRouter } from 'next/router'
+import Button from 'react-bootstrap/Button';
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const router = useRouter()
 
   useEffect(() => {
     setLoading(true);
@@ -34,6 +37,7 @@ const ManageUsers = () => {
   return (
     <div className={appStyles.mainContainer}>
       <PageHeader label="Manage Users" />
+      <Button className="my-2" onClick={() => router.push("/admin/add/users")}>Add User</Button>
       {loading ? 
       <div className="d-flex justify-content-center align-items"><Loader /> </div>
       : 
