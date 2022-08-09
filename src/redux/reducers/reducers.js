@@ -99,10 +99,6 @@ export const reciterData = (state=[], action) => {
 
             pendingPublications.push(action.payload)
 
-            if(action.manuallyAddedFlag) {
-                pendingPublications.push(action.payload)
-            }
-
             return {
                 reciter: state.reciter,
                 reciterPending: pendingPublications
@@ -112,10 +108,6 @@ export const reciterData = (state=[], action) => {
             pendingPublications = state.reciterPending
 
             pendingPublications.push(action.payload)
-
-            if(action.manuallyAddedFlag) {
-                pendingPublications.push(action.payload)
-            }
 
             return {
                 reciter: state.reciter,
@@ -193,6 +185,20 @@ export const curateIdsFromSearchPage = (state=[], action) => {
           return state
   }
 }
+
+
+
+export const pubMedCount = (state= 0, action) => {
+  switch(action.type) {
+
+      case methods.PUBMED_RECORDS_COUNT :
+          return action.payload
+
+      default :
+          return state
+  }
+}
+
 
 export const curateSearchtext = (state=[], action) => {
   switch(action.type) {
@@ -325,6 +331,19 @@ export const errors = (state=[], action) => {
         default:
             return state
     }
+}
+export const pubmedFetchingMore = (state=false, action) => {
+
+  switch(action.type) {
+
+      
+      case methods.PUBMED_FETCH_DATA_MORE :
+      return action.payload 
+
+      default:
+          return state
+  }
+
 }
 
 const initialFilterState = {
@@ -751,6 +770,7 @@ export default combineReducers({
     reportsResultsIds,
     reportsResultsIdsLoading,
     curateIdsFromSearchPage,
-    curateSearchtext
-    
+    curateSearchtext,
+    pubmedFetchingMore,
+    pubMedCount,
 })

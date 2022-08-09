@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData, reciterFetchData, fetchFeedbacklog } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData, fetchFeedbacklog,reCalcPubMedPubCount, increaseAceeptedCount, increaseRejectedCount  } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import { Container, Button, Row } from "react-bootstrap";
@@ -28,6 +28,7 @@ const CurateIndividual = () => {
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
   const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
+  const pubmedData = useSelector((state: RootStateOrAny) => state.pubmedData)
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
@@ -37,16 +38,50 @@ const CurateIndividual = () => {
     fetchData();
   }, [])
 
-  const fetchData = ()=>{
+  const fetchData = () => {
     dispatch(reciterFetchData(id, false));
   }
 
-  const DisplayName = ({ name } : { name: PrimaryName}) => {
+  const DisplayName = ({ name }: { name: PrimaryName }) => {
     let formattedName = fullName(name);
     return (
       <h2 className="mb-1">{formattedName}</h2>
     )
   }
+
+  
+
+  const updateCount = () => {
+
+    const reciterPublications: Array<any> = []
+    reciterData && reciterData.reciterPending?.forEach(function (publication: any) {
+        reciterPublications.push(publication)
+    })
+
+    reciterData && reciterData.reciter?.reCiterArticleFeatures.forEach(function (publication: any) {
+        reciterPublications.push(publication)
+    })
+
+    if (pubmedData !== undefined && pubmedData.length > 0) {
+        let searchAcceptedCount = 0;
+        let searchRejectedCount = 0;
+        let recordsCount =0;
+        pubmedData.forEach((searchPub: any) => {
+            console.log('iterations*******',recordsCount++);
+            if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "ACCEPTED")) {
+                searchAcceptedCount++;
+                console.log('searchAcceptedCount during filter',searchAcceptedCount);
+            }
+            if (reciterPublications.some(publication => publication.pmid === searchPub.pmid && publication.userAssertion === "REJECTED")) {
+                searchRejectedCount++;
+                console.log('searchRejectedCount during filter',searchRejectedCount);
+            }
+        })
+        dispatch(increaseAceeptedCount(searchAcceptedCount))
+        dispatch(increaseRejectedCount(searchRejectedCount))
+        dispatch(reCalcPubMedPubCount(pubmedData.length - searchAcceptedCount - searchRejectedCount))
+    }
+}
 
   const handleClose = () => setModalShow(false);
   const handleShow = () => setModalShow(true);
@@ -58,57 +93,59 @@ const CurateIndividual = () => {
   }
 
   return (
-    <div className={appStyles.mainContainer}>
-      <h1 className={styles.header}>Curate Publications</h1>
-      {
-        identityData &&
-        <Container className={styles.indentityDataContainer} fluid={true}>
-          <div className="d-flex">
-          {
-            displayImage && identityData.identityImageEndpoint &&
-            <div className={styles.profileImgWrapper}>
-              <Image
-                src={identityData.identityImageEndpoint}
-                alt="Profile photo"
-                width={144}
-                height={217}
-                onError={() => setDisplayImage(false)}
+      <div className={appStyles.mainContainer}>
+        <h1 className={styles.header}>Curate Publications</h1>
+        {
+          identityData &&
+          <Container className={styles.indentityDataContainer} fluid={true}>
+            <div className="d-flex">
+              {
+                displayImage && identityData.identityImageEndpoint &&
+                <div className={styles.profileImgWrapper}>
+                  <Image
+                    src={identityData.identityImageEndpoint}
+                    alt="Profile photo"
+                    width={144}
+                    height={217}
+                    onError={() => setDisplayImage(false)}
+                  />
+                </div>
+              }
+              <div className="flex-grow-1">
+                <DisplayName
+                  name={identityData.primaryName}
                 />
+                <b>{identityData.title}</b>
+                <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
+                {reciterData && reciterData.reciter &&
+                  <InferredKeywords
+                    reciter={reciterData.reciter}
+                  />
+                }
+                <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+              </div>
             </div>
-          }
-          <div className="flex-grow-1">
-            <DisplayName 
-              name={identityData.primaryName}
-            />
-            <b>{identityData.title}</b>
-            <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
-            {reciterData && reciterData.reciter &&
-              <InferredKeywords
-                reciter={reciterData.reciter}
-                />
-            }
-            <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
-          </div>
-          </div>
-        </Container>
-      }
-      { reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
+          </Container>
+        }
+
+      {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
         <SuggestionsBanner
           uid={id}
           count={reciterData.reciterPending.length}
         />
       }
-      <ReciterTabs 
+
+      <ReciterTabs
         reciterData={reciterData}
         fullName={fullName(identityData.primaryName)}
         fetchOriginalData={fetchData}
-      /> 
-        <Profile 
-          uid={identityData.uid}
-          modalShow={modalShow}
-          handleShow={handleShow}
-          handleClose={handleClose}
-        />
+      />
+      <Profile
+        uid={identityData.uid}
+        modalShow={modalShow}
+        handleShow={handleShow}
+        handleClose={handleClose}
+      />
     </div>
   )
 }
