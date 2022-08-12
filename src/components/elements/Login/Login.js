@@ -56,8 +56,9 @@ const Login = () => {
                 if (session) {
                     let userPermissions = JSON.parse(session.data.userRoles);
                     let userName = session.data.username;
+                    let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
                     if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName)  
-                        Router.push(`${window.location.origin}/curate/aaa2020`);
+                        Router.push(`${window.location.origin}/curate/${personIdentifier}`);
                     else 
                         Router.push(`${window.location.origin}/search`);
                 } 

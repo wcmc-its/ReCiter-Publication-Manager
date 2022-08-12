@@ -6,4 +6,5 @@ export type MenuItem = {
   imgUrl?: string | StaticImport
   imgUrlActive?: string | StaticImport
   disabled?: boolean
+  allowedRoleNames?:Array
 }
