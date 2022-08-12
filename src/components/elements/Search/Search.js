@@ -10,16 +10,13 @@ import { useSession } from 'next-auth/client';
 import SearchBar from "./SearchBar";
 import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
-import { Table } from "react-bootstrap";
+import { Table,Button} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
+import { allowedPermissions, dropdownItemsReport, dropdownItemsSuper } from "../../../utils/constants"
 
-const dropdownItems = [
-  { title: 'Create Reports', to: '/create-reports' },
-  { title: 'Perform Analysis', to: '/perform-analysis' },
-]
 
 const Search = () => {
 
@@ -41,25 +38,35 @@ const Search = () => {
   const filters = useSelector((state) => state.filters)
 
   const errors = useSelector((state) => state.errors)
-  const auth = useSelector((state) => state.auth)
+
 
   const [sort, setSort] = useState("0")
   const [identitySearch, setIdentitySearch] = useState("")
   const [identityData, setIdentityData] = useState([])
-  const [curateIds, setCurateIds] = useSession("");
 
   const [search, setSearch] = useState("")
+  const [isUserRole, setIsuserRole] = useState("")
+
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
   const [filterByPending, setFilterByPending] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [countAllData, setCountAllData] = useState(0);
   const [isCountLoading, setIsCountLoading] = useState(false);
-
   //ref
   const searchValue = useRef()
 
   useEffect(() => {
+    let userPermissions = JSON.parse(session.data.userRoles);
+
+    if (userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
+      setIsuserRole(allowedPermissions.Reporter_All)
+    } else if (userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All)) {
+      setIsuserRole(allowedPermissions.Curator_All);
+    } else {
+      setIsuserRole(allowedPermissions.Superuser);
+    }
+
     if (identityAllData.length === 0) {
       fetchPaginatedData()
       fetchCount()
@@ -256,11 +263,17 @@ const Search = () => {
   }
 
   const redirectToCurate = (isFor, data) => {
+
+    // if()
     if (isFor === "individual") {
       router.push({
         pathname: `/curate/${data}`,
       })
-    }else {
+    } else if (isFor === "report") {
+      router.push({
+        pathname: '/report',
+      })
+    } else {
       dispatch(curateIdsFromSearch(identities.paginatedIdentities))
       router.push({
         pathname: '/curate',
@@ -284,7 +297,7 @@ const Search = () => {
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
-          <Name identity={identity} onCLickProfile={() => onCLickProfile(identity.personIdentifier)}></Name>
+          <Name identity={identity} onCLickProfile={ isUserRole && isUserRole === allowedPermissions.Reporter_All ? "" :() => onCLickProfile(identity.personIdentifier)}></Name>
         </td>
         <td key={`${identityIndex}__orgUnit`} width="20%">
           {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
@@ -296,14 +309,19 @@ const Search = () => {
           {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
         </td>
         <td key={`${identityIndex}__dropdown`} width="20%">
-          <SplitDropdown
-            title='Curate Publications'
-            // to={`/curate/${identity.personIdentifier}`}
-            onDropDownClick={()=>redirectToCurate("individual", identity.personIdentifier)}
-            id={`curate-publications_${identity.personIdentifier}`}
-            listItems={dropdownItems}
-            secondary={true}
-          />
+          {
+            isUserRole === allowedPermissions.Superuser ?  
+              <SplitDropdown
+                title={isUserRole && isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}
+                // to={`/curate/${identity.personIdentifier}`}
+                onDropDownClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report") : () => redirectToCurate("individual", identity.personIdentifier)}
+                id={`curate-publications_${identity.personIdentifier}`}
+                listItems={isUserRole && isUserRole === allowedPermissions.Superuser ? dropdownItemsSuper : dropdownItemsReport}
+                secondary={true}
+              />
+              :
+              <Button className="secondary" variant="secondary" onClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report") : () => redirectToCurate("individual", identity.personIdentifier)}>{isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}</Button>
+          }
         </td>
       </tr>;
     })
@@ -337,7 +355,7 @@ const Search = () => {
                       {totalCount !== undefined && <h3><strong>{totalCount.toLocaleString("en-US")}</strong> people</h3>}
                     </div>
                   </div>}
-                {filtersOn && <FilterReview count={identityAllData.length} onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} />}
+                {filtersOn && <FilterReview count={identityAllData.length} isUserRole={isUserRole} onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} />}
                 <React.Fragment>
                   <Pagination total={filtersOn ? identityAllData.length : totalCount} page={page}
                     count={count}

@@ -5,6 +5,8 @@ import ReciterTabContent from "./ReciterTabContent";
 import styles from "./CurateIndividual.module.css";
 import { RootStateOrAny, useSelector } from "react-redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
+import { allowedPermissions } from "../../../utils/constants";
+import { useSession } from "next-auth/client";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
@@ -12,24 +14,25 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   const [key, setKey] = useState('NULL');
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
+  const [session, loading] = useSession();
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
 
   const addnewtabName = <p id="addnewtabName" className="noSpace" >Add New record:</p>
   const pubMedTabName = <p id="pubMedTabName" className="text-primary noSpace" ><span >PubMed</span></p>
 
   const tabsData = [
-    { name: 'Suggested', value: 'NULL' },
-    { name: 'Accepted', value: 'ACCEPTED' },
-    { name: 'Rejected', value: 'REJECTED' },
-    { name: addnewtabName, value: 'addNewRecord' },
-    { name: pubMedTabName, value: 'AddPub' },
+    { name: 'Suggested', value: 'NULL',allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"] },
+    { name: 'Accepted', value: 'ACCEPTED',allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"] },
+    { name: 'Rejected', value: 'REJECTED',allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"] },
+    { name: addnewtabName, value: 'addNewRecord',allowedRoleNames: ["Superuser","Curator_Self","Curator_All"] },
+    { name: pubMedTabName, value: 'AddPub', allowedRoleNames: ["Superuser","Curator_Self","Curator_All"] },
   ]
 
   useEffect(() => {
     let publicationsPerTabs = [];
     tabsData.forEach((tab) => {
       let filteredReciterData = filterPublications(reciterData, tab.value, "");
-      publicationsPerTabs.push({ value: tab.value, name: tab.name, data: filteredReciterData, count: filteredReciterData.length })
+      publicationsPerTabs.push({ value: tab.value, name: tab.name, data: filteredReciterData, count: filteredReciterData.length, allowedRoleNames: tab.allowedRoleNames})
     })
     setFilteredData(publicationsPerTabs);
   }, [])
@@ -96,6 +99,9 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
         className={`${styles.tabsContainer}`}
       > {
           filteredData.map((tabData: any, index: number) => {
+            let userPermissions = JSON.parse(session.data.userRoles);
+            const matchedRoles = userPermissions.filter(role => tabData.allowedRoleNames.includes(role.roleLabel));
+            if(matchedRoles.length >= 1){
             return (
               <Tab
                 eventKey={tabData.value}
@@ -127,6 +133,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                 }
               </Tab>
             )
+              }
           })
         }
       </Tabs>
