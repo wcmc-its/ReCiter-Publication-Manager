@@ -16,6 +16,7 @@ declare module "next-auth" {
         userID: number,
         status: number,
       }
+      userRoles : Array
     }
   }
 }

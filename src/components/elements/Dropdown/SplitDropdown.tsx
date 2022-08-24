@@ -13,9 +13,10 @@ interface DropdownProps {
   secondary?: boolean,
   disabled?: boolean,
   onDropDownClick:any,
+  isUserRole:any
 }
 
-const SplitDropdown: React.FC<DropdownProps> = ({ title, to, onClick, id, listItems, secondary,onDropDownClick,disabled}) => {
+const SplitDropdown: React.FC<DropdownProps> = ({ isUserRole,title, to, onClick, id, listItems, secondary,onDropDownClick,disabled}) => {
 
   return (
     <div className="mt-2">

@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { identityFetchData, reciterFetchData,reCalcPubMedPubCount } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
-import { Container, Button, Row } from "react-bootstrap";
+import { Container, Button, Row,Toast } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
 import InferredKeywords from "./InferredKeywords"
@@ -12,6 +12,11 @@ import SuggestionsBanner from "./SuggestionsBanner";
 import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
+import { useSession } from "next-auth/client";
+import { allowedPermissions, toastMessage } from "../../../utils/constants";
+import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+
+
 
 interface PrimaryName {
   firstInitial?: string,
@@ -24,6 +29,7 @@ interface PrimaryName {
 const CurateIndividual = () => {
   const router = useRouter()
   const { id } = router.query
+  const [newId, setNewId ] = useState<string>("");
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
@@ -31,10 +37,29 @@ const CurateIndividual = () => {
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
+  const [session, loading] = useSession();
 
   useEffect(() => {
-    dispatch(identityFetchData(id));
-    fetchData();
+    let userPermissions = JSON.parse(session.data?.userRoles);
+    let routerUserId = router.query.id ;
+   
+    let nextPersonIdentifier = "";
+    //Commented as this needs to be worked on later..
+    // checking curator_self
+   /* if (userPermissions.length === 1 &&  userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self && 'aaa2020' != routerUserId) ){
+        toastMessage("error", "You do not have access to view  page");
+        //userPermissions.map((id)=>{ nextPersonIdentifier = id.personIdentifier})
+        //router.push(`/curate/${routerUserId}`,`/curate/aaa2020`,{shallow : true});
+    }else{
+      userPermissions.map((id)=>{ nextPersonIdentifier = id.personIdentifier})
+      console.log('nextPersonIdentifier',nextPersonIdentifier);
+      setNewId('aaa2020');
+      dispatch(identityFetchData('aaa2020'));
+      fetchData();
+    }*/
+     setNewId('${routerUserId}');
+     dispatch(identityFetchData(routerUserId));
+     fetchData();
   }, [])
 
   const fetchData = () => {
@@ -59,6 +84,7 @@ const CurateIndividual = () => {
 
   return (
       <div className={appStyles.mainContainer}>
+       <ToastContainerWrapper />
         <h1 className={styles.header}>Curate Publications</h1>
         {
           identityData &&
@@ -95,7 +121,7 @@ const CurateIndividual = () => {
 
       {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
         <SuggestionsBanner
-          uid={id}
+          uid={newId}
           count={reciterData.reciterPending.length}
         />
       }

@@ -3,7 +3,8 @@ import Providers from "next-auth/providers";
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
-import { findOrCreateAdminUsers } from '../../../../controllers/db/admin.users.controller'
+import { findOrCreateAdminUsers } from '../../../../controllers/db/admin.users.controller';
+import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
@@ -17,10 +18,13 @@ const options = {
             async authorize(credentials) {
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
-                console.log(apiResponse)
                   if (apiResponse.statusCode == 200) {
                         const adminUser = await findOrCreateAdminUsers(credentials.username)
-                        apiResponse.databaseUser = adminUser
+                        apiResponse.databaseUser = adminUser;
+                        const userRoles = await findUserPermissions(credentials.username);
+                        apiResponse.userRoles = userRoles;
+                       
+                       
                       return apiResponse;
                   } else {
                       return null;
@@ -62,20 +66,18 @@ const options = {
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     }
-                    console.log(user)
-
                     if (cwid) {
                         const adminUser = await findOrCreateAdminUsers(cwid)
 
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
-                        console.log(adminUser)
+                        const userRoles = await findUserPermissions(cwid);
+                        adminUser.userRoles = userRoles;
                         return adminUser;
                     }
 
                     return { cwid, has_access: false };
                 } catch (error) {
-                    console.log(error);
                     return null;
                 }
             },
@@ -98,7 +100,11 @@ const options = {
               if(apiResponse.databaseUser) {
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
-                token.databaseUser = apiResponse.databaseUser
+                    token.databaseUser = apiResponse.databaseUser
+              }
+              if(apiResponse.userRoles) {
+                if(apiResponse.userRoles)
+                    token.userRoles = apiResponse.userRoles
               }
             }
             return token
