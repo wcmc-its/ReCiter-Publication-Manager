@@ -16,8 +16,7 @@ export async function getServerSideProps(ctx) {
     let userPermissions ='';
     const personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
 
-    if(session && session.data && session.data.userRoles) 
-        userPermissions = JSON.parse(session.data?.userRoles);
+    if(session && session.data && session.data.userRoles)  userPermissions = JSON.parse(session.data?.userRoles);
 
     if (process.env.LOGIN_PROVIDER !== "SAML") {
         //Redirect to search after login
@@ -31,14 +30,14 @@ export async function getServerSideProps(ctx) {
                 };
             }
             
-            if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All || role.roleLabel === allowedPermissions.Reporter_All || role.roleLabel === allowedPermissions.Superuser)) {
+            if ( userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All || role.roleLabel === allowedPermissions.Reporter_All || role.roleLabel === allowedPermissions.Superuser)) {
                 return {
                     redirect: {
                         destination: "/search",
                         permanent: false,
                     },
                 };
-            } else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
+            } else if (userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
                 return {
                     redirect: {
                         destination: `/curate/${personIdentifier}`,
@@ -73,14 +72,14 @@ export async function getServerSideProps(ctx) {
             };
         }
 
-        if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All || role.roleLabel === allowedPermissions.Reporter_All || role.roleLabel === allowedPermissions.Superuser)) {
+        if (userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All || role.roleLabel === allowedPermissions.Reporter_All || role.roleLabel === allowedPermissions.Superuser)) {
             return {
                 redirect: {
                     destination: "/search",
                     permanent: false,
                 },
             };
-        } else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
+        } else if (userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
             return {
                 redirect: {
                     destination: `/curate/${personIdentifier}`,
