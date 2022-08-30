@@ -54,7 +54,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     })
 
     setFilteredData(updatedFilteredData);
-    setKey(prevUserAssertion)
+    // setKey(prevUserAssertion)
   }
 
   const updatePublicationAssertionBulk = (reciterArticles: any, userAssertion: string, prevUserAssertion: string) => {
@@ -76,7 +76,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
       }
     })
     setFilteredData(updatedFilteredData);
-    setKey(userAssertion)
+    // setKey(userAssertion)
   }
 
   const onTabChange = (k)=>{

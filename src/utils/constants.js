@@ -29,7 +29,7 @@ export const toastMessage = (type, message) => {
 }
 
 export const dropdownItemsSuper = [
-	{ title: 'Create Reports', to: '/create-reports'},
+	{ title: 'Create Reports', to: '/report'},
 	// { title: 'Perform Analysis', to: '/perform-analysis' },
   ]
   export const dropdownItemsReport= [

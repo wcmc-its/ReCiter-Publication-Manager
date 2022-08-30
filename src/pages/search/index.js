@@ -2,13 +2,23 @@ import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
 import { getSession } from "next-auth/client"
 
-/* export async function getServerSideProps(ctx) {
+ export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
+    const userPermissions = JSON.parse(session.data?.userRoles);
 
-    if (!session || !session.data) {
+    // if (!session || !session.data) {
+    //     return {
+    //         redirect: {
+    //             destination: "/login",
+    //             permanent: false,
+    //         },
+    //     };
+    // }
+
+    if(userPermissions.length === 0) {
         return {
             redirect: {
-                destination: "/login",
+                destination: "/noaccess",
                 permanent: false,
             },
         };
@@ -19,7 +29,7 @@ import { getSession } from "next-auth/client"
             session: session,
         },
     };
-} */
+}
 
 const SearchPage = () => {
     return (
