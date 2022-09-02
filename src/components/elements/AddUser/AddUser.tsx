@@ -17,6 +17,7 @@ interface FuncProps {
     onReject(id: number): void,
     item: any
 }
+type  formErrors = {[key: string]: any};
 
 const AddUser: FunctionComponent<FuncProps> = (props) => {
 
@@ -24,8 +25,6 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const adminDepartments = useSelector((state: RootStateOrAny) => state.AllAdminDepatments);
     const allAdminRoles = useSelector((state: RootStateOrAny) => state.AllAdminRoles);
 
-
-    const [validated, setValidated] = useState(false)
     const [state, setState] = useState({
         cwid: "",
         email: "",
@@ -37,8 +36,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         title: "",
         description: ""
     })
-    const { cwid, email, firstName, lastName, middleName, division, title } = state;
+    const { cwid, email, firstName, lastName, middleName, division, title} = state;
     const [selectedRoles, SetSelectedRoles] = useState([]);
+
+    const [formErrorsInst, SetformErrInst] = useState<{[key: string]: any}>({});
+
     const [selectedDepartments, SetSelectedDepartments] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -47,25 +49,48 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
     const dispatch = useDispatch();
 
-    const handleValueChangeTargetValue = (inputName, e) => {
-        setState(state => ({ ...state, [inputName]: e.target.value }))
+
+    const handleValueChangeTargetValue = (field, value) => {
+        if(value != '') formErrorsInst[field] = ''; 
+        setState(state => ({ ...state, [field]: value }))
     }
+
+    const validateEmail = (email) => {
+        var mailformat = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/;
+        if (email.match(mailformat)) return true;
+        else return false;
+      };
+
+  
+    const checkFormValidations = () => {
+        let formErrInst: formErrors = {};
+        // cwid errors
+        if ( !cwid || cwid === '' || cwid.trim().length === 0 ) formErrInst.cwid = 'Please enter valid cwid!'
+        // email errors
+        if ( !email || email === '' || email.trim().length === 0 || validateEmail(email) === false ) formErrInst.email = 'Please enter  valid  email!'
+        // firstName errors
+        if ( !firstName || firstName === '' || firstName.trim().length === 0 ) formErrInst.firstName = 'Please enter valid first Name!'
+          // lastName errors
+          if ( !lastName || lastName === '' || lastName.trim().length === 0 ) formErrInst.lastName = 'Please enter valid last Name!'
+          // roles errors
+          if ( !selectedRoles || selectedRoles.length === 0  ) formErrInst.selectedRole = 'Please select atleast one role!'
+
+        SetformErrInst(formErrInst)
+
+        return formErrInst
+    }
+
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        const form = event.currentTarget;
-        // if (form.checkValidity() === false) {
-        //     event.preventDefault();
-        //     event.stopPropagation();
-        // }
-        setValidated(true);
+        const newErrors = checkFormValidations()
 
-        if (form && form.checkValidity() === true) {
+          if ( Object.keys(newErrors).length === 0 ) {
+   
             let selectedRoleIds = [];
             let departmentIds = [];
             let Departmets = adminDepartments.filter(department => { if (selectedDepartments.includes(department.departmentLabel)) departmentIds.push(department.departmentID) })
             let roleIds = allAdminRoles.filter(role => { if (selectedRoles.includes(role.roleLabel)) selectedRoleIds.push(role.roleID) })
-            // console.log("department ids",departmentIds )
             let isEditUserId = router.query.userId;
             let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
 
@@ -140,12 +165,6 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     });
 
 
-    const validatePassword = () => {
-        return false
-    };
-
-
-
     return (
         <>
             <PageHeader label={isEdit ? "Edit User" : "Add User"} />
@@ -153,57 +172,61 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                 {loading ?
                     <div className="d-flex justify-content-center align-items"><Loader /> </div>
                     :
-                    <Form validated={validated} onSubmit={handleSubmit} noValidate method="post">
+                    <Form  onSubmit={handleSubmit} noValidate method="post">
                         <Row className="mb-3 pt-3" >
                             <Form.Group as={Col} sm={12} lg={4} controlId="formGridCwid">
                                 <Form.Label>CWID<span className="text-danger">*</span></Form.Label>
-                                <Form.Control required type="text" value={cwid} name="cwid" disabled={isEdit ? true : false}
-                                    onChange={(e) => handleValueChangeTargetValue("cwid", e)} placeholder="Enter CWID" />
-                                <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                                <Form.Control.Feedback type="invalid">
-                                    Please enter a CWID.
+                                <Form.Control required  type="text" value={cwid} name="cwid" disabled={isEdit ? true : false}
+                                    onChange={(e) => handleValueChangeTargetValue("cwid", e.target.value)} maxLength={128}   placeholder="Enter CWID" 
+                                    isInvalid={formErrorsInst.cwid }/>
+                                <Form.Control.Feedback type="valid">Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.cwid }
                                 </Form.Control.Feedback>
                             </Form.Group>
 
                             <Form.Group as={Col} sm={12} lg={6} controlId="formGridCwid">
                                 <Form.Label>Primary Email<span className="text-danger">*</span></Form.Label>
-                                <Form.Control required type="text" disabled={isEdit ? true : false} value={email} name="email" onChange={(e) => handleValueChangeTargetValue("email", e)} placeholder="Enter Email" />
-                                <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                                <Form.Control.Feedback type="invalid">
-                                    Please enter email.
+                                <Form.Control required type="email" disabled={isEdit ? true : false} maxLength={128} value={email} name="email" onChange={(e) => handleValueChangeTargetValue("email", e.target.value)} placeholder="Enter Email" 
+                                 isInvalid={ formErrorsInst.email }/>
+                                <Form.Control.Feedback type="valid">Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.email }
                                 </Form.Control.Feedback>
                             </Form.Group>
                         </Row>
                         <Row className="mb-3 pt-3" >
                             <Form.Group as={Col} sm={12} lg={4} controlId="formGridFirstname">
                                 <Form.Label>First Name<span className="text-danger">*</span></Form.Label>
-                                <Form.Control required type="text" placeholder="Enter First name" value={firstName} name="firstName" onChange={(e) => handleValueChangeTargetValue("firstName", e)} />
+                                <Form.Control required  type="text" maxLength={128} placeholder="Enter First name" /*isInvalid={ validated && firstName.trim().length == 0}*/ value={firstName} name="firstName" onChange={(e) => handleValueChangeTargetValue("firstName", e.target.value)} 
+                                    isInvalid={formErrorsInst.firstName }/>
                                 <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                                <Form.Control.Feedback type="invalid">
-                                    Please enter a First name.
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.firstName }
                                 </Form.Control.Feedback>
                             </Form.Group>
 
                             <Form.Group as={Col} sm={12} lg={4} controlId="formGridMiddleName">
                                 <Form.Label>Middle Name</Form.Label>
-                                <Form.Control type="text" placeholder="Enter Middle name" value={middleName} name="middleName" onChange={(e) => handleValueChangeTargetValue("middleName", e)} />
+                                <Form.Control type="text" placeholder="Enter Middle name" maxLength={128} value={middleName} name="middleName" onChange={(e) => handleValueChangeTargetValue("middleName", e.target.value)} />
                                 <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
                             </Form.Group>
 
                             <Form.Group as={Col} sm={12} lg={4} controlId="formGridLastName">
                                 <Form.Label>Last Name<span className="text-danger">*</span></Form.Label>
-                                <Form.Control required type="text" placeholder="Enter Last name" value={lastName} name="lastName" onChange={(e) => handleValueChangeTargetValue("lastName", e)} />
+                                <Form.Control required type="text" maxLength={128} placeholder="Enter Last name" /* isInvalid={ validated && lastName.trim().length == 0} */ value={lastName} name="lastName" onChange={(e) => handleValueChangeTargetValue("lastName", e.target.value)} 
+                                     isInvalid={ formErrorsInst.lastName }/>
                                 <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                                <Form.Control.Feedback type="invalid">
-                                    Please enter a Last name.
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.lastName }
                                 </Form.Control.Feedback>
                             </Form.Group>
                         </Row>
                         <Row className="mb-3 pt-3" >
                             <Form.Group as={Col} sm={12} lg={8} controlId="formGridCwid">
                                 <Form.Label>Primary organizational Unit </Form.Label>
-                                <Form.Control type="text" value={division} name="division"
-                                    onChange={(e) => handleValueChangeTargetValue("division", e)} placeholder="Enter Primary organizational Unit" />
+                                <Form.Control type="text" value={division} name="division" maxLength={200}
+                                    onChange={(e) => handleValueChangeTargetValue("division", e.target.value)} placeholder="Enter Primary organizational Unit" />
                                 <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
                                 <Form.Control.Feedback type="invalid">
                                     Please enter a Primary Organization Unit.
@@ -212,7 +235,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
                             <Form.Group as={Col} sm={12} lg={4} controlId="formGridTitle">
                                 <Form.Label>Title</Form.Label>
-                                <Form.Control type="text" placeholder="Enter Title" value={title} name="title" onChange={(e) => handleValueChangeTargetValue("title", e)} />
+                                <Form.Control type="text" placeholder="Enter Title" maxLength={200} value={title} name="title" onChange={(e) => handleValueChangeTargetValue("title", e.target.value)} />
                                 <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
                                 <Form.Control.Feedback type="invalid">
                                     Please enter a Title.
@@ -222,11 +245,6 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         <Row className="mb-3">
                             <Form.Group as={Col} sm={12} lg={12} controlId="formGridDepartment">
                                 <Form.Label>Organizational unit(s) user can manage</Form.Label>
-                                {/* <Form.Control required type="text" placeholder="Enter Department"  value={department} name="department" onChange={(e) => handleValueChangeTargetValue("department", e)}/>
-                        <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                        <Form.Control.Feedback type="invalid">
-                            Please choose a Department.
-                        </Form.Control.Feedback> */}
                                 <Autocomplete
                                     freeSolo
                                     multiple
@@ -248,40 +266,10 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                 />
                             </Form.Group>
                         </Row>
-                        {/*  <Row className="mb-3">
-                    <Form.Group as={Col} sm={12} lg={4} controlId="formGridDivision">
-                        <Form.Label>Division</Form.Label>
-                        <Form.Control required type="text" placeholder="Enter Division" value={division} name="division" onChange={(e) => handleValueChangeTargetValue("division", e)} />
-                        <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                        <Form.Control.Feedback type="invalid">
-                            Please choose a Division.
-                        </Form.Control.Feedback>
-
-                    </Form.Group>
-                </Row> */}
 
                         <Row className="mb-3">
                             <Form.Group as={Col} sm={12} lg={12} controlId="formGridRole">
-                                <Form.Label>Role(s)*</Form.Label>
-                                {/* <Select
-                            labelId="demo-multiple-name-label"
-                            id="demo-multiple-name"
-                            multiple
-                            value={selectedRoles}
-                            onChange={handleChange}
-                            input={<OutlinedInput />}
-                            MenuProps={MenuProps}
-                        >
-                            {allAdminRoles.map((role) => (
-                                <MenuItem
-                                    key={role}
-                                    value={role.id}
-                                // style={getStyles(name, personName, theme)}
-                                >
-                                    {role.roleLabel}
-                                </MenuItem>
-                            ))}
-                        </Select> */}
+                                <Form.Label>Role(s)<span className="text-danger">*</span></Form.Label>
                                 <Autocomplete
                                     freeSolo
                                     multiple
@@ -301,42 +289,9 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                         />
                                     )}
                                 />
+                                 { formErrorsInst.selectedRole ? <p className="text-danger">{formErrorsInst.selectedRole}</p>:""}
                             </Form.Group>
                         </Row>
-                        {/*  <Row className="mb-3">
-                    <Form.Group as={Col} sm={12} lg={4} controlId="FormGridAccessControl">
-                        <Form.Label>Access Controll</Form.Label>
-                        <Form.Control required as="select">
-                            <option >User</option>
-                            <option>SuperUser</option>
-                            <option>DepartmentalUser</option>
-                        </Form.Control>
-                        <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                        <Form.Control.Feedback type="invalid">
-                            Please select one role.
-                        </Form.Control.Feedback>
-                    </Form.Group>
-                    <Form.Group as={Col} sm={12} lg={8} controlId="FormGridAccessDescription">
-                        <Form.Label></Form.Label>
-                        <Form.Control required type="text" placeholder="Enter Title"  value={description} name="description" onChange={(e) => handleValueChangeTargetValue("description", e)} />
-                        <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                        <Form.Control.Feedback type="invalid">
-                            Please choose a Title.
-                        </Form.Control.Feedback>
-                    </Form.Group>
-                </Row>
-                <Row className="mb-3">
-                    <Form.Group as={Col} sm={12} lg={4}>
-                    </Form.Group>
-                    <Form.Group as={Col} sm={12} lg={8} id="formGridCheckbox">
-                        <Form.Check required type="checkbox" label="Accept to create user" />
-                        <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
-                        <Form.Control.Feedback type="invalid">
-                            Please check the box.
-                        </Form.Control.Feedback>
-                    </Form.Group>
-                </Row> */}
-
                         <Row className="justify-content-center">
                             <Col md={4} sm={12} lg={2}>
                                 <Button variant="primary" type="submit" className="primary mb-4 ">
