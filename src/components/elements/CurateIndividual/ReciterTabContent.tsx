@@ -27,7 +27,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [searchtextCarier, setSearchtextCarier] = useState<any>("");
 
   const [page, setPage] = useState(1)
-  const [count, setCount] = useState(20)
+  const [count, setCount] = useState(50)
   const [session, loading] = useSession();
   const [totalCount, setTotalCount] = useState<number>(publications.length || 0);
   const dispatch = useDispatch();

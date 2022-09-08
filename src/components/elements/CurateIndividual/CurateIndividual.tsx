@@ -28,8 +28,8 @@ interface PrimaryName {
 
 const CurateIndividual = () => {
   const router = useRouter()
-  const { id } = router.query
-  const [newId, setNewId ] = useState<string>("");
+  const  id  = router.query.id
+  const [newId, setNewId ] = useState<any>();
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
@@ -57,7 +57,8 @@ const CurateIndividual = () => {
       dispatch(identityFetchData('aaa2020'));
       fetchData();
     }*/
-     setNewId('${routerUserId}');
+
+     setNewId(routerUserId);
      dispatch(identityFetchData(routerUserId));
      fetchData();
   }, [])
