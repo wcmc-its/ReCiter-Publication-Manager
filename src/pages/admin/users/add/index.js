@@ -21,7 +21,7 @@ import AddUser from '../../../../components/elements/AddUser/AddUser'
     };
 } */
 
-const SearchPage = () => {
+const AddUserPage = () => {
     return (
         <>
             <AddUser />
@@ -29,8 +29,8 @@ const SearchPage = () => {
     )
 }
 
-SearchPage.getLayout = (page) => (
+AddUserPage.getLayout = (page) => (
     <AppLayout>{page}</AppLayout>
 );
 
-export default SearchPage
+export default AddUserPage
