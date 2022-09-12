@@ -54,6 +54,7 @@ const Profile = ({
   const [session, loading] = useSession();
   const userPermissions = JSON.parse(session.data.userRoles);
 
+
   
 
   // for CSV Report
@@ -246,9 +247,7 @@ const Profile = ({
       if (list.institutions.length > 0) {
         let institutions = [];
         // remove duplicates
-        let uniqueInstitutions = list.institutions.filter((institution, index) => {
-          return list.institutions.indexOf(institution) !== index
-        });
+        let uniqueInstitutions = list.institutions.filter((institution, index) => list.institutions.indexOf(institution) === index);
         uniqueInstitutions.forEach((institution) => {
           if (institution === list.primaryInstitution) {
             institutions.push({ name: institution, tag: 'Primary'})
@@ -256,6 +255,8 @@ const Profile = ({
             institutions.push({ name: institution })
           }
         })
+
+
         rows.push({ title: 'Institutions', values: institutions});
       }
     }

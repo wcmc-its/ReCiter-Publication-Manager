@@ -7,6 +7,8 @@ interface FuncProps {
     onReject(id: number, userAssertion : string): void,
     item: any
 }
+const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
+
 
 const AddPublication: FunctionComponent<FuncProps> = (props) => {
     const acceptPublication = () => {
@@ -70,7 +72,7 @@ const AddPublication: FunctionComponent<FuncProps> = (props) => {
             </p>
             <p className={publicationStyles.publicationField}>
                 PMID: 
-                <span><u>{item.pmid}</u></span>
+                <span><a href={`${pubMedUrl}${item.pmid}`} target="_blank" rel="noreferrer" className={styles.pmidLink}>{item.pmid}</a>{' '}</span>
             </p>
         </td>
     </tr>;
