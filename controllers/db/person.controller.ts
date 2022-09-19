@@ -17,18 +17,21 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         if(apiBody.filters) {
             if(apiBody.filters.personTypes || apiBody.filters.institutions || apiBody.filters.orgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
                 where[Op.and] = []
-                if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > 0) {
+                if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > 3) {
                     where[Op.and].push({[Op.or]:[
                         {'$Person.personIdentifier$': { [Op.in]: apiBody.filters.nameOrUids }},
                     ]})
-                    if(where[Op.and][0][Op.or]) {
-                        apiBody.filters.nameOrUids.forEach((name: string) => {
-                            where[Op.and][0][Op.or].push({'$Person.firstName$': { [Op.like]: `%${name}%`}})
-                            where[Op.and][0][Op.or].push({'$Person.middleName$': { [Op.like]: `%${name}%`}})
-                            where[Op.and][0][Op.or].push({'$Person.lastName$': { [Op.like]: `%${name}%`}})
+                
+                }
+                else if(where[Op.and] && apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length <= 3) {
+                    apiBody.filters.nameOrUids.forEach((name: string) => {
+                            where[Op.and].push({[Op.or]:[{'$Person.firstName$': { [Op.like]: `%${name}%`}},
+                          {'$Person.middleName$': { [Op.like]: `%${name}%`}},
+                            {'$Person.lastName$': { [Op.like]: `%${name}%`}},
+                            {'$Person.personIdentifier$': { [Op.like]: `%${name}%`}}]})
                         })
                      }
-                }
+               // }
                 if(apiBody.filters.institutions) {
                     where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: apiBody.filters.institutions }})
                 }
@@ -86,7 +89,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                     {
                         model: models.PersonPersonType, 
                         as: 'PersonPersonTypes',
-                        required: true,
+                        required: false,
                         on: {
                             col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
