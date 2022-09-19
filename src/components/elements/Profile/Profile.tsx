@@ -10,6 +10,9 @@ import { reciterConfig } from '../../../../config/local';
 import { metrics, labels } from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
+import { useSession } from 'next-auth/client';
+import { allowedPermissions } from "../../../utils/constants";
+
 
 interface PrimaryName {
   firstInitial?: string,
@@ -48,6 +51,11 @@ const Profile = ({
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState<boolean>(false);
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
+  const [session, loading] = useSession();
+  const userPermissions = JSON.parse(session.data.userRoles);
+
+
+  
 
   // for CSV Report
   const workbook = new Excel.Workbook();
@@ -239,9 +247,7 @@ const Profile = ({
       if (list.institutions.length > 0) {
         let institutions = [];
         // remove duplicates
-        let uniqueInstitutions = list.institutions.filter((institution, index) => {
-          return list.institutions.indexOf(institution) !== index
-        });
+        let uniqueInstitutions = list.institutions.filter((institution, index) => list.institutions.indexOf(institution) === index);
         uniqueInstitutions.forEach((institution) => {
           if (institution === list.primaryInstitution) {
             institutions.push({ name: institution, tag: 'Primary'})
@@ -249,12 +255,15 @@ const Profile = ({
             institutions.push({ name: institution })
           }
         })
+
+
         rows.push({ title: 'Institutions', values: institutions});
       }
     }
 
     if (list.emails) {
-      if (list.emails.length > 0) {
+      let roleAccess = userPermissions.some(role => role.roleLabel === (allowedPermissions.Curator_All || allowedPermissions.Curator_Self  ) )
+      if (list.emails.length > 0 && userPermissions.length >= 0 && roleAccess) {
         let formattedEmails = list.emails.map((email) => {
           return {name: email}
         })

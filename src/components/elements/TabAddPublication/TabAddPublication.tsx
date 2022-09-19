@@ -486,7 +486,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                     }
 
                                 </div>
-                                : <div className={`${styles.noDataFoundTxet}`}><strong> No results Found for the criteria. Please try with other search parameters</strong></div>
+                                : <div className={`${styles.noDataFoundTxet}`}><strong> No results.</strong></div>
                             }
                         </div>
                     :

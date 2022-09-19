@@ -5,8 +5,10 @@ import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import Router from "next/router"
 import Header from "../Header/Header"
-import { signIn } from "next-auth/client"
+import { signIn,getSession } from "next-auth/client"
 import { toast } from "react-toastify"
+import { allowedPermissions } from "../../../utils/constants";
+
 
 const Login = () => {
 
@@ -14,9 +16,10 @@ const Login = () => {
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [isShowButton, setIsShowButton] = useState(true)
+    const session = getSession();
 
    useEffect(() => {
-
+        
     })
 
     const validateForm = () => {
@@ -48,7 +51,19 @@ const Login = () => {
                 autoClose: 2000,
                 theme: "colored"
             });
-            Router.push(`${window.location.origin}/search`);
+            //if(session && session.data && session.data.userRoles)
+             getSession().then((session) => {
+                if (session) {
+                    let userPermissions = JSON.parse(session.data.userRoles);
+                    let userName = session.data.username;
+                    let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
+                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName)  
+                        Router.push(`${window.location.origin}/curate/${personIdentifier}`);
+                    else 
+                        Router.push(`${window.location.origin}/search`);
+                } 
+            });
+            
         } else {
             setInvalidCredentialsFlag(true)
             toast.error("Invalid credentials", {

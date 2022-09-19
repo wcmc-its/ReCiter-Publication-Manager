@@ -98,10 +98,19 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                     }
                     // Email
                     if (publication.evidence.email) {
-                      if (publication.evidence.email.emailMatchScore.includes(search.toLowerCase)) {
+                      if (publication.evidence.email.emailMatchScore.toString().includes(search.toLowerCase())) {
                         addPublication = true;
                       }
-                      if (publication.evidence.emailEvidence.emailMatch.includes(search.toLowerCase)) {
+                      if (publication.evidence.emailEvidence.emailMatch.includes(search.toLowerCase())) {
+                        addPublication = true;
+                      }
+                    }
+                    // Email 
+                    if (publication.evidence) {
+                      if (publication.evidence.emailEvidence?.emailMatchScore.toString().includes(search.toLowerCase())) {
+                        addPublication = true;
+                      }
+                      if (publication.evidence.emailEvidence?.emailMatch.includes(search.toLowerCase())) {
                         addPublication = true;
                       }
                     }

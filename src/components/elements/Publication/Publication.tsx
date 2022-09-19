@@ -595,22 +595,23 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <span className={reciterArticle.publicationDateDisplay ? styles.midDot : ""}> {reciterArticle.publicationType?.publicationTypeCanonical} </span>
             <div className={`${styles.publicationAdditionalInfo} pt-2`}>
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
-              <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>
-              <span className={styles.midDot} onClick={onOpenModal}> <div className="text-decoration-underline d-inline">Show History</div> </span>
-            </div>
-            {
-                (reciterArticle.evidence !== undefined) ?
-                    <div className={styles.publicationEvidenceBar}>
-                        <p onClick={toogleEvidence}>
-                            {
-                                (showEvidence) ?
-                                    <span
-                                        className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
-                                    :
-                                    <span
-                                        className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Show evidence behind this suggestion</span>
-                            }
-                        </p>
+          {reciterArticle.doi ?
+            <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span> : ""}
+          <span className={styles.midDot} onClick={onOpenModal}> <div className="text-decoration-underline d-inline">Show History</div> </span>
+        </div>
+        {
+          (reciterArticle.evidence !== undefined) ?
+            <div className={styles.publicationEvidenceBar}>
+              <p onClick={toogleEvidence}>
+                {
+                  (showEvidence) ?
+                    <span
+                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
+                    :
+                    <span
+                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Show evidence behind this suggestion</span>
+                }
+              </p>
 
 
                         <div

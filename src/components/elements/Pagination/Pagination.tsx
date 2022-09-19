@@ -75,6 +75,7 @@ const Pagination: React.FC<PaginationProps> = (props) => {
               <Dropdown.Item eventKey={10}>10</Dropdown.Item>
               <Dropdown.Item eventKey={20}>20</Dropdown.Item>
               <Dropdown.Item eventKey={50}>50</Dropdown.Item>
+              <Dropdown.Item eventKey={100}>100</Dropdown.Item>
             </DropdownButton>
           </div>
         </div>

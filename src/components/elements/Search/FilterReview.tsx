@@ -8,12 +8,10 @@ import SplitDropdown from "../Dropdown/SplitDropdown";
 import { useRouter } from 'next/router';
 import { useDispatch } from "react-redux";
 import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
+import { useSession } from "next-auth/client";
+import { allowedPermissions, dropdownItemsReport } from "../../../utils/constants";
+import styles from './Search.module.css'
 
-const dropdownItems: Array<ListItem> = 
- [
-    { title: 'Create Reports', to: '/create-reports'},
-    { title: 'Perform Analysis', to: '/perform-analysis'},
- ]
 
 
 const FilterReview = ({
@@ -21,11 +19,13 @@ const FilterReview = ({
   count,
   filterByPending,
   onCurate,
+  isUserRole,
 } : {
   onToggle: (value: boolean) => void;
   count: number,
   filterByPending: boolean,
   onCurate: any,
+  isUserRole : any
 }) => {
   const [filter, setFilter] = useState(false);
   const router = useRouter();
@@ -54,6 +54,7 @@ const FilterReview = ({
   }));
 
   const onDropDownClick = ()=>{
+    dispatch(updatePubFiltersFromSearch());
     onCurate();
   }
 
@@ -67,21 +68,27 @@ const FilterReview = ({
   const dropdownItems: Array<ListItem> = 
  [
     { title: 'Create Reports', onClick: onClickCurateReports},
-    { title: 'Perform Analysis', to: '/perform-analysis'},
+    // { title: 'Perform Analysis', to: '/perform-analysis'},
  ]
 
   return (
     <Row className="pb-2 pt-2">
       <Col className="d-flex my-auto"><h4><strong>{`${count}`} people found using filters</strong></h4></Col>
       <Col>
+      {
+      isUserRole === allowedPermissions.Superuser ? 
         <SplitDropdown
-          title="Curate Publications"
+          title= { isUserRole && isUserRole === allowedPermissions.Reporter_All ? "Create Report" : "Curate Publications" }
           to='/curate'
           id="publications"
-          listItems={dropdownItems}
+          listItems={isUserRole && isUserRole === allowedPermissions.Superuser? dropdownItems : dropdownItemsReport}
           disabled={count === 0}
-          onDropDownClick={onDropDownClick}
+          isUserRole={isUserRole}
+          onDropDownClick={ isUserRole && isUserRole === allowedPermissions.Reporter_All ? onClickCurateReports : onDropDownClick}
           />
+          : 
+          <Button className="secondary" variant="primary" onClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? onClickCurateReports : onDropDownClick }>{isUserRole === allowedPermissions.Reporter_All ? "Create Report" : "Curate Publications"}</Button>
+      }
       </Col>
       <Col className="d-flex flex-row">
       <div>Show only people with <br /> pending suggestions</div>

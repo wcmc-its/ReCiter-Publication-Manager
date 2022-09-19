@@ -153,4 +153,6 @@ h1 {
 }
 .cursorStyle{
   cursor: pointer !important;
+.menuDisplayNone{
+  display:none !important;
 }
