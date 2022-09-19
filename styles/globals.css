@@ -151,6 +151,8 @@ h1 {
   margin: 0 !important;
   padding: 0 !important;
 }
+.cursorStyle{
+  cursor: pointer !important;
 .menuDisplayNone{
   display:none !important;
 }

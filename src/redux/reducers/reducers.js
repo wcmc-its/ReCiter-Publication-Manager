@@ -199,6 +199,18 @@ export const pubMedCount = (state= 0, action) => {
   }
 }
 
+export const createORupdateUserID = (state= "", action) => {
+  switch(action.type) {
+
+      case methods.CREATED_OR_UPDATED_USERID :
+          return action.payload
+
+      default :
+          return state
+  }
+}
+
+
 
 export const curateSearchtext = (state=[], action) => {
   switch(action.type) {
@@ -279,6 +291,31 @@ export const institutionsData = (state=[], action) => {
           return []
 
       case methods.INSTITUTIONS_CHANGE_ALL_DATA :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const AllAdminDepatments = (state=[], action) => {
+
+  switch(action.type) {
+      case methods.LIST_ALL_ADMIN_DEPARTMENTS :
+          return action.payload
+
+      default :
+          return state
+  }
+
+}
+
+export const AllAdminRoles = (state=[], action) => {
+
+  switch(action.type) {
+     
+      case methods.LIST_ALL_ADMIN_ROLES :
           return action.payload
 
       default :
@@ -515,6 +552,16 @@ export const feedbacklogGroup = (state = [], action) => {
 
     case methods.FEEDBACKLOG_CLEAR_DATA_GROUP :
       return []
+    
+      default:
+        return state
+  }
+}
+
+export const adminUsersList = (state = [], action) => {
+  switch(action.type) {
+    case methods.ADMIN_USERS_LIST :
+      return action.payload
     
       default:
         return state
@@ -773,4 +820,8 @@ export default combineReducers({
     curateSearchtext,
     pubmedFetchingMore,
     pubMedCount,
+    AllAdminDepatments,
+    adminUsersList,
+    AllAdminRoles,
+    createORupdateUserID,
 })

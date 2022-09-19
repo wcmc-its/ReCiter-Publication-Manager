@@ -302,6 +302,13 @@ export const reCalcPubMedPubCount = (increaseAccepts) => dispatch => {
     })
 }
 
+export const createORupdateUserIDAction = (userID) => dispatch =>{
+    dispatch({
+        type: methods.CREATED_OR_UPDATED_USERID,
+        payload: userID
+    })
+}
+
 export const pubmedFetchData = query => dispatch => {
     dispatch({
         type: methods.PUBMED_FETCH_DATA
@@ -997,6 +1004,13 @@ export const updateFilteredIds = (ids) => dispatch => {
     })
 }
 
+export const adminUsersListAction = (userList) => dispatch => {
+    dispatch({
+        type: methods.ADMIN_USERS_LIST,
+        payload: userList
+    })
+}
+
 export const updateFilteredIdentities = (identities) => dispatch => {
     dispatch({
         type: methods.FILTERED_IDENTITIES_CHANGE,
@@ -1470,6 +1484,89 @@ export const getInstitutions = () => async (dispatch) => {
         })
 }
 
+// Admin Departments
+export const getAdminDepartments = () => async (dispatch) => {
+    return fetch('/api/db/admin/departments', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if (response.status === 200) {
+                return response.json()
+            } else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.LIST_ALL_ADMIN_DEPARTMENTS,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("List All Admin DEPATMENTS Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
+            dispatch(
+                addError(error)
+            )
+        })
+}
+
+export const getAdminRoles = () => async (dispatch) => {
+    return fetch('/api/db/admin/adminRoles', {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if (response.status === 200) {
+                return response.json()
+            } else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.LIST_ALL_ADMIN_ROLES,
+                payload: data
+            })
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("List All Admin DEPATMENTS Api failed - " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
+            dispatch(
+                addError(error)
+            )
+        })
+}
+
 // Person Type Filter
 export const getPersonTypes = () => async (dispatch) => {
     return fetch('/api/db/users/persontypes', {
@@ -1873,6 +1970,79 @@ export const getReportsAuthors = (pmids) => {
         })
         .catch(error => {
             console.log(error)
+        })
+}
+
+// Get authors of publication
+export const createAdminUser = (userData) =>{
+    return fetch(`/api/db/admin/users/addEditUser`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        },
+        body: JSON.stringify(userData)
+    })
+        .then(response => {
+            if (response.status === 200) {
+                toast.success("Admin User Created Successfully" , {
+                    position: "top-right",
+                    autoClose: 2000,
+                    theme: 'colored'
+                });
+                return response.json()
+            } else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("create api " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
+        })
+}
+
+// Get authors of publication
+export const fetchUserInfoByID = (userID) =>{
+    return fetch(`/api/db/admin/users/userInfo`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        },
+        body: JSON.stringify(userID)
+    })
+        .then(response => {
+            if (response.status === 200) {
+                return response.json()
+            } else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("create api " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
         })
 }
 
