@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { reciterConfig } from '../../../../../../../config/local'
-import { fetchUserDetailsByUserId } from '../../../../../../../controllers/db/manage-users/user.controller'
-import { AdminUser } from '../../../../../../db/models/AdminUser'
+import { reciterConfig } from '../../../../../../config/local'
+import { fetchUserDetailsByUserId } from '../../../../../../controllers/db/manage-users/user.controller'
+import { AdminUser } from '../../../../../db/models/AdminUser'
 
 export default async function handler(req: NextApiRequest,
     res: NextApiResponse<AdminUser | string>) {
