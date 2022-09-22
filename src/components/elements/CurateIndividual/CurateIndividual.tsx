@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData, reciterFetchData,reCalcPubMedPubCount } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData,reCalcPubMedPubCount, fetchFeedbacklog } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import { Container, Button, Row,Toast } from "react-bootstrap";
@@ -65,6 +65,7 @@ const CurateIndividual = () => {
 
   const fetchData = () => {
     dispatch(reciterFetchData(id, false));
+    dispatch(fetchFeedbacklog(id));
   }
 
   const DisplayName = ({ name }: { name: PrimaryName }) => {

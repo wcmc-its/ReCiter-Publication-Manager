@@ -186,6 +186,15 @@ export const curateIdsFromSearchPage = (state=[], action) => {
   }
 }
 
+export const showEvidenceDefault = (state= '', action) => {
+  switch(action.type) {
+      case methods.SHOW_EVIDENCE_DEFAULT :
+          return action.payload
+      default :
+          return state
+  }
+}
+
 
 
 export const pubMedCount = (state= 0, action) => {
@@ -820,8 +829,15 @@ export default combineReducers({
     curateSearchtext,
     pubmedFetchingMore,
     pubMedCount,
+
     AllAdminDepatments,
     adminUsersList,
     AllAdminRoles,
     createORupdateUserID,
+
+    showEvidenceDefault
+
+
+
+
 })

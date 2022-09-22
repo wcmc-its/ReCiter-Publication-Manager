@@ -122,6 +122,9 @@
     color: #337ab7;
     cursor: pointer;
 }
+.cursorPointer{
+  cursor: pointer;
+}
 .publicationShowEvidenceLink.publicationEvidenceShow::before {
     content: '-';
     padding: 10px 10px 10px 0;

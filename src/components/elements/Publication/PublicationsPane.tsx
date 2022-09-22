@@ -129,12 +129,13 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               return(
                 <div key={article.pmid || index}>
                   <Publication
-                    index={index}
+                    index={index + 1}
                     reciterArticle={article}
                     personIdentifier={item.personIdentifier}
                     onAccept={acceptPublication}
                     fullName={props.filteredIdentities[item.personIdentifier] ? props.filteredIdentities[item.personIdentifier].fullName : ''}
                     updatePublication={handleUpdatePublication}
+                    isFrom="curateAll"
                     />
                     {index < articles.length - 1 && <Divider></Divider>}
                 </div>

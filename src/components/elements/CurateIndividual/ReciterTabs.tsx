@@ -3,19 +3,23 @@ import filterPublications from "../../../utils/filterPublications";
 import { Tab, Tabs, Badge } from "react-bootstrap";
 import ReciterTabContent from "./ReciterTabContent";
 import styles from "./CurateIndividual.module.css";
-import { RootStateOrAny, useSelector } from "react-redux";
+import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
 import { allowedPermissions } from "../../../utils/constants";
 import { useSession } from "next-auth/client";
+import { showEvidenceByDefault } from "../../../redux/actions/actions";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
   //default tab
   const [key, setKey] = useState('NULL');
+  const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
   const [session, loading] = useSession();
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
+  const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
+
 
   const addnewtabName = <p id="addnewtabName" className="noSpace" >Add New record:</p>
   const pubMedTabName = <p id="pubMedTabName" className="text-primary noSpace" ><span >PubMed</span></p>
@@ -88,6 +92,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
       document.getElementById('addnewtabName').innerHTML = "Add New record:";
       document.getElementById('pubMedTabName').innerHTML = 'PubMed'
     }
+    dispatch(showEvidenceByDefault(false));
   }
 
   return (
@@ -129,6 +134,9 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                       updatePublicationAssertion={updatePublicationAssertion}
                       updatePublicationAssertionBulk={updatePublicationAssertionBulk}
                       isSearchText={isSearchText}
+                      isShowEvidenceByDefault = {showEvidenceDefault}
+                      activeKey = {key}
+                      totalCount={tabData.value === "NULL" ? tabData.count : tabData.value === "ACCEPTED" ? tabData.count : tabData.value ==="REJECTED" ?  tabData.count : ""}
                     />
                 }
               </Tab>

@@ -405,7 +405,7 @@ function Name(props) {
       imageUrl = '../../../images/generic-headshot.png'
   }
   if (props.identity.firstName !== undefined) {
-    const nameString = props.identity.firstName + ((props.identity.middleName !== undefined) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
+    const nameString = props.identity.firstName + ((props.identity.middleName) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
     nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onCLickProfile}>
       <b>{nameString}</b>
     </button>
@@ -414,7 +414,7 @@ function Name(props) {
       CWID: {props.identity.personIdentifier}</p>)
 
   }
-  if (props.title !== undefined) {
+  if (props.title) {
     nameArray.push(<p key="1"><span>{props.title}</span></p>)
   }
   return (

@@ -4,7 +4,7 @@ import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { fetchFeedbacklog } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import Loader from "../Common/Loader";
-
+import moment from 'moment-timezone';
 
 interface HistoryModalProps {
   showModal: boolean
@@ -15,52 +15,14 @@ interface HistoryModalProps {
 }
 
 const HistoryModal: React.FC<HistoryModalProps> = (props) => {
+  const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
+
   const [showAll, setShowAll] = useState<boolean>(false);
   const defaultLogsSize: number = 20;
   const dispatch = useDispatch();
-  const [feedbacklog, setFeedbacklog] = useState({});
   const [feedbacklogFetching, setFeedbacklogFetching] = useState(false);
   const [isError, setIsError] = useState(false);
 
-  useEffect(() => {
-    if (props.showModal) {
-      setFeedbacklogFetching(true);
-      fetch(`/api/db/admin/feedbacklog/${props.userId}`, {
-        credentials: "same-origin",
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          "Content-Type": "application/json",
-          'Authorization': reciterConfig.backendApiKey
-        }
-      }).then(response => {
-        if (response.status === 200) {
-          return response.json()
-        } else {
-          throw {
-            type: response.type,
-            title: response.statusText,
-            status: response.status,
-            detail: "Error occurred with api " + response.url + ". Please, try again later "
-          }
-        }
-      }).then(data => {
-        let articleIds = data.map((feedback) => { return feedback.articleIdentifier })
-        articleIds = articleIds.filter((feedback, i) => { return articleIds.indexOf(feedback) === i });
-        let feedbacklogData = {};
-        articleIds.forEach((articleId) => {
-          let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog });
-          feedbacklogData[articleId] = articleFeedbacks;
-        })
-        setFeedbacklog(feedbacklogData);
-        setFeedbacklogFetching(false);
-      }).catch(error => {
-        console.log(error);
-        setFeedbacklogFetching(false);
-        setIsError(true);
-      })
-    }
-  }, [props.showModal])
 
   const getAction = (feedback) => {
     switch (feedback) {
@@ -81,6 +43,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
 
   const Feedbacklog = ({ userId, timestamp, feedback, userDetails}) => {
     let date = new Date(timestamp).toUTCString();
+    date = moment().tz("America/New_York").format("YYYY-MM-DD HH:mm:ss z")
     let action = getAction(feedback);
     let userFullName = userDetails.nameFirst + " "+ userDetails.nameLast;
     return (
@@ -99,7 +62,6 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
         <>
         {
           feedbacksToDisplay.map((feedback, i) => {
-            console.log("feed back history", feedback);
             return (
               <Feedbacklog 
                 key={i}

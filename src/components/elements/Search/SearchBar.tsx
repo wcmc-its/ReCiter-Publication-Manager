@@ -68,9 +68,15 @@ const SearchBar = ({
     },
   });
 
+  const onFormSubmit = (e)=>{
+    e.preventDefault();
+    searchData(searchQuery, orgUnitQuery, insitutionQuery, personTypeQuery)
+  }
+
+
   return (
     <Container className={styles.searchFormContainer}>
-      <Form>
+      <Form onSubmit={onFormSubmit}>
         <Form.Group>
           <Form.Label className={styles.searchFormLabel}>Name or CWID(s)</Form.Label>
           <InputGroup>
@@ -144,7 +150,7 @@ const SearchBar = ({
           </Row>
           <div className="d-flex flex-row align-items-center">
             <Col sm={2}>
-              <Button className="primary w-100" onClick={() => searchData(searchQuery, orgUnitQuery, insitutionQuery, personTypeQuery)}>Search</Button>
+              <Button className="primary w-100" type="submit">Search</Button>
             </Col>
             <div className={`m-3 ${styles.textButton}`} onClick={clearFilters}>Reset</div>
           </div>

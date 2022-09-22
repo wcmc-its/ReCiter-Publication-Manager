@@ -10,7 +10,7 @@ import Filter from '../Filter/Filter';
 import { YearPicker } from 'react-dropdown-date';
 import { useSession } from "next-auth/client";
 import { VrpanoSharp } from "@mui/icons-material";
-
+import {Form,Button} from "react-bootstrap"
 
 interface FuncProps {
     tabType: string,
@@ -155,14 +155,27 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         filter()
     }, [])
 
-    useEffect(() => {
+     useEffect(() => {
         filter()
     }, [pubmedData])
     
     var totalPubs = 0;
 
+    const allReciterPubData = ()=>{
+        let reciterPublications: Array<any> = []
+        reciterData.reciterPending.forEach(function (publication: any) {
+            reciterPublications.push(publication)
+        })
+
+        reciterData.reciter.reCiterArticleFeatures.forEach(function (publication: any) {
+            reciterPublications.push(publication)
+        })
+        return reciterPublications
+    }
+
     const filter = (accessToUpdate) => {
         // Get array of PMIDs from pending publications
+        console.log('filter records inside.***********************',reciterData.reciterPending);
         const pubmedIds: Array<number> = []
         reciterData.reciterPending.forEach(function (publication: any) {
             pubmedIds.push(publication)
@@ -196,10 +209,10 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
             totalPubs = pubmedData.length - searchAcceptedCountTemp - searchRejectedCountTemp;
             totalPubs = totalPubs >= 0 ? totalPubs : 0;
-            if(accessToUpdate){
+            // if(accessToUpdate){
                 setAcceptCount(searchAcceptedCountTemp);
                 setRejectedCount(searchRejectedCountTemp);
-            }
+            // }
             setAllPubs(totalPubs);
         }
 
@@ -319,35 +332,35 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         setpublications(publications)
     }
 
-    const searchFunction = async () => {
-        var query = {
+    const searchFunction =  (e) => {
+        e.preventDefault();
+        //  let allReciterPubs =  allReciterPubData();
+        //  sessionStorage.setItem('allReciterPubs', JSON.stringify(allReciterPubs));
+        let query='';
+         query = {
             "strategy-query": pubmedSearch,
-            start: '',
-            end: ''
+            "start" : '',
+            "end" : ''
         };
 
         if (earliestYear !== '' && latestYear !== '') {
-            query = {
-                "strategy-query": pubmedSearch,
-                "start": earliestYear + '/01/01',
-                "end": latestYear + '/12/31'
-            }
+            query['start'] = earliestYear + '/01/01';
+            query['end'] =  latestYear + '/12/31';
+            
         }
         if (earliestYear !== '' && (latestYear === '' || latestYear === undefined)) {
-            query = {
-                "strategy-query": pubmedSearch,
-                "start": earliestYear + '/01/01',
-                "end": '2500/12/31'
-            }
+           
+            query['start'] = earliestYear + '/01/01';
+            query['end'] =  '2500/12/31';
+          
         }
         if ((earliestYear === '' || earliestYear === undefined) && latestYear !== '') {
-            query = {
-                "strategy-query": pubmedSearch,
-                "start": '1600/01/01',
-                "end": latestYear + '/12/31'
-            }
+           
+            query['start'] = '1600/01/01';
+            query['end'] =  latestYear + '/12/31';
+            
         }
-         dispatch(pubmedFetchData(query))
+        dispatch(pubmedFetchData(query))
         filter()
     }
 
@@ -365,6 +378,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         <div>
             <div className={styles.addPublicationSearchContainer}>
                 <div className="row">
+                    <Form onSubmit={searchFunction} style={{display:"flex"}}>
                     <div className="col-md-5">
                         <input
                             type="text"
@@ -386,7 +400,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                 // default is 1900
                                 start={new Date().getFullYear() - 20}
                                 // default is false
-                                required={true}
+                                // required={true}
                                 // mandatory
                                 value={(earliestYear !== undefined) ? earliestYear : (earliestYear !== undefined) ? earliestYear : ''}
                                 // mandatory
@@ -413,7 +427,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                 // default is 1900
                                 start={new Date().getFullYear() - 20}
                                 // default is false
-                                required={true}
+                                // required={true}
                                 // mandatory
                                 value={(latestYear !== undefined) ? latestYear : (latestYear !== undefined) ? latestYear : ''}
                                 // mandatory
@@ -430,13 +444,14 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                     </div>
 
                     <div className={`col-md-2 ${styles.adjustColPostion}`}>
-                        <button
+                        <Button
                             className={styles.searchButtonCss}
                             onClick={searchFunction}
-                        >Search</button>
+                            type="submit"
+                        >Search</Button>
                         <a className={styles.resetButtonCss} onClick={clearFilters}>Reset</a>
                     </div>
-
+                    </Form>
 
                 </div>
             </div>
@@ -486,7 +501,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                     }
 
                                 </div>
-                                : <div className={`${styles.noDataFoundTxet}`}><strong> No results.</strong></div>
+                                : ""
                             }
                         </div>
                     :
