@@ -103,18 +103,18 @@ const CuratePublications = () => {
         ></FilterSection>
       { (publicationsGroupDataFetching) ? <Loader /> : 
         <>
+            {publicationsGroupData.reciter ? 
           <div className="d-flex justify-content-between">
-            {publicationsGroupData.reciter && <h2 className={styles.sectionHeader}>{`About ${totalCount} people with pending publications`}</h2>}
+             <h2 className={styles.sectionHeader}>{`About ${totalCount} people with pending publications`}</h2>
             <div className={styles.paginationContainer}>
               <Button className="primary m-2" disabled={page === 1} onClick={() => handlePageUpdate(page - 1)}><NavigateBeforeIcon /> Previous </Button>
               <Button className="primary m-2" disabled={page * incrementBy >= filteredIds.length } onClick={() => handlePageUpdate(page + 1)}>Next <NavigateNextIcon /></Button>
             </div>
           </div>
+          : <p className={styles.noDataText}>The selected users have no pending publications.</p>}
           <div className={styles.publicationsContainer}>
-            {
               <PublicationsList />
-            }
-          </div>
+          </div> 
         </>
       }
     </div>

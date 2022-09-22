@@ -309,10 +309,21 @@ export const createORupdateUserIDAction = (userID) => dispatch =>{
     })
 }
 
+export const showEvidenceByDefault = (isShowEvidence) => dispatch => {
+    dispatch({
+        type: methods.SHOW_EVIDENCE_DEFAULT,
+        payload: isShowEvidence
+    })
+}
+
+
 export const pubmedFetchData = query => dispatch => {
     dispatch({
         type: methods.PUBMED_FETCH_DATA
     })
+    dispatch(
+        addPubMedFetchMoreData(false)
+    )
     fetchWithTimeout('/api/reciter/search/pubmed', {
         credentials: "same-origin",
         method: 'POST',

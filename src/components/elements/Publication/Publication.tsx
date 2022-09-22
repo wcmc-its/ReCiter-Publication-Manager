@@ -6,8 +6,9 @@ import ClearIcon from '@mui/icons-material/Clear';
 import UndoIcon from '@mui/icons-material/Undo';
 import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
-import { useSelector, RootStateOrAny } from "react-redux";
+import { useSelector, RootStateOrAny, useDispatch } from "react-redux";
 import HistoryModal from "./HistoryModal";
+import { showEvidenceByDefault } from "../../../redux/actions/actions";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -21,23 +22,53 @@ interface FuncProps {
     item?: any,
     faculty?: any,
     reciterArticle: any,
-    index: number,
+    index: any,
     personIdentifier: string,
     fullName: string,
+    paginatedPubsCount?:any,
+    activekey?:any,
+    totalCount?:any,
+    page?:any,
+    isFrom?:any
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
-
+    const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
+    const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
     const [showEvidence, setShowEvidence] = useState<boolean>(false)
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
+
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
+    const [expandedPubIndex, setExpandedPubIndex] = useState<any>()
+
+    const dispatch = useDispatch();
 
     const onOpenModal = () => setShowHistoryModal(true)
     const onCloseModal = () => setShowHistoryModal(false)
 
-    const toogleEvidence = () => {
-        setShowEvidence((showEvidence)?false:true)
+    const toogleEvidence = (pubExpEvidenceNumber) => {
+      if(props.isFrom === "curateAll"){
+        if(pubExpEvidenceNumber === 4) setExpandedPubIndex(pubExpEvidenceNumber - 1);
+        else setExpandedPubIndex(pubExpEvidenceNumber);
+      }else {
+      let allPaginatedPubsCount = props.paginatedPubsCount;
+      let totalRecordsInTab = props.totalCount;
+      let expandedPubNumber = parseInt(pubExpEvidenceNumber.slice(5));
+      
+      if(allPaginatedPubsCount > expandedPubNumber){
+        setExpandedPubIndex(pubExpEvidenceNumber);
+      } else if(allPaginatedPubsCount === expandedPubNumber && allPaginatedPubsCount != totalRecordsInTab){
+        setExpandedPubIndex(pubExpEvidenceNumber);
+      }else if(allPaginatedPubsCount === expandedPubNumber && allPaginatedPubsCount === totalRecordsInTab && allPaginatedPubsCount != 1 && expandedPubNumber != 1){
+        setExpandedPubIndex(`page${props.page}${(expandedPubNumber - 1)}`);
+      }else if(allPaginatedPubsCount === expandedPubNumber && allPaginatedPubsCount === 1 && expandedPubNumber === 1){
+        setExpandedPubIndex(null);
+      }else{
+        setExpandedPubIndex(null);
+      }
+    }
+      setShowEvidence((showEvidence)?false:true)
     }
 
     const acceptPublication = ( pmid: number, index: number ) => {
@@ -119,14 +150,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-4">
             <Col xs lg={6} className="p-1"><button
                 className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                onClick={() => props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED')}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
             ><CheckIcon fontSize="small"/> Accept
             </button>
             </Col>
             <Col xs lg={6} className="p-1">
             <button
                 className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                onClick={() => props.updatePublication(props.personIdentifier, pmid, 'REJECTED')}
+                onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
             ><ClearIcon fontSize="small"/> Reject
             </button>
             </Col>
@@ -137,14 +168,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-4">
               <Col xs lg={6} className="p-1"><button
                 className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                onClick={() => props.updatePublication(props.personIdentifier, pmid, 'NULL')}
+                onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
               ><UndoIcon fontSize="small"/>Undo
               </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
                   className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                  onClick={() => props.updatePublication(props.personIdentifier, pmid, 'REJECTED')}
+                  onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
                 ><ClearIcon fontSize="small"/>Reject
                 </button>
               </Col>
@@ -156,14 +187,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <Col xs lg={6} className="p-1">
                 <button
                     className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                    onClick={() => props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED')}
+                    onClick={() => { props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
                 > <CheckIcon fontSize="small"/> Accept
                 </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
                     className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                    onClick={() => props.updatePublication(props.personIdentifier, pmid, 'NULL')}
+                    onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
                 ><UndoIcon fontSize="small"/> Undo
                 </button>
               </Col>
@@ -597,14 +628,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
           {reciterArticle.doi ?
             <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span> : ""}
-          <span className={styles.midDot} onClick={onOpenModal}> <div className="text-decoration-underline d-inline">Show History</div> </span>
+          {Object.keys(feedbacklog).length > 0 ? <span className={styles.midDot} onClick={onOpenModal}> <div className={`text-decoration-underline d-inline ${styles.cursorPointer}`}>Show History</div> </span> : ""}
         </div>
         {
           (reciterArticle.evidence !== undefined) ?
             <div className={styles.publicationEvidenceBar}>
-              <p onClick={toogleEvidence}>
+              <p onClick={()=>toogleEvidence(props.index)}>
                 {
-                  (showEvidence) ?
+                   (props.index === showEvidenceDefault) || showEvidence?
                     <span
                       className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
                     :
@@ -615,7 +646,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
 
                         <div
-                            className={`${styles.publicationShowEvidenceContainer} ${(showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
+                            className={`${styles.publicationShowEvidenceContainer} ${(props.index === showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
                             <div className="table-responsive">
                                 <table className={`${styles.publicationsEvidenceTable} table table-striped`}>
                                     <thead>

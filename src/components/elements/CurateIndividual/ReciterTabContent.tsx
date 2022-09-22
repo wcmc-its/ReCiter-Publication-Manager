@@ -19,6 +19,9 @@ interface TabContentProps {
   fullName: string,
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   updatePublicationAssertionBulk: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
+  isShowEvidenceByDefault:boolean,
+  activeKey:any,
+  totalCount:any,
 }
 
 const ReciterTabContent: React.FC<TabContentProps> = (props) => {
@@ -80,6 +83,24 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   };
 
   let publicationsPaginatedData = publications.slice((page - 1) * count, page * count);
+
+  var totalNullCount = 0;
+  var totalAcceptedCount = 0;
+  var totalRejectedCount = 0;
+
+  if(publicationsPaginatedData.length){
+    publicationsPaginatedData.map((publication)=>{
+      if(publication.userAssertion === "NULL"){
+        totalNullCount++
+      }else if(publication.userAssertion === "ACCEPTED"){
+        totalAcceptedCount++
+      }else{
+        totalRejectedCount++
+      }
+    })
+  }
+
+
 
   const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
     const userId = session?.data?.databaseUser?.userID;
@@ -168,11 +189,15 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         return (
           <div key={publication.pmid}>
             <Publication
-              index={index}
+              index={ `page${page}${index+1}`}
               reciterArticle={publication}
               personIdentifier={props.personIdentifier}
               fullName={props.fullName}
               updatePublication={handleUpdatePublication}
+              activekey={props.activeKey}
+              totalCount={props.totalCount}
+              page={page}
+              paginatedPubsCount={publication.userAssertion === "NULL" ? totalNullCount : publication.userAssertion === "ACCEPTED" ? totalAcceptedCount : totalRejectedCount}
             />
             <Divider />
           </div>
