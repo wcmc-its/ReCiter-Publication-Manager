@@ -41,7 +41,8 @@ const SplitDropdown: React.FC<DropdownProps> = ({ isUserRole,title, to, onClick,
               )
             } else {
               return (
-                <Link key={index} href={item.to} passHref><Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`}   eventKey={index}>{item.title}</Dropdown.Item></Link>
+                // <Link key={index} href={item.to} passHref><Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`}   eventKey={index}>{item.title}</Dropdown.Item></Link>
+                <Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`} onClick={onClick}   eventKey={index}>{item.title}</Dropdown.Item>
               )
             }
           })}

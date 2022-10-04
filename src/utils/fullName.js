@@ -1,13 +1,13 @@
 const fullName = (person) => {
   let userName = "";
-  if(person !== undefined) {
-      if(person.firstName !== undefined) {
+  if(person) {
+      if(person.firstName) {
         userName += person.firstName + ' ';
       }
-      if(person.middleName !== undefined) {
+      if(person.middleName) {
         userName += person.middleName + ' ';
       }
-      if(person.lastName !== undefined) {
+      if(person.lastName) {
         userName += person.lastName + ' ';
       }
   }

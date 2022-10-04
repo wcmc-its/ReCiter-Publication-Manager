@@ -81,15 +81,16 @@ export const publicationSearchWithFilter = async (
           },
         });
       }
-      if (
-        apiBody.filters.datePublicationAddedToEntrezLowerBound &&
-        apiBody.filters.datePublicationAddedToEntrezUpperBound
-      ) {
+      if (apiBody.filters.datePublicationAddedToEntrezLowerBound)
+       {
         where[Op.and].push({
           "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
             [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
           },
         });
+      }
+      if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
+       { 
         where[Op.and].push({
           "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
             [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData } from '../../../redux/actions/actions'
+import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -57,20 +57,25 @@ const Search = () => {
   const searchValue = useRef()
 
   useEffect(() => {
+    dispatch(clearFilters())
+
     let userPermissions = JSON.parse(session.data.userRoles);
 
     if (userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
       setIsuserRole(allowedPermissions.Reporter_All)
     } else if (userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All)) {
       setIsuserRole(allowedPermissions.Curator_All);
-    } else {
+    }else if (userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser)) {
+      setIsuserRole(allowedPermissions.Superuser);
+    } 
+    else { // when CWID has more than 1 role or multiple roles
       setIsuserRole(allowedPermissions.Superuser);
     }
 
-    if (identityAllData.length === 0) {
+   // if (identityAllData.length === 0) {
       fetchPaginatedData()
       fetchCount()
-    }
+    // }
   }, [])
 
   const fetchIdentityData = () => {
@@ -220,7 +225,7 @@ const Search = () => {
     setPage(1);
   }
 
-  const onCLickProfile = (personIdentifier) => {
+  const onClickProfile = (personIdentifier) => {
     router.push(`/curate/${personIdentifier}`);
     if (identityAllData && !identityAllFetching) {
       dispatch(identityClearAllData())
@@ -270,6 +275,7 @@ const Search = () => {
         pathname: `/curate/${data}`,
       })
     } else if (isFor === "report") {
+      dispatch(updateIndividualPersonReportCriteria(data));
       router.push({
         pathname: '/report',
       })
@@ -297,7 +303,7 @@ const Search = () => {
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
-          <Name identity={identity} onCLickProfile={ isUserRole && isUserRole === allowedPermissions.Reporter_All ? "" :() => onCLickProfile(identity.personIdentifier)}></Name>
+          <Name identity={identity} onClickProfile={ isUserRole && isUserRole === allowedPermissions.Reporter_All ? "" :() => onClickProfile(identity.personIdentifier)}></Name>
         </td>
         <td key={`${identityIndex}__orgUnit`} width="20%">
           {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
@@ -314,13 +320,14 @@ const Search = () => {
               <SplitDropdown
                 title={isUserRole && isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}
                 // to={`/curate/${identity.personIdentifier}`}
-                onDropDownClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report") : () => redirectToCurate("individual", identity.personIdentifier)}
+                onDropDownClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report",identity.personIdentifier) : () => redirectToCurate("individual", identity.personIdentifier)}
                 id={`curate-publications_${identity.personIdentifier}`}
                 listItems={isUserRole && isUserRole === allowedPermissions.Superuser ? dropdownItemsSuper : dropdownItemsReport}
                 secondary={true}
+                onClick={() => redirectToCurate("report", identity.personIdentifier)}
               />
               :
-              <Button className="secondary" variant="secondary" onClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report") : () => redirectToCurate("individual", identity.personIdentifier)}>{isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}</Button>
+              <Button className="secondary" variant="secondary" onClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report", identity.personIdentifier) : () => redirectToCurate("individual", identity.personIdentifier)}>{isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}</Button>
           }
         </td>
       </tr>;
@@ -406,7 +413,7 @@ function Name(props) {
   }
   if (props.identity.firstName !== undefined) {
     const nameString = props.identity.firstName + ((props.identity.middleName) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
-    nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onCLickProfile}>
+    nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onClickProfile}>
       <b>{nameString}</b>
     </button>
       <br />
