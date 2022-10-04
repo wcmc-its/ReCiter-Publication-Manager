@@ -34,6 +34,7 @@ const SearchBar = ({
   const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
 
   useEffect(() => {
+    clearFilters();
     if(institutionsData && institutionsData.length == 0)
       dispatch(institutionsFetchAllData())
     if(orgUnitsData && orgUnitsData.length == 0)

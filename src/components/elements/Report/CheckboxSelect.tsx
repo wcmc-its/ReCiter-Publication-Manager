@@ -23,13 +23,26 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     let updatedSelectedList = selectedOptions.map((selectedOption) => {
       return options.find(option => option[optionValue] == selectedOption);
     })
-
-    setSelectedList(updatedSelectedList);
+    if(updatedSelectedList.every((currentValue)=> currentValue !== undefined))
+    {
+       const uniqueIds = [];
+      updatedSelectedList.filter(element => {
+        const isDuplicate = uniqueIds.includes(element.personIdentifier);
+      
+        if (!isDuplicate) {
+          uniqueIds.push(element);
+      
+          return true;
+        }
+        return false;
+      }); 
+      setSelectedList(uniqueIds);
+    }
   }, [userInput, selectedOptions])
 
   const filteredOptions = (options, isDynamicFetch) => {
     if (userInput != '' && !isDynamicFetch) {
-      let optionsList = options.filter(option => getLabel(option).includes(userInput));
+      let optionsList = options.filter(option => getLabel(option).toUpperCase().includes(userInput.toUpperCase()));
       return optionsList;
     }
 

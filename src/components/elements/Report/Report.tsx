@@ -64,6 +64,7 @@ const Report = () => {
   useEffect(() => {
     dispatch(reportsFilters(authorInput, journalInput));
     dispatch(getReportsResultsInitial());
+    searchResults();
   }, [])
 
   // fetch new data on page and count update

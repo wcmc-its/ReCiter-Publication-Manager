@@ -316,6 +316,20 @@ export const showEvidenceByDefault = (isShowEvidence) => dispatch => {
     })
 }
 
+export const clearPubMedData = () => dispatch => {
+    dispatch({
+        type: methods.PUBMED_CLEAR_DATA,
+        payload: []
+    })
+}
+
+export const clearReportDataData = () => dispatch => {
+    dispatch({
+        type: methods.PUBMED_CLEAR_DATA,
+        payload: []
+    })
+}
+
 
 export const pubmedFetchData = query => dispatch => {
     dispatch({
@@ -1721,10 +1735,31 @@ export const updatePubSearchFilters = (filter) => dispatch => {
     })
 }
 
-export const clearPubSearchFilters = () => dispatch => {
-    dispatch({
-        type: methods.PUB_FILTER_CLEAR
-    })
+export const clearPubSearchFilters = ()  => {
+    return(dispatch, getState) => {
+        const filters = getState().filters;
+        let reportsSearchFilters = initialStatePubSearchFilter;
+            reportsSearchFilters.filters.personIdentifers = [];
+        dispatch({
+            type: methods.PUB_FILTER_CLEAR,
+            payload: reportsSearchFilters
+        })
+    }
+}
+
+
+export const updateIndividualPersonReportCriteria =(personIdentifier) =>{
+    return(dispatch, getState) => {
+        const filters = getState().filters;
+        let reportsSearchFilters = initialStatePubSearchFilter;
+          if (personIdentifier) {
+            reportsSearchFilters.filters.personIdentifers = [personIdentifier];
+          }
+          dispatch({
+            type: methods.PUB_FILTER_CLEAR,
+            payoload: reportsSearchFilters
+          });
+    }
 }
 
 // Populate Create Reports Filters by Search Filters Data
@@ -1739,7 +1774,7 @@ export const updatePubFiltersFromSearch = () => {
     }
 
     if (filters.insitutions) {
-      reportsSearchFilters.filters.insitutions = [...filters.insitutions];
+      reportsSearchFilters.filters.institutions = [...filters.institutions];
     }
 
     if (filters.personTypes) {
