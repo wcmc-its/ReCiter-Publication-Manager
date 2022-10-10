@@ -1739,7 +1739,14 @@ export const clearPubSearchFilters = ()  => {
     return(dispatch, getState) => {
         const filters = getState().filters;
         let reportsSearchFilters = initialStatePubSearchFilter;
+            //clearing all report filters upon clicking reset button
             reportsSearchFilters.filters.personIdentifers = [];
+            reportsSearchFilters.filters.orgUnits = [];
+            reportsSearchFilters.filters.institutions = [];
+            reportsSearchFilters.filters.personTypes = [];
+            reportsSearchFilters.filters.publicationTypeCanonical = [];
+            reportsSearchFilters.filters.journalTitleVerbose = [];
+            reportsSearchFilters.filters.authorPosition = [];
         dispatch({
             type: methods.PUB_FILTER_CLEAR,
             payload: reportsSearchFilters

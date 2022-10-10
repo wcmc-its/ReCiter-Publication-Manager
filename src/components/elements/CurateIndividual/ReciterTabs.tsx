@@ -7,7 +7,7 @@ import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
 import { allowedPermissions } from "../../../utils/constants";
 import { useSession } from "next-auth/client";
-import { showEvidenceByDefault } from "../../../redux/actions/actions";
+import { clearPubMedData, showEvidenceByDefault } from "../../../redux/actions/actions";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
@@ -93,6 +93,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
       document.getElementById('pubMedTabName').innerHTML = 'PubMed'
     }
     dispatch(showEvidenceByDefault(false));
+    dispatch(clearPubMedData());
   }
 
   return (

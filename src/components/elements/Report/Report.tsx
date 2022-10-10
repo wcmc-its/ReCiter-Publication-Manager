@@ -222,7 +222,7 @@ const Report = () => {
     let updatedAuthors = authors.map((author: Author) => {
       let updatedAuthor;
       // check if author id is one of selected person idenitfies
-      if (pubSearchFilter.filters.personIdentifers.includes(author.personIdentifier)) {
+      if (author && author.personIdentifier && pubSearchFilter.filters.personIdentifers.includes(author.personIdentifier)) {
         updatedAuthor = {
           ...author,
           highlightAuthor: "1"

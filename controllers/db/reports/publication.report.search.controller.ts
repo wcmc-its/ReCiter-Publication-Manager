@@ -158,6 +158,10 @@ export const publicationSearchWithFilter = async (
       if (sortType === 'trendingPubsScore')
         sort.push(["trendingPubsScore", sortOrder]);
     }
+    else
+    {
+      sort.push(["datePublicationAddedToEntrez","DESC"]);
+    }
     let searchOutput: { count?: number; rows?: AnalysisSummaryArticle[] } = {};
     if (apiBody.filters) {
       let results = await models.AnalysisSummaryArticle.findAndCountAll({
@@ -234,7 +238,7 @@ export const publicationSearchWithFilter = async (
           ),
           {
             [Op.lte]: 60,
-          }
+          },
         ),
         limit: apiBody.limit,
         offset: apiBody.offset,
