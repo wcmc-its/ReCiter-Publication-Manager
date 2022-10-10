@@ -32,11 +32,11 @@ export const CheckList = ({ title, options, onUpdateFilter, filterName, selected
   }
 
   return (
-    <DropdownWrapper title={title} variant={ selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={title} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
       <div>
         {
           options.map((option) => {
-            if (selectedOptions.includes(option.key)) {
+            if (selectedOptions && selectedOptions.includes(option.key)) {
               return null;
             } else {
               return (
@@ -46,7 +46,7 @@ export const CheckList = ({ title, options, onUpdateFilter, filterName, selected
                   key={option.key}
                   label={option.label}
                   value={option.key}
-                  checked={selectedOptions.includes(option.label)}
+                  checked={selectedOptions && selectedOptions.includes(option.label)}
                   onChange={(e) => onSelect(e)}
                   />
               )
@@ -66,7 +66,7 @@ export const CheckList = ({ title, options, onUpdateFilter, filterName, selected
                     key={item.key}
                     label={item.label}
                     value={item.key}
-                    checked={selectedOptions.includes(item.key)}
+                    checked={selectedOptions && selectedOptions.includes(item.key)}
                     onChange={(e) => onSelect(e)}
                     />
                   )

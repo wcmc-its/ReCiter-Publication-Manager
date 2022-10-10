@@ -20,7 +20,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
       filterUpdateOptions[value](userInput);
     }
 
-    let updatedSelectedList = selectedOptions.map((selectedOption) => {
+    let updatedSelectedList = selectedOptions && selectedOptions.map((selectedOption) => {
       return options.find(option => option[optionValue] == selectedOption);
     })
     if(updatedSelectedList.every((currentValue)=> currentValue !== undefined))
@@ -70,7 +70,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
         setSelectedList(updatedList);
       }
     } else {
-      updatedSelected = selectedOptions.filter(option => option != value)
+      updatedSelected = selectedOptions && selectedOptions.filter(option => option != value)
 
       // remove from the selected list state
       let updatedList = selectedList.filter(item => item[optionValue] != value);
@@ -86,7 +86,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     let updatedList = selectedList.filter(item => item[optionValue] !== value)
     setSelectedList(updatedList);
     // update filters state
-    let updatedSelected = selectedOptions.filter(option => option != value);
+    let updatedSelected = selectedOptions && selectedOptions.filter(option => option != value);
     onUpdateFilter(filterName, updatedSelected);
   }
 
@@ -97,7 +97,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
   }
 
   return (
-    <DropdownWrapper title={title} variant={ selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={title} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
       <div className={styles.dropdownContainer}>
       <InputGroup className="mb-3">         
        <FormControl

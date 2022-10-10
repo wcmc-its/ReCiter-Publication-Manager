@@ -14,7 +14,30 @@ export const authorFilter = async (
     const { authorFilter } = req.query;
     const count = req.query.count as string;
     let limit = parseInt(count) || 10;
-    const persons = await models.Person.findAll({
+    let persons = null as any;
+    if(!authorFilter) 
+    {
+      persons = await models.Person.findAll({
+          //order: [["personType", "ASC"]],
+          attributes: [
+            "personIdentifier",
+            "firstName",
+            "lastName",
+            "primaryOrganizationalUnit",
+          ],
+          order: [
+              Sequelize.fn('isnull', Sequelize.col('lastName')),
+              ['lastName', 'ASC'],
+              Sequelize.fn('isnull', Sequelize.col('firstName')),
+              ['firstName', 'ASC']
+          ],
+        
+          limit: limit
+        });
+  }
+  else
+  {
+    persons = await models.Person.findAll({
       //order: [["personType", "ASC"]],
       attributes: [
         "personIdentifier",
@@ -46,9 +69,17 @@ export const authorFilter = async (
           },
         ],
       },
-      limit: limit,
+      order: [
+          Sequelize.fn('isnull', Sequelize.col('lastName')),
+          ['lastName', 'ASC'],
+          Sequelize.fn('isnull', Sequelize.col('firstName')),
+          ['firstName', 'ASC']
+      ],
+       
+      limit: limit
     });
 
+  }
     res.send(persons);
   } catch (e) {
     console.log(e);
@@ -89,6 +120,10 @@ export const articleTypeFilter = async (
           "publicationTypeCanonical",
         ],
       ],
+      order: [
+        Sequelize.fn('isnull', Sequelize.col('publicationTypeCanonical')),
+        ['publicationTypeCanonical', 'ASC']
+    ],
     });
     res.send(articleTypes);
   } catch (e) {
