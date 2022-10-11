@@ -6,6 +6,7 @@ import { getSigninUrl } from '../../../utils/loginHelper'
 
 const Header = () => {
     const [session, loading] = useSession()
+    console.log("session", session);
     return (
         <Navbar bg="primary" className={styles.topNav}>
           <div>
@@ -18,7 +19,7 @@ const Header = () => {
               {(session && session.data) ? 
               <>
                   <li className={styles.headerNavSignedInAs}><p><b>Signed in as {session.data.username}</b></p></li> 
-                  <li><a className={styles.logout} onClick={()=>{signOut({ callbackUrl: getSigninUrl() })}}>Logout</a></li>
+                  <li><a className={styles.logout} onClick={()=>{signOut({ callbackUrl: getSigninUrl(session) })}}>Logout</a></li>
               </> : null}
               
           </ul>
