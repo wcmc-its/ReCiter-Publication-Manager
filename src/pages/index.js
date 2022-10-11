@@ -13,6 +13,7 @@ import { allowedPermissions } from "../utils/constants";
 
 export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
+    console.log("session from pages index*****************",session);
     let userPermissions ='';
     const personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
 
