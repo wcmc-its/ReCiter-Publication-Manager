@@ -22,6 +22,7 @@ export async function getServerSideProps(ctx) {
     }
 
     if(process.env.LOGIN_PROVIDER == "SAML") {
+        console.log("session from index.js ************************************",session);
         return {
             redirect: {
                 destination: "/api/saml/assert?callbackUrl=/search",

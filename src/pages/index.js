@@ -97,6 +97,7 @@ export async function getServerSideProps(ctx) {
         }
     }
     return {
+        console.log("session from index*******************************",session);
         redirect: {
             destination: "/api/saml/assert?callbackUrl=/search",
             permanent: false,
