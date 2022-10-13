@@ -38,7 +38,7 @@ const options = {
             authorize: async ({ samlBody }) => {
                 samlBody = JSON.parse(decodeURIComponent(samlBody));
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-
+                console.log("coming SAML Authentication****************************");
                 const postAssert = (identityProvider, samlBody) =>
                     new Promise((resolve, reject) => {
                         sp.post_assert(
@@ -62,13 +62,13 @@ const options = {
                     );
                     const { user } = await postAssert(idp, samlBody);
                     let cwid = null;
-
+                    console.log("user.attributes.CWID****************************",user.attributes.CWID);    
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     }
                     if (cwid) {
                         const adminUser = await findOrCreateAdminUsers(cwid)
-
+                        console.log("user.attributes.CWID****************************",user.attributes.CWID);  
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
                         const userRoles = await findUserPermissions(cwid);
@@ -87,7 +87,7 @@ const options = {
         async signIn(apiResponse) {
             return apiResponse
         },
-        async session(session, token) {
+        async session(session, token,apiResponse) {
             session.data = token
             console.log(session)
             return session
