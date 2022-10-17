@@ -14,11 +14,13 @@ import { allowedPermissions } from "../utils/constants";
 export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
     console.log("session from pages index*****************",session);
-    let userPermissions ='';
-    const personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
-
-    if(session && session.data && session.data.userRoles)  userPermissions = JSON.parse(session.data?.userRoles);
-
+    let userPermissions =null;
+    const personIdentifier = null;
+    if(session && session.data && session.data.userRoles)
+    {  
+        userPermissions = JSON.parse(session.data?.userRoles);
+         personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
+    }
     if (process.env.LOGIN_PROVIDER !== "SAML") {
         //Redirect to search after login
         if (session && session.data) {
@@ -73,11 +75,11 @@ export async function getServerSideProps(ctx) {
                 },
             };
         }
-        if (userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
+        else if (userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
             console.log("User with Curator Self role*************************",session);
             return {
                 redirect: {
-                    destination: `/curate/${personIdentifier}`,
+                    destination: `/api/saml/assert?callbackUrl=/curate/${personIdentifier}`,
                     permanent: false,
                 },
             };
@@ -87,7 +89,7 @@ export async function getServerSideProps(ctx) {
             console.log("User with other than Curator Self role*************************",session);
             return {
                 redirect: {
-                    destination: "/search",
+                    destination: "/api/saml/assert?callbackUrl=/search",
                     permanent: false,
                 },
             };
@@ -100,12 +102,12 @@ export async function getServerSideProps(ctx) {
             };
         }
     }
-    return {
+   /* return {
         redirect: {
             destination: "/noaccess",
             permanent: false,
         },
-    };
+    };*/
 }
 
 export default function Home() {
