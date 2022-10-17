@@ -15,7 +15,7 @@ export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
     console.log("session from pages index*****************",session);
     let userPermissions =null;
-    const personIdentifier = null;
+    let personIdentifier = null;
     if(session && session.data && session.data.userRoles)
     {  
         userPermissions = JSON.parse(session.data?.userRoles);
