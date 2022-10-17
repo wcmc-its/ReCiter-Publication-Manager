@@ -42,7 +42,7 @@ export async function getServerSideProps(ctx) {
     if(process.env.LOGIN_PROVIDER == "SAML") {
         console.log("session from index.js line 26 ************************************",session);
        
-       /* if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName) 
+        if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName) 
         {
             return {
                 redirect: {
@@ -59,13 +59,8 @@ export async function getServerSideProps(ctx) {
                         permanent: false,
                     },
                 };
-        }*/
-        return {
-            redirect: {
-                destination: "/api/saml/assert?callbackUrl=/curate/paa2013",
-                permanent: false,
-            },
-        };
+        }
+        
     }
 
     return {
