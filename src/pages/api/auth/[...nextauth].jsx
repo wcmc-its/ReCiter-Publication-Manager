@@ -16,6 +16,7 @@ const options = {
             name: "ReCiter Publication Manager App",
             id: "direct_login",
             async authorize(credentials) {
+                console.log("direct Login****************************",credentials);
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
                   if (apiResponse.statusCode == 200) {
@@ -50,7 +51,7 @@ const options = {
                                 if (error) {
                                     reject(error);
                                 }
-
+                                console.log("response received from SAML****************************",response);
                                 resolve(response);
                             }
                         );
@@ -85,14 +86,17 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
+            console.log("Sign in API Response****************************",apiResponse); 
             return apiResponse
         },
         async session(session, token,apiResponse) {
             session.data = token
+            console.log("Session API Response****************************",apiResponse); 
             console.log(session)
             return session
         },
         async jwt(token, apiResponse) {
+            console.log("JWT API Response****************************",apiResponse); 
             if(apiResponse) {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
