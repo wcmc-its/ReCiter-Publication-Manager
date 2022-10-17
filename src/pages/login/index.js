@@ -13,6 +13,7 @@ export async function getServerSideProps(ctx) {
                 },
             };
         }
+        console.log("session from index.js line 16************************************",session);
         return {
             redirect: {
                 destination: "/search",
@@ -22,7 +23,7 @@ export async function getServerSideProps(ctx) {
     }
 
     if(process.env.LOGIN_PROVIDER == "SAML") {
-        console.log("session from index.js ************************************",session);
+        console.log("session from index.js line 26 ************************************",session);
         return {
             redirect: {
                 destination: "/api/saml/assert?callbackUrl=/search",
