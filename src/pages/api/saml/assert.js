@@ -36,6 +36,7 @@ export default async function handler(req, res) {
                     console.log(error)
                     reject(error);
                 }
+                console.log("loginUrl 39***************************",loginUrl);
                 resolve(loginUrl);
             });
         });
@@ -43,6 +44,7 @@ export default async function handler(req, res) {
     try {
         const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
         const loginUrl = await createLoginRequestUrl(idp);
+        console.log("loginUrl 47***************************",loginUrl);
         return res.redirect(loginUrl);
     } catch (error) {
         console.error(error);
