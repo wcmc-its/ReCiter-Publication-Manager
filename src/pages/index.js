@@ -80,7 +80,7 @@ export async function getServerSideProps(ctx) {
             console.log("User with Curator Self role*************************",session);
             return {
                 redirect: {
-                    destination: `/api/saml/assert?callbackUrl=/curate/${personIdentifier}`,
+                    destination: `/curate/${personIdentifier}`,
                     permanent: false,
                 },
             };
@@ -90,7 +90,7 @@ export async function getServerSideProps(ctx) {
             console.log("User with other than Curator Self role*************************",session);
             return {
                 redirect: {
-                    destination: "/api/saml/assert?callbackUrl=/search",
+                    destination: "/search",
                     permanent: false,
                 },
             };
