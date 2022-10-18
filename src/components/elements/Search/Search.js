@@ -16,7 +16,7 @@ import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
 import { allowedPermissions, dropdownItemsReport, dropdownItemsSuper } from "../../../utils/constants"
-import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
+//import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 
 const Search = () => {
 
