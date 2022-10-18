@@ -1,9 +1,10 @@
 import Login from '../../components/elements/Login/Login'
 import { getSession } from "next-auth/client"
+import { allowedPermissions, dropdownItemsReport } from "../../utils/constants";
 
 export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
-    let userPermission = null;
+    let userPermissions = null;
     let personIdentifier =null;
     let userName =null;
     if (session && session.data) {
