@@ -65,6 +65,7 @@ export async function getServerSideProps(ctx) {
         };
     }
     //Redirect to search after login
+    console.log("coming into SAML for verificaiton*************************",session);
     if (session && session.data) {
         console.log("coming into SAML for verificaiton*************************",session);
         if (session.data.databaseUser && session.data.databaseUser.status == 0) {
@@ -102,12 +103,12 @@ export async function getServerSideProps(ctx) {
             };
         }
     }
-   /* return {
+    return {
         redirect: {
-            destination: "/noaccess",
+            destination: "/api/saml/assert?callbackUrl=/search",
             permanent: false,
         },
-    };*/
+    };
 }
 
 export default function Home() {
