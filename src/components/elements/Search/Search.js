@@ -60,7 +60,7 @@ const Search = () => {
   const[isCuratorAll ,setIsCuratorAll] = useState(false);
   const[isReporterAll ,setIsReporterAll] = useState(false);
   const[isSuperUser ,setIsSuperUser] = useState(false);
-  const[loggedInPersonIdentifier, setLoggedInPersonIdentifier] = useState("paa2013");
+  const[loggedInPersonIdentifier, setLoggedInPersonIdentifier] = useState("");
   
   //ref
   const searchValue = useRef()
