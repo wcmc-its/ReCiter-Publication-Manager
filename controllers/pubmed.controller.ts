@@ -1,7 +1,6 @@
 import { reciterConfig } from '../config/local'
 import { NextApiRequest } from 'next'
 import dayjs from 'dayjs'
-import { allReciterTabsPersonIdentifiers } from '../src/utils/constants';
 import {getPublications} from './featuregenerator.controller';
 
 export async function searchPubmed(req: NextApiRequest)  {
