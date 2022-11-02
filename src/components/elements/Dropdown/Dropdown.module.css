@@ -83,3 +83,7 @@
 .secondaryDropdownButton span {
   display: none;
 }
+.dropdown-toggle-split::after{
+  display: none !important;
+  content: none;
+}
