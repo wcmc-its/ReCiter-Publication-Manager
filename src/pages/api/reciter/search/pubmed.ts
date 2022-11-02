@@ -9,7 +9,7 @@ type Error = {
 
 type Data = {
     statusCode: number,
-    reciter: string,
+    reciter: any,
     resultMode: string
 }
 
@@ -23,8 +23,8 @@ export default async function handler(
         if(apiResponse.statusCode === 200) {
             let resultMode = ''
             let data = apiResponse.statusText
-            if(data !== undefined && Array.isArray(data)) {
-                if (data.length >= 200) {
+            if(data && Array.isArray(data)) {
+                if (data.length >= 1000) {
                     resultMode = 'LARGE_RESULTS'
                 } else {
                     resultMode = 'VALID_RESULTS'
@@ -32,12 +32,21 @@ export default async function handler(
                 if (data.length == 0) {
                     resultMode = 'EMPTY'
                 }
+                res.status(apiResponse.statusCode).send({
+                    statusCode: apiResponse.statusCode,
+                    reciter: data,
+                    resultMode: resultMode
+                });
             }
-            res.status(( resultMode === '')? 500: apiResponse.statusCode).send({
-                statusCode: ( resultMode === '') ? 500: apiResponse.statusCode,
-                reciter: data,
-                resultMode: resultMode
-            })
+            else if(data.status === 500)
+            {
+                res.status(500).send({
+                    statusCode: 500,
+                    reciter: data,
+                    resultMode: resultMode
+                })
+            }
+            
         } else{
             res.status(apiResponse.statusCode).send({
                 statusCode: apiResponse.statusCode,

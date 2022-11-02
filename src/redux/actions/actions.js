@@ -353,7 +353,7 @@ export const pubmedFetchData = query => dispatch => {
         })
         .then(data => {
             if (data.statusCode != 200) {
-                if (data.reciter.status == 500 && data.reciter.message.indexOf('Your search exceeded 200 results:') < 0) {
+                if (data.reciter.status == 500 && (data.reciter.message.indexOf('Your search exceeded 200 results:') < 0 ||  data.reciter.message.indexOf('No results were found.') < 0)) {
                     throw {
                         title: data.reciter.message,
                         status: data.reciter.status,
@@ -1760,7 +1760,7 @@ export const updateIndividualPersonReportCriteria =(personIdentifier) =>{
         const filters = getState().filters;
         let reportsSearchFilters = initialStatePubSearchFilter;
           if (personIdentifier) {
-            reportsSearchFilters.filters.personIdentifers = [personIdentifier];
+            reportsSearchFilters.filters.personIdentifers = [personIdentifier.personIdentifers];
           }
           dispatch({
             type: methods.PUB_FILTER_CLEAR,

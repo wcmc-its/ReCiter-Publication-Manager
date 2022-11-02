@@ -1,9 +1,10 @@
 import { reciterConfig } from '../config/local'
 import { NextApiRequest } from 'next'
 import dayjs from 'dayjs'
+import { allReciterTabsPersonIdentifiers } from '../src/utils/constants';
+import {getPublications} from './featuregenerator.controller';
 
 export async function searchPubmed(req: NextApiRequest)  {
-    
    return fetch(`${reciterConfig.reciterPubmed.searchPubmedCountEndpoint}`, {
         method: "POST",
         headers: {
@@ -21,7 +22,7 @@ export async function searchPubmed(req: NextApiRequest)  {
                 }
             } else {
                 let data: any = await res.json()
-                if(parseInt(data, 10) <= 200) {
+                  if(parseInt(data, 10) <= 1000) { 
                     return fetch(`${reciterConfig.reciterPubmed.searchPubmedEndpoint}`, {
                         method: "POST",
                         headers: {
@@ -32,19 +33,34 @@ export async function searchPubmed(req: NextApiRequest)  {
                     })
                     .then(async (res) => {
                         let data: any = await res.json()
+                        let featureGeneratorData = await getPublications(req.body.personIdentifier,req);
+                         let first100PubData = retrieveFirstNew100PubMedArticles(data,featureGeneratorData)
                         return {
                             statusCode: res.status,
-                            statusText: formatPubmedSearch(data)
+                            statusText: formatPubmedSearch(first100PubData, (data && data.length > 100?true : false))
                         }
                      })
                      .catch((error) => {
-                         console.log('ReCiter Pubmed api is not reachable: ' + error)
                          return {
                             statusCode: error.status,
                             statusText: error
                         }
                      });
-                } else {
+                }
+                else if(parseInt(data, 10) == 0)
+                {
+                    const message:string = "No results were found."
+                    const limitExceededError = {
+                        limit: 0,
+                        message: message,
+                        status: 500
+                    }
+                    return {
+                        statusCode: res.status,
+                        statusText: limitExceededError
+                    }
+                } 
+                else {
                     const message:string = "Your search exceeded 200 results: " + parseInt(data, 10) + ". Please narrow down search."
                     const limitExceededError = {
                         limit: parseInt(data, 10),
@@ -59,16 +75,40 @@ export async function searchPubmed(req: NextApiRequest)  {
             }
         })
         .catch((error) => {
-            console.log('ReCiter Identity api is not reachable: ' + error)
             return {
                 statusCode: error.status,
                 statusText: error
             }
         });
 }
+function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorData: any)
+{
+      let filter100PubMedArticles = [];
+    if(pubMedData && featureGeneratorData && featureGeneratorData.statusText && featureGeneratorData.statusText.reciterData && featureGeneratorData.statusText.reciterData.reCiterArticleFeatures 
+        && featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length > 0)
+    {   
+         for(let filteredPubIndex=0; filteredPubIndex < pubMedData.length ; filteredPubIndex++)  
+        {
+            let pmid = pubMedData[filteredPubIndex].medlinecitation.medlinecitationpmid.pmid;
+            if(!featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.includes(pmid))
+            {
+                if(filter100PubMedArticles && filter100PubMedArticles.length >= 100)
+                {
+                    break; // terminate loop once it reaches 100 articles
+                }
+                else
+                {
+                    filter100PubMedArticles[filteredPubIndex] = pubMedData[filteredPubIndex];
+                }
+            }
+            
+        }
+        return filter100PubMedArticles;
+    }
 
+}
 
-function formatPubmedSearch(data: any) {
+function formatPubmedSearch(data: any,greaterThan100 : boolean) {
     const PublicationsReciter: any[] = []
     if(data !== undefined) {
         data.forEach((article: any) => {
@@ -111,7 +151,8 @@ function formatPubmedSearch(data: any) {
                         'authors': authors,
                         'title': article.medlinecitation.article.articletitle,
                         'journal': article.medlinecitation.article.journal.title,
-                        'displayDate': formattedDate
+                        'displayDate': formattedDate,
+                        'greaterThan100': greaterThan100
                     }
                     PublicationsReciter.push(Publication)
                 }

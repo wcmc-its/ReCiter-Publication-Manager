@@ -11,6 +11,8 @@ import { YearPicker } from 'react-dropdown-date';
 import { useSession } from "next-auth/client";
 import { VrpanoSharp } from "@mui/icons-material";
 import {Form,Button} from "react-bootstrap"
+import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
+import { publicationsPreviousDataFetching } from "../../../redux/reducers/reducers";
 
 interface FuncProps {
     tabType: string,
@@ -63,8 +65,11 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const handleFilterUpdate = (filterState: any) => {
-        setSearch(filterState.search)
+        const newSearch = (filterState && filterState.search)? filterState.search : ""
+        setSearch(newSearch)
         setPage(1)
+        filter(newSearch);
+     
     }
 
     const mapPubMedAuthorsToReciterAuthors = (authosList) => {
@@ -84,7 +89,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const acceptPublication = async (id: number, userAssertion: string) => {
         setAcceptCount(acceptedCountState + 1)
-        setAllPubs(allPubs - 1)
+       // setAllPubs(allPubs - 1)
 
         const pubmedPublications: any = [];
         let updatedpubs: any = [];
@@ -119,7 +124,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const rejectPublication = (id: number, userAssertion: string) => {
         setRejectedCount(rejectedCountState + 1);
-        setAllPubs(allPubs - 1);
+       // setAllPubs(allPubs - 1);
         const pubmedPublications: any = []
         let updatedpubs: any = [];
         let newReciterData = reciterData.reciter.reCiterArticleFeatures
@@ -175,25 +180,24 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const filter = (accessToUpdate) => {
         // Get array of PMIDs from pending publications
-        console.log('filter records inside.***********************',reciterData.reciterPending);
         const pubmedIds: Array<number> = []
-        reciterData.reciterPending.forEach(function (publication: any) {
-            pubmedIds.push(publication)
-        })
-        reciterData.reciter.reCiterArticleFeatures.forEach(function (publication: any) {
-            if (publication.userAssertion === 'ACCEPTED' || publication.userAssertion === 'REJECTED')
-                pubmedIds.push(publication.pmid)
-        })
-
         let reciterPublications: Array<any> = []
         reciterData.reciterPending.forEach(function (publication: any) {
-            reciterPublications.push(publication)
+            pubmedIds.push(publication)
+           reciterPublications.push(publication)
         })
-
+        let searchAcceptedCountTemp = 0;
+        let searchRejectedCountTemp = 0;
         reciterData.reciter.reCiterArticleFeatures.forEach(function (publication: any) {
-            reciterPublications.push(publication)
+            if(publication.userAssertion ==='ACCEPTED')
+                searchAcceptedCountTemp++;
+            else if(publication.userAssertion === "REJECTED")
+                searchRejectedCountTemp++; 
         })
-        if (pubmedData !== undefined && pubmedData.length) {
+        setAcceptCount(searchAcceptedCountTemp);
+        setRejectedCount(searchRejectedCountTemp);
+        setAllPubs(pubmedData && pubmedData.length > 0 && pubmedData[0].greaterThan100? 'showing the first 100 records':pubmedData.length +' publications displayed');
+      /*if (pubmedData !== undefined && pubmedData.length) {
             let searchAcceptedCountTemp = 0;
             let searchRejectedCountTemp = 0;
             pubmedData.forEach((searchPub: any) => {
@@ -214,13 +218,14 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                 setRejectedCount(searchRejectedCountTemp);
             // }
             setAllPubs(totalPubs);
-        }
+        }*/
 
         // Filter
         var filteredPublications: Array<any> = [];
         if (pubmedData !== undefined && pubmedData.length > 0) {
             pubmedData.forEach((publication: any) => {
-                if (!pubmedIds.includes(publication.pmid)) {
+               // if (!pubmedIds.includes(publication.pmid)) {
+                if (publication && publication.pmid) {
                     if (search !== "") {
                         if (/^[0-9 ]*$/.test(search)) {
                             var pmids = search.split(" ");
@@ -233,31 +238,31 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                             if (search !== "") {
                                 addPublication = false;
                                 //pmcid
-                                if (publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(search.toLowerCase())) {
+                                if (publication.pmcid && publication.pmcid.toLowerCase().includes(search.toLowerCase())) {
                                     addPublication = true
                                 }
                                 //publicationTypeCanonical
-                                if (publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(search.toLowerCase())) {
+                                if (publication.publicationTypeCanonical && publication.publicationTypeCanonical.toLowerCase().includes(search.toLowerCase())) {
                                     addPublication = true
                                 }
                                 //scopusDocID
-                                if (publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(search.toLowerCase())) {
+                                if (publication.scopusDocID  && publication.scopusDocID.toLowerCase().includes(search.toLowerCase())) {
                                     addPublication = true
                                 }
                                 //journalTitleISOabbreviation
-                                if (publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(search.toLowerCase())) {
+                                if (publication.journalTitleISOabbreviation && publication.journalTitleISOabbreviation.toLowerCase().includes(search.toLowerCase())) {
                                     addPublication = true
                                 }
                                 //journalTitleVerbose
-                                if (publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(search.toLowerCase())) {
+                                if (publication.journalTitleVerbose  && publication.journalTitleVerbose.toLowerCase().includes(search.toLowerCase())) {
                                     addPublication = true
                                 }
                                 //publication date display
-                                if (publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(search.toLowerCase())) {
+                                if (publication.displayDate  && publication.displayDate.toLowerCase().includes(search.toLowerCase())) {
                                     addPublication = true
                                 }
                                 //doi
-                                if (publication.doi !== undefined && publication.doi.toLowerCase().includes(search.toLowerCase())) {
+                                if (publication.doi  && publication.doi.toLowerCase().includes(search.toLowerCase())) {
                                     addPublication = true
                                 }
                                 // title
@@ -269,7 +274,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                     addPublication = true;
                                 }
                                 //issn
-                                if (publication.issn !== undefined) {
+                                if (publication.issn) {
                                     var issnArray = publication.issn.map((issn: any, issnIndex: number) => {
                                         return issn.issn
                                     })
@@ -278,7 +283,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                     }
                                 }
                                 // authors
-                                if (publication.authors !== undefined) {
+                                if (publication.authors) {
                                     var authorsArray = publication.authors.map(function (author: any, authorIndex: number) {
                                         return author.authorName;
                                     });
@@ -287,7 +292,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                     }
                                 }
                                 //evidence
-                                if (publication.evidence !== undefined) {
+                                if (publication.evidence) {
                                     var evidenceArticleArray = publication.evidence.map(function (evidence: any, evidenceIndex: number) {
                                         return evidence.articleData;
                                     });
@@ -334,13 +339,12 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const searchFunction =  (e) => {
         e.preventDefault();
-        //  let allReciterPubs =  allReciterPubData();
-        //  sessionStorage.setItem('allReciterPubs', JSON.stringify(allReciterPubs));
         let query='';
          query = {
             "strategy-query": pubmedSearch,
             "start" : '',
-            "end" : ''
+            "end" : '',
+            "personIdentifier": props.personIdentifier
         };
 
         if (earliestYear !== '' && latestYear !== '') {
@@ -466,7 +470,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                 <div>
                                     <div className={`row ${styles.filterSecbgColor}`}>
                                         <div className="col-md-4">
-                                            <p className={styles.totalresult}><strong>{allPubs} publications displayed</strong></p>
+                                            <p className={styles.totalresult}><strong>{allPubs}</strong></p>
                                             <p className={styles.totalresult}><span><strong>{acceptedCountState}</strong> already accepted, <strong>{rejectedCountState}</strong> already rejected</span></p>
                                         </div>
                                         <div className="col-md-8" style={{ float: "right" }}>
