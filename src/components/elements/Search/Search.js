@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria } from '../../../redux/actions/actions'
+import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -66,6 +66,7 @@ const Search = () => {
   const searchValue = useRef()
 
   useEffect(() => {
+    dispatch(showEvidenceByDefault(null))
     dispatch(clearFilters())
 
     let userPermissions = JSON.parse(session.data.userRoles);
@@ -94,6 +95,17 @@ const Search = () => {
       setIsCuratorSelf(true)
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     }
+    else if(userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser ))
+    {
+      setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorSelf(true);
+      setIsReporterAll(true);
+      setIsSuperUser(true);
+      setIsCuratorAll(true);
+      setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
+    }
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser )) {
@@ -106,14 +118,16 @@ const Search = () => {
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     } 
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
-      && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
+      && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )
+      && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
       setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
-      setIsReporterAll(true)
+      setIsReporterAll(true);
+      setIsCuratorAll(true);
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
-    } 
+    }
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser  )) {
@@ -133,7 +147,24 @@ const Search = () => {
         setIsReporterAll(true)  
         setIsCuratorAll(true);
         setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
+    }
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
+      && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
+      setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorSelf(true);
+      setIsReporterAll(true)
+      setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     } 
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
+    && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
+    setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorSelf(true);
+      setIsCuratorAll(true)
+      } 
     else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
@@ -389,7 +420,7 @@ const Search = () => {
         secondary={true}
         onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? () => redirectToCurate("report", identity.identity): "undefined"}/>
     }
-    else if((isCuratorAll && isReporterAll) || isSuperUser)
+    else if((isCuratorAll && isReporterAll && isCuratorSelf) ||isSuperUser || (isCuratorAll && isReporterAll))
     {
       return  <SplitDropdown
         title={"Curate Publications"}

@@ -81,6 +81,16 @@ const FilterReview = ({
       setDropdownMenuItems([]);
       setIsCuratorSelf(true)
     }
+    else if(userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser ))
+    {
+      setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorSelf(true);
+      setIsReporterAll(true);
+      setIsSuperUser(true);
+      setIsCuratorAll(true);
+    }
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser )) {
@@ -91,14 +101,6 @@ const FilterReview = ({
       setIsReporterAll(true);
       setIsSuperUser(true);
     } 
-    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
-      && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
-      setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
-      setDropdownMenuItems(dropDownMenuItems);
-      setIsCuratorSelf(true);
-      setIsReporterAll(true)
-    } 
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser  )) {
@@ -108,6 +110,16 @@ const FilterReview = ({
       setIsReporterAll(true)  
       setIsCuratorAll(true);
       setIsSuperUser(true);
+    }
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All ) 
+      && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All) 
+      && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self  )) {
+      setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsReporterAll(true)  
+      setIsCuratorAll(true);
+      setIsCuratorSelf(true);
     }  
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
@@ -117,7 +129,22 @@ const FilterReview = ({
       setIsReporterAll(true)  
       setIsCuratorAll(true);
     } 
-     
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
+    && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
+    setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorSelf(true);
+      setIsReporterAll(true)
+      }
+      else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
+      && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
+      setDropdownTitle("Curate Publications");
+        let dropDownMenuItems = [{}];
+        setDropdownMenuItems(dropDownMenuItems);
+        setIsCuratorSelf(true);
+        setIsCuratorAll(true)
+        }       
     else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
@@ -155,7 +182,7 @@ const FilterReview = ({
     {
         return <Button className="secondary" variant="secondary" onClick={() => onDropDownClick()}>{"Curate Publications"}</Button>
     }
-    else if((isCuratorAll && isReporterAll) || isSuperUser)
+    else if( isSuperUser || (isCuratorAll && isReporterAll && isCuratorSelf) || (isCuratorAll && isReporterAll))
     {
       return  <SplitDropdown
         title={"Curate Publications"}

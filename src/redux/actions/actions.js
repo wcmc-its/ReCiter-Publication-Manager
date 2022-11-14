@@ -1912,8 +1912,8 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
     // set the search filters to get results from the last 60 days and sorted by date
     let startDate = new Date();
     let endDate = new Date();
-    startDate.setDate(endDate.getDate() - 60);
-
+    startDate.setDate(endDate.getDate() - 30);
+    let filters ={"datePublicationAddedToEntrezLowerBound" : new Date(startDate).toISOString().slice(0,10)};
     fetch(`/api/db/reports/publication/search`, {
         credentials: "same-origin",
         method: 'POST',
@@ -1922,7 +1922,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
             "Content-Type": "application/json",
             'Authorization': reciterConfig.backendApiKey
         },
-        body: JSON.stringify({ limit, offset })
+        body: JSON.stringify({ limit, offset,filters})
     })
         .then(response => {
             if (response.status === 200) {

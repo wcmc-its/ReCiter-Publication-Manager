@@ -4,7 +4,9 @@ import Dropdown  from '../Dropdown/Dropdown'
 
 interface FuncProps {
     onChange(state: any): void,
-    showSort: boolean
+    onSearch?(state: any): void,
+    showSort: boolean,
+    isFrom?:string
 }
 
 const Filter: FunctionComponent<FuncProps> = (props) => {
@@ -14,7 +16,9 @@ const Filter: FunctionComponent<FuncProps> = (props) => {
 
     const handleSearchUpdate = (event: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(event.target.value)
-        onFilterUpdate()
+        if (props.isFrom === "pubMed") props.onSearch(event.target.value)
+        else onFilterUpdate()
+        
     }
 
     const handleSortUpdate = (sortValue: string) => {
