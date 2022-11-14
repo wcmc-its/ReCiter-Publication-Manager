@@ -19,7 +19,7 @@ interface TabContentProps {
   fullName: string,
   updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
   updatePublicationAssertionBulk: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
-  isShowEvidenceByDefault:boolean,
+  showEvidenceDefault?:any,
   activeKey:any,
   totalCount:any,
 }
@@ -196,6 +196,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               updatePublication={handleUpdatePublication}
               activekey={props.activeKey}
               totalCount={props.totalCount}
+              showEvidenceDefault={props.showEvidenceDefault}
               page={page}
               paginatedPubsCount={publication.userAssertion === "NULL" ? totalNullCount : publication.userAssertion === "ACCEPTED" ? totalAcceptedCount : totalRejectedCount}
             />

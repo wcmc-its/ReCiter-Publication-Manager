@@ -88,19 +88,27 @@ function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorDat
     {   
          for(let filteredPubIndex=0; filteredPubIndex < pubMedData.length ; filteredPubIndex++)  
         {
-            let pmid = pubMedData[filteredPubIndex].medlinecitation.medlinecitationpmid.pmid;
-            if(!featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.includes(pmid))
+            let pmidFound =false;
+            let pubMedPmid = pubMedData[filteredPubIndex].medlinecitation.medlinecitationpmid.pmid;
+            
+            for(let pmidIndex =0; pmidIndex < featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length; pmidIndex++ )    
             {
-                if(filter100PubMedArticles && filter100PubMedArticles.length >= 100)
+                if(featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[pmidIndex].pmid == pubMedPmid)
                 {
-                    break; // terminate loop once it reaches 100 articles
-                }
-                else
-                {
-                    filter100PubMedArticles[filteredPubIndex] = pubMedData[filteredPubIndex];
+                    pmidFound = true;
+                    break;
                 }
             }
+            if(!pmidFound)
+            {
+                filter100PubMedArticles.push(pubMedData[filteredPubIndex]);
+            }
+            if(filter100PubMedArticles && filter100PubMedArticles.length >= 100)
+            {
+                break; // terminate loop once it reaches 100 articles
+            }
             
+
         }
         return filter100PubMedArticles;
     }

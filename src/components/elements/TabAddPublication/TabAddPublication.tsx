@@ -65,11 +65,10 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const handleFilterUpdate = (filterState: any) => {
-        const newSearch = (filterState && filterState.search)? filterState.search : ""
-        setSearch(newSearch)
+        const newSearch = filterState ? filterState : ""
+        setSearch(filterState)
         setPage(1)
-        filter(newSearch);
-     
+        filter(filterState ? filterState : "");
     }
 
     const mapPubMedAuthorsToReciterAuthors = (authosList) => {
@@ -178,7 +177,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         return reciterPublications
     }
 
-    const filter = (accessToUpdate) => {
+    const filter = (search) => {
         // Get array of PMIDs from pending publications
         const pubmedIds: Array<number> = []
         let reciterPublications: Array<any> = []
@@ -196,7 +195,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         })
         setAcceptCount(searchAcceptedCountTemp);
         setRejectedCount(searchRejectedCountTemp);
-        setAllPubs(pubmedData && pubmedData.length > 0 && pubmedData[0].greaterThan100? 'showing the first 100 records':pubmedData.length +' publications displayed');
+        //setAllPubs(pubmedData && pubmedData.length ==100  && pubmedData[0].greaterThan100? 'Showing the first 100 records':pubmedData.length +' publications displayed');
       /*if (pubmedData !== undefined && pubmedData.length) {
             let searchAcceptedCountTemp = 0;
             let searchRejectedCountTemp = 0;
@@ -226,13 +225,14 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             pubmedData.forEach((publication: any) => {
                // if (!pubmedIds.includes(publication.pmid)) {
                 if (publication && publication.pmid) {
-                    if (search !== "") {
+                    if (search !== "" && search !== undefined) {
                         if (/^[0-9 ]*$/.test(search)) {
                             var pmids = search.split(" ");
                             if (pmids.some(pmid => Number(pmid) === publication.pmid)) {
                                 filteredPublications.push(publication);
                             }
                         } else {
+                            console.log("searchText", search)
                             var addPublication = true;
                             // check filter search
                             if (search !== "") {
@@ -316,6 +316,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                     }
                 }
             })
+
+            
         }
 
         var from = (page - 1) * count
@@ -334,6 +336,15 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             filteredPublications: filteredPublications,
             paginatedPublications: publications
         };
+       //recaluclating allPubs after the filter
+       if(pubmedData && pubmedData.length ==100  && pubmedData[0].greaterThan100 && filteredPublications && pubmedData.length == filteredPublications.length) 
+           setAllPubs('Showing the first 100 records');
+        else if(pubmedData && pubmedData.length <= 100 && filteredPublications && pubmedData.length == filteredPublications.length)
+           setAllPubs(pubmedData.length + `${filteredPublications.length == 1 ? " publication displayed" : " publications displayed" }`  )
+        else if(filteredPublications && filteredPublications.length > 0) 
+           setAllPubs(filteredPublications.length + `${filteredPublications.length == 1 ? " publication displayed" : " publications displayed" }`)
+        else
+            setAllPubs(filteredPublications.length + ' publication displayed')
         setpublications(publications)
     }
 
@@ -458,6 +469,16 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                     </Form>
 
                 </div>
+                <div className={`row ${styles.filterSecbgColor}`}>
+                                        <div className="col-md-4">
+                                            <p className={styles.totalresult}><strong>{allPubs}</strong></p>
+                                            <p className={styles.totalresult}><span><strong>{acceptedCountState}</strong> already accepted, <strong>{rejectedCountState}</strong> already rejected</span></p>
+                                        </div>
+                                        <div className="col-md-8" style={{ float: "right" }}>
+                                            <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
+                                        </div>
+                                    </div>
+
             </div>
 
             {
@@ -468,7 +489,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                         <div>
                             {(publications?.paginatedPublications?.length > 0) ?
                                 <div>
-                                    <div className={`row ${styles.filterSecbgColor}`}>
+                                    {/* <div className={`row ${styles.filterSecbgColor}`}>
                                         <div className="col-md-4">
                                             <p className={styles.totalresult}><strong>{allPubs}</strong></p>
                                             <p className={styles.totalresult}><span><strong>{acceptedCountState}</strong> already accepted, <strong>{rejectedCountState}</strong> already rejected</span></p>
@@ -476,7 +497,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                         <div className="col-md-8" style={{ float: "right" }}>
                                             <Filter onChange={handleFilterUpdate} showSort={false} />
                                         </div>
-                                    </div>
+                                    </div> */}
 
                                     {
 

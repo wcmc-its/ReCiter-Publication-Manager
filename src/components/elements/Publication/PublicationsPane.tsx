@@ -25,6 +25,8 @@ interface FuncProps {
     key: number,
     index: number,
     filteredIdentities: any,
+    showEvidenceDefault?:any,
+    page:any
 }
 
 const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
@@ -93,7 +95,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
       e.stopPropagation();
       setModalShow(true);
     };
-
+    
     const { item } = props;
 
     return (
@@ -129,13 +131,17 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
               return(
                 <div key={article.pmid || index}>
                   <Publication
-                    index={index + 1}
+                    index={`page${props.page}${index + 1}`}
                     reciterArticle={article}
                     personIdentifier={item.personIdentifier}
                     onAccept={acceptPublication}
                     fullName={props.filteredIdentities[item.personIdentifier] ? props.filteredIdentities[item.personIdentifier].fullName : ''}
                     updatePublication={handleUpdatePublication}
-                    isFrom="curateAll"
+                    actionSource="curateAll"
+                    countPendingArticles={countPendingArticles}
+                    maxArticlesPerPerson={maxArticlesPerPerson}
+                    page={props.page}
+                    showEvidenceDefault={props.showEvidenceDefault}
                     />
                     {index < articles.length - 1 && <Divider></Divider>}
                 </div>

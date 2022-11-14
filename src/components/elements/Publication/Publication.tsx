@@ -9,6 +9,7 @@ import type { Author } from '../../../../types/Author';
 import { useSelector, RootStateOrAny, useDispatch } from "react-redux";
 import HistoryModal from "./HistoryModal";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
+import { reciterConfig } from "../../../../config/local";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -29,33 +30,58 @@ interface FuncProps {
     activekey?:any,
     totalCount?:any,
     page?:any,
-    isFrom?:any
+    actionSource?:any,
+    countPendingArticles?:any,
+    maxArticlesPerPerson?:any,
+    showEvidenceDefault?:any
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
-    const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
     const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
     const [showEvidence, setShowEvidence] = useState<boolean>(false)
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
 
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
-    const [expandedPubIndex, setExpandedPubIndex] = useState<any>()
+    const [expandedPubIndex, setExpandedPubIndex] = useState<any>(props.showEvidenceDefault ? props.showEvidenceDefault : null)
 
+    const maxArticlesPerPerson = reciterConfig.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams.maxArticlesPerPerson;
     const dispatch = useDispatch();
 
     const onOpenModal = () => setShowHistoryModal(true)
     const onCloseModal = () => setShowHistoryModal(false)
+    console.log("showEvidenceDefault", props.showEvidenceDefault)
+
+    // const updatedToggleEvidence = (pubExpEvidenceNumber) =>{
+    //     console.log('publication to be expanded',pubExpEvidenceNumber)
+    //     console.log("props of the component",props)
+    //    if(props.actionSource ==='curateAll'){
+    //      if(pubExpEvidenceNumber && pubExpEvidenceNumber + 1 < maxArticlesPerPerson && maxArticlesPerPerson < props.totalCount)
+    //      {
+    //         setExpandedPubIndex(pubExpEvidenceNumber);
+    //      }
+    //      else if(pubExpEvidenceNumber && pubExpEvidenceNumber + 1 < maxArticlesPerPerson && maxArticlesPerPerson == props.totalCount)
+    //      {
+    //         setExpandedPubIndex(pubExpEvidenceNumber-1);
+    //      }
+    //      else if(pubExpEvidenceNumber && pubExpEvidenceNumber + 1 < maxArticlesPerPerson && maxArticlesPerPerson == props.totalCount)
+    //      {
+    //         setExpandedPubIndex(pubExpEvidenceNumber-1);
+    //      }
+    //    }
+    // };
 
     const toogleEvidence = (pubExpEvidenceNumber) => {
-      if(props.isFrom === "curateAll"){
-        if(pubExpEvidenceNumber === 4) setExpandedPubIndex(pubExpEvidenceNumber - 1);
+      let expandedPubNumber = parseInt(pubExpEvidenceNumber.slice(5));
+
+      console.log("expandedPubNumber", expandedPubNumber)
+
+      if(props.actionSource === "curateAll"){
+        if(expandedPubNumber == maxArticlesPerPerson) setExpandedPubIndex(`page${props.page}${(expandedPubNumber - 1)}`);
         else setExpandedPubIndex(pubExpEvidenceNumber);
       }else {
       let allPaginatedPubsCount = props.paginatedPubsCount;
       let totalRecordsInTab = props.totalCount;
-      let expandedPubNumber = parseInt(pubExpEvidenceNumber.slice(5));
-      
       if(allPaginatedPubsCount > expandedPubNumber){
         setExpandedPubIndex(pubExpEvidenceNumber);
       } else if(allPaginatedPubsCount === expandedPubNumber && allPaginatedPubsCount != totalRecordsInTab){
@@ -150,14 +176,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-4">
             <Col xs lg={6} className="p-1"><button
                 className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
             ><CheckIcon fontSize="small"/> Accept
             </button>
             </Col>
             <Col xs lg={6} className="p-1">
             <button
                 className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
+                onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
             ><ClearIcon fontSize="small"/> Reject
             </button>
             </Col>
@@ -168,14 +194,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-4">
               <Col xs lg={6} className="p-1"><button
                 className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
+                onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
               ><UndoIcon fontSize="small"/>Undo
               </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
                   className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                  onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
+                  onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
                 ><ClearIcon fontSize="small"/>Reject
                 </button>
               </Col>
@@ -187,14 +213,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <Col xs lg={6} className="p-1">
                 <button
                     className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                    onClick={() => { props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
+                    onClick={() => { props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
                 > <CheckIcon fontSize="small"/> Accept
                 </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
                     className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                    onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : null))}}
+                    onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
                 ><UndoIcon fontSize="small"/> Undo
                 </button>
               </Col>
@@ -300,7 +326,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const formatEvidenceTable = (evidence: any) => {
       let evidenceTableRows = []
-      
         evidenceTableRowTitles.filter((row) => displayRow(row, evidence)).map((title, index) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
@@ -404,7 +429,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   institutionalData = '-';
                   articleDataList.push({ name: evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationArticlePubmedLabel, tags: ['Pubmed']})
                 }
-                let totalScore = Math.abs(scopusTargetAuthorAffiliationScore + pubmedTargetAuthorAffiliationScore)
+                let totalScore = scopusTargetAuthorAffiliationScore + pubmedTargetAuthorAffiliationScore
                 points = totalScore.toString();
               }
 
@@ -448,7 +473,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   institutionalData = (institutionalData === '-') ? evidence[rowName].identityDoctoralYear + ' - Doctoral' : institutionalData + ' , ' + evidence[rowName].identityDoctoralYear + ' - Doctoral';
                 }
 
-                points = Math.abs(evidence[rowName].discrepancyDegreeYearBachelorScore + evidence[rowName].discrepancyDegreeYearDoctoralScore).toString()
+                points = evidence[rowName].discrepancyDegreeYearBachelorScore + evidence[rowName].discrepancyDegreeYearDoctoralScore
               }
 
               if (rowName === 'genderEvidence') {
@@ -485,12 +510,12 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                     institutionalDataList.push({ name: grant.institutionGrant, tags: []})
                     articleDataList.push({ name: grant.articleGrant, tags: []})
                 })
-                points = Math.abs(scoreTotal).toString();
+                points = scoreTotal.toString();
               }
             }
 
             if (rowName == 'genderEvidence') {
-              points = Math.abs(evidence[rowName].genderScoreIdentityArticleDiscrepancy).toString();
+              points = evidence[rowName].genderScoreIdentityArticleDiscrepancy.toString();
             }
 
             if (rowFields.hasOwnProperty('source')) {
@@ -533,7 +558,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               })
             }
 
-            points = Math.abs(scopusNonTargetAuthorAffiliationScore).toString()
+            points = scopusNonTargetAuthorAffiliationScore.toString()
           }
 
           let evidenceTableRowData = { 
@@ -633,9 +658,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         {
           (reciterArticle.evidence !== undefined) ?
             <div className={styles.publicationEvidenceBar}>
-              <p onClick={()=>toogleEvidence(props.index)}>
+               {/* <p onClick={()=>updatedToggleEvidence(props.index)}>  */}
+                <p onClick={()=>toogleEvidence(props.index)}> 
                 {
-                   (props.index === showEvidenceDefault) || showEvidence?
+                   (props.index === props.showEvidenceDefault) || showEvidence?
                     <span
                       className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
                     :
@@ -646,7 +672,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
 
                         <div
-                            className={`${styles.publicationShowEvidenceContainer} ${(props.index === showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
+                            className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
                             <div className="table-responsive">
                                 <table className={`${styles.publicationsEvidenceTable} table table-striped`}>
                                     <thead>

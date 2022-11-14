@@ -52,6 +52,8 @@ const CuratePublications = () => {
   const maxResults = reciterConfig.reciter.featureGeneratorByGroup.maxResultsOnGroupView;
   const incrementBy = reciterConfig.reciter.featureGeneratorByGroup.incrementResultsBy;
   const [loadCount, setLoadCount] = useState(incrementBy || 20);
+  const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
+
   const [page, setPage] = useState<number>(1);
   const totalCount = useSelector((state: RootStateOrAny) => state.curateIdsFromSearchPage.reduce((acc, identity) => {return (identity.countPendingArticles > 0) ? acc + 1 : acc;}, 0));
 
@@ -83,9 +85,11 @@ const CuratePublications = () => {
         return (
           <PublicationsPane 
             key={index}
+            page={page}
             index={index}
             item={reciterItem}
             filteredIdentities={filteredIdentities}
+            showEvidenceDefault={showEvidenceDefault}
             />
         )
       })}

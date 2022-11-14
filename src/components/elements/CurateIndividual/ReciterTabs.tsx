@@ -135,7 +135,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                       updatePublicationAssertion={updatePublicationAssertion}
                       updatePublicationAssertionBulk={updatePublicationAssertionBulk}
                       isSearchText={isSearchText}
-                      isShowEvidenceByDefault = {showEvidenceDefault}
+                      showEvidenceDefault = {showEvidenceDefault}
                       activeKey = {key}
                       totalCount={tabData.value === "NULL" ? tabData.count : tabData.value === "ACCEPTED" ? tabData.count : tabData.value ==="REJECTED" ?  tabData.count : ""}
                     />

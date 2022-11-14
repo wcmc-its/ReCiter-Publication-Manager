@@ -6,7 +6,7 @@ import SearchSummary from './SearchSummary';
 import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
-import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults, getReportsResultsInitial, fetchReportsResultsIds } from '../../../redux/actions/actions';
+import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults, getReportsResultsInitial, fetchReportsResultsIds, showEvidenceByDefault } from '../../../redux/actions/actions';
 import { ReportsResultPane } from "./ReportsResultPane";
 import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
@@ -46,6 +46,7 @@ const Report = () => {
 
   // selected filter options
   const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
+  console.log("pubSearchFilter", pubSearchFilter)
 
   // search results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
@@ -62,9 +63,10 @@ const Report = () => {
 
   // fetch filters on mount
   useEffect(() => {
+    dispatch(showEvidenceByDefault(null))
     dispatch(reportsFilters(authorInput, journalInput));
     dispatch(getReportsResultsInitial());
-    searchResults();
+    // searchResults();
   }, [])
 
   // fetch new data on page and count update
