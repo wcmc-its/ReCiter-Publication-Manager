@@ -30,7 +30,7 @@ const Buttons = ({ clearFilters, searchResults }) => {
   )
 }
 
-const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
+const DisplayFilter = ({ filter, index,isFilterClear, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
   let filterType = filter.filterType || undefined;
   switch (filterType) {
     case ("DateRange"):
@@ -43,6 +43,8 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
           filterUpperName={filterName[1]}
           selectedStartDate={selectedFilters[filterName[0]]}
           selectedEndDate={selectedFilters[filterName[1]]}
+          selectedFilters={selectedFilters}
+          isFilterClear={isFilterClear}
         />
       )
     case "Range":
@@ -78,6 +80,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
           filterName={filterName}
           onUpdateFilter={onSetSearchFilters}
           selectedOptions={selectedFilters[filterName]}
+          authorsFilteredData = {filterOptions.authorFilterData}
         />
       )
     case "Checklist":
@@ -97,7 +100,7 @@ const DisplayFilter = ({ filter, index, filterOptions, filterUpdateOptions, onSe
   }
 }
 
-const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters}) => {
+const FilterRow = ({title, filters, filterOptions,isFilterClear, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters}) => {
   return (
     <div className="filter-row flex-grow-1">
       <div className={`title ${styles.filterName}`}>{title}</div>
@@ -115,6 +118,7 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSea
                 filterName={filterNameToState[filter]}
                 onSetRangeFilters={onSetRangeFilters}
                 selectedFilters={selectedFilters}
+                isFilterClear={isFilterClear}
                 />
             )
           } else {
@@ -126,7 +130,8 @@ const FilterRow = ({title, filters, filterOptions, filterUpdateOptions, onSetSea
   )
 }
 
-export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters, clearFilters, searchResults }) => {
+export const FilterSection = ({ filterOptions,isFilterClear, filterUpdateOptions, onSetSearchFilters, onSetRangeFilters, selectedFilters, clearFilters, searchResults }) => {
+
   return (
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
@@ -140,6 +145,7 @@ export const FilterSection = ({ filterOptions, filterUpdateOptions, onSetSearchF
               onSetSearchFilters={onSetSearchFilters}
               onSetRangeFilters={onSetRangeFilters}
               selectedFilters={selectedFilters}
+              isFilterClear={isFilterClear}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
           </>

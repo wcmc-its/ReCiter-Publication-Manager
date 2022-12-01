@@ -24,6 +24,8 @@ const Report = () => {
 
   // state to manage what content to display on inital load
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
+  const [isFilterClear, setIsFilterClear] = useState<boolean>(true);
+
 
   // filters loading state
   const reportingFiltersLoading = useSelector((state: RootStateOrAny) => state.reportingFiltersLoading)
@@ -46,13 +48,16 @@ const Report = () => {
 
   // selected filter options
   const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
-  console.log("pubSearchFilter", pubSearchFilter)
+
+  
 
   // search results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
 
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
+  const [reset, setReset] = useState<boolean>(false);
+
 
   /* Custom Hooks */
   // pagination
@@ -64,10 +69,19 @@ const Report = () => {
   // fetch filters on mount
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
-    dispatch(reportsFilters(authorInput, journalInput));
-    dispatch(getReportsResultsInitial());
+    let personIdsFromSearch = pubSearchFilter.filters.personIdentifers
+    if(personIdsFromSearch.length > 0){
+      updateAuthorFilterData(personIdsFromSearch, 10, "fromSearchPage")
+      dispatch(getReportsResults(pubSearchFilter, true));
+    } else {
+       dispatch(reportsFilters(authorInput , journalInput));
+       dispatch(updateAuthorFilter());
+       dispatch(getReportsResultsInitial());
+      }
     // searchResults();
   }, [])
+
+
 
   // fetch new data on page and count update
   useEffect(() => {
@@ -109,8 +123,8 @@ const Report = () => {
   }
 
 
-  const updateAuthorFilterData = (input: string, count: number = 10) => {
-    dispatch(updateAuthorFilter(input, count))
+  const updateAuthorFilterData = (input: string, count: number = 10, isFrom: string ) => {
+    if(input) dispatch(updateAuthorFilter(input, count, isFrom))
   }
 
   const updateJournalFilterData = (input: string, count: number = 10) => {
@@ -170,13 +184,14 @@ const Report = () => {
 
   // filters that determine range are different since they accept 2 values: upper and lower bound
   const onSetRangeFilters = (filterLower, filterUpper, lowerBound, upperBound) => {
+  
     // update the filter object
     let updatedSearchFilter = { 
       ...pubSearchFilter, 
       filters: {
         ...pubSearchFilter.filters,
-        [filterLower]: lowerBound,
-        [filterUpper]: upperBound
+        [filterLower]: lowerBound == null ? "" : lowerBound ,
+        [filterUpper]: upperBound == null ? "" : upperBound
       }
     };
     // dispatch redux state update
@@ -184,7 +199,9 @@ const Report = () => {
   }
 
   const clearFilters = () => {
+    setIsFilterClear(!isFilterClear)
     dispatch(clearPubSearchFilters());
+    setReset(!reset)
   }
 
   const searchResults = () => {
@@ -268,6 +285,7 @@ const Report = () => {
           selectedFilters={pubSearchFilter.filters}
           clearFilters={clearFilters}
           searchResults={searchResults}
+          isFilterClear={isFilterClear}
           />
         {reportsSearchResultsLoading && 
           <Container fluid className="h-100 p-5">

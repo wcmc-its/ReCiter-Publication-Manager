@@ -335,9 +335,9 @@ export const pubmedFetchData = query => dispatch => {
     dispatch({
         type: methods.PUBMED_FETCH_DATA
     })
-    dispatch(
-        addPubMedFetchMoreData(false)
-    )
+    // dispatch(
+    //     addPubMedFetchMoreData("")
+    // )
     fetchWithTimeout('/api/reciter/search/pubmed', {
         credentials: "same-origin",
         method: 'POST',
@@ -352,17 +352,24 @@ export const pubmedFetchData = query => dispatch => {
             return response.json()
         })
         .then(data => {
-            if (data.statusCode != 200) {
+            if (data.statusCode != 200 ) {
                 if (data.reciter.status == 500 && (data.reciter.message.indexOf('Your search exceeded 200 results:') < 0 ||  data.reciter.message.indexOf('No results were found.') < 0)) {
-                    throw {
-                        title: data.reciter.message,
-                        status: data.reciter.status,
-                        limit: data.reciter.limit
-                    }
+                    toast.error("Pubmed query " + query["strategy-query"] + " failed", {
+                        position: "top-right",
+                        autoClose: 2000,
+                        theme: 'colored'
+                    });
+                    dispatch(
+                        addPubMedFetchMoreData(data.reciter)
+                    )
+                    dispatch({
+                        type: methods.PUBMED_CHANGE_DATA,
+                        payload: []
+                    })
                 }
                 else {
                     dispatch(
-                        addPubMedFetchMoreData(true)
+                        addPubMedFetchMoreData(data.reciter)
                     )
                     dispatch({
                         type: methods.PUBMED_CANCEL_FETCHING
@@ -379,7 +386,7 @@ export const pubmedFetchData = query => dispatch => {
                 });
 
                 dispatch(
-                    addPubMedFetchMoreData(false)
+                    addPubMedFetchMoreData("")
                 )
 
                 dispatch({
@@ -399,9 +406,9 @@ export const pubmedFetchData = query => dispatch => {
                 autoClose: 2000,
                 theme: 'colored'
             });
-            dispatch(
-                addError(error)
-            )
+            // dispatch(
+            //     addError(error)
+            // )
 
             dispatch({
                 type: methods.PUBMED_CHANGE_DATA,
@@ -1237,6 +1244,7 @@ export const fetchGroupFeedbacklog = (ids) => dispatch => {
     })
 }
 
+
 /* Reporting Filters */
 
 // Authors Filter
@@ -1282,6 +1290,14 @@ const getDateFilter = () => async (dispatch) => {
     }).then(response => {
         return response.json()
     }).then(data => {
+        // let startDate = new Date();
+        // let endDate = new Date();
+        // startDate.setDate(endDate.getDate() - 30);
+
+        // let date = [{
+        //     "minDate": startDate,
+        //     "maxDate": endDate
+        // }]
         dispatch({
             type: methods.DATE_FILTER_CHANGE_ALL_DATA,
             payload: data
@@ -1635,8 +1651,11 @@ export const getPersonTypes = () => async (dispatch) => {
 }
 
 // Update Author Filter
-export const updateAuthorFilter = (authorInput, count) => (dispatch) => {
-    fetch(`/api/db/reports/filter/author?authorFilter=${authorInput}&count=${count}`, {
+export const updateAuthorFilter = (authorInput, count,isFrom) => (dispatch) => {
+    let url;
+    if(authorInput )  url = `/api/db/reports/filter/author?authorFilter=${authorInput}&count=${count}`
+    else url = `/api/db/reports/filter/author?authorFilter=`
+    fetch(url, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
@@ -1647,10 +1666,21 @@ export const updateAuthorFilter = (authorInput, count) => (dispatch) => {
     }).then(response => {
         return response.json()
     }).then(data => {
-        dispatch({
-            type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
-            payload: data
-        })
+        if(isFrom === "fromSearchPage"){
+            dispatch({
+                type: methods.AUTHOR_FILTER_CHANGE_FROM_SEARCH,
+                payload: data
+            })
+            dispatch({
+                type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
+                payload: data
+            })
+        }else{
+            dispatch({
+                type: methods.AUTHOR_FILTER_CHANGE_ALL_DATA,
+                payload: data
+            })
+        }
     }).catch(error => {
         console.log(error);
         toast.error("Author Filter Api failed - " + error.title, {
@@ -1713,7 +1743,7 @@ export const reportsFilters = (authorFilter, journalFilter) => dispatch => {
     })
 
     Promise.all([
-        dispatch(getAuthorsFilter(authorFilter)),
+        // dispatch(getAuthorsFilter(authorFilter)),
         dispatch(getDateFilter()),
         dispatch(getArticleTypeFilter()),
         dispatch(getJournalFilter(journalFilter)),
@@ -1738,6 +1768,7 @@ export const updatePubSearchFilters = (filter) => dispatch => {
 export const clearPubSearchFilters = ()  => {
     return(dispatch, getState) => {
         const filters = getState().filters;
+        
         let reportsSearchFilters = initialStatePubSearchFilter;
             //clearing all report filters upon clicking reset button
             reportsSearchFilters.filters.personIdentifers = [];
@@ -1747,9 +1778,18 @@ export const clearPubSearchFilters = ()  => {
             reportsSearchFilters.filters.publicationTypeCanonical = [];
             reportsSearchFilters.filters.journalTitleVerbose = [];
             reportsSearchFilters.filters.authorPosition = [];
+            reportsSearchFilters.filters.datePublicationAddedToEntrezLowerBound = "";
+            reportsSearchFilters.filters.datePublicationAddedToEntrezUpperBound = "";
         dispatch({
             type: methods.PUB_FILTER_CLEAR,
             payload: reportsSearchFilters
+        })
+        dispatch({
+            type: methods.PUB_FILTER_UPDATE,
+            payload: reportsSearchFilters
+        })
+        dispatch({
+            type: methods.AUTHOR_FILTER_CLEAR_ALL_DATA
         })
     }
 }
@@ -1760,21 +1800,23 @@ export const updateIndividualPersonReportCriteria =(personIdentifier) =>{
         const filters = getState().filters;
         let reportsSearchFilters = initialStatePubSearchFilter;
           if (personIdentifier) {
-            reportsSearchFilters.filters.personIdentifers = [personIdentifier.personIdentifers];
+            reportsSearchFilters.filters.personIdentifers = [personIdentifier.personIdentifier];
           }
+          updateAuthorFilter(personIdentifier.personIdentifier,10)
           dispatch({
             type: methods.PUB_FILTER_CLEAR,
             payoload: reportsSearchFilters
           });
     }
+    
 }
 
 // Populate Create Reports Filters by Search Filters Data
 export const updatePubFiltersFromSearch = () => {
   return (dispatch, getState) => {
-
-    // get filters from Search Page
-    const filters = getState().filters;
+      
+      // get filters from Search Page
+      const filters = getState().filters;
     let reportsSearchFilters = initialStatePubSearchFilter;
     if (filters.orgUnits) {
       reportsSearchFilters.filters.orgUnits = [...filters.orgUnits]; 
@@ -1791,6 +1833,8 @@ export const updatePubFiltersFromSearch = () => {
     if (filters.nameOrUids) {
       reportsSearchFilters.filters.personIdentifers = [...filters.nameOrUids];
     }
+
+
     dispatch({
       type: methods.PUB_FILTER_CLEAR,
       payoload: reportsSearchFilters
@@ -1996,6 +2040,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
 
 // Get authors of publication
 export const getReportsAuthors = (pmids) => {
+    console.log("pmids", pmids)
     return fetch(`/api/db/reports/publication/search/author`, {
         credentials: "same-origin",
         method: 'POST',

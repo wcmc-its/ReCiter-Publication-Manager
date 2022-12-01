@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault } from '../../../redux/actions/actions'
+import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault, updateAuthorFilter } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -290,6 +290,8 @@ const Search = () => {
     }
     if (searchText) {
       let searchWords = searchText.trim().split(' ');
+      dispatch(updateAuthorFilter(searchWords.join(),10));
+
       updatedFilters = { ...updatedFilters, nameOrUids: searchWords };
     }
 
@@ -376,6 +378,7 @@ const Search = () => {
         pathname: `/curate/${data}`,
       })
     } else if (isFor === "report") {
+      dispatch(updateAuthorFilter(data.personIdentifier,10));
       dispatch(updateIndividualPersonReportCriteria(data));
       router.push({
         pathname: '/report',

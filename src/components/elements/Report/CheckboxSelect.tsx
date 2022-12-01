@@ -3,11 +3,15 @@ import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
+import { useSelector,RootStateOrAny } from "react-redux";
 
-export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
+export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
   const [selectedList, setSelectedList] = useState<any>([]);
+  const [filteredList, setFilteredList] = useState<any>([]);
   const [totalCount, setTotalCount] = useState<number>(10);
+  const authorFilterDataFromSearch = useSelector((state: RootStateOrAny) => state.authorFilterDataFromSearch)
+
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newInput = e.target.value;
@@ -37,8 +41,9 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
         return false;
       }); 
       setSelectedList(uniqueIds);
+      // setFilteredList(uniqueIds);
     }
-  }, [userInput, selectedOptions])
+  }, [userInput, selectedOptions,authorFilterDataFromSearch])
 
   const filteredOptions = (options, isDynamicFetch) => {
     if (userInput != '' && !isDynamicFetch) {

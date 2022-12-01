@@ -378,7 +378,7 @@ export const errors = (state=[], action) => {
             return state
     }
 }
-export const pubmedFetchingMore = (state=false, action) => {
+export const pubmedFetchingMore = (state="", action) => {
 
   switch(action.type) {
 
@@ -622,6 +622,23 @@ export const authorFilterData = (state=[], action) => {
 
 }
 
+export const authorFilterDataFromSearch = (state=[], action) => {
+
+  switch(action.type) {
+      
+      case methods.AUTHOR_FILTER_CLEAR_ALL_DATA :
+          return []
+
+      case methods.AUTHOR_FILTER_CHANGE_FROM_SEARCH :
+          return action.payload
+
+      
+      default :
+          return state
+  }
+
+}
+
 export const dateFilterData = (state=[], action) => {
 
   switch(action.type) {
@@ -834,7 +851,7 @@ export default combineReducers({
     adminUsersList,
     AllAdminRoles,
     createORupdateUserID,
-
+    authorFilterDataFromSearch,
     showEvidenceDefault
 
 

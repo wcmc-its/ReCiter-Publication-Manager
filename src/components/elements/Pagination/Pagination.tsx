@@ -9,7 +9,7 @@ interface PaginationProps {
   total: number,
   page: number,
   onChange: (page: number) => void,
-  onCountChange: (count: string) => void, 
+  onCountChange?: (count: string) => void, 
 }
 
 const Pagination: React.FC<PaginationProps> = (props) => {

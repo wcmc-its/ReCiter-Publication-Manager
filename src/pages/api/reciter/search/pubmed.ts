@@ -40,7 +40,7 @@ export default async function handler(
             }
             else if(data.status === 500)
             {
-                res.status(500).send({
+                res.status(200).send({
                     statusCode: 500,
                     reciter: data,
                     resultMode: resultMode
