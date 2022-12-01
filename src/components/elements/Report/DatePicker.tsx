@@ -14,14 +14,12 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
   const [miniDate, setMindate] = useState();
 
 
-  if (!range || range.length == 0) {
-    return null;
-  }
-
+  
 
 
   useEffect(()=>{
   // const rangeDates = range[0];
+  console.log("isFilterClearCalling", )
   const {personIdentifers,institutions, orgUnits,personTypes, datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound } = selectedFilters
   if(personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0){
   let tempStartDate = new Date();
@@ -60,15 +58,19 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
   }
     },[isFilterClear])
 
+    if (!range || range.length == 0) {
+      return null;
+    }
+
   const handleDatesChange = ({ startDate, endDate }) => {
     setStartDate(startDate)
     setEndDate(endDate)
     let formattedStartDate = startDate ? startDate.format('YYYY-MM-DD') : null;
     let formattedEndDate = endDate ? endDate.format('YYYY-MM-DD') : null;
-    console.log("formattedStartDate", formattedStartDate)
     handleChange(filterLowerName, filterUpperName, formattedStartDate, formattedEndDate);
   };
 
+  
   // const rangeDates = range[0];
   // const minDate = moment(rangeDates.minDate);
   // const maxDate = moment(rangeDates.maxDate);
