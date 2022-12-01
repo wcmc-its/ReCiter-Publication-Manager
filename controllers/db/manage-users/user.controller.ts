@@ -9,7 +9,20 @@ export const listAllUsers = async (
   res: NextApiResponse
 ) => {
   try {
-    const users = await models.AdminUser.findAll();
+    
+    let users ={};
+    if(req.body.limit != undefined && req.body.offset != undefined) {
+        const paginatedUsers =  await models.AdminUser.findAll({
+           // attributes: [],
+            offset: req.body.offset,
+            limit: req.body.limit,
+            subQuery: false
+        });
+        const allUsers = await models.AdminUser.findAll();
+        users['usersData'] = paginatedUsers;
+        users['totalUsersCount'] = allUsers ? allUsers.length : 0;
+        // console.log("persons Ttesting", JSON.stringify(persons))
+    } 
     res.send(users);
   } catch (e) {
     console.log(e);

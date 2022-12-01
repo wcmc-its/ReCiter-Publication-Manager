@@ -59,8 +59,11 @@ export async function searchPubmed(req: NextApiRequest)  {
                         statusText: limitExceededError
                     }
                 } 
-                else {
-                    const message:string = "Your search exceeded 200 results: " + parseInt(data, 10) + ". Please narrow down search."
+                else if(parseInt(data, 10) > 1000){
+                  
+                    // const message:string = "Your search exceeded 2000 results: " + parseInt(data, 10) + ". Please narrow down search."
+                    // const message:string = "Your search returned more than 1000 results. "+parseInt(data,10) + "Please refine."
+                    const message:string = "Error: your search returned more than 1,000 results. Please refine your search so it returns fewer results"
                     const limitExceededError = {
                         limit: parseInt(data, 10),
                         message: message,
@@ -82,43 +85,65 @@ export async function searchPubmed(req: NextApiRequest)  {
 }
 function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorData: any)
 {
+      let finalPubMedArtickes={};  
       let filter100PubMedArticles = [];
+      let accpetedPubMedCount =0;
+      let rejectedPubMedCount =0;
+     
     if(pubMedData && featureGeneratorData && featureGeneratorData.statusText && featureGeneratorData.statusText.reciterData && featureGeneratorData.statusText.reciterData.reCiterArticleFeatures 
         && featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length > 0)
     {   
-         for(let filteredPubIndex=0; filteredPubIndex < pubMedData.length ; filteredPubIndex++)  
+         for(let pubMedPMIDIndex=0; pubMedPMIDIndex < pubMedData.length ; pubMedPMIDIndex++) 
+        //for(let fgPmidIndex =0; fgPmidIndex < featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length; fgPmidIndex++ )     
         {
             let pmidFound =false;
-            let pubMedPmid = pubMedData[filteredPubIndex].medlinecitation.medlinecitationpmid.pmid;
+            let pubMedPmid = pubMedData[pubMedPMIDIndex].medlinecitation.medlinecitationpmid.pmid;
+           // let  fgPmid = featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[fgPmidIndex].pmid ;
             
-            for(let pmidIndex =0; pmidIndex < featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length; pmidIndex++ )    
-            {
-                if(featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[pmidIndex].pmid == pubMedPmid)
+            for(let fgPmidIndex =0; fgPmidIndex < featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length; fgPmidIndex++ )    
+             // for(let pubMedPMIDIndex=0; pubMedPMIDIndex < pubMedData.length ; pubMedPMIDIndex++)  
+              {
+                if(featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[fgPmidIndex].pmid== pubMedPmid
+                    &&(featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[fgPmidIndex].userAssertion ==='ACCEPTED' ||
+                    featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[fgPmidIndex].userAssertion ==='REJECTED')
+                    )
                 {
                     pmidFound = true;
+                    if(featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[fgPmidIndex].userAssertion ==='ACCEPTED')
+                    {
+                        accpetedPubMedCount++;
+                    }
+                    else if(featureGeneratorData.statusText.reciterData.reCiterArticleFeatures[fgPmidIndex].userAssertion ==='REJECTED')
+                    {
+                        rejectedPubMedCount++;
+                    }
                     break;
                 }
             }
             if(!pmidFound)
             {
-                filter100PubMedArticles.push(pubMedData[filteredPubIndex]);
+                filter100PubMedArticles.push(pubMedData[pubMedPMIDIndex]);
             }
             if(filter100PubMedArticles && filter100PubMedArticles.length >= 100)
             {
-                break; // terminate loop once it reaches 100 articles
+                break; // terminate the loop once it reaches 100 publications
             }
             
 
         }
-        return filter100PubMedArticles;
+        finalPubMedArtickes = {"filter100PubMedArticles":filter100PubMedArticles,
+                                'acceptedPubMedCount':accpetedPubMedCount,
+                                'rejectedPubMedCount':rejectedPubMedCount};
+        return finalPubMedArtickes;
     }
 
 }
 
 function formatPubmedSearch(data: any,greaterThan100 : boolean) {
     const PublicationsReciter: any[] = []
-    if(data !== undefined) {
-        data.forEach((article: any) => {
+    
+    if(data.filter100PubMedArticles !== undefined) {
+        data.filter100PubMedArticles.forEach((article: any) => {
             if(article.medlinecitation !== undefined) {
                 let authors: any[] = []
                 let rank = 1
@@ -163,10 +188,12 @@ function formatPubmedSearch(data: any,greaterThan100 : boolean) {
                     }
                     PublicationsReciter.push(Publication)
                 }
-
-                
             }
         })
+       
+        PublicationsReciter.push({'acceptedPubMedCount': data.acceptedPubMedCount});
+        PublicationsReciter.push({'rejectedPubMedCount': data.rejectedPubMedCount});
+
     }
     return PublicationsReciter
 }

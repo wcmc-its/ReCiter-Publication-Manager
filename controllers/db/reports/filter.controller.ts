@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
+import  {reciterConstants}  from "../../../src/utils/constants";
 import {
     AuthorFilter,
     JournalFilter
@@ -12,11 +13,15 @@ export const authorFilter = async (
 ) => {
   try {
     const { authorFilter } = req.query;
+    let authorFilterArray = (authorFilter as string).split(',')
+    console.log("authorFilter", authorFilterArray)
     const count = req.query.count as string;
     let limit = parseInt(count) || 10;
     let persons = null as any;
+
     if(!authorFilter) 
     {
+
       persons = await models.Person.findAll({
           //order: [["personType", "ASC"]],
           attributes: [
@@ -34,6 +39,44 @@ export const authorFilter = async (
         
           limit: limit
         });
+  }
+  else if(authorFilterArray && Array.isArray(authorFilterArray) && authorFilterArray.length > 0)
+  {
+    const where = {}
+    where[Op.and] = []
+    if(authorFilterArray && authorFilterArray.length > reciterConstants.nameCWIDSpaceCountThreshold) {
+      where[Op.and].push({[Op.or]:[
+          {'$Person.personIdentifier$': { [Op.in]: authorFilterArray }},
+      ]})
+ 
+  }
+  else if(where[Op.and] && authorFilterArray && authorFilterArray.length <= reciterConstants.nameCWIDSpaceCountThreshold) {
+      authorFilterArray.forEach((name: string) => {
+              where[Op.and].push({[Op.or]:[{'$Person.firstName$': { [Op.like]: `%${name}%`}},
+            {'$Person.middleName$': { [Op.like]: `%${name}%`}},
+              {'$Person.lastName$': { [Op.like]: `%${name}%`}},
+              {'$Person.personIdentifier$': { [Op.like]: `%${name}%`}}]})
+          })
+       }
+    persons = await models.Person.findAll({
+      //order: [["personType", "ASC"]],
+      attributes: [
+        "personIdentifier",
+        "firstName",
+        "lastName",
+        "primaryOrganizationalUnit",
+      ],
+      where: where,
+      order: [
+          Sequelize.fn('isnull', Sequelize.col('lastName')),
+          ['lastName', 'ASC'],
+          Sequelize.fn('isnull', Sequelize.col('firstName')),
+          ['firstName', 'ASC']
+      ],
+    
+      limit: limit
+    });
+    
   }
   else
   {

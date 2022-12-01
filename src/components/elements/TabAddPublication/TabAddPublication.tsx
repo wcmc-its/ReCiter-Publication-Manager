@@ -3,16 +3,18 @@ import React, { useState, FunctionComponent, useRef, useEffect } from "react";
 import styles from './TabAddPublication.module.css';
 import appStyles from '../App/App.module.css';
 import AddPublication from '../AddPublication/AddPublication';
-import { reciterUpdatePublication, pubmedFetchData, UpdatePubMadeData, reCalcPubMedPubCount } from '../../../redux/actions/actions'
+import { reciterUpdatePublication, pubmedFetchData, UpdatePubMadeData, reCalcPubMedPubCount, addPubMedFetchMoreData } from '../../../redux/actions/actions'
 import { RootStateOrAny, useSelector, useDispatch } from "react-redux";
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
 import { YearPicker } from 'react-dropdown-date';
 import { useSession } from "next-auth/client";
-import { VrpanoSharp } from "@mui/icons-material";
+// import { VrpanoSharp, ClearIcon } from "@mui/icons-material";
+import ClearIcon from '@mui/icons-material/Clear';
 import {Form,Button} from "react-bootstrap"
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import { publicationsPreviousDataFetching } from "../../../redux/reducers/reducers";
+
 
 interface FuncProps {
     tabType: string,
@@ -37,7 +39,6 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     const isRejectedCount = useSelector((state: RootStateOrAny) => state.rejectedCount)
     const totalPubMedPubCount = useSelector((state: RootStateOrAny) => state.pubMedCount)
 
-
     const errors = useSelector((state: RootStateOrAny) => state.errors)
     const [session, loading] = useSession();
 
@@ -56,6 +57,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     const [latestYear, setLatestYear] = useState<any>("")
     const [earliestYear, setEarliestYear] = useState<any>("")
     const userId = session?.data?.databaseUser?.userID;
+
+    const [acceptRejecteMsg, setAcceptRejecteMsg] = useState<String>()
 
     const handlePaginationUpdate = (event: React.ChangeEvent<HTMLInputElement>, page: number) => {
         setPage(page)
@@ -155,6 +158,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         dispatch(UpdatePubMadeData(updatedpubs))
         props.updatePublicationAssertion((pubmedPublications.length > 0 ? pubmedPublications[0] : ""), userAssertion = "REJECTED", props.tabType);
     }
+
+
     useEffect(() => {
         filter()
     }, [])
@@ -177,47 +182,31 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         return reciterPublications
     }
 
+
+
     const filter = (search) => {
         // Get array of PMIDs from pending publications
         const pubmedIds: Array<number> = []
+        let acceptRejecteMsg=''
         let reciterPublications: Array<any> = []
         reciterData.reciterPending.forEach(function (publication: any) {
             pubmedIds.push(publication)
            reciterPublications.push(publication)
         })
-        let searchAcceptedCountTemp = 0;
-        let searchRejectedCountTemp = 0;
-        reciterData.reciter.reCiterArticleFeatures.forEach(function (publication: any) {
-            if(publication.userAssertion ==='ACCEPTED')
-                searchAcceptedCountTemp++;
-            else if(publication.userAssertion === "REJECTED")
-                searchRejectedCountTemp++; 
+        let acceptPubs = "";
+        let rejectPubs = ""
+        let acceptRejectCount = pubmedData.filter(key  => "acceptedPubMedCount" in key || "rejectedPubMedCount" in key)
+        acceptRejectCount.length && acceptRejectCount.map(key => {
+          if(key.acceptedPubMedCount) {setAcceptCount(key.acceptedPubMedCount); acceptPubs = key.acceptedPubMedCount}
+          else  { setRejectedCount(key.rejectedPubMedCount); rejectPubs = key.rejectedPubMedCount}
         })
-        setAcceptCount(searchAcceptedCountTemp);
-        setRejectedCount(searchRejectedCountTemp);
-        //setAllPubs(pubmedData && pubmedData.length ==100  && pubmedData[0].greaterThan100? 'Showing the first 100 records':pubmedData.length +' publications displayed');
-      /*if (pubmedData !== undefined && pubmedData.length) {
-            let searchAcceptedCountTemp = 0;
-            let searchRejectedCountTemp = 0;
-            pubmedData.forEach((searchPub: any) => {
-                reciterPublications.map(publication => {
-                    if (publication.pmid === searchPub.pmid && publication.userAssertion === "ACCEPTED") {
-                        searchAcceptedCountTemp++;
-                    }
-                    if (publication.pmid === searchPub.pmid && publication.userAssertion === "REJECTED") {
-                        searchRejectedCountTemp++;
-                    }
-                })
-            })
+        //setAcceptCount(searchAcceptedCountTemp);
+        //setRejectedCount(searchRejectedCountTemp);
+        acceptRejecteMsg = <span><strong>{acceptPubs}</strong>{" already accepted "}<strong>{rejectPubs}</strong>{' already rejected'}</span>;
+        // acceptRejecteMsg = <b>{"text"}</b>
 
-            totalPubs = pubmedData.length - searchAcceptedCountTemp - searchRejectedCountTemp;
-            totalPubs = totalPubs >= 0 ? totalPubs : 0;
-            // if(accessToUpdate){
-                setAcceptCount(searchAcceptedCountTemp);
-                setRejectedCount(searchRejectedCountTemp);
-            // }
-            setAllPubs(totalPubs);
-        }*/
+        setAcceptRejecteMsg(!acceptPubs && !rejectPubs ? null : acceptRejecteMsg)
+        
 
         // Filter
         var filteredPublications: Array<any> = [];
@@ -232,7 +221,6 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                                 filteredPublications.push(publication);
                             }
                         } else {
-                            console.log("searchText", search)
                             var addPublication = true;
                             // check filter search
                             if (search !== "") {
@@ -337,8 +325,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             paginatedPublications: publications
         };
        //recaluclating allPubs after the filter
-       if(pubmedData && pubmedData.length ==100  && pubmedData[0].greaterThan100 && filteredPublications && pubmedData.length == filteredPublications.length) 
-           setAllPubs('Showing the first 100 records');
+       if(pubmedData && pubmedData.length ==102  && pubmedData[0].greaterThan100 && filteredPublications &&  filteredPublications.length === 100) 
+          setAllPubs('Showing the first 100 records');
         else if(pubmedData && pubmedData.length <= 100 && filteredPublications && pubmedData.length == filteredPublications.length)
            setAllPubs(pubmedData.length + `${filteredPublications.length == 1 ? " publication displayed" : " publications displayed" }`  )
         else if(filteredPublications && filteredPublications.length > 0) 
@@ -350,6 +338,10 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const searchFunction =  (e) => {
         e.preventDefault();
+        setAllPubs(0 + ' publication displayed');
+        setAcceptCount(0);
+        setRejectedCount(0);
+        setAcceptRejecteMsg("")
         let query='';
          query = {
             "strategy-query": pubmedSearch,
@@ -471,8 +463,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                 </div>
                 <div className={`row ${styles.filterSecbgColor}`}>
                                         <div className="col-md-4">
-                                            <p className={styles.totalresult}><strong>{allPubs}</strong></p>
-                                            <p className={styles.totalresult}><span><strong>{acceptedCountState}</strong> already accepted, <strong>{rejectedCountState}</strong> already rejected</span></p>
+                                            <p className={styles.totalresult}><b>{allPubs}</b></p>
+                                            <p className={styles.totalresult}>{acceptRejecteMsg}</p>
                                         </div>
                                         <div className="col-md-8" style={{ float: "right" }}>
                                             <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
@@ -483,7 +475,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
             {
 
-                (pubmedFetchingMore === false) ?
+                (!pubmedFetchingMore && !pubmedFetchingMore.message) ?
 
                     (pubmedFetching) ? <div className={appStyles.appLoader}></div> :
                         <div>
@@ -530,7 +522,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                             }
                         </div>
                     :
-                    <div className={`${styles.noDataFoundTxet}`}><strong>Too many results. Please provide additional search parameters</strong></div>
+                    <div style={{display:"flex"}} className={`${styles.noDataFoundTxet}`}><ClearIcon style={{color:"#ffffff", backgroundColor:"red", borderRadius:"50%", fontSize:"15px", margin:"5px"}} color="danger"/><p>{pubmedFetchingMore.message}</p></div>
             }
         </div>
     );

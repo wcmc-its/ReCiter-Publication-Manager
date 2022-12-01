@@ -36,4 +36,8 @@ export const dropdownItemsSuper = [
 	// { title: 'Perform Analysis', to: '/perform-analysis' },
   ]
   
+export const reciterConstants = {
 
+	nameCWIDSpaceCountThreshold : 3 	
+
+}

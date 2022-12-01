@@ -4,7 +4,7 @@ import { Person } from '../../src/db/models/Person'
 import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import { findUserFeedback } from '../userfeedback.controller'
-
+import  {reciterConstants}  from "../../src/utils/constants";
 
 models.Person.hasMany(models.PersonPersonType, {constraints: false})
 models.PersonPersonType.belongsTo(models.Person, {constraints: false})
@@ -17,13 +17,13 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         if(apiBody.filters) {
             if(apiBody.filters.personTypes || apiBody.filters.institutions || apiBody.filters.orgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
                 where[Op.and] = []
-                if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > 3) {
+                if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > reciterConstants.nameCWIDSpaceCountThreshold) {
                     where[Op.and].push({[Op.or]:[
                         {'$Person.personIdentifier$': { [Op.in]: apiBody.filters.nameOrUids }},
                     ]})
                 
                 }
-                else if(where[Op.and] && apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length <= 3) {
+                else if(where[Op.and] && apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length <= reciterConstants.nameCWIDSpaceCountThreshold) {
                     apiBody.filters.nameOrUids.forEach((name: string) => {
                             where[Op.and].push({[Op.or]:[{'$Person.firstName$': { [Op.like]: `%${name}%`}},
                           {'$Person.middleName$': { [Op.like]: `%${name}%`}},
