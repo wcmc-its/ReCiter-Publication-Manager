@@ -1,6 +1,7 @@
 import { response } from "express";
 import type { NextApiRequest, NextApiResponse } from "next";
 //import { Op, Sequelize, where,Transaction } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
 
@@ -12,16 +13,13 @@ export const listAllUsers = async (
     
     let users ={};
     if(req.body.limit != undefined && req.body.offset != undefined) {
-        const paginatedUsers =  await models.AdminUser.findAll({
-           // attributes: [],
+
+      const {count,rows} =  await models.AdminUser.findAndCountAll({
             offset: req.body.offset,
             limit: req.body.limit,
-            subQuery: false
         });
-        const allUsers = await models.AdminUser.findAll();
-        users['usersData'] = paginatedUsers;
-        users['totalUsersCount'] = allUsers ? allUsers.length : 0;
-        // console.log("persons Ttesting", JSON.stringify(persons))
+        users['usersData'] = rows;
+        users['totalUsersCount'] = count;
     } 
     res.send(users);
   } catch (e) {
