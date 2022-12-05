@@ -21,13 +21,14 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
       </thead>
       <tbody>
         {
-          data.map((user, index) => {
+         data.length > 0 ? data.map((user, index) => {
+            const {nameFirst, nameLast, userID} = user;
             return (
               <tr key={index}>
-                <td>{`${user.nameFirst} ${user.nameLast}`}</td>
-                <td>{user.userID}</td>
+                <td>{`${nameFirst && nameFirst != "null" ? nameFirst : "" } ${nameLast && nameLast != "null" ? nameLast : ""}`}</td>
+                <td>{userID}</td>
                 <td>
-                  <Link href={{pathname:`/admin/users/edit/${user.userID}`}}>
+                  <Link href={{pathname:`/admin/users/edit/${userID}`}}>
                     <div className='d-flex flex-col justify-content-center cursorStyle'>
                       <Image src="/icons/edit-svgrepo-com.svg" width={20} height={20} alt="Edit" />
                       <p className='mb-0 p-1 ' >Edit</p>
@@ -36,7 +37,7 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
                 </td>
               </tr>
             )
-          })
+          }) : <p className={styles.noRecordsFound}>No Records Found</p>
         }
       </tbody>
     </Table>

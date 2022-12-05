@@ -74,7 +74,7 @@ export const authorFilter = async (
           ['firstName', 'ASC']
       ],
     
-      limit: limit
+     // limit: limit
     });
     
   }

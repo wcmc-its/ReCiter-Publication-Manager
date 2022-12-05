@@ -12,6 +12,7 @@ import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, 
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { toast } from "react-toastify"
 import Pagination from '../Pagination/Pagination';
+import Filter from "../Filter/Filter";
 
 
 const ManageUsers = () => {
@@ -19,6 +20,8 @@ const ManageUsers = () => {
   const createORupdateUserID = useSelector((state: RootStateOrAny) => state.createORupdateUserID);
 
   const [users, setUsers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -51,6 +54,7 @@ const ManageUsers = () => {
     }).then(response => response.json())
       .then(data => {
         setUsers(data.usersData);
+        setAllUsers(data.usersData)
         setTotalCount( data.totalUsersCount)
         dispatch(adminUsersListAction(data))
         setLoading(false);
@@ -78,6 +82,47 @@ const ManageUsers = () => {
     fetchAllAdminUsers(page, count)
   }
 
+  const handleFilterUpdate= (searchText)=>{
+    filter(searchText ? searchText : "");
+  }
+
+  const filter = (search) => { 
+    console.log("search", search)
+    let filteredUsers:  Array<any> = []
+    if (users !== undefined && users.length > 0) {
+      users.forEach((user: any) => {
+    if (search !== "" && search !== undefined) {
+      if (/^[0-9 ]*$/.test(search)) {
+        var userIds = search.split(" ");
+        if (userIds.some(userId => Number(userId) === user.userID)) {
+            filteredUsers.push(user);
+        }
+      }else{
+        var addUser = true;
+        if (search !== "") {
+          addUser = false;
+          //nameFirst
+          if (user.nameFirst && user.nameFirst.toLowerCase().includes(search.toLowerCase())) {
+            addUser = true
+          }
+          //nameLast
+          if (user.nameLast && user.nameLast.toLowerCase().includes(search.toLowerCase())) {
+              addUser = true
+          }
+        }
+        if (addUser) {
+          filteredUsers.push(user);
+        }
+      }
+    }
+  })
+  }
+  setUsers( filteredUsers)
+
+  if(search == "") setUsers( allUsers)
+ 
+}
+
   
   const handleCountUpdate = (count) => {
     if (count) {
@@ -96,6 +141,12 @@ const ManageUsers = () => {
         :
         <>
           <Pagination total={totalCount} page={page} count={count} onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
+          <div className={`row ${styles.filterSecbgColor}`}>
+          <div className="col-md-5"></div>
+            <div className="col-md-7">
+              <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
+            </div>
+          </div>
             <UsersTable data={users} />
           <Pagination total={totalCount} page={page} count={count}  onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
         </>}

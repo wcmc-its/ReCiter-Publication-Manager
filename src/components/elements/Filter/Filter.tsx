@@ -3,7 +3,7 @@ import styles from './Filter.module.css'
 import Dropdown  from '../Dropdown/Dropdown'
 
 interface FuncProps {
-    onChange(state: any): void,
+    onChange?(state: any): void,
     onSearch?(state: any): void,
     showSort: boolean,
     isFrom?:string
