@@ -50,7 +50,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const onOpenModal = () => setShowHistoryModal(true)
     const onCloseModal = () => setShowHistoryModal(false)
-    console.log("showEvidenceDefault", props.showEvidenceDefault)
 
     // const updatedToggleEvidence = (pubExpEvidenceNumber) =>{
     //     console.log('publication to be expanded',pubExpEvidenceNumber)

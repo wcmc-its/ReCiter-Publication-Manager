@@ -85,7 +85,8 @@ export async function searchPubmed(req: NextApiRequest)  {
 }
 function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorData: any)
 {
-      let finalPubMedArtickes={};  
+      let finalPubMedArtickes={}; 
+      let filterPubMedArticles = []; 
       let filter100PubMedArticles = [];
       let accpetedPubMedCount =0;
       let rejectedPubMedCount =0;
@@ -122,15 +123,17 @@ function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorDat
             }
             if(!pmidFound)
             {
-                filter100PubMedArticles.push(pubMedData[pubMedPMIDIndex]);
+                filterPubMedArticles.push(pubMedData[pubMedPMIDIndex]);
             }
-            if(filter100PubMedArticles && filter100PubMedArticles.length >= 100)
+            /*if(filter100PubMedArticles && filter100PubMedArticles.length >= 100)
             {
                 break; // terminate the loop once it reaches 100 publications
-            }
+            }*/
             
 
         }
+        //pickup 100 records from the filterPubMedArticles
+        filter100PubMedArticles = filterPubMedArticles.slice(0,100);
         finalPubMedArtickes = {"filter100PubMedArticles":filter100PubMedArticles,
                                 'acceptedPubMedCount':accpetedPubMedCount,
                                 'rejectedPubMedCount':rejectedPubMedCount};

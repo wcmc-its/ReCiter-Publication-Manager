@@ -24,7 +24,7 @@ const Report = () => {
 
   // state to manage what content to display on inital load
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
-  const [isFilterClear, setIsFilterClear] = useState<boolean>(true);
+  const [isFilterClear, setIsFilterClear] = useState<boolean>(false);
 
 
   // filters loading state
@@ -32,6 +32,7 @@ const Report = () => {
 
   // search results loading state
   const reportsSearchResultsLoading = useSelector((state: RootStateOrAny) => state.reportsSearchResultsLoading)
+
 
   // search results loading state on pagination update
   const reportsPaginatedResultsLoading = useSelector((state: RootStateOrAny) => state.reportsPaginatedResultsLoading)
@@ -69,9 +70,11 @@ const Report = () => {
   // fetch filters on mount
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
-    let personIdsFromSearch = pubSearchFilter.filters.personIdentifers
-    if(personIdsFromSearch.length > 0){
-      updateAuthorFilterData(personIdsFromSearch, 10, "fromSearchPage")
+    const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters
+
+    if(personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0){
+      if(personIdentifers.length > 0) updateAuthorFilterData(personIdentifers, 10, "fromSearchPage")
+      
       dispatch(getReportsResults(pubSearchFilter, true));
     } else {
        dispatch(reportsFilters(authorInput , journalInput));
@@ -202,6 +205,7 @@ const Report = () => {
     setIsFilterClear(!isFilterClear)
     dispatch(clearPubSearchFilters());
     setReset(!reset)
+    dispatch(updateAuthorFilter());
   }
 
   const searchResults = () => {

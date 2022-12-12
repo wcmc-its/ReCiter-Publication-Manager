@@ -11,10 +11,13 @@ import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../config/local";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { clearPubSearchFilters } from "../../redux/actions/actions";
 
 export const AppLayout = ({ children }) => {
   const router = useRouter();
+  const dispatch = useDispatch ()
+
   const [session, loading] = useSession();
   const errors = useSelector((state) => state.errors);
 
@@ -24,7 +27,17 @@ export const AppLayout = ({ children }) => {
     } else if (errors.length) {
       router.push("/_error");
     }
-  }, [session, router, loading, errors]);
+  }, [session, loading, errors]);
+
+  useEffect(() => {
+    if (!session && !loading) {
+      router.push("/");
+    } else if (errors.length) {
+      router.push("/_error");
+    }
+    
+    if(router?.pathname != "/report") dispatch( clearPubSearchFilters());
+  }, [router]);
 
   const [expandedNav, setExpandedNav] = useState(true);
   const toggleExpand = () => {
