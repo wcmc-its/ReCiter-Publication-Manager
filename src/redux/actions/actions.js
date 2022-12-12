@@ -24,6 +24,12 @@ export const addPubMedFetchMoreData = (message) =>
     payload: message
 })
 
+export const clearPubMedFetchMoreData = () =>
+({
+    type: methods.PUBMED_FETCH_DATA_MORE,
+    payload: ""
+})
+
 export const reciterLogin = login => dispatch => {
 
 }
@@ -284,6 +290,14 @@ export const UpdatePubMadeData = (pubmedData) => dispatch => {
     })
 }
 
+export const cancelPubmedFetching = () => dispatch => {
+    dispatch({
+        type: methods.PUBMED_CANCEL_FETCHING
+    })
+}
+
+
+
 export const UpdateReciterData = (newReciterData) => dispatch => {
     dispatch({
         type: methods.RECITER_CHANGE_DATA,
@@ -321,6 +335,10 @@ export const clearPubMedData = () => dispatch => {
         type: methods.PUBMED_CLEAR_DATA,
         payload: []
     })
+
+    dispatch({
+        type: methods.PUBMED_CANCEL_FETCHING
+    })
 }
 
 export const clearReportDataData = () => dispatch => {
@@ -335,9 +353,9 @@ export const pubmedFetchData = query => dispatch => {
     dispatch({
         type: methods.PUBMED_FETCH_DATA
     })
-    // dispatch(
-    //     addPubMedFetchMoreData("")
-    // )
+    dispatch(
+        addPubMedFetchMoreData("")
+    )
     fetchWithTimeout('/api/reciter/search/pubmed', {
         credentials: "same-origin",
         method: 'POST',
@@ -1844,6 +1862,7 @@ export const updatePubFiltersFromSearch = () => {
 
 // Search Results for Create Reports Page
 export const getReportsResults = (requestBody, paginationUpdate = false) => dispatch => {
+    console.log("requestBody", requestBody)
     // check if fetching different page of the same results and update loading state accordingly
     if (paginationUpdate) {
         dispatch({
@@ -1878,8 +1897,9 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             }
         })
         .then(data => {
-
-            if (data.count === 0) {
+            console.log("dataCount", data)
+            if (data.count == 0) {
+            console.log("dataCount Inside", data)
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
                     payload: data,
@@ -1887,6 +1907,9 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
 
                 dispatch({
                     type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+                })
+                dispatch({
+                    type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
                 })
             } else {
                 let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
@@ -1953,7 +1976,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
         type: methods.REPORTS_SEARCH_FETCHING
     })
 
-    // set the search filters to get results from the last 60 days and sorted by date
+    // set the search filters to get results from the last 30 days and sorted by date
     let startDate = new Date();
     let endDate = new Date();
     startDate.setDate(endDate.getDate() - 30);

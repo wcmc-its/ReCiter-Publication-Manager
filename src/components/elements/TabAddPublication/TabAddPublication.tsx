@@ -3,7 +3,7 @@ import React, { useState, FunctionComponent, useRef, useEffect } from "react";
 import styles from './TabAddPublication.module.css';
 import appStyles from '../App/App.module.css';
 import AddPublication from '../AddPublication/AddPublication';
-import { reciterUpdatePublication, pubmedFetchData, UpdatePubMadeData, reCalcPubMedPubCount, addPubMedFetchMoreData } from '../../../redux/actions/actions'
+import { reciterUpdatePublication, pubmedFetchData, UpdatePubMadeData, reCalcPubMedPubCount,clearPubMedData, addPubMedFetchMoreData, clearPubMedFetchMoreData } from '../../../redux/actions/actions'
 import { RootStateOrAny, useSelector, useDispatch } from "react-redux";
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
@@ -12,14 +12,18 @@ import { useSession } from "next-auth/client";
 // import { VrpanoSharp, ClearIcon } from "@mui/icons-material";
 import ClearIcon from '@mui/icons-material/Clear';
 import {Form,Button} from "react-bootstrap"
+import { toast } from "react-toastify"
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import { publicationsPreviousDataFetching } from "../../../redux/reducers/reducers";
+import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 
 
 interface FuncProps {
     tabType: string,
     personIdentifier: string,
-    updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void
+    updatePublicationAssertion: (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => void,
+    pubSearchFilters? : any,
+    handleUpdateSearchFilters : any
 }
 
 const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
@@ -49,7 +53,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     const [count, setCount] = useState<number>(100)
     const [acceptedCountState, setAcceptCount] = useState<number>(0)
     const [rejectedCountState, setRejectedCount] = useState<number>(0)
-
+    const [showFiltersCount, setShowFiltersCount] = useState<boolean>(false)
     const [allPubs, setAllPubs] = useState<number>()
 
     const [publications, setpublications] = useState<any>({})
@@ -161,10 +165,24 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
 
     useEffect(() => {
+        if(props.pubSearchFilters){
+            const {pubMendSearchText, pubMedLatestYear, pubMedEarliestYear,pubMedshowFiltersCount} = props.pubSearchFilters
+            setPubmedSearch(pubMendSearchText);
+            setLatestYear(pubMedLatestYear);
+            setEarliestYear(pubMedEarliestYear);
+            setShowFiltersCount(pubMedshowFiltersCount);
+        }
         filter()
     }, [])
 
      useEffect(() => {
+        if(props.pubSearchFilters){
+            const {pubMendSearchText, pubMedLatestYear, pubMedEarliestYear,pubMedshowFiltersCount} = props.pubSearchFilters
+            setPubmedSearch(pubMendSearchText);
+            setLatestYear(pubMedLatestYear);
+            setEarliestYear(pubMedEarliestYear);
+            setShowFiltersCount(pubMedshowFiltersCount);
+        }
         filter()
     }, [pubmedData])
     
@@ -193,8 +211,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             pubmedIds.push(publication)
            reciterPublications.push(publication)
         })
-        let acceptPubs = "";
-        let rejectPubs = ""
+        let acceptPubs = 0;
+        let rejectPubs = 0;
         let acceptRejectCount = pubmedData.filter(key  => "acceptedPubMedCount" in key || "rejectedPubMedCount" in key)
         acceptRejectCount.length && acceptRejectCount.map(key => {
           if(key.acceptedPubMedCount) {setAcceptCount(key.acceptedPubMedCount); acceptPubs = key.acceptedPubMedCount}
@@ -202,15 +220,16 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         })
         //setAcceptCount(searchAcceptedCountTemp);
         //setRejectedCount(searchRejectedCountTemp);
-        acceptRejecteMsg = <span><strong>{acceptPubs}</strong>{" already accepted "}<strong>{rejectPubs}</strong>{' already rejected'}</span>;
+        acceptRejecteMsg = <span><strong>{acceptPubs }</strong>{" already accepted "}<strong>{rejectPubs}</strong>{' already rejected'}</span>;
         // acceptRejecteMsg = <b>{"text"}</b>
 
-        setAcceptRejecteMsg(!acceptPubs && !rejectPubs ? null : acceptRejecteMsg)
+        setAcceptRejecteMsg(acceptRejecteMsg)
         
 
         // Filter
         var filteredPublications: Array<any> = [];
-        if (pubmedData !== undefined && pubmedData.length > 0) {
+        if (pubmedData && pubmedData.length > 0) {
+            setShowFiltersCount(true)
             pubmedData.forEach((publication: any) => {
                // if (!pubmedIds.includes(publication.pmid)) {
                 if (publication && publication.pmid) {
@@ -337,11 +356,16 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     }
 
     const searchFunction =  (e) => {
+
+        console.log("latestYear", latestYear)
+        console.log("earliestYear", earliestYear)
         e.preventDefault();
+        if(latestYear >= earliestYear){
         setAllPubs(0 + ' publication displayed');
         setAcceptCount(0);
         setRejectedCount(0);
         setAcceptRejecteMsg("")
+        
         let query='';
          query = {
             "strategy-query": pubmedSearch,
@@ -367,8 +391,20 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             query['end'] =  latestYear + '/12/31';
             
         }
-        dispatch(pubmedFetchData(query))
-        filter()
+        let pubFilters = {"pubMendSearchText": pubmedSearch, "pubMedLatestYear": latestYear, "pubMedEarliestYear": earliestYear,"pubMedshowFiltersCount":true}
+        if(pubmedSearch || earliestYear || latestYear)
+        {
+            dispatch(pubmedFetchData(query))
+            props.handleUpdateSearchFilters(pubFilters)
+            filter()
+        }
+    }else{
+        toast.error("Earliest year should not be greater than latest year", {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+          });
+    }
     }
 
     
@@ -378,7 +414,11 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         setPubmedSearch(' ');
         setLatestYear('');
         setEarliestYear('');
+        let pubFilters = {"pubMendSearchText": "", "pubMedLatestYear": "", "pubMedEarliestYear": "","pubMedshowFiltersCount":false}
+        props.handleUpdateSearchFilters(pubFilters)
+        dispatch(clearPubMedData());
         dispatch(reCalcPubMedPubCount(0))
+        dispatch(clearPubMedFetchMoreData())
     }
 
     return (
@@ -463,8 +503,11 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                 </div>
                 <div className={`row ${styles.filterSecbgColor}`}>
                                         <div className="col-md-4">
-                                            <p className={styles.totalresult}><b>{allPubs}</b></p>
-                                            <p className={styles.totalresult}>{acceptRejecteMsg}</p>
+                                            {
+                                                showFiltersCount?<>
+                                                <p className={styles.totalresult}><b>{allPubs}</b></p>
+                                                <p className={styles.totalresult}>{acceptRejecteMsg}</p></>:""
+                                            }
                                         </div>
                                         <div className="col-md-8" style={{ float: "right" }}>
                                             <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
@@ -524,6 +567,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                     :
                     <div style={{display:"flex"}} className={`${styles.noDataFoundTxet}`}><ClearIcon style={{color:"#ffffff", backgroundColor:"red", borderRadius:"50%", fontSize:"15px", margin:"5px"}} color="danger"/><p>{pubmedFetchingMore.message}</p></div>
             }
+            <ToastContainerWrapper/>
         </div>
     );
 }

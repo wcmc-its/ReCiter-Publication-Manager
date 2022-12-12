@@ -19,6 +19,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   const [session, loading] = useSession();
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
   const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
+  const [pubSearchFilters, setPubSearchFilters] = useState();
 
 
   const addnewtabName = <p id="addnewtabName" className="noSpace" >Add New record:</p>
@@ -82,6 +83,9 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     setFilteredData(updatedFilteredData);
     // setKey(userAssertion)
   }
+  const handleUpdateSearchFilters = (pubFilters : any)=>{
+    setPubSearchFilters(pubFilters);
+  }
 
   const onTabChange = (k)=>{
     setKey(k)
@@ -93,7 +97,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
       document.getElementById('pubMedTabName').innerHTML = 'PubMed'
     }
     dispatch(showEvidenceByDefault(false));
-    dispatch(clearPubMedData());
+    // dispatch(clearPubMedData());
   }
 
   return (
@@ -124,6 +128,8 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                     updatePublicationAssertion={updatePublicationAssertion}
                     tabType={tabData.value}
                     personIdentifier={reciterData.reciter?.personIdentifier}
+                    pubSearchFilters={pubSearchFilters}
+                    handleUpdateSearchFilters = {handleUpdateSearchFilters}
                      />
                     :
                     <ReciterTabContent

@@ -11,7 +11,7 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [startDate, setStartDate] = useState();
   const [endDate, setEndDate] = useState();
-  const [miniDate, setMindate] = useState();
+  const [minDate, setMinDate] = useState();
 
 
   
@@ -19,7 +19,6 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
 
   useEffect(()=>{
   // const rangeDates = range[0];
-  console.log("isFilterClearCalling", )
   const {personIdentifers,institutions, orgUnits,personTypes, datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound } = selectedFilters
   if(personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0){
   let tempStartDate = new Date();
@@ -27,7 +26,8 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
   let tempEndDate = new Date();
   tempStartDate.setDate(tempEndDate.getDate() - 30);
   tempMinDate.setDate(tempEndDate.getDate() - 3000)
-  setMindate(moment(tempMinDate))
+
+  setMinDate(moment(tempMinDate))
   setStartDate(moment(tempStartDate))
   setEndDate(moment(tempEndDate))
   handleChange(filterLowerName, filterUpperName, moment(tempStartDate).format('YYYY-MM-DD'), moment(tempEndDate).format('YYYY-MM-DD'));
@@ -39,23 +39,10 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
   },[])
 
   useEffect(()=>{
-    // const rangeDates = range[0];
-    const {personIdentifers,institutions, orgUnits,personTypes, datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound } = selectedFilters
-  if(personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0){
-  let tempStartDate = new Date();
-  let tempMinDate = new Date();
-  let tempEndDate = new Date();
-  tempStartDate.setDate(tempEndDate.getDate() - 30);
-  tempMinDate.setDate(tempEndDate.getDate() - 3000)
-  setMindate(moment(tempMinDate))
-  setStartDate(moment(tempStartDate))
-  setEndDate(moment(tempEndDate))
-  handleChange(filterLowerName, filterUpperName, moment(tempStartDate).format('YYYY-MM-DD'), moment(tempEndDate).format('YYYY-MM-DD'));
-  }else {
-    setStartDate()
-    setEndDate()
-    handleChange(filterLowerName, filterUpperName, null, null);
-  }
+    if(isFilterClear){
+      setStartDate()
+      setEndDate()
+    }
     },[isFilterClear])
 
     if (!range || range.length == 0) {
@@ -91,7 +78,7 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
         
         <DateRangePicker
           startDate={startDate ? startDate : null}
-          minDate={miniDate? miniDate : null} // momentPropTypes.momentObj or null,
+          minDate={minDate? minDate : null} // momentPropTypes.momentObj or null,
           startDateId="date_picker_start_date_id" // PropTypes.string.isRequired,
           maxDate={endDate ? endDate : null}
           endDate={endDate ? endDate : null}  // momentPropTypes.momentObj or null,
