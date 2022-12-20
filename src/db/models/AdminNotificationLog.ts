@@ -78,7 +78,7 @@ export class AdminNotificationLog extends Model<AdminNotificationLogAttributes, 
     }
   }, {
     sequelize,
-    tableName: 'adminNotificationLog',
+    tableName: 'admin_notification_log',
     timestamps: false,
     indexes: [
       {

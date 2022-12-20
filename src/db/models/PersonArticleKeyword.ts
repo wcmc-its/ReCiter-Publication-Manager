@@ -43,7 +43,7 @@ export class PersonArticleKeyword extends Model<PersonArticleKeywordAttributes, 
     }
   }, {
     sequelize,
-    tableName: 'personArticleKeyword',
+    tableName: 'person_article_keyword',
     timestamps: false,
     indexes: [
       {

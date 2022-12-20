@@ -70,7 +70,7 @@ export class AdminUsersDepartment extends Model<AdminUsersDepartmentAttributes, 
     }
   }, {
     sequelize,
-    tableName: 'adminUsersDepartments',
+    tableName: 'admin_users_departments',
     timestamps: false,
     indexes: [
       {

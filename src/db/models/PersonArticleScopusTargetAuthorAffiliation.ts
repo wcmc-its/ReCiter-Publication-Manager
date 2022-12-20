@@ -77,7 +77,7 @@ export class PersonArticleScopusTargetAuthorAffiliation extends Model<PersonArti
     }
   }, {
     sequelize,
-    tableName: 'personArticleScopusTargetAuthorAffiliation',
+    tableName: 'person_article_scopus_target_author_affiliation',
     timestamps: false,
     indexes: [
       {

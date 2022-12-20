@@ -53,9 +53,12 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
             }
         }
 
-        let persons: Person[] = []
-        if(apiBody.limit != undefined && apiBody.offset != undefined) {
-            persons =  await models.Person.findAll({
+        let persons = [];
+        var users= {};
+
+
+        if(apiBody.filters?.personTypes) {
+            let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
                 'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode'],
                 include: [
@@ -80,31 +83,25 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 limit: apiBody.limit,
                 subQuery: false
             });
-            // console.log("persons Ttesting", JSON.stringify(persons))
+            users['persons'] = rows;
+            users['totalPersonsCount'] = count;
+            
         } else {
-            persons = await models.Person.findAll({
+            let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
                 'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode'],
-                include: [
-                    {
-                        model: models.PersonPersonType, 
-                        as: 'PersonPersonTypes',
-                        required: false,
-                        on: {
-                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
-                        },
-                        where: joinWhere,
-                        attributes: [
-                        ]
-                        
-                    },
-                ],
                 where: where,
+                group: ["personIdentifier"],
                 order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                offset: apiBody.offset,
+                limit: apiBody.limit,
                 subQuery: false
             });
+            users['persons'] = rows;
+            users['totalPersonsCount'] = count;
+
         }
-        res.send(persons);
+        res.send(users);
     } catch (e) {
         console.log(e)
         res.status(500).send(e);

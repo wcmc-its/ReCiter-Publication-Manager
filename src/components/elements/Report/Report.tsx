@@ -76,10 +76,13 @@ const Report = () => {
       if(personIdentifers.length > 0) updateAuthorFilterData(personIdentifers, 10, "fromSearchPage")
       
       dispatch(getReportsResults(pubSearchFilter, true));
+      dispatch(fetchReportsResultsIds(pubSearchFilter));
     } else {
        dispatch(reportsFilters(authorInput , journalInput));
        dispatch(updateAuthorFilter());
        dispatch(getReportsResultsInitial());
+      dispatch(fetchReportsResultsIds(pubSearchFilter));
+
       }
     // searchResults();
   }, [])

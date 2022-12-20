@@ -57,7 +57,7 @@ export class AdminRole extends Model<AdminRoleAttributes, AdminRoleCreationAttri
     }
   }, {
     sequelize,
-    tableName: 'adminRoles',
+    tableName: 'admin_roles',
     timestamps: false,
     indexes: [
       {

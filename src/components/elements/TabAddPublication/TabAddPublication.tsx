@@ -213,7 +213,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         })
         let acceptPubs = 0;
         let rejectPubs = 0;
-        let acceptRejectCount = pubmedData.filter(key  => "acceptedPubMedCount" in key || "rejectedPubMedCount" in key)
+        let acceptRejectCount = pubmedData && pubmedData.length > 0 && pubmedData?.filter(key  => "acceptedPubMedCount" in key || "rejectedPubMedCount" in key)
         acceptRejectCount.length && acceptRejectCount.map(key => {
           if(key.acceptedPubMedCount) {setAcceptCount(key.acceptedPubMedCount); acceptPubs = key.acceptedPubMedCount}
           else  { setRejectedCount(key.rejectedPubMedCount); rejectPubs = key.rejectedPubMedCount}
@@ -357,8 +357,6 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const searchFunction =  (e) => {
 
-        console.log("latestYear", latestYear)
-        console.log("earliestYear", earliestYear)
         e.preventDefault();
         if(latestYear >= earliestYear){
         setAllPubs(0 + ' publication displayed');

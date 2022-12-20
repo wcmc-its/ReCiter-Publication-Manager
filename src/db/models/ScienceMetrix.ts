@@ -78,7 +78,8 @@ export class ScienceMetrix extends Model<ScienceMetrixAttributes, ScienceMetrixC
     }
   }, {
     sequelize,
-    tableName: 'scienceMetrix',
+    tableName: 'science_metrix',
+    freezeTableName: true,
     timestamps: false,
     indexes: [
       {
