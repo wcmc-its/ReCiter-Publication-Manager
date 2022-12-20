@@ -80,7 +80,7 @@ export class AdminNotificationPreference extends Model<AdminNotificationPreferen
     }
   }, {
     sequelize,
-    tableName: 'adminNotificationPreferences',
+    tableName: 'admin_notification_preferences',
     timestamps: false,
     indexes: [
       {

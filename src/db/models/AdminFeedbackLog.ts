@@ -72,7 +72,7 @@ export class AdminFeedbackLog extends Model<AdminFeedbackLogAttributes, AdminFee
     }
   }, {
     sequelize,
-    tableName: 'adminFeedbackLog',
+    tableName: 'admin_feedback_log',
     timestamps: false,
     indexes: [
       {

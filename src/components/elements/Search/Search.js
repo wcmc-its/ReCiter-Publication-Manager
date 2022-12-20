@@ -184,7 +184,7 @@ const Search = () => {
   }
 
   const fetchPaginatedData = (newCount) => {
-    dispatch(identityFetchPaginatedData(page, newCount ? newCount : count))
+    dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
   }
 
 
@@ -192,7 +192,7 @@ const Search = () => {
     setPage(page)
 
     if (Object.keys(filters).length === 0) {
-      dispatch(identityFetchPaginatedData(page, count))
+      dispatch(identityFetchPaginatedData(page, count, filters))
     }
   }
 
@@ -206,27 +206,25 @@ const Search = () => {
 
   const filter = () => {
 
-    if (Object.keys(filters).length === 0) {
       return {
-        paginatedIdentities: identityPaginatedData
+        paginatedIdentities: identityPaginatedData?.persons
       }
-    } else {
-      var from = (parseInt(page, 10) - 1) * parseInt(count, 10);
-      var to = from + parseInt(count, 10) - 1;
-      var identities = [];
-      var i = from;
-      for (i; i <= to; i++) {
-        if (identityAllData !== undefined && identityAllData.length > 0) {
-          if (identityAllData[i] !== undefined) {
-            identities.push(identityAllData[i]);
-          }
-        }
-      }
-      return {
-        paginatedIdentities: identities
-
-      }
-    }
+    //  else {
+    //   var from = (parseInt(page, 10) - 1) * parseInt(count, 10);
+    //   var to = from + parseInt(count, 10) - 1;
+    //   var identities = [];
+    //   var i = from;
+    //   for (i; i <= to; i++) {
+    //     if (identityPaginatedData?.persons !== undefined && identityPaginatedData?.persons?.length > 0) {
+    //       if (identityPaginatedData?.persons[i] !== undefined) {
+    //         identities.push(identityPaginatedData?.persons[i]);
+    //       }
+    //     }
+    //   }
+    //   return {
+    //     paginatedIdentities: identities
+    //   }
+    // }
   }
 
   const fetchCount = () => {
@@ -308,7 +306,9 @@ const Search = () => {
     }
 
     let request = {
-      filters: { ...updatedFilters }
+      filters: { ...updatedFilters },
+      limit:count,
+      offset: page - 1 
     }
 
     dispatch(updateFilters(updatedFilters));
@@ -321,7 +321,9 @@ const Search = () => {
     setFilterByPending(filterPending);
     let updatedFilters = { ...filters, showOnlyPending: filterPending };
     let request = {
-      filters: { ...updatedFilters }
+      filters: { ...updatedFilters },
+      limit:count,
+      offset: page - 1 
     }
     dispatch(identityFetchAllData(request));
     dispatch(updateFilters(updatedFilters));
@@ -362,7 +364,7 @@ const Search = () => {
   // Spinner for when Search gets updated
   const isDisplayLoader = () => {
     if ((!filtersOn && (identityPaginatedFetching || isCountLoading) && page === 1) ||
-      (!filtersOn && identityPaginatedData.length <= 0) ||
+      (!filtersOn && identityPaginatedData?.persons?.length <= 0) ||
       (filtersOn && identityAllFetching)) {
       return true;
     } else {
@@ -448,7 +450,7 @@ const Search = () => {
   let filtersOn = Object.keys(filters).length === 0 ? false : true;
   let tableBody;
   let paginatedIdentities = identities.paginatedIdentities;
-  if (paginatedIdentities.length > 0) {
+  if (paginatedIdentities?.length > 0) {
     // setCurateIds(paginatedIdentities);
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
       return <tr key={identityIndex}>
@@ -487,8 +489,9 @@ const Search = () => {
         </td>
       </tr>
     )
-
   }
+
+  const totalCountUpdated = identityPaginatedData?.totalPersonsCount?.length ?? 0 
   return (
     <div className={appStyles.mainContainer}>
       <div className={styles.searchContentContainer}>
@@ -504,12 +507,12 @@ const Search = () => {
                 {!filtersOn &&
                   <div className="row">
                     <div className="col-md-4">
-                      {totalCount !== undefined && <h3><strong>{totalCount.toLocaleString("en-US")}</strong> people</h3>}
+                      <h3><strong>{totalCountUpdated}</strong> people</h3>
                     </div>
                   </div>}
-                {filtersOn && <FilterReview count={identityAllData.length}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} />}
+                {filtersOn && <FilterReview count={totalCountUpdated}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} />}
                 <React.Fragment>
-                  <Pagination total={filtersOn ? identityAllData.length : totalCount} page={page}
+                  <Pagination total={totalCountUpdated} page={page}
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
@@ -532,7 +535,7 @@ const Search = () => {
                       </Table>
                     </div>
                   }
-                  <Pagination total={filtersOn ? identityAllData.length : totalCount} page={page}
+                  <Pagination total={totalCountUpdated} page={page}
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
@@ -556,8 +559,13 @@ function Name(props) {
     else
       imageUrl = '../../../images/generic-headshot.png'
   }
-  if (props.identity.firstName !== undefined) {
-    const nameString = props.identity.firstName + ((props.identity.middleName) ? ' ' + props.identity.middleName + ' ' : ' ') + props.identity.lastName
+  let firstName = props.identity.firstName ?? ''
+  let middleName = props.identity.middleName ?? ''
+  let lastName = props.identity.lastName ?? ''
+  
+
+  if (props.identity.firstName !== undefined ) {
+    const nameString = firstName  + middleName + lastName
     nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onClickProfile}>
       <b>{nameString}</b>
     </button>

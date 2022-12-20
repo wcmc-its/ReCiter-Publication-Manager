@@ -233,7 +233,6 @@ export const curateSearchtext = (state=[], action) => {
 }
 
 export const identityPaginatedData = (state=[], action) => {
-
   switch(action.type) {
     case methods.IDENTITY_CLEAR_PAGINATED_DATA :
       return []

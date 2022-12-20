@@ -127,7 +127,7 @@ export const identityFetchAllData = (request) => dispatch => {
         })
         .then(data => {
             dispatch({
-                type: methods.IDENTITY_CHANGE_ALL_DATA,
+                type: methods.IDENTITY_CHANGE_PAGINATED_DATA,
                 payload: data
             })
 

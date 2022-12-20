@@ -140,7 +140,7 @@ export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttri
     }
   }, {
     sequelize,
-    tableName: 'adminUsers',
+    tableName: 'admin_users',
     timestamps: false,
     indexes: [
       {

@@ -482,7 +482,7 @@ export class PersonArticle extends Model<PersonArticleAttributes, PersonArticleC
     }
   }, {
     sequelize,
-    tableName: 'personArticle',
+    tableName: 'person_article',
     timestamps: false,
     indexes: [
       {
