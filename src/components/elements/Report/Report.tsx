@@ -76,12 +76,10 @@ const Report = () => {
       if(personIdentifers.length > 0) updateAuthorFilterData(personIdentifers, 10, "fromSearchPage")
       
       dispatch(getReportsResults(pubSearchFilter, true));
-      dispatch(fetchReportsResultsIds(pubSearchFilter));
     } else {
        dispatch(reportsFilters(authorInput , journalInput));
        dispatch(updateAuthorFilter());
        dispatch(getReportsResultsInitial());
-      dispatch(fetchReportsResultsIds(pubSearchFilter));
 
       }
     // searchResults();
@@ -108,7 +106,6 @@ const Report = () => {
         // fetch data with default settings by passing limit and offset
         dispatch(getReportsResultsInitial(count, offset));
         // fetch all personidentifiers and pmids
-        dispatch(fetchReportsResultsIds(pubSearchFilter));
       }
     }
 
@@ -214,7 +211,6 @@ const Report = () => {
   const searchResults = () => {
     dispatch(getReportsResults(pubSearchFilter));
     handlePaginationUpdate(1);
-    dispatch(fetchReportsResultsIds(pubSearchFilter));
     if (isInitialLoad) {
       setIsInitialLoad(false);
     }
@@ -305,6 +301,7 @@ const Report = () => {
           <SearchSummary
             count={reportsSearchResults.count}
             onClick={updateSort}
+            onGetReportsDatabyPubFilters = { ()=> dispatch(fetchReportsResultsIds(pubSearchFilter))}
             selected={getSelectedValues(pubSearchFilter)}
             />
             }
