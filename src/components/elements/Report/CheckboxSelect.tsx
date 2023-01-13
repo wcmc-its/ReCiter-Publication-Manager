@@ -15,11 +15,16 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newInput = e.target.value;
-    setUserInput(newInput);
+     setUserInput(newInput);
+     if(newInput.length >= 3) dataPreparation()
   }
 
   // fetch data on input change
   useEffect(() => {
+    dataPreparation()
+  }, [  selectedOptions,authorFilterDataFromSearch])
+
+  const dataPreparation = ()=>{
     if (isDynamicFetch) {
       filterUpdateOptions[value](userInput);
     }
@@ -43,7 +48,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
       setSelectedList(uniqueIds);
       // setFilteredList(uniqueIds);
     }
-  }, [userInput, selectedOptions,authorFilterDataFromSearch])
+  }
 
   const filteredOptions = (options, isDynamicFetch) => {
     if (userInput != '' && !isDynamicFetch) {
@@ -107,7 +112,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
       <InputGroup className="mb-3">         
        <FormControl
             className="border-right-0 border-top-right-radius-0 border-bottom-right-radius-0"
-            placeholder="Search"
+            placeholder="Type 3 letters to search"
             aria-label={title}
             aria-describedby={title}
             value={userInput}

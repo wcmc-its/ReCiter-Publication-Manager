@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
+import sequelize from "../../../src/db/db";
 import {
   AnalysisSummaryArticle,
   PersonArticleAuthor,
@@ -14,16 +15,12 @@ import {
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
 models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
   constraints: false,
-  foreignKey: 'AnalysisSummaryArticleId'
+  foreignKey: 'AnalysisSummaryArticleId'  
 });
 models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
   foreignKey: 'AnalysisSummaryArticleId'
 });
-// models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryAuthor, {
-//   constraints: false,
-//   foreignKey: 'id'
-// });
 
 export const publicationSearchWithFilter = async (
   req: NextApiRequest,
@@ -31,9 +28,29 @@ export const publicationSearchWithFilter = async (
 ) => {
   try {
     let apiBody: PublicationSearchFilter = req.body;
+    
     const where = {};
+    const whereForOnlyAuthors = {};
+    const whereForOnlyArticles = {};
+
+    let joinWherePersonTypes = {};
+    let joinWhereAuthorsFilters ={};
+    let joinWherePersonIdentifiers = {};
+    
+    var isAuthorFilter = false;
+    var isArticleFilter = false;
+    var isPersonTypeFilter = false;
+    var isOrgORInstitues = false;
+    var isPersonIdentifiers = false;
+
+  
     if (apiBody.filters) {
       where[Op.and] = [];
+      whereForOnlyAuthors [Op.and] = [];
+      whereForOnlyArticles [Op.and] = [];
+      joinWhereAuthorsFilters [Op.and] = [];
+      joinWherePersonTypes [Op.and] = [];
+
       if (
         apiBody.filters.journalTitleVerbose &&
         apiBody.filters.journalTitleVerbose.length > 0
@@ -43,16 +60,39 @@ export const publicationSearchWithFilter = async (
             [Op.in]: apiBody.filters.journalTitleVerbose,
           },
         });
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.journalTitleVerbose$": {
+            [Op.in]: apiBody.filters.journalTitleVerbose,
+          },
+        });
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.personIdentifers &&
         apiBody.filters.personIdentifers.length > 0
       ) {
+        isOrgORInstitues = true;
         where[Op.and].push({
           "$AnalysisSummaryAuthor.personIdentifier$": {
             [Op.in]: apiBody.filters.personIdentifers,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$AnalysisSummaryAuthor.personIdentifier$": {
+            [Op.in]: apiBody.filters.personIdentifers,
+          },
+        });
+        joinWherePersonIdentifiers = {
+          personIdentifier: {
+              [Op.in]: apiBody.filters.personIdentifers
+          }
+        }
+        joinWhereAuthorsFilters[Op.and].push({
+          "$AnalysisSummaryAuthor.personIdentifier$": {
+            [Op.in]: apiBody.filters.personIdentifers,
+          },
+        });
+        isAuthorFilter = true;
       }
       if (
         apiBody.filters.authorPosition &&
@@ -63,6 +103,25 @@ export const publicationSearchWithFilter = async (
             [Op.in]: apiBody.filters.authorPosition,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$AnalysisSummaryAuthor.authorPosition$": {
+            [Op.in]: apiBody.filters.authorPosition,
+          },
+        });
+
+        joinWhereAuthorsFilters[Op.and].push({
+          "$AnalysisSummaryAuthor.authorPosition$": {
+            [Op.in]: apiBody.filters.authorPosition,
+          },
+        });
+
+        joinWherePersonIdentifiers = {
+          autauthorPositionhor: {
+              [Op.in]: apiBody.filters.personIdentifers
+          }
+        }
+
+        isAuthorFilter = true;
       }
       if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
         where[Op.and].push({
@@ -70,16 +129,45 @@ export const publicationSearchWithFilter = async (
             [Op.in]: apiBody.filters.orgUnits,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$Person.primaryOrganizationalUnit$": {
+            [Op.in]: apiBody.filters.orgUnits,
+          },
+        });
+
+        joinWhereAuthorsFilters[Op.and].push({
+          "$Person.primaryOrganizationalUnit$": {
+            [Op.in]: apiBody.filters.orgUnits,
+          },
+        });
+        isAuthorFilter = true;
+        isOrgORInstitues = true;
+
       }
       if (
         apiBody.filters.institutions &&
         apiBody.filters.institutions.length > 0
       ) {
+
+        isOrgORInstitues = true;
         where[Op.and].push({
           "$Person.primaryInstitution$": {
             [Op.in]: apiBody.filters.institutions,
           },
         });
+
+        whereForOnlyAuthors[Op.and].push({
+          "$Person.primaryInstitution$": {
+            [Op.in]: apiBody.filters.institutions,
+          },
+        });
+
+        joinWhereAuthorsFilters[Op.and].push({
+          "$Person.primaryInstitution$": {
+            [Op.in]: apiBody.filters.institutions,
+          },
+        });
+        isAuthorFilter = true;
       }
       if (apiBody.filters.datePublicationAddedToEntrezLowerBound)
        {
@@ -88,6 +176,13 @@ export const publicationSearchWithFilter = async (
             [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
           },
         });
+
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+            [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
+          },
+        });
+        isArticleFilter = true;
       }
       if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
        { 
@@ -96,6 +191,14 @@ export const publicationSearchWithFilter = async (
             [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
           },
         });
+
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+            [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
+          },
+        });
+
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.publicationTypeCanonical &&
@@ -106,6 +209,12 @@ export const publicationSearchWithFilter = async (
             [Op.in]: apiBody.filters.publicationTypeCanonical,
           },
         });
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.publicationTypeCanonical$": {
+            [Op.in]: apiBody.filters.publicationTypeCanonical,
+          },
+        });
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.journalImpactScoreLowerBound &&
@@ -116,11 +225,12 @@ export const publicationSearchWithFilter = async (
             [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
-        where[Op.and].push({
+        whereForOnlyArticles[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
             [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
           },
         });
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.personTypes &&
@@ -131,8 +241,23 @@ export const publicationSearchWithFilter = async (
             [Op.in]: apiBody.filters.personTypes,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$PersonPersonTypes.personType$": {
+            [Op.in]: apiBody.filters.personTypes,
+          },
+        });
+
+        joinWherePersonTypes[Op.and].push({
+          "$PersonPersonType.personType$": {
+            [Op.in]: apiBody.filters.personTypes,
+          },
+        });
+
+        isAuthorFilter = true;
+        isPersonTypeFilter =true;
       }
     }
+	
     const sort = [];
     if (apiBody && apiBody.sort) {
       let sortType = apiBody.sort.type;
@@ -162,67 +287,302 @@ export const publicationSearchWithFilter = async (
     {
       sort.push(["datePublicationAddedToEntrez","DESC"]);
     }
+	
     let searchOutput: { count?: number; rows?: AnalysisSummaryArticle[] } = {};
-    if (apiBody.filters) {
-      let results = await models.AnalysisSummaryArticle.findAndCountAll({
-        include: [
-          {
-            model: models.AnalysisSummaryAuthor,
-            as: "AnalysisSummaryAuthor",
-            required: true,
-            on: {
-              col: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor.pmid"),
-                "=",
-                Sequelize.col("AnalysisSummaryArticle.pmid")
-              ),
-            },
-            attributes: [],
-          },
-          {
-            model: models.Person,
-            as: "Person",
-            required: true,
-            on: {
-              col: Sequelize.where(
-                Sequelize.col("Person.personIdentifier"),
-                "=",
-                Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
-              ),
-            },
-            attributes: [],
-          },
-          {
-            model: models.PersonPersonType,
-            as: "PersonPersonTypes",
-            required: true,
-            on: {
-              col1: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
-                "=",
-                Sequelize.col("PersonPersonTypes.personIdentifier"),
-              ),
-              col2: Sequelize.where(
-                Sequelize.col("Person.personIdentifier"),
-                "=",
-                Sequelize.col("PersonPersonTypes.personIdentifier"),
-              ),
-            },
-            attributes: [],
-          },
-        ],
-        where: where,
-        subQuery: false,
-        limit: apiBody.limit,
-        offset: apiBody.offset,
-        order: sort,
-        group: ["AnalysisSummaryAuthor.pmid"],
-        distinct: true,
-        attributes: { exclude: ['AnalysisSummaryAuthorId']}
-      });
-      searchOutput = { 
-        ...results,
-        count: results.count.length
+    let results:any  =[];
+    let authorsResults:any = [];
+
+    if (isAuthorFilter || isArticleFilter) {
+      if(isAuthorFilter && !isArticleFilter)
+      { // Filter Only with Authors and not Articles
+            models.AnalysisSummaryAuthor.hasOne(models.Person, { constraints: false, foreignKey: 'personIdentifier' });
+           // models.Person.belongsTo(models.AnalysisSummaryAuthor);
+            models.AnalysisSummaryAuthor.hasMany(models.PersonPersonType, {constraints: false, foreignKey: 'personIdentifier' }); 
+           // models.PersonPersonType.belongsTo(models.AnalysisSummaryAuthor);
+           models.Person.hasMany(models.PersonPersonType, {constraints: false, foreignKey: 'personIdentifier' });
+            if(isPersonTypeFilter){ // When author filters present and including PersonType
+              if( !isOrgORInstitues){
+                authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ 
+                  attributes: ["personIdentifier", "pmid"],
+                  include: [
+                    {
+                      model: models.PersonPersonType,
+                      as: "PersonPersonTypes",
+                      required: true,
+                      // separate : true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        // col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        },
+                      // where : joinWherePersonTypes,
+                      attributes: {exclude:[`AnalysisSummaryArticleId`,`PersonId`,`AnalysisSummaryAuthorId`]},
+                    },
+                  ],
+                  where: whereForOnlyAuthors,
+                  subQuery: false,
+                  limit: apiBody.limit,
+                  offset: apiBody.offset,
+                  benchmark: true
+                });
+
+              } else{
+
+                authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ 
+                  attributes: ["personIdentifier", "pmid"],
+                  include: [
+                    {
+                      model: models.Person,
+                      as: "Person",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
+                        },
+                      // where : joinWhereAuthorsFilters,
+                      attributes: [],
+                    },
+                    {
+                      model: models.PersonPersonType,
+                      as: "PersonPersonTypes",
+                      required: true,
+                      separate : true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        // col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        },
+                      where : joinWherePersonTypes,
+                      attributes: [`PersonPersonType.personIdentifier`],
+                    },
+                  ],
+                  where: joinWhereAuthorsFilters,
+                  subQuery: false,
+                  limit: apiBody.limit,
+                  offset: apiBody.offset,
+                  benchmark: true
+                });
+              }
+              
+            }
+            else  { // When author filters present and no PersonType
+        
+                authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ // review commnet:Change this to findAll
+                  attributes: ["personIdentifier", "pmid"],
+                  include: [
+                    {
+                      model: models.Person,
+                      as: "Person",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
+                        },
+                      // where : joinWhereAuthorsFilters,
+                      attributes: [],
+                    }
+                  ],
+                  where: joinWhereAuthorsFilters,
+                  subQuery: false,
+                  limit: apiBody.limit,
+                  offset: apiBody.offset,
+                  benchmark: true
+                });
+              }
+      }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
+        results = await models.AnalysisSummaryArticle.findAndCountAll({
+          where: whereForOnlyArticles,
+          subQuery: false,
+          limit: apiBody.limit,
+          offset: apiBody.offset,
+          order: sort,
+         // group: ["AnalysisSummaryArticle.pmid"], // This grouping is not required as we need only count of records statisfies criteria
+          distinct: true,
+          attributes: {exclude: ['AnalysisSummaryArticleId']},
+          benchmark: true
+        });
+      }else if(isAuthorFilter && isArticleFilter){ // Filter with Authors and Articles
+        if(isPersonTypeFilter){ // When author filters present and including PersonType
+          if( !isOrgORInstitues){
+            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
+              include: [
+                {
+                  model: models.AnalysisSummaryAuthor,
+                  as: "AnalysisSummaryAuthor",
+                  required: true,
+                  on: {
+                    col: Sequelize.where(
+                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                      "=",
+                      Sequelize.col("AnalysisSummaryArticle.pmid")
+                    ),
+                  },
+                  attributes: [],
+                },
+                {
+                  model: models.PersonPersonType,
+                  as: "PersonPersonTypes",
+                  required: true,
+                  // separate : true,
+                  on: {
+                   /* col1: Sequelize.where( // review commnet: this condition is not required. remove this and tell me what impacts if you remove this
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"), 
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),*/
+                    col1: Sequelize.where( 
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                      // Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),
+                  },
+                  attributes:[]
+                  // where: joinWherePersonTypes,
+                  //  attributes: {exclude:['AnalysisSummaryArticle.AnalysisSummaryArticleId','PersonPersonTypes.PersonId']},
+                  // attributes: ["personIdentifier","personType", ], // there is no AnalysisSummaryArticleId in table but y its showing this ?
+                },
+              ],
+              where: where,
+              subQuery: false,
+              limit: apiBody.limit,
+              offset: apiBody.offset,
+              order: sort,
+              group: ["AnalysisSummaryAuthor.pmid"],
+              attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+              benchmark: true
+            });
+          } else{
+            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
+              include: [
+                {
+                  model: models.AnalysisSummaryAuthor,
+                  as: "AnalysisSummaryAuthor",
+                  required: true,
+                  on: {
+                    col: Sequelize.where(
+                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                      "=",
+                      Sequelize.col("AnalysisSummaryArticle.pmid")
+                    ),
+                  },
+                  attributes: [],
+                },
+                {
+                  model: models.Person,
+                  as: "Person",
+                  required: true,
+                  on: {
+                    col: Sequelize.where(
+                      Sequelize.col("Person.personIdentifier"),
+                      "=",
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+                    ),
+                  },
+                  attributes: [],
+                },
+                {
+                  model: models.PersonPersonType,
+                  as: "PersonPersonTypes",
+                  required: true,
+                  // separate : true,
+                  on: {
+                   /* col1: Sequelize.where( // review commnet: this condition is not required. remove this and tell me what impacts if you remove this
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"), 
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),*/
+                    col1: Sequelize.where( 
+                      Sequelize.col("Person.personIdentifier"),
+                      // Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),
+                  },
+                  attributes:[]
+                },
+              ],
+              where: where,
+              subQuery: false,
+              limit: apiBody.limit,
+              offset: apiBody.offset,
+              order: sort,
+              group: ["AnalysisSummaryAuthor.pmid"],
+              attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+              benchmark: true
+            });
+          }
+        }else{
+          results = await models.AnalysisSummaryArticle.findAndCountAll({ 
+            include: [
+              {
+                model: models.AnalysisSummaryAuthor,
+                as: "AnalysisSummaryAuthor",
+                required: true,
+                on: {
+                  col: Sequelize.where(
+                    Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                    "=",
+                    Sequelize.col("AnalysisSummaryArticle.pmid")
+                  ),
+                },
+                attributes: [],
+              },
+              {
+                model: models.Person,
+                as: "Person",
+                required: true,
+                on: {
+                  col: Sequelize.where(
+                    Sequelize.col("Person.personIdentifier"),
+                    "=",
+                    Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+                  ),
+                },
+                attributes: [],
+              },
+            ],
+            where: where,
+            subQuery: false,
+            limit: apiBody.limit,
+            offset: apiBody.offset,
+            order: sort,
+            group: ["AnalysisSummaryAuthor.pmid"],
+            attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+            benchmark: true
+          });
+        }
+      }
+
+      if (isAuthorFilter && !isArticleFilter) {
+        //  preparing PMIDS from filtered data
+        let pmidList = [];
+        authorsResults?.rows?.map((rowData) => {
+          pmidList.push(rowData?.dataValues?.pmid)
+        })
+        let articleResults ={};
+        if(pmidList && pmidList.length > 0)
+        {
+            // Get additional data about articles by PMIDS 
+             articleResults = await models.AnalysisSummaryArticle.findAndCountAll({ // review commnet: change this to findAll and send only attributes being displayed on UI with attributes
+              where: { pmid: pmidList },
+              subQuery: false,
+              limit: apiBody.limit,
+              offset: apiBody.offset,
+            });
+        }
+
+       // articleResults = JSON.stringify(articleResults);
+        searchOutput = {
+          ... articleResults,
+          count: authorsResults?.count 
+        }
+      } else if(!isAuthorFilter && isArticleFilter) {
+        searchOutput = {
+          ...results,
+          count: results?.count
+        }
+      }else if(isAuthorFilter && isArticleFilter){
+        searchOutput = {
+          ...results,
+          count: results?.count.length
+        }
       }
     } else {
       searchOutput = await models.AnalysisSummaryArticle.findAndCountAll({
@@ -237,13 +597,14 @@ export const publicationSearchWithFilter = async (
             )
           ),
           {
-            [Op.lte]: 60,
+            [Op.lte]: 30,
           },
         ),
         limit: apiBody.limit,
         offset: apiBody.offset,
         order: sort,
-        attributes: { exclude: ['AnalysisSummaryAuthorId']}
+        attributes: { exclude: ['AnalysisSummaryAuthorId']},
+        benchmark: true
       });
     }
     return searchOutput;
@@ -287,6 +648,7 @@ export const publicationAuthorSearchWithFilter = async (
       where: where,
       group: ["pmid", "rank"],
       order: [["pmid", "ASC"],["rank", "ASC"]],
+      benchmark: true,
     }).then((output) => {
       const authors = output.reduce((authors, result) => {
         if (!authors[result.pmid]) {
@@ -318,8 +680,26 @@ export const publicationSearchWithFilterPmids = async (
   try {
     let apiBody: PublicationSearchFilter = req.body;
     const where = {};
+    const whereForOnlyAuthors = {};
+    const whereForOnlyArticles = {};
+    let finalSearchOutput: any  = [];
+
+    let joinWherePersonTypes = {};
+    let joinWhereAuthorsFilters ={};
+    let joinWherePersonIdentifiers = {};
+    
+    var isAuthorFilter = false;
+    var isArticleFilter = false;
+    var isPersonTypeFilter = false;
+    var isOrgORInstitues = false;
+  
     if (apiBody.filters) {
       where[Op.and] = [];
+      whereForOnlyAuthors [Op.and] = [];
+      whereForOnlyArticles [Op.and] = [];
+      joinWhereAuthorsFilters [Op.and] = [];
+      joinWherePersonTypes [Op.and] = [];
+
       if (
         apiBody.filters.journalTitleVerbose &&
         apiBody.filters.journalTitleVerbose.length > 0
@@ -329,16 +709,41 @@ export const publicationSearchWithFilterPmids = async (
             [Op.in]: apiBody.filters.journalTitleVerbose,
           },
         });
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.journalTitleVerbose$": {
+            [Op.in]: apiBody.filters.journalTitleVerbose,
+          },
+        });
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.personIdentifers &&
         apiBody.filters.personIdentifers.length > 0
       ) {
+        isOrgORInstitues = true;
+
         where[Op.and].push({
           "$AnalysisSummaryAuthor.personIdentifier$": {
             [Op.in]: apiBody.filters.personIdentifers,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$AnalysisSummaryAuthor.personIdentifier$": {
+            [Op.in]: apiBody.filters.personIdentifers,
+          },
+        });
+        joinWherePersonIdentifiers = {
+          personIdentifier: {
+              [Op.in]: apiBody.filters.personIdentifers
+          }
+        }
+        joinWhereAuthorsFilters[Op.and].push({
+          "$AnalysisSummaryAuthor.personIdentifier$": {
+            [Op.in]: apiBody.filters.personIdentifers,
+          },
+        });
+        isAuthorFilter = true;
+
       }
       if (
         apiBody.filters.authorPosition &&
@@ -349,6 +754,25 @@ export const publicationSearchWithFilterPmids = async (
             [Op.in]: apiBody.filters.authorPosition,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$AnalysisSummaryAuthor.authorPosition$": {
+            [Op.in]: apiBody.filters.authorPosition,
+          },
+        });
+
+        joinWhereAuthorsFilters[Op.and].push({
+          "$AnalysisSummaryAuthor.authorPosition$": {
+            [Op.in]: apiBody.filters.authorPosition,
+          },
+        });
+
+        joinWherePersonIdentifiers = {
+          autauthorPositionhor: {
+              [Op.in]: apiBody.filters.personIdentifers
+          }
+        }
+
+        isAuthorFilter = true;
       }
       if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
         where[Op.and].push({
@@ -356,31 +780,76 @@ export const publicationSearchWithFilterPmids = async (
             [Op.in]: apiBody.filters.orgUnits,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$Person.primaryOrganizationalUnit$": {
+            [Op.in]: apiBody.filters.orgUnits,
+          },
+        });
+
+        joinWhereAuthorsFilters[Op.and].push({
+          "$Person.primaryOrganizationalUnit$": {
+            [Op.in]: apiBody.filters.orgUnits,
+          },
+        });
+        isAuthorFilter = true;
+        isOrgORInstitues = true;
+
       }
       if (
         apiBody.filters.institutions &&
         apiBody.filters.institutions.length > 0
       ) {
+
+        isOrgORInstitues = true;
         where[Op.and].push({
           "$Person.primaryInstitution$": {
             [Op.in]: apiBody.filters.institutions,
           },
         });
+
+        whereForOnlyAuthors[Op.and].push({
+          "$Person.primaryInstitution$": {
+            [Op.in]: apiBody.filters.institutions,
+          },
+        });
+
+        joinWhereAuthorsFilters[Op.and].push({
+          "$Person.primaryInstitution$": {
+            [Op.in]: apiBody.filters.institutions,
+          },
+        });
+        isAuthorFilter = true;
       }
-      if (
-        apiBody.filters.datePublicationAddedToEntrezLowerBound &&
-        apiBody.filters.datePublicationAddedToEntrezUpperBound
-      ) {
+      if (apiBody.filters.datePublicationAddedToEntrezLowerBound)
+       {
         where[Op.and].push({
           "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
             [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
           },
         });
+
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+            [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
+          },
+        });
+        isArticleFilter = true;
+      }
+      if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
+       { 
         where[Op.and].push({
           "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
             [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
           },
         });
+
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+            [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
+          },
+        });
+
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.publicationTypeCanonical &&
@@ -391,6 +860,12 @@ export const publicationSearchWithFilterPmids = async (
             [Op.in]: apiBody.filters.publicationTypeCanonical,
           },
         });
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.publicationTypeCanonical$": {
+            [Op.in]: apiBody.filters.publicationTypeCanonical,
+          },
+        });
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.journalImpactScoreLowerBound &&
@@ -401,11 +876,12 @@ export const publicationSearchWithFilterPmids = async (
             [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
-        where[Op.and].push({
+        whereForOnlyArticles[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
             [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
           },
         });
+        isArticleFilter = true;
       }
       if (
         apiBody.filters.personTypes &&
@@ -416,8 +892,23 @@ export const publicationSearchWithFilterPmids = async (
             [Op.in]: apiBody.filters.personTypes,
           },
         });
+        whereForOnlyAuthors[Op.and].push({
+          "$PersonPersonTypes.personType$": {
+            [Op.in]: apiBody.filters.personTypes,
+          },
+        });
+
+        joinWherePersonTypes[Op.and].push({
+          "$PersonPersonType.personType$": {
+            [Op.in]: apiBody.filters.personTypes,
+          },
+        });
+
+        isAuthorFilter = true;
+        isPersonTypeFilter =true;
       }
     }
+	
     const sort = [];
     if (apiBody && apiBody.sort) {
       let sortType = apiBody.sort.type;
@@ -443,62 +934,293 @@ export const publicationSearchWithFilterPmids = async (
       if (sortType === 'trendingPubsScore')
         sort.push(["trendingPubsScore", sortOrder]);
     }
-    let searchOutput: any  = [];
-    if (apiBody.filters) {
-      let results = await models.AnalysisSummaryArticle.findAll({
-        include: [
-          {
-            model: models.AnalysisSummaryAuthor,
-            as: "AnalysisSummaryAuthor",
-            required: true,
-            on: {
-              col: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor.pmid"),
-                "=",
-                Sequelize.col("AnalysisSummaryArticle.pmid")
-              ),
-            },
-            attributes: [],
-          },
-          {
-            model: models.Person,
-            as: "Person",
-            required: true,
-            on: {
-              col: Sequelize.where(
-                Sequelize.col("Person.personIdentifier"),
-                "=",
-                Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
-              ),
-            },
-            attributes: [],
-          },
-          {
-            model: models.PersonPersonType,
-            as: "PersonPersonTypes",
-            required: true,
-            on: {
-              col1: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
-                "=",
-                Sequelize.col("PersonPersonTypes.personIdentifier"),
-              ),
-              col2: Sequelize.where(
-                Sequelize.col("Person.personIdentifier"),
-                "=",
-                Sequelize.col("PersonPersonTypes.personIdentifier"),
-              ),
-            },
-            attributes: [],
-          },
-        ],
-        where: where,
-        subQuery: false,
-        order: sort,
-        group: ["AnalysisSummaryAuthor.pmid"],
-        attributes: ["pmid"]
-      });
-      let pmids = results.map(result => result.pmid);
+    else
+    {
+      sort.push(["datePublicationAddedToEntrez","DESC"]);
+    }
+	
+    let searchOutput: { count?: number; rows?: AnalysisSummaryArticle[] } = {};
+    let results:any  =[];
+    let authorsResults:any = [];
+
+    if (isAuthorFilter || isArticleFilter) {
+      if(isAuthorFilter && !isArticleFilter)
+      { // Filter Only with Authors and not Articles
+            models.AnalysisSummaryAuthor.hasOne(models.Person, { constraints: false, foreignKey: 'personIdentifier' });
+           // models.Person.belongsTo(models.AnalysisSummaryAuthor);
+            models.AnalysisSummaryAuthor.hasMany(models.PersonPersonType, {constraints: false, foreignKey: 'personIdentifier' }); 
+           // models.PersonPersonType.belongsTo(models.AnalysisSummaryAuthor);
+
+            if(isPersonTypeFilter){ // When author filters present and including PersonType
+              if( !isOrgORInstitues){
+                results = await models.AnalysisSummaryAuthor.findAll({ 
+                  attributes: ["personIdentifier", "pmid"],
+                  include: [
+                    {
+                      model: models.PersonPersonType,
+                      as: "PersonPersonTypes",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        // col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        },
+                      // where : joinWherePersonTypes,
+                      attributes: {exclude:[`AnalysisSummaryArticleId`,`PersonId`,`AnalysisSummaryAuthorId`]},
+                    },
+                  ],
+                  where: whereForOnlyAuthors,
+                  subQuery: false,
+                  // limit: apiBody.limit,
+                  // offset: apiBody.offset,
+                  benchmark: true
+                });
+
+              } else{
+                results = await models.AnalysisSummaryAuthor.findAll({ 
+                  attributes: ["personIdentifier", "pmid"],
+                  include: [
+                    {
+                      model: models.Person,
+                      as: "Person",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
+                        },
+                      // where : joinWhereAuthorsFilters,
+                      attributes: [],
+                    },
+                    {
+                      model: models.PersonPersonType,
+                      as: "PersonPersonTypes",
+                      required: true,
+                      separate : true,
+                      // separate : true, // review commnet: Any reason to comment this.. This one is required to improve query performance..
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        // col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        },
+                      where : joinWherePersonTypes,
+                      attributes: [`PersonPersonType.personIdentifier`],
+                    },
+                  ],
+                  where: joinWhereAuthorsFilters,
+                  subQuery: false,
+                  // limit: apiBody.limit,
+                  // offset: apiBody.offset,
+                  benchmark: true
+                });
+              }
+            }
+            else  { // When author filters present and no PersonType
+              results = await models.AnalysisSummaryAuthor.findAll({ // review commnet:Change this to findAll
+                  attributes: ["personIdentifier", "pmid"],
+                  include: [
+                    {
+                      model: models.Person,
+                      as: "Person",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
+                        },
+                      // where : joinWhereAuthorsFilters,
+                      attributes: [],
+                    }
+                  ],
+                  where: joinWhereAuthorsFilters,
+                  subQuery: false,
+                  // limit: apiBody.limit,
+                  // offset: apiBody.offset,
+                  benchmark: true
+                });
+              }
+      }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
+        results = await models.AnalysisSummaryArticle.findAll({
+          where: whereForOnlyArticles,
+          subQuery: false,
+          // limit: apiBody.limit,
+          // offset: apiBody.offset,
+          order: sort,
+         // group: ["AnalysisSummaryArticle.pmid"], // This grouping is not required as we need only count of records statisfies criteria
+          // distinct: true,
+          attributes: {exclude: ['AnalysisSummaryArticleId']},
+          benchmark: true
+        });
+
+      }else if(isAuthorFilter && isArticleFilter){ // Filter with Authors and Articles
+        if(isPersonTypeFilter){ // When author filters present and including PersonType
+          if( !isOrgORInstitues){
+            results = await models.AnalysisSummaryArticle.findAll({ 
+              include: [
+                {
+                  model: models.AnalysisSummaryAuthor,
+                  as: "AnalysisSummaryAuthor",
+                  required: true,
+                  on: {
+                    col: Sequelize.where(
+                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                      "=",
+                      Sequelize.col("AnalysisSummaryArticle.pmid")
+                    ),
+                  },
+                  attributes: [],
+                },
+                {
+                  model: models.PersonPersonType,
+                  as: "PersonPersonTypes",
+                  required: true,
+                  // separate : true,
+                  on: {
+                   /* col1: Sequelize.where( // review commnet: this condition is not required. remove this and tell me what impacts if you remove this
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"), 
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),*/
+                    col1: Sequelize.where( 
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                      // Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),
+                  },
+                  attributes:[]
+                  // where: joinWherePersonTypes,
+                  //  attributes: {exclude:['AnalysisSummaryArticle.AnalysisSummaryArticleId','PersonPersonTypes.PersonId']},
+                  // attributes: ["personIdentifier","personType", ], // there is no AnalysisSummaryArticleId in table but y its showing this ?
+                },
+              ],
+              where: where,
+              subQuery: false,
+              // limit: apiBody.limit,
+              // offset: apiBody.offset,
+              order: sort,
+              group: ["AnalysisSummaryAuthor.pmid"],
+              attributes: ["pmid"],
+              benchmark: true
+            });
+          } else{
+            results = await models.AnalysisSummaryArticle.findAll({ 
+              include: [
+                {
+                  model: models.AnalysisSummaryAuthor,
+                  as: "AnalysisSummaryAuthor",
+                  required: true,
+                  on: {
+                    col: Sequelize.where(
+                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                      "=",
+                      Sequelize.col("AnalysisSummaryArticle.pmid")
+                    ),
+                  },
+                  attributes: [],
+                },
+                {
+                  model: models.Person,
+                  as: "Person",
+                  required: true,
+                  on: {
+                    col: Sequelize.where(
+                      Sequelize.col("Person.personIdentifier"),
+                      "=",
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+                    ),
+                  },
+                  attributes: [],
+                },
+                {
+                  model: models.PersonPersonType,
+                  as: "PersonPersonTypes",
+                  required: false,
+                  // separate : true,
+                  on: {
+                   /* col1: Sequelize.where( // review commnet: this condition is not required. remove this and tell me what impacts if you remove this
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"), 
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),*/
+                    col1: Sequelize.where( 
+                      Sequelize.col("Person.personIdentifier"),
+                      // Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                      "=",
+                      Sequelize.col("PersonPersonTypes.personIdentifier"),
+                    ),
+                  },
+                  attributes:[]
+                },
+              ],
+              where: where,
+              subQuery: false,
+              // limit: apiBody.limit,
+              // offset: apiBody.offset,
+              order: sort,
+              group: ["AnalysisSummaryAuthor.pmid"],
+              attributes: ["pmid"],
+              benchmark: true
+            });
+          }
+        }else{
+          results = await models.AnalysisSummaryArticle.findAll({ 
+            include: [
+              {
+                model: models.AnalysisSummaryAuthor,
+                as: "AnalysisSummaryAuthor",
+                required: true,
+                on: {
+                  col: Sequelize.where(
+                    Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                    "=",
+                    Sequelize.col("AnalysisSummaryArticle.pmid")
+                  ),
+                },
+                attributes: [],
+              },
+              {
+                model: models.Person,
+                as: "Person",
+                required: true,
+                on: {
+                  col: Sequelize.where(
+                    Sequelize.col("Person.personIdentifier"),
+                    "=",
+                    Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+                  ),
+                },
+                attributes: [],
+              },
+            ],
+            where: where,
+            subQuery: false,
+            // limit: apiBody.limit,
+            // offset: apiBody.offset,
+            order: sort,
+            group: ["AnalysisSummaryAuthor.pmid"],
+            attributes: ["pmid"],
+            benchmark: true
+          });
+        }
+      }
+
+      let articleResults =[];
+      if (isAuthorFilter && !isArticleFilter) {
+        //  preparing PMIDS from filtered data
+        let pmidList = [];
+        results.map((rowData) => {
+          pmidList.push(rowData?.dataValues?.pmid)
+        })
+        if(pmidList && pmidList.length > 0)
+        {
+            // Get additional data about articles by PMIDS 
+             articleResults = await models.AnalysisSummaryArticle.findAll({ // review commnet: change this to findAll and send only attributes being displayed on UI with attributes
+              where: { pmid: pmidList },
+              subQuery: false,
+              // limit: apiBody.limit,
+              // offset: apiBody.offset,
+            });
+        }
+      } else { // review commnet: when do we need this.
+        articleResults = results;
+      }
+
+      let pmids =  articleResults?.length && articleResults?.map(result => result.pmid);
       let personIdentifiers: any[] = [];
       if (pmids && pmids.length > 0) {
         // get personIdentifiers
@@ -509,18 +1231,25 @@ export const publicationSearchWithFilterPmids = async (
             [Op.in]: pmids,
           },
         });
+        whereAuthors[Op.and].push({
+          "$AnalysisSummaryAuthorList.personIdentifier$": {
+            [Op.ne]: '',
+          },
+        });
+        //this one is calculating authorship
         personIdentifiers = await models.AnalysisSummaryAuthorList.findAll({
           attributes: [
             "personIdentifier",
           ],
           where: whereAuthors,
-          group: ["personIdentifier"]
+          // group: ["personIdentifier"],
+          benchmark: true
         }).then((output) => {
           return output.map(result => result.personIdentifier);
         })
       }
       // searchOutput = results.map(result => result.pmid);
-      searchOutput = { personIdentifiers, pmids };
+      finalSearchOutput = { personIdentifiers, pmids };
     } else {
       let results = await models.AnalysisSummaryArticle.findAll({
         where: Sequelize.where(
@@ -540,10 +1269,11 @@ export const publicationSearchWithFilterPmids = async (
         limit: apiBody.limit,
         offset: apiBody.offset,
         order: sort,
+        benchmark: true
       });
-      searchOutput = results.map(result => result.pmid);
+      finalSearchOutput = results.map(result => result.pmid);
     }
-    return searchOutput;
+    return finalSearchOutput;
   } catch (e) {
     console.log(e);
     res.status(500).send(e);

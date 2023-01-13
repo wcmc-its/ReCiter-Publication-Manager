@@ -15,8 +15,9 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 const SearchSummary = ({ 
   count, 
   onClick,
-  selected 
-}: { count: number, onClick: (sort: string, order: string) => void, selected: any}) => {
+  selected,
+  onGetReportsDatabyPubFilters
+}: { count: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -137,6 +138,13 @@ const SearchSummary = ({
     })
   }
 
+  const getReportsDatabyPubFilters = (exportType)=>{
+    if(exportType === "CSV") setOpenCSV(true)
+    else setOpenRTF(true)
+
+    onGetReportsDatabyPubFilters();
+  }
+
   const exportAuthorshipCSV = () => {
     setExportAuthorshipCsvLoading(true);
     fetch(`/api/db/reports/publication/authorship`, {
@@ -195,11 +203,13 @@ const SearchSummary = ({
     }
 
     try {
+      let options = {}
       // creating one worksheet in workbook
       const worksheet = workbook.addWorksheet(authorshipFileName);
       // add worksheet columns
       // each columns contains header and its mapping key from data
       worksheet.columns = columns;
+      // worksheet.getCell('Article title').alignment = { wrapText: true };
       
       // process the data and add rows to worksheet
       data.forEach(item => {
@@ -316,7 +326,7 @@ const SearchSummary = ({
   return (
     <>
       <div className="d-flex justify-content-between align-items-center pt-5">
-        <p className="mb-0"><b>{formatter.format(count)} publications</b></p>
+        <p className="mb-0"><b>{count ? formatter.format(count) : 0} articles{/*publications*/}</b></p>
         <div className="search-summary-buttons">
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
           {
@@ -338,14 +348,15 @@ const SearchSummary = ({
             })
           }
         </DropdownButton>
-          <Button variant="warning" className="m-2" disabled={Object.keys(reportsResultsIds).length == 0} onClick={() => setOpenCSV(true)}>Export to CSV</Button>
-          <Button variant="warning" className="m-2" disabled={Object.keys(reportsResultsIds).length == 0} onClick={() => setOpenRTF(true)}>Export to RTF</Button>
+          <Button variant="warning" className="m-2" disabled={count == 0} onClick={() =>  getReportsDatabyPubFilters("CSV")}>Export to CSV</Button>
+          <Button variant="warning" className="m-2" disabled={count == 0} onClick={() =>  getReportsDatabyPubFilters("RTF")}>Export to RTF</Button>
         </div>
       </div>
       <ExportModal
         show={openCSV}
         handleClose={() => setOpenCSV(false)}
         title="CSV"
+        loadingResults={reportsResultsIdsLoading}
         countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships and ${formatter.format(reportsResultsIds.pmids.length)} articles` : ""}
         buttonsList={
           [
