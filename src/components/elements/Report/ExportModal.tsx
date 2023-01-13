@@ -14,13 +14,7 @@ interface ExportModalProps {
 }
 
 const ExportModal = ({ show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
-  if (loadingResults) {
-    return (
-      <div className="d-flex justify-content-center align-items-center">
-        <Loader />
-      </div>
-    )
-  }
+
 
   return (
     <div>
@@ -29,15 +23,22 @@ const ExportModal = ({ show, handleClose, title, countInfo, error, loadingResult
           <Modal.Title>Export to {title}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <p>According to the criteria you have set, there are {countInfo}.</p>
-        {
-          buttonsList.map((btn, index) => {
-            return (
-              <ExportButton key={index} {...btn} />
-            )
-          })
-        }
-        {error && <Alert variant="danger">Error occured exporting, please try again later.</Alert>}
+          {
+            loadingResults ? 
+            <div className="d-flex justify-content-center align-items-center">
+              <Loader />
+              </div> : <>
+                <p>According to the criteria you have set, there are {countInfo}.</p>
+                {
+                  buttonsList.map((btn, index) => {
+                    return (
+                      <ExportButton key={index} {...btn} />
+                    )
+                  })
+                }
+                {error && <Alert variant="danger">Error occured exporting, please try again later.</Alert>}
+              </>
+          }
         </Modal.Body>
       </Modal>
     </div>

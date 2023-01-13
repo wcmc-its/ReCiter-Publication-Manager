@@ -325,8 +325,8 @@ const Search = () => {
       limit:count,
       offset: page - 1 
     }
-    dispatch(identityFetchAllData(request));
     dispatch(updateFilters(updatedFilters));
+    dispatch(identityFetchAllData(request));
     setPage(1);
   }
 
@@ -380,7 +380,8 @@ const Search = () => {
         pathname: `/curate/${data}`,
       })
     } else if (isFor === "report") {
-      dispatch(updateAuthorFilter(data.personIdentifier,10));
+      data.personIdentifier && dispatch(updateAuthorFilter(data.personIdentifier,10));
+      
       dispatch(updateIndividualPersonReportCriteria(data));
       router.push({
         pathname: '/report',
@@ -458,9 +459,9 @@ const Search = () => {
         { 
           
           isCuratorSelf ?
-          <Name identity={identity} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity.personIdentifier)}></Name>
+          <Name identity={identity} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)}></Name>
           :
-          <Name identity={identity} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity.personIdentifier)}></Name>
+          <Name identity={identity} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)}></Name>
         }
         </td>
         <td key={`${identityIndex}__orgUnit`} width="20%">
@@ -565,7 +566,7 @@ function Name(props) {
   
 
   if (props.identity.firstName !== undefined ) {
-    const nameString = firstName  + middleName + lastName
+    const nameString = `${firstName}  ${middleName} ${lastName}`
     nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onClickProfile}>
       <b>{nameString}</b>
     </button>

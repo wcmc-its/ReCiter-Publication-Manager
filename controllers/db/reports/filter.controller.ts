@@ -14,7 +14,6 @@ export const authorFilter = async (
   try {
     const { authorFilter } = req.query;
     let authorFilterArray = (authorFilter as string).split(',')
-    console.log("authorFilter", authorFilterArray)
     const count = req.query.count as string;
     let limit = parseInt(count) || 10;
     let persons = null as any;

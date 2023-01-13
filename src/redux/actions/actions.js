@@ -1840,7 +1840,7 @@ export const updatePubFiltersFromSearch = () => {
       reportsSearchFilters.filters.orgUnits = [...filters.orgUnits]; 
     }
 
-    if (filters.insitutions) {
+    if (filters.institutions) {
       reportsSearchFilters.filters.institutions = [...filters.institutions];
     }
 
@@ -1898,7 +1898,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
         })
         .then(data => {
             console.log("dataCount", data)
-            if (data.count == 0) {
+            if (data.count == 0 || Object.keys(data).length == 0) {
             console.log("dataCount Inside", data)
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
@@ -1912,39 +1912,41 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
                     type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
                 })
             } else {
-                let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
+               
+                if(data && data.rows && data.rows.length > 0) {
+                    let pmids = data.rows ? data?.rows?.map(row => row.pmid) : [];
+                    getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
+                        // given authors data merge it with the rest of the results
+                        let results = data?.rows?.map((row) => {
+                            let authorsList = [];
+                            authorsData.forEach((authorResult) => {
+                                if (parseInt(authorResult.pmid) === row.pmid) {
+                                    authorsList = [...authorResult.authors];
+                                }
+                            })
 
-                getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
-                    // given authors data merge it with the rest of the results
-                    let results = data.rows.map((row) => {
-                        let authorsList = [];
-                        authorsData.forEach((authorResult) => {
-                            if (parseInt(authorResult.pmid) === row.pmid) {
-                                authorsList = [...authorResult.authors];
+                            return {
+                                ...row,
+                                authors: [...authorsList]
                             }
                         })
 
-                        return {
-                            ...row,
-                            authors: [...authorsList]
+                        dispatch({
+                            type: methods.REPORTS_SEARCH_UPDATE,
+                            payload: { count: data.count, rows: results },
+                        })
+
+                        if (paginationUpdate) {
+                            dispatch({
+                                type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
+                            })
+                        } else {
+                            dispatch({
+                                type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+                            })
                         }
-                    })
-
-                    dispatch({
-                        type: methods.REPORTS_SEARCH_UPDATE,
-                        payload: { count: data.count, rows: results },
-                    })
-
-                    if (paginationUpdate) {
-                        dispatch({
-                            type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
-                        })
-                    } else {
-                        dispatch({
-                            type: methods.REPORTS_SEARCH_CANCEL_FETCHING
-                        })
-                    }
-                });
+                    });
+                }
             }
         })
         .catch(error => {
@@ -2019,7 +2021,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
 
                 getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
                     // given authors data merge it with the rest of the results
-                    let results = data.rows.map((row) => {
+                    let results = data?.rows?.map((row) => {
                         let authorsList = [];
                         authorsData.forEach((authorResult) => {
                             if (parseInt(authorResult.pmid) === row.pmid) {

@@ -168,8 +168,8 @@ export const labels = {
   articleInfo: {
     pmid: "pmid",
     articleTitle: "Article title",
-    pmcid: "pmcid",
     articleYear: "Article year",
+    pmcid: "pmcid",
     publicationDateDisplay: "Publication date display",
     publicationDateStandarized: "Date standardized",
     datePublicationAddedToEntrez: "Date added",
