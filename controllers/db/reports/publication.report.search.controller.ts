@@ -565,12 +565,15 @@ export const publicationSearchWithFilter = async (
         let articleResults ={};
         if(pmidList && pmidList.length > 0)
         {
+            console.log('Fecthing more information about articles**************************');
             // Get additional data about articles by PMIDS 
              articleResults = await models.AnalysisSummaryArticle.findAndCountAll({ // review commnet: change this to findAll and send only attributes being displayed on UI with attributes
               where: { pmid: pmidList },
               subQuery: false,
               limit: apiBody.limit,
               offset: apiBody.offset,
+              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+              benchmark:true
             });
         }
 
@@ -1222,6 +1225,7 @@ export const publicationSearchWithFilterPmids = async (
               subQuery: false,
               // limit: apiBody.limit,
               // offset: apiBody.offset,
+              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`]
             });
         }
       } else { // review commnet: when do we need this.
@@ -1277,6 +1281,7 @@ export const publicationSearchWithFilterPmids = async (
         limit: apiBody.limit,
         offset: apiBody.offset,
         order: sort,
+        attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         benchmark: true
       });
       finalSearchOutput = results.map(result => result.pmid);
