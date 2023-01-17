@@ -386,6 +386,7 @@ export const publicationSearchWithFilter = async (
                 });
               }
       }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
+ //       console.log('coming into else block from anchor navigation*********************************')
         results = await models.AnalysisSummaryArticle.findAndCountAll({
           where: whereForOnlyArticles,
           subQuery: false,
@@ -394,7 +395,9 @@ export const publicationSearchWithFilter = async (
           order: sort,
          // group: ["AnalysisSummaryArticle.pmid"], // This grouping is not required as we need only count of records statisfies criteria
           distinct: true,
+          // attributes: {exclude: ['AnalysisSummaryArticleId']},
           attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+
           benchmark: true
         });
       }else if(isAuthorFilter && isArticleFilter){ // Filter with Authors and Articles
@@ -445,7 +448,8 @@ export const publicationSearchWithFilter = async (
               offset: apiBody.offset,
               order: sort,
               group: ["AnalysisSummaryAuthor.pmid"],
-              attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+              // attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
               benchmark: true
             });
           } else{
@@ -504,7 +508,8 @@ export const publicationSearchWithFilter = async (
               offset: apiBody.offset,
               order: sort,
               group: ["AnalysisSummaryAuthor.pmid"],
-              attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+              // attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
               benchmark: true
             });
           }
@@ -544,7 +549,8 @@ export const publicationSearchWithFilter = async (
             offset: apiBody.offset,
             order: sort,
             group: ["AnalysisSummaryAuthor.pmid"],
-            attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+            // attributes: { exclude: ["AnalysisSummaryAuthorId"]},
+            attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
             benchmark: true
           });
         }
@@ -603,7 +609,8 @@ export const publicationSearchWithFilter = async (
         limit: apiBody.limit,
         offset: apiBody.offset,
         order: sort,
-        attributes: { exclude: ['AnalysisSummaryAuthorId']},
+        // attributes: { exclude: ['AnalysisSummaryAuthorId']},
+        attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         benchmark: true
       });
     }
@@ -1042,7 +1049,8 @@ export const publicationSearchWithFilterPmids = async (
           order: sort,
          // group: ["AnalysisSummaryArticle.pmid"], // This grouping is not required as we need only count of records statisfies criteria
           // distinct: true,
-          attributes: {exclude: ['AnalysisSummaryArticleId']},
+          // attributes: {exclude: ['AnalysisSummaryArticleId']},
+          attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
           benchmark: true
         });
 
