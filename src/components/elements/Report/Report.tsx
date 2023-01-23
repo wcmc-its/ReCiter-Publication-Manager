@@ -127,11 +127,11 @@ const Report = () => {
 
 
   const updateAuthorFilterData = (input: string, count: number = 10, isFrom: string ) => {
-    if(input) dispatch(updateAuthorFilter(input, count, isFrom))
+    if( input || isFrom) dispatch(updateAuthorFilter(input, count, isFrom))
   }
 
   const updateJournalFilterData = (input: string, count: number = 10) => {
-    dispatch(updateJournalFilter(input, count));
+    if(input) dispatch(updateJournalFilter(input, count));
   }
 
   const onPaginationUpdate = (newPage: number) => {
@@ -205,7 +205,7 @@ const Report = () => {
     setIsFilterClear(!isFilterClear)
     dispatch(clearPubSearchFilters());
     setReset(!reset)
-    dispatch(updateAuthorFilter());
+    // dispatch(updateAuthorFilter());
   }
 
   const searchResults = () => {

@@ -23,7 +23,7 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ results, loading, 
   return (
     <>
       {
-        Object.keys(results).length > 0 && results?.rows?.map((row) => {
+        Object.keys(results).length > 0 && results?.rows && results?.rows?.map((row) => {
           return (
             <ReportsResultPane
             key={row.pmid}

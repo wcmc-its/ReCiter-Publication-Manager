@@ -13,10 +13,10 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
   const authorFilterDataFromSearch = useSelector((state: RootStateOrAny) => state.authorFilterDataFromSearch)
 
 
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let newInput = e.target.value;
-     setUserInput(newInput);
-     if(newInput.length >= 3) dataPreparation()
+  const onInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    let inputBySearch = e.target.value;
+    await setUserInput(inputBySearch);
+     if(inputBySearch.length >= 3) dataPreparation(inputBySearch)
   }
 
   // fetch data on input change
@@ -24,9 +24,9 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     dataPreparation()
   }, [  selectedOptions,authorFilterDataFromSearch])
 
-  const dataPreparation = ()=>{
+  const dataPreparation = (inputBySearch? : any)=>{
     if (isDynamicFetch) {
-      filterUpdateOptions[value](userInput);
+      filterUpdateOptions[value](inputBySearch);
     }
 
     let updatedSelectedList = selectedOptions && selectedOptions.map((selectedOption) => {

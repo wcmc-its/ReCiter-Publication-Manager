@@ -1,3 +1,4 @@
+import { PermIdentity } from "@mui/icons-material";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import sequelize from "../../../src/db/db";
@@ -252,6 +253,13 @@ export const publicationSearchWithFilter = async (
             [Op.in]: apiBody.filters.personTypes,
           },
         });
+        
+        // if personType is not a separate:true
+        joinWhereAuthorsFilters[Op.and].push({
+          "$PersonPersonTypes.personType$": {
+            [Op.in]: apiBody.filters.personTypes,
+          },
+        });
 
         isAuthorFilter = true;
         isPersonTypeFilter =true;
@@ -260,6 +268,7 @@ export const publicationSearchWithFilter = async (
 	
     const sort = [];
     if (apiBody && apiBody.sort) {
+      console.log("apiBody.sort********************", apiBody.sort)
       let sortType = apiBody.sort.type;
       let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
       if (sortType === 'datePublicationAddedToEntrez')
@@ -304,6 +313,8 @@ export const publicationSearchWithFilter = async (
               if( !isOrgORInstitues){
                 authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ 
                   attributes: ["personIdentifier", "pmid"],
+                  distinct:true,
+                  col:'pmid',
                   include: [
                     {
                       model: models.PersonPersonType,
@@ -321,14 +332,16 @@ export const publicationSearchWithFilter = async (
                   where: whereForOnlyAuthors,
                   subQuery: false,
                   limit: apiBody.limit,
+                  // group: ["AnalysisSummaryAuthor.pmid"],
                   offset: apiBody.offset,
                   benchmark: true
                 });
-
               } else{
 
                 authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ 
                   attributes: ["personIdentifier", "pmid"],
+                  distinct:true,
+                  col:'pmid',
                   include: [
                     {
                       model: models.Person,
@@ -344,13 +357,13 @@ export const publicationSearchWithFilter = async (
                       model: models.PersonPersonType,
                       as: "PersonPersonTypes",
                       required: true,
-                      separate : true,
+                      // separate : true,
                       on: {
                         col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         // col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
-                      where : joinWherePersonTypes,
-                      attributes: [`PersonPersonType.personIdentifier`],
+                      // where : joinWherePersonTypes,
+                      attributes: [`personIdentifier`],
                     },
                   ],
                   where: joinWhereAuthorsFilters,
@@ -366,6 +379,8 @@ export const publicationSearchWithFilter = async (
         
                 authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ // review commnet:Change this to findAll
                   attributes: ["personIdentifier", "pmid"],
+                  distinct:true,
+                  col:'pmid',
                   include: [
                     {
                       model: models.Person,
@@ -397,7 +412,7 @@ export const publicationSearchWithFilter = async (
           distinct: true,
           // attributes: {exclude: ['AnalysisSummaryArticleId']},
           attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
-
+          col:'pmid',
           benchmark: true
         });
       }else if(isAuthorFilter && isArticleFilter){ // Filter with Authors and Articles
@@ -447,9 +462,11 @@ export const publicationSearchWithFilter = async (
               limit: apiBody.limit,
               offset: apiBody.offset,
               order: sort,
-              group: ["AnalysisSummaryAuthor.pmid"],
+             // group: ["AnalysisSummaryAuthor.pmid"],
               // attributes: { exclude: ["AnalysisSummaryAuthorId"]},
               attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+              col: 'pmid',
+              distinct : true,
               benchmark: true
             });
           } else{
@@ -510,6 +527,8 @@ export const publicationSearchWithFilter = async (
               group: ["AnalysisSummaryAuthor.pmid"],
               // attributes: { exclude: ["AnalysisSummaryAuthorId"]},
               attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+              col:'pmid',
+              distinct: true,
               benchmark: true
             });
           }
@@ -567,20 +586,30 @@ export const publicationSearchWithFilter = async (
         {
             console.log('Fecthing more information about articles**************************');
             // Get additional data about articles by PMIDS 
-             articleResults = await models.AnalysisSummaryArticle.findAndCountAll({ // review commnet: change this to findAll and send only attributes being displayed on UI with attributes
+             articleResults = await models.AnalysisSummaryArticle.findAll({ // review commnet: change this to findAll and send only attributes being displayed on UI with attributes
               where: { pmid: pmidList },
               subQuery: false,
               limit: apiBody.limit,
               offset: apiBody.offset,
+              order:sort,
               attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
               benchmark:true
             });
         }
-
+       // console.log('articleresults before**************************',JSON.stringify(articleResults));
+        let articlesDetails:any =[];
+        if(Object.keys(articleResults).length > 0 )
+        {
+          articlesDetails['rows'] = articleResults; 
+        }
+        else
+        {
+        articlesDetails['rows'] = [];
+        }
        // articleResults = JSON.stringify(articleResults);
         searchOutput = {
-          ... articleResults,
-          count: authorsResults?.count 
+          ... articlesDetails,
+          count: authorsResults?.count
         }
       } else if(!isAuthorFilter && isArticleFilter) {
         searchOutput = {
@@ -611,9 +640,11 @@ export const publicationSearchWithFilter = async (
         ),
         limit: apiBody.limit,
         offset: apiBody.offset,
+        distinct : true,
         order: sort,
         // attributes: { exclude: ['AnalysisSummaryAuthorId']},
-        attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+        attributes: [`id`,`pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+        col:'pmid',
         benchmark: true
       });
     }
@@ -963,8 +994,10 @@ export const publicationSearchWithFilterPmids = async (
 
             if(isPersonTypeFilter){ // When author filters present and including PersonType
               if( !isOrgORInstitues){
-                results = await models.AnalysisSummaryAuthor.findAll({ 
+                results = await models.AnalysisSummaryAuthor.findAndCountAll({ 
                   attributes: ["personIdentifier", "pmid"],
+                  distinct:true,
+                  col:'pmid',
                   include: [
                     {
                       model: models.PersonPersonType,
@@ -980,14 +1013,17 @@ export const publicationSearchWithFilterPmids = async (
                   ],
                   where: whereForOnlyAuthors,
                   subQuery: false,
+                  // group:["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
                   // limit: apiBody.limit,
                   // offset: apiBody.offset,
                   benchmark: true
                 });
 
               } else{
-                results = await models.AnalysisSummaryAuthor.findAll({ 
+                results = await models.AnalysisSummaryAuthor.findAndCountAll({ 
                   attributes: ["personIdentifier", "pmid"],
+                  distinct:true,
+                  col:'pmid',
                   include: [
                     {
                       model: models.Person,
@@ -1003,14 +1039,13 @@ export const publicationSearchWithFilterPmids = async (
                       model: models.PersonPersonType,
                       as: "PersonPersonTypes",
                       required: true,
-                      separate : true,
-                      // separate : true, // review commnet: Any reason to comment this.. This one is required to improve query performance..
+                      // separate : true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
-                        // col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        col1: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier')),
+                        col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
-                      where : joinWherePersonTypes,
-                      attributes: [`PersonPersonType.personIdentifier`],
+                      // where : joinWherePersonTypes,
+                      attributes: [`personIdentifier`],
                     },
                   ],
                   where: joinWhereAuthorsFilters,
@@ -1022,8 +1057,10 @@ export const publicationSearchWithFilterPmids = async (
               }
             }
             else  { // When author filters present and no PersonType
-              results = await models.AnalysisSummaryAuthor.findAll({ // review commnet:Change this to findAll
+              results = await models.AnalysisSummaryAuthor.findAndCountAll({ // review commnet:Change this to findAll
                   attributes: ["personIdentifier", "pmid"],
+                  distinct:true,
+                  col:'pmid',
                   include: [
                     {
                       model: models.Person,
@@ -1044,7 +1081,7 @@ export const publicationSearchWithFilterPmids = async (
                 });
               }
       }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
-        results = await models.AnalysisSummaryArticle.findAll({
+        results = await models.AnalysisSummaryArticle.findAndCountAll({
           where: whereForOnlyArticles,
           subQuery: false,
           // limit: apiBody.limit,
@@ -1054,13 +1091,15 @@ export const publicationSearchWithFilterPmids = async (
           // distinct: true,
           // attributes: {exclude: ['AnalysisSummaryArticleId']},
           attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+          distinct: true,
+          col:'pmid',
           benchmark: true
         });
 
       }else if(isAuthorFilter && isArticleFilter){ // Filter with Authors and Articles
         if(isPersonTypeFilter){ // When author filters present and including PersonType
           if( !isOrgORInstitues){
-            results = await models.AnalysisSummaryArticle.findAll({ 
+            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
               include: [
                 {
                   model: models.AnalysisSummaryAuthor,
@@ -1106,10 +1145,12 @@ export const publicationSearchWithFilterPmids = async (
               order: sort,
               group: ["AnalysisSummaryAuthor.pmid"],
               attributes: ["pmid"],
+              distinct:true,
+              col:'pmid',
               benchmark: true
             });
           } else{
-            results = await models.AnalysisSummaryArticle.findAll({ 
+            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
               include: [
                 {
                   model: models.AnalysisSummaryAuthor,
@@ -1165,11 +1206,13 @@ export const publicationSearchWithFilterPmids = async (
               order: sort,
               group: ["AnalysisSummaryAuthor.pmid"],
               attributes: ["pmid"],
+              distinct:true,
+              col:'pmid',
               benchmark: true
             });
           }
         }else{
-          results = await models.AnalysisSummaryArticle.findAll({ 
+          results = await models.AnalysisSummaryArticle.findAndCountAll({ 
             include: [
               {
                 model: models.AnalysisSummaryAuthor,
@@ -1205,12 +1248,17 @@ export const publicationSearchWithFilterPmids = async (
             order: sort,
             group: ["AnalysisSummaryAuthor.pmid"],
             attributes: ["pmid"],
+            distinct: true,
+            col:'pmid',
             benchmark: true
           });
         }
       }
 
-      let articleResults =[];
+
+      
+
+      /* let articleResults =[];
       if (isAuthorFilter && !isArticleFilter) {
         //  preparing PMIDS from filtered data
         let pmidList = [];
@@ -1225,19 +1273,30 @@ export const publicationSearchWithFilterPmids = async (
               subQuery: false,
               // limit: apiBody.limit,
               // offset: apiBody.offset,
-              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`]
+              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+              // distinct:true,
             });
         }
       } else { // review commnet: when do we need this.
         articleResults = results;
-      }
+      } */
 
-      let pmids =  articleResults?.length && articleResults?.map(result => result.pmid);
+       let pmids =  results.rows?.length && results.rows?.map(data => data.pmid);
       let personIdentifiers: any[] = [];
       if (pmids && pmids.length > 0) {
         // get personIdentifiers
         const whereAuthors = {};
         whereAuthors[Op.and] = [];
+        if (
+          apiBody.filters.personIdentifers &&
+          apiBody.filters.personIdentifers.length > 0
+        ) {
+          whereAuthors[Op.and].push({
+            "$AnalysisSummaryAuthorList.personIdentifier$": {
+              [Op.in]: apiBody.filters.personIdentifers,
+            },
+          });
+         }
         whereAuthors[Op.and].push({
           "$AnalysisSummaryAuthorList.pmid$": {
             [Op.in]: pmids,
@@ -1250,9 +1309,7 @@ export const publicationSearchWithFilterPmids = async (
         });
         //this one is calculating authorship
         personIdentifiers = await models.AnalysisSummaryAuthorList.findAll({
-          attributes: [
-            "personIdentifier",
-          ],
+          attributes: ["personIdentifier"],
           where: whereAuthors,
           // group: ["personIdentifier"],
           benchmark: true
@@ -1261,7 +1318,7 @@ export const publicationSearchWithFilterPmids = async (
         })
       }
       // searchOutput = results.map(result => result.pmid);
-      finalSearchOutput = { personIdentifiers, pmids };
+      finalSearchOutput = { personIdentifiers, pmids }; 
     } else {
       let results = await models.AnalysisSummaryArticle.findAll({
         where: Sequelize.where(

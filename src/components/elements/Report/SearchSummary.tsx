@@ -326,7 +326,7 @@ const SearchSummary = ({
   return (
     <>
       <div className="d-flex justify-content-between align-items-center pt-5">
-        <p className="mb-0"><b>{count ? formatter.format(count) : 0} articles{/*publications*/}</b></p>
+        <p className="mb-0"><b>{count ? formatter.format(count) : 0} articles</b></p>
         <div className="search-summary-buttons">
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
           {
@@ -357,7 +357,7 @@ const SearchSummary = ({
         handleClose={() => setOpenCSV(false)}
         title="CSV"
         loadingResults={reportsResultsIdsLoading}
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships and ${formatter.format(reportsResultsIds.pmids.length)} articles` : ""}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
         buttonsList={
           [
             {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
@@ -369,7 +369,7 @@ const SearchSummary = ({
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.pmids.length)} articles` : ""}
+        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${count ? formatter.format(count) : 0} articles` : ""}
         loadingResults={reportsResultsIdsLoading}
         error={exportError}
         buttonsList={[
