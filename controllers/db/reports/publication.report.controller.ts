@@ -187,6 +187,13 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
+
+        where[Op.and].push({
+          "$AnalysisSummaryAuthor.personIdentifier$": {
+            [Op.ne]: '',
+          },
+        });
+
       }
       const sort = [];
       if (apiBody && apiBody.sort) {
@@ -275,14 +282,16 @@ export const generatePubsPeopleOnlyRtf = async (
                 Sequelize.col("PersonPersonTypes.personIdentifier"),
               ),
             },
-            attributes: ["personType"]
+            attributes: [[Sequelize.fn("GROUP_CONCAT", Sequelize.col('PersonPersonTypes.personType')),"personType"]],
+            // order: [[ models.PersonPersonType, 'personType', 'ASC' ]],
           }
         ],
         where: where,
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
-        order: [],
+        order:[[ models.AnalysisSummaryArticle, 'datePublicationAddedToEntrez', 'DESC' ]],
         subQuery: false,
         attributes: []
+        // attributes:[[Sequelize.literal('DISTINCT "pmid"'),'pmid']]
       })
       return searchOutput;
     } catch (e) {

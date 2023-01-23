@@ -1670,9 +1670,7 @@ export const getPersonTypes = () => async (dispatch) => {
 
 // Update Author Filter
 export const updateAuthorFilter = (authorInput, count,isFrom) => (dispatch) => {
-    let url;
-    if(authorInput )  url = `/api/db/reports/filter/author?authorFilter=${authorInput}&count=${count}`
-    else url = `/api/db/reports/filter/author?authorFilter=`
+    let url = `/api/db/reports/filter/author?authorFilter=${authorInput || ""}&count=${count || ""}`
     fetch(url, {
         credentials: "same-origin",
         method: 'GET',
@@ -1806,9 +1804,9 @@ export const clearPubSearchFilters = ()  => {
             type: methods.PUB_FILTER_UPDATE,
             payload: reportsSearchFilters
         })
-        dispatch({
-            type: methods.AUTHOR_FILTER_CLEAR_ALL_DATA
-        })
+        // dispatch({
+        //     type: methods.AUTHOR_FILTER_CLEAR_ALL_DATA
+        // })
     }
 }
 
