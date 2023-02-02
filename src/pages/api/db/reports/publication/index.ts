@@ -10,6 +10,7 @@ export default async function handler(req: NextApiRequest,
             const apiBody: GeneratePubsApiBody = req.body;
             const generatePubsRtfOutput: any = await generatePubsRtf(req, res)
             try{
+                console.log('coming into this to export from here*********************************');
                 const fileBuffer = Buffer.from(generatePubsRtfOutput, 'utf-8')
                 res.setHeader('Content-Type', 'application/rtf')
                 res.setHeader('Content-Disposition', 'attachment; filename=' + apiBody.personIdentifiers + '.rtf');

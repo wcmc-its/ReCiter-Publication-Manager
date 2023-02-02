@@ -71,6 +71,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   const HIGHLIGHT_AUTHORS = reportConfig.authorFilters?.list?.author?.isEnabled;
 
   const DisplayInfo = ({ label, title, value}) => {
+     // console.log("info title", infoBubblesConfig[title] , "respTitle" , title )
     if (value) {
       if (infoBubblesConfig[title]) {
         return (

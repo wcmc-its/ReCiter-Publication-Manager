@@ -5,23 +5,33 @@ import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
 import { useSelector,RootStateOrAny } from "react-redux";
 
-export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
+export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
   const [selectedList, setSelectedList] = useState<any>([]);
   const [filteredList, setFilteredList] = useState<any>([]);
   const [totalCount, setTotalCount] = useState<number>(10);
+  const [isHideSeeMoreLink, setHideSeeMoreLink] = useState<boolean>(false);
+
   const authorFilterDataFromSearch = useSelector((state: RootStateOrAny) => state.authorFilterDataFromSearch)
 
 
   const onInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     let inputBySearch = e.target.value;
     await setUserInput(inputBySearch);
-     if(inputBySearch.length >= 3) dataPreparation(inputBySearch)
+     if(inputBySearch.length >= 3) {
+      if(!isHideSeeMoreLink) setHideSeeMoreLink(!isHideSeeMoreLink)
+      dataPreparation(inputBySearch)
+     }
   }
+  useEffect(() => {
+    if(userInput) setUserInput("");
+    if(isHideSeeMoreLink) setHideSeeMoreLink( false );
+    if(totalCount > 10) setTotalCount(10);
+  }, [isFilterClear ])
 
   // fetch data on input change
   useEffect(() => {
-    dataPreparation()
+    dataPreparation();
   }, [  selectedOptions,authorFilterDataFromSearch])
 
   const dataPreparation = (inputBySearch? : any)=>{
@@ -100,10 +110,11 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
     onUpdateFilter(filterName, updatedSelected);
   }
 
-  const onLoadMore = () => {
+  const onClickLoadMore = () => {
     let updatedCount = totalCount + 12;
     setTotalCount(updatedCount);
-    filterUpdateOptions[value](userInput, updatedCount);
+    // filterUpdateOptions[value](userInput, updatedCount);
+    onLoadMore(updatedCount);
   }
 
   return (
@@ -146,7 +157,7 @@ export const CheckboxSelect: React.FC<any> = ({ title, value, options, formatOpt
        {
          isDynamicFetch &&
          <div className="d-flex justify-content-center">
-           <Button className="transparent-button" onClick={onLoadMore}>See More</Button>
+          {!isHideSeeMoreLink ? <Button className="transparent-button" onClick={onClickLoadMore}>See More</Button> : ""}
          </div>
        }
         {

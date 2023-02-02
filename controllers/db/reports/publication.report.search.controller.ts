@@ -617,9 +617,10 @@ export const publicationSearchWithFilter = async (
           count: results?.count
         }
       }else if(isAuthorFilter && isArticleFilter){
+        console.log("results**************", typeof(results?.count))
         searchOutput = {
           ...results,
-          count: results?.count.length
+          count: typeof(results?.count) === "number" ?  results?.count : results?.count?.length
         }
       }
     } else {
@@ -1082,6 +1083,19 @@ export const publicationSearchWithFilterPmids = async (
               }
       }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
         results = await models.AnalysisSummaryArticle.findAndCountAll({
+          include:[{
+            model: models.AnalysisSummaryAuthor,
+            as: "AnalysisSummaryAuthor",
+            required: true,
+            on: {
+              col: Sequelize.where(
+                Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                "=",
+                Sequelize.col("AnalysisSummaryArticle.pmid")
+              ),
+            },
+            attributes: ["personIdentifier"],
+          }],
           where: whereForOnlyArticles,
           subQuery: false,
           // limit: apiBody.limit,
@@ -1090,7 +1104,8 @@ export const publicationSearchWithFilterPmids = async (
          // group: ["AnalysisSummaryArticle.pmid"], // This grouping is not required as we need only count of records statisfies criteria
           // distinct: true,
           // attributes: {exclude: ['AnalysisSummaryArticleId']},
-          attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+          //attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+          attributes:[],
           distinct: true,
           col:'pmid',
           benchmark: true
@@ -1112,7 +1127,7 @@ export const publicationSearchWithFilterPmids = async (
                       Sequelize.col("AnalysisSummaryArticle.pmid")
                     ),
                   },
-                  attributes: [],
+                  attributes: ["personIdentifier"],
                 },
                 {
                   model: models.PersonPersonType,
@@ -1163,7 +1178,7 @@ export const publicationSearchWithFilterPmids = async (
                       Sequelize.col("AnalysisSummaryArticle.pmid")
                     ),
                   },
-                  attributes: [],
+                  attributes: ["personIdentifier"],
                 },
                 {
                   model: models.Person,
@@ -1225,7 +1240,7 @@ export const publicationSearchWithFilterPmids = async (
                     Sequelize.col("AnalysisSummaryArticle.pmid")
                   ),
                 },
-                attributes: [],
+                attributes: ["personIdentifier"],
               },
               {
                 model: models.Person,
@@ -1281,9 +1296,20 @@ export const publicationSearchWithFilterPmids = async (
         articleResults = results;
       } */
 
-       let pmids =  results.rows?.length && results.rows?.map(data => data.pmid);
-      let personIdentifiers: any[] = [];
-      if (pmids && pmids.length > 0) {
+      let personIdentifiers = [];
+
+      let pmids =  results.rows?.length && results.rows?.map(data => data.pmid);
+      console.log("results*********************", results)
+
+      if (isAuthorFilter && !isArticleFilter) { 
+        personIdentifiers =  results.rows?.length && results.rows?.map(data => data.dataValues.personIdentifers);
+
+      }else{
+        personIdentifiers =  results.rows?.length && results.rows?.map(data => data.dataValues.personIdentifers);
+      }
+       console.log("personIds******************", personIdentifiers)
+      // let personIdentifiers: any[] = [];
+      /*if (pmids && pmids.length > 0) {
         // get personIdentifiers
         const whereAuthors = {};
         whereAuthors[Op.and] = [];
@@ -1308,7 +1334,7 @@ export const publicationSearchWithFilterPmids = async (
           },
         });
         //this one is calculating authorship
-        personIdentifiers = await models.AnalysisSummaryAuthorList.findAll({
+        personIdentifiers = await models.AnalysisSummaryAuthorList.findAll({ // need to comment
           attributes: ["personIdentifier"],
           where: whereAuthors,
           // group: ["personIdentifier"],
@@ -1316,7 +1342,7 @@ export const publicationSearchWithFilterPmids = async (
         }).then((output) => {
           return output.map(result => result.personIdentifier);
         })
-      }
+      } */
       // searchOutput = results.map(result => result.pmid);
       finalSearchOutput = { personIdentifiers, pmids }; 
     } else {
