@@ -38,6 +38,7 @@ export const generatePubsRtf = async (
         }
       );
     } else {
+
       console.log('coming into this else one*************************')
       generatePubsRtfOutput = await sequelize.query(
         "CALL generatePubsNoPeopleRTF ( :pmids)",
@@ -91,7 +92,7 @@ export const generatePubsPeopleOnlyRtf = async (
       const where = {};
       var isAuthorFilters = false;
       var isArticleFilters = false;
-      var isPersonType = false;
+      let isPersonTypeFilter = false;
 
 
       if (apiBody.filters) {
@@ -197,12 +198,12 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.personTypes.length > 0
         ) {
 
-          // where[Op.and].push({
-          //   "$PersonPersonTypes.personType$": {
-          //     [Op.in]: apiBody.filters.personTypes,
-          //   },
-          // });
-         
+           where[Op.and].push({
+             "$PersonPersonTypes.personType$": {
+               [Op.in]: apiBody.filters.personTypes,
+             },
+          });
+          isPersonTypeFilter = true;
         }
         where[Op.and].push({
           "$AnalysisSummaryAuthor.personIdentifier$": {
@@ -288,7 +289,7 @@ export const generatePubsPeopleOnlyRtf = async (
           {
             model: models.PersonPersonType,
             as: "PersonPersonTypes",
-            required: false,
+            required: isPersonTypeFilter,
             on: {
               col1: Sequelize.where(
                 Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
@@ -318,7 +319,7 @@ export const generatePubsPeopleOnlyRtf = async (
       console.log("result))))))", searchOutput)
 
 
-      let wherePersonIdentifier = [];
+     /* let wherePersonIdentifier = [];
       wherePersonIdentifier = searchOutput.map((data)=> data.Person.dataValues.personIdentifier)
 
         const whereAuthors = {};
@@ -377,6 +378,7 @@ export const generatePubsPeopleOnlyRtf = async (
     try {
       let apiBody: PublicationSearchFilter = req.body;
       const where = {};
+      let isPersonFilterOn = false;
       if (apiBody.filters) {
         where[Op.and] = [];
         if (
@@ -475,6 +477,7 @@ export const generatePubsPeopleOnlyRtf = async (
               [Op.in]: apiBody.filters.personTypes,
             },
           });
+          isPersonFilterOn = true;
         }
       }
       const sort = [];
@@ -506,73 +509,149 @@ export const generatePubsPeopleOnlyRtf = async (
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let doiUrl = 'https://dx.doi.org/';
       let searchOutput: any[] = [];
-      searchOutput = await models.AnalysisSummaryAuthor.findAll({
-        include: [
-          {
-            model: models.AnalysisSummaryArticle,
-            as: "AnalysisSummaryArticle",
-            required: true,
-            on: {
-              col: Sequelize.where(
-                Sequelize.col("AnalysisSummaryArticle.pmid"),
-                "=",
-                Sequelize.col("AnalysisSummaryAuthor.pmid")
-              ),
+      console.log('personType selected',isPersonFilterOn);
+      if(isPersonFilterOn)
+      {
+        
+        searchOutput = await models.AnalysisSummaryAuthor.findAll({
+          include: [
+            {
+              model: models.AnalysisSummaryArticle,
+              as: "AnalysisSummaryArticle",
+              required: true,
+              on: {
+                col: Sequelize.where(
+                  Sequelize.col("AnalysisSummaryArticle.pmid"),
+                  "=",
+                  Sequelize.col("AnalysisSummaryAuthor.pmid")
+                ),
+              },
+              attributes: [
+                "pmid",
+                "articleTitle",
+                "pmcid",
+                "articleYear",
+                "publicationDateDisplay",
+                "publicationDateStandardized",
+                "datePublicationAddedToEntrez",
+                "journalTitleVerbose",
+                "issue",
+                "pages",
+                "volume",
+                [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+                ...articleLevelMetrics
+              ],
             },
-            attributes: [
-              "pmid",
-              "articleTitle",
-              "pmcid",
-              "articleYear",
-              "publicationDateDisplay",
-              "publicationDateStandardized",
-              "datePublicationAddedToEntrez",
-              "journalTitleVerbose",
-              "issue",
-              "pages",
-              "volume",
-              [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
-              ...articleLevelMetrics
-            ],
-          },
-          {
-            model: models.Person,
-            as: "Person",
-            required: true,
-            on: {
-              col: Sequelize.where(
-                Sequelize.col("Person.personIdentifier"),
-                "=",
-                Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
-              )
+            {
+              model: models.Person,
+              as: "Person",
+              required: true,
+              on: {
+                col: Sequelize.where(
+                  Sequelize.col("Person.personIdentifier"),
+                  "=",
+                  Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+                )
+              },
+              attributes: []
             },
-            attributes: []
-          },
-          {
-            model: models.PersonPersonType,
-            as: "PersonPersonTypes",
-            required: false,
-            on: {
-              col1: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
-                "=",
-                Sequelize.col("PersonPersonTypes.personIdentifier"),
-              ),
-              col2: Sequelize.where(
-                Sequelize.col("Person.personIdentifier"),
-                "=",
-                Sequelize.col("PersonPersonTypes.personIdentifier"),
-              ),
+            {
+              model: models.PersonPersonType,
+              as: "PersonPersonTypes",
+              required: true,
+              on: {
+                col1: Sequelize.where(
+                  Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                  "=",
+                  Sequelize.col("PersonPersonTypes.personIdentifier"),
+                ),
+                col2: Sequelize.where(
+                  Sequelize.col("Person.personIdentifier"),
+                  "=",
+                  Sequelize.col("PersonPersonTypes.personIdentifier"),
+                ),
+              },
+              attributes: ["personType"]
+            }
+          ],
+          where: where,
+          group: ["AnalysisSummaryAuthor.pmid"],
+          order: [],
+          subQuery: false,
+          attributes: []
+        })
+      }
+      else
+      {
+        searchOutput = await models.AnalysisSummaryAuthor.findAll({
+          include: [
+            {
+              model: models.AnalysisSummaryArticle,
+              as: "AnalysisSummaryArticle",
+              required: true,
+              on: {
+                col: Sequelize.where(
+                  Sequelize.col("AnalysisSummaryArticle.pmid"),
+                  "=",
+                  Sequelize.col("AnalysisSummaryAuthor.pmid")
+                ),
+              },
+              attributes: [
+                "pmid",
+                "articleTitle",
+                "pmcid",
+                "articleYear",
+                "publicationDateDisplay",
+                "publicationDateStandardized",
+                "datePublicationAddedToEntrez",
+                "journalTitleVerbose",
+                "issue",
+                "pages",
+                "volume",
+                [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+                ...articleLevelMetrics
+              ],
             },
-            attributes: ["personType"]
-          }
-        ],
-        where: where,
-        group: ["AnalysisSummaryAuthor.pmid"],
-        order: [],
-        subQuery: false,
-        attributes: []
-      })
+            {
+              model: models.Person,
+              as: "Person",
+              required: true,
+              on: {
+                col: Sequelize.where(
+                  Sequelize.col("Person.personIdentifier"),
+                  "=",
+                  Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
+                )
+              },
+              attributes: []
+            }
+            /*{
+              model: models.PersonPersonType,
+              as: "PersonPersonTypes",
+              required: true,
+              on: {
+                col1: Sequelize.where(
+                  Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
+                  "=",
+                  Sequelize.col("PersonPersonTypes.personIdentifier"),
+                ),
+                col2: Sequelize.where(
+                  Sequelize.col("Person.personIdentifier"),
+                  "=",
+                  Sequelize.col("PersonPersonTypes.personIdentifier"),
+                ),
+              },
+              attributes: ["personType"]
+            }*/
+
+          ],
+          where: where,
+          group: ["AnalysisSummaryAuthor.pmid"],
+          order: [],
+          subQuery: false,
+          attributes: []
+        })
+      }
       return searchOutput;
     } catch (e) {
       console.log(e);
@@ -645,7 +724,7 @@ export const generatePubsPeopleOnlyRtf = async (
           {
             model: models.PersonPersonType,
             as: "PersonPersonTypes",
-            required: true,
+            required: false,
             on: {
               col1: Sequelize.where(
                 Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),

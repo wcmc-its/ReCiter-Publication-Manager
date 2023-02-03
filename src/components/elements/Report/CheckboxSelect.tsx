@@ -42,10 +42,11 @@ export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title,
     let updatedSelectedList = selectedOptions && selectedOptions.map((selectedOption) => {
       return options.find(option => option[optionValue] == selectedOption);
     })
-    if(updatedSelectedList.every((currentValue)=> currentValue !== undefined))
+    let filteredData = updatedSelectedList.filter(item => item !== undefined)
+    if(filteredData.every((currentValue)=> currentValue !== undefined))
     {
        const uniqueIds = [];
-      updatedSelectedList.filter(element => {
+       filteredData.filter(element => {
         const isDuplicate = uniqueIds.includes(element.personIdentifier);
       
         if (!isDuplicate) {
@@ -56,7 +57,6 @@ export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title,
         return false;
       }); 
       setSelectedList(uniqueIds);
-      // setFilteredList(uniqueIds);
     }
   }
 

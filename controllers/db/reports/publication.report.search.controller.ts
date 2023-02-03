@@ -1297,17 +1297,19 @@ export const publicationSearchWithFilterPmids = async (
       } */
 
       let personIdentifiers = [];
-
-      let pmids =  results.rows?.length && results.rows?.map(data => data.pmid);
-      console.log("results*********************", results)
+      let pmids = [];
 
       if (isAuthorFilter && !isArticleFilter) { 
-        personIdentifiers =  results.rows?.length && results.rows?.map(data => data.dataValues.personIdentifers);
+        pmids = results.rows?.length && results.rows?.map(data => data.pmid);
+        personIdentifiers =  results.rows?.length && results.rows?.map(data => data.personIdentifier);
 
+      }else if(!isAuthorFilter && isArticleFilter){
+       pmids = results.rows?.length && results.rows?.map(data => data.dataValues.AnalysisSummaryAuthor.dataValues.pmid);
+        personIdentifiers =  results.rows?.length && results.rows?.map(data =>  data.dataValues.AnalysisSummaryAuthor.dataValues.personIdentifier);
       }else{
-        personIdentifiers =  results.rows?.length && results.rows?.map(data => data.dataValues.personIdentifers);
+        pmids = results.rows?.length && results.rows?.map(data => data.dataValues.pmid);
+        personIdentifiers =  results.rows?.length && results.rows?.map(data =>  data.dataValues.AnalysisSummaryAuthor.dataValues.personIdentifier);
       }
-       console.log("personIds******************", personIdentifiers)
       // let personIdentifiers: any[] = [];
       /*if (pmids && pmids.length > 0) {
         // get personIdentifiers
