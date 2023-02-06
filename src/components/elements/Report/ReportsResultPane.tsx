@@ -43,12 +43,12 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   const ADDITIONAL_INFO_CONFIGS = [
     {
       label: "Citation count (NIH)",
-      title: "citationCount",
+      title: "citationCountNIH",
       value: citationCount
     },
     {
       label: "Percentile Rank",
-      title: "percentileRank",
+      title: "nihPercentile",
       value: percentileRank
     },
     {
@@ -58,7 +58,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
     },
     {
       label: "Journal Rank",
-      title: "journalImpactScore",
+      title: "journalImpactScore1",
       value: journalImpactScore1
     },
     {

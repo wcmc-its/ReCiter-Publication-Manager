@@ -624,11 +624,11 @@ export const generatePubsPeopleOnlyRtf = async (
                 )
               },
               attributes: []
-            }
-            /*{
+            },
+            {
               model: models.PersonPersonType,
               as: "PersonPersonTypes",
-              required: true,
+              required: false,
               on: {
                 col1: Sequelize.where(
                   Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
@@ -642,7 +642,7 @@ export const generatePubsPeopleOnlyRtf = async (
                 ),
               },
               attributes: ["personType"]
-            }*/
+            }
 
           ],
           where: where,
