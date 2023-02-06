@@ -13,22 +13,19 @@ export const authorFilter = async (
 ) => {
   try {
     const { authorFilter } = req.query;
-    console.log('authorFilter***********************',authorFilter);
     let authorFilterArray =[];
     if(authorFilter.indexOf(',') > 0)
        authorFilterArray = (authorFilter as string).split(',')
     else
       authorFilterArray = (authorFilter as string).split(' ')
 
-    console.log('After splitting AuthorFilter Array************************',authorFilterArray);  
     const count = req.query.count as string;
     let limit = parseInt(count) || 10;
     let persons = null as any;
 
     if(!authorFilter) 
     {
-      console.log('no AuthorFilter****************************',authorFilter);
-
+ 
       persons = await models.Person.findAll({
           //order: [["personType", "ASC"]],
           attributes: [
@@ -49,7 +46,6 @@ export const authorFilter = async (
   }
   else if(authorFilterArray && Array.isArray(authorFilterArray) && authorFilterArray.length > 0)
   {
-    console.log('AuthorFilterArray****************************',authorFilterArray);
     const where = {}
     where[Op.and] = []
     if(authorFilterArray && authorFilterArray.length > reciterConstants.nameCWIDSpaceCountThreshold) {
@@ -59,7 +55,6 @@ export const authorFilter = async (
  
      }
     else if(where[Op.and] && authorFilterArray && authorFilterArray.length <= reciterConstants.nameCWIDSpaceCountThreshold) {
-      console.log('AuthorFilterArray2****************************',authorFilterArray);
         authorFilterArray.forEach((name: string) => {
                 where[Op.and].push({[Op.or]:[{'$Person.firstName$': { [Op.like]: `%${name}%`}},
               {'$Person.middleName$': { [Op.like]: `%${name}%`}},

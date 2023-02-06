@@ -8,10 +8,8 @@ export default async function handler(req: NextApiRequest,
     if (req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
             const apiBody: GeneratePubsApiBody = req.body;
-            console.log('apiBody for RTF**********************',apiBody);
             const generatePubsRtfOutput: any = await generatePubsRtf(req, res)
             try{
-                console.log('coming into this to export from here*********************************',generatePubsRtfOutput);
                 if(generatePubsRtfOutput)
                 {
                     const fileBuffer = Buffer.from(generatePubsRtfOutput, 'utf-8')

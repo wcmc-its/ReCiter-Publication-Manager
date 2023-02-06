@@ -70,7 +70,7 @@ const SearchSummary = ({
       personIdentifiers,
       pmids: [...requestBody.pmids]
     }
-    console.log('coming into Export Article********************',personIdentifiers)
+   
     fetch(`/api/db/reports/publication`, {
       credentials: "same-origin",
       method: 'POST',
@@ -111,7 +111,6 @@ const SearchSummary = ({
 
   const generateRTFPeopleOnly = (requestBody: ReporstResultId) => {
     setExportArticlePplLoading(true);
-    console.log('coming into Export Article People********************')
     fetch(`/api/db/reports/publication/people-only`, {
       credentials: "same-origin",
       method: 'POST',
