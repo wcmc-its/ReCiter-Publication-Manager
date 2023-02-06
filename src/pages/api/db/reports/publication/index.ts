@@ -10,11 +10,21 @@ export default async function handler(req: NextApiRequest,
             const apiBody: GeneratePubsApiBody = req.body;
             const generatePubsRtfOutput: any = await generatePubsRtf(req, res)
             try{
-                const fileBuffer = Buffer.from(generatePubsRtfOutput, 'utf-8')
-                res.setHeader('Content-Type', 'application/rtf')
-                res.setHeader('Content-Disposition', 'attachment; filename=' + apiBody.personIdentifiers + '.rtf');
-                console.log('Creating the file buffer for generatePubsRtf with params: ' + apiBody)
-                res.status(200).send(fileBuffer)
+                if(generatePubsRtfOutput)
+                {
+                    const fileBuffer = Buffer.from(generatePubsRtfOutput, 'utf-8')
+                    res.setHeader('Content-Type', 'application/rtf')
+                    res.setHeader('Content-Disposition', 'attachment; filename=' + apiBody.personIdentifiers + '.rtf');
+                    console.log('Creating the file buffer for generatePubsRtf with params: ' + apiBody)
+                    res.status(200).send(fileBuffer)
+                }
+                else
+                {
+                    /**TO DO 
+                     * May be displaying toater would help end user instead of a showing an error message in the file.
+                    */
+
+                }
             } catch(err) {
                 console.log('Error with the file for generatePubsRtf for ' + apiBody + ': ' + err)
                 res.status(500).send('Error with the file for generatePubsRtf for ' + apiBody + ': ' + err)

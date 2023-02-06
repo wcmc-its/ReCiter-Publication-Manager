@@ -18,6 +18,7 @@ import Profile from "../Profile/Profile";
 import { useModal } from "../../../hooks/useModal";
 import { Container } from "react-bootstrap";
 import { ReportResults } from "./ReportResults";
+import { countPersons } from "../../../../controllers/db/person.controller";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -127,7 +128,7 @@ const Report = () => {
 
 
   const updateAuthorFilterData = (input: string, count: number = 10, isFrom: string ) => {
-    if( input || isFrom) dispatch(updateAuthorFilter(input, count, isFrom))
+    if( input || isFrom) dispatch(updateAuthorFilter(input, input ? 0 : count, isFrom))
   }
 
   const updateJournalFilterData = (input: string, count: number = 10) => {
@@ -172,6 +173,10 @@ const Report = () => {
     journalFilterData: updateJournalFilterData,
   }
 
+  const onLoadMore = (seemoreCount)=>{
+    dispatch(updateAuthorFilter("", seemoreCount));
+  }
+
   const onSetSearchFilters = (filter, value) => {
     // update the filter object
     let updatedSearchFilter = { 
@@ -205,7 +210,7 @@ const Report = () => {
     setIsFilterClear(!isFilterClear)
     dispatch(clearPubSearchFilters());
     setReset(!reset)
-    // dispatch(updateAuthorFilter());
+    dispatch(updateAuthorFilter());
   }
 
   const searchResults = () => {
@@ -289,6 +294,7 @@ const Report = () => {
           clearFilters={clearFilters}
           searchResults={searchResults}
           isFilterClear={isFilterClear}
+          onLoadMore = {onLoadMore}
           />
         {reportsSearchResultsLoading && 
           <Container fluid className="h-100 p-5">

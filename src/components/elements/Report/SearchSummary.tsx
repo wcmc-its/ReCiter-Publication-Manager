@@ -70,6 +70,7 @@ const SearchSummary = ({
       personIdentifiers,
       pmids: [...requestBody.pmids]
     }
+   
     fetch(`/api/db/reports/publication`, {
       credentials: "same-origin",
       method: 'POST',
@@ -159,6 +160,7 @@ const SearchSummary = ({
     }).then(response => {
       return response.json();
     }).then(result => {
+      console.log("resultresultresult", result)
       generateAuthorshipCSV(result);
       setExportAuthorshipCsvLoading(false);
     }).catch(error => {
@@ -179,6 +181,7 @@ const SearchSummary = ({
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
+        console.log("article data", articleInfoField);
         let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
         columns.push(labelObj);
       })
@@ -212,7 +215,7 @@ const SearchSummary = ({
       // worksheet.getCell('Article title').alignment = { wrapText: true };
       
       // process the data and add rows to worksheet
-      data.forEach(item => {
+      data && data.forEach(item => {
         let itemRow = {};
         Object.keys(item).forEach(obj => {
           if (obj === 'PersonPersonTypes') {

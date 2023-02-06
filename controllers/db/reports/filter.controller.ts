@@ -13,14 +13,19 @@ export const authorFilter = async (
 ) => {
   try {
     const { authorFilter } = req.query;
-    let authorFilterArray = (authorFilter as string).split(',')
+    let authorFilterArray =[];
+    if(authorFilter.indexOf(',') > 0)
+       authorFilterArray = (authorFilter as string).split(',')
+    else
+      authorFilterArray = (authorFilter as string).split(' ')
+
     const count = req.query.count as string;
     let limit = parseInt(count) || 10;
     let persons = null as any;
 
     if(!authorFilter) 
     {
-
+ 
       persons = await models.Person.findAll({
           //order: [["personType", "ASC"]],
           attributes: [
@@ -48,15 +53,15 @@ export const authorFilter = async (
           {'$Person.personIdentifier$': { [Op.in]: authorFilterArray }},
       ]})
  
-  }
-  else if(where[Op.and] && authorFilterArray && authorFilterArray.length <= reciterConstants.nameCWIDSpaceCountThreshold) {
-      authorFilterArray.forEach((name: string) => {
-              where[Op.and].push({[Op.or]:[{'$Person.firstName$': { [Op.like]: `%${name}%`}},
-            {'$Person.middleName$': { [Op.like]: `%${name}%`}},
-              {'$Person.lastName$': { [Op.like]: `%${name}%`}},
-              {'$Person.personIdentifier$': { [Op.like]: `%${name}%`}}]})
-          })
-       }
+     }
+    else if(where[Op.and] && authorFilterArray && authorFilterArray.length <= reciterConstants.nameCWIDSpaceCountThreshold) {
+        authorFilterArray.forEach((name: string) => {
+                where[Op.and].push({[Op.or]:[{'$Person.firstName$': { [Op.like]: `%${name}%`}},
+              {'$Person.middleName$': { [Op.like]: `%${name}%`}},
+                {'$Person.lastName$': { [Op.like]: `%${name}%`}},
+                {'$Person.personIdentifier$': { [Op.like]: `%${name}%`}}]})
+            })
+        }
     persons = await models.Person.findAll({
       //order: [["personType", "ASC"]],
       attributes: [

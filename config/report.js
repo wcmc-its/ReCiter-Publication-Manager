@@ -105,8 +105,10 @@ export const infoBubblesConfig = {
   hindexScopus: "h-index is the number of an author's articles in Scopus that have been cited, as defined by Scopus, at least that many times.",
   h5indexScopus: "h5-index is the number of an author's articles in Scopus that have been cited, as defined by Scopus, at least that many times within the past 5 years.",
   journalImpactScore1: "SCImago Journal Rank is a measure of the relative number of inbound citations articles in a given journal receive compared to outbound citations. It is closely correlated with Journal Impact Factor.",
+  citationCountNIH: "This is the number of citations an article has received from CrossRef, MEDLINE, PubMed Central, and Entrez. NIH citation counts generally correlate closely with the counts in Scopus and Web of Knowledge.",
   includeHeadshot: true,
-  headshotSyntax: "https://directory.weill.cornell.edu/api/v1/person/profile/{personID}.png?returnGenericOn404=false"
+  headshotSyntax: "https://directory.weill.cornell.edu/api/v1/person/profile/{personID}.png?returnGenericOn404=false",
+  
 }
 
 export const limits = {
@@ -171,7 +173,7 @@ export const labels = {
     articleYear: "Article year",
     pmcid: "pmcid",
     publicationDateDisplay: "Publication date display",
-    publicationDateStandarized: "Date standardized",
+    publicationDateStandardized: "Date standardized",
     datePublicationAddedToEntrez: "Date added",
     journalTitleVerbose: "Journal",
     doi: "doi",
