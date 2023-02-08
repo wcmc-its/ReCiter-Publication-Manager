@@ -508,8 +508,8 @@ const Profile = ({
               <Image
                 // loader={imageLoader}
                 alt='Profile Image'
-                width={160}
-                height={187}
+                width={144}
+                height={217}
                 src={identity?.identityImageEndpoint ? identity?.identityImageEndpoint : ''}
                 onError={() => setDisplayImage(false)}
               />
