@@ -1094,7 +1094,7 @@ export const publicationSearchWithFilterPmids = async (
                 Sequelize.col("AnalysisSummaryArticle.pmid")
               ),
             },
-            attributes: ["personIdentifier"],
+            attributes: ["personIdentifier","pmid"],
           }],
           where: whereForOnlyArticles,
           subQuery: false,

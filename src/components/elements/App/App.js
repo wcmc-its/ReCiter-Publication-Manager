@@ -10,6 +10,7 @@ import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import {getSession } from "next-auth/client"
 
 const App = (props) => {
 
@@ -25,10 +26,16 @@ const App = (props) => {
 
     const [tabActive, setTabActive] = useState("Suggested")
     const [identityData, setIdentityData] = useState({})
+    const session = getSession();
 
     useEffect(() => {
-        dispatch(reciterFetchData(props.uid, false))
-        dispatch(identityFetchData(props.uid))
+        // Call only if user has curator_self role. otherwise, we should not call these APIs.
+        if(session && session.data && session.data.userRoles && session.data.userRoles.length > 0 
+            && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) 
+         {   
+            dispatch(reciterFetchData(props.uid, false))
+            dispatch(identityFetchData(props.uid))
+         }
     },[])
 
     const tabClickHandler = (str = 'Suggested') => {

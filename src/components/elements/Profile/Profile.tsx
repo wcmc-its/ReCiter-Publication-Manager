@@ -1,13 +1,13 @@
 import React, { useEffect, useState, MouseEvent } from "react";
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { identityFetchData } from "../../../redux/actions/actions";
-import { Modal, Container, Row, Button, Col } from "react-bootstrap";
+import { Modal, Container, Row, Button, Col,Popover, OverlayTrigger } from "react-bootstrap";
 import Image from 'next/image'
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import styles from "./Profile.module.css";
 import { reciterConfig } from '../../../../config/local';
-import { metrics, labels } from "../../../../config/report";
+import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
 import { useSession } from 'next-auth/client';
@@ -53,6 +53,8 @@ const Profile = ({
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const [session, loading] = useSession();
   const userPermissions = JSON.parse(session.data.userRoles);
+  const [displayImage, setDisplayImage] = useState<boolean>(true);
+
 
 
   
@@ -70,6 +72,19 @@ const Profile = ({
      Promise.all([fetchIdentityPromise, showBiblioAnalysisPromise]).then(() => { setIsLoading(false); })
     }
   }, [modalShow])
+
+  const ADDITIONAL_INFO_CONFIGS = [
+    {
+      label: "h-index",
+      title: "hindexNIH",
+      value: identity.hindexNIH
+    },
+    {
+      label: "h5-index",
+      title: "h5indexNIH",
+      value: identity.h5indexNIH
+    }
+  ]
 
   const fetchIdentity = async () => {
     return await fetch('/api/reciter/getidentity/' + uid, {
@@ -447,8 +462,37 @@ const Profile = ({
     })
   }
 
+  const DisplayInfo = ({ label, title, value}) => {
+    // console.log("info title", infoBubblesConfig[title] , "respTitle" , title )
+   if (value) {
+     if (infoBubblesConfig[title]) {
+       return (
+        <span style={{ 'position': 'relative', paddingRight : '10px'}}>
+         <OverlayTrigger
+           trigger={["hover","focus"]}
+           overlay={(
+             <Popover id="information-description" className={styles.popoverBg}>
+               <Popover.Body>
+                 {infoBubblesConfig[title]}
+               </Popover.Body>
+             </Popover>)}
+             placement="top"
+             >
+               <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value}</span>
+         </OverlayTrigger>
+         </span>
+       )
+     } else {
+       return (
+         <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value}</span>
+       )
+     } 
+   } else
+   return null
+ }
+
   return (
-    <Modal show={modalShow} size="lg" onHide={handleClose}>
+    <Modal show={modalShow} size="lg" onHide={handleClose} dialogClassName={ showBiblioBtn ? styles.modalWidth : ""}>
       {
         isLoading ? 
         <Modal.Body><Loader /></Modal.Body> : 
@@ -457,15 +501,19 @@ const Profile = ({
         <>
         <Modal.Header closeButton className={styles.modalHeader}>
           <Container>
-            <Row>
-              <div className="img-container">
-              {/* <Image
-                loader={imageLoader}
-                src={identityData.identityImageEndpoint ? identityData.identityImageEndpoint : ''}
+          <div className="d-flex">
+              <div className={styles.pr20}>
+              {
+                displayImage && identity.identityImageEndpoint &&
+              <Image
+                // loader={imageLoader}
                 alt='Profile Image'
-                width={144}
-                height={300}
-              /> */}
+                width={160}
+                height={187}
+                src={identity?.identityImageEndpoint ? identity?.identityImageEndpoint : ''}
+                onError={() => setDisplayImage(false)}
+              />
+              }
               </div>
               <div className="flex-grow-1">
                 <DisplayName 
@@ -473,12 +521,27 @@ const Profile = ({
                 />
                 <b>{identity.title}</b>
                 <p>{identity.primaryOrganizationalUnit}</p>
-                <div className="index-data"></div>
+                <div className={`${styles.reportsAdditionalInfo} pt-2`}>
+                        {
+                          ADDITIONAL_INFO_CONFIGS.map(({ label, title, value }) => {
+                            return (
+                              <DisplayInfo
+                                label={label}
+                                title={title}
+                                value={value}
+                                key={title}
+                              />
+                            )
+                          })
+                        }
+                      </div>
+                <div className="d-flex">
                   <ExportButton title="Export articles as CSV" onClick={exportArticleCSV} loading={exportArticleCsvLoading} />
                   <ExportButton title="Export articles as RTF" onClick={generateRTFPeopleOnly} loading={exportArticlRTFLoading} />
                   {showBiblioBtn && <Button variant="warning" onClick={() => generateBiblioAnalysis()} className="m-2">Generate bibliometric analysis</Button>}
               </div>
-            </Row>
+            </div>
+            </div>
           </Container>
         </Modal.Header>
         <Modal.Body>

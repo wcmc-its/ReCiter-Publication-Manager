@@ -1,4 +1,5 @@
 import { reciterConfig } from '../config/local'
+import models from '../src/db/sequelize';
 
 export async function getIdentity(uid: string | string[])  {
     
@@ -26,7 +27,12 @@ export async function getIdentity(uid: string | string[])  {
                         identityImage = reciterConfig.reciter.reciterIdentityEndpoints.identityImageEndpoint
                     }
                 }
-                data['identityImageEndpoint'] = identityImage
+                data['identityImageEndpoint'] = identityImage;
+                let personInfo = await models.AnalysisSummaryPerson.findOne({ where: { personIdentifier: data.uid} });
+                data['h5indexNIH'] = personInfo?.h5indexNIH || "";
+                data['hindexNIH'] = personInfo?.hindexNIH || "";
+                data['hindexScopus'] = personInfo?.hindexScopus || "";
+                data['h5indexScopus'] = personInfo?.h5indexScopus || "";
                 return {
                     statusCode: res.status,
                     statusText: data
