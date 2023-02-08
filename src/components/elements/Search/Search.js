@@ -404,11 +404,11 @@ const Search = () => {
   
   const RoleSplitDropdown = (identity) => {
     
-    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCurateAll && !isSuperUser && loggedInPersonIdentifier === identity.identity.personIdentifier) 
+    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser && loggedInPersonIdentifier === identity.identity.personIdentifier) 
     {
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
     }
-    else if(dropdownTitle && dropdownTitle =='Create Report' && isReporterAll && !isCurateAll && !isSuperUser && !isCurateSelf)
+    else if(dropdownTitle && dropdownTitle =='Create Report' && isReporterAll && !isCuratorAll && !isSuperUser && !isCurateSelf)
     {
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("report", identity.identity)}>{"Create Reports"}</Button>
     }
