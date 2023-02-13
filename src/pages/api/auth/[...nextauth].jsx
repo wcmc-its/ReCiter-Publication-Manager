@@ -3,7 +3,7 @@ import Providers from "next-auth/providers";
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
-import { findOrCreateAdminUsers } from '../../../../controllers/db/admin.users.controller';
+import { findAdminUser, findOrCreateAdminUsers } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 
 const authHandler = async (req, res) => {
@@ -22,10 +22,8 @@ const options = {
                   if (apiResponse.statusCode == 200) {
                         const adminUser = await findOrCreateAdminUsers(credentials.username)
                         apiResponse.databaseUser = adminUser;
-                        const userRoles = await findUserPermissions(credentials.username);
+                        const userRoles = await findUserPermissions(credentials.username, "cwid");
                         apiResponse.userRoles = userRoles;
-                       
-                       
                       return apiResponse;
                   } else {
                       return null;
@@ -61,14 +59,27 @@ const options = {
                     );
                     const { user } = await postAssert(idp, samlBody);
                     let cwid = null;
+                    let email = null;
+                    console.log("user.attributes)))))))))))))))))))", user.attributes)
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
+                    }else if (user.attributes && user.attributes.email) {
+                        email = user.attributes.user.email[0];
                     }
+
                     if (cwid) {
-                        const adminUser = await findOrCreateAdminUsers(cwid)
+                        // const adminUser = await findOrCreateAdminUsers(cwid)
+                        const adminUser = await findAdminUser(cwid, "cwid");
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
-                        const userRoles = await findUserPermissions(cwid);
+                        const userRoles = await findUserPermissions(cwid, "cwid");
+                        adminUser.userRoles = userRoles;
+                        return adminUser;
+                    }else if(email){
+                        const adminUser = await findAdminUser(email,"email")
+                        adminUser.databaseUser = adminUser
+                        adminUser.personIdentifier
+                        const userRoles = await findUserPermissions(email,"email");
                         adminUser.userRoles = userRoles;
                         return adminUser;
                     }

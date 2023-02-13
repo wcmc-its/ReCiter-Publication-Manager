@@ -28,3 +28,22 @@ export const findOrCreateAdminUsers = async (uid: string) => {
         console.log(e)
     }
 };
+
+export const findAdminUser = async (uid: string, type:string) => {
+    
+    if (type === "cwid"){
+        const user = await models.AdminUser.findOne({
+            where: {
+                personIdentifier: uid,
+            }
+        })
+        return user;
+    }else {
+        const user = await models.AdminUser.findOne({
+            where: {
+                email: uid,
+            }
+        })
+        return user;
+    }
+}
