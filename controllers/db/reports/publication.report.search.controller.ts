@@ -226,8 +226,18 @@ export const publicationSearchWithFilter = async (
             [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
+        where[Op.and].push({
+          "$AnalysisSummaryArticle.journalImpactScore2$": {
+            [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
+          },
+        });
         whereForOnlyArticles[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
+            [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+          },
+        });
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.journalImpactScore2$": {
             [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
           },
         });
@@ -918,8 +928,18 @@ export const publicationSearchWithFilterPmids = async (
             [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
           },
         });
+        where[Op.and].push({
+          "$AnalysisSummaryArticle.journalImpactScore2$": {
+            [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
+          },
+        });
         whereForOnlyArticles[Op.and].push({
           "$AnalysisSummaryArticle.journalImpactScore1$": {
+            [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
+          },
+        });
+        whereForOnlyArticles[Op.and].push({
+          "$AnalysisSummaryArticle.journalImpactScore2$": {
             [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
           },
         });
