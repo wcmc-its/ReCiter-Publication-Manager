@@ -1781,6 +1781,13 @@ export const updatePubSearchFilters = (filter) => dispatch => {
     })
 }
 
+export const clearReportSearchResults = () => dispatch => {
+    dispatch({
+        type: methods.REPORTS_SEARCH_CLEAR,
+        payload: []
+    })
+}
+
 export const clearPubSearchFilters = ()  => {
     return(dispatch, getState) => {
         const filters = getState().filters;
@@ -1803,6 +1810,10 @@ export const clearPubSearchFilters = ()  => {
         dispatch({
             type: methods.PUB_FILTER_UPDATE,
             payload: reportsSearchFilters
+        })
+        dispatch({
+            type: methods.REPORTS_SEARCH_CLEAR,
+            payload: []
         })
         // dispatch({
         //     type: methods.AUTHOR_FILTER_CLEAR_ALL_DATA
@@ -1860,7 +1871,6 @@ export const updatePubFiltersFromSearch = () => {
 
 // Search Results for Create Reports Page
 export const getReportsResults = (requestBody, paginationUpdate = false) => dispatch => {
-    console.log("requestBody", requestBody)
     // check if fetching different page of the same results and update loading state accordingly
     if (paginationUpdate) {
         dispatch({
@@ -1911,7 +1921,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
                 })
             } else {
                
-                if(data && data.rows && data.rows.length > 0) {
+                if (data && data.rows && data.rows.length > 0) {
                     let pmids = data.rows ? data?.rows?.map(row => row.pmid) : [];
                     getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
                         // given authors data merge it with the rest of the results
@@ -1933,7 +1943,6 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
                             type: methods.REPORTS_SEARCH_UPDATE,
                             payload: { count: data.count, rows: results },
                         })
-
                         if (paginationUpdate) {
                             dispatch({
                                 type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
@@ -1944,6 +1953,17 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
                             })
                         }
                     });
+                } else {
+
+                    if (paginationUpdate) {
+                        dispatch({
+                            type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
+                        })
+                    } else {
+                        dispatch({
+                            type: methods.REPORTS_SEARCH_CANCEL_FETCHING
+                        })
+                    }
                 }
             }
         })

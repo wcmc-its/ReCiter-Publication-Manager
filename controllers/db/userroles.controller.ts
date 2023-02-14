@@ -1,16 +1,16 @@
 import sequelize from "../../src/db/db";
 
 
-export const findUserPermissions = async (uid: string, type: string) => {
+export const findUserPermissions = async (attrValue: string, attrType: string) => {
 
     let userRolesList: any = [];
     try {
-        if (type === "cwid") {
+        if (attrType === "email") {
             userRolesList = await sequelize.query(
                 "SELECT au.personIdentifier, roleLabel FROM admin_users as au INNER JOIN admin_users_roles as aur " +
-                "ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID     WHERE     au.personIdentifier = :uId",
+                "ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID     WHERE     au.email = :email",
                 {
-                    replacements: { uId: uid },
+                    replacements: { email: attrValue },
                     nest: true,
                     raw: true
                 }
@@ -19,9 +19,9 @@ export const findUserPermissions = async (uid: string, type: string) => {
         } else {
             userRolesList = await sequelize.query(
                 "SELECT au.personIdentifier, roleLabel FROM admin_users as au INNER JOIN admin_users_roles as aur " +
-                "ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID     WHERE     au.email = :uId",
+                "ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID     WHERE     au.personIdentifier = :personIdentifier",
                 {
-                    replacements: { uId: uid },
+                    replacements: { personIdentifier: attrValue },
                     nest: true,
                     raw: true
                 }

@@ -56,9 +56,12 @@ const Report = () => {
   // search results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
 
+
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
   const [reset, setReset] = useState<boolean>(false);
+  const [isFiltersOn, setIsFiltersOn] = useState<boolean>(false);
+
 
 
   /* Custom Hooks */
@@ -70,18 +73,17 @@ const Report = () => {
 
   // fetch filters on mount
   useEffect(() => {
-    dispatch(showEvidenceByDefault(null))
+    dispatch(showEvidenceByDefault(null));
     const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters
-
     if(personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0){
       if(personIdentifers.length > 0) updateAuthorFilterData(personIdentifers, 10, "fromSearchPage")
-      
+
+      setIsFiltersOn(true);
       dispatch(getReportsResults(pubSearchFilter, true));
     } else {
        dispatch(reportsFilters(authorInput , journalInput));
        dispatch(updateAuthorFilter());
        dispatch(getReportsResultsInitial());
-
       }
     // searchResults();
   }, [])
@@ -101,7 +103,16 @@ const Report = () => {
 
         // fetch data
         dispatch(getReportsResults(updatedSearchFilter, true));
-      } else {
+      } else if(isInitialLoad &&  isFiltersOn){
+         // update offset and limit
+         let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
+
+         // dispatch redux filter state update
+         dispatch(updatePubSearchFilters(updatedSearchFilter));
+ 
+         // fetch data
+         dispatch(getReportsResults(updatedSearchFilter, true));
+      }else if(isInitialLoad &&  !isFiltersOn){
         // calculate the offset
         let offset = getOffset(page, count);
         // fetch data with default settings by passing limit and offset
@@ -139,12 +150,12 @@ const Report = () => {
     // update the state of pagination
     handlePaginationUpdate(newPage);
 
-    if (!isInitialLoad) {
-      // fetch data
-      let updatedSearchFilter = updatePagination(newPage, count, pubSearchFilter);
-      dispatch(updatePubSearchFilters(updatedSearchFilter));
-      dispatch(getReportsResults(updatedSearchFilter, true));
-    }
+    // if (!isInitialLoad) {
+    //   // fetch data
+    //   let updatedSearchFilter = updatePagination(newPage, count, pubSearchFilter);
+    //   dispatch(updatePubSearchFilters(updatedSearchFilter));
+    //   dispatch(getReportsResults(updatedSearchFilter, true));
+    // }
   }
 
   const onCountUpdate = (newCount: string) => {
@@ -214,6 +225,7 @@ const Report = () => {
   }
 
   const searchResults = () => {
+
     dispatch(getReportsResults(pubSearchFilter));
     handlePaginationUpdate(1);
     if (isInitialLoad) {

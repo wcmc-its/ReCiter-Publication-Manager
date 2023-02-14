@@ -85,7 +85,7 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
           endDateId="date_picker_end_date_id" // PropTypes.string.isRequired,
           onDatesChange={handleDatesChange} // PropTypes.func.isRequired,
           focusedInput={focusedInput} // PropTypes.oneOf([START_DATE, END_DATE]) or null,
-          onFocusChange={focusedInput =>{ setFocusedInput(focusedInput); console.log("focusedInput")}} // PropTypes.func.isRequired,
+          onFocusChange={focusedInput =>{ setFocusedInput(focusedInput)}} // PropTypes.func.isRequired,
           isOutsideRange={()=> false}
         />
       </Dropdown.Menu>
