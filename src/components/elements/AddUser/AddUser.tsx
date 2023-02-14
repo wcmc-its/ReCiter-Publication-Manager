@@ -65,9 +65,10 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const checkFormValidations = () => {
         let formErrInst: formErrors = {};
         // cwid errors
-        if ( !cwid || cwid === '' || cwid.trim().length === 0 ) formErrInst.cwid = 'Please enter valid cwid!'
+        // if ( !cwid || cwid === '' || cwid.trim().length === 0 ) formErrInst.cwid = 'Please enter valid cwid!'
         // email errors
-        if ( !email || email === '' || email.trim().length === 0 || validateEmail(email) === false ) formErrInst.email = 'Please enter  valid  email!'
+        // if ( !email || email === '' || email.trim().length === 0 || validateEmail(email) === false ) formErrInst.email = 'Please enter  valid  email!'
+        
         // firstName errors
         if ( !firstName || firstName === '' || firstName.trim().length === 0 ) formErrInst.firstName = 'Please enter valid first Name!'
           // lastName errors
@@ -294,7 +295,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         </Row>
                         <Row className="justify-content-center">
                             <Col md={4} sm={12} lg={2}>
-                                <Button variant="primary" type="submit" className="primary mb-4 ">
+                                <Button variant="primary" type="submit" className="primary mb-4 " disabled={cwid.trim().length === 0 && !validateEmail(email)}>
                                     {isEdit ? "Update" : "Submit"}
                                 </Button>
                             </Col>

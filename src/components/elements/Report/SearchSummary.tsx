@@ -160,7 +160,6 @@ const SearchSummary = ({
     }).then(response => {
       return response.json();
     }).then(result => {
-      console.log("resultresultresult", result)
       generateAuthorshipCSV(result);
       setExportAuthorshipCsvLoading(false);
     }).catch(error => {
@@ -181,7 +180,6 @@ const SearchSummary = ({
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        console.log("article data", articleInfoField);
         let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
         columns.push(labelObj);
       })
@@ -238,8 +236,7 @@ const SearchSummary = ({
       link.click()
       link.remove();
     } catch (error) {
-      console.error('<<<ERRROR>>>', error);
-      console.error('Something Went Wrong', error.message);
+      // console.error('Something Went Wrong', error.message);
     } finally {
       // removing worksheet's instance to create new one
       workbook.removeWorksheet(authorshipFileName);
@@ -318,8 +315,7 @@ const SearchSummary = ({
       link.click()
       link.remove();
     } catch (error) {
-      console.error('<<<ERRROR>>>', error);
-      console.error('Something Went Wrong', error.message);
+      // console.error('Something Went Wrong', error.message);
     } finally {
       // removing worksheet's instance to create new one
       workbook.removeWorksheet(articleFileName);

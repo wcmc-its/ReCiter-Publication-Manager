@@ -67,19 +67,19 @@ const options = {
                         email = user.attributes.user.email[0];
                     }
 
-                    if (cwid) {
-                        // const adminUser = await findOrCreateAdminUsers(cwid)
-                        const adminUser = await findAdminUser(cwid, "cwid");
-                        adminUser.databaseUser = adminUser
-                        adminUser.personIdentifier
-                        const userRoles = await findUserPermissions(cwid, "cwid");
-                        adminUser.userRoles = userRoles;
-                        return adminUser;
-                    }else if(email){
+                    if (email) {
                         const adminUser = await findAdminUser(email,"email")
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
                         const userRoles = await findUserPermissions(email,"email");
+                        adminUser.userRoles = userRoles;
+                        return adminUser;
+                        // const adminUser = await findOrCreateAdminUsers(cwid)
+                    }else if(cwid){
+                        const adminUser = await findAdminUser(cwid, "cwid");
+                        adminUser.databaseUser = adminUser
+                        adminUser.personIdentifier
+                        const userRoles = await findUserPermissions(cwid, "cwid");
                         adminUser.userRoles = userRoles;
                         return adminUser;
                     }

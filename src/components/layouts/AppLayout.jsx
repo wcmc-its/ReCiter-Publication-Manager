@@ -12,7 +12,7 @@ import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../config/local";
 import { useDispatch, useSelector } from "react-redux";
-import { clearPubSearchFilters } from "../../redux/actions/actions";
+import { clearPubSearchFilters, clearReportSearchResults } from "../../redux/actions/actions";
 
 export const AppLayout = ({ children }) => {
   const router = useRouter();
@@ -20,6 +20,7 @@ export const AppLayout = ({ children }) => {
 
   const [session, loading] = useSession();
   const errors = useSelector((state) => state.errors);
+  const reportsSearchResults = useSelector((state) => state.reportsSearchResults);
 
   useEffect(() => {
     if (!session && !loading) {
@@ -30,13 +31,14 @@ export const AppLayout = ({ children }) => {
   }, [session, loading, errors]);
 
   useEffect(() => {
+    if(router?.pathname != "/report") {
+      dispatch( clearPubSearchFilters());
+    }
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
     }
-    
-    if(router?.pathname != "/report") dispatch( clearPubSearchFilters());
   }, [router]);
 
   const [expandedNav, setExpandedNav] = useState(true);
