@@ -278,7 +278,6 @@ export const publicationSearchWithFilter = async (
 	
     const sort = [];
     if (apiBody && apiBody.sort) {
-      console.log("apiBody.sort********************", apiBody.sort)
       let sortType = apiBody.sort.type;
       let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
       if (sortType === 'datePublicationAddedToEntrez')
@@ -341,9 +340,9 @@ export const publicationSearchWithFilter = async (
                   ],
                   where: whereForOnlyAuthors,
                   subQuery: false,
-                  limit: apiBody.limit,
+                 // limit: apiBody.limit,
                   // group: ["AnalysisSummaryAuthor.pmid"],
-                  offset: apiBody.offset,
+                 // offset: apiBody.offset,
                   benchmark: true
                 });
               } else{
@@ -378,8 +377,8 @@ export const publicationSearchWithFilter = async (
                   ],
                   where: joinWhereAuthorsFilters,
                   subQuery: false,
-                  limit: apiBody.limit,
-                  offset: apiBody.offset,
+                //  limit: apiBody.limit,
+                //  offset: apiBody.offset,
                   benchmark: true
                 });
               }
@@ -405,8 +404,8 @@ export const publicationSearchWithFilter = async (
                   ],
                   where: joinWhereAuthorsFilters,
                   subQuery: false,
-                  limit: apiBody.limit,
-                  offset: apiBody.offset,
+                //  limit: apiBody.limit,
+                 // offset: apiBody.offset,
                   benchmark: true
                 });
               }
@@ -594,7 +593,6 @@ export const publicationSearchWithFilter = async (
         let articleResults ={};
         if(pmidList && pmidList.length > 0)
         {
-            console.log('Fecthing more information about articles**************************');
             // Get additional data about articles by PMIDS 
              articleResults = await models.AnalysisSummaryArticle.findAll({ // review commnet: change this to findAll and send only attributes being displayed on UI with attributes
               where: { pmid: pmidList },
@@ -627,7 +625,6 @@ export const publicationSearchWithFilter = async (
           count: results?.count
         }
       }else if(isAuthorFilter && isArticleFilter){
-        console.log("results**************", typeof(results?.count))
         searchOutput = {
           ...results,
           count: typeof(results?.count) === "number" ?  results?.count : results?.count?.length
