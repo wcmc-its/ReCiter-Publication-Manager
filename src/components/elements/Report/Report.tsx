@@ -26,6 +26,8 @@ const Report = () => {
   // state to manage what content to display on inital load
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
   const [isFilterClear, setIsFilterClear] = useState<boolean>(false);
+  const [isFirstLoad, SetIsFirstLoad] = useState<boolean>(false);
+
 
 
   // filters loading state
@@ -73,6 +75,7 @@ const Report = () => {
 
   // fetch filters on mount
   useEffect(() => {
+    SetIsFirstLoad(true);
     dispatch(showEvidenceByDefault(null));
     const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters
     if(personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0){
@@ -92,8 +95,7 @@ const Report = () => {
 
   // fetch new data on page and count update
   useEffect(() => {
-
-    if (page !== 1) {
+    if (isFirstLoad) {
       if (!isInitialLoad) {
         // update offset and limit
         let updatedSearchFilter = updatePagination(page, count, pubSearchFilter);
