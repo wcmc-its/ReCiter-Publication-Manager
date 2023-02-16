@@ -19,6 +19,7 @@ const options = {
                 
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
+                  console.log('direct Login*******************************',apiResponse)
                   if (apiResponse.statusCode == 200) {
                         const adminUser = await findOrCreateAdminUsers(credentials.username)
                         apiResponse.databaseUser = adminUser;
@@ -36,9 +37,12 @@ const options = {
             name: "SAML",
             authorize: async ({ samlBody }) => {
                 samlBody = JSON.parse(decodeURIComponent(samlBody));
+                console.log('samlBody*******************************',samlBody)
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
+                console.log('samlBody1*******************************',sp)
                 const postAssert = (identityProvider, samlBody) =>
                     new Promise((resolve, reject) => {
+                        console.log('coming into postAssert*********************************');
                         sp.post_assert(
                             identityProvider,
                             {
@@ -48,6 +52,7 @@ const options = {
                                 if (error) {
                                     reject(error);
                                 }
+                                console.log('received response from SAML*******************',response);
                                 resolve(response);
                             }
                         );
@@ -58,9 +63,10 @@ const options = {
                         reciterSamlConfig.saml_idp_options
                     );
                     const { user } = await postAssert(idp, samlBody);
+                    console.log('SAML User*******************************',user);
                     let cwid = null;
                     let email = null;
-                    console.log("user.attributes)))))))))))))))))))", user.attributes)
+                    console.log("user.attributes**********************************", user.attributes)
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     }else if (user.attributes && user.attributes.email) {
@@ -68,6 +74,7 @@ const options = {
                     }
 
                     if (email) {
+                        console.log('entered into email authorization**********************************',email)
                         const adminUser = await findAdminUser(email,"email")
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
@@ -76,6 +83,7 @@ const options = {
                         return adminUser;
                         // const adminUser = await findOrCreateAdminUsers(cwid)
                     }else if(cwid){
+                        console.log('entered into CWID authorization**********************************',cwid)
                         const adminUser = await findAdminUser(cwid, "cwid");
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
