@@ -7,7 +7,7 @@ import Loader from '../Common/Loader';
 import { reciterConfig } from '../../../../config/local';
 import UsersTable from "./UsersTable";
 import { useRouter } from 'next/router'
-import Button from 'react-bootstrap/Button';
+import { Button, Card, Row, Col,InputGroup,Form } from 'react-bootstrap';
 import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, getAdminRoles } from "../../../redux/actions/actions";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { toast } from "react-toastify"
@@ -21,7 +21,7 @@ const ManageUsers = () => {
 
   const [users, setUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-
+  const [searchText, setSearchText] = useState("")
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -38,10 +38,10 @@ const ManageUsers = () => {
         fetchAllAdminUsers(page, count)
   }, [])
 
-  const fetchAllAdminUsers=(page ?: any, limit?:any)=>{
+  const fetchAllAdminUsers=(page ?: any, limit?:any, searchTextInput? :any)=>{
     setLoading(true);
     const offset = (page - 1) * limit;
-    const request = { limit, offset };
+    const request = { limit, offset , searchTextInput};
     fetch(`/api/db/admin/users`, {
       credentials: "same-origin",
       method: 'POST',
@@ -79,7 +79,9 @@ const ManageUsers = () => {
 
   const handlePaginationUpdate = (page) => {
     setPage(page)
-    fetchAllAdminUsers(page, count)
+    // if(searchText.trim().length >= 3) fetchAllAdminUsers(page, count, searchText)
+    // else 
+     fetchAllAdminUsers(page, count)
   }
 
   const handleFilterUpdate= (searchText)=>{
@@ -132,10 +134,36 @@ const ManageUsers = () => {
     }
   }
 
+  const handleSearchUpdate = async (e) => {
+    let inputBySearch = e.target.value;
+    await setSearchText(inputBySearch);
+    }
+    const onSearch = ()=>{
+     if(searchText.trim().length >= 3) {
+      fetchAllAdminUsers(page, count, searchText)
+     }}
+
   return (
     <div className={appStyles.mainContainer}>
       <PageHeader label="Manage Users" />
-      <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button>
+      <Row className={styles.globalfilter}>
+        <Col md={6} className={styles.pt5}>
+          <InputGroup className="mb-3">
+            <Form.Control
+              type="text"
+              className={`form-control ${styles.searchInput}`}
+              placeholder="Search users"
+              value={searchText}
+              onChange={handleSearchUpdate}
+            />
+            <InputGroup.Text id="basic-addon2" onClick={onSearch}>search</InputGroup.Text>
+          </InputGroup>
+        </Col>
+        <Col md={6}>
+          <Button className="my-2 floatRight" onClick={() => router.push("/admin/users/add")}>Add User</Button>
+        </Col>
+      </Row>
+      {/* <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button> */}
       {loading ?
         <div className="d-flex justify-content-center align-items"><Loader /> </div>
         :
