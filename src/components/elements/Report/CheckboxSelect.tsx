@@ -27,6 +27,7 @@ export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title,
     if(userInput) setUserInput("");
     if(isHideSeeMoreLink) setHideSeeMoreLink( false );
     if(totalCount > 10) setTotalCount(10);
+    if(selectedList) setSelectedList([]);
   }, [isFilterClear ])
 
   // fetch data on input change
@@ -42,22 +43,23 @@ export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title,
     let updatedSelectedList = selectedOptions && selectedOptions.map((selectedOption) => {
       return options.find(option => option[optionValue] == selectedOption);
     })
-    let filteredData = updatedSelectedList.filter(item => item !== undefined)
-    if(filteredData.every((currentValue)=> currentValue !== undefined))
-    {
-       const uniqueIds = [];
-       filteredData.filter(element => {
-        const isDuplicate = uniqueIds.includes(element.personIdentifier);
-      
-        if (!isDuplicate) {
-          uniqueIds.push(element);
-      
-          return true;
-        }
-        return false;
-      }); 
-      setSelectedList(uniqueIds);
-    }
+    let filteredData = updatedSelectedList?.filter(item => item !== undefined) 
+    if (filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
+      const uniqueIds = selectedList;
+      filteredData.filter(element => {
+          const isDuplicate = uniqueIds.includes(element.personIdentifier);
+          if (!isDuplicate) {
+              uniqueIds.push(element);
+              return true;
+          }
+          return false;
+      });
+      const ids = uniqueIds.map(i => i.personIdentifier)
+       const filtered = uniqueIds.filter(({
+          personIdentifier
+      }, index) => !ids.includes(personIdentifier, index + 1)) 
+      setSelectedList(filtered);
+  }
   }
 
   const filteredOptions = (options, isDynamicFetch) => {

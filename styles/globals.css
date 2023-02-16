@@ -157,3 +157,6 @@ h1 {
 .menuDisplayNone{
   display:none !important;
 }
+.floatRight{
+  float: right;
+}

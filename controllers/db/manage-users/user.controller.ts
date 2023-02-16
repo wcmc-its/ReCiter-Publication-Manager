@@ -10,17 +10,53 @@ export const listAllUsers = async (
   res: NextApiResponse
 ) => {
   try {
-    
-    let users ={};
-    if(req.body.limit != undefined && req.body.offset != undefined) {
-
-      const {count,rows} =  await models.AdminUser.findAndCountAll({
-            offset: req.body.offset,
-            limit: req.body.limit,
+    let users = {};
+    const {
+      limit,
+      offset,
+      searchTextInput
+    } = req.body;
+    if (req.body.limit != undefined && req.body.offset != undefined) {
+      if (searchTextInput) {
+        const where = {}
+        where[Op.and] = []
+         where[Op.and].push({
+          [Op.or]: [{
+            '$nameFirst$': {
+              [Op.like]: `%${searchTextInput}%`
+            }
+          }, {
+            '$nameMiddle$': {
+              [Op.like]: `%${searchTextInput}%`
+            }
+          }, {
+            '$nameLast$': {
+              [Op.like]: `%${searchTextInput}%`
+            }
+          }]
+        }) 
+        const {
+          count,
+          rows
+        } = await models.AdminUser.findAndCountAll({
+          offset: offset,
+          // limit: limit,
+          where: where
         });
         users['usersData'] = rows;
         users['totalUsersCount'] = count;
-    } 
+      } else {
+        const {
+          count,
+          rows
+        } = await models.AdminUser.findAndCountAll({
+          offset: req.body.offset,
+          limit: req.body.limit,
+        });
+        users['usersData'] = rows;
+        users['totalUsersCount'] = count;
+      }
+    }
     res.send(users);
   } catch (e) {
     console.log(e);
