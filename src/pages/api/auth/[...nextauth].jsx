@@ -114,26 +114,32 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
+            console.log('apiResponse********************************',apiResponse);
             return apiResponse
         },
         async session(session, token,apiResponse) {
+            console.log('token****************************',token);
             session.data = token
-            console.log(session)
+            console.log('session******************************',session)
             return session
         },
         async jwt(token, apiResponse) {
             if(apiResponse) {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
+                console.log('token.username********************',token.username)
               }
               if(apiResponse.databaseUser) {
+                console.log('apiResponse.databaseUser***************************************',apiResponse.databaseUser)
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
+                    console.log('token****************************',token);
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles
+                    console.log('token.userRoles***********************',token.userRoles)
               }
             }
             return token
