@@ -66,7 +66,10 @@ const options = {
                     console.log('SAML User*******************************',user);
                     let cwid = null;
                     let email = null;
-                    console.log("user.attributes**********************************", user.attributes)
+                    console.log("user**********************************", user)
+                    console.log("user attributes**********************************", user.attributes)
+                    console.log("user attributes user email**********************************", user.attributes.user.email)
+                    console.log("user attributes user email**********************************", user.attributes['user.email'])
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     }else if (user.attributes && user.attributes.email) {
@@ -78,12 +81,12 @@ const options = {
                         const adminUser =null;
                         if(email)
                         {
-                            const dbAdminUser = await findAdminUser(email,"email")
-                            adminUser.databaseUser = dbAdminUser
-                        //adminUser.personIdentifier
+                            const adminUser = await findAdminUser(email,"email")
+                            adminUser.databaseUser = adminUser
+                        adminUser.personIdentifier
                         console.log('After fecting adminUser from DB inside email*********************',adminUser)
-                             const dbUserRoles = await findUserPermissions(email,"email");
-                            adminUser.userRoles = dbUserRoles;
+                             const userRoles = await findUserPermissions(email,"email");
+                            adminUser.userRoles = userRoles;
                             console.log('After fecting adminRoles from DB inside email*********************',adminUser)
 
                         }
@@ -91,12 +94,12 @@ const options = {
                         if(!adminUser && cwid) // if adminUser is empty then try authorizing with cwid
                         {
                             console.log('entered into CWID authorization**********************************',cwid)
-                            const dbAdminUser = await findAdminUser(cwid, "cwid");
-                            adminUser.databaseUser = dbAdminUser
+                            const adminUser = await findAdminUser(cwid, "cwid");
+                            adminUser.databaseUser = adminUser
                             console.log('After fecting adminUser from DB inside cwid*********************',adminUser)
-                           // adminUser.personIdentifier
-                            const dbUserRoles = await findUserPermissions(cwid, "cwid");
-                            adminUser.userRoles = dbUserRoles;
+                            adminUser.personIdentifier
+                            const userRoles = await findUserPermissions(cwid, "cwid");
+                            adminUser.userRoles = userRoles;
                             console.log('After fecting adminRoles from DB inside cwid*********************',adminUser)
                           
                         } 
