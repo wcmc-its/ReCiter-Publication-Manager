@@ -77,7 +77,6 @@ const options = {
 
                     if (email || cwid) {
                         console.log('entered into email authorization**********************************',email)
-                        const adminUser =null;
                         if(email)
                         {
                             const adminUser = await findAdminUser(email,"email")
