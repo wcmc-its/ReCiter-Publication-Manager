@@ -81,8 +81,11 @@ const options = {
                             const dbAdminUser = await findAdminUser(email,"email")
                             adminUser.databaseUser = dbAdminUser
                         //adminUser.personIdentifier
+                        console.log('After fecting adminUser from DB inside email*********************',adminUser)
                              const dbUserRoles = await findUserPermissions(email,"email");
                             adminUser.userRoles = dbUserRoles;
+                            console.log('After fecting adminRoles from DB inside email*********************',adminUser)
+
                         }
                         console.log('adminUser after email Authorization**********************************',adminUser)
                         if(!adminUser && cwid) // if adminUser is empty then try authorizing with cwid
@@ -90,9 +93,12 @@ const options = {
                             console.log('entered into CWID authorization**********************************',cwid)
                             const dbAdminUser = await findAdminUser(cwid, "cwid");
                             adminUser.databaseUser = dbAdminUser
+                            console.log('After fecting adminUser from DB inside cwid*********************',adminUser)
                            // adminUser.personIdentifier
                             const dbUserRoles = await findUserPermissions(cwid, "cwid");
                             adminUser.userRoles = dbUserRoles;
+                            console.log('After fecting adminRoles from DB inside cwid*********************',adminUser)
+                          
                         } 
                         return adminUser;
                         
