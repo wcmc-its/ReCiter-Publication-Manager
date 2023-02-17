@@ -11,7 +11,7 @@ export async function getServerSideProps(ctx) {
         userPermissions = JSON.parse(session.data.userRoles);
         userName = session.data.username;
         personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
-        console.log("userPermission from SAML Login***********************",userPermissions);
+    
         if(session.data.databaseUser && session.data.databaseUser.status == 0) {
             return {
                 redirect: {
@@ -20,7 +20,7 @@ export async function getServerSideProps(ctx) {
                 },
             };
         }
-        else if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName) 
+        else if((userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName) 
         {
             return {
                 redirect: {
@@ -41,9 +41,7 @@ export async function getServerSideProps(ctx) {
     }
 
     if(process.env.LOGIN_PROVIDER == "SAML") {
-        console.log("session from index.js line 26 ************************************",session);
-       
-        if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName) 
+        if((userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName) 
         {
             return {
                 redirect: {

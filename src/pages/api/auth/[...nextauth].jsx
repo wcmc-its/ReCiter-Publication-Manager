@@ -73,23 +73,29 @@ const options = {
                         email = user.attributes.user.email[0];
                     }
 
-                    if (email) {
+                    if (email || cwid) {
                         console.log('entered into email authorization**********************************',email)
-                        const adminUser = await findAdminUser(email,"email")
-                        adminUser.databaseUser = adminUser
-                        adminUser.personIdentifier
-                        const userRoles = await findUserPermissions(email,"email");
-                        adminUser.userRoles = userRoles;
+                        const adminUser =null;
+                        if(email)
+                        {
+                            const dbAdminUser = await findAdminUser(email,"email")
+                            adminUser.databaseUser = dbAdminUser
+                        //adminUser.personIdentifier
+                             const dbUserRoles = await findUserPermissions(email,"email");
+                            adminUser.userRoles = dbUserRoles;
+                        }
+                        console.log('adminUser after email Authorization**********************************',adminUser)
+                        if(!adminUser && cwid) // if adminUser is empty then try authorizing with cwid
+                        {
+                            console.log('entered into CWID authorization**********************************',cwid)
+                            const dbAdminUser = await findAdminUser(cwid, "cwid");
+                            adminUser.databaseUser = dbAdminUser
+                           // adminUser.personIdentifier
+                            const dbUserRoles = await findUserPermissions(cwid, "cwid");
+                            adminUser.userRoles = dbUserRoles;
+                        } 
                         return adminUser;
-                        // const adminUser = await findOrCreateAdminUsers(cwid)
-                    }else if(cwid){
-                        console.log('entered into CWID authorization**********************************',cwid)
-                        const adminUser = await findAdminUser(cwid, "cwid");
-                        adminUser.databaseUser = adminUser
-                        adminUser.personIdentifier
-                        const userRoles = await findUserPermissions(cwid, "cwid");
-                        adminUser.userRoles = userRoles;
-                        return adminUser;
+                        
                     }
 
                     return { cwid, has_access: false };
