@@ -68,7 +68,6 @@ const options = {
                     let email = null;
                     console.log("user**********************************", user)
                     console.log("user attributes**********************************", user.attributes)
-                    console.log("user attributes user email**********************************", user.attributes.user.email)
                     console.log("user attributes user email**********************************", user['user.email'])
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
