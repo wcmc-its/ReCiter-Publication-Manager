@@ -69,11 +69,11 @@ const options = {
                     console.log("user**********************************", user)
                     console.log("user attributes**********************************", user.attributes)
                     console.log("user attributes user email**********************************", user.attributes.user.email)
-                    console.log("user attributes user email**********************************", user.attributes['user.email'])
+                    console.log("user attributes user email**********************************", user['user.email'])
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
-                    }else if (user.attributes && user.attributes.user.email) {
-                        email = user.attributes.user.email[0];
+                    }else if (user.attributes && user['user.email']) {
+                        email = user['user.email'];
                     }
 
                     if (email || cwid) {
