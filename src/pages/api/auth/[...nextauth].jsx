@@ -65,7 +65,7 @@ const options = {
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     } 
-                    if (user.attributes && user['user.email'][0]) {
+                    if (user.attributes &&  user['user.email'] &&  user['user.email'].length > 0 && user['user.email'][0]) {
                         email = user.user['user.email'][0];
                     }
                     if(cwid || email)
