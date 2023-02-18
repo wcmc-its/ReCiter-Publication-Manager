@@ -60,16 +60,16 @@ const options = {
                     const { user } = await postAssert(idp, samlBody);
                     let cwid = null;
                     let email = null;
-                    const samlEmail = null;
+                    let samlEmail = null;
                     console.log("user )))))))))))))))))))", user)
                     console.log("user.attributes)))))))))))))))))))", user.attributes)
                   //  console.log('user attributes email********************', user['user.email'][0]);
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     }
-                    const dupUser = JSON.stringify(user.attributes);
+                    let dupUser = JSON.stringify(user.attributes);
                     console.log("user ))))))))))))))))))) after stringify", dupUser);
-                    const smalUserEmail = null;
+                    let smalUserEmail = null;
                     if(dupUser)
                         samlEmail = JSON.parse(dupUser);
                     console.log('samlEmail****************************',samlEmail);     
