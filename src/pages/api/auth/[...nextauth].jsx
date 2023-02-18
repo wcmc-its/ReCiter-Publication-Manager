@@ -73,7 +73,7 @@ const options = {
                     if(dupUser)
                         samlEmail = JSON.parse(dupUser);
                     console.log('samlEmail****************************',samlEmail);     
-                    if(samlEmail && Array.isArray(samlEmail) && samlEmail['user.email'] && samlEmail['user.email'].length > 0)
+                    if(samlEmail && samlEmail['user.email'] && samlEmail['user.email'].length > 0)
                         smalUserEmail = samlEmail['user.email'][0];
                     console.log('smalUserEmail****************************',smalUserEmail); 
                     /*if (user.attributes &&  user['user.email'] &&  user['user.email'].length > 0 && user['user.email'][0]) {
