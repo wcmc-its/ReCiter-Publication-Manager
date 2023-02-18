@@ -61,13 +61,35 @@ const options = {
                     let cwid = null;
                     let email = null;
                     console.log("user.attributes)))))))))))))))))))", user.attributes)
+                    console.log('user attributes email', user.attributes.user.email[0]);
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
-                    }else if (user.attributes && user.attributes.email) {
+                    } 
+                    if (user.attributes && user.attributes.user.email[0]) {
                         email = user.attributes.user.email[0];
                     }
-
-                    if (cwid) {
+                    if(cwid || email)
+                    {
+                        if(email){
+                            const adminUser = await findAdminUser(email,"email")
+                            adminUser.databaseUser = adminUser
+                            adminUser.personIdentifier
+                            const userRoles = await findUserPermissions(email,"email");
+                            adminUser.userRoles = userRoles;
+                            console.log('adminUser**************************',adminUser);
+                        }
+                        if (!adminUser && cwid) {
+                            // const adminUser = await findOrCreateAdminUsers(cwid)
+                            const adminUser = await findAdminUser(cwid, "cwid");
+                            adminUser.databaseUser = adminUser
+                            adminUser.personIdentifier
+                            const userRoles = await findUserPermissions(cwid, "cwid");
+                            adminUser.userRoles = userRoles;
+                            console.log('adminUser**************************',adminUser);
+                        }  
+                        return adminUser;
+                    }
+                   /* if (cwid) {
                         // const adminUser = await findOrCreateAdminUsers(cwid)
                         const adminUser = await findAdminUser(cwid, "cwid");
                         adminUser.databaseUser = adminUser
@@ -82,7 +104,7 @@ const options = {
                         const userRoles = await findUserPermissions(email,"email");
                         adminUser.userRoles = userRoles;
                         return adminUser;
-                    }
+                    }*/
 
                     return { cwid, has_access: false };
                 } catch (error) {
