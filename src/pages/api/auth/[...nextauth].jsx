@@ -61,12 +61,12 @@ const options = {
                     let cwid = null;
                     let email = null;
                     console.log("user.attributes)))))))))))))))))))", user.attributes)
-                    console.log('user attributes email', user.attributes.user.email[0]);
+                    console.log('user attributes email********************', user['user.email'][0]);
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     } 
-                    if (user.attributes && user.attributes.user.email[0]) {
-                        email = user.attributes.user.email[0];
+                    if (user.attributes && user['user.email'][0]) {
+                        email = user.user['user.email'][0];
                     }
                     if(cwid || email)
                     {
