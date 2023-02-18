@@ -65,7 +65,11 @@ const options = {
                   //  console.log('user attributes email********************', user['user.email'][0]);
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
-                    } 
+                    }
+                    const dupUser = JSON.stringify(user.attributes);
+                    console.log("user )))))))))))))))))))", dupUser);
+                    const samlEmail = JSON.parse(dupUser)['user.email'][0];
+                    console.log('samlEmail****************************',samlEmail); 
                     /*if (user.attributes &&  user['user.email'] &&  user['user.email'].length > 0 && user['user.email'][0]) {
                         email = user['user.email'][0];
                     }*/
