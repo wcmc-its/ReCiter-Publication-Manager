@@ -68,18 +68,22 @@ const options = {
                         cwid = user.attributes.CWID[0];
                     }
                     const dupUser = JSON.stringify(user.attributes);
-                    console.log("user )))))))))))))))))))", dupUser);
-                    if(dupUser && (JSON.parse(dupUser))['user.email'] && (JSON.parse(dupUser))['user.email'].length > 0)
-                     samlEmail = (JSON.parse(dupUser))['user.email'][0];
-                    console.log('samlEmail****************************',samlEmail); 
+                    console.log("user ))))))))))))))))))) after stringify", dupUser);
+                    const smalUserEmail = null;
+                    if(dupUser)
+                        samlEmail = JSON.parse(dupUser);
+                    console.log('samlEmail****************************',samlEmail);     
+                    if(samlEmail && samlEmail['user.email'].length > 0)
+                        smalUserEmail = samlEmail['user.email'][0];
+                    console.log('smalUserEmail****************************',smalUserEmail); 
                     /*if (user.attributes &&  user['user.email'] &&  user['user.email'].length > 0 && user['user.email'][0]) {
                         email = user['user.email'][0];
                     }*/
-                    if(samlEmail){
-                        const adminUser = await findAdminUser(samlEmail,"email")
+                    if(smalUserEmail){
+                        const adminUser = await findAdminUser(smalUserEmail,"email")
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
-                        const userRoles = await findUserPermissions(samlEmail,"email");
+                        const userRoles = await findUserPermissions(smalUserEmail,"email");
                         adminUser.userRoles = userRoles;
                         console.log('adminUser**************************',adminUser);
                     }
