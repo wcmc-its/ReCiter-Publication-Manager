@@ -85,7 +85,9 @@ const options = {
                         adminUser.personIdentifier
                         const userRoles = await findUserPermissions(smalUserEmail,"email");
                         adminUser.userRoles = userRoles;
-                        console.log('adminUser**************************',adminUser);
+                        console.log('email adminUser**************************',adminUser);
+                        if(adminUser)
+                            return adminUser;
                     }
                     if (!adminUser && cwid) {
                         // const adminUser = await findOrCreateAdminUsers(cwid)
@@ -94,9 +96,10 @@ const options = {
                         adminUser.personIdentifier
                         const userRoles = await findUserPermissions(cwid, "cwid");
                         adminUser.userRoles = userRoles;
-                        console.log('adminUser**************************',adminUser);
+                        console.log('cwid adminUser**************************',adminUser);
+                        if(adminUser) return adminUser;
                     }  
-                    return adminUser;
+                   // return adminUser;
                     /*if (cwid) {
                         // const adminUser = await findOrCreateAdminUsers(cwid)
                         const adminUser = await findAdminUser(cwid, "cwid");
