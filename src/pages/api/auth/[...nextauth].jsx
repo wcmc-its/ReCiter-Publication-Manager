@@ -77,7 +77,7 @@ const options = {
 
                     if (email || cwid) {
                         console.log('entered into email authorization**********************************',email)
-                        if(email)
+                       /* if(email)
                         {
                             const adminUser = await findAdminUser(email,"email")
                             adminUser.databaseUser = adminUser
@@ -87,9 +87,9 @@ const options = {
                             adminUser.userRoles = userRoles;
                             console.log('After fecting adminRoles from DB inside email*********************',adminUser)
 
-                        }
+                        }*/
                         console.log('adminUser after email Authorization**********************************',adminUser)
-                        if(!adminUser && cwid) // if adminUser is empty then try authorizing with cwid
+                        //if(!adminUser && cwid) // if adminUser is empty then try authorizing with cwid
                         {
                             console.log('entered into CWID authorization**********************************',cwid)
                             const adminUser = await findAdminUser(cwid, "cwid");
