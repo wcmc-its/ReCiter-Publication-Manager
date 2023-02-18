@@ -69,7 +69,7 @@ const options = {
                     /*if (user.attributes &&  user['user.email'] &&  user['user.email'].length > 0 && user['user.email'][0]) {
                         email = user['user.email'][0];
                     }*/
-                    if(cwid || email)
+                    if(cwid /*|| email*/)
                     {
                        /* if(email){
                             const adminUser = await findAdminUser(email,"email")
