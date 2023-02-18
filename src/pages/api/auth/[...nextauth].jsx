@@ -89,7 +89,7 @@ const options = {
                         if(adminUser)
                             return adminUser;
                     }
-                    if (!adminUser && cwid) {
+                    if (cwid) {
                         // const adminUser = await findOrCreateAdminUsers(cwid)
                         const adminUser = await findAdminUser(cwid, "cwid");
                         adminUser.databaseUser = adminUser
