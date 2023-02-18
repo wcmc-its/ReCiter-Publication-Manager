@@ -71,15 +71,15 @@ const options = {
                     }*/
                     if(cwid || email)
                     {
-                        if(email){
+                       /* if(email){
                             const adminUser = await findAdminUser(email,"email")
                             adminUser.databaseUser = adminUser
                             adminUser.personIdentifier
                             const userRoles = await findUserPermissions(email,"email");
                             adminUser.userRoles = userRoles;
                             console.log('adminUser**************************',adminUser);
-                        }
-                        if (!adminUser && cwid) {
+                        }*/
+                        if (/*!adminUser && */cwid) {
                             // const adminUser = await findOrCreateAdminUsers(cwid)
                             const adminUser = await findAdminUser(cwid, "cwid");
                             adminUser.databaseUser = adminUser
