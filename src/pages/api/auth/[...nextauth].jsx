@@ -69,17 +69,17 @@ const options = {
                     /*if (user.attributes &&  user['user.email'] &&  user['user.email'].length > 0 && user['user.email'][0]) {
                         email = user['user.email'][0];
                     }*/
-                    if(cwid /*|| email*/)
+                   /* if(cwid || email)
                     {
-                       /* if(email){
+                        if(email){
                             const adminUser = await findAdminUser(email,"email")
                             adminUser.databaseUser = adminUser
                             adminUser.personIdentifier
                             const userRoles = await findUserPermissions(email,"email");
                             adminUser.userRoles = userRoles;
                             console.log('adminUser**************************',adminUser);
-                        }*/
-                        if (/*!adminUser && */cwid) {
+                        }
+                        if (cwid) {
                             // const adminUser = await findOrCreateAdminUsers(cwid)
                             const adminUser = await findAdminUser(cwid, "cwid");
                             adminUser.databaseUser = adminUser
@@ -89,8 +89,8 @@ const options = {
                             console.log('adminUser**************************',adminUser);
                         }  
                         return adminUser;
-                    }
-                   /* if (cwid) {
+                    }*/
+                    if (cwid) {
                         // const adminUser = await findOrCreateAdminUsers(cwid)
                         const adminUser = await findAdminUser(cwid, "cwid");
                         adminUser.databaseUser = adminUser
@@ -98,7 +98,7 @@ const options = {
                         const userRoles = await findUserPermissions(cwid, "cwid");
                         adminUser.userRoles = userRoles;
                         return adminUser;
-                    }else if(email){
+                    }/*else if(email){
                         const adminUser = await findAdminUser(email,"email")
                         adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
