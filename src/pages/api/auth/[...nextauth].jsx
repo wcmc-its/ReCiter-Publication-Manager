@@ -19,7 +19,6 @@ const options = {
                 
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
-                  console.log('direct Login*******************************',apiResponse)
                   if (apiResponse.statusCode == 200) {
                         const adminUser = await findOrCreateAdminUsers(credentials.username)
                         apiResponse.databaseUser = adminUser;
@@ -37,12 +36,9 @@ const options = {
             name: "SAML",
             authorize: async ({ samlBody }) => {
                 samlBody = JSON.parse(decodeURIComponent(samlBody));
-                console.log('samlBody*******************************',samlBody)
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-                console.log('samlBody1*******************************',sp)
                 const postAssert = (identityProvider, samlBody) =>
                     new Promise((resolve, reject) => {
-                        console.log('coming into postAssert*********************************');
                         sp.post_assert(
                             identityProvider,
                             {
@@ -52,7 +48,6 @@ const options = {
                                 if (error) {
                                     reject(error);
                                 }
-                                console.log('received response from SAML*******************',response);
                                 resolve(response);
                             }
                         );
@@ -63,46 +58,30 @@ const options = {
                         reciterSamlConfig.saml_idp_options
                     );
                     const { user } = await postAssert(idp, samlBody);
-                    console.log('SAML User*******************************',user);
                     let cwid = null;
                     let email = null;
-                    console.log("user**********************************", user)
-                    console.log("user attributes**********************************", user.attributes)
-                    console.log("user attributes user email**********************************", user['user.email'])
+                    console.log("user.attributes)))))))))))))))))))", user.attributes)
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
-                    }else if (user.attributes && user['user.email']) {
-                        email = user['user.email'];
+                    }else if (user.attributes && user.attributes.email) {
+                        email = user.attributes.user.email[0];
                     }
 
-                    if (email || cwid) {
-                        console.log('entered into email authorization**********************************',email)
-                       /* if(email)
-                        {
-                            const adminUser = await findAdminUser(email,"email")
-                            adminUser.databaseUser = adminUser
+                    if (cwid) {
+                        // const adminUser = await findOrCreateAdminUsers(cwid)
+                        const adminUser = await findAdminUser(cwid, "cwid");
+                        adminUser.databaseUser = adminUser
                         adminUser.personIdentifier
-                        console.log('After fecting adminUser from DB inside email*********************',adminUser)
-                             const userRoles = await findUserPermissions(email,"email");
-                            adminUser.userRoles = userRoles;
-                            console.log('After fecting adminRoles from DB inside email*********************',adminUser)
-
-                        }*/
-                        console.log('adminUser after email Authorization**********************************',adminUser)
-                        //if(!adminUser && cwid) // if adminUser is empty then try authorizing with cwid
-                        {
-                            console.log('entered into CWID authorization**********************************',cwid)
-                            const adminUser = await findAdminUser(cwid, "cwid");
-                            adminUser.databaseUser = adminUser
-                            console.log('After fecting adminUser from DB inside cwid*********************',adminUser)
-                            adminUser.personIdentifier
-                            const userRoles = await findUserPermissions(cwid, "cwid");
-                            adminUser.userRoles = userRoles;
-                            console.log('After fecting adminRoles from DB inside cwid*********************',adminUser)
-                          
-                        } 
+                        const userRoles = await findUserPermissions(cwid, "cwid");
+                        adminUser.userRoles = userRoles;
                         return adminUser;
-                        
+                    }else if(email){
+                        const adminUser = await findAdminUser(email,"email")
+                        adminUser.databaseUser = adminUser
+                        adminUser.personIdentifier
+                        const userRoles = await findUserPermissions(email,"email");
+                        adminUser.userRoles = userRoles;
+                        return adminUser;
                     }
 
                     return { cwid, has_access: false };
@@ -114,32 +93,26 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
-            console.log('apiResponse********************************',apiResponse);
             return apiResponse
         },
         async session(session, token,apiResponse) {
-            console.log('token****************************',token);
             session.data = token
-            console.log('session******************************',session)
+            console.log(session)
             return session
         },
         async jwt(token, apiResponse) {
             if(apiResponse) {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
-                console.log('token.username********************',token.username)
               }
               if(apiResponse.databaseUser) {
-                console.log('apiResponse.databaseUser***************************************',apiResponse.databaseUser)
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
-                    console.log('token****************************',token);
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles
-                    console.log('token.userRoles***********************',token.userRoles)
               }
             }
             return token
