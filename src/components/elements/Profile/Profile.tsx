@@ -464,7 +464,7 @@ const Profile = ({
 
   const DisplayInfo = ({ label, title, value}) => {
     // console.log("info title", infoBubblesConfig[title] , "respTitle" , title )
-   if (value) {
+  //  if (value) {
      if (infoBubblesConfig[title]) {
        return (
         <span style={{ 'position': 'relative', paddingRight : '10px'}}>
@@ -478,16 +478,16 @@ const Profile = ({
              </Popover>)}
              placement="top"
              >
-               <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value}</span>
+               <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value || "Not Available"}</span>
          </OverlayTrigger>
          </span>
        )
      } else {
        return (
-         <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value}</span>
+         <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value || "Not Available"}</span>
        )
      } 
-   } else
+  //  } else
    return null
  }
 

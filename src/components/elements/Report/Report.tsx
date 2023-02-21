@@ -83,6 +83,7 @@ const Report = () => {
 
       setIsFiltersOn(true);
       dispatch(getReportsResults(pubSearchFilter, true));
+      dispatch(reportsFilters(authorInput , journalInput));
     } else {
        dispatch(reportsFilters(authorInput , journalInput));
        dispatch(updateAuthorFilter());
