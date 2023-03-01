@@ -183,7 +183,13 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: facultyIconActive, 
       disabled: false,
       allowedRoleNames: ["Superuser"],
-    }],
+    },{title: 'Settings', 
+    to: '/admin/manage/settings', 
+    imgUrl: facultyIcon, 
+    imgUrlActive: facultyIconActive, 
+    disabled: false,
+    allowedRoleNames: ["Superuser"],
+  }],
       allowedRoleNames: ["Superuser"],
 
     }

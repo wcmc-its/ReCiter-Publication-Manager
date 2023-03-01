@@ -77,6 +77,7 @@ import { PersonPersonType } from "./PersonPersonType";
 import type { PersonPersonTypeAttributes, PersonPersonTypeCreationAttributes } from "./PersonPersonType";
 import { ScienceMetrix } from "./ScienceMetrix";
 import type { ScienceMetrixAttributes, ScienceMetrixCreationAttributes } from "./ScienceMetrix";
+import { AdminSettings } from "./AdminSettings";
 
 export {
   Nlm,
@@ -241,6 +242,7 @@ export function initModels(sequelize: Sequelize) {
   PersonArticleScopusTargetAuthorAffiliation.initModel(sequelize);
   PersonPersonType.initModel(sequelize);
   ScienceMetrix.initModel(sequelize);
+  AdminSettings.initModel(sequelize);
 
   AdminUsersDepartment.belongsTo(AdminDepartment, { as: "department", foreignKey: "departmentID"});
   AdminDepartment.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "departmentID"});
@@ -297,5 +299,6 @@ export function initModels(sequelize: Sequelize) {
     PersonArticleScopusTargetAuthorAffiliation: PersonArticleScopusTargetAuthorAffiliation,
     PersonPersonType: PersonPersonType,
     ScienceMetrix: ScienceMetrix,
+    AdminSettings:AdminSettings
   };
 }

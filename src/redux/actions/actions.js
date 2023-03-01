@@ -2235,3 +2235,9 @@ export const fetchReportsResultsIds = (requestBody) => dispatch => {
         })
     })
 }
+export const adminSettingsListAction = (adminSettingsList) => dispatch => {
+    dispatch({
+        type: methods.ADMIN_SETTINGS_LIST,
+        payload: adminSettingsList
+    })
+}
