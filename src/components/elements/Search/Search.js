@@ -69,6 +69,8 @@ const Search = () => {
     dispatch(showEvidenceByDefault(null))
     dispatch(clearFilters())
 
+    let adminSettings = JSON.parse(session.adminSettings);
+    console.log('adminSettings*********************',adminSettings);
     let userPermissions = JSON.parse(session.data.userRoles);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
     if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {

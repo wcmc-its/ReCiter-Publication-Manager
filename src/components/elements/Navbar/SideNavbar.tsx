@@ -21,6 +21,7 @@ import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-
 import { useSelector, RootStateOrAny } from "react-redux";
 import { useSession } from 'next-auth/client';
 
+
 type SideNavBarProps = {
     items: any
 }
@@ -183,7 +184,8 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: facultyIconActive, 
       disabled: false,
       allowedRoleNames: ["Superuser"],
-    },{title: 'Settings', 
+    },
+    {title: 'Settings', 
     to: '/admin/manage/settings', 
     imgUrl: facultyIcon, 
     imgUrlActive: facultyIconActive, 

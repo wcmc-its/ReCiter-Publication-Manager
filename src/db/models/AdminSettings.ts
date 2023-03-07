@@ -5,6 +5,7 @@ export interface AdminSettingAttributes {
   id: number;
   viewName: string;
   viewAttributes: string;
+  viewLabel: string; 
   createTimestamp?: Date;
   modifyTimestamp?: Date;
 }
@@ -17,6 +18,7 @@ export class AdminSettings extends Model<AdminSettingAttributes> implements Admi
   id!: number;
   viewName: string;
   viewAttributes: string;
+  viewLabel: string;
   createTimestamp?: Date;
   modifyTimestamp?: Date;
 
@@ -31,12 +33,16 @@ export class AdminSettings extends Model<AdminSettingAttributes> implements Admi
     },
     viewName: {
       type: DataTypes.STRING(128),
-      allowNull: true
+      allowNull: false
     },
     viewAttributes: {
       type: DataTypes.JSON,
-      allowNull: true
+      allowNull: false
     },
+    viewLabel: {
+        type: DataTypes.STRING(128),
+        allowNull: false
+      },
     createTimestamp: {
       type: DataTypes.DATE,
       allowNull: true,
