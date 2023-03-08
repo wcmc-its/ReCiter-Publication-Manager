@@ -131,7 +131,7 @@ const AdminSettings = () => {
 
 
               return <Accordion.Item eventKey={`${index}`}>
-                <Accordion.Header>{obj.viewName}</Accordion.Header>
+                <Accordion.Header>{obj.viewLabel}</Accordion.Header>
                 <Accordion.Body>
                   {
                     c.map((innerObj, index2) => {
