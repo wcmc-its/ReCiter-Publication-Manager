@@ -10,7 +10,8 @@ import { Identity } from "../../../../types/identity";
 
 const SearchBar = ({ 
   searchData,
-  resetData 
+  resetData,
+  findPeopleLabels
 } : { 
   searchData: (
     searchQuery: string, 
@@ -18,7 +19,7 @@ const SearchBar = ({
     insitutionQuery: Array<string>,
     personTypeQuery: Array<string>,
   ) => void;
-  resetData: () => void}) => {
+  resetData: () => void, findPeopleLabels :any}) => {
 
   const filters = useSelector((state: RootStateOrAny) => state.filters)
 
@@ -26,6 +27,8 @@ const SearchBar = ({
   const [orgUnitQuery, setOrgUnitQuery] = useState<Array<string>>(filters.orgUnits ? filters.orgUnits : []);
   const [insitutionQuery, setInstitutionQuery] = useState<Array<string>>(filters.institutions ? filters.institutions : []);
   const [personTypeQuery, setPersonTypeQuery] = useState<Array<string>>(filters.personTypes ? filters.personTypes : []);
+
+  const [allLabelSettings, setAllLabelSettings] = useState<any>()
 
   const dispatch = useDispatch()
 
@@ -42,6 +45,22 @@ const SearchBar = ({
     if(personTypesData && personTypesData.length == 0)
       dispatch(personTypesFetchAllData())
 },[])
+
+useEffect(() => { 
+  if(findPeopleLabels.length > 0){
+  let cwidLabel = findPeopleLabels.find(data => data.labelUserKey === "personIdentifier")
+  let orgLabel = findPeopleLabels.find(data => data.labelUserKey === "organization")
+  let instituteLabel = findPeopleLabels.find(data => data.labelUserKey === "institution")
+  let personTypeLabel = findPeopleLabels.find(data => data.labelUserKey === "personType")
+  let labelsPrepared = {
+    cwidLabel : cwidLabel?.labelUserView,
+    orgLabel:  orgLabel?.labelUserView,
+    instituteLabel: instituteLabel?.labelUserView,
+    personTypeLabel : personTypeLabel?.labelUserView
+  }
+  setAllLabelSettings(labelsPrepared)
+}
+},[findPeopleLabels])
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -79,13 +98,13 @@ const SearchBar = ({
     <Container className={styles.searchFormContainer}>
       <Form onSubmit={onFormSubmit}>
         <Form.Group>
-          <Form.Label className={styles.searchFormLabel}>Name or CWID(s)</Form.Label>
+          <Form.Label className={styles.searchFormLabel}>{allLabelSettings?.cwidLabel || "Name or CWID(s)" }</Form.Label>
           <InputGroup>
             <Form.Control type="input" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}></Form.Control>
           </InputGroup>
           <Row className="mt-3 mb-3"> 
             <Col md={4}>
-              <Form.Label className={styles.searchFormLabel}>Organizational unit(s)</Form.Label>
+              <Form.Label className={styles.searchFormLabel}>{allLabelSettings?.orgLabel || "Organizational unit(s)" }</Form.Label>
               <Autocomplete
                 freeSolo
                 multiple
@@ -106,7 +125,7 @@ const SearchBar = ({
                 )}
               />
             </Col>
-            <Col md={4}><Form.Label className={styles.searchFormLabel}>Institution(s)</Form.Label>
+            <Col md={4}><Form.Label className={styles.searchFormLabel}>{allLabelSettings?.instituteLabel || "Institution(s)" }</Form.Label>
               <Autocomplete
                   freeSolo
                   multiple
@@ -127,7 +146,7 @@ const SearchBar = ({
                   )}
                 />
             </Col>
-            <Col md={4}><Form.Label className={styles.searchFormLabel}>Person Type(s)</Form.Label>
+            <Col md={4}><Form.Label className={styles.searchFormLabel}>{allLabelSettings?.personTypeLabel || "Person Type(s)" } </Form.Label>
               <Autocomplete
                   freeSolo
                   multiple

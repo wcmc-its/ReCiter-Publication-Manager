@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import { reciterConfig } from '../../../../config/local';
 import { useRouter } from 'next/router'
-import { adminSettingsListAction } from "../../../redux/actions/actions";
+import { adminSettingsListAction, updatedAdminSettings } from "../../../redux/actions/actions";
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
@@ -27,12 +27,10 @@ const AdminSettings = () => {
 
 
   useEffect(() => {
-    console.log('loading Admin Settings useEffect********************************************');
     fetchAllAdminSettings()
   }, [])
 
   const fetchAllAdminSettings = () => {
-    console.log('loading Admin Settings********************************************');
     setLoading(true);
     const request = {};
     fetch(`/api/db/admin/settings`, {
@@ -46,25 +44,33 @@ const AdminSettings = () => {
       body: JSON.stringify(request),
     }).then(response => response.json())
       .then(data => {
-        setSettings(data);
+        let parsedSettingsArray = [];
+        data.map((obj, index1) => {
+          let a = JSON.stringify(obj.viewAttributes)
+          let b = JSON.parse(a);
+          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          let parsedSettings = {
+            viewName : obj.viewName,
+            viewAttributes: c,
+            viewLabel: obj.viewLabel
+          }
+          parsedSettingsArray.push(parsedSettings)
+        })
+        setSettings(parsedSettingsArray);
         setLoading(false);
       })
       .catch(error => {
-        console.log(error)
         setLoading(false);
       });
   }
 
   const handleValueChange = (id1, id2, name, e) => {
     setSettings(settings.map((obj, index1) => {
-      let a = JSON.stringify(obj.viewAttributes)
-      let b = JSON.parse(a);
-      let c = typeof(b) === "string" ? JSON.parse(b) : b
       if (index1 == id1) {
         return {
           ...obj,
           viewAttributes:
-            c.map((innerObj, index2) => {
+          obj.viewAttributes.map((innerObj, index2) => {
               if (index2 == id2) {
                 //  return innerObj[name] = e.target.value
                 return { ...innerObj, [name]: e.target.value }
@@ -72,7 +78,15 @@ const AdminSettings = () => {
               else return { ...innerObj }
             })
         }
-      } else return { ...obj }
+      } else {
+        let ParsedObj = typeof(obj.viewAttributes)  === "object"? obj.viewAttributes :  JSON.stringify(obj.viewAttributes)
+        let parsed = typeof(ParsedObj)  === "object"? ParsedObj : JSON.parse(ParsedObj)
+        let newObj = {
+          viewName : obj.viewName,
+          viewAttributes : typeof(parsed)  === "object"? parsed : JSON.parse(parsed)
+        }
+        return newObj
+      }
     }))
   }
 
@@ -93,6 +107,7 @@ const AdminSettings = () => {
       body: JSON.stringify(request),
     }).then(response => response.json())
       .then(data => {
+        dispatch(updatedAdminSettings(data))
         setSettings(data);
         setLoading(false);
       })
@@ -116,25 +131,11 @@ const AdminSettings = () => {
         <div>
           {
             settings.length > 0 ? settings.map((obj, index) => {
-              console.log("obj ", obj)
-              let a = JSON.stringify(obj?.viewAttributes || '')
-              console.log("aaa ", typeof(a))
-
-              let b = JSON.parse(a)
-              console.log("bbbbbbb ", typeof(b))
-
-              let c = typeof (b) === "string" ? JSON.parse(b) : b;
-              console.log("ccccccc", c)
-
-            //  let d = typeof (c) === "string" ? JSON.parse(c) : c
-
-
-
               return <Accordion.Item eventKey={`${index}`}>
                 <Accordion.Header>{obj.viewLabel}</Accordion.Header>
                 <Accordion.Body>
                   {
-                    c.map((innerObj, index2) => {
+                    obj.viewAttributes.map((innerObj, index2) => {
                       const { labelSettingsView, labelUserView, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, } = innerObj;
                       return <Card style={{ width: '40rem', marginBottom: '3px' }}>
                         <Card.Body>

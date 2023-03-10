@@ -15,7 +15,7 @@ import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
-import { allowedPermissions, dropdownItemsReport, dropdownItemsSuper } from "../../../utils/constants"
+import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 
 const Search = () => {
@@ -36,6 +36,8 @@ const Search = () => {
   const identityPaginatedData = useSelector((state) => state.identityPaginatedData)
   const identityPaginatedFetching = useSelector((state) => state.identityPaginatedFetching)
   const filters = useSelector((state) => state.filters)
+  const updatedAdminSettings = useSelector((state) => state.updatedAdminSettings)
+
 
   const errors = useSelector((state) => state.errors)
 
@@ -61,16 +63,31 @@ const Search = () => {
   const[isReporterAll ,setIsReporterAll] = useState(false);
   const[isSuperUser ,setIsSuperUser] = useState(false);
   const[loggedInPersonIdentifier, setLoggedInPersonIdentifier] = useState("");
+  const [findPeopleLabels, setFindPeopleLabels] = useState([])
+
   
   //ref
   const searchValue = useRef()
 
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
-    dispatch(clearFilters())
 
+    dispatch(clearFilters())
     let adminSettings = JSON.parse(session.adminSettings);
-    console.log('adminSettings*********************',adminSettings);
+    var viewAttributes = [];
+    if (updatedAdminSettings.length > 0) {
+      // updated settings from manage settings page
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
+      viewAttributes = updatedData.viewAttributes;
+    } else {
+      // regular settings from session
+      let data = adminSettings.find(obj => obj.viewName === "findPeople")
+      viewAttributes = JSON.parse(data.viewAttributes)
+    }
+
+    // view attributes data from session or updated settings
+    setFindPeopleLabels(viewAttributes)
+
     let userPermissions = JSON.parse(session.data.userRoles);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
     if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
@@ -500,7 +517,7 @@ const Search = () => {
       <div className={styles.searchContentContainer}>
         <div className={styles.searchBar}>
           <h1>Find People</h1>
-          <SearchBar searchData={searchData} resetData={resetData} />
+          <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
           {(isDisplayLoader()) ?
             (
               <Loader />
