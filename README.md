@@ -60,7 +60,7 @@ See the [Functionality](#functionality) section to see screencaps and animations
 
 Requirements for Publication Manager itself:
 
-1. Install `Docker`
+1. Install Docker
   1. Go to the [Docker website](https://hub.docker.com)
   1. If you don't already have an account, you will need to create one.
   1. Use the Docker image to download and install Docker
