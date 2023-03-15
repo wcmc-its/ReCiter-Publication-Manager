@@ -11,7 +11,7 @@
 [![Tags](https://img.shields.io/github/tag/wcmc-its/ReCiter-Publication-Manager.svg?style=social)](https://github.com/wcmc-its/ReCiter-Publication-Manager/releases)
 [![Github All Releases](https://img.shields.io/github/downloads/wcmc-its/ReCiter-Publication-Manager/total.svg)]()
 
-ReCiter Publication Manager is an NIH-funded front end web application for updating and reporting on the publications written by an institution's scholars. Publication Manager is part of the ReCiter suite of applications. In addition to the requirements for the application itself, you will need to minimally install the following: 
+ReCiter Publication Manager is a powerful web application that streamlines the process of updating and reporting on the publications of an institution's scholars. Publication Manager is the front end user interface within the ReCiter suite of applications. In addition to the requirements for the application itself, you will need to minimally install the following: 
 - [ReCiter](https://github.com/wcmc-its/ReCiter) - a machine learning-based publication recommendation engine which provides high quality suggestions for individuals of interest
 - [ReCiterDB](https://github.com/wcmc-its/ReCiterDB) - the back end data store for Publication Manager; in addition to the schema and stored procedures, this repository contains a set of scripts that retrieve data from ReCiter and imports them into this MySQL database
 - [ReCiter PubMed Retrieval Tool](https://github.com/wcmc-its/reciter-pubmed-Retrieval-Tool/) - An application which provides an API which sits on top of PubMed's eFetch web service. Generally speaking, this API provides some basic inferences and makes the PubMed data easier to work with.
@@ -175,38 +175,42 @@ The `pages/api` directory is mapped to `/api/*`. Files in this directory are tre
 
 
 
+
 #### Populating users
 
 Application users are stored in the `admin_users` table in ReCiterDB. There are two options for adding and updating users:
 
-- **Manual** - This can be done in the web interface by superusers in `Manage module > Manage users`.
-- **Programmatic** - If you configure ReCiterDB and its associated scripts, users should automatically be populated in the `person` table and added to the `admin_users` table.
+- **Manual** - To add or update users manually, superusers can go to the web interface and navigate to `Manage module > Manage users`. From there, they can add or update users as needed.
+- **Programmatic** - If you have configured ReCiterDB and its associated scripts, users should automatically be populated in the `person` table and added to the `admin_users` table. To configure this option, you will need to follow the setup instructions for ReCiterDB and ensure that the associated scripts are running as intended. Once this is set up, users should be added or updated in the `admin_users` table automatically.
 
 
 
 #### Authentication
 
-**Option #1: Local login** - Publication Manager supports local login. 
+ReCiter Publication Manager supports two options for authentication:
 
-**Option #2: SAML-based login** - To satisfy institutional security requirements, it is possible to configure Publication Manager to work with SAML and an institution's identity provider. During SAML, the identity provider provides a payload which sometimes contains a populated `user.email` attribute and always contains a populated `personIdentifier` attribute. Publication Manager [attempts](https://github.com/wcmc-its/ReCiter-Publication-Manager/blob/master/src/pages/index.js) to match against `user.email` as recorded in the `admin_users` table. Failing that, it attempts to match against `personIdentifier`.
+**Option #1: Local login** - This option allows users to log in to Publication Manager using a local username and password.
+
+**Option #2: SAML-based login** - This option is designed to meet institutional security requirements by allowing Publication Manager to work with SAML and an institution's identity provider. During SAML authentication, the identity provider provides a payload that contains a `personIdentifier` attribute, which is always populated, and sometimes contains a `user.email` attribute. Publication Manager [attempts](https://github.com/wcmc-its/ReCiter-Publication-Manager/blob/master/src/pages/index.js) to match the `user.email` attribute against the email address recorded in the `admin_users` table. If this fails, it attempts to match against the `personIdentifier`.
 
 
 
 
 
-#### Access roles
+#### Access Roles
 
-To use Publication Manager, a user must have one or more of the following access roles:
+To utilize the Publication Manager, users must have specific access roles assigned to them. The access roles available and their corresponding privileges are as follows:
 
-| Role | Privileges	|  Relevant to |  How assigned | 
-| ----- | ----- | ---- | ---- |
-| **Curator, individual** | Can update publication lists for oneself | Faculty and other individual authors | Automatically | 
-| **Curator, department** |  Can update publication lists for everyone in an org unit | Departmental administrators and staff	| Manually by superuser | 
-| **Curator, all** | Can update publication lists for everyone	|  Librarians	| Manually by superuser | 
-| **Reporter** | Can generate reports about everyone | Departmental administrators and staff | Manually by superuser | 
-| **Superuser** | Can do all of the above and update roles of others |  System administrators | Manually by superuser | 
+| Role | Privileges | Relevant to | How assigned |
+| --- | --- | --- | --- |
+| **Curator (Individual)** | Update publication lists for oneself | Faculty and individual authors | Automatically assigned |
+| **Curator (Department)** | Update publication lists for everyone in an organization unit | Departmental administrators and staff | Manually assigned by superuser |
+| **Curator (All)** | Update publication lists for everyone | Librarians | Manually assigned by superuser |
+| **Reporter** | Generate reports about everyone | Departmental administrators and staff | Manually assigned by superuser |
+| **Superuser** | Do all of the above and update roles of others | System administrators | Manually assigned by superuser |
 
-Role assignments are in the `admin_users_roles` table.
+Role assignments are stored in the `admin_users_roles` table.
+
 
 
 
@@ -291,6 +295,23 @@ If you are reporting on the publication output of a person, you can do it in two
     
 ![Bulk reporting](/files/BulkReporting2.gif)
 
+#### Filters
+
+The Filters section of the Publication Manager allows users to narrow down the article results displayed. The following filters are available for people:
+
+- **Author** - Filter by name or NetID. 
+- **Organization** - Refers to a given person's primary organizational unit. Publication Manager uses parentheses to indicate that a person is a member of both a unit and a sub-unit. For example, a search for "Medicine" will also return results for someone whose primary organizational unit is "Medicine (Cardiology)." 
+- **Institution** - Refers to a person's primary institutional affiliation (e.g., `Cornell University`).
+- **Person Type(s)** - Refers to an individual's designation (e.g., `academic-faculty`, `student-phd`).
+- **Author Position** - Indicates whether any of the selected people were first and/or last author on a given publication. In some cases, certain authors may be co-first or co-last. These cases are not tracked automatically but can be added to an override table called `analysis_override_author_position`. Such authorships will get credit for being first or last author, both here and in the bibliometric report described below.
+
+The following filters are available for articles:
+
+- **Date** - Refers to the date an article was added to PubMed, which can be several months different from the publication date. By default, the last 30 days is selected.
+- **Type** - Refers to the type of article, such as Case Report, Editorial, Review, etc. Articles of type "Academic Article" generally describe original research.
+- **Journal** - Refers to the verbose journal name (e.g., "Annual Review of Cell Biology").
+- **Journal Rank** - Refers to the [Scimago journal ranking](https://www.scimagojr.com/), which is not the same as the journal impact factor but correlates highly with that metric. Journal Impact Factor is not published on the website due to copyright reasons. However, it is available when a user downloads a CSV file.
+
 
 #### Filters
 
@@ -299,12 +320,10 @@ Filters narrow the article results displayed.
 **For people:**
 
 - Author - Filter by name or NetID. 
-- Organization - A given person's primary organizational unit.
-  - A search for "Medicine" won't get results for someone whose primary organizational unit is "Medicine (Cardiology)." You would have to select the parent department and all the subsuming divisions.
-  - Some of the organizational units are from NYP, and they look odd (e.g., "SUP00439"). On the identity management side, we are in the process of attempting to map these to more human-friendly units
-- Institution - A person's primary institutional affiliation. Most of these are from ASMS.
-- Person type(s) - An individual's designation as defined by WCM's Identity Management Team. See definitions here.
-- Author position - Whether any of the selected people were first and/or last author on a given publication. There are some cases where certain authors are co-first or co-last. This is not tracked automatically. If you know of such a case, please contact Paul Albert at paa2013@med.cornell.edu with the relevant PMID(s), and he will add it to a back end override table. Such authorships will get credit for being first or last author, both here and in the bibliometric report described below.
+- Organization - A given person's primary organizational unit. Publication Manager uses parentheses as an indication that a person is member both of unit and a sub-unit. For example, a search for "Medicine" will also return results for someone whose primary organizational unit is "Medicine (Cardiology)." 
+- Institution - A person's primary institutional affiliation (e.g., `Cornell University`)
+- Person type(s) - An individual's designation (e.g., `academic-faculty`, `student-phd`)
+- Author position - Whether any of the selected people were first and/or last author on a given publication. There are some cases where certain authors are co-first or co-last. This is not tracked automatically, but they can be added to an override table: `analysis_override_author_position`. Such authorships will get credit for being first or last author, both here and in the bibliometric report described below.
 
 **For articles:**
 
@@ -347,34 +366,25 @@ Here's how to generate a narrative bibliometric summary (see sample) of a full-t
 
 
 
-### Settings
-
-Publication Manager can be configured by superusers in the user interface by visiting `Manage module >> Settings`. Settings are stored in ReCiterDB itself. Changes made in the web interface will update for all users.
-
-Settings include:
-
-- **labels for terms** - value to be displayed in the application for all users (e.g., for people: NetID vs. CWID vs. UserID...)
-- **help text for users** - the contents of an "on hover" event used to provide in page documentation to user
-- **whether an attribute should be included** - whether to include, say, citation count in the output of an article CSV, authorship CSV, on the web page itself, or a sortable attribute
-- **order to output attributes** - allows admin to decide the order to display the attributes including in the CSV outputs, the web interface, and sort
-- **maximum records to be output** - maximum number of records that can be output to the CSV files
 
 
+#### Settings
 
+The Publication Manager's configuration settings can be accessed and modified by superusers through the user interface by visiting `Manage module >> Settings`. All changes made in the web interface will automatically update for all users.
+
+The available settings are:
+
+- **Labels for terms** - The value to be displayed in the application for all users (e.g. NetID vs. CWID vs. UserID...)
+- **Help text for users** - The contents of an "on hover" event that provides in-page documentation to users
+- **Inclusion of attributes** - The decision to include attributes such as citation count in the output of an article CSV, authorship CSV, on the web page itself, or as a sortable attribute
+- **Order of output attributes** - Allows admins to decide the order in which attributes are displayed, including in the CSV outputs, the web interface, and sort function
+- **Maximum records output** - The maximum number of records that can be output to the CSV files
 
 ## Funding acknowledgment
 
-Various components in the ReCiter suite of applications has been funded by:
+Various components of the ReCiter suite of applications have been funded by the following:
+
 - The National Institutes of Health National Center for Advancing Translational Sciences through grant number UL1TR002384 
 - National Library of Medicine, National Institutes of Health under a cooperative agreement with Region 7
 - Lyrasis through its Catalyst fund
-
-
-## Learn more
-
-Please submit any questions to [Paul Albert](mailto:paa2013@med.cornell.edu) or publications@med.cornell.edu. You may expect a response within one to two business days. 
-
-We use GitHub issues to track bugs and feature requests. If you find a bug, please feel free to open an issue.
-
-Contributions welcome!
 
