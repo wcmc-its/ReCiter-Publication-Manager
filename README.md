@@ -43,7 +43,6 @@ See the [Functionality](#functionality) section to see screencaps and animations
     - [Output results](#output-results)
     - [Generating a bibliometric report](#generating-a-bibliometric-report)
 - [Funding acknowledgment](#funding-acknowledgment)
-- [Learn more](#learn-more)
 
 
 
@@ -380,11 +379,23 @@ The available settings are:
 - **Order of output attributes** - Allows admins to decide the order in which attributes are displayed, including in the CSV outputs, the web interface, and sort function
 - **Maximum records output** - The maximum number of records that can be output to the CSV files
 
+
+
 ## Funding acknowledgment
 
-Various components of the ReCiter suite of applications have been funded by the following:
-
-- The National Institutes of Health National Center for Advancing Translational Sciences through grant number UL1TR002384 
-- National Library of Medicine, National Institutes of Health under a cooperative agreement with Region 7
+Publication Manager has been funded by:
 - Lyrasis through its Catalyst fund
+- National Library of Medicine, National Institutes of Health under a cooperative agreement with Region 7
 
+The ReCiter suite of applications has been funded by the following:
+- The National Institutes of Health National Center for Advancing Translational Sciences through grant number UL1TR002384 
+
+
+
+## Learn more
+
+Please submit any questions to [Paul Albert](mailto:paa2013@med.cornell.edu) or publications@med.cornell.edu. You may expect a response within one to two business days. 
+
+We use GitHub issues to track bugs and feature requests. If you find a bug, please feel free to open an issue.
+
+Contributions welcome!
