@@ -61,13 +61,13 @@ See the [Functionality](#functionality) section to see screencaps and animations
 Requirements for Publication Manager itself:
 
 1. Install Docker
-  1. Go to the [Docker website](https://hub.docker.com)
-  1. If you don't already have an account, you will need to create one.
-  1. Use the Docker image to download and install Docker
-  1. To verify Docker is installed, execute `docker ps` at the command line
+   1. Go to the [Docker website](https://hub.docker.com)
+   2. If you don't already have an account, you will need to create one.
+   3. Use the Docker image to download and install Docker
+   4. To verify Docker is installed, execute `docker ps` at the command line
 1. Install `Node`
-  1. Enter `brew install node`
-  1. For more, see [here](https://www.dyclassroom.com/howto-mac/how-to-install-nodejs-and-npm-on-mac-using-homebrew).
+   1. Enter `brew install node`
+   2. For more, see [here](https://www.dyclassroom.com/howto-mac/how-to-install-nodejs-and-npm-on-mac-using-homebrew).
 
 Publication Manager is part of the ReCiter suite of applications. In addition to the above, you will need to install and set up the following: 
 - [ReCiter](https://github.com/wcmc-its/ReCiter) - a machine learning-based publication recommendation engine 
