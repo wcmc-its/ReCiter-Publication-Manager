@@ -11,13 +11,18 @@ import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publ
 import Excel from 'exceljs';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import { setReportFilterLabels } from "../../../utils/constants";
+
 
 const SearchSummary = ({ 
+  reportLabelsForSort,
   count, 
   onClick,
   selected,
-  onGetReportsDatabyPubFilters
-}: { count: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
+  onGetReportsDatabyPubFilters,
+  exportAuthorShipLabels,
+  exportArticleLabels
+}: {exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,count: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -173,22 +178,27 @@ const SearchSummary = ({
 
     if (labels.person) {
       Object.keys(labels.person).forEach((labelField) => {
-        let labelObj = { header: labels.person[labelField], key: labelField};
+        console.log("labels.person[labelField]", labels.person[labelField])
+        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.person[labelField]) , key: labelField};
         columns.push(labelObj);
       })
     }
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        console.log("labels.person[labelField]", labels.articleInfo[articleInfoField])
+
+        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.articleInfo[articleInfoField]), key: articleInfoField };
         columns.push(labelObj);
       })
     }
 
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
+        console.log("labels.person[labelField]", labels.article[articleField])
+        
         if (metrics.article[articleField] == true) {
-          let labelObj = { header: labels.article[articleField], key: articleField};
+          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[articleField]), key: articleField};
           columns.push(labelObj);
         }
       })
@@ -197,7 +207,9 @@ const SearchSummary = ({
     if (labels.article) {
       Object.keys(labels.article).forEach(label => {
         if (!metrics.article.hasOwnProperty(label)) {
-          let labelObj = { header: labels.article[label], key: label};
+        console.log("labels.person[labelField]", labels.article[label])
+
+          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[label]), key: label};
           columns.push(labelObj);
         }
       })
@@ -270,7 +282,9 @@ const SearchSummary = ({
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
+        console.log("labels.person[labelField]", labels.articleInfo[articleInfoField])
+
+        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.articleInfo[articleInfoField]), key: articleInfoField };
         columns.push(labelObj);
       })
     }
@@ -278,7 +292,9 @@ const SearchSummary = ({
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
-          let labelObj = { header: labels.article[articleField], key: articleField};
+        console.log("labels.person[labelField]", labels.article[articleField])
+
+          let labelObj = { header:setReportFilterLabels(exportAuthorShipLabels,  labels.article[articleField]), key: articleField};
           columns.push(labelObj);
         }
       })
@@ -334,12 +350,14 @@ const SearchSummary = ({
                 <div key={index}>
                   <Dropdown.Item eventKey={`${sortOption}_DESC`} key={`${sortOption}_DESC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
                     {selected.type === sortOption && selected.order === 'DESC' && <AiOutlineCheck />} 
-                    {labels.article[sortOption] || labels.articleInfo[sortOption]}
+                    {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
+                    {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])}
                     {<ArrowDownwardIcon />}
                   </Dropdown.Item>
                   <Dropdown.Item eventKey={`${sortOption}_ASC`} key={`${sortOption}_ASC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
                     {selected.type === sortOption && selected.order === 'ASC' && <AiOutlineCheck />} 
-                    {labels.article[sortOption] || labels.articleInfo[sortOption]}
+                    {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
+                    {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])}
                     {<ArrowUpwardIcon />}
                   </Dropdown.Item>
                 </div>
@@ -356,7 +374,7 @@ const SearchSummary = ({
         handleClose={() => setOpenCSV(false)}
         title="CSV"
         loadingResults={reportsResultsIdsLoading}
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${formatter.format(reportsResultsIds.personIdentifiers.length)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
+        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${formatter.format(reportsResultsIds?.personIdentifiers?.length)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
         buttonsList={
           [
             {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
@@ -368,7 +386,7 @@ const SearchSummary = ({
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={Object.keys(reportsResultsIds).length > 0 ? `${count ? formatter.format(count) : 0} articles` : ""}
+        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${count ? formatter.format(count) : 0} articles` : ""}
         loadingResults={reportsResultsIdsLoading}
         error={exportError}
         buttonsList={[

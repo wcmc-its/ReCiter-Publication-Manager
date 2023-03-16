@@ -195,6 +195,15 @@ export const showEvidenceDefault = (state= '', action) => {
   }
 }
 
+export const updatedAdminSettings = (state= [], action) => {
+  switch(action.type) {
+      case methods.ADMIN_SETTINGS_UPDATED_LIST :
+          return action.payload
+      default :
+          return state
+  }
+}
+
 
 
 export const pubMedCount = (state= 0, action) => {
@@ -851,9 +860,7 @@ export default combineReducers({
     AllAdminRoles,
     createORupdateUserID,
     authorFilterDataFromSearch,
-    showEvidenceDefault
-
-
-
+    showEvidenceDefault,
+    updatedAdminSettings
 
 })

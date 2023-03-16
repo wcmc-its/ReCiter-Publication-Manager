@@ -28,6 +28,21 @@ export const toastMessage = (type, message) => {
 	}
 }
 
+export const numberFormation = (number)=> {
+	let formatedNumber  = number.toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ",");
+	return formatedNumber
+}
+
+export const setReportFilterLabels = (allFilters, filterLabel) => {
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	return filteredLabel?.labelUserView || ""
+}
+
+export const setHelptextInfo = (allFilters, filterLabel) => {
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	return filteredLabel?.helpTextUserView || ""
+}
+
 export const dropdownItemsSuper = [
 	{ title: 'Create Reports', to: ''},
 	// { title: 'Perform Analysis', to: '/perform-analysis' },

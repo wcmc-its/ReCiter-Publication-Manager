@@ -2,8 +2,11 @@ import React, { useState } from "react";
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
 import { Dropdown } from "react-bootstrap";
+import { setReportFilterLabels } from "../../../utils/constants";
+
 
 interface SliderFilterProps {
+  reportFiltersLabes?:any
   name: string
   value?: number | Array<number>
   min?: number
@@ -14,7 +17,7 @@ interface SliderFilterProps {
   filterUpperName: string
   values: Array<number>
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getAriaValueText, handleChange, filterLowerName, filterUpperName, values }) => {
+export const SliderFilter: React.FC<SliderFilterProps> = ({ reportFiltersLabes, name, max, min, getAriaValueText, handleChange, filterLowerName, filterUpperName, values }) => {
 
   const onSliderUpdate = (event, newValue) => {
     handleChange(filterLowerName, filterUpperName, newValue[0], newValue[1]);
@@ -23,7 +26,7 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ name, max, min, getA
   return (
     <Dropdown className="d-inline-block">
       <Dropdown.Toggle variant={values.some(value => value === undefined) ? "white" : "primary"} id="dropdown-basic">
-        {name}
+      {setReportFilterLabels(reportFiltersLabes, name)}
       </Dropdown.Toggle>
 
       <Dropdown.Menu className="px-4">

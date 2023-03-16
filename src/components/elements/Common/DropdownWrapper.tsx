@@ -2,7 +2,7 @@ import React, { ComponentType } from "react";
 import { Dropdown } from "react-bootstrap";
 
 interface DropdownWrapperProps {
-  title: string,
+  title: any,
   children: JSX.Element,
   variant?: string,
 }

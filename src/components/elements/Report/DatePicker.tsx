@@ -5,8 +5,10 @@ import 'react-dates/initialize';
 import 'react-dates/lib/css/_datepicker.css';
 import moment from 'moment';
 import { Dropdown } from "react-bootstrap";
+import { setReportFilterLabels } from "../../../utils/constants";
 
-export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleChange, filterLowerName, filterUpperName, selectedStartDate, selectedEndDate }) => {
+
+export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,selectedFilters, handleChange, filterLowerName, filterUpperName, selectedStartDate, selectedEndDate }) => {
   const [focusedInput, setFocusedInput] = useState();
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [startDate, setStartDate] = useState();
@@ -72,7 +74,7 @@ export const DatePicker = ({ name, isFilterClear,range,selectedFilters, handleCh
   return (
     <Dropdown className="d-inline-block" autoClose>
       <Dropdown.Toggle variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-basic">
-        {name}
+      {setReportFilterLabels(reportFiltersLabes, name)}
       </Dropdown.Toggle>
       <Dropdown.Menu className="px-4">
         

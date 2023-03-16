@@ -4,8 +4,9 @@ import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
 import { useSelector,RootStateOrAny } from "react-redux";
+import { setReportFilterLabels } from "../../../utils/constants";
 
-export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
+export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,isFilterClear, title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
   const [selectedList, setSelectedList] = useState<any>([]);
   const [filteredList, setFilteredList] = useState<any>([]);
@@ -46,7 +47,10 @@ export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title,
     let filteredData = updatedSelectedList?.filter(item => item !== undefined) 
     if (filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
       const uniqueIds = selectedList;
+      let isPersonIdentifier = false;
       filteredData.filter(element => {
+        if(element.hasOwnProperty("personIdentifier")) isPersonIdentifier = true;
+
           const isDuplicate = uniqueIds.includes(element.personIdentifier);
           if (!isDuplicate) {
               uniqueIds.push(element);
@@ -58,7 +62,8 @@ export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title,
        const filtered = uniqueIds.filter(({
           personIdentifier
       }, index) => !ids.includes(personIdentifier, index + 1)) 
-      setSelectedList(filtered);
+       if(isPersonIdentifier)  setSelectedList(filtered);
+      else setSelectedList(filteredData)
   }
   }
 
@@ -120,7 +125,7 @@ export const CheckboxSelect: React.FC<any> = ({ onLoadMore,isFilterClear, title,
   }
 
   return (
-    <DropdownWrapper title={title} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
       <div className={styles.dropdownContainer}>
       <InputGroup className="mb-3">         
        <FormControl
