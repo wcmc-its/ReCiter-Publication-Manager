@@ -311,26 +311,6 @@ The following filters are available for articles:
 - **Journal** - Refers to the verbose journal name (e.g., "Annual Review of Cell Biology").
 - **Journal Rank** - Refers to the [Scimago journal ranking](https://www.scimagojr.com/), which is not the same as the journal impact factor but correlates highly with that metric. Journal Impact Factor is not published on the website due to copyright reasons. However, it is available when a user downloads a CSV file.
 
-
-#### Filters
-
-Filters narrow the article results displayed.
-
-**For people:**
-
-- **Author** - Filter by name or NetID. 
-- **Organization** - A given person's primary organizational unit. Publication Manager uses parentheses as an indication that a person is member both of unit and a sub-unit. For example, a search for "Medicine" will also return results for someone whose primary organizational unit is "Medicine (Cardiology)." 
-- **Institution** - A person's primary institutional affiliation (e.g., `Cornell University`)
-- **Person type(s)** - An individual's designation (e.g., `academic-faculty`, `student-phd`)
-- **Author position** - Whether any of the selected people were first and/or last author on a given publication. There are some cases where certain authors are co-first or co-last. This is not tracked automatically, but they can be added to an override table: `analysis_override_author_position`. Such authorships will get credit for being first or last author, both here and in the bibliometric report described below.
-
-**For articles:**
-
-- **Date** - the date an article was added to PubMed. Can be several months different from the publication date. By default, the last 30 days is selected.
-- **Type** - Case Report, Editorial, Review, etc. Articles of type "Academic Article" generally describe original research.
-- **Journal** - verbose journal name (e.g., "Annual review of cell biology")
-- **Journal rank** - [Scimago journal ranking](https://www.scimagojr.com/). Not the same as journal impact factor but correlates highly with that metric. We don't publish Journal Impact Factor on the website for copyright reasons. However, this is available, when you download a CSV file.
-
 ![Filters](/files/Filters.png)
 
 
