@@ -277,20 +277,20 @@ Data for reporting is refreshed on a nightly basis. Any curation work performed 
 If you are reporting on the publication output of a person, you can do it in two ways:
 
 1. One by one
-  1. Click the "Create Reports" tab.
-  1. In the "Author" filter, limit by name or NetID.
-  1. Click the "Search" button.
-  1. Check the corresponding box next to the user's name.
+   1. Click the "Create Reports" tab.
+   1. In the "Author" filter, limit by name or NetID.
+   1. Click the "Search" button.
+   1. Check the corresponding box next to the user's name.
 1. For people that satisfy certain criteria.
-  1. Click the "Create Reports" tab.
-  1. In the "Authors" filter, limit by name, organizational units, institution, person type, and/or author position.
-  1. Click the "Search" button.
-  1. For a known group of NetIDs (see animation below)
-1. Click on the "Find People" tab.
-  1. Paste in a list of NetIDs. (This has been tested to reliably work for up to 200 NetIDs.)
-  1. Click the "Search" button.
-  1. Click the "Create Reports" button above the table of results.
-  1. You will be directed to the "Create Reports" page with all the authors with those NetIDs checked.
+   1. Click the "Create Reports" tab.
+   1. In the "Authors" filter, limit by name, organizational units, institution, person type, and/or author position.
+   1. Click the "Search" button.
+1. For a known group of NetIDs (see animation below)
+   1. Click on the "Find People" tab.
+   1. Paste in a list of NetIDs. (This has been tested to reliably work for up to 200 NetIDs.)
+   1. Click the "Search" button.
+   1. Click the "Create Reports" button above the table of results.
+   1. You will be directed to the "Create Reports" page with all the authors with those NetIDs checked.
     
 ![Bulk reporting](/files/BulkReporting2.gif)
 
