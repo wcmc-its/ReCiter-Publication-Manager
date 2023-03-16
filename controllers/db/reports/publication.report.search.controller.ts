@@ -2,8 +2,6 @@ import { PermIdentity } from "@mui/icons-material";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import sequelize from "../../../src/db/db";
-														  
-						
 import {
   AnalysisSummaryArticle,
   PersonArticleAuthor,
@@ -14,7 +12,6 @@ import {
   PublicationAuthorSearchFilter,
   PublicationSearchFilter
 } from "../../../types/publication.report.search";
-
 
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
 models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
@@ -600,7 +597,6 @@ export const publicationSearchWithFilter = async (
         authorsResults?.rows?.map((rowData) => {
           pmidList.push(rowData?.dataValues?.pmid)
         });
-        console.log('writing to the file********************************************************************');
 		 let jsonData = {
 		 
 														   
@@ -616,7 +612,6 @@ export const publicationSearchWithFilter = async (
         }
         const jsonString = JSON.stringify(jsonData)
 
-        console.log("jsonString****************", jsonString)
 
 
         fs.writeFile('public/pmidDataFile.json', jsonString, err => {
@@ -640,7 +635,6 @@ export const publicationSearchWithFilter = async (
               benchmark:true
             });
         }
-       // console.log('articleresults before**************************',JSON.stringify(articleResults));
         let articlesDetails:any =[];
         if(Object.keys(articleResults).length > 0 )
         {

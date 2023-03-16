@@ -119,8 +119,6 @@ const AdminSettings = () => {
       });
   }
 
-  console.log("settings***********", settings)
-
   return (
     <div className={appStyles.mainContainer}>
       <PageHeader label="Settings" />
@@ -139,7 +137,6 @@ const AdminSettings = () => {
                   {
                     obj.viewAttributes.map((innerObj, index2) => {
                       const { labelSettingsView, labelUserView, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, } = innerObj;
-                      console.log("isVisible", labelUserView , "1",isVisible)
                       return <Card style={{ width: '40rem', marginBottom: '3px' }}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>

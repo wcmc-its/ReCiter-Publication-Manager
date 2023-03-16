@@ -13,7 +13,6 @@ export const listAdminSettings = async (req: NextApiRequest, res: NextApiRespons
         ],
         group: `viewName`
         });
-        console.log('adminSettings************************',adminSettings);
         res.send(adminSettings);
     } catch (e) {
         console.log(e)
@@ -29,7 +28,6 @@ export const fetchUpdatedAdminSettings = async () => {
         ],
         group: `viewName`
         });
-        console.log('adminSettings************************',adminSettings);
         return JSON.stringify(adminSettings);
     } catch (e) {
         console.log(e)
@@ -39,12 +37,8 @@ export const fetchUpdatedAdminSettings = async () => {
 
 export const updateAdminSettings = async (req: NextApiRequest, res: NextApiResponse) => {
     let payLoad = req.body.data;
-    console.log("payLoad", typeof(payLoad))
-    console.log("payLoad",payLoad)
-
     try {
         const adminSettings = await models.AdminSettings.bulkCreate(payLoad, { updateOnDuplicate: ["viewAttributes"], fields:["viewName", "viewAttributes"]})
-    //    console.log('adminSettings saved**************************',adminSettings);
         res.send(adminSettings);
     } catch (e) {
         console.log(e)
