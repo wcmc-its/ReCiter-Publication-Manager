@@ -5,12 +5,14 @@ import List from '@mui/material/List';
 import Divider from '@mui/material/Divider';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import SettingsIconGare from '../../../../public/images/settingsIconGare.png';
+import SettingsGareIconActive from '../../../../public/images/settingsGareIconActive.jpg';
 import NestedListItem from './NestedListItem';
 import { MenuItem } from '../../../../types/menu';
 import MenuListItem from './MenuListItem';
 import { ExpandNavContext } from './ExpandNavContext';
 import facultyIcon from '../../../../public/images/icon-side-faculty_index.png';
-import settingsIcon from '../../../../public/images/icon-side-admin_index.png';
+import SettingsIconTools from '../../../../public/images/icon-side-admin_index.png';
 import chartIcon from '../../../../public/images/icon-side-faculty_report.png';
 import checkMarkIcon from '../../../../public/images/icon-side-check_mark.png';
 import styles from './Navbar.module.css'
@@ -20,6 +22,7 @@ import chartIconActive from '../../../../public/images/icon-side-faculty_report-
 import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
 import { useSelector, RootStateOrAny } from "react-redux";
 import { useSession } from 'next-auth/client';
+
 
 type SideNavBarProps = {
     items: any
@@ -152,7 +155,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     {
       title: 'Curate Publications',
       to: '/curate',
-      imgUrl: settingsIcon,
+      imgUrl: SettingsIconTools,
       imgUrlActive: settingsIconActive,
       disabled: (Object.keys(filters).length === 0),
       allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
@@ -175,7 +178,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     // },
     {
       title: 'Manage Module',
-      imgUrl: settingsIcon,
+      imgUrl: SettingsIconTools,
       imgUrlActive: settingsIconActive,
       nestedMenu: [{title: 'Manage Users', 
       to: '/admin/manage/users', 
@@ -183,7 +186,14 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: facultyIconActive, 
       disabled: false,
       allowedRoleNames: ["Superuser"],
-    }],
+    },
+    {title: 'Settings', 
+    to: '/admin/manage/settings', 
+    imgUrl: SettingsIconGare, 
+    imgUrlActive: SettingsGareIconActive, 
+    disabled: false,
+    allowedRoleNames: ["Superuser"],
+  }],
       allowedRoleNames: ["Superuser"],
 
     }

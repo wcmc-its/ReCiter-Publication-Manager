@@ -5,6 +5,7 @@ import { infoBubblesConfig } from "../../../../config/report";
 import { AuthorsComponent } from "../Common/AuthorsComponent";
 import { Author } from "../../../../types/Author";
 import { reportConfig } from "../../../../config/report";
+import { setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
 
 interface ReportsResultPaneProps {
   title: string
@@ -19,7 +20,8 @@ interface ReportsResultPaneProps {
   journalTitleVerbose: string
   publicationDateDisplay: string
   publicationTypeCanonical: string
-  onClickAuthor?: (personalIdentifier: string) => void
+  onClickAuthor?: (personalIdentifier: string) => void,
+  reportingWebDisplay:any
 }
 
 export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ 
@@ -35,35 +37,36 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   journalTitleVerbose,
   publicationDateDisplay,
   publicationTypeCanonical,
-  onClickAuthor
+  onClickAuthor,
+  reportingWebDisplay
  }) => {
   const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
   const doiUrl = 'https://doi.org/';
 
   const ADDITIONAL_INFO_CONFIGS = [
     {
-      label: "Citation count (NIH)",
-      title: "citationCountNIH",
+      label: setReportFilterLabels(reportingWebDisplay,"Citation count (NIH)") ,
+      title:  setHelptextInfo(reportingWebDisplay,"Citation count (NIH)"),
       value: citationCount
     },
     {
-      label: "Percentile Rank",
-      title: "nihPercentile",
+      label: setReportFilterLabels(reportingWebDisplay,"Percentile Rank"),
+      title: setHelptextInfo(reportingWebDisplay,"Percentile Rank"),
       value: percentileRank
     },
     {
-      label: "Relative Citation Ratio (NIH)",
-      title: "relativeCitationRatio",
+      label: setReportFilterLabels(reportingWebDisplay,"Relative Citation Ratio (NIH)"),
+      title: setHelptextInfo(reportingWebDisplay,"Relative Citation Ratio (NIH)"),
       value: relativeCitationRatio
     },
     {
-      label: "Journal Rank",
-      title: "journalImpactScore1",
+      label: setReportFilterLabels(reportingWebDisplay,"Journal Rank"),
+      title: setHelptextInfo(reportingWebDisplay,"Journal Rank"),
       value: journalImpactScore1
     },
     {
-      label: "TrendingPubs score",
-      title: "trendingPubsScore",
+      label: setReportFilterLabels(reportingWebDisplay,"TrendingPubs score"),
+      title: setHelptextInfo(reportingWebDisplay,"TrendingPubs score"),
       value: trendingPubsScore
     }
   ]
@@ -73,14 +76,14 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   const DisplayInfo = ({ label, title, value}) => {
      // console.log("info title", infoBubblesConfig[title] , "respTitle" , title )
     if (value) {
-      if (infoBubblesConfig[title]) {
+      if (title) {
         return (
           <OverlayTrigger
             trigger={["focus", "hover"]}
             overlay={(
               <Popover id="information-description">
                 <Popover.Body>
-                  {infoBubblesConfig[title]}
+                  {title}
                 </Popover.Body>
               </Popover>)}
               placement="top"

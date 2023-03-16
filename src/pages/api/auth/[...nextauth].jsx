@@ -5,6 +5,7 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findAdminUser, findOrCreateAdminUsers } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
+import {fetchUpdatedAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
@@ -87,6 +88,7 @@ const options = {
                         adminUser.personIdentifier
                         const userRoles = await findUserPermissions(cwid, "cwid");
                         adminUser.userRoles = userRoles;
+                     
                         if(adminUser) return adminUser;
                     }  
 
@@ -103,6 +105,9 @@ const options = {
         },
         async session(session, token,apiResponse) {
             session.data = token
+            //loading adminsettings after creating users specific data as it does not belogs to specific user.
+            const adminSettings = await fetchUpdatedAdminSettings();
+            session.adminSettings = adminSettings;
             console.log(session)
             return session
         },

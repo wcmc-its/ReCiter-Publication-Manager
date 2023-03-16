@@ -19,9 +19,11 @@ import { useModal } from "../../../hooks/useModal";
 import { Container } from "react-bootstrap";
 import { ReportResults } from "./ReportResults";
 import { countPersons } from "../../../../controllers/db/person.controller";
+import { useSession } from 'next-auth/client';
 
 const Report = () => {
   const dispatch = useDispatch()
+  const [session, loading] = useSession();
 
   // state to manage what content to display on inital load
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
@@ -52,17 +54,22 @@ const Report = () => {
 
   // selected filter options
   const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
-
-  
-
   // search results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
 
 
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
   const [reset, setReset] = useState<boolean>(false);
   const [isFiltersOn, setIsFiltersOn] = useState<boolean>(false);
+  const [reportFiltersLabes, setReportFiltersLabes] = useState([])
+  const [viewProfileLabels, setViewProfileLabels] = useState([])
+  const [reportLabelsForSort, setReportLabelsForSort] = useState([])
+  const [headShotLabelData, setHeadShotLabelData] = useState([])
+  const [exportAuthorShipLabels, setExportAuthorShipLabels] = useState([])
+  const [exportArticleLabels, setExportArticleLabels] = useState([])
+  const [reportingWebDisplay, setReportingWebDisplay] = useState([])
 
 
 
@@ -75,6 +82,67 @@ const Report = () => {
 
   // fetch filters on mount
   useEffect(() => {
+    // let parsedAdminSettings:adminSettings["adminSettings"]  = 
+    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    var viewAttributes = [];
+    var profileViewAttributes = [];
+    var sortLabelViewAttributes = [];
+    var headShotLabels = [];
+    var exportAuthorShipCSVLabels = [];
+    var exportArticleCSVLabels = [];
+    var reportingWeb = [];
+
+
+    if (updatedAdminSettings.length > 0) {
+      // updated settings from manage settings page
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingFilters")
+      let viewProfileUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "viewProfile")
+      let sortLabelsUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingWebViewSort")
+      let headShotData = updatedAdminSettings.find(obj => obj.viewName === "headshot")
+      let exportAuthors = updatedAdminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
+      let exportArticle = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleCSV")
+      let reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
+
+
+      sortLabelViewAttributes = sortLabelsUpdatedData.viewAttributes;
+      profileViewAttributes = viewProfileUpdatedData.viewAttributes;
+      viewAttributes = updatedData.viewAttributes;
+      headShotLabels = headShotData.viewAttributes;
+      exportArticleCSVLabels = exportArticle.viewAttributes;
+      exportAuthorShipCSVLabels = exportAuthors.viewAttributes;
+      reportingWeb = reportingWebDisplay.viewAttributes;
+
+    } else {
+      // regular settings from session
+      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingFilters")
+      let viewProfileUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "viewProfile")
+      let sortLabelsUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebViewSort")
+      let headShotData =JSON.parse(adminSettings).find(obj => obj.viewName === "headshot")
+      let exportAuthors = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingAuthorshipCSV")
+      let exportArticle = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleCSV")
+      let reportingWebDisplay = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebDisplay")
+
+
+      sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
+      profileViewAttributes = JSON.parse(viewProfileUpdatedData.viewAttributes);
+      viewAttributes = JSON.parse(data.viewAttributes);
+      headShotLabels = JSON.parse(headShotData.viewAttributes);
+      exportArticleCSVLabels = JSON.parse(exportArticle.viewAttributes);
+      exportAuthorShipCSVLabels = JSON.parse(exportAuthors.viewAttributes);
+      reportingWeb = JSON.parse(reportingWebDisplay.viewAttributes);
+
+    }
+
+    // view attributes data from session or updated settings
+    setReportFiltersLabes(viewAttributes);
+    setViewProfileLabels(profileViewAttributes);
+    setReportLabelsForSort(sortLabelViewAttributes);
+    setHeadShotLabelData(headShotLabels)
+    setExportAuthorShipLabels(exportAuthorShipCSVLabels)
+    setExportArticleLabels(exportArticleCSVLabels)
+    setReportingWebDisplay(reportingWeb)
+
+
     SetIsFirstLoad(true);
     dispatch(showEvidenceByDefault(null));
     const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters
@@ -91,7 +159,6 @@ const Report = () => {
       }
     // searchResults();
   }, [])
-
 
 
   // fetch new data on page and count update
@@ -310,6 +377,7 @@ const Report = () => {
           searchResults={searchResults}
           isFilterClear={isFilterClear}
           onLoadMore = {onLoadMore}
+          reportFiltersLabes = {reportFiltersLabes}
           />
         {reportsSearchResultsLoading && 
           <Container fluid className="h-100 p-5">
@@ -324,6 +392,9 @@ const Report = () => {
             onClick={updateSort}
             onGetReportsDatabyPubFilters = { ()=> dispatch(fetchReportsResultsIds(pubSearchFilter))}
             selected={getSelectedValues(pubSearchFilter)}
+            reportLabelsForSort={reportLabelsForSort}
+            exportAuthorShipLabels = {exportAuthorShipLabels}
+            exportArticleLabels = {exportArticleLabels}
             />
             }
           <Pagination
@@ -339,12 +410,15 @@ const Report = () => {
             onClickAuthor={onClickAuthor}
             pubSearchFilter={pubSearchFilter}
             highlightSelectedAuthors={highlightSelectedAuthors}
+            reportingWebDisplay = {reportingWebDisplay}
           />
             <Profile 
               uid={uid}
               modalShow={openModal}
               handleShow={handleShow}
               handleClose={handleClose}
+              viewProfileLabels={viewProfileLabels}
+              headShotLabelData={headShotLabelData}
               />
         </div>}
       </div>

@@ -11,7 +11,8 @@ import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
 import { useSession } from 'next-auth/client';
-import { allowedPermissions } from "../../../utils/constants";
+import { allowedPermissions, setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
+
 
 
 interface PrimaryName {
@@ -36,11 +37,15 @@ const Profile = ({
   modalShow,
   handleShow,
   handleClose,
+  viewProfileLabels,
+  headShotLabelData
  } : {
    uid: string,
    modalShow: boolean,
    handleShow: (e: MouseEvent<HTMLButtonElement>) => void,
    handleClose: () => void,
+   viewProfileLabels?:any,
+   headShotLabelData?:any
  }) => {
   const dispatch = useDispatch()
   const relationshipsDisplayed = 10;
@@ -75,13 +80,13 @@ const Profile = ({
 
   const ADDITIONAL_INFO_CONFIGS = [
     {
-      label: "h-index",
-      title: "hindexNIH",
+      label:setReportFilterLabels(viewProfileLabels,"h-index"),
+      title: setHelptextInfo(viewProfileLabels,"h-index"),
       value: identity.hindexNIH
     },
     {
-      label: "h5-index",
-      title: "h5indexNIH",
+      label: setReportFilterLabels(viewProfileLabels,"h5-index"),
+      title: setHelptextInfo(viewProfileLabels,"h5-index"),
       value: identity.h5indexNIH
     }
   ]
@@ -465,7 +470,7 @@ const Profile = ({
   const DisplayInfo = ({ label, title, value}) => {
     // console.log("info title", infoBubblesConfig[title] , "respTitle" , title )
   //  if (value) {
-     if (infoBubblesConfig[title]) {
+     if (title) {
        return (
         <span style={{ 'position': 'relative', paddingRight : '10px'}}>
          <OverlayTrigger
@@ -473,7 +478,7 @@ const Profile = ({
            overlay={(
              <Popover id="information-description" className={styles.popoverBg}>
                <Popover.Body>
-                 {infoBubblesConfig[title]}
+                 {title}
                </Popover.Body>
              </Popover>)}
              placement="top"
@@ -504,7 +509,7 @@ const Profile = ({
           <div className="d-flex">
               <div className={styles.pr20}>
               {
-                displayImage && identity.identityImageEndpoint &&
+                displayImage && identity.identityImageEndpoint && headShotLabelData && headShotLabelData.length > 0 && headShotLabelData[0].isVisible &&
               <Image
                 // loader={imageLoader}
                 alt='Profile Image'

@@ -15,7 +15,7 @@ import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
-import { allowedPermissions, dropdownItemsReport, dropdownItemsSuper } from "../../../utils/constants"
+import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 
 const Search = () => {
@@ -36,6 +36,8 @@ const Search = () => {
   const identityPaginatedData = useSelector((state) => state.identityPaginatedData)
   const identityPaginatedFetching = useSelector((state) => state.identityPaginatedFetching)
   const filters = useSelector((state) => state.filters)
+  const updatedAdminSettings = useSelector((state) => state.updatedAdminSettings)
+
 
   const errors = useSelector((state) => state.errors)
 
@@ -61,13 +63,37 @@ const Search = () => {
   const[isReporterAll ,setIsReporterAll] = useState(false);
   const[isSuperUser ,setIsSuperUser] = useState(false);
   const[loggedInPersonIdentifier, setLoggedInPersonIdentifier] = useState("");
+  const [findPeopleLabels, setFindPeopleLabels] = useState([])
+  const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
+
+
   
   //ref
   const searchValue = useRef()
 
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
+
     dispatch(clearFilters())
+    let adminSettings = JSON.parse(session.adminSettings);
+    var viewAttributes = [];
+    if (updatedAdminSettings.length > 0) {
+      // updated settings from manage settings page
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
+      viewAttributes = updatedData.viewAttributes;
+
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      setNameOrcwidLabel(cwidLabel)
+    } else {
+      // regular settings from session
+      let data = adminSettings.find(obj => obj.viewName === "findPeople")
+      viewAttributes = JSON.parse(data.viewAttributes)
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      setNameOrcwidLabel(cwidLabel)
+    }
+
+    // view attributes data from session or updated settings
+    setFindPeopleLabels(viewAttributes)
 
     let userPermissions = JSON.parse(session.data.userRoles);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
@@ -459,9 +485,9 @@ const Search = () => {
         { 
           
           isCuratorSelf ?
-          <Name identity={identity} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)}></Name>
           :
-          <Name identity={identity} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)}></Name>
         }
         </td>
         <td key={`${identityIndex}__orgUnit`} width="20%">
@@ -470,9 +496,11 @@ const Search = () => {
         <td key={`${identityIndex}__institution`} width="20%">
           {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
         </td>
+        {isCuratorAll || isSuperUser  ? 
         <td key={`${identityIndex}__pending`} width="10%">
           {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
         </td>
+         : ""}
         <td key={`${identityIndex}__dropdown`} width="20%">
           {
             <RoleSplitDropdown identity = {identity}></RoleSplitDropdown>
@@ -498,7 +526,7 @@ const Search = () => {
       <div className={styles.searchContentContainer}>
         <div className={styles.searchBar}>
           <h1>Find People</h1>
-          <SearchBar searchData={searchData} resetData={resetData} />
+          <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
           {(isDisplayLoader()) ?
             (
               <Loader />
@@ -508,10 +536,10 @@ const Search = () => {
                 {!filtersOn &&
                   <div className="row">
                     <div className="col-md-4">
-                      <h3><strong>{totalCountUpdated}</strong> people</h3>
+                      <h3><strong>{ numberFormation(totalCountUpdated)}</strong> people</h3>
                     </div>
                   </div>}
-                {filtersOn && <FilterReview count={totalCountUpdated}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} />}
+                {filtersOn && <FilterReview count={totalCountUpdated}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} showPendingToggle = {isCuratorAll || isSuperUser} />}
                 <React.Fragment>
                   <Pagination total={totalCountUpdated} page={page}
                     count={count}
@@ -526,7 +554,7 @@ const Search = () => {
                             <th key="0">Name</th>
                             <th key="1">Organization</th>
                             <th key="2">Institution</th>
-                            <th key="3">Pending</th>
+                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : ""}
                             <th key="4">Actions</th>
                           </tr>
                         </thead>
@@ -572,7 +600,7 @@ function Name(props) {
     </button>
       <br />
       {props.identity.title && <>{props.identity.title}<br /></>}
-      CWID: {props.identity.personIdentifier}</p>)
+      {props.nameOrcwidLabel}: {props.identity.personIdentifier}</p>)
 
   }
   if (props.title) {

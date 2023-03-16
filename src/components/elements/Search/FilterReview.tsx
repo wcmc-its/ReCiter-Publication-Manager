@@ -15,11 +15,13 @@ import styles from './Search.module.css'
 
 
 const FilterReview = ({
+  showPendingToggle,
   onToggle,
   count,
   filterByPending,
   onCurate,
 } : {
+  showPendingToggle : boolean
   onToggle: (value: boolean) => void;
   count: number,
   filterByPending: boolean,
@@ -205,6 +207,7 @@ const FilterReview = ({
 
       }
       </Col>
+      {showPendingToggle ?
       <Col className="d-flex flex-row">
       <div>Show only people with <br /> pending suggestions</div>
       <StyledToggleButtonGroup
@@ -216,7 +219,7 @@ const FilterReview = ({
         <ToggleButton value={false}>No</ToggleButton>
         <ToggleButton value={true}>Yes</ToggleButton>
       </StyledToggleButtonGroup>
-      </Col>
+      </Col> : ""}
     </Row>
   )
 }

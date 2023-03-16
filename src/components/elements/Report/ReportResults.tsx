@@ -7,11 +7,12 @@ import { Author } from "../../../../types/Author";
 interface ReportResultsProps  {
   results: any,
   loading: boolean,
+  reportingWebDisplay:any,
   onClickAuthor: (personIdentifier: string) => void,
   pubSearchFilter?: PublicationSearchFilter,
   highlightSelectedAuthors: (authors: Author[], pubSearchFilter: PublicationSearchFilter) => Author[]
 }
-export const ReportResults: React.FC<ReportResultsProps> = ({ results, loading, onClickAuthor, pubSearchFilter, highlightSelectedAuthors }) => {
+export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDisplay, results, loading, onClickAuthor, pubSearchFilter, highlightSelectedAuthors }) => {
   if (loading) {
     return (
       <div className="m-5">
@@ -40,6 +41,7 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ results, loading, 
             publicationDateDisplay={row.publicationDateDisplay}
             publicationTypeCanonical={row.publicationTypeCanonical}
             onClickAuthor={onClickAuthor}
+            reportingWebDisplay = {reportingWebDisplay}
           />
         )})
       }

@@ -2,6 +2,8 @@ import { PermIdentity } from "@mui/icons-material";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import sequelize from "../../../src/db/db";
+														  
+						
 import {
   AnalysisSummaryArticle,
   PersonArticleAuthor,
@@ -13,6 +15,7 @@ import {
   PublicationSearchFilter
 } from "../../../types/publication.report.search";
 
+
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
 models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
   constraints: false,
@@ -22,6 +25,8 @@ models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
   foreignKey: 'AnalysisSummaryArticleId'
 });
+
+const fs = require("fs")
 
 export const publicationSearchWithFilter = async (
   req: NextApiRequest,
@@ -37,6 +42,7 @@ export const publicationSearchWithFilter = async (
     let joinWherePersonTypes = {};
     let joinWhereAuthorsFilters ={};
     let joinWherePersonIdentifiers = {};
+    let joinWhereOrganizations ={};
     
     var isAuthorFilter = false;
     var isArticleFilter = false;
@@ -51,6 +57,7 @@ export const publicationSearchWithFilter = async (
       whereForOnlyArticles [Op.and] = [];
       joinWhereAuthorsFilters [Op.and] = [];
       joinWherePersonTypes [Op.and] = [];
+      joinWhereOrganizations [Op.or] = [];
 
       if (
         apiBody.filters.journalTitleVerbose &&
@@ -135,12 +142,15 @@ export const publicationSearchWithFilter = async (
             [Op.in]: apiBody.filters.orgUnits,
           },
         });
+ 
+        apiBody.filters.orgUnits.forEach((orgName: string) => {
+          joinWhereOrganizations [Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
+          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
+      });
+      
+       joinWhereAuthorsFilters[Op.and].push(joinWhereOrganizations);
+ 
 
-        joinWhereAuthorsFilters[Op.and].push({
-          "$Person.primaryOrganizationalUnit$": {
-            [Op.in]: apiBody.filters.orgUnits,
-          },
-        });
         isAuthorFilter = true;
         isOrgORInstitues = true;
 
@@ -589,6 +599,32 @@ export const publicationSearchWithFilter = async (
         let pmidList = [];
         authorsResults?.rows?.map((rowData) => {
           pmidList.push(rowData?.dataValues?.pmid)
+        });
+        console.log('writing to the file********************************************************************');
+		 let jsonData = {
+		 
+														   
+																																													
+          pmidList : pmidList
+							  
+								   
+									 
+						 
+																																																																																																																							   
+							
+			   
+        }
+        const jsonString = JSON.stringify(jsonData)
+
+        console.log("jsonString****************", jsonString)
+
+
+        fs.writeFile('public/pmidDataFile.json', jsonString, err => {
+            if (err) {
+                console.log('Error writing file', err)
+            } else {
+                console.log('Successfully wrote file')
+            }
         })
         let articleResults ={};
         if(pmidList && pmidList.length > 0)
@@ -736,6 +772,7 @@ export const publicationSearchWithFilterPmids = async (
     let joinWherePersonTypes = {};
     let joinWhereAuthorsFilters ={};
     let joinWherePersonIdentifiers = {};
+    let joinWhereOrganizations ={};
     
     var isAuthorFilter = false;
     var isArticleFilter = false;
@@ -748,6 +785,7 @@ export const publicationSearchWithFilterPmids = async (
       whereForOnlyArticles [Op.and] = [];
       joinWhereAuthorsFilters [Op.and] = [];
       joinWherePersonTypes [Op.and] = [];
+      joinWhereOrganizations [Op.or] = [];
 
       if (
         apiBody.filters.journalTitleVerbose &&
@@ -835,11 +873,14 @@ export const publicationSearchWithFilterPmids = async (
           },
         });
 
-        joinWhereAuthorsFilters[Op.and].push({
-          "$Person.primaryOrganizationalUnit$": {
-            [Op.in]: apiBody.filters.orgUnits,
-          },
-        });
+        apiBody.filters.orgUnits.forEach((orgName: string) => {
+          joinWhereOrganizations [Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
+          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
+      });
+      
+       joinWhereAuthorsFilters[Op.and].push(joinWhereOrganizations);
+
+        
         isAuthorFilter = true;
         isOrgORInstitues = true;
 
@@ -963,6 +1004,13 @@ export const publicationSearchWithFilterPmids = async (
           },
         });
 
+        // if personType is not a separate:true
+        joinWhereAuthorsFilters[Op.and].push({
+          "$PersonPersonTypes.personType$": {
+            [Op.in]: apiBody.filters.personTypes,
+          },
+        });
+
         isAuthorFilter = true;
         isPersonTypeFilter =true;
       }
@@ -1060,7 +1108,7 @@ export const publicationSearchWithFilterPmids = async (
                       // separate : true,
                       on: {
                         col1: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier')),
-                        col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                       // col2: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
                       // where : joinWherePersonTypes,
                       attributes: [`personIdentifier`],
@@ -1100,7 +1148,7 @@ export const publicationSearchWithFilterPmids = async (
               }
       }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
         results = await models.AnalysisSummaryArticle.findAndCountAll({
-          include:[{
+         /* include:[{
             model: models.AnalysisSummaryAuthor,
             as: "AnalysisSummaryAuthor",
             required: true,
@@ -1112,7 +1160,7 @@ export const publicationSearchWithFilterPmids = async (
               ),
             },
             attributes: ["personIdentifier","pmid"],
-          }],
+          }],*/
           where: whereForOnlyArticles,
           subQuery: false,
           // limit: apiBody.limit,
@@ -1149,7 +1197,7 @@ export const publicationSearchWithFilterPmids = async (
                 {
                   model: models.PersonPersonType,
                   as: "PersonPersonTypes",
-                  required: true,
+                  required: false, // changed to same as search one earlier it was true
                   // separate : true,
                   on: {
                    /* col1: Sequelize.where( // review commnet: this condition is not required. remove this and tell me what impacts if you remove this
@@ -1317,7 +1365,22 @@ export const publicationSearchWithFilterPmids = async (
       let pmids = [];
 
       if (isAuthorFilter && !isArticleFilter) { 
-        pmids = results.rows?.length && results.rows?.map(data => data.pmid);
+        // fs.readFileSync('public/pmidDataFile.json', "utf-8", (err, fileData) => {
+        //   if (err) {
+        //     console.log("object************** errorr", err)
+        //     return err;
+        //   }
+        //   try {
+        //     const pmidFileObj = JSON.parse(fileData);
+        //     pmids = pmidFileObj.pmids;
+        //     console.log("object**************", pmidFileObj)
+        //     //  return pmidFileObj;
+        //   } catch (err) {
+        //     return err;
+        //   }
+        // });
+
+	      pmids = results.rows?.length && results.rows?.map(data => data.pmid);
         personIdentifiers =  results.rows?.length && results.rows?.map(data => data.personIdentifier);
 
       }else if(!isAuthorFilter && isArticleFilter){

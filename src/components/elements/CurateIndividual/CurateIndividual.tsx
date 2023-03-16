@@ -38,10 +38,27 @@ const CurateIndividual = () => {
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
   const [session, loading] = useSession();
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
+  const [viewProfileLabels, setViewProfileLabels] = useState([])
 
   useEffect(() => {
     let userPermissions = JSON.parse(session.data?.userRoles);
     let routerUserId = router.query.id ;
+    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    var viewAttributes = [];
+    if (updatedAdminSettings.length > 0) {
+      // updated settings from manage settings page
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "viewProfile")
+      viewAttributes = updatedData.viewAttributes;
+    } else {
+      // regular settings from session
+      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "viewProfile")
+      viewAttributes = JSON.parse(data.viewAttributes)
+      console.log("viewAttributes",viewAttributes)
+    }
+
+    // view attributes data from session or updated settings
+    setViewProfileLabels(viewAttributes)
    
     let nextPersonIdentifier = "";
     //Commented as this needs to be worked on later..
@@ -138,6 +155,7 @@ const CurateIndividual = () => {
         modalShow={modalShow}
         handleShow={handleShow}
         handleClose={handleClose}
+        viewProfileLabels={viewProfileLabels}
       />
     </div>
   )
