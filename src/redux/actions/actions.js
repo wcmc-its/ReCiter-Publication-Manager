@@ -1068,6 +1068,13 @@ export const updateFilteredIdentities = (identities) => dispatch => {
     })
 }
 
+export const updatedAdminSettings = (settingsData) => dispatch => {
+    dispatch({
+        type: methods.ADMIN_SETTINGS_UPDATED_LIST,
+        payload: settingsData
+    })
+}
+
 export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
     const fetchGroupDataLoading = {
         'refresh': () => dispatch({ type: methods.PUBLICATIONS_FETCH_GROUP_DATA }),
@@ -2233,5 +2240,11 @@ export const fetchReportsResultsIds = (requestBody) => dispatch => {
         dispatch({
             type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
         })
+    })
+}
+export const adminSettingsListAction = (adminSettingsList) => dispatch => {
+    dispatch({
+        type: methods.ADMIN_SETTINGS_LIST,
+        payload: adminSettingsList
     })
 }

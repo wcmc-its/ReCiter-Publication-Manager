@@ -1,4 +1,5 @@
 import NextAuth from "next-auth"
+import { Json } from "sequelize/types/lib/utils"
 
 declare module "next-auth" {
   /**
@@ -16,7 +17,9 @@ declare module "next-auth" {
         userID: number,
         status: number,
       }
-      userRoles : Array
+      userRoles : Array,
+      adminSettings : Array
+      
     }
   }
 }
