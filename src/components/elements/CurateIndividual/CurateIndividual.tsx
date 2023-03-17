@@ -15,6 +15,7 @@ import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/client";
 import { allowedPermissions, toastMessage } from "../../../utils/constants";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import { reciterConfig } from "../../../../config/local";
 
 
 
@@ -40,26 +41,14 @@ const CurateIndividual = () => {
   const [session, loading] = useSession();
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [viewProfileLabels, setViewProfileLabels] = useState([])
+  const [isLoading, setLoading] = useState(false);
+  const [headShot, setHeadShot] = useState<any>([])
+
 
   useEffect(() => {
     let userPermissions = JSON.parse(session.data?.userRoles);
     let routerUserId = router.query.id ;
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
-    var viewAttributes = [];
-    if (updatedAdminSettings.length > 0) {
-      // updated settings from manage settings page
-      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "viewProfile")
-      viewAttributes = updatedData.viewAttributes;
-    } else {
-      // regular settings from session
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "viewProfile")
-      viewAttributes = JSON.parse(data.viewAttributes)
-      console.log("viewAttributes",viewAttributes)
-    }
-
-    // view attributes data from session or updated settings
-    setViewProfileLabels(viewAttributes)
-   
+    fetchAllAdminSettings();
     let nextPersonIdentifier = "";
     //Commented as this needs to be worked on later..
     // checking curator_self
@@ -74,7 +63,6 @@ const CurateIndividual = () => {
       dispatch(identityFetchData('aaa2020'));
       fetchData();
     }*/
-
      setNewId(routerUserId);
      dispatch(identityFetchData(routerUserId));
      fetchData();
@@ -83,6 +71,48 @@ const CurateIndividual = () => {
   const fetchData = () => {
     dispatch(reciterFetchData(id, false));
     dispatch(fetchFeedbacklog(id));
+  }
+
+  const fetchAllAdminSettings = () => {
+    setLoading(true);
+    const request = {};
+    fetch(`/api/db/admin/settings`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(request),
+    }).then(response => response.json())
+      .then(data => {
+        let parsedSettingsArray = [];
+        data.map((obj, index1) => {
+          let a = JSON.stringify(obj.viewAttributes)
+          let b = JSON.parse(a);
+          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          let parsedSettings = {
+            viewName : obj.viewName,
+            viewAttributes: c,
+            viewLabel: obj.viewLabel
+          }
+          parsedSettingsArray.push(parsedSettings)
+        })
+        var viewAttributes = [];
+        var headShotViewAttributes = [];
+
+        let updatedData = parsedSettingsArray.find(obj => obj.viewName === "viewProfile")
+        let headShotData = parsedSettingsArray.find(obj => obj.viewName === "headshot")
+
+        viewAttributes = updatedData.viewAttributes;
+        headShotViewAttributes = headShotData.viewAttributes
+        setViewProfileLabels(viewAttributes)
+        setHeadShot(headShotViewAttributes)
+      })
+      .catch(error => {
+        // setLoading(false);
+      });
   }
 
   const DisplayName = ({ name }: { name: PrimaryName }) => {
@@ -110,7 +140,7 @@ const CurateIndividual = () => {
           <Container className={styles.indentityDataContainer} fluid={true}>
             <div className="d-flex">
               {
-                displayImage && identityData.identityImageEndpoint &&
+                displayImage && identityData.identityImageEndpoint && headShot && headShot.length > 0 && headShot[0].isVisible &&
                 <div className={styles.profileImgWrapper}>
                   <Image
                     src={identityData.identityImageEndpoint}
@@ -156,6 +186,7 @@ const CurateIndividual = () => {
         handleShow={handleShow}
         handleClose={handleClose}
         viewProfileLabels={viewProfileLabels}
+        headShotLabelData = {headShot}
       />
     </div>
   )

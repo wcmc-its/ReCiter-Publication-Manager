@@ -170,7 +170,7 @@ const AdminSettings = () => {
                             }
                             {isVisible != undefined &&
                             <div className="d-flex">
-                              <p className={styles.labels}>Is visible</p>
+                              <p className={styles.labelForCheckBox}>Is visible</p>
                               <div>
                                 <Form.Check
                                   type="checkbox"
@@ -195,7 +195,7 @@ const AdminSettings = () => {
                               />
                             </div>
                            }
-                           { syntax!=undefined && syntax !='' &&
+                          {/*  { syntax!=undefined && syntax !='' &&
                            <div className="d-flex">
                               <p className={styles.labels}>Image Path</p>
                               <Form.Control
@@ -207,7 +207,7 @@ const AdminSettings = () => {
                                 onChange={(e) => handleValueChange(index, index2, "syntax", e)}
                               />
                             </div>
-                           }
+                           } */}
                           </Card.Text>
                         </Card.Body>
                       </Card>

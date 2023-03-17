@@ -69,11 +69,13 @@ const SearchSummary = ({
   }
 
   const generateExportArticle = (requestBody: ReporstResultId) => {
+    let articleMaxLimit = exportArticleLabels && exportArticleLabels.length > 0  && exportArticleLabels.find(obj => obj.maxLimit)
     setExportArticleLoading(true);
     let personIdentifiers = pubSearchFilter?.filters?.personIdentifers?.length > 0 ? [...pubSearchFilter.filters.personIdentifers] : [];
     let articlesData = {
       personIdentifiers,
-      pmids: [...requestBody.pmids]
+      pmids: [...requestBody.pmids],
+      // limit: exportArticleLabels && exportArticleLabels.length > 0 && exportArticleLabels[0].maxLimit
     }
    
     fetch(`/api/db/reports/publication`, {
@@ -152,6 +154,9 @@ const SearchSummary = ({
   }
 
   const exportAuthorshipCSV = () => {
+    let authorMaxLimit = exportAuthorShipLabels && exportAuthorShipLabels.length > 0  && exportAuthorShipLabels.find(obj => obj.maxLimit)
+    let modifiedFilters = pubSearchFilter
+    modifiedFilters["limit"] = authorMaxLimit.maxLimit
     setExportAuthorshipCsvLoading(true);
     fetch(`/api/db/reports/publication/authorship`, {
       credentials: "same-origin",
@@ -161,7 +166,7 @@ const SearchSummary = ({
         "Content-Type": "application/json",
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(pubSearchFilter)
+      body: JSON.stringify(modifiedFilters)
     }).then(response => {
       return response.json();
     }).then(result => {
@@ -256,6 +261,10 @@ const SearchSummary = ({
   }
 
   const exportArticleCSV = () => {
+    let articleMaxLimit = exportArticleLabels && exportArticleLabels.length > 0  && exportArticleLabels.find(obj => obj.maxLimit)
+    let modifiedFilters = pubSearchFilter
+    modifiedFilters["limit"] = articleMaxLimit.maxLimit
+
     setExportArticleCsvLoading(true);
     fetch(`/api/db/reports/publication/article`, {
       credentials: "same-origin",
@@ -265,7 +274,7 @@ const SearchSummary = ({
         "Content-Type": "application/json",
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify(pubSearchFilter)
+      body: JSON.stringify(modifiedFilters)
     }).then(response => {
       return response.json();
     }).then(result => {
