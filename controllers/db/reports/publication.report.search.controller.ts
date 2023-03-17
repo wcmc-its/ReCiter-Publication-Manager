@@ -1142,7 +1142,7 @@ export const publicationSearchWithFilterPmids = async (
               }
       }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
         results = await models.AnalysisSummaryArticle.findAndCountAll({
-         /* include:[{
+          include:[{
             model: models.AnalysisSummaryAuthor,
             as: "AnalysisSummaryAuthor",
             required: true,
@@ -1154,7 +1154,7 @@ export const publicationSearchWithFilterPmids = async (
               ),
             },
             attributes: ["personIdentifier","pmid"],
-          }],*/
+          }],
           where: whereForOnlyArticles,
           subQuery: false,
           // limit: apiBody.limit,
