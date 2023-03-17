@@ -131,13 +131,13 @@ const AdminSettings = () => {
         <div>
           {
             settings.length > 0 ? settings.map((obj, index) => {
-              return <Accordion.Item eventKey={`${index}`}>
+              return <Accordion.Item eventKey={`${index}`} key={`${index}`}>
                 <Accordion.Header>{obj.viewLabel}</Accordion.Header>
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, index2) => {
                       const { labelSettingsView, labelUserView, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, } = innerObj;
-                      return <Card style={{ width: '40rem', marginBottom: '3px' }}>
+                      return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${index2}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
