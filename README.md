@@ -80,6 +80,7 @@ Publication Manager is part of the ReCiter suite of applications. In addition to
 - **Next.js** - an open-source web development framework created by Vercel enabling React-based web applications with server-side rendering and generating static websites.
 - **ReactJS** - a front-end JavaScript library for building user interfaces based on components
 - **NodeJS** - a cross-platform, open-source server environment
+- **Sequelize** - a modern TypeScript and Node.js object relational mapping (ORM) for MySQL and MariaDB
 
 
 
