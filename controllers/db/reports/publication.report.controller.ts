@@ -4,6 +4,10 @@ import { GeneratePubsApiBody, GeneratePubsPeopleOnlyApiBody } from "../../../typ
 import { PublicationSearchFilter} from '../../../types/publication.report.search';
 import { Op, Sequelize } from "sequelize";
 import {metrics } from "../../../config/report";
+		
+						 
+					 
+											
 import models from "../../../src/db/sequelize";
 import path from 'path';
 import fsPromises from 'fs/promises';
@@ -26,6 +30,7 @@ export const generatePubsRtf = async (
   try {
     let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
     let generatePubsRtfOutput: any = [];
+																				 
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
       generatePubsRtfOutput = await sequelize.query(
         "CALL generatePubsRTF (:uids , :pmids)",
@@ -36,6 +41,7 @@ export const generatePubsRtf = async (
       );
     } else {
 
+																	   
       generatePubsRtfOutput = await sequelize.query(
         "CALL generatePubsNoPeopleRTF ( :pmids)",
         {
@@ -85,13 +91,14 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-     // const where = {};
-    //  const joinOrgWhere ={};
+      const where = {};
+      const joinOrgWhere ={};
+								   
       let isPersonTypeFilter = false;
 
 
 
-      /*if (apiBody.filters) {
+      if (apiBody.filters) {
         where[Op.and] = [];
         joinOrgWhere[Op.or] =[];
         if (
@@ -108,6 +115,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.personIdentifers &&
           apiBody.filters.personIdentifers.length > 0
         ) {
+								 
           where[Op.and].push({
             "$AnalysisSummaryAuthor.personIdentifier$": {
               [Op.in]: apiBody.filters.personIdentifers,
@@ -118,6 +126,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.authorPosition &&
           apiBody.filters.authorPosition.length > 0
         ) {
+								 
           where[Op.and].push({
             "$AnalysisSummaryAuthor.authorPosition$": {
               [Op.in]: apiBody.filters.authorPosition,
@@ -125,23 +134,26 @@ export const generatePubsPeopleOnlyRtf = async (
           });
         }
         if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
+								 
           joinOrgWhere[Op.or].push({
             "$Person.primaryOrganizationalUnit$": {
               [Op.in]: apiBody.filters.orgUnits,
             },
           });
-        }
-        apiBody.filters.orgUnits.forEach((orgName: string) => {
-          joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
-          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
-         });
+        
+          apiBody.filters.orgUnits.forEach((orgName: string) => {
+            joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
+            {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
+          });
 
-         where[Op.and].push(joinOrgWhere);
+          where[Op.and].push(joinOrgWhere);
+        }
 
         if (
           apiBody.filters.institutions &&
           apiBody.filters.institutions.length > 0
         ) {
+								 
           where[Op.and].push({
             "$Person.primaryInstitution$": {
               [Op.in]: apiBody.filters.institutions,
@@ -150,6 +162,7 @@ export const generatePubsPeopleOnlyRtf = async (
         }
         if (apiBody.filters.datePublicationAddedToEntrezLowerBound) 
          {
+								  
           where[Op.and].push({
             "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
               [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
@@ -158,6 +171,7 @@ export const generatePubsPeopleOnlyRtf = async (
         }
         if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
          {
+								  
           where[Op.and].push({
             "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
               [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
@@ -168,6 +182,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
         ) {
+								  
           where[Op.and].push({
             "$AnalysisSummaryArticle.publicationTypeCanonical$": {
               [Op.in]: apiBody.filters.publicationTypeCanonical,
@@ -178,6 +193,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.journalImpactScoreLowerBound &&
           apiBody.filters.journalImpactScoreUpperBound
         ) {
+								  
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
               [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
@@ -207,19 +223,7 @@ export const generatePubsPeopleOnlyRtf = async (
           },
         });
 
-      }*/
-
-      const filePath = path.join(process.cwd(), './tempData/pmidcwidDataFile.json');
-        const fileContent = await fsPromises.readFile(filePath);
-        const pmidJSONObject = JSON.parse(fileContent.toString());
-      
-
-        let filteredPmids:any = [ ...new Set(pmidJSONObject.pmidList) ] 
-        let filteredPersonIdentifiers:any = [ ...pmidJSONObject.personIdentifierList ] 
-
-        console.log('filteredPmids *********************',filteredPmids.length) ; 
-        console.log('pmidJSONObject.personIdentifiers *********************',filteredPersonIdentifiers.length) ; 
-
+      }
       const sort = [];
       if (apiBody && apiBody.sort) {
         let sortType = apiBody.sort.type;
@@ -309,11 +313,7 @@ export const generatePubsPeopleOnlyRtf = async (
             attributes: [[Sequelize.fn("GROUP_CONCAT", Sequelize.col('PersonPersonTypes.personType')),"personType",]],
           }
         ],
-        where: {
-          personIdentifier: {
-            [Op.in]: filteredPersonIdentifiers
-          }
-        },
+        where: where,
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
         order:sort,
         subQuery: false,
@@ -333,10 +333,10 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-     // const where = {};
-      //const joinOrgWhere ={};
+      const where = {};
+      const joinOrgWhere ={};
       let isPersonFilterOn = false;
-     /* if (apiBody.filters) {
+      if (apiBody.filters) {
         where[Op.and] = [];
         joinOrgWhere[Op.or] =[]; 
 
@@ -376,13 +376,13 @@ export const generatePubsPeopleOnlyRtf = async (
               [Op.in]: apiBody.filters.orgUnits,
             },
           });
+        
+          apiBody.filters.orgUnits.forEach((orgName: string) => {
+            joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
+            {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
+          });
+          where[Op.and].push(joinOrgWhere)
         }
-
-        apiBody.filters.orgUnits.forEach((orgName: string) => {
-          joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
-          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
-         });
-         where[Op.and].push(joinOrgWhere)
 
         if (
           apiBody.filters.institutions &&
@@ -445,25 +445,14 @@ export const generatePubsPeopleOnlyRtf = async (
           });
           isPersonFilterOn = true;
         }
-      }*/
-      const filePath = path.join(process.cwd(), './tempData/pmidcwidDataFile.json');
-        const fileContent = await fsPromises.readFile(filePath);
-        const pmidJSONObject = JSON.parse(fileContent.toString());
-      
-
-        let filteredPmids:any = [ ...new Set(pmidJSONObject.pmidList) ] 
-        let filteredPersonIdentifiers:any = [ ...pmidJSONObject.personIdentifierList ] 
-
-        console.log('filteredPmids *********************',filteredPmids.length) ; 
-        console.log('pmidJSONObject.personIdentifiers *********************',filteredPersonIdentifiers.length) ; 
-        
-        
+      }
       const sort = [];
       if (apiBody && apiBody.sort) {
         let sortType = apiBody.sort.type;
         let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
         if (sortType === 'datePublicationAddedToEntrez') 
           sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)])    
+  
         if (sortType === 'citationCountNIH')
           sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)]) 
   
@@ -484,6 +473,7 @@ export const generatePubsPeopleOnlyRtf = async (
       }
       console.log('sort criteria for Article export **********************',sort)
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
+										 
       let searchOutput: any[] = [];
       console.log('personType selected',isPersonFilterOn);
       if(isPersonFilterOn)
@@ -550,11 +540,7 @@ export const generatePubsPeopleOnlyRtf = async (
               attributes: ["personType"]
             }
           ],
-          where: {
-            pmid: {
-              [Op.in]: filteredPmids
-            }
-          },
+          where: where,
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
@@ -626,11 +612,7 @@ export const generatePubsPeopleOnlyRtf = async (
             }
 
           ],
-          where: {
-            pmid: {
-              [Op.in]: filteredPmids
-            }
-          },
+          where: where,
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
@@ -653,6 +635,7 @@ export const generatePubsPeopleOnlyRtf = async (
     try {
       let apiBody: any = req.body;
       const where = {};
+					  
       if (apiBody?.personIdentifiers && apiBody.personIdentifiers.length > 0) {
         where[Op.and] = [];
         where[Op.and].push({
@@ -661,7 +644,9 @@ export const generatePubsPeopleOnlyRtf = async (
           },
         });
       }
+											
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
+										 
       let searchOutput: any[] = [];
       searchOutput = await models.AnalysisSummaryAuthor.findAll({
         include: [
