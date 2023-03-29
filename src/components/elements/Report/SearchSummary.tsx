@@ -47,6 +47,9 @@ const SearchSummary = ({
   let date = new Date().toISOString().slice(0, 10);
   let authorshipFileName = `AuthorshipReport-ReCiter-${date}`;
   let articleFileName = `ArticleReport-ReCiter-${date}`;
+  const articleLimit = exportArticleLabels && exportArticleLabels.length > 0  && exportArticleLabels.find(obj => obj.maxLimit)
+  const authorLimit = exportAuthorShipLabels && exportAuthorShipLabels.length > 0  && exportAuthorShipLabels.find(obj => obj.maxLimit)
+
 
   const handleSelect = (option) => {
     let optionInfo = option.split('_');
@@ -155,8 +158,8 @@ const SearchSummary = ({
 
   const exportAuthorshipCSV = () => {
     let authorMaxLimit = exportAuthorShipLabels && exportAuthorShipLabels.length > 0  && exportAuthorShipLabels.find(obj => obj.maxLimit)
-    let modifiedFilters = pubSearchFilter
-    modifiedFilters["limit"] = authorMaxLimit.maxLimit
+    const modifiedFilters = {...pubSearchFilter, limit:parseInt(authorMaxLimit.maxLimit)}
+
     setExportAuthorshipCsvLoading(true);
     fetch(`/api/db/reports/publication/authorship`, {
       credentials: "same-origin",
@@ -183,7 +186,6 @@ const SearchSummary = ({
 
     if (labels.person) {
       Object.keys(labels.person).forEach((labelField) => {
-        console.log("labels.person[labelField]", labels.person[labelField])
         let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.person[labelField]) , key: labelField};
         columns.push(labelObj);
       })
@@ -191,8 +193,6 @@ const SearchSummary = ({
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        console.log("labels.person[labelField]", labels.articleInfo[articleInfoField])
-
         let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.articleInfo[articleInfoField]), key: articleInfoField };
         columns.push(labelObj);
       })
@@ -200,8 +200,6 @@ const SearchSummary = ({
 
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
-        console.log("labels.person[labelField]", labels.article[articleField])
-        
         if (metrics.article[articleField] == true) {
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[articleField]), key: articleField};
           columns.push(labelObj);
@@ -212,8 +210,6 @@ const SearchSummary = ({
     if (labels.article) {
       Object.keys(labels.article).forEach(label => {
         if (!metrics.article.hasOwnProperty(label)) {
-        console.log("labels.person[labelField]", labels.article[label])
-
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[label]), key: label};
           columns.push(labelObj);
         }
@@ -262,8 +258,7 @@ const SearchSummary = ({
 
   const exportArticleCSV = () => {
     let articleMaxLimit = exportArticleLabels && exportArticleLabels.length > 0  && exportArticleLabels.find(obj => obj.maxLimit)
-    let modifiedFilters = pubSearchFilter
-    modifiedFilters["limit"] = articleMaxLimit.maxLimit
+    const modifiedFilters = {...pubSearchFilter, limit:parseInt(articleMaxLimit.maxLimit)}
 
     setExportArticleCsvLoading(true);
     fetch(`/api/db/reports/publication/article`, {
@@ -291,8 +286,6 @@ const SearchSummary = ({
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        console.log("labels.person[labelField]", labels.articleInfo[articleInfoField])
-
         let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.articleInfo[articleInfoField]), key: articleInfoField };
         columns.push(labelObj);
       })
@@ -301,8 +294,6 @@ const SearchSummary = ({
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
-        console.log("labels.person[labelField]", labels.article[articleField])
-
           let labelObj = { header:setReportFilterLabels(exportAuthorShipLabels,  labels.article[articleField]), key: articleField};
           columns.push(labelObj);
         }
@@ -383,6 +374,10 @@ const SearchSummary = ({
         handleClose={() => setOpenCSV(false)}
         title="CSV"
         loadingResults={reportsResultsIdsLoading}
+        articleLimit = {articleLimit}
+        authorLimit= {authorLimit}
+        reportsResultsIds = {reportsResultsIds}
+        count = {count}
         countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${formatter.format(reportsResultsIds?.personIdentifiers?.length)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
         buttonsList={
           [
@@ -390,6 +385,8 @@ const SearchSummary = ({
             {title: 'Export article report', loading: exportArticleCsvLoading, onClick: exportArticleCSV}
           ]
         }
+        exportAuthorshipCsvLoading = {exportAuthorshipCsvLoading}
+        exportArticleCsvLoading = {exportArticleCsvLoading}
       />
       <ExportModal
         show={openRTF}

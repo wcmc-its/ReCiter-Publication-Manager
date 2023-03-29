@@ -235,22 +235,6 @@ const Search = () => {
       return {
         paginatedIdentities: identityPaginatedData?.persons
       }
-    //  else {
-    //   var from = (parseInt(page, 10) - 1) * parseInt(count, 10);
-    //   var to = from + parseInt(count, 10) - 1;
-    //   var identities = [];
-    //   var i = from;
-    //   for (i; i <= to; i++) {
-    //     if (identityPaginatedData?.persons !== undefined && identityPaginatedData?.persons?.length > 0) {
-    //       if (identityPaginatedData?.persons[i] !== undefined) {
-    //         identities.push(identityPaginatedData?.persons[i]);
-    //       }
-    //     }
-    //   }
-    //   return {
-    //     paginatedIdentities: identities
-    //   }
-    // }
   }
 
   const fetchCount = () => {

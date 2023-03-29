@@ -1,7 +1,7 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { updatePendingArticleCount } from './person.controller'
-import { Sequelize, Op } from "sequelize"
+
 
 models.AdminUser.hasMany(models.AdminFeedbackLog, { foreignKey: 'userID'})
 models.AdminFeedbackLog.belongsTo(models.AdminUser, {foreignKey: 'userID'})

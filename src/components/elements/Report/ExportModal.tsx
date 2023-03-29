@@ -10,12 +10,18 @@ interface ExportModalProps {
   countInfo: string,
   loadingResults?: boolean,
   error?: boolean,
-  buttonsList: Array<ExportButtonProps>
+  buttonsList: Array<ExportButtonProps>,
+  exportArticleCsvLoading?: any,
+  exportAuthorshipCsvLoading?:any
+  articleLimit?:any,
+  authorLimit?:any,
+  reportsResultsIds?:any,
+  count?: any
 }
 
-const ExportModal = ({ show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
-
-
+const ExportModal = ({ count, reportsResultsIds,articleLimit,authorLimit, exportArticleCsvLoading,exportAuthorshipCsvLoading, show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
+  const formatter = new Intl.NumberFormat('en-US')
+  const isDownloading = (exportAuthorshipCsvLoading && reportsResultsIds?.personIdentifiers?.length  > authorLimit?.maxLimit )|| (exportArticleCsvLoading && count > articleLimit?.maxLimit )
   return (
     <div>
       <Modal show={show} onHide={handleClose}>
@@ -29,6 +35,11 @@ const ExportModal = ({ show, handleClose, title, countInfo, error, loadingResult
               <Loader />
               </div> : <>
                 <p>According to the criteria you have set, there are {countInfo}.</p>
+                {
+                  isDownloading &&
+                    <Alert variant="light"><b>The first {exportArticleCsvLoading ? formatter.format(articleLimit?.maxLimit) : formatter.format(authorLimit?.maxLimit)} records will be downloaded.</b></Alert>
+                }
+                
                 {
                   buttonsList.map((btn, index) => {
                     return (

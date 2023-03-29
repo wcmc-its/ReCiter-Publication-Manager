@@ -1,14 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import sequelize from "../../../src/db/db";
 import { GeneratePubsApiBody, GeneratePubsPeopleOnlyApiBody } from "../../../types/publication.report.body";
-import { PublicationSearchFilter, PublicationAuthorSearchFilter } from '../../../types/publication.report.search';
+import { PublicationSearchFilter} from '../../../types/publication.report.search';
 import { Op, Sequelize } from "sequelize";
-import { limits, metrics } from "../../../config/report";
-import {
-  AnalysisSummaryArticle,
-  PersonArticleAuthor
-} from "../../../src/db/models/init-models";
+import {metrics } from "../../../config/report";
 import models from "../../../src/db/sequelize";
+import path from 'path';
+import fsPromises from 'fs/promises';
 
 models.AnalysisSummaryAuthor.hasOne(models.Person, { constraints: false });
 models.AnalysisSummaryAuthor.hasMany(models.PersonPersonType, {
@@ -28,7 +26,6 @@ export const generatePubsRtf = async (
   try {
     let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
     let generatePubsRtfOutput: any = [];
-    console.log('coming here*****************',apiBody.personIdentifiers.length);
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
       generatePubsRtfOutput = await sequelize.query(
         "CALL generatePubsRTF (:uids , :pmids)",
@@ -39,7 +36,6 @@ export const generatePubsRtf = async (
       );
     } else {
 
-      console.log('coming into this else one*************************')
       generatePubsRtfOutput = await sequelize.query(
         "CALL generatePubsNoPeopleRTF ( :pmids)",
         {
@@ -89,14 +85,15 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-      const where = {};
-      var isAuthorFilters = false;
-      var isArticleFilters = false;
+     // const where = {};
+    //  const joinOrgWhere ={};
       let isPersonTypeFilter = false;
 
 
-      if (apiBody.filters) {
+
+      /*if (apiBody.filters) {
         where[Op.and] = [];
+        joinOrgWhere[Op.or] =[];
         if (
           apiBody.filters.journalTitleVerbose &&
           apiBody.filters.journalTitleVerbose.length > 0
@@ -111,7 +108,6 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.personIdentifers &&
           apiBody.filters.personIdentifers.length > 0
         ) {
-          isAuthorFilters = true;
           where[Op.and].push({
             "$AnalysisSummaryAuthor.personIdentifier$": {
               [Op.in]: apiBody.filters.personIdentifers,
@@ -122,7 +118,6 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.authorPosition &&
           apiBody.filters.authorPosition.length > 0
         ) {
-          isAuthorFilters = true;
           where[Op.and].push({
             "$AnalysisSummaryAuthor.authorPosition$": {
               [Op.in]: apiBody.filters.authorPosition,
@@ -130,18 +125,23 @@ export const generatePubsPeopleOnlyRtf = async (
           });
         }
         if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
-          isAuthorFilters = true;
-          where[Op.and].push({
+          joinOrgWhere[Op.or].push({
             "$Person.primaryOrganizationalUnit$": {
               [Op.in]: apiBody.filters.orgUnits,
             },
           });
         }
+        apiBody.filters.orgUnits.forEach((orgName: string) => {
+          joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
+          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
+         });
+
+         where[Op.and].push(joinOrgWhere);
+
         if (
           apiBody.filters.institutions &&
           apiBody.filters.institutions.length > 0
         ) {
-          isAuthorFilters = true;
           where[Op.and].push({
             "$Person.primaryInstitution$": {
               [Op.in]: apiBody.filters.institutions,
@@ -150,7 +150,6 @@ export const generatePubsPeopleOnlyRtf = async (
         }
         if (apiBody.filters.datePublicationAddedToEntrezLowerBound) 
          {
-          isArticleFilters = true;
           where[Op.and].push({
             "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
               [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
@@ -159,7 +158,6 @@ export const generatePubsPeopleOnlyRtf = async (
         }
         if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
          {
-          isArticleFilters = true;
           where[Op.and].push({
             "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
               [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
@@ -170,7 +168,6 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
         ) {
-          isArticleFilters = true;
           where[Op.and].push({
             "$AnalysisSummaryArticle.publicationTypeCanonical$": {
               [Op.in]: apiBody.filters.publicationTypeCanonical,
@@ -181,7 +178,6 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.journalImpactScoreLowerBound &&
           apiBody.filters.journalImpactScoreUpperBound
         ) {
-          isArticleFilters = true;
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
               [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
@@ -211,37 +207,45 @@ export const generatePubsPeopleOnlyRtf = async (
           },
         });
 
-      }
+      }*/
+
+      const filePath = path.join(process.cwd(), './tempData/pmidcwidDataFile.json');
+        const fileContent = await fsPromises.readFile(filePath);
+        const pmidJSONObject = JSON.parse(fileContent.toString());
+      
+
+        let filteredPmids:any = [ ...new Set(pmidJSONObject.pmidList) ] 
+        let filteredPersonIdentifiers:any = [ ...pmidJSONObject.personIdentifierList ] 
+
+        console.log('filteredPmids *********************',filteredPmids.length) ; 
+        console.log('pmidJSONObject.personIdentifiers *********************',filteredPersonIdentifiers.length) ; 
+
       const sort = [];
       if (apiBody && apiBody.sort) {
         let sortType = apiBody.sort.type;
         let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
         if (sortType === 'datePublicationAddedToEntrez')
-          sort.push(["datePublicationAddedToEntrez",sortOrder]);
+          sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)]) 
   
         if (sortType === 'citationCountNIH')
-          sort.push(["citationCountNIH", sortOrder]);
-  
+          sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)])
+
         if (sortType === 'journalImpactScore1')
-          sort.push(["journalImpactScore1", sortOrder]);
+          sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)])
   
         if (sortType === 'percentileNIH') 
-          sort.push(["percentileNIH", sortOrder]);
+          sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)])
   
         if (sortType === 'publicationDateStandarized')
-          sort.push(["publicationDateStandarized", sortOrder]);
+          sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)])
   
         if (sortType === 'readersMendeley') 
-          sort.push(["readersMendeley", sortOrder]);
-  
+          sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
         if (sortType === 'trendingPubsScore')
-          sort.push(["trendingPubsScore", sortOrder]);
+          sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
       }
-      let limit = limits.maxCountPubsReturn;
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
-      let doiUrl = 'https://dx.doi.org/';
       let searchOutput: any[] = [];
-      let personTypesOutput: any[] = [];
 
 
       searchOutput = await models.AnalysisSummaryAuthor.findAll({
@@ -269,7 +273,7 @@ export const generatePubsPeopleOnlyRtf = async (
               "issue",
               "pages",
               "volume",
-              [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+              [Sequelize.literal('CASE WHEN  doi !=""  THEN concat("https://dx.doi.org/",doi) ELSE "" END'), 'doi'],
               ...articleLevelMetrics
             ],
           },
@@ -303,67 +307,19 @@ export const generatePubsPeopleOnlyRtf = async (
               ),
             },
             attributes: [[Sequelize.fn("GROUP_CONCAT", Sequelize.col('PersonPersonTypes.personType')),"personType",]],
-           // order: [],
           }
         ],
-        where: where,
+        where: {
+          personIdentifier: {
+            [Op.in]: filteredPersonIdentifiers
+          }
+        },
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
-        order:[[ models.AnalysisSummaryArticle, 'datePublicationAddedToEntrez', 'DESC' ],
-               [models.PersonPersonType,'personType', 'ASC' ]],
+        order:sort,
         subQuery: false,
-        attributes: []
-        // attributes:[[Sequelize.literal('DISTINCT "pmid"'),'pmid']]
+        attributes: [],
+        limit : apiBody.limit
       })
-
-
-      console.log("result))))))", searchOutput)
-
-
-     /* let wherePersonIdentifier = [];
-      wherePersonIdentifier = searchOutput.map((data)=> data.Person.dataValues.personIdentifier)
-
-        const whereAuthors = {};
-        whereAuthors[Op.and] = [];
-        if (
-          apiBody.filters.personTypes &&
-          apiBody.filters.personTypes.length > 0
-        ) { 
-
-          isPersonType = true;
-          whereAuthors[Op.and].push({
-            "$PersonPersonType.personType$": {
-              [Op.in]: apiBody.filters.personTypes,
-            },
-          });
-          console.log("personIdentifierpersonIdentifierpersonIdentifierpersonIdentifier))))))")
-          whereAuthors[Op.and].push({
-            "$PersonPersonType.personIdentifier$": {
-              [Op.in]: wherePersonIdentifier,
-            },
-          });
-        }
-     /* personTypesOutput = await models.PersonPersonType.findAll({ 
-            where:  whereAuthors,
-            attributes: [[Sequelize.fn("GROUP_CONCAT", Sequelize.col('PersonPersonType.personType')),"personType"]],
-            group:["personIdentifier"],
-            order:[['personType', 'ASC']],
-           // attributes:['personIdentifier','personType"]
-      })
-
-      console.log("personTypesOutput##########",personTypesOutput);
-      if(personTypesOutput && personTypesOutput.length > 0 && wherePersonIdentifier && wherePersonIdentifier.length > 0)
-      {
-        
-        for(let i=0; i<wherePersonIdentifier.length;i++)
-        {
-            if(personTypesOutput.some(data => data.dataValues.personIdentifier === wherePersonIdentifier[i]))
-            {
-              searchOutput.push(personTypesOutput)
-            }
-
-        }
-
-      }*/
       return searchOutput;
     } catch (e) {
       console.log(e);
@@ -377,10 +333,13 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-      const where = {};
+     // const where = {};
+      //const joinOrgWhere ={};
       let isPersonFilterOn = false;
-      if (apiBody.filters) {
+     /* if (apiBody.filters) {
         where[Op.and] = [];
+        joinOrgWhere[Op.or] =[]; 
+
         if (
           apiBody.filters.journalTitleVerbose &&
           apiBody.filters.journalTitleVerbose.length > 0
@@ -412,12 +371,19 @@ export const generatePubsPeopleOnlyRtf = async (
           });
         }
         if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
-          where[Op.and].push({
+          joinOrgWhere[Op.or].push({
             "$Person.primaryOrganizationalUnit$": {
               [Op.in]: apiBody.filters.orgUnits,
             },
           });
         }
+
+        apiBody.filters.orgUnits.forEach((orgName: string) => {
+          joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
+          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
+         });
+         where[Op.and].push(joinOrgWhere)
+
         if (
           apiBody.filters.institutions &&
           apiBody.filters.institutions.length > 0
@@ -479,35 +445,45 @@ export const generatePubsPeopleOnlyRtf = async (
           });
           isPersonFilterOn = true;
         }
-      }
+      }*/
+      const filePath = path.join(process.cwd(), './tempData/pmidcwidDataFile.json');
+        const fileContent = await fsPromises.readFile(filePath);
+        const pmidJSONObject = JSON.parse(fileContent.toString());
+      
+
+        let filteredPmids:any = [ ...new Set(pmidJSONObject.pmidList) ] 
+        let filteredPersonIdentifiers:any = [ ...pmidJSONObject.personIdentifierList ] 
+
+        console.log('filteredPmids *********************',filteredPmids.length) ; 
+        console.log('pmidJSONObject.personIdentifiers *********************',filteredPersonIdentifiers.length) ; 
+        
+        
       const sort = [];
       if (apiBody && apiBody.sort) {
         let sortType = apiBody.sort.type;
         let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
-        if (sortType === 'datePublicationAddedToEntrez')
-          sort.push(["datePublicationAddedToEntrez",sortOrder]);
-  
+        if (sortType === 'datePublicationAddedToEntrez') 
+          sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)])    
         if (sortType === 'citationCountNIH')
-          sort.push(["citationCountNIH", sortOrder]);
+          sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)]) 
   
         if (sortType === 'journalImpactScore1')
-          sort.push(["journalImpactScore1", sortOrder]);
+          sort.push([Sequelize.literal('isnull(journalImpactScore1), journalImpactScore1 '+sortOrder)])
   
         if (sortType === 'percentileNIH') 
-          sort.push(["percentileNIH", sortOrder]);
+          sort.push([Sequelize.literal('isnull(percentileNIH), percentileNIH '+sortOrder)])
   
         if (sortType === 'publicationDateStandarized')
-          sort.push(["publicationDateStandarized", sortOrder]);
+          sort.push([Sequelize.literal('isnull(publicationDateStandarized), publicationDateStandarized '+sortOrder)])
   
         if (sortType === 'readersMendeley') 
-          sort.push(["readersMendeley", sortOrder]);
+          sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
   
         if (sortType === 'trendingPubsScore')
-          sort.push(["trendingPubsScore", sortOrder]);
+          sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
       }
-      let limit = limits.maxCountPubsReturn;
+      console.log('sort criteria for Article export **********************',sort)
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
-      let doiUrl = 'https://dx.doi.org/';
       let searchOutput: any[] = [];
       console.log('personType selected',isPersonFilterOn);
       if(isPersonFilterOn)
@@ -538,7 +514,7 @@ export const generatePubsPeopleOnlyRtf = async (
                 "issue",
                 "pages",
                 "volume",
-                [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+                [Sequelize.literal('CASE WHEN  doi !=""  THEN concat("https://dx.doi.org/",doi) ELSE "" END'), 'doi'],
                 ...articleLevelMetrics
               ],
             },
@@ -574,11 +550,16 @@ export const generatePubsPeopleOnlyRtf = async (
               attributes: ["personType"]
             }
           ],
-          where: where,
+          where: {
+            pmid: {
+              [Op.in]: filteredPmids
+            }
+          },
           group: ["AnalysisSummaryAuthor.pmid"],
-          order: [],
+          order: sort,
           subQuery: false,
-          attributes: []
+          attributes: [],
+          limit : apiBody.limit
         })
       }
       else
@@ -608,7 +589,7 @@ export const generatePubsPeopleOnlyRtf = async (
                 "issue",
                 "pages",
                 "volume",
-                [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+              [Sequelize.literal('CASE WHEN  doi !=""  THEN concat("https://dx.doi.org/",doi) ELSE "" END'), 'doi'],
                 ...articleLevelMetrics
               ],
             },
@@ -645,11 +626,17 @@ export const generatePubsPeopleOnlyRtf = async (
             }
 
           ],
-          where: where,
+          where: {
+            pmid: {
+              [Op.in]: filteredPmids
+            }
+          },
           group: ["AnalysisSummaryAuthor.pmid"],
-          order: [],
+          order: sort,
           subQuery: false,
-          attributes: []
+          attributes: [],
+          limit : apiBody.limit,
+          benchmark :true
         })
       }
       return searchOutput;
@@ -666,7 +653,6 @@ export const generatePubsPeopleOnlyRtf = async (
     try {
       let apiBody: any = req.body;
       const where = {};
-      const sort = [];
       if (apiBody?.personIdentifiers && apiBody.personIdentifiers.length > 0) {
         where[Op.and] = [];
         where[Op.and].push({
@@ -675,9 +661,7 @@ export const generatePubsPeopleOnlyRtf = async (
           },
         });
       }
-      let limit = limits.maxCountPubsReturn;
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
-      let doiUrl = 'https://dx.doi.org/';
       let searchOutput: any[] = [];
       searchOutput = await models.AnalysisSummaryAuthor.findAll({
         include: [
@@ -704,7 +688,7 @@ export const generatePubsPeopleOnlyRtf = async (
               "issue",
               "pages",
               "volume",
-              [Sequelize.fn("CONCAT", doiUrl, Sequelize.col("doi")), "doi"],
+              [Sequelize.literal('CASE WHEN  doi !=""  THEN concat("https://dx.doi.org/",doi) ELSE "" END'), 'doi'],
               ...articleLevelMetrics
             ],
           },
@@ -744,7 +728,9 @@ export const generatePubsPeopleOnlyRtf = async (
         group: ["AnalysisSummaryAuthor.pmid"],
         order: [],
         subQuery: false,
-        attributes: []
+        attributes: [],
+        limit : apiBody.limit,
+        benchmark :true
       })
       return searchOutput;
     } catch (e) {
