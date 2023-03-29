@@ -160,3 +160,6 @@ h1 {
 .floatRight{
   float: right;
 }
+.textAlignCenter{
+  text-align: center !important;
+}

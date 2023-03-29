@@ -11,7 +11,7 @@ const Header = () => {
         <Navbar bg="primary" className={styles.topNav}>
           <div>
               <Navbar.Brand className={styles.headerText}>
-                  <b>ReCiter Publication Management System</b>
+                  <b>ReCiter Publication Manager</b>
               </Navbar.Brand>
           </div>
           <div>

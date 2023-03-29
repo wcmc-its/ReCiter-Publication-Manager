@@ -17,16 +17,20 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
         <tr className={styles.tableHeadRow}>
           <th className={styles.tableHeadCell}>Name</th>
           <th className={styles.tableHeadCell}>ID</th>
+          <th className={styles.tableHeadCell}>PersonIdentifier</th>
+          <th className={styles.tableHeadCell}>Email</th>
         </tr>
       </thead>
       <tbody>
         {
          data.length > 0 ? data.map((user, index) => {
-            const {nameFirst, nameLast, userID} = user;
+            const {nameFirst, nameLast, userID,personIdentifier,email} = user;
             return (
               <tr key={index}>
                 <td>{`${nameFirst && nameFirst != "null" ? nameFirst : "" } ${nameLast && nameLast != "null" ? nameLast : ""}`}</td>
                 <td>{userID}</td>
+                <td>{personIdentifier}</td>
+                <td>{email}</td>
                 <td>
                   <Link href={{pathname:`/admin/users/edit/${userID}`}}>
                     <div className='d-flex flex-col justify-content-center cursorStyle'>

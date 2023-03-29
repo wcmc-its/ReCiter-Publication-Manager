@@ -60,7 +60,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         if(apiBody.filters?.personTypes) {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode'],
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
                 include: [
                     {
                         model: models.PersonPersonType, 
@@ -89,7 +89,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         } else {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
-                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode'],
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
                 where: where,
                 group: ["personIdentifier"],
                 order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],

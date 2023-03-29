@@ -18,6 +18,7 @@ export interface PersonAttributes {
   countPendingArticles?: number;
   overallAccuracy?: number;
   mode?: string;
+  primaryEmail?: String;
 }
 
 export type PersonPk = "id" | "personIdentifier";
@@ -42,6 +43,7 @@ export class Person extends Model<PersonAttributes, PersonCreationAttributes> im
   countPendingArticles?: number;
   overallAccuracy?: number;
   mode?: string;
+  primaryEmail?: String;
 
 
   static initModel(sequelize: Sequelize.Sequelize): typeof Person {
@@ -116,6 +118,10 @@ export class Person extends Model<PersonAttributes, PersonCreationAttributes> im
     },
     mode: {
       type: DataTypes.STRING(128),
+      allowNull: true
+    },
+    primaryEmail : {
+      type: DataTypes.STRING(200),
       allowNull: true
     }
   }, {

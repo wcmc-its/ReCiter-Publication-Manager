@@ -12,7 +12,9 @@ import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../config/local";
 import { useDispatch, useSelector } from "react-redux";
-import { clearPubSearchFilters, clearReportSearchResults } from "../../redux/actions/actions";
+import { clearPubSearchFilters } from "../../redux/actions/actions";
+import { allowedPermissions } from "../../utils/constants";
+
 
 export const AppLayout = ({ children }) => {
   const router = useRouter();
@@ -20,9 +22,11 @@ export const AppLayout = ({ children }) => {
 
   const [session, loading] = useSession();
   const errors = useSelector((state) => state.errors);
-  const reportsSearchResults = useSelector((state) => state.reportsSearchResults);
 
   useEffect(() => {
+    console.log("session in session",session)
+    routerController()
+
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
@@ -31,15 +35,43 @@ export const AppLayout = ({ children }) => {
   }, [session, loading, errors]);
 
   useEffect(() => {
-    if(router?.pathname != "/report") {
-      dispatch( clearPubSearchFilters());
-    }
+    routerController()
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
     }
-  }, [router]);
+  }, [router.asPath]);
+  const routerController = async ()=>{
+
+    console.log("session", session);
+    if(session){
+    let userRoles = JSON.parse(session?.data?.userRoles)
+    let loggedInUserInfo= session?.data?.databaseUser
+    let loggedInUserPersonIdentifier = loggedInUserInfo.personIdentifier;
+     let isCuratorSelf = userRoles.some((role)=> role.roleLabel === allowedPermissions.Curator_Self) 
+     let isSuperUser = userRoles.some((role)=> role.roleLabel === allowedPermissions.Superuser) 
+     let isCuratorAll = userRoles.some((role)=> role.roleLabel === allowedPermissions.Curator_All) 
+     let isReporterAll = userRoles.some((role)=> role.roleLabel === allowedPermissions.Reporter_All)
+
+
+    if(router?.pathname === "/curate/[id]" && isCuratorSelf || isReporterAll ){
+      if(loggedInUserPersonIdentifier === router.query.id){
+        console.log("isCuratorSelf", isSuperUser)
+      }else{
+        router.back();
+      }
+    }else if(router?.pathname != "/report") {
+      dispatch( clearPubSearchFilters());
+    }else{
+    }
+  }
+  }
+
+  const handleCloseModal = ()=> {
+    setVissibleNoAccessModal(false)
+    router.back();
+}
 
   const [expandedNav, setExpandedNav] = useState(true);
   const toggleExpand = () => {
@@ -70,7 +102,7 @@ export const AppLayout = ({ children }) => {
         >
           <Row className="row-content">
             <Col className="main-content p-0" lg={12}>
-              {children}
+               {children} 
             </Col>
             {reciterConfig?.showToasts?<ToastContainerWrapper/>: null}
           </Row>
