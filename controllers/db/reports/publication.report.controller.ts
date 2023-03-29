@@ -85,140 +85,13 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-     // const where = {};
-    //  const joinOrgWhere ={};
       let isPersonTypeFilter = false;
-
-
-
-      /*if (apiBody.filters) {
-        where[Op.and] = [];
-        joinOrgWhere[Op.or] =[];
-        if (
-          apiBody.filters.journalTitleVerbose &&
-          apiBody.filters.journalTitleVerbose.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.journalTitleVerbose$": {
-              [Op.in]: apiBody.filters.journalTitleVerbose,
-            },
-          });
-        }
-        if (
-          apiBody.filters.personIdentifers &&
-          apiBody.filters.personIdentifers.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.personIdentifier$": {
-              [Op.in]: apiBody.filters.personIdentifers,
-            },
-          });
-        }
-        if (
-          apiBody.filters.authorPosition &&
-          apiBody.filters.authorPosition.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.authorPosition$": {
-              [Op.in]: apiBody.filters.authorPosition,
-            },
-          });
-        }
-        if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
-          joinOrgWhere[Op.or].push({
-            "$Person.primaryOrganizationalUnit$": {
-              [Op.in]: apiBody.filters.orgUnits,
-            },
-          });
-        }
-        apiBody.filters.orgUnits.forEach((orgName: string) => {
-          joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
-          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
-         });
-
-         where[Op.and].push(joinOrgWhere);
-
-        if (
-          apiBody.filters.institutions &&
-          apiBody.filters.institutions.length > 0
-        ) {
-          where[Op.and].push({
-            "$Person.primaryInstitution$": {
-              [Op.in]: apiBody.filters.institutions,
-            },
-          });
-        }
-        if (apiBody.filters.datePublicationAddedToEntrezLowerBound) 
-         {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-            },
-          });
-        }
-        if (apiBody.filters.datePublicationAddedToEntrezUpperBound)
-         {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-            },
-          });
-        }
-        if (
-          apiBody.filters.publicationTypeCanonical &&
-          apiBody.filters.publicationTypeCanonical.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.publicationTypeCanonical$": {
-              [Op.in]: apiBody.filters.publicationTypeCanonical,
-            },
-          });
-        }
-        if (
-          apiBody.filters.journalImpactScoreLowerBound &&
-          apiBody.filters.journalImpactScoreUpperBound
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
-            },
-          });
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
-            },
-          });
-        }
-        if (
-          apiBody.filters.personTypes &&
-          apiBody.filters.personTypes.length > 0
-        ) {
-
-           where[Op.and].push({
-             "$PersonPersonTypes.personType$": {
-               [Op.in]: apiBody.filters.personTypes,
-             },
-          });
-          isPersonTypeFilter = true;
-        }
-        where[Op.and].push({
-          "$AnalysisSummaryAuthor.personIdentifier$": {
-            [Op.ne]: '',
-          },
-        });
-
-      }*/
 
       const filePath = path.join(process.cwd(), './tempData/pmidcwidDataFile.json');
         const fileContent = await fsPromises.readFile(filePath);
         const pmidJSONObject = JSON.parse(fileContent.toString());
-      
-
-        let filteredPmids:any = [ ...new Set(pmidJSONObject.pmidList) ] 
+  
         let filteredPersonIdentifiers:any = [ ...pmidJSONObject.personIdentifierList ] 
-
-        console.log('filteredPmids *********************',filteredPmids.length) ; 
-        console.log('pmidJSONObject.personIdentifiers *********************',filteredPersonIdentifiers.length) ; 
 
       const sort = [];
       if (apiBody && apiBody.sort) {
@@ -333,130 +206,15 @@ export const generatePubsPeopleOnlyRtf = async (
   ) => {
     try {
       let apiBody: PublicationSearchFilter = req.body;
-     // const where = {};
-      //const joinOrgWhere ={};
+     
       let isPersonFilterOn = false;
-     /* if (apiBody.filters) {
-        where[Op.and] = [];
-        joinOrgWhere[Op.or] =[]; 
-
-        if (
-          apiBody.filters.journalTitleVerbose &&
-          apiBody.filters.journalTitleVerbose.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.journalTitleVerbose$": {
-              [Op.in]: apiBody.filters.journalTitleVerbose,
-            },
-          });
-        }
-        if (
-          apiBody.filters.personIdentifers &&
-          apiBody.filters.personIdentifers.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.personIdentifier$": {
-              [Op.in]: apiBody.filters.personIdentifers,
-            },
-          });
-        }
-        if (
-          apiBody.filters.authorPosition &&
-          apiBody.filters.authorPosition.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryAuthor.authorPosition$": {
-              [Op.in]: apiBody.filters.authorPosition,
-            },
-          });
-        }
-        if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
-          joinOrgWhere[Op.or].push({
-            "$Person.primaryOrganizationalUnit$": {
-              [Op.in]: apiBody.filters.orgUnits,
-            },
-          });
-        }
-
-        apiBody.filters.orgUnits.forEach((orgName: string) => {
-          joinOrgWhere[Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
-          {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))
-         });
-         where[Op.and].push(joinOrgWhere)
-
-        if (
-          apiBody.filters.institutions &&
-          apiBody.filters.institutions.length > 0
-        ) {
-          where[Op.and].push({
-            "$Person.primaryInstitution$": {
-              [Op.in]: apiBody.filters.institutions,
-            },
-          });
-        }
-        if (
-          apiBody.filters.datePublicationAddedToEntrezLowerBound &&
-          apiBody.filters.datePublicationAddedToEntrezUpperBound
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
-            },
-          });
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
-              [Op.lt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
-            },
-          });
-        }
-        if (
-          apiBody.filters.publicationTypeCanonical &&
-          apiBody.filters.publicationTypeCanonical.length > 0
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.publicationTypeCanonical$": {
-              [Op.in]: apiBody.filters.publicationTypeCanonical,
-            },
-          });
-        }
-        if (
-          apiBody.filters.journalImpactScoreLowerBound &&
-          apiBody.filters.journalImpactScoreUpperBound
-        ) {
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
-            },
-          });
-          where[Op.and].push({
-            "$AnalysisSummaryArticle.journalImpactScore1$": {
-              [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
-            },
-          });
-        }
-        if (
-          apiBody.filters.personTypes &&
-          apiBody.filters.personTypes.length > 0
-        ) {
-          where[Op.and].push({
-            "$PersonPersonTypes.personType$": {
-              [Op.in]: apiBody.filters.personTypes,
-            },
-          });
-          isPersonFilterOn = true;
-        }
-      }*/
+    
       const filePath = path.join(process.cwd(), './tempData/pmidcwidDataFile.json');
         const fileContent = await fsPromises.readFile(filePath);
         const pmidJSONObject = JSON.parse(fileContent.toString());
       
 
         let filteredPmids:any = [ ...new Set(pmidJSONObject.pmidList) ] 
-        let filteredPersonIdentifiers:any = [ ...pmidJSONObject.personIdentifierList ] 
-
-        console.log('filteredPmids *********************',filteredPmids.length) ; 
-        console.log('pmidJSONObject.personIdentifiers *********************',filteredPersonIdentifiers.length) ; 
-        
         
       const sort = [];
       if (apiBody && apiBody.sort) {
