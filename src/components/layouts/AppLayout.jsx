@@ -25,7 +25,7 @@ export const AppLayout = ({ children }) => {
 
   useEffect(() => {
     console.log("session in session",session)
-    routerController()
+    //routerController()
 
     if (!session && !loading) {
       router.push("/");
@@ -35,13 +35,13 @@ export const AppLayout = ({ children }) => {
   }, [session, loading, errors]);
 
   useEffect(() => {
-    routerController()
+  //  routerController()
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
     }
-  }, [router.asPath]);
+  }, [router]);
   const routerController = async ()=>{
 
     console.log("session", session);
