@@ -229,7 +229,6 @@ export const updatePendingArticleCount = async (uid: string, feedback: string) =
 
                         }
                 })
-                console.log('countPendingArticles decreased(ACCEPTED || REJECTED) in person table for uid ' + uid + ' by ' + articleCountUpdate)
             } else {
                 const articleCountUpdate = await models.Person.increment({
                     countPendingArticles: totalPendingCount
@@ -242,7 +241,6 @@ export const updatePendingArticleCount = async (uid: string, feedback: string) =
                             }
                         }
                 })
-                console.log('countPendingArticles inreased(NULL) in person table for uid ' + uid + ' by ' + articleCountUpdate)
             }
         }
     } catch (e) {

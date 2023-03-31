@@ -89,7 +89,6 @@ const ManageUsers = () => {
   }
 
   const filter = (search) => { 
-    console.log("search", search)
     let filteredUsers:  Array<any> = []
     if (users !== undefined && users.length > 0) {
       users.forEach((user: any) => {

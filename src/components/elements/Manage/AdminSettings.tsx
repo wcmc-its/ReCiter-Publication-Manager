@@ -136,9 +136,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, index2) => {
-                      console.log('innerObj************************',innerObj);
                       const { labelSettingsView, labelUserView, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax} = innerObj;
-                      console.log('labelSettinsView******************',labelSettingsView,helpTextUserView,maxLimit,)
                       return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${index2}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>

@@ -4,7 +4,6 @@ import dayjs from 'dayjs'
 import {getPublications} from './featuregenerator.controller';
 
 export async function searchPubmed(req: NextApiRequest)  {
-    console.log('req body ******************************* ', JSON.stringify(req.body));
    return fetch(`${reciterConfig.reciterPubmed.searchPubmedCountEndpoint}`, {
         method: "POST",
         headers: {
@@ -34,8 +33,6 @@ export async function searchPubmed(req: NextApiRequest)  {
                     .then(async (res) => {
                         let data: any = await res.json()
                         let featureGeneratorData = await getPublications(req.body.personIdentifier,req);
-                        console.log('data**************************',featureGeneratorData); 
-                        console.log('Accepted/Rejected publicatioms**************************',featureGeneratorData);   
                          let first100PubData = retrieveFirstNew100PubMedArticles(data,featureGeneratorData)
                         return {
                             statusCode: res.status,
@@ -88,8 +85,6 @@ export async function searchPubmed(req: NextApiRequest)  {
 }
 function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorData: any)
 {
-      console.log('coming into retrieveFirstNew100Publications1************************',pubMedData);
-      console.log('coming into retrieveFirstNew100Publications2************************',featureGeneratorData);
         
       let finalPubMedArtickes={}; 
       let filterPubMedArticles = []; 
@@ -100,7 +95,6 @@ function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorDat
     if(pubMedData && featureGeneratorData && featureGeneratorData.statusText && featureGeneratorData.statusText.reciterData && featureGeneratorData.statusText.reciterData.reCiterArticleFeatures 
         && featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length > 0)
     {   
-        console.log('inside if*********************************');
          for(let pubMedPMIDIndex=0; pubMedPMIDIndex < pubMedData.length ; pubMedPMIDIndex++) 
         //for(let fgPmidIndex =0; fgPmidIndex < featureGeneratorData.statusText.reciterData.reCiterArticleFeatures.length; fgPmidIndex++ )     
         {
@@ -130,7 +124,6 @@ function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorDat
             }
             if(!pmidFound)
             {
-                console.log('inside else block*******************************');
                 filterPubMedArticles.push(pubMedData[pubMedPMIDIndex]);
             }
 
@@ -140,7 +133,6 @@ function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorDat
       // No Accepted and Rejected publications then pickup all publications coming from pubmed
       if(featureGeneratorData && featureGeneratorData.statusText && featureGeneratorData.statusText.reciterData && !featureGeneratorData.statusText.reciterData.reCiterArticleFeatures)
       {
-           console.log('coming into this else**************************',pubMedData)   
           filterPubMedArticles = pubMedData;
       }
       //pickup 100 records from the filterPubMedArticles

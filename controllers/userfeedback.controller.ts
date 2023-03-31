@@ -73,7 +73,6 @@ export async function findUserFeedback(uid: string | string[])  {
      })
          .then(async (res) => {
             let data: any = await res.json()
-            console.log('Save user feedback is successful for ' + uid + ' with data' + JSON.stringify(data))
             return {
                 statusCode: res.status,
                 statusText: data
