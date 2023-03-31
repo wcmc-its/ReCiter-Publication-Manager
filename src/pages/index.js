@@ -13,7 +13,6 @@ import { allowedPermissions } from "../utils/constants";
 
 export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
-    console.log("session from pages index*****************",session);
     let userPermissions =null;
     let personIdentifier = null;
     if(session && session.data && session.data.userRoles)
@@ -65,9 +64,7 @@ export async function getServerSideProps(ctx) {
         };
     }
     //Redirect to search after login
-    console.log("coming into SAML for verificaiton*************************",session);
     if (session && session.data) {
-        console.log("coming into SAML for verificaiton*************************",session);
         if (session.data.databaseUser && session.data.databaseUser.status == 0) {
             return {
                 redirect: {
@@ -77,7 +74,6 @@ export async function getServerSideProps(ctx) {
             };
         }
         else if (userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
-            console.log("User with Curator Self role*************************",session);
             return {
                 redirect: {
                     destination: `/curate/${personIdentifier}`,
@@ -87,7 +83,6 @@ export async function getServerSideProps(ctx) {
         }
         else if (userPermissions && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All || role.roleLabel === allowedPermissions.Reporter_All || role.roleLabel === allowedPermissions.Superuser)) 
         {
-            console.log("User with other than Curator Self role*************************",session);
             return {
                 redirect: {
                     destination: "/search",

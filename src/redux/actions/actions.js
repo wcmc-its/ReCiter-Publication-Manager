@@ -791,7 +791,6 @@ export const authUser = auth => dispatch => {
     }, 300000)
         .then(r => r.json())
         .then(results => {
-            console.log(results.statusCode)
             if (results.statusCode !== 200) {
                 toast.error("Invalid credentials", {
                     position: "top-right",
@@ -844,15 +843,6 @@ export const getSession = sid => dispatch => {
         .then(r => {
             console.log(r)
         })
-        // .then(r => r.json())
-        // .then(response => {
-        //     console.log(`got response`)
-        //     console.log(response)
-        //     dispatch({
-        //         type: methods.GET_SESSION_ID,
-        //         payload: 'test'
-        //     })
-        // })
         .catch(err => {
             console.log(err)
             return dispatch(
@@ -1912,7 +1902,6 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             }
         })
         .then(data => {
-            console.log("dataCount", data)
             if (data.count == 0 || Object.keys(data).length == 0) {
             console.log("dataCount Inside", data)
                 dispatch({
@@ -2090,7 +2079,6 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
 
 // Get authors of publication
 export const getReportsAuthors = (pmids) => {
-    console.log("pmids", pmids)
     return fetch(`/api/db/reports/publication/search/author`, {
         credentials: "same-origin",
         method: 'POST',

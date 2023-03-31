@@ -13,7 +13,6 @@ export default async function handler(req: NextApiRequest,
                 const fileBuffer = Buffer.from(generatePubsPeopleOnlyRtfOutput, 'utf-8')
                 res.setHeader('Content-Type', 'application/rtf')
                 res.setHeader('Content-Disposition', 'attachment; filename=' + apiBody.personIdentifiers + '.rtf');
-                console.log('Creating the file buffer for generatePubsPeopleOnlyRtf with params: ' + apiBody)
                 res.status(200).send(fileBuffer)
             } catch(err) {
                 console.log('Error with the file for generatePubsPeopleOnlyRtf for ' + apiBody.personIdentifiers + ': ' + err)

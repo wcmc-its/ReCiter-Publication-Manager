@@ -33,7 +33,6 @@ export default async function handler(req, res) {
         new Promise((resolve, reject) => {
             sp.create_login_request_url(idp, options, (error, loginUrl) => {
                 if (error) {
-                    console.log(error)
                     reject(error);
                 }
                 resolve(loginUrl);
