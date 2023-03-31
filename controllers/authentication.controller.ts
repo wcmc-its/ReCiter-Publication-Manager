@@ -54,7 +54,6 @@ export async function authenticate(credential: Credential){
                         statusCode: 200
                     }
                 } else {
-                    console.log("Credentials for user: " + credential.username + " is incorrect")
                     return {
                         statusCode: 401,
                         statusMessage: "Credentials for user: " + credential.username + " is incorrect"

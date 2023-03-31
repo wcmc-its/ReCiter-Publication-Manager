@@ -23,5 +23,4 @@ const auto = new SequelizeAuto(db, userName, password, {
 });
 
 auto.run().then((data) => {
-    console.log(data.tables); // table and field list       // text of generated models
 });

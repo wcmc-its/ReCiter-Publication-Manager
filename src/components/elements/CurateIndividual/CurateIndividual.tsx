@@ -50,19 +50,6 @@ const CurateIndividual = () => {
     let routerUserId = router.query.id ;
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
-    //Commented as this needs to be worked on later..
-    // checking curator_self
-   /* if (userPermissions.length === 1 &&  userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self && 'aaa2020' != routerUserId) ){
-        toastMessage("error", "You do not have access to view  page");
-        //userPermissions.map((id)=>{ nextPersonIdentifier = id.personIdentifier})
-        //router.push(`/curate/${routerUserId}`,`/curate/aaa2020`,{shallow : true});
-    }else{
-      userPermissions.map((id)=>{ nextPersonIdentifier = id.personIdentifier})
-      console.log('nextPersonIdentifier',nextPersonIdentifier);
-      setNewId('aaa2020');
-      dispatch(identityFetchData('aaa2020'));
-      fetchData();
-    }*/
      setNewId(routerUserId);
      dispatch(identityFetchData(routerUserId));
      fetchData();

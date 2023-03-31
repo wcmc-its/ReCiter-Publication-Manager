@@ -146,7 +146,7 @@ export const publicationSearchWithFilter = async (
       });
       
        joinWhereAuthorsFilters[Op.and].push(joinWhereOrganizations);
- 
+       where[Op.and].push(joinWhereOrganizations);
 
         isAuthorFilter = true;
         isOrgORInstitues = true;
@@ -552,7 +552,6 @@ export const publicationSearchWithFilter = async (
       if (isAuthorFilter && !isArticleFilter) {
         //  preparing PMIDS from filtered data
         let pmidList = [];
-        console.log('authorsResults*********************************',authorsResults);
         authorsResults?.rows?.map((rowData) => {
           pmidList.push(rowData?.dataValues?.pmid)
         });
@@ -567,7 +566,6 @@ export const publicationSearchWithFilter = async (
         const jsonString = JSON.stringify(jsonData)
         const session = await getSession({req});
         let loggedInUserId = session?.data?.username; 
-        console.log('loggedInUserId*******************',loggedInUserId);
         fs.writeFile('public/pmidcwidDataFile_'+loggedInUserId+'.json', jsonString, err => {
             if (err) {
                 console.log('Error writing file', err)
@@ -828,6 +826,7 @@ export const publicationSearchWithFilterPmids = async (
       });
       
        joinWhereAuthorsFilters[Op.and].push(joinWhereOrganizations);
+       where[Op.and].push(joinWhereOrganizations);
 
         
         isAuthorFilter = true;

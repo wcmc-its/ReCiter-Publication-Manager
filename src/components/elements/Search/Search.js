@@ -29,10 +29,6 @@ const Search = () => {
   const identityAllData = useSelector((state) => state.identityAllData)
   const identityAllFetching = useSelector((state) => state.identityAllFetching)
 
-  // const curateIdsData = useSelector((state) => state.curateIdsFromSearchPage)
-  // console.log("curateIdsData", curateIdsData)
-
-
   const identityPaginatedData = useSelector((state) => state.identityPaginatedData)
   const identityPaginatedFetching = useSelector((state) => state.identityPaginatedFetching)
   const filters = useSelector((state) => state.filters)

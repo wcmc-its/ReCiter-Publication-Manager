@@ -29,7 +29,6 @@ export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResp
 export const createFeedbackLog = async (req: NextApiRequest, res: NextApiResponse) => {
     const { userID, personIdentifier, articleIdentifier, feedback } = req.body;
     try {
-        console.log('Checking request body for createFeedbackLog')
         if(userID && personIdentifier && articleIdentifier && feedback) {
             console.log('Valid request body for createFeedbackLog')
             const isUserExistAndActive = await models.AdminUser.findOne({
@@ -40,7 +39,6 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
                 attributes: ["userID"]
             })
             if(isUserExistAndActive) {
-                console.log('UserID ' + userID + ' for request createFeedbackLog exist and active')
                 let data = []
                 articleIdentifier.forEach((element: number) => {
                     data.push({
@@ -59,11 +57,9 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
                 await updatePendingArticleCount(personIdentifier, feedback)
             } else {
                 res.status(401).send('userID ' + userID + ' is unauthorized to provide feedback')
-                console.log('userID ' + userID + ' is unauthorized to provide feedback')
             }
         } else {
             res.status(400).send('Include userID, personIdentifier, articleIdentifier & feedback in request body')
-            console.log('Include userID, personIdentifier, articleIdentifier & feedback in request body for createFeedbackLog')
         }
     } catch (e) {
         console.log(e)

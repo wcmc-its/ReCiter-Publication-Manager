@@ -50,30 +50,9 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const onOpenModal = () => setShowHistoryModal(true)
     const onCloseModal = () => setShowHistoryModal(false)
-
-    // const updatedToggleEvidence = (pubExpEvidenceNumber) =>{
-    //     console.log('publication to be expanded',pubExpEvidenceNumber)
-    //     console.log("props of the component",props)
-    //    if(props.actionSource ==='curateAll'){
-    //      if(pubExpEvidenceNumber && pubExpEvidenceNumber + 1 < maxArticlesPerPerson && maxArticlesPerPerson < props.totalCount)
-    //      {
-    //         setExpandedPubIndex(pubExpEvidenceNumber);
-    //      }
-    //      else if(pubExpEvidenceNumber && pubExpEvidenceNumber + 1 < maxArticlesPerPerson && maxArticlesPerPerson == props.totalCount)
-    //      {
-    //         setExpandedPubIndex(pubExpEvidenceNumber-1);
-    //      }
-    //      else if(pubExpEvidenceNumber && pubExpEvidenceNumber + 1 < maxArticlesPerPerson && maxArticlesPerPerson == props.totalCount)
-    //      {
-    //         setExpandedPubIndex(pubExpEvidenceNumber-1);
-    //      }
-    //    }
-    // };
-
+    
     const toogleEvidence = (pubExpEvidenceNumber) => {
       let expandedPubNumber = parseInt(pubExpEvidenceNumber.slice(5));
-
-      console.log("expandedPubNumber", expandedPubNumber)
 
       if(props.actionSource === "curateAll"){
         if(expandedPubNumber == maxArticlesPerPerson) setExpandedPubIndex(`page${props.page}${(expandedPubNumber - 1)}`);

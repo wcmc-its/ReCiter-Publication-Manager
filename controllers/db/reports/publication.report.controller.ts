@@ -74,7 +74,6 @@ export const generatePubsPeopleOnlyRtf = async (
           raw: true,
         }
       );
-      console.log(generatePubsPeopleOnlyRtfOutput)
       return Array.isArray(generatePubsPeopleOnlyRtfOutput) &&
       generatePubsPeopleOnlyRtfOutput.length > 0
         ? generatePubsPeopleOnlyRtfOutput[0].x
@@ -471,11 +470,9 @@ export const generatePubsPeopleOnlyRtf = async (
         if (sortType === 'trendingPubsScore')
           sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
       }
-      console.log('sort criteria for Article export **********************',sort)
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
 										 
       let searchOutput: any[] = [];
-      console.log('personType selected',isPersonFilterOn);
       if(isPersonFilterOn)
       {
         

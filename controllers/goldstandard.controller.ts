@@ -9,7 +9,6 @@ export async function updateGoldStandard(req: NextApiRequest)  {
         query: { goldStandardUpdateFlag }
       } = req;
 
-    console.log(goldStandardUpdateFlag);
     
    return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}`, {
         method: "POST",
@@ -63,5 +62,4 @@ async function callUserFeedbackApi(goldStandard: any, req: NextApiRequest) {
         'feedbackDate': new Date()
     }
     req.body = userFeedback
-    console.log(await saveUserFeedback(req, goldStandard.uid))
 }

@@ -12,7 +12,6 @@ export default async function handler(req: NextApiRequest,
                 const fileBuffer = Buffer.from(bibliometricAnalysis, 'utf-8')
                 res.setHeader('Content-Type', 'application/rtf')
                 res.setHeader('Content-Disposition', 'attachment; filename=' + uid + '.rtf');
-                console.log('Creating the file buffer for bibliometricAnalysis for ' + uid)
                 res.status(200).send(fileBuffer)
             } catch(err) {
                 console.log('Error with the file for bibliometricAnalysis for ' + uid + ': ' + err)

@@ -15,7 +15,6 @@ export default async function handler(req: NextApiRequest,
                     const fileBuffer = Buffer.from(generatePubsRtfOutput, 'utf-8')
                     res.setHeader('Content-Type', 'application/rtf')
                     res.setHeader('Content-Disposition', 'attachment; filename=' + apiBody.personIdentifiers + '.rtf');
-                    console.log('Creating the file buffer for generatePubsRtf with params: ' + apiBody)
                     res.status(200).send(fileBuffer)
                 }
                 else

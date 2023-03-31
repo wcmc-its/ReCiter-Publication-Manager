@@ -50,7 +50,6 @@ export async function getPublications(uid: string | string[], req: NextApiReques
 
 
 async function clearPendingFeedback(uid: string | string[]) {
-    console.log(await deleteUserFeedback(uid))
 }
 
 async function getPendingFeedback(uid: string | string[], data: any) {
