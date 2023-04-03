@@ -8,7 +8,7 @@ import Header from "../Header/Header"
 import { signIn,getSession } from "next-auth/client"
 import { toast } from "react-toastify"
 import { allowedPermissions } from "../../../utils/constants";
-
+import { useRouter } from 'next/router'
 
 const Login = () => {
 
@@ -17,10 +17,7 @@ const Login = () => {
     const [password, setPassword] = useState("")
     const [isShowButton, setIsShowButton] = useState(true)
     const session = getSession();
-
-   useEffect(() => {
-        
-    })
+    const router = useRouter()
 
     const validateForm = () => {
         if(username === ''){
@@ -58,9 +55,9 @@ const Login = () => {
                     let userName = session.data.username;
                     let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
                     if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName)  
-                        Router.push(`${window.location.origin}/curate/${personIdentifier}`);
+                        router.push(`/curate/${personIdentifier}`);
                     else 
-                        Router.push(`${window.location.origin}/search`);
+                        router.push('/search');
                 } 
             });
             

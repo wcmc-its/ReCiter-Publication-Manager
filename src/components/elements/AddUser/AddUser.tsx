@@ -37,11 +37,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         description: ""
     })
     const { cwid, email, firstName, lastName, middleName, division, title} = state;
-    const [selectedRoles, SetSelectedRoles] = useState([]);
+    const [selectedRoles, setSelectedRoles] = useState([]);
 
-    const [formErrorsInst, SetformErrInst] = useState<{[key: string]: any}>({});
+    const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
 
-    const [selectedDepartments, SetSelectedDepartments] = useState([]);
+    const [selectedDepartments, setSelectedDepartments] = useState([]);
     const [loading, setLoading] = useState(false);
 
     const router = useRouter()
@@ -56,9 +56,8 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     }
 
     const validateEmail = (email) => {
-        var mailformat = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/;
-        if (email.match(mailformat)) return true;
-        else return false;
+        let mailformat = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/;
+        return email.match(mailformat) 
       };
 
   
@@ -76,7 +75,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
           // roles errors
           if ( !selectedRoles || selectedRoles.length === 0  ) formErrInst.selectedRole = 'Please select atleast one role!'
 
-        SetformErrInst(formErrInst)
+        setformErrInst(formErrInst)
 
         return formErrInst
     }
@@ -90,8 +89,6 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
    
             let selectedRoleIds = [];
             let departmentIds = [];
-            let Departmets = adminDepartments.filter(department => { if (selectedDepartments.includes(department.departmentLabel)) departmentIds.push(department.departmentID) })
-            let roleIds = allAdminRoles.filter(role => { if (selectedRoles.includes(role.roleLabel)) selectedRoleIds.push(role.roleID) })
             let isEditUserId = router.query.userId;
             let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
 
@@ -126,7 +123,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                             if (editRole.roleID === role.roleID) roleNames.push(role.roleLabel)
                         })
                     })
-                    SetSelectedRoles(roleNames ? roleNames : [])
+                    setSelectedRoles(roleNames ? roleNames : [])
                 }
 
                 if (adminUsersDepartments) {
@@ -138,7 +135,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         }
                         )
                     })
-                    SetSelectedDepartments(departmentNames ? departmentNames : [])
+                    setSelectedDepartments(departmentNames ? departmentNames : [])
                 }
 
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
@@ -146,7 +143,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             })
         }
 
-    }, [])
+    }, [router.query.userId])
 
     const CssTextField = styled(TextField)({
         '& .MuiOutlinedInput-root': {
@@ -253,7 +250,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     disableClearable
                                     value={selectedDepartments}
                                     options={adminDepartments.map((option) => option.departmentLabel)}
-                                    onChange={(event, value) => SetSelectedDepartments(value as string[])}
+                                    onChange={(event, value) => setSelectedDepartments(value as string[])}
                                     renderInput={(params) => (
                                         <CssTextField
                                             variant="outlined"
@@ -278,7 +275,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     disableClearable
                                     value={selectedRoles}
                                     options={allAdminRoles.map((option) => option.roleLabel)}
-                                    onChange={(event, value) => SetSelectedRoles(value as string[])}
+                                    onChange={(event, value) => setSelectedRoles(value as string[])}
                                     renderInput={(params) => (
                                         <CssTextField
                                             variant="outlined"

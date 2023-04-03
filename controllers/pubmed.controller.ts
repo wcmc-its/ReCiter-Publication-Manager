@@ -59,7 +59,7 @@ export async function searchPubmed(req: NextApiRequest)  {
                         statusText: limitExceededError
                     }
                 } 
-                else if(parseInt(data, 10) > 1000){
+                else {
                   
                     // const message:string = "Your search exceeded 2000 results: " + parseInt(data, 10) + ". Please narrow down search."
                     // const message:string = "Your search returned more than 1000 results. "+parseInt(data,10) + "Please refine."
