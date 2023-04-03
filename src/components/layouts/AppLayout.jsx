@@ -24,7 +24,6 @@ export const AppLayout = ({ children }) => {
   const errors = useSelector((state) => state.errors);
 
   useEffect(() => {
-    console.log("session in session",session)
     //routerController()
 
     if (!session && !loading) {
@@ -35,7 +34,7 @@ export const AppLayout = ({ children }) => {
   }, [session, loading, errors]);
 
   useEffect(() => {
-  //  routerController()
+   // routerController()
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
@@ -57,7 +56,6 @@ export const AppLayout = ({ children }) => {
 
     if(router?.pathname === "/curate/[id]" && isCuratorSelf || isReporterAll ){
       if(loggedInUserPersonIdentifier === router.query.id){
-        console.log("isCuratorSelf", isSuperUser)
       }else{
         router.back();
       }

@@ -53,12 +53,11 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
             }
         }
 
-        let persons = [];
         var users= {};
 
 
         if(apiBody.filters?.personTypes) {
-            let { count,rows } =  await models.Person.findAndCountAll({
+            const { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
                 'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
                 include: [

@@ -60,18 +60,19 @@ const AdminSettings = () => {
         setLoading(false);
       })
       .catch(error => {
+        console.log(error);
         setLoading(false);
       });
   }
 
-  const handleValueChange = (id1, id2, name, e) => {
+  const handleValueChange = (viewLabelIndex, viewAttrIndex, name, e) => {
     setSettings(settings.map((obj, index1) => {
-      if (index1 == id1) {
+      if (index1 == viewLabelIndex) {
         return {
           ...obj,
           viewAttributes:
           obj.viewAttributes.map((innerObj, index2) => {
-              if (index2 == id2) {
+              if (index2 == viewAttrIndex) {
                 //  return innerObj[name] = e.target.value
                 if(name === "isVisible") return { ...innerObj, [name]: !innerObj.isVisible }
                 else return { ...innerObj, [name]: e.target.value }
@@ -130,14 +131,14 @@ const AdminSettings = () => {
       <Accordion defaultActiveKey="0">
         <div>
           {
-            settings.length > 0 ? settings.map((obj, index) => {
-              return <Accordion.Item eventKey={`${index}`} key={`${index}`}>
+            settings.length > 0 ? settings.map((obj, viewLabelIndex) => {
+              return <Accordion.Item eventKey={`${viewLabelIndex}`} key={`${viewLabelIndex}`}>
                 <Accordion.Header>{obj.viewLabel}</Accordion.Header>
                 <Accordion.Body>
                   {
-                    obj.viewAttributes.map((innerObj, index2) => {
+                    obj.viewAttributes.map((innerObj, viewAttrIndex) => {
                       const { labelSettingsView, labelUserView, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax} = innerObj;
-                      return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${index2}`}>
+                      return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
@@ -150,7 +151,7 @@ const AdminSettings = () => {
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Label override"
                                 value={labelUserView || ""}
-                                onChange={(e) => handleValueChange(index, index2, "labelUserView", e)}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "labelUserView", e)}
                               />
                             </div>
                             { helpTextUserView!=undefined && helpTextUserView!='' &&
@@ -162,7 +163,7 @@ const AdminSettings = () => {
                                 className={`form-control ${styles.searchInput} ml-5`}
                                 placeholder="Help text"
                                 value={helpTextUserView || ""}
-                                onChange={(e) => handleValueChange(index, index2, "helpTextUserView", e)}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "helpTextUserView", e)}
                               />
                             </div>
                             }
@@ -175,12 +176,12 @@ const AdminSettings = () => {
                                   id=""
                                   checked={isVisible}
                                 // value={isChecked}
-                                onChange={(e) => handleValueChange(index, index2, "isVisible", e)}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isVisible", e)}
                                 />
                               </div> 
                             </div>
                            }
-                           { maxLimit!=undefined && maxLimit !='' &&
+                           { maxLimit &&
                            <div className="d-flex">
                               <p className={styles.labels}>Max Limit</p>
                               <Form.Control
@@ -189,7 +190,7 @@ const AdminSettings = () => {
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Max Limit"
                                 value={maxLimit|| ""}
-                                onChange={(e) => handleValueChange(index, index2, "maxLimit", e)}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e)}
                               />
                             </div>
                            }
