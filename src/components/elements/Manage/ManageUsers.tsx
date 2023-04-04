@@ -38,7 +38,7 @@ const ManageUsers = () => {
         fetchAllAdminUsers(page, count)
   }, [])
 
-  const fetchAllAdminUsers=(page ?: any, limit?:any, searchTextInput? :any)=>{
+  const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string)=>{
     setLoading(true);
     const offset = (page - 1) * limit;
     const request = { limit, offset , searchTextInput};
@@ -71,6 +71,13 @@ const ManageUsers = () => {
       });
   }
 
+  const onReset = ()=>{
+    setPage(1);
+    setCount(50);
+    setSearchText("");
+    fetchAllAdminUsers(1,50);
+  }
+
   const fetchPaginatedData = (newCount) => {
     // dispatch(identityFetchPaginatedData(page, newCount ? newCount : count))
     fetchAllAdminUsers(page, newCount ? newCount : count)
@@ -89,10 +96,10 @@ const ManageUsers = () => {
   }
 
   const filter = (search) => { 
-    let filteredUsers:  Array<any> = []
-    if (users !== undefined && users.length > 0) {
-      users.forEach((user: any) => {
-    if (search !== "" && search !== undefined) {
+    let filteredUsers = []
+    if (users  && users.length > 0) {
+      users.forEach((user) => {
+    if (search ) {
       if (/^[0-9 ]*$/.test(search)) {
         var userIds = search.split(" ");
         if (userIds.some(userId => Number(userId) === user.userID)) {
@@ -100,7 +107,7 @@ const ManageUsers = () => {
         }
       }else{
         var addUser = true;
-        if (search !== "") {
+        if (search) {
           addUser = false;
           //nameFirst
           if (user.nameFirst && user.nameFirst.toLowerCase().includes(search.toLowerCase())) {
@@ -118,9 +125,8 @@ const ManageUsers = () => {
     }
   })
   }
-  setUsers( filteredUsers)
-
-  if(search == "") setUsers( allUsers)
+  if(filteredUsers && filteredUsers.length > 0 ) setUsers( filteredUsers)
+  else setUsers( allUsers)
  
 }
 
@@ -158,8 +164,11 @@ const ManageUsers = () => {
             <InputGroup.Text id="basic-addon2" onClick={onSearch}>search</InputGroup.Text>
           </InputGroup>
         </Col>
-        <Col md={6}>
-          <Button className="my-2 floatRight" onClick={() => router.push("/admin/users/add")}>Add User</Button>
+        <Col md={1}>
+        <div className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</div>
+        </Col>
+        <Col md={5}>
+          <Button className="my-1 floatRight" onClick={() => router.push("/admin/users/add")}>Add User</Button>
         </Col>
       </Row>
       {/* <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button> */}

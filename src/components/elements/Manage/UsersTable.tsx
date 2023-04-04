@@ -23,7 +23,7 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
       </thead>
       <tbody>
         {
-         data.length > 0 ? data.map((user, index) => {
+         data && data.length > 0 ? data.map((user, index) => {
             const {nameFirst, nameLast, userID,personIdentifier,email} = user;
             return (
               <tr key={index}>

@@ -18,3 +18,7 @@
 .labelForCheckBox{
     width:10.6rem ;
 }
+.textButton{
+    color:#0d6efd;
+    cursor:pointer;
+}

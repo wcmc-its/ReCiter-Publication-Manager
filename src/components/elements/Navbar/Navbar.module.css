@@ -32,7 +32,7 @@
 }
 
 .subMenu {
-  padding: 0px;
+  padding: 0px !important;
   background: #eaeaea;
 }
 

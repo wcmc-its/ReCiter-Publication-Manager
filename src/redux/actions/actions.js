@@ -1902,8 +1902,8 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             }
         })
         .then(data => {
+
             if (data.count == 0 || Object.keys(data).length == 0) {
-            console.log("dataCount Inside", data)
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
                     payload: data,
@@ -1918,6 +1918,17 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             } else {
                
                 if (data && data.rows && data.rows.length > 0) {
+                    let updatePmidRespData  = {
+                        pmids: data.pmidList,
+                        personIdentifiers : data.personIdentifiersList
+                    }
+
+                    dispatch({
+                        type: methods.REPORTS_RESULTS_IDS_UPDATE,
+                        payload: updatePmidRespData
+                    })
+
+
                     let pmids = data.rows ? data?.rows?.map(row => row.pmid) : [];
                     getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
                         // given authors data merge it with the rest of the results
@@ -2032,6 +2043,15 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
                 })
             } else {
                 let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
+                let updatePmidRespData = {
+                    pmids: data.pmidList,
+                    personIdentifiers: data.personIdentifiersList
+                }
+
+                dispatch({
+                    type: methods.REPORTS_RESULTS_IDS_UPDATE,
+                    payload: updatePmidRespData
+                })
 
                 getReportsAuthors({ pmids: [...pmids] }).then(authorsData => {
                     // given authors data merge it with the rest of the results
