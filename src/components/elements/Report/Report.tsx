@@ -57,6 +57,7 @@ const Report = () => {
   // search results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
+  const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
 
 
   const [authorInput, setAuthorInput] = useState<string>('');
@@ -70,6 +71,7 @@ const Report = () => {
   const [exportAuthorShipLabels, setExportAuthorShipLabels] = useState([])
   const [exportArticleLabels, setExportArticleLabels] = useState([])
   const [reportingWebDisplay, setReportingWebDisplay] = useState([])
+  const [isOnlyAuthorFilters, setIsOnlyAuthorFilters] = useState<boolean>(false)
 
 
 
@@ -145,8 +147,10 @@ const Report = () => {
 
     SetIsFirstLoad(true);
     dispatch(showEvidenceByDefault(null));
-    const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters
+    const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters;
+
     if(personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0){
+
       if(personIdentifers.length > 0) updateAuthorFilterData(personIdentifers, 10, "fromSearchPage")
 
       setIsFiltersOn(true);
@@ -157,7 +161,8 @@ const Report = () => {
        dispatch(updateAuthorFilter());
        dispatch(getReportsResultsInitial());
       }
-    // searchResults();
+
+
   }, [])
 
 
@@ -357,6 +362,14 @@ const Report = () => {
     handleShow();
   }
 
+  const onGetReportsDatabyPubFilters =()=>{
+    const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical } = pubSearchFilter.filters;
+
+    if((personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0) && (datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length === 0 && publicationTypeCanonical.length === 0)) {
+        
+    }  else  dispatch(fetchReportsResultsIds(pubSearchFilter)) 
+  }
+
   if (reportingFiltersLoading) {
     return (
       <Container fluid className="h-100 justify-content-center align-items-center">
@@ -390,7 +403,7 @@ const Report = () => {
           <SearchSummary
             count={reportsSearchResults.count}
             onClick={updateSort}
-            onGetReportsDatabyPubFilters = { ()=> dispatch(fetchReportsResultsIds(pubSearchFilter))}
+            onGetReportsDatabyPubFilters = { ()=> onGetReportsDatabyPubFilters()}
             selected={getSelectedValues(pubSearchFilter)}
             reportLabelsForSort={reportLabelsForSort}
             exportAuthorShipLabels = {exportAuthorShipLabels}

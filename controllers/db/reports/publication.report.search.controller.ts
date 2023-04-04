@@ -565,14 +565,7 @@ export const publicationSearchWithFilter = async (
         }
         const jsonString = JSON.stringify(jsonData)
         const session = await getSession({req});
-        let loggedInUserId = session?.data?.username; 
-        fs.writeFile('public/pmidcwidDataFile_'+loggedInUserId+'.json', jsonString, err => {
-            if (err) {
-                console.log('Error writing file', err)
-            } else {
-                console.log('Successfully wrote file')
-            }
-        })
+        
         let articleResults ={};
         if(pmidList && pmidList.length > 0)
         {
@@ -598,7 +591,9 @@ export const publicationSearchWithFilter = async (
         }
         searchOutput = {
           ... articlesDetails,
-          count: authorsResults?.count
+          count: authorsResults?.count,
+          pmidList:pmidList,
+          personIdentifiersList : personIdentifiersList
         }
       } else if(!isAuthorFilter && isArticleFilter) {
 																			   
@@ -1237,17 +1232,6 @@ export const publicationSearchWithFilterPmids = async (
       if (isAuthorFilter && !isArticleFilter) { 
 				
         const session = await getSession({req});
-        let loggedInUserId = session?.data?.username; 
-        const filePath = path.join(process.cwd(), './public/pmidcwidDataFile_'+loggedInUserId+'.json');
-        const fileContent = await fsPromises.readFile(filePath);
-        const pmidJSONObject = JSON.parse(fileContent.toString());
-      
-
-        let filteredPmids = [ ...new Set(pmidJSONObject.pmidList) ] 
-        let filteredPersonIdentifiers = pmidJSONObject.personIdentifierList  
-
-        pmids = filteredPmids;
-        personIdentifiers = filteredPersonIdentifiers;
 														
 
       }else if(!isAuthorFilter && isArticleFilter){

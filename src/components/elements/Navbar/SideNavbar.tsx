@@ -6,7 +6,7 @@ import Divider from '@mui/material/Divider';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIconGare from '../../../../public/images/settingsIconGare.png';
-import SettingsGareIconActive from '../../../../public/images/settingsGareIconActive.jpg';
+import SettingsGareIconActive from '../../../../public/images/settingsWhite.png';
 import NestedListItem from './NestedListItem';
 import { MenuItem } from '../../../../types/menu';
 import MenuListItem from './MenuListItem';
@@ -55,8 +55,13 @@ const closedMixin = (theme: any) => ({
   [theme.breakpoints.up('sm')]: {
     width: `calc(${theme.spacing(9)} + 1px)`,
   },
+  '& .MuiBox-root': {
+    '.MuiListItem-root': {
+      paddingLeft: '27px',
+    }
+  },
   '& .MuiListItemText-root': {
-    display: 'none',
+    display: 'none'
   },
   backgroundColor: '#f5f5f5',
 });

@@ -3,7 +3,7 @@ import sequelize from "../../src/db/db";
 
 export const findUserPermissions = async (attrValue: string, attrType: string) => {
 
-    let userRolesList: any = [];
+    let userRolesList = [];
     try {
         if (attrType === "email") {
             userRolesList = await sequelize.query(
