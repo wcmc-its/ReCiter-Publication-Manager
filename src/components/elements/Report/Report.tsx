@@ -363,9 +363,9 @@ const Report = () => {
   }
 
   const onGetReportsDatabyPubFilters =()=>{
-    const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical } = pubSearchFilter.filters;
+    const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical, authorPosition } = pubSearchFilter.filters;
 
-    if((personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0) && (datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length === 0 && publicationTypeCanonical.length === 0)) {
+    if((personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0 || authorPosition.length > 0) && (datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length === 0 && publicationTypeCanonical.length === 0)) {
         
     }  else  dispatch(fetchReportsResultsIds(pubSearchFilter)) 
   }

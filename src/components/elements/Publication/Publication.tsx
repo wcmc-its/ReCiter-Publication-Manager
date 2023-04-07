@@ -473,7 +473,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
               if (rowName === 'averageClusteringEvidence') {
                 displayArticleDataList = true;
-                articleDataList.push({ name: 'Score of article without clustering: ' + evidence[rowName].totalArticleScoreWithoutClustering, tags: []});
+                articleDataList.push({ name: 'Score of article without clustering: ' + evidence[rowName].clusterScoreModificationOfTotalScore, tags: []});
                 articleDataList.push({ name: 'Average score of cluster: ' + evidence[rowName].clusterScoreAverage, tags: []});
               }
             }

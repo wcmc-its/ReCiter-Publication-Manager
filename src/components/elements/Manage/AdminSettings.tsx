@@ -167,7 +167,21 @@ const AdminSettings = () => {
                               />
                             </div>
                             }
-                            {isVisible != undefined &&
+                            {
+                              syntax && 
+                              <div className="d-flex">
+                              <p className={styles.labels}>Syntax</p>
+                              <Form.Control
+                                type="text"
+                                name="labelOverRide"
+                                className={`form-control ${styles.searchInput}`}
+                                placeholder="Label override"
+                                value={syntax || ""}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "syntax", e)}
+                              />
+                            </div>
+                            } 
+                          {isVisible != undefined &&
                             <div className="d-flex">
                               <p className={styles.labelForCheckBox}>Is visible</p>
                               <div>

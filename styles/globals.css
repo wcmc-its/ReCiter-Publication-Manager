@@ -163,3 +163,6 @@ h1 {
 .textAlignCenter{
   text-align: center !important;
 }
+.fullWidth{
+  width:100%
+}
