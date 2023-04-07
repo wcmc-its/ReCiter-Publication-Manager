@@ -256,7 +256,7 @@ const Profile = ({
         degreeYears.push({ name: list.degreeYear.bachelorYear + ' - Bachelor\'s'})
       }
       if (list.degreeYear.doctoralYear !== 0) {
-        degreeYears.push({ name: list.degreeYear.doctoralYear + ' - PhD'})
+        degreeYears.push({ name: list.degreeYear.doctoralYear + ' - Doctoral'})
       }
       if (degreeYears.length > 0) {
         rows.push({ title: 'Degrees', values: degreeYears})
@@ -468,8 +468,6 @@ const Profile = ({
   }
 
   const DisplayInfo = ({ label, title, value}) => {
-    // console.log("info title", infoBubblesConfig[title] , "respTitle" , title )
-  //  if (value) {
      if (title) {
        return (
         <span style={{ 'position': 'relative', paddingRight : '10px'}}>
@@ -511,11 +509,10 @@ const Profile = ({
               {
                 displayImage && identity.identityImageEndpoint && headShotLabelData && headShotLabelData.length > 0 && headShotLabelData[0].isVisible &&
               <Image
-                // loader={imageLoader}
                 alt='Profile Image'
                 width={144}
                 height={217}
-                src={identity?.identityImageEndpoint ? identity?.identityImageEndpoint : ''}
+                src={headShotLabelData.length > 0 && headShotLabelData[0]?.syntax?.replace("{personIdentifier}", identity.uid)}
                 onError={() => setDisplayImage(false)}
               />
               }

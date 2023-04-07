@@ -4,7 +4,7 @@ import { DateRangePicker, SingleDatePicker, DayPickerRangeController } from 'rea
 import 'react-dates/initialize';
 import 'react-dates/lib/css/_datepicker.css';
 import moment from 'moment';
-import { Dropdown } from "react-bootstrap";
+import { Dropdown, Button} from "react-bootstrap";
 import { setReportFilterLabels } from "../../../utils/constants";
 
 
@@ -16,35 +16,36 @@ export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,select
   const [minDate, setMinDate] = useState();
 
 
+  const handleCustomDateRange = ()=>{
+    let tempStartDate = new Date();
+    let tempMinDate = new Date();
+    let tempEndDate = new Date();
+    tempStartDate.setDate(tempEndDate.getDate() - 30);
+    tempMinDate.setDate(tempEndDate.getDate() - 3000)
   
-
-
-  useEffect(()=>{
-  // const rangeDates = range[0];
-  const {personIdentifers,institutions, orgUnits,personTypes, datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound } = selectedFilters
-  if(personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0){
-  let tempStartDate = new Date();
-  let tempMinDate = new Date();
-  let tempEndDate = new Date();
-  tempStartDate.setDate(tempEndDate.getDate() - 30);
-  tempMinDate.setDate(tempEndDate.getDate() - 3000)
-
-  setMinDate(moment(tempMinDate))
-  setStartDate(moment(tempStartDate))
-  setEndDate(moment(tempEndDate))
-  handleChange(filterLowerName, filterUpperName, moment(tempStartDate).format('YYYY-MM-DD'), moment(tempEndDate).format('YYYY-MM-DD'));
-  }else {
-    setStartDate()
-    setEndDate()
-    handleChange(filterLowerName, filterUpperName, null, null);
+    setMinDate(moment(tempMinDate))
+    setStartDate(moment(tempStartDate))
+    setEndDate(moment(tempEndDate))
+    handleChange(filterLowerName, filterUpperName, moment(tempStartDate).format('YYYY-MM-DD'), moment(tempEndDate).format('YYYY-MM-DD'));
   }
-  },[])
 
-  useEffect(()=>{
-    if(isFilterClear){
+
+  useEffect(() => {
+    const { personIdentifers, institutions, orgUnits, personTypes, datePublicationAddedToEntrezLowerBound, datePublicationAddedToEntrezUpperBound } = selectedFilters
+    if (personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0) {
+      handleCustomDateRange();
+    } else {
       setStartDate()
       setEndDate()
+      handleChange(filterLowerName, filterUpperName, null, null);
     }
+  }, [])
+
+  
+
+  useEffect(()=>{
+      setStartDate()
+      setEndDate()
     },[isFilterClear])
 
     if (!range || range.length == 0) {
@@ -59,10 +60,6 @@ export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,select
     handleChange(filterLowerName, filterUpperName, formattedStartDate, formattedEndDate);
   };
 
-  
-  // const rangeDates = range[0];
-  // const minDate = moment(rangeDates.minDate);
-  // const maxDate = moment(rangeDates.maxDate);
 
   const isOutsideRange = day =>
     day.isAfter(startDate) || day.isBefore(endDate);
@@ -90,6 +87,9 @@ export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,select
           onFocusChange={focusedInput =>{ setFocusedInput(focusedInput)}} // PropTypes.func.isRequired,
           isOutsideRange={()=> false}
         />
+        <div className="mt-1">
+          <Button varient="primary" className="fullWidth" onClick= {handleCustomDateRange}>Last 30 days</Button>
+        </div>
       </Dropdown.Menu>
     </Dropdown>
   )
