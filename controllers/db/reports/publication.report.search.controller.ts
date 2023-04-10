@@ -129,17 +129,11 @@ export const publicationSearchWithFilter = async (
         isAuthorFilter = true;
       }
       if (apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0) {
-        where[Op.and].push({
+        joinWhereOrganizations[Op.or].push({
           "$Person.primaryOrganizationalUnit$": {
             [Op.in]: apiBody.filters.orgUnits,
           },
         });
-        whereForOnlyAuthors[Op.and].push({
-          "$Person.primaryOrganizationalUnit$": {
-            [Op.in]: apiBody.filters.orgUnits,
-          },
-        });
- 
         apiBody.filters.orgUnits.forEach((orgName: string) => {
           joinWhereOrganizations [Op.or].push(({[Op.or]:[{'$Person.primaryOrganizationalUnit$': { [Op.like]: `%${orgName}%`}},
           {'$Person.primaryOrganizationalUnit$': { [Op.like]: `%(${orgName})%`}}]}))

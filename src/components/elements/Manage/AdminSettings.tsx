@@ -143,6 +143,7 @@ const AdminSettings = () => {
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
                           <Card.Text>
+                          { labelUserView &&
                             <div className="d-flex">
                               <p className={styles.labels}>Label Override</p>
                               <Form.Control
@@ -150,11 +151,12 @@ const AdminSettings = () => {
                                 name="labelOverRide"
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Label override"
-                                value={labelUserView || ""}
+                                value={labelUserView}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "labelUserView", e)}
                               />
                             </div>
-                            { helpTextUserView!=undefined && helpTextUserView!='' &&
+                            }
+                            { helpTextUserView &&
                             <div className="d-flex mt-2 mb-2">
                               <p className={styles.labels}>Help Text</p>
                               <Form.Control
@@ -162,7 +164,7 @@ const AdminSettings = () => {
                                 as="textarea"
                                 className={`form-control ${styles.searchInput} ml-5`}
                                 placeholder="Help text"
-                                value={helpTextUserView || ""}
+                                value={helpTextUserView}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "helpTextUserView", e)}
                               />
                             </div>
@@ -170,7 +172,7 @@ const AdminSettings = () => {
                             {
                               syntax && 
                               <div className="d-flex">
-                              <p className={styles.labels}>Syntax</p>
+                              <p className={styles.labels}>Image Path</p>
                               <Form.Control
                                 type="text"
                                 name="labelOverRide"
@@ -181,7 +183,7 @@ const AdminSettings = () => {
                               />
                             </div>
                             } 
-                          {isVisible != undefined &&
+                          {isVisible &&
                             <div className="d-flex">
                               <p className={styles.labelForCheckBox}>Is visible</p>
                               <div>
@@ -208,19 +210,6 @@ const AdminSettings = () => {
                               />
                             </div>
                            }
-                          {/*  { syntax!=undefined && syntax !='' &&
-                           <div className="d-flex">
-                              <p className={styles.labels}>Image Path</p>
-                              <Form.Control
-                                type="text"
-                                name="syntax"
-                                className={`form-control ${styles.searchInput}`}
-                                placeholder="Image Path"
-                                value={syntax|| ""}
-                                onChange={(e) => handleValueChange(index, index2, "syntax", e)}
-                              />
-                            </div>
-                           } */}
                           </Card.Text>
                         </Card.Body>
                       </Card>
