@@ -172,7 +172,7 @@ const AdminSettings = () => {
                             {
                               syntax && 
                               <div className="d-flex">
-                              <p className={styles.labels}>Syntax</p>
+                              <p className={styles.labels}>Image Path</p>
                               <Form.Control
                                 type="text"
                                 name="labelOverRide"
@@ -210,19 +210,6 @@ const AdminSettings = () => {
                               />
                             </div>
                            }
-                          {/*  { syntax!=undefined && syntax !='' &&
-                           <div className="d-flex">
-                              <p className={styles.labels}>Image Path</p>
-                              <Form.Control
-                                type="text"
-                                name="syntax"
-                                className={`form-control ${styles.searchInput}`}
-                                placeholder="Image Path"
-                                value={syntax|| ""}
-                                onChange={(e) => handleValueChange(index, index2, "syntax", e)}
-                              />
-                            </div>
-                           } */}
                           </Card.Text>
                         </Card.Body>
                       </Card>
