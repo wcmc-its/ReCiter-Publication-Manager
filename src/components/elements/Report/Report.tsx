@@ -72,6 +72,7 @@ const Report = () => {
   const [exportArticleLabels, setExportArticleLabels] = useState([])
   const [reportingWebDisplay, setReportingWebDisplay] = useState([])
   const [isOnlyAuthorFilters, setIsOnlyAuthorFilters] = useState<boolean>(false)
+  const [exportArticlesRTF, setExportArticlesRTF] = useState([])
 
 
 
@@ -93,6 +94,7 @@ const Report = () => {
     var exportAuthorShipCSVLabels = [];
     var exportArticleCSVLabels = [];
     var reportingWeb = [];
+    var exportArticleRTF = [];
 
 
     if (updatedAdminSettings.length > 0) {
@@ -104,6 +106,7 @@ const Report = () => {
       let exportAuthors = updatedAdminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
       let exportArticle = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleCSV")
       let reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
+      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
 
       sortLabelViewAttributes = sortLabelsUpdatedData.viewAttributes;
@@ -113,6 +116,7 @@ const Report = () => {
       exportArticleCSVLabels = exportArticle.viewAttributes;
       exportAuthorShipCSVLabels = exportAuthors.viewAttributes;
       reportingWeb = reportingWebDisplay.viewAttributes;
+      exportArticleRTF = exportRTF.viewAttributes;
 
     } else {
       // regular settings from session
@@ -123,6 +127,7 @@ const Report = () => {
       let exportAuthors = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingAuthorshipCSV")
       let exportArticle = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleCSV")
       let reportingWebDisplay = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebDisplay")
+      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
 
 
       sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
@@ -132,6 +137,7 @@ const Report = () => {
       exportArticleCSVLabels = JSON.parse(exportArticle.viewAttributes);
       exportAuthorShipCSVLabels = JSON.parse(exportAuthors.viewAttributes);
       reportingWeb = JSON.parse(reportingWebDisplay.viewAttributes);
+      exportArticleRTF = JSON.parse(exportRTF.viewAttributes);
 
     }
 
@@ -143,6 +149,7 @@ const Report = () => {
     setExportAuthorShipLabels(exportAuthorShipCSVLabels)
     setExportArticleLabels(exportArticleCSVLabels)
     setReportingWebDisplay(reportingWeb)
+    setExportArticlesRTF(exportArticleRTF)
 
 
     SetIsFirstLoad(true);
@@ -408,6 +415,7 @@ const Report = () => {
             reportLabelsForSort={reportLabelsForSort}
             exportAuthorShipLabels = {exportAuthorShipLabels}
             exportArticleLabels = {exportArticleLabels}
+          exportArticlesRTF = {exportArticlesRTF}
             />
             }
           <Pagination

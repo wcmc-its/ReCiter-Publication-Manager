@@ -208,12 +208,12 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.personTypes &&
           apiBody.filters.personTypes.length > 0
         ) {
-
-           where[Op.and].push({
+          // No need to add personTypes for the export as they are expecting all the personType should be included in excel
+          /* where[Op.and].push({
              "$PersonPersonTypes.personType$": {
                [Op.in]: apiBody.filters.personTypes,
              },
-          });
+          });*/
           isPersonTypeFilter = true;
         }
         where[Op.and].push({
@@ -316,7 +316,7 @@ export const generatePubsPeopleOnlyRtf = async (
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
         order:sort,
         subQuery: false,
-        attributes: [],
+        attributes: ["authors"],
         limit : apiBody.limit
       })
       return searchOutput;
@@ -541,7 +541,7 @@ export const generatePubsPeopleOnlyRtf = async (
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
-          attributes: [],
+          attributes: ["authors"],
           limit : apiBody.limit
         })
       }
@@ -613,7 +613,7 @@ export const generatePubsPeopleOnlyRtf = async (
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
-          attributes: [],
+          attributes: ["authors"],
           limit : apiBody.limit,
           benchmark :true
         })
@@ -710,7 +710,7 @@ export const generatePubsPeopleOnlyRtf = async (
         group: ["AnalysisSummaryAuthor.pmid"],
         order: [],
         subQuery: false,
-        attributes: [],
+        attributes: ["authors"],
         limit : apiBody.limit,
         benchmark :true
       })

@@ -22,3 +22,7 @@
     color:#0d6efd;
     cursor:pointer;
 }
+.errorMessage{
+    margin-left: 10.5rem;
+    color: red;
+}

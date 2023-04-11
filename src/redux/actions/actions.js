@@ -2007,7 +2007,8 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
     let startDate = new Date();
     let endDate = new Date();
     startDate.setDate(endDate.getDate() - 30);
-    let filters ={"datePublicationAddedToEntrezLowerBound" : new Date(startDate).toISOString().slice(0,10)};
+    // let filters = {"datePublicationAddedToEntrezLowerBound" : new Date(startDate).toISOString().slice(0,10)};
+    let filters = {};
     fetch(`/api/db/reports/publication/search`, {
         credentials: "same-origin",
         method: 'POST',
