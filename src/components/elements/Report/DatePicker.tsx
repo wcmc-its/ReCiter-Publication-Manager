@@ -33,7 +33,7 @@ export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,select
   useEffect(() => {
     const { personIdentifers, institutions, orgUnits, personTypes, datePublicationAddedToEntrezLowerBound, datePublicationAddedToEntrezUpperBound } = selectedFilters
     if (personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0) {
-      handleCustomDateRange();
+      // handleCustomDateRange();
     } else {
       setStartDate()
       setEndDate()

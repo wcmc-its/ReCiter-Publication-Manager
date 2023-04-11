@@ -180,6 +180,10 @@ export const labels = {
     issue: "Issue",
     pages: "Pages",
     volume: "Volume",
-  }
+  },
+  authorsInfo:
+  {
+    authors:"Authors",
+  } 
 }
 

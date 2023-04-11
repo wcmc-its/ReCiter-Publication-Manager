@@ -275,7 +275,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
        articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
-       averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreAverage'},
+       averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
        personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
        coAuthorAffiliationEvidence: { dataFormat: 'true'},
     }
@@ -473,7 +473,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
               if (rowName === 'averageClusteringEvidence') {
                 displayArticleDataList = true;
-                articleDataList.push({ name: 'Score of article without clustering: ' + evidence[rowName].clusterScoreModificationOfTotalScore, tags: []});
+                articleDataList.push({ name: 'Score of article without clustering: ' + evidence[rowName].totalArticleScoreWithoutClustering, tags: []});
                 articleDataList.push({ name: 'Average score of cluster: ' + evidence[rowName].clusterScoreAverage, tags: []});
               }
             }

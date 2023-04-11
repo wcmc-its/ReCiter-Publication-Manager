@@ -21,8 +21,9 @@ const SearchSummary = ({
   selected,
   onGetReportsDatabyPubFilters,
   exportAuthorShipLabels,
-  exportArticleLabels
-}: {exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,count: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
+  exportArticleLabels,
+  exportArticlesRTF,
+}: {exportArticlesRTF:any, exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,count: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -78,7 +79,7 @@ const SearchSummary = ({
     let articlesData = {
       personIdentifiers,
       pmids: [...requestBody.pmids],
-      // limit: exportArticleLabels && exportArticleLabels.length > 0 && exportArticleLabels[0].maxLimit
+      limit: exportArticlesRTF && exportArticlesRTF.length > 0 && exportArticlesRTF[0].maxLimit
     }
    
     fetch(`/api/db/reports/publication`, {
@@ -216,6 +217,14 @@ const SearchSummary = ({
       })
     }
 
+    if (labels.authorsInfo) {
+      Object.keys(labels.authorsInfo).forEach(label => {
+          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.authorsInfo[label]), key: label};
+          columns.push(labelObj);
+        })
+    }
+
+
     try {
       let options = {}
       // creating one worksheet in workbook
@@ -236,6 +245,7 @@ const SearchSummary = ({
             itemRow = {...itemRow, ...item[obj]};
           }
         })
+        itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
         worksheet.addRow(itemRow);
       })
 
@@ -300,6 +310,14 @@ const SearchSummary = ({
       })
     }
 
+    
+    if (labels.authorsInfo) {
+      Object.keys(labels.authorsInfo).forEach(label => {
+          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.authorsInfo[label]), key: label};
+          columns.push(labelObj);
+        })
+    }
+
     try {
       // creating one worksheet in workbook
       const worksheet = workbook.addWorksheet(articleFileName);
@@ -318,6 +336,7 @@ const SearchSummary = ({
             itemRow = {...itemRow, ...item[obj]};
           }
         })
+        itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
         worksheet.addRow(itemRow);
       })
 

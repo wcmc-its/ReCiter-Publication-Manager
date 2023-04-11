@@ -65,7 +65,7 @@ const AdminSettings = () => {
       });
   }
 
-  const handleValueChange = (viewLabelIndex, viewAttrIndex, name, e) => {
+  const handleValueChange = (viewLabelIndex?: number, viewAttrIndex?: number, name? : string, e?:any , labelName? : string) => {
     setSettings(settings.map((obj, index1) => {
       if (index1 == viewLabelIndex) {
         return {
@@ -75,6 +75,9 @@ const AdminSettings = () => {
               if (index2 == viewAttrIndex) {
                 //  return innerObj[name] = e.target.value
                 if(name === "isVisible") return { ...innerObj, [name]: !innerObj.isVisible }
+                else if(labelName === "Reporting Article RTF" && e.target.value > 40000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: true }
+                else if(labelName === "Reporting Article RTF" && e.target.value < 40000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: false }
+
                 else return { ...innerObj, [name]: e.target.value }
               }
               else return { ...innerObj }
@@ -137,7 +140,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax} = innerObj;
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax} = innerObj;
                       return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
@@ -197,18 +200,19 @@ const AdminSettings = () => {
                               </div> 
                             </div>
                            }
-                           { maxLimit &&
+                           { maxLimit && maxLimit >= 0 && <>
                            <div className="d-flex">
                               <p className={styles.labels}>Max Limit</p>
                               <Form.Control
-                                type="text"
+                                type="number"
                                 name="maxLimit"
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Max Limit"
                                 value={maxLimit|| ""}
-                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e)}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)}
                               />
                             </div>
+                            {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
                            }
                           </Card.Text>
                         </Card.Body>
