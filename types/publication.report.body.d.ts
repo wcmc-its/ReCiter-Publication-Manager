@@ -1,8 +1,10 @@
 export type GeneratePubsApiBody = {
     personIdentifiers: Array<string>,
-    pmids: Array<number>
+    pmids: Array<number>,
+    limit: number
 }
 
 export type GeneratePubsPeopleOnlyApiBody = {
-    personIdentifiers: Array<string>
+    personIdentifiers: Array<string>,
+    limit: number
 }

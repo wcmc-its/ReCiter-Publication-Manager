@@ -30,12 +30,12 @@ export const generatePubsRtf = async (
   try {
     let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
     let generatePubsRtfOutput: any = [];
-																				 
+								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsRTF (:uids , :pmids)",
+        "CALL generatePubsRTF (:uids , :pmids, :limit)",
         {
-          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(',') },
+          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(','), limit: apiBody.limit },
           raw: true,
         }
       );
@@ -43,9 +43,9 @@ export const generatePubsRtf = async (
 
 																	   
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsNoPeopleRTF ( :pmids)",
+        "CALL generatePubsNoPeopleRTF ( :pmids, :limit)",
         {
-          replacements: { pmids: apiBody.pmids.join(',') },
+          replacements: { pmids: apiBody.pmids.join(','), limit: apiBody.limit },
           raw: true,
         }
       );
@@ -68,9 +68,9 @@ export const generatePubsPeopleOnlyRtf = async (
     try {
       let apiBody: GeneratePubsPeopleOnlyApiBody = JSON.parse(req.body);
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
-        "CALL generatePubsPeopleOnlyRTF (:uids)",
+        "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
         {
-          replacements: { uids: apiBody.personIdentifiers?apiBody.personIdentifiers.join(','):'' },
+          replacements: { uids: apiBody.personIdentifiers?apiBody.personIdentifiers.join(','):'', limit: apiBody.limit },
           raw: true,
         }
       );

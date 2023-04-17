@@ -3,6 +3,7 @@ import { reciterConfig } from '../../../../../../config/local';
 import { generatePubsRtf } from '../../../../../../controllers/db/reports/publication.report.controller';
 import { GeneratePubsApiBody } from '../../../../../../types/publication.report.body';
 
+export const config = { api: { bodyParser: { sizeLimit: '5mb', responseLimit: false } } }
 export default async function handler(req: NextApiRequest,
     res: NextApiResponse<Buffer | string>) {
     if (req.method === "POST") {

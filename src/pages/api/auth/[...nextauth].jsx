@@ -106,9 +106,8 @@ const options = {
         async session(session, token,apiResponse) {
             session.data = token
             //loading adminsettings after creating users specific data as it does not belogs to specific user.
-            const adminSettings = await fetchUpdatedAdminSettings();
-            session.adminSettings = adminSettings;
-            console.log(session)
+            if(session && !session.adminSettings)
+                session.adminSettings = await fetchUpdatedAdminSettings();
             return session
         },
         async jwt(token, apiResponse) {

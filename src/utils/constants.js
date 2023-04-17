@@ -38,6 +38,11 @@ export const setReportFilterLabels = (allFilters, filterLabel) => {
 	return filteredLabel?.labelUserView || ""
 }
 
+export const setReportFilterDisplayRank = (allFilters, filterLabel) => {
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	return filteredLabel?.displayRank || ""
+}
+
 export const setHelptextInfo = (allFilters, filterLabel) => {
 	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.helpTextUserView || ""
