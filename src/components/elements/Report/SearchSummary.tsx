@@ -11,7 +11,7 @@ import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publ
 import Excel from 'exceljs';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { setReportFilterLabels } from "../../../utils/constants";
+import { setReportFilterDisplayRank, setReportFilterLabels } from "../../../utils/constants";
 
 
 const SearchSummary = ({ 
@@ -49,6 +49,7 @@ const SearchSummary = ({
   let authorshipFileName = `AuthorshipReport-ReCiter-${date}`;
   let articleFileName = `ArticleReport-ReCiter-${date}`;
   const articleLimit = exportArticleLabels && exportArticleLabels.length > 0  && exportArticleLabels.find(obj => obj.maxLimit)
+  const articleLimitForRTF = exportArticlesRTF && exportArticlesRTF.length > 0  && exportArticlesRTF.find(obj => obj.maxLimit)
   const authorLimit = exportAuthorShipLabels && exportAuthorShipLabels.length > 0  && exportAuthorShipLabels.find(obj => obj.maxLimit)
 
 
@@ -187,14 +188,14 @@ const SearchSummary = ({
 
     if (labels.person) {
       Object.keys(labels.person).forEach((labelField) => {
-        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.person[labelField]) , key: labelField};
+        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.person[labelField]) , key: labelField, displayRank : setReportFilterDisplayRank(exportAuthorShipLabels, labels.person[labelField]) };
         columns.push(labelObj);
       })
     }
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.articleInfo[articleInfoField]), key: articleInfoField };
+        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.articleInfo[articleInfoField]), key: articleInfoField, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.articleInfo[articleInfoField]) };
         columns.push(labelObj);
       })
     }
@@ -202,7 +203,7 @@ const SearchSummary = ({
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
-          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[articleField]), key: articleField};
+          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[articleField]), key: articleField, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.article[articleField])};
           columns.push(labelObj);
         }
       })
@@ -211,7 +212,7 @@ const SearchSummary = ({
     if (labels.article) {
       Object.keys(labels.article).forEach(label => {
         if (!metrics.article.hasOwnProperty(label)) {
-          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[label]), key: label};
+          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[label]), key: label, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.article[label])};
           columns.push(labelObj);
         }
       })
@@ -219,11 +220,11 @@ const SearchSummary = ({
 
     if (labels.authorsInfo) {
       Object.keys(labels.authorsInfo).forEach(label => {
-          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.authorsInfo[label]), key: label};
+          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.authorsInfo[label]), key: label, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.authorsInfo[label])};
           columns.push(labelObj);
         })
     }
-
+    columns.sort((a: any, b: any) => a.displayRank - b.displayRank)
 
     try {
       let options = {}
@@ -296,7 +297,7 @@ const SearchSummary = ({
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.articleInfo[articleInfoField]), key: articleInfoField };
+        let labelObj = { header: setReportFilterLabels(exportArticleLabels, labels.articleInfo[articleInfoField]), key: articleInfoField, displayRank:setReportFilterDisplayRank(exportArticleLabels, labels.articleInfo[articleInfoField]) };
         columns.push(labelObj);
       })
     }
@@ -304,7 +305,7 @@ const SearchSummary = ({
     if (metrics.article && labels.article) {
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
-          let labelObj = { header:setReportFilterLabels(exportAuthorShipLabels,  labels.article[articleField]), key: articleField};
+          let labelObj = { header:setReportFilterLabels(exportArticleLabels,  labels.article[articleField]), key: articleField, displayRank: setReportFilterDisplayRank(exportArticleLabels,  labels.article[articleField])};
           columns.push(labelObj);
         }
       })
@@ -313,11 +314,11 @@ const SearchSummary = ({
     
     if (labels.authorsInfo) {
       Object.keys(labels.authorsInfo).forEach(label => {
-          let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.authorsInfo[label]), key: label};
+          let labelObj = { header: setReportFilterLabels(exportArticleLabels,labels.authorsInfo[label]), key: label, displayRank:setReportFilterDisplayRank(exportArticleLabels,labels.authorsInfo[label])};
           columns.push(labelObj);
         })
     }
-
+    columns.sort((a: any, b: any) => a.displayRank - b.displayRank)
     try {
       // creating one worksheet in workbook
       const worksheet = workbook.addWorksheet(articleFileName);
@@ -417,6 +418,9 @@ const SearchSummary = ({
         buttonsList={[
           { title: 'Export article report', loading: exportArticleLoading, onClick: exportArticle}
         ]}
+        count = {count}
+        exportArticleCsvLoading = {exportArticleLoading}
+        articleLimit = {articleLimitForRTF}
       />
     </>
   )

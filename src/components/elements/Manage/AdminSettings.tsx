@@ -66,7 +66,9 @@ const AdminSettings = () => {
   }
 
   const handleValueChange = (viewLabelIndex?: number, viewAttrIndex?: number, name? : string, e?:any , labelName? : string) => {
+    console.log('name of the field',name,e);
     setSettings(settings.map((obj, index1) => {
+      console.log('inside map function',obj,index1)
       if (index1 == viewLabelIndex) {
         return {
           ...obj,
@@ -75,8 +77,8 @@ const AdminSettings = () => {
               if (index2 == viewAttrIndex) {
                 //  return innerObj[name] = e.target.value
                 if(name === "isVisible") return { ...innerObj, [name]: !innerObj.isVisible }
-                else if(labelName === "Reporting Article RTF" && e.target.value > 40000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: true }
-                else if(labelName === "Reporting Article RTF" && e.target.value < 40000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: false }
+                else if(labelName === "Reporting Article RTF" && e.target.value > 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: true }
+                else if(labelName === "Reporting Article RTF" && e.target.value < 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: false }
 
                 else return { ...innerObj, [name]: e.target.value }
               }
@@ -140,7 +142,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax} = innerObj;
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,defaultRank} = innerObj;
                       return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
@@ -200,15 +202,29 @@ const AdminSettings = () => {
                               </div> 
                             </div>
                            }
+                           {(displayRank  || isVisible) &&
+                            <div className="d-flex">
+                              <p className={styles.labelForCheckBox}>Display Rank</p>
+                              <Form.Control
+                                type="text"
+                                name="displayRank"
+                                className={`form-control ${styles.searchInput}`}
+                                placeholder="Display Rank"
+                                value={displayRank}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "displayRank", e, obj.viewLabel)}
+                              />
+                            </div>
+                           }
                            { maxLimit && maxLimit >= 0 && <>
                            <div className="d-flex">
                               <p className={styles.labels}>Max Limit</p>
                               <Form.Control
-                                type="number"
+                                type="text"
                                 name="maxLimit"
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Max Limit"
-                                value={maxLimit|| ""}
+                                defaultValue="30000"
+                                value={maxLimit}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)}
                               />
                             </div>
