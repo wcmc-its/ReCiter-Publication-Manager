@@ -142,7 +142,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,defaultRank} = innerObj;
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank} = innerObj;
                       return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
@@ -202,7 +202,7 @@ const AdminSettings = () => {
                               </div> 
                             </div>
                            }
-                           {(displayRank  || isVisible) &&
+                           { (innerObj && innerObj.hasOwnProperty('displayRank')) &&
                             <div className="d-flex">
                               <p className={styles.labelForCheckBox}>Display Rank</p>
                               <Form.Control

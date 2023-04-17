@@ -1,5 +1,5 @@
 import { Button, Dropdown, DropdownButton, Form } from "react-bootstrap";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ExportModal from "./ExportModal";
 import { sortOptions } from "../../../../config/report";
 import { AiOutlineCheck } from "react-icons/ai";
@@ -32,6 +32,8 @@ const SearchSummary = ({
   const [exportAuthorshipCsvLoading, setExportAuthorshipCsvLoading] = useState(false);
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState(false);
   const formatter = new Intl.NumberFormat('en-US')
+  const [formattedSortOptions, serFormatedSOrtOptions] = useState([]);
+
 
   // Search Results
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
@@ -52,6 +54,15 @@ const SearchSummary = ({
   const articleLimitForRTF = exportArticlesRTF && exportArticlesRTF.length > 0  && exportArticlesRTF.find(obj => obj.maxLimit)
   const authorLimit = exportAuthorShipLabels && exportAuthorShipLabels.length > 0  && exportAuthorShipLabels.find(obj => obj.maxLimit)
 
+  useEffect(() => {
+
+    let sortWithDisplayRank = [];
+    Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
+      let labelObj = { labelName: setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]), displayRank: setReportFilterDisplayRank(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]) };
+      sortWithDisplayRank.push(labelObj);
+    })
+    serFormatedSOrtOptions(sortWithDisplayRank.sort((a: any, b: any) => a.displayRank - b.displayRank))
+  }, [])
 
   const handleSelect = (option) => {
     let optionInfo = option.split('_');
@@ -365,19 +376,23 @@ const SearchSummary = ({
         <div className="search-summary-buttons">
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
           {
-            Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
+            formattedSortOptions.map((sortOption, index) => {
               return (
                 <div key={index}>
                   <Dropdown.Item eventKey={`${sortOption}_DESC`} key={`${sortOption}_DESC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
                     {selected.type === sortOption && selected.order === 'DESC' && <AiOutlineCheck />} 
                     {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
-                    {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])}
+                    {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
+                    {sortOption.labelName}
+
                     {<ArrowDownwardIcon />}
                   </Dropdown.Item>
                   <Dropdown.Item eventKey={`${sortOption}_ASC`} key={`${sortOption}_ASC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
                     {selected.type === sortOption && selected.order === 'ASC' && <AiOutlineCheck />} 
                     {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
-                    {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])}
+                    {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
+                    {sortOption.labelName}
+
                     {<ArrowUpwardIcon />}
                   </Dropdown.Item>
                 </div>
