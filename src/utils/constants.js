@@ -34,8 +34,14 @@ export const numberFormation = (number)=> {
 }
 
 export const setReportFilterLabels = (allFilters, filterLabel) => {
+	console.log('Filter Sort options***************',allFilters,filterLabel);
 	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.labelUserView || ""
+}
+
+export const setReportFilterDisplayRank = (allFilters, filterLabel) => {
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	return filteredLabel?.displayRank || ""
 }
 
 export const setHelptextInfo = (allFilters, filterLabel) => {
