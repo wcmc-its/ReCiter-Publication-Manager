@@ -1,12 +1,12 @@
 
 import { Request, Response } from 'express';
 const nodemailer = require("nodemailer");
-const smtpTransport = require("nodemailer-smtp-transport");
+//const smtpTransport = require("nodemailer-smtp-transport");
 
 export async function sendNotification(req) {
     console.log("error*************22222222222222222")
 
-    let transporter = nodemailer.createTransport(smtpTransport({
+    let transporter = nodemailer.createTransport(({//smtpTransport({
         host: 'smtp.med.cornell.edu',
         port: 587,
         secure: true, // true for 465, false for other ports
