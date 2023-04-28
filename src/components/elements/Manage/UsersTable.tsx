@@ -4,6 +4,7 @@ import styles from "./UsersTable.module.css";
 import Image from 'next/image'
 import Link from "next/link";
 import { useRouter } from 'next/router'
+import { Button } from 'react-bootstrap';
 
 interface UsersTableProps {
   data: any
@@ -16,9 +17,9 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
       <thead className={styles.tableHead}>
         <tr className={styles.tableHeadRow}>
           <th className={styles.tableHeadCell}>Name</th>
-          <th className={styles.tableHeadCell}>ID</th>
-          <th className={styles.tableHeadCell}>PersonIdentifier</th>
+          <th className={styles.tableHeadCell}>Department</th>
           <th className={styles.tableHeadCell}>Email</th>
+          <th className={styles.tableHeadCell}>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -27,17 +28,14 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
             const {nameFirst, nameLast, userID,personIdentifier,email} = user;
             return (
               <tr key={index}>
-                <td>{`${nameFirst && nameFirst != "null" ? nameFirst : "" } ${nameLast && nameLast != "null" ? nameLast : ""}`}</td>
-                <td>{userID}</td>
-                <td>{personIdentifier}</td>
+                <td><div>
+                  <p className="text-primary mb-0">{`${nameFirst && nameFirst != "null" ? nameFirst : "" } ${nameLast && nameLast != "null" ? nameLast : ""}`}</p>
+                  <p>person ID: {personIdentifier}</p>
+                  </div>
+                  </td>
+                <td>{""}</td>
                 <td>{email}</td>
-                <td>
-                  <Link href={{pathname:`/admin/users/edit/${userID}`}}>
-                    <div className='d-flex flex-col justify-content-center cursorStyle'>
-                      <Image src="/icons/edit-svgrepo-com.svg" width={20} height={20} alt="Edit" />
-                      <p className='mb-0 p-1 ' >Edit</p>
-                    </div>
-                  </Link>
+                <td> <div> <Button   variant="outline-dark" className='fw-bold' href={`/manageusers/${userID}`} size="sm">Manage User</Button> <Button size="sm" variant="outline-dark"  className='d-none text-light'>Manage Notifications</Button></div>
                 </td>
               </tr>
             )
