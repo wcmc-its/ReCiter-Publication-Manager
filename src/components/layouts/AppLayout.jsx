@@ -24,8 +24,6 @@ export const AppLayout = ({ children }) => {
   const errors = useSelector((state) => state.errors);
 
   useEffect(() => {
-    //routerController()
-
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
@@ -34,18 +32,21 @@ export const AppLayout = ({ children }) => {
   }, [session, loading, errors]);
 
   useEffect(() => {
-   // routerController()
+    if (router?.pathname !== "/report") {
+      dispatch(clearPubSearchFilters());
+    }
+    
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
     }
   }, [router]);
-  const routerController = async ()=>{
 
-    console.log("session", session);
+  const rbaController = async (isRouteChange)=>{
     if(session){
-    let userRoles = JSON.parse(session?.data?.userRoles)
+      let userRoles = JSON.parse(session?.data?.userRoles)
+      console.log("userRoles", userRoles)
     let loggedInUserInfo= session?.data?.databaseUser
     let loggedInUserPersonIdentifier = loggedInUserInfo.personIdentifier;
      let isCuratorSelf = userRoles.some((role)=> role.roleLabel === allowedPermissions.Curator_Self) 
@@ -53,16 +54,44 @@ export const AppLayout = ({ children }) => {
      let isCuratorAll = userRoles.some((role)=> role.roleLabel === allowedPermissions.Curator_All) 
      let isReporterAll = userRoles.some((role)=> role.roleLabel === allowedPermissions.Reporter_All)
 
+      if (router?.pathname === "/curate/[id]") {
+        if(isRouteChange) dispatch(clearPubSearchFilters());
 
-    if(router?.pathname === "/curate/[id]" && isCuratorSelf || isReporterAll ){
-      if(loggedInUserPersonIdentifier === router.query.id){
-      }else{
-        router.back();
+        if (loggedInUserPersonIdentifier !== router.query.id && (isCuratorSelf || isReporterAll) && !isSuperUser && !isCuratorAll) {
+          router.back();
+        } else {
+          // router.back();
+        }
+      } else if (router?.pathname === "/curate") {
+        if(isRouteChange) dispatch(clearPubSearchFilters());
+
+        if (isSuperUser || isCuratorAll){
+        }
+        else router.back();
+
+      } else if (router?.pathname === "/search") {
+        if(isRouteChange) dispatch(clearPubSearchFilters());
+
+        if (!isSuperUser || !isCuratorAll || !isReporterAll) router.back();
+      } else if (router?.pathname === "/report") {
+        if (!isSuperUser || !isReporterAll) router.back();
+      } else {
+        if (!session && !loading) {
+          router.push("/");
+        } else if (errors.length) {
+          router.push("/_error");
+        }
       }
-    }else if(router?.pathname != "/report") {
-      dispatch( clearPubSearchFilters());
-    }else{
-    }
+
+    // if(router?.pathname === "/curate/[id]" && isCuratorSelf || isReporterAll ){
+    //   if(loggedInUserPersonIdentifier === router.query.id){
+    //   }else{
+    //     router.back();
+    //   }
+    // }else if(router?.pathname != "/report") {
+    //   dispatch( clearPubSearchFilters());
+    // }else{
+    // }
   }
   }
 
