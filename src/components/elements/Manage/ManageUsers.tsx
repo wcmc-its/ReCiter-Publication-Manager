@@ -168,7 +168,7 @@ const ManageUsers = () => {
         <div className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</div>
         </Col>
         <Col md={5}>
-          <Button className="my-1 floatRight" onClick={() => router.push("/admin/users/add")}>Add User</Button>
+          <Button className="my-1 floatRight" onClick={() => router.push("/manageusers/add")}>Add User</Button>
         </Col>
       </Row>
       {/* <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button> */}

@@ -604,20 +604,7 @@ export const publicationSearchWithFilter = async (
       }
     } else {
       searchOutput = await models.AnalysisSummaryArticle.findAndCountAll({
-        where: Sequelize.where(
-          Sequelize.fn(
-            "DATEDIFF",
-            Sequelize.literal("CURRENT_DATE"),
-            Sequelize.fn(
-              "STR_TO_DATE",
-              Sequelize.col("datePublicationAddedToEntrez"),
-              "%Y-%m-%d"
-            )
-          ),
-          {
-            [Op.lte]: 30,
-          },
-        ),
+       
         limit: apiBody.limit,
         offset: apiBody.offset,
         distinct : true,
@@ -627,7 +614,6 @@ export const publicationSearchWithFilter = async (
         benchmark: true
       });
     }
-	
     return searchOutput;
   } catch (e) {
     console.log(e);
