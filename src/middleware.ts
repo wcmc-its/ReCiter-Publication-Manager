@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse } from 'next/server'
 import { allowedPermissions } from './utils/constants'
+import {Buffer} from 'buffer/';
 
 
 //middleware should run for these router paths
@@ -13,7 +14,7 @@ export async function middleware(request: NextRequest) {
   
     if(request && request.cookies && request.cookies.has('next-auth.session-token')) 
     {
-      let decodedTokenJson = decodeJwt(request.cookies.get('next-auth.session-token')?.toString);
+      let decodedTokenJson = decodeJwt(request.cookies.get('next-auth.session-token'));
       let allUserRoles ='';
       if(decodedTokenJson && decodedTokenJson.userRoles)
           allUserRoles = decodedTokenJson.userRoles;
