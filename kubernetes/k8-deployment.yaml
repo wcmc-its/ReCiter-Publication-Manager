@@ -117,6 +117,26 @@ spec:
                 key: RECITER_SEARCH_COUNT_PUBMED        
           - name: LOGIN_PROVIDER
             value: SAML
+          - name : ENTITY_ID
+            valueFrom:
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key: ENTITY_ID
+          - name: ASSERT_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key:  ASSERT_ENDPOINT
+          - name: SSO_LOGIN_URL
+            valueFrom:
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key : SSO_LOGIN_URL
+          - name: SSO_LOGOUT_URL
+            valueFrom:
+              secretKeyRef:
+                name: reciter-pm-dev-secrets
+                key : SSO_LOGOUT_URL                      
         ports:
           - containerPort: 3000
             name: reciter-pm
