@@ -99,7 +99,9 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
         const pubmedPublications: any = [];
         let updatedpubs: any = [];
-        let newReciterData = reciterData.reciter.reCiterArticleFeatures
+        // let newReciterData = reciterData.reciter.reCiterArticleFeatures
+        let reCiterArticleFeatures = reciterData.reciter.reCiterArticleFeatures
+        let newReciterData = reCiterArticleFeatures  && reCiterArticleFeatures.length > 0 ?  reCiterArticleFeatures  : []
         pubmedData.forEach(function (publication: any) {
             if (publication.pmid === id) {
                 publication.evidence = []
@@ -133,7 +135,9 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
        // setAllPubs(allPubs - 1);
         const pubmedPublications: any = []
         let updatedpubs: any = [];
-        let newReciterData = reciterData.reciter.reCiterArticleFeatures
+        // let newReciterData = reciterData.reciter.reCiterArticleFeatures
+        let reCiterArticleFeatures = reciterData.reciter.reCiterArticleFeatures
+        let newReciterData = reCiterArticleFeatures  && reCiterArticleFeatures.length > 0 ?  reCiterArticleFeatures  : []
         pubmedData.forEach(function (publication: any) {
             if (publication.pmid === id) {
                 publication.evidence = []
