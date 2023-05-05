@@ -1,6 +1,6 @@
 import {NextRequest, NextResponse } from 'next/server'
 import { allowedPermissions } from './utils/constants'
-import jwt_decode from "jwt-decode";
+import * as jose from "jose";
 
 
 //middleware should run for these router paths
@@ -14,7 +14,7 @@ export async function middleware(request: NextRequest) {
   
     if(request && request.cookies && request.cookies.has('next-auth.session-token')) 
     {
-      let decodedTokenJson = decodeJwt(request.cookies.get('next-auth.session-token'));
+      let decodedTokenJson = jose.decodeJwt(request.cookies.get('next-auth.session-token'));
       let allUserRoles ='';
       if(decodedTokenJson )//&& decodedTokenJson.userRoles)
           allUserRoles = JSON.stringify(decodedTokenJson);//.userRoles;
@@ -110,7 +110,7 @@ function decodeJwt(token:any) {
   //let base64Payload = token.split(".")[1];
   //let payloadBuffer = Buffer.from(base64Payload, "base64");
   //return JSON.parse(payloadBuffer.toString());
-  return jwt_decode(token);
+  //return jwt_decode(token);
 }
 function redirectToLandingPage(request:NextRequest,pathName:any){
   const redirectedUrl = request.nextUrl.clone()
