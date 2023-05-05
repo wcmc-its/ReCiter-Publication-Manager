@@ -14,13 +14,16 @@ export async function middleware(request: NextRequest) {
   
     if(request && request.cookies && request.cookies.has('next-auth.session-token')) 
     {
+      console.log('validating logged in person authorization roles****************************');
       let decodedTokenJson = jose.decodeJwt(request.cookies.get('next-auth.session-token'));
       let allUserRoles ='';
       if(decodedTokenJson )//&& decodedTokenJson.userRoles)
           allUserRoles = JSON.stringify(decodedTokenJson);//.userRoles;
+          console.log('All roles****************************',allUserRoles);
       if (allUserRoles && allUserRoles.length > 0) {
           let userRoles = allUserRoles && allUserRoles?.length > 0 && JSON.parse(allUserRoles)
           userRoles = JSON.parse(userRoles.userRoles);
+          console.log('user roles****************************',userRoles);
           if (userRoles && userRoles.length > 0) {
             
             let loggedInUserInfo = userRoles[0].personIdentifier; //should be reverted after testing
@@ -29,7 +32,7 @@ export async function middleware(request: NextRequest) {
             let isCuratorAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_All)
             let isReporterAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Reporter_All)
 
-           
+            console.log('roles assigned****************************',loggedInUserInfo,isCuratorSelf,isSuperUser,isCuratorAll,isReporterAll);
             if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser) 
             {
                 if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {
