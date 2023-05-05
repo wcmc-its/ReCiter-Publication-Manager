@@ -1,5 +1,5 @@
 import {NextRequest, NextResponse } from 'next/server'
-import { allowedPermissions } from './utils/constants'
+import { allowedPermissions } from './src/utils/constants'
 import * as jose from "jose";
 
 
