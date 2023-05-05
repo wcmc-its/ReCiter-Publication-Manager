@@ -1,6 +1,6 @@
 import {NextRequest, NextResponse } from 'next/server'
 import { allowedPermissions } from './utils/constants'
-import {Buffer} from 'buffer/';
+import jwt_decode from "jwt-decode";
 
 
 //middleware should run for these router paths
@@ -16,10 +16,11 @@ export async function middleware(request: NextRequest) {
     {
       let decodedTokenJson = decodeJwt(request.cookies.get('next-auth.session-token'));
       let allUserRoles ='';
-      if(decodedTokenJson && decodedTokenJson.userRoles)
-          allUserRoles = decodedTokenJson.userRoles;
+      if(decodedTokenJson )//&& decodedTokenJson.userRoles)
+          allUserRoles = JSON.stringify(decodedTokenJson);//.userRoles;
       if (allUserRoles && allUserRoles.length > 0) {
           let userRoles = allUserRoles && allUserRoles?.length > 0 && JSON.parse(allUserRoles)
+          userRoles = JSON.parse(userRoles.userRoles);
           if (userRoles && userRoles.length > 0) {
             
             let loggedInUserInfo = userRoles[0].personIdentifier; //should be reverted after testing
@@ -106,9 +107,10 @@ export async function middleware(request: NextRequest) {
   return res;
 }
 function decodeJwt(token:any) {
-  var base64Payload = token.split(".")[1];
-  var payloadBuffer = Buffer.from(base64Payload, "base64");
-  return JSON.parse(payloadBuffer.toString());
+  //let base64Payload = token.split(".")[1];
+  //let payloadBuffer = Buffer.from(base64Payload, "base64");
+  //return JSON.parse(payloadBuffer.toString());
+  return jwt_decode(token);
 }
 function redirectToLandingPage(request:NextRequest,pathName:any){
   const redirectedUrl = request.nextUrl.clone()
