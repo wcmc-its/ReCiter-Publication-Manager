@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
           userRoles = JSON.parse(userRoles.userRoles);
           if (userRoles && userRoles.length > 0) {
             console.log('userRoles**************************************',userRoles); 
-            let loggedInUserInfo = 'paa2013';//userRoles[0].personIdentifier; 
+            let loggedInUserInfo = userRoles[0].personIdentifier; 
             let isCuratorSelf = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_Self)
             let isSuperUser = userRoles.some((role) => role.roleLabel === allowedPermissions.Superuser)
             let isCuratorAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_All)
