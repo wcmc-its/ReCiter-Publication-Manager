@@ -16,9 +16,9 @@ export async function middleware(request: NextRequest) {
    
   console.log('session request*********************',request); 
   console.log('session token**************************************',request.cookies.get('next-auth.session-token'));
-    if(request && request.cookies && request.cookies.has('next-auth.session-token')) 
+    if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))  
     {
-      let decodedTokenJson = jwt_decode(request.cookies.get('next-auth.session-token'));
+      let decodedTokenJson = jwt_decode(request.cookies.get('next-auth.session-token') || request.cookies.get('__Secure-next-auth.session-token'));
       console.log('session token**************************************',decodedTokenJson);
       let allUserRoles ='';
       if(decodedTokenJson )//&& decodedTokenJson.userRoles)
