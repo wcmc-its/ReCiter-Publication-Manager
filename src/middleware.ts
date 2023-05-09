@@ -14,6 +14,7 @@ export async function middleware(request: NextRequest) {
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
    
+  console.log('session request*********************',request); 
   console.log('session token**************************************',request.cookies.get('next-auth.session-token'));
     if(request && request.cookies && request.cookies.has('next-auth.session-token')) 
     {
