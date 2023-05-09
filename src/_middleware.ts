@@ -10,6 +10,7 @@ export const config = {
 }
 
 export async function middleware(request: NextRequest) {
+ console.log('executing middleware*******************************');
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
    
