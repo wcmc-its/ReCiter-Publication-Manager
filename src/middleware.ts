@@ -14,12 +14,12 @@ export async function middleware(request: NextRequest) {
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
    
-  //console.log('session request*********************',request); 
+  console.log('session request*********************',request); 
   //console.log('session token**************************************',request.cookies.get('next-auth.session-token'));
     if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))  
     {
       let decodedTokenJson = jwt_decode(request.cookies.get('next-auth.session-token') || request.cookies.get('__Secure-next-auth.session-token'));
-      console.log('session token**************************************',decodedTokenJson);
+      console.log('token**************************************',decodedTokenJson);
       let allUserRoles ='';
       if(decodedTokenJson )//&& decodedTokenJson.userRoles)
           allUserRoles = JSON.stringify(decodedTokenJson);//.userRoles;
@@ -121,6 +121,7 @@ function decodeJwt(token:any) {
 function redirectToLandingPage(request:NextRequest,pathName:any){
   console.log('request url*************************************************************** ',request);	
   const redirectedUrl = request.nextUrl.clone()
+   console.log('redirectedUrl*************************************************************** ',redirectedUrl);
   redirectedUrl.pathname =pathName;
   return NextResponse.redirect(redirectedUrl);
 }
