@@ -119,7 +119,7 @@ function decodeJwt(token:any) {
   //return jwt_decode(token);
 }
 function redirectToLandingPage(request:NextRequest,pathName:any){
-  console.log('request url************************',request);	
+  console.log('request url*************************************************************** ',request);	
   const redirectedUrl = request.nextUrl.clone()
   redirectedUrl.pathname =pathName;
   return NextResponse.redirect(redirectedUrl);
