@@ -14,8 +14,8 @@ export async function middleware(request: NextRequest) {
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
    
-  console.log('session request*********************',request); 
-  console.log('session token**************************************',request.cookies.get('next-auth.session-token'));
+  //console.log('session request*********************',request); 
+  //console.log('session token**************************************',request.cookies.get('next-auth.session-token'));
     if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))  
     {
       let decodedTokenJson = jwt_decode(request.cookies.get('next-auth.session-token') || request.cookies.get('__Secure-next-auth.session-token'));
