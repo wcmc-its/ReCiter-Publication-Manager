@@ -29,7 +29,7 @@ interface PrimaryName {
 
 const CurateIndividual = () => {
   const router = useRouter()
-  const  id  = router.query.id
+  const  {id}  = router.query;
   const [newId, setNewId ] = useState<any>();
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
@@ -47,13 +47,17 @@ const CurateIndividual = () => {
 
   useEffect(() => {
     let userPermissions = JSON.parse(session.data?.userRoles);
-    let routerUserId = router.query.id ;
+    if(!id)
+	{
+		return;
+	}
+	console.log('queryParams***********************',id);	
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
-     setNewId(routerUserId);
-     dispatch(identityFetchData(routerUserId));
+     setNewId(id);
+     dispatch(identityFetchData(id));
      fetchData();
-  }, [])
+  }, [id])
 
   const fetchData = () => {
     dispatch(reciterFetchData(id, false));
