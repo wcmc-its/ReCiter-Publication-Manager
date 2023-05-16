@@ -1,8 +1,5 @@
-import getConfig from 'next/config';
-const {publicRuntimeConfig } = getConfig()
 export const getSigninUrl = () => {
-	console.log('Login Provider************************',publicRuntimeConfig.loginProvider);
-    return publicRuntimeConfig.loginProvider !== "SAML"
+    return (process.env.LOGIN_PROVIDER && process.env.NEXT_PUBLIC_LOGIN_PROVIDER !== "SAML")
         ? `${window.location.origin}/login`
         : `${window.location.origin}/api/saml/assert?callbackUrl=/search`;
 };

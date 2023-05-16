@@ -5,7 +5,4 @@ module.exports = {
     domains: ['directory.weill.cornell.edu'],
   },
   swcMinify: true,
-  publicRuntimeConfig: {
-      loginProvider: process.env.LOGIN_PROVIDER,
-  }
 }
