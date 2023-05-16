@@ -1,3 +1,5 @@
+import getConfig from 'next/config';
+const {publicRuntimeConfig } = getConfig()
 export const getSigninUrl = () => {
 	console.log('Login Provider************************',publicRuntimeConfig.loginProvider);
     return publicRuntimeConfig.loginProvider !== "SAML"
