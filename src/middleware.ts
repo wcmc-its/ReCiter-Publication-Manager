@@ -1,6 +1,5 @@
 import {NextRequest, NextResponse } from 'next/server'
 import { allowedPermissions } from './utils/constants'
-//import * as jose from "jose";
 import jwt_decode from "jwt-decode";
 
 
@@ -10,25 +9,19 @@ export const config = {
 }
 
 export async function middleware(request: NextRequest) {
- console.log('executing middleware*******************************');
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
    
-  console.log('session request*********************',request); 
-  //console.log('session token**************************************',request.cookies.get('next-auth.session-token'));
     if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))  
     {
       let decodedTokenJson = jwt_decode(request.cookies.get('next-auth.session-token') || request.cookies.get('__Secure-next-auth.session-token'));
-      console.log('token**************************************',decodedTokenJson);
       let allUserRoles ='';
-      if(decodedTokenJson )//&& decodedTokenJson.userRoles)
-          allUserRoles = JSON.stringify(decodedTokenJson);//.userRoles;
-          console.log('allUserRoles**************************************',allUserRoles);    
+      if(decodedTokenJson )
+          allUserRoles = JSON.stringify(decodedTokenJson);
       if (allUserRoles && allUserRoles.length > 0) {
           let userRoles = allUserRoles && allUserRoles?.length > 0 && JSON.parse(allUserRoles)
           userRoles = JSON.parse(userRoles.userRoles);
           if (userRoles && userRoles.length > 0) {
-            console.log('userRoles**************************************',userRoles); 
             let loggedInUserInfo = userRoles[0].personIdentifier; 
             let isCuratorSelf = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_Self)
             let isSuperUser = userRoles.some((role) => role.roleLabel === allowedPermissions.Superuser)
@@ -37,7 +30,6 @@ export async function middleware(request: NextRequest) {
 
             if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser) 
             {
-               console.log('pathName*******************************',pathName);
                 if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {
                   return redirectToLandingPage(request,'/search');
                 }
@@ -112,16 +104,9 @@ export async function middleware(request: NextRequest) {
   }
   return res;
 }
-function decodeJwt(token:any) {
-  //let base64Payload = token.split(".")[1];
-  //let payloadBuffer = Buffer.from(base64Payload, "base64");
-  //return JSON.parse(payloadBuffer.toString());
-  //return jwt_decode(token);
-}
+
 function redirectToLandingPage(request:NextRequest,pathName:any){
-  console.log('request url*************************************************************** ',request);	
   const redirectedUrl = request.nextUrl.clone()
-   console.log('redirectedUrl*************************************************************** ',redirectedUrl);
   redirectedUrl.pathname =pathName;
   return NextResponse.redirect(redirectedUrl);
 }

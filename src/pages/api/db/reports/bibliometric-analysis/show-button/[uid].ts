@@ -15,12 +15,7 @@ export default async function handler(
       try {
         const bibliometricAnalysis: boolean =
           await showBibliometricAnalysisButton(req, res, uid);
-        console.log(
-          "Show bibliometricAnalysis button for " +
-            uid +
-            ": " +
-            bibliometricAnalysis
-        );
+        
         res.status(200).send(bibliometricAnalysis);
       } catch (err) {
         console.log(

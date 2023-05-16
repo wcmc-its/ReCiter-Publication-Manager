@@ -4,7 +4,6 @@ const nodemailer = require("nodemailer");
 //const smtpTransport = require("nodemailer-smtp-transport");
 
 export async function sendNotification(req) {
-    console.log("error*************22222222222222222")
 
     let transporter = nodemailer.createTransport(({//smtpTransport({
         host: 'smtp.med.cornell.edu',
@@ -39,15 +38,11 @@ export async function sendNotification(req) {
         // }
     };
 
-    console.log("mailOptions", mailOptions)
     // send mail with defined transport object
     transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
-            console.log("error*************123", error)
             return console.log(error);
         }
-        console.log('Message %s sent: %s', info.messageId, info.response);
-        console.log('Message Preview Url: %s', info)
     });
 }
 

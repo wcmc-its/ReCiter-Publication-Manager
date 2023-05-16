@@ -51,7 +51,6 @@ const CurateIndividual = () => {
 	{
 		return;
 	}
-	console.log('queryParams***********************',id);	
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
      setNewId(id);
