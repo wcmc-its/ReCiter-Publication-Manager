@@ -1869,7 +1869,6 @@ export const updatePubFiltersFromSearch = () => {
 // Search Results for Create Reports Page
 export const getReportsResults = (requestBody, paginationUpdate = false) => dispatch => {
     // check if fetching different page of the same results and update loading state accordingly
-    console.log("getReportsResults")
 
     if (paginationUpdate) {
         dispatch({
@@ -2001,7 +2000,6 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
 
 // Default Data for Create Reports Page
 export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => {
-    console.log("getReportsResultsInitial")
     dispatch({
         type: methods.REPORTS_SEARCH_FETCHING
     })
@@ -2326,7 +2324,6 @@ export const  sendNotification = (toEmail, body, subject) =>{
             }
         })
         .then(data => {
-            console.log("dataa is ", data)
             // return data
         })
         .catch(error => {

@@ -1,6 +1,6 @@
 export const getSigninUrl = () => {
-	console.log('Login Provider************************',process.env.NEXT_PUBLIC_LOGIN_PROVIDER);
-    return process.env.NEXT_PUBLIC_LOGIN_PROVIDER !== "SAML"
+	console.log('Login Provider************************',publicRuntimeConfig.loginProvider);
+    return publicRuntimeConfig.loginProvider !== "SAML"
         ? `${window.location.origin}/login`
         : `${window.location.origin}/api/saml/assert?callbackUrl=/search`;
 };
