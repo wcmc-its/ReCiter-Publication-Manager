@@ -11,8 +11,8 @@ metadata:
     alb.ingress.kubernetes.io/healthcheck-port: traffic-port
     alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
   labels:
-    app: reciter-pm-dev
-    environment: dev
+    app: reciter-pm
+    environment: prod
     tier: frontend
     owner: szd2013
 spec:
@@ -22,6 +22,6 @@ spec:
       targetPort: 3000
       protocol: TCP
   selector:
-    app: reciter-pm-dev
+    app: reciter-pm
     tier: frontend
   type: NodePort
