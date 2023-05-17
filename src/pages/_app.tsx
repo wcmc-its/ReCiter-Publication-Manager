@@ -35,7 +35,6 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import { Provider as ReduxProvider } from 'react-redux'
 import { useStore } from '../redux/store/store'
 import type { Page } from '../../types/pages'
-import { Fragment } from 'react'
 import type { AppProps } from 'next/app'
 import { Provider } from "next-auth/client"
 import type { NextPage } from 'next'
@@ -59,6 +58,7 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
   const store = useStore(pageProps.initialReduxState)
   // Use the layout defined at the page level, if available
   const getLayout = Component.getLayout ?? ((page) => page)
+  
 
   return (
     <Provider session={pageProps.session}>

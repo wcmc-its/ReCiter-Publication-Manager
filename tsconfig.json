@@ -34,7 +34,8 @@
     "src/pages/login/index.js",
     "src/components/elements/Navbar/Navbar.jsx",
     "src/components/layouts/AppLayout.jsx",
-    "src/components/elements/Auth/Auth.jsx"
+    "src/components/elements/Auth/Auth.jsx",
+	"src/middleware.ts"
   ],
   "exclude": [
     "node_modules"

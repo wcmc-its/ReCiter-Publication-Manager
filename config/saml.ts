@@ -3,10 +3,10 @@ import fs from 'fs'
 export const reciterSamlConfig = {
 
     saml_options: {
-        entity_id: "https://reciter-dev.weill.cornell.edu",
+        entity_id: process.env.ENTITY_ID,
         private_key: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.key").toString(),
         certificate: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
-        assert_endpoint: "https://reciter-dev.weill.cornell.edu/api/auth/callback/saml",
+        assert_endpoint: process.env.ASSERT_ENDPOINT,
         force_authn: true,
         auth_context: { comparison: "exact", class_refs: ["urn:oasis:names:tc:SAML:1.0:am:password"] },
         nameid_format: "urn:oasis:names:tc:SAML:2.0:nameid-format:transient",
@@ -15,8 +15,8 @@ export const reciterSamlConfig = {
     },
 
     saml_idp_options: {
-        sso_login_url: "https://login-proxy-test.weill.cornell.edu/idp/profile/SAML2/Redirect/SSO",
-        sso_logout_url: "https://login-proxy-test.weill.cornell.edu/idp/profile/SAML2/Redirect/SLO",
+        sso_login_url: process.env.SSO_LOGIN_URL,
+        sso_logout_url: process.env.SSO_LOGOUT_URL,
         certificates: [
             fs.readFileSync(process.cwd() + "/config/certs/idp.crt").toString()
         ],

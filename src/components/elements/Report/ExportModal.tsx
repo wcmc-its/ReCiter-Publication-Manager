@@ -37,7 +37,7 @@ const ExportModal = ({ count, reportsResultsIds,articleLimit,authorLimit, export
                 <p>According to the criteria you have set, there are {countInfo}.</p>
                 {
                   isDownloading &&
-                    <Alert variant="light"><b>The first {exportArticleCsvLoading ? formatter.format(articleLimit?.maxLimit) : formatter.format(authorLimit?.maxLimit)} records will be downloaded.</b></Alert>
+                    <Alert variant="light"><b>Downloading the first {exportArticleCsvLoading ? formatter.format(articleLimit?.maxLimit) : formatter.format(authorLimit?.maxLimit)} records.</b></Alert>
                 }
                 
                 {

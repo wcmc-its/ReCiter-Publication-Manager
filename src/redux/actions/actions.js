@@ -1869,6 +1869,7 @@ export const updatePubFiltersFromSearch = () => {
 // Search Results for Create Reports Page
 export const getReportsResults = (requestBody, paginationUpdate = false) => dispatch => {
     // check if fetching different page of the same results and update loading state accordingly
+
     if (paginationUpdate) {
         dispatch({
             type: methods.REPORTS_SEARCH_PAGINATED_FETCHING
@@ -2006,7 +2007,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
     // set the search filters to get results from the last 30 days and sorted by date
     let startDate = new Date();
     let endDate = new Date();
-    startDate.setDate(endDate.getDate() - 30);
+    // startDate.setDate(endDate.getDate() - 30);
     // let filters = {"datePublicationAddedToEntrezLowerBound" : new Date(startDate).toISOString().slice(0,10)};
     let filters = {};
     fetch(`/api/db/reports/publication/search`, {
@@ -2256,4 +2257,76 @@ export const adminSettingsListAction = (adminSettingsList) => dispatch => {
         type: methods.ADMIN_SETTINGS_LIST,
         payload: adminSettingsList
     })
+}
+
+export const saveNotification = (payload) => dispatch => {
+      fetch(`/api/db/admin/notifications`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+        },
+        body: JSON.stringify(payload)
+      }).then(response => {
+        if (response.status === 200) {
+          return response.json()
+        } else {
+          throw {
+            type: response.type,
+            title: response.statusText,
+            status: response.status,
+            detail: "Error occurred with api " + response.url + ". Please, try again later "
+          }
+        }
+      }).then(data => {
+        // dispatch({
+        //   type: methods.REPORTS_RESULTS_IDS_UPDATE,
+        //   payload: data
+        // })
+        // dispatch({
+        //   type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+        // })
+      }).catch(error => {
+        console.log(error)
+        toast.error("Save notification Api failed - " + error.title, {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+        dispatch(
+          addError(error)
+        )
+      })
+    }
+export const  sendNotification = (toEmail, body, subject) =>{
+    return fetch(`/api/notification`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        },
+        body: ""
+    })
+        .then(response => {
+            if (response.status === 200) {
+                return response.json()
+            } else {
+                // throw {
+                //     type: response.type,
+                //     title: response.statusText,
+                //     status: response.status,
+                //     detail: "Error occurred with api " + response.url + ". Please, try again later "
+                // }
+            }
+        })
+        .then(data => {
+            // return data
+        })
+        .catch(error => {
+            console.log(error)
+        })
 }

@@ -13,7 +13,6 @@ import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContai
 import { reciterConfig } from "../../../config/local";
 import { useDispatch, useSelector } from "react-redux";
 import { clearPubSearchFilters } from "../../redux/actions/actions";
-import { allowedPermissions } from "../../utils/constants";
 
 
 export const AppLayout = ({ children }) => {
@@ -24,8 +23,6 @@ export const AppLayout = ({ children }) => {
   const errors = useSelector((state) => state.errors);
 
   useEffect(() => {
-    //routerController()
-
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
@@ -34,37 +31,16 @@ export const AppLayout = ({ children }) => {
   }, [session, loading, errors]);
 
   useEffect(() => {
-   // routerController()
+    if (router?.pathname !== "/report") {
+      dispatch(clearPubSearchFilters());
+    }
+    
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
     }
   }, [router]);
-  const routerController = async ()=>{
-
-    console.log("session", session);
-    if(session){
-    let userRoles = JSON.parse(session?.data?.userRoles)
-    let loggedInUserInfo= session?.data?.databaseUser
-    let loggedInUserPersonIdentifier = loggedInUserInfo.personIdentifier;
-     let isCuratorSelf = userRoles.some((role)=> role.roleLabel === allowedPermissions.Curator_Self) 
-     let isSuperUser = userRoles.some((role)=> role.roleLabel === allowedPermissions.Superuser) 
-     let isCuratorAll = userRoles.some((role)=> role.roleLabel === allowedPermissions.Curator_All) 
-     let isReporterAll = userRoles.some((role)=> role.roleLabel === allowedPermissions.Reporter_All)
-
-
-    if(router?.pathname === "/curate/[id]" && isCuratorSelf || isReporterAll ){
-      if(loggedInUserPersonIdentifier === router.query.id){
-      }else{
-        router.back();
-      }
-    }else if(router?.pathname != "/report") {
-      dispatch( clearPubSearchFilters());
-    }else{
-    }
-  }
-  }
 
   const handleCloseModal = ()=> {
     setVissibleNoAccessModal(false)

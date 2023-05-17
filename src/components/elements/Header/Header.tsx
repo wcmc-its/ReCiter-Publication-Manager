@@ -6,7 +6,6 @@ import { getSigninUrl } from '../../../utils/loginHelper'
 
 const Header = () => {
     const [session, loading] = useSession()
-    //console.log("session", session);
     return (
         <Navbar bg="primary" className={styles.topNav}>
           <div>
