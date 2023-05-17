@@ -12,16 +12,16 @@ phases:
         - |
           if expr "${BRANCH}" : ".*dev" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
-            aws s3 cp s3://reciter-config/config/saml/idp.crt ./config/certs/idp.crt
-            aws s3 cp s3://reciter-config/config/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
-            aws s3 cp s3://reciter-config/config/saml/reciter-saml.key ./config/certs/reciter-saml.key
+            aws s3 cp s3://reciter-config/dev/config/saml/idp.crt ./config/certs/idp.crt
+            aws s3 cp s3://reciter-config/dev/config/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
+            aws s3 cp s3://reciter-config/dev/config/saml/reciter-saml.key ./config/certs/reciter-saml.key
           fi
         - |
           if expr "${BRANCH}" : ".*master" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-prod"'@'  config/local.js;
-            aws s3 cp s3://reciter-config/config/saml/idp.crt ./config/certs/idp.crt
-            aws s3 cp s3://reciter-config/config/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
-            aws s3 cp s3://reciter-config/config/saml/reciter-saml.key ./config/certs/reciter-saml.key
+            aws s3 cp s3://reciter-config/dev/config/saml/idp.crt ./config/certs/idp.crt
+            aws s3 cp s3://reciter-config/dev/config/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
+            aws s3 cp s3://reciter-config/dev/config/saml/reciter-saml.key ./config/certs/reciter-saml.key
           fi
         - $(aws ecr get-login --no-include-email)
         # - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
