@@ -6,15 +6,15 @@ const nodemailer = require("nodemailer");
 export async function sendNotification(req) {
 
     let transporter = nodemailer.createTransport(({//smtpTransport({
-        host: 'smtp.med.cornell.edu',
-        port: 587,
-        secure: true, // true for 465, false for other ports
+        host: process.env.SMTP_HOST_NAME,
+        port: process.env.SMTP_PORT_NUMBER,
+        secure: true, 
         logger: true,
         debug: true,
         secureConnection: true,
         auth: {
-            user: 'svc_deptdb',
-            pass: 'Lv173A201!LMtu8Bvp'
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASSWORD
         },
         tls:{
             rejectUnAuthorized:true,
