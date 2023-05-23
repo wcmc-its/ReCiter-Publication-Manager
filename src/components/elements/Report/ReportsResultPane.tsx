@@ -5,7 +5,7 @@ import { infoBubblesConfig } from "../../../../config/report";
 import { AuthorsComponent } from "../Common/AuthorsComponent";
 import { Author } from "../../../../types/Author";
 import { reportConfig } from "../../../../config/report";
-import { setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
+import { setHelptextInfo, setReportFilterLabels,setReportFilterDisplayRank } from "../../../utils/constants";
 
 interface ReportsResultPaneProps {
   title: string
@@ -47,27 +47,32 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
     {
       label: setReportFilterLabels(reportingWebDisplay,"Citation count (NIH)") ,
       title:  setHelptextInfo(reportingWebDisplay,"Citation count (NIH)"),
-      value: citationCount
+      value: citationCount,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Citation count (NIH)")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"Percentile Rank"),
       title: setHelptextInfo(reportingWebDisplay,"Percentile Rank"),
-      value: percentileRank
+      value: percentileRank,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Percentile Rank")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"Relative Citation Ratio (NIH)"),
       title: setHelptextInfo(reportingWebDisplay,"Relative Citation Ratio (NIH)"),
-      value: relativeCitationRatio
+      value: relativeCitationRatio,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Relative Citation Ratio (NIH)")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"Journal Rank"),
       title: setHelptextInfo(reportingWebDisplay,"Journal Rank"),
-      value: journalImpactScore1
+      value: journalImpactScore1,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal Rank")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"TrendingPubs score"),
       title: setHelptextInfo(reportingWebDisplay,"TrendingPubs score"),
-      value: trendingPubsScore
+      value: trendingPubsScore,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"TrendingPubs score")
     }
   ]
 
@@ -118,7 +123,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
           <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a>{' '}</span>
           {doi && <span className={styles.midDot}>{' '}<a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>}
           {
-            ADDITIONAL_INFO_CONFIGS.map(({ label, title, value}) => {
+            ADDITIONAL_INFO_CONFIGS.sort((a: any, b: any) => a.displayRank - b.displayRank).map(({ label, title, value}) => {
               return (
                 <DisplayInfo
                   label={label}
