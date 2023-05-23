@@ -16,7 +16,6 @@ export default async function handler(
 ) {
   sendNotification(req);
   // const apiResponse = await sendNotification(req);
-  // console.log("apiResponse ))))))))))))))))))))))))))))))))", apiResponse)
 
   //     if(req.method === "POST") {
   //       if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
@@ -26,7 +25,6 @@ export default async function handler(
   //       //       message: apiResponse.statusMessage
   //       //   })
 
-  //       console.log("apiResponse ))))))))))))))))))))))))))))))))", apiResponse)
   //       } else if(req.headers.authorization === undefined) {
   //         res.status(400).send({
   //           statusCode: 400,

@@ -66,9 +66,7 @@ const AdminSettings = () => {
   }
 
   const handleValueChange = (viewLabelIndex?: number, viewAttrIndex?: number, name? : string, e?:any , labelName? : string) => {
-    console.log('name of the field',name,e);
     setSettings(settings.map((obj, index1) => {
-      console.log('inside map function',obj,index1)
       if (index1 == viewLabelIndex) {
         return {
           ...obj,

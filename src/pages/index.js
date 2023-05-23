@@ -20,7 +20,7 @@ export async function getServerSideProps(ctx) {
         userPermissions = JSON.parse(session.data?.userRoles);
          personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
     }
-    if (process.env.LOGIN_PROVIDER !== "SAML") {
+    if (process.env.NEXT_PUBLIC_LOGIN_PROVIDER !== "SAML") {
         //Redirect to search after login
         if (session && session.data) {
             if (session.data.databaseUser && session.data.databaseUser.status == 0) {
