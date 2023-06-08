@@ -48,6 +48,11 @@ export const setHelptextInfo = (allFilters, filterLabel) => {
 	return filteredLabel?.helpTextUserView || ""
 }
 
+export const setIsVisible = (allFilters, filterLabel) => {
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	return filteredLabel?.isVisible || false; 
+}
+
 export const dropdownItemsSuper = [
 	{ title: 'Create Reports', to: ''},
 	// { title: 'Perform Analysis', to: '/perform-analysis' },

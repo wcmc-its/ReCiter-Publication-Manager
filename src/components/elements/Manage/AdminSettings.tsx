@@ -186,7 +186,7 @@ const AdminSettings = () => {
                               />
                             </div>
                             } 
-                          {isVisible &&
+                          {(innerObj && innerObj.hasOwnProperty('isVisible')) &&
                             <div className="d-flex">
                               <p className={styles.labelForCheckBox}>Is visible</p>
                               <div>
