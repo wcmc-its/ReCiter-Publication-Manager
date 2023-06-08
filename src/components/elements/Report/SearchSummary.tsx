@@ -11,7 +11,7 @@ import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publ
 import Excel from 'exceljs';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { setReportFilterDisplayRank, setReportFilterLabels } from "../../../utils/constants";
+import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible } from "../../../utils/constants";
 
 
 const SearchSummary = ({ 
@@ -58,8 +58,10 @@ const SearchSummary = ({
 
     let sortWithDisplayRank = [];
     Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
-      let labelObj = { labelName: setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]), displayRank: setReportFilterDisplayRank(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]) };
-      sortWithDisplayRank.push(labelObj);
+      let labelObj = { labelName: setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]), displayRank: setReportFilterDisplayRank(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]),isVisible: setIsVisible(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]) };
+      {
+        labelObj.isVisible && sortWithDisplayRank.push(labelObj);
+      }
     })
     serFormatedSOrtOptions(sortWithDisplayRank.sort((a: any, b: any) => a.displayRank - b.displayRank))
   }, [])
@@ -200,14 +202,14 @@ const SearchSummary = ({
     if (labels.person) {
       Object.keys(labels.person).forEach((labelField) => {
         let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.person[labelField]) , key: labelField, displayRank : setReportFilterDisplayRank(exportAuthorShipLabels, labels.person[labelField]) };
-        columns.push(labelObj);
+        if(setIsVisible(exportAuthorShipLabels, labels.person[labelField])) columns.push(labelObj);
       })
     }
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
         let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.articleInfo[articleInfoField]), key: articleInfoField, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.articleInfo[articleInfoField]) };
-        columns.push(labelObj);
+        if(setIsVisible(exportAuthorShipLabels,labels.articleInfo[articleInfoField])) columns.push(labelObj);
       })
     }
 
@@ -215,7 +217,7 @@ const SearchSummary = ({
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[articleField]), key: articleField, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.article[articleField])};
-          columns.push(labelObj);
+          if(setIsVisible(exportAuthorShipLabels,labels.article[articleField])) columns.push(labelObj);
         }
       })
     }
@@ -224,7 +226,7 @@ const SearchSummary = ({
       Object.keys(labels.article).forEach(label => {
         if (!metrics.article.hasOwnProperty(label)) {
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[label]), key: label, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.article[label])};
-          columns.push(labelObj);
+          if(setIsVisible(exportAuthorShipLabels,labels.article[label])) columns.push(labelObj);
         }
       })
     }
@@ -232,7 +234,7 @@ const SearchSummary = ({
     if (labels.authorsInfo) {
       Object.keys(labels.authorsInfo).forEach(label => {
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.authorsInfo[label]), key: label, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.authorsInfo[label])};
-          columns.push(labelObj);
+          if(setIsVisible(exportAuthorShipLabels,labels.authorsInfo[label])) columns.push(labelObj);
         })
     }
     columns.sort((a: any, b: any) => a.displayRank - b.displayRank)
@@ -309,7 +311,7 @@ const SearchSummary = ({
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
         let labelObj = { header: setReportFilterLabels(exportArticleLabels, labels.articleInfo[articleInfoField]), key: articleInfoField, displayRank:setReportFilterDisplayRank(exportArticleLabels, labels.articleInfo[articleInfoField]) };
-        columns.push(labelObj);
+        if(setIsVisible(exportArticleLabels, labels.articleInfo[articleInfoField])) columns.push(labelObj);
       })
     }
     
@@ -317,7 +319,7 @@ const SearchSummary = ({
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
           let labelObj = { header:setReportFilterLabels(exportArticleLabels,  labels.article[articleField]), key: articleField, displayRank: setReportFilterDisplayRank(exportArticleLabels,  labels.article[articleField])};
-          columns.push(labelObj);
+          if(setIsVisible(exportArticleLabels,  labels.article[articleField])) columns.push(labelObj);
         }
       })
     }
@@ -326,7 +328,7 @@ const SearchSummary = ({
     if (labels.authorsInfo) {
       Object.keys(labels.authorsInfo).forEach(label => {
           let labelObj = { header: setReportFilterLabels(exportArticleLabels,labels.authorsInfo[label]), key: label, displayRank:setReportFilterDisplayRank(exportArticleLabels,labels.authorsInfo[label])};
-          columns.push(labelObj);
+          if(setIsVisible(exportArticleLabels,labels.authorsInfo[label])) columns.push(labelObj);
         })
     }
     columns.sort((a: any, b: any) => a.displayRank - b.displayRank)
