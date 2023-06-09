@@ -11,6 +11,19 @@ const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
 
+const fetchAdminUserByCWID = async (cwid) =>{
+    const adminUser = await findAdminUser(cwid, "cwid");
+    if(adminUser)
+    {
+        adminUser.databaseUser = adminUser
+        adminUser.personIdentifier
+        const userRoles = await findUserPermissions(cwid, "cwid");
+        adminUser.userRoles = userRoles;
+        return adminUser;
+    }
+    return false;
+}
+
 const options = {
     providers: [
         Providers.Credentials({
@@ -74,22 +87,19 @@ const options = {
 
                     if(smalUserEmail){
                         const adminUser = await findAdminUser(smalUserEmail,"email")
-                        adminUser.databaseUser = adminUser
-                        adminUser.personIdentifier
-                        const userRoles = await findUserPermissions(smalUserEmail,"email");
-                        adminUser.userRoles = userRoles;
-                        if(adminUser)
-                            return adminUser;
+                        if(adminUser){
+                            adminUser.databaseUser = adminUser
+                            adminUser.personIdentifier
+                            const userRoles = await findUserPermissions(smalUserEmail,"email");
+                            adminUser.userRoles = userRoles;
+                                return adminUser;
+                        }
+                        else{
+                           return fetchAdminUserByCWID(cwid)
+                        }
                     }
                     if (cwid) {
-                        // const adminUser = await findOrCreateAdminUsers(cwid)
-                        const adminUser = await findAdminUser(cwid, "cwid");
-                        adminUser.databaseUser = adminUser
-                        adminUser.personIdentifier
-                        const userRoles = await findUserPermissions(cwid, "cwid");
-                        adminUser.userRoles = userRoles;
-                     
-                        if(adminUser) return adminUser;
+                        return fetchAdminUserByCWID(cwid)
                     }  
 
                     return { cwid, has_access: false };
