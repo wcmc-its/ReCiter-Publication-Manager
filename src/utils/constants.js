@@ -33,6 +33,11 @@ export const numberFormation = (number)=> {
 	return formatedNumber
 }
 
+export const setReportFilterKeyNames = (allFilters, filterLabel) => {
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	return filteredLabel?.labelUserKey || ""
+}
+
 export const setReportFilterLabels = (allFilters, filterLabel) => {
 	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.labelUserView || ""

@@ -6,7 +6,7 @@ import { styled } from '@mui/material/styles';
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
-import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID} from "../../../redux/actions/actions";
+import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { PageHeader } from "../Common/PageHeader";
@@ -86,9 +86,20 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         const newErrors = checkFormValidations()
 
           if ( Object.keys(newErrors).length === 0 ) {
-   
-            let selectedRoleIds = [];
-            let departmentIds = [];
+            let roleIds = [];
+            let departMentIds = [];
+            selectedRoles && selectedRoles.length > 0 && allAdminRoles.map(role => {
+                selectedRoles.map((editRole) => {
+                    if (editRole === role.roleLabel) roleIds.push(role.roleID)
+                })
+            })
+            selectedDepartments && selectedDepartments.length > 0 && adminDepartments.map(department=>{
+                selectedDepartments.map((selectedDep) => {
+                    if (selectedDep === department.departmentLabel) departMentIds.push(department.departmentID)
+                })
+            })
+            let selectedRoleIds = roleIds || [];
+            let departmentIds = departMentIds || [];
             let isEditUserId = router.query.userId;
             let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
 
@@ -108,6 +119,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             }
         }
     };
+
+    useEffect(() => {
+        dispatch(getAdminRoles());
+        dispatch(getAdminDepartments());
+    },[])
 
     useEffect(() => {
         let isEditUserId = router.query.userId;

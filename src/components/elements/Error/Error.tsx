@@ -8,7 +8,7 @@ import styles from "./Error.module.css";
 const Error: React.FC = () => {
     return (
         <>
-        <Header/>
+        {/* <Header/> */}
         <Container className={styles.errorContainer}>
             <Row>
                 <span className={styles.errorText}>
@@ -18,7 +18,7 @@ const Error: React.FC = () => {
                 </span>
             </Row>
         </Container>
-        <Footer/>
+        {/* <Footer/> */}
         </>
     )
 }

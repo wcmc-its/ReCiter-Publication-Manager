@@ -15,7 +15,8 @@ interface ReportsResultPaneProps {
   percentileRank: number
   relativeCitationRatio: number
   trendingPubsScore?: number
-  journalImpactScore1?: number
+  journalImpactScore1?: number,
+  journalImpactScore2?:number,
   authors: Author[]
   journalTitleVerbose: string
   publicationDateDisplay: string
@@ -33,6 +34,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   relativeCitationRatio, 
   trendingPubsScore, 
   journalImpactScore1, 
+  journalImpactScore2,
   authors,
   journalTitleVerbose,
   publicationDateDisplay,
@@ -71,6 +73,13 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
       value: journalImpactScore1,
       displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal Rank"),
       isVisible : setIsVisible(reportingWebDisplay,"Journal Rank")
+    },
+    {
+      label: setReportFilterLabels(reportingWebDisplay,"Journal impact"),
+      title: setHelptextInfo(reportingWebDisplay,"Journal impact"),
+      value: journalImpactScore2,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal impact"),
+      isVisible : setIsVisible(reportingWebDisplay,"Journal impact")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"TrendingPubs score"),
