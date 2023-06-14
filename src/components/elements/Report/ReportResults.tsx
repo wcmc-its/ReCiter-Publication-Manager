@@ -36,6 +36,7 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
             relativeCitationRatio={row.relativeCitationRatioNIH}
             trendingPubsScore={row.trendingPubsScore}
             journalImpactScore1={row.journalImpactScore1}
+            journalImpactScore2={row.journalImpactScore2}
             authors={highlightSelectedAuthors(row.authors, pubSearchFilter)}
             journalTitleVerbose={row.journalTitleVerbose}
             publicationDateDisplay={row.publicationDateDisplay}

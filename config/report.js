@@ -126,13 +126,13 @@ export const metrics = {
   },
   article: {
     journalImpactScore1: true,
-    journalImpactScore2: false,
+    journalImpactScore2: true,
     readersMendeley: true,
     percentileNIH: true,
-    relativeCitationRatioNIH: false,
+    relativeCitationRatioNIH: true,
     trendingPubsScore: true,
     citationCountNIH: true,
-    citationCountScopus: false
+    citationCountScopus: true
   }
 }
 

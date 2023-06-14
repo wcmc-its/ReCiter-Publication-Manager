@@ -11,7 +11,7 @@ import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publ
 import Excel from 'exceljs';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible } from "../../../utils/constants";
+import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible, setReportFilterKeyNames } from "../../../utils/constants";
 
 
 const SearchSummary = ({ 
@@ -58,7 +58,11 @@ const SearchSummary = ({
 
     let sortWithDisplayRank = [];
     Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
-      let labelObj = { labelName: setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]), displayRank: setReportFilterDisplayRank(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]),isVisible: setIsVisible(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]) };
+      let labelObj = { labelName: setReportFilterLabels(reportLabelsForSort,sortOption), 
+        displayRank: setReportFilterDisplayRank(reportLabelsForSort, sortOption),
+        isVisible: setIsVisible(reportLabelsForSort, sortOption),
+        keyName: setReportFilterKeyNames(reportLabelsForSort, sortOption)
+       };
       {
         labelObj.isVisible && sortWithDisplayRank.push(labelObj);
       }
@@ -379,21 +383,22 @@ const SearchSummary = ({
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
           {
             formattedSortOptions.map((sortOption, index) => {
+              const {labelName, keyName} = sortOption || {};
               return (
                 <div key={index}>
-                  <Dropdown.Item eventKey={`${sortOption}_DESC`} key={`${sortOption}_DESC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
-                    {selected.type === sortOption && selected.order === 'DESC' && <AiOutlineCheck />} 
+                  <Dropdown.Item eventKey={`${keyName}_DESC`} key={`${keyName}_DESC`} className={`dropdown-item ${selected.type === keyName && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
+                    {selected.type === keyName && selected.order === 'DESC' && <AiOutlineCheck />} 
                     {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
                     {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
-                    {sortOption.labelName}
+                    {labelName}
 
                     {<ArrowDownwardIcon />}
                   </Dropdown.Item>
-                  <Dropdown.Item eventKey={`${sortOption}_ASC`} key={`${sortOption}_ASC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
-                    {selected.type === sortOption && selected.order === 'ASC' && <AiOutlineCheck />} 
+                  <Dropdown.Item eventKey={`${keyName}_ASC`} key={`${keyName}_ASC`} className={`dropdown-item ${selected.type === keyName && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
+                    {selected.type === keyName && selected.order === 'ASC' && <AiOutlineCheck />} 
                     {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
                     {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
-                    {sortOption.labelName}
+                    {labelName}
 
                     {<ArrowUpwardIcon />}
                   </Dropdown.Item>
@@ -415,7 +420,7 @@ const SearchSummary = ({
         authorLimit= {authorLimit}
         reportsResultsIds = {reportsResultsIds}
         count = {count}
-        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${formatter.format(reportsResultsIds?.personIdentifiers?.length)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
+        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${formatter.format(reportsResultsIds?.personIdentifiers?.length || 0)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
         buttonsList={
           [
             {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
