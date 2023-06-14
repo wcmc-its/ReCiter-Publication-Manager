@@ -34,11 +34,14 @@ export const AppLayout = ({ children }) => {
     if (router?.pathname !== "/report") {
       dispatch(clearPubSearchFilters());
     }
-
+    
+    
     if(router?.pathname === "/manageusers/[userId]") {
       dispatch(getAdminRoles());
       dispatch(getAdminDepartments())
     }
+
+
     
     if (!session && !loading) {
       router.push("/");
@@ -92,5 +95,7 @@ export const AppLayout = ({ children }) => {
         </div>
       </Row>
     </>
-  ) : ""
+  ) : (
+    <NoAccess />
+  );
 };
