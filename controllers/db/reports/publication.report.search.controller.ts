@@ -295,6 +295,12 @@ export const publicationSearchWithFilter = async (
         sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)]) 
       if (sortType === 'trendingPubsScore')
         sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)]) 
+      if (sortType === 'citationCountScopus')
+        sort.push([Sequelize.literal('isnull(citationCountScopus), citationCountScopus '+sortOrder)])
+      if (sortType === 'relativeCitationRatioNIH')
+        sort.push([Sequelize.literal('isnull(relativeCitationRatioNIH), relativeCitationRatioNIH '+sortOrder)])
+      if (sortType === 'journalImpactScore2')
+        sort.push([Sequelize.literal('isnull(journalImpactScore2), journalImpactScore2 '+sortOrder)])
     }
     else
     {
@@ -945,7 +951,6 @@ export const publicationSearchWithFilterPmids = async (
       let sortOrder = apiBody.sort.order ? apiBody.sort.order.toUpperCase() : "DESC"; 
       if (sortType === 'datePublicationAddedToEntrez')
         sort.push([Sequelize.literal('isnull(datePublicationAddedToEntrez), datePublicationAddedToEntrez '+sortOrder)])
-
       if (sortType === 'citationCountNIH')
         sort.push([Sequelize.literal('isnull(citationCountNIH), citationCountNIH '+sortOrder)])
       if (sortType === 'journalImpactScore1')
@@ -958,6 +963,12 @@ export const publicationSearchWithFilterPmids = async (
         sort.push([Sequelize.literal('isnull(readersMendeley), readersMendeley '+sortOrder)])
       if (sortType === 'trendingPubsScore')
         sort.push([Sequelize.literal('isnull(trendingPubsScore), trendingPubsScore '+sortOrder)])
+      if (sortType === 'citationCountScopus')
+        sort.push([Sequelize.literal('isnull(citationCountScopus), citationCountScopus '+sortOrder)])
+      if (sortType === 'relativeCitationRatioNIH')
+        sort.push([Sequelize.literal('isnull(relativeCitationRatioNIH), relativeCitationRatioNIH '+sortOrder)])
+      if (sortType === 'journalImpactScore2')
+        sort.push([Sequelize.literal('isnull(journalImpactScore2), journalImpactScore2 '+sortOrder)])
     }
     else
     {
