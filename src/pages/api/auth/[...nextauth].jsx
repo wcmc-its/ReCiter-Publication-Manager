@@ -3,26 +3,69 @@ import Providers from "next-auth/providers";
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
-import { findAdminUser, findOrCreateAdminUsers } from '../../../../controllers/db/admin.users.controller';
+import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
-import {fetchUpdatedAdminSettings} from '../../../../controllers/db/admin.settings.controller';
+import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
 
-const fetchAdminUserByCWID = async (cwid) =>{
-    const adminUser = await findAdminUser(cwid, "cwid");
+const fetchAdminUserByCWIDOrEmail = async (attrValue,attrIndicator) =>{
+    const adminUser = await findAdminUser(attrValue, attrIndicator);
     if(adminUser)
     {
         adminUser.databaseUser = adminUser
         adminUser.personIdentifier
-        const userRoles = await findUserPermissions(cwid, "cwid");
+        grantDefaultRolesToAdminUser(adminUser);
+        const userRoles = await findUserPermissions(attrValue, attrIndicator);
         adminUser.userRoles = userRoles;
         return adminUser;
     }
     return false;
 }
+const grantDefaultRolesToAdminUser = async(adminUserResp) => {
+
+    let adminUser = adminUserResp;
+    const adminSettings = await findOneAdminSettings('userRoles');
+    if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
+    {
+        let viewAttributes = JSON.parse(adminSettings.viewAttributes);
+        let configuredRoles = [];
+        let assignRolesPayload =[];
+        configuredRoles = viewAttributes && viewAttributes.forEach(attr => {
+            attr.roles.map(role=>{
+                if(role.isChecked && role.roleName !=='Repoter_All' )
+                {
+                    let assignRolePayload = {
+                        'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
+                        'roleID': role.roleId,
+                        'createTimestamp': new Date() 
+                        }
+                        //check for the role assigned to the user or not
+                        assignRolesPayload.push(assignRolePayload);
+                } 
+                
+                })
+
+        });
+        
+        //Adding default Role as Reporter_All regardless of the roles assigned
+            assignRolesPayload.push({
+            'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
+            'roleID': 3,
+            'createTimestamp': new Date()
+            });
+
+        // let  assignRolesPayload1=  findRolesDifference(userRoles,assignRolesPayload);
+        if(assignRolesPayload && assignRolesPayload.length > 0)
+        {
+            const adminSettings = await  findOrCreateAdminUserRole (assignRolesPayload); 
+            return adminSettings;
+        }
+    }
+}
+
 
 const options = {
     providers: [
@@ -36,13 +79,13 @@ const options = {
                   if (apiResponse.statusCode == 200) {
                         const adminUser = await findOrCreateAdminUsers(credentials.username)
                         apiResponse.databaseUser = adminUser;
-                        const userRoles = await findUserPermissions(credentials.username, "cwid");
-                        apiResponse.userRoles = userRoles;
-                      return apiResponse;
+                    const userRoles = await findUserPermissions(credentials.username, "cwid");
+                    apiResponse.userRoles = userRoles;
+                    return apiResponse;
                   } else {
                       return null;
                   }
-                }
+                  } 
             },
         }),
         Providers.Credentials({
@@ -86,20 +129,16 @@ const options = {
                         smalUserEmail = samlEmail['user.email'][0];
 
                     if(smalUserEmail){
-                        const adminUser = await findAdminUser(smalUserEmail,"email")
+                        const adminUser = await fetchAdminUserByCWIDOrEmail(smalUserEmail,"email")
                         if(adminUser){
-                            adminUser.databaseUser = adminUser
-                            adminUser.personIdentifier
-                            const userRoles = await findUserPermissions(smalUserEmail,"email");
-                            adminUser.userRoles = userRoles;
-                                return adminUser;
+                            return adminUser;
                         }
                         else{
-                           return fetchAdminUserByCWID(cwid)
+                           return fetchAdminUserByCWIDOrEmail(cwid,'cwid')
                         }
                     }
                     if (cwid) {
-                        return fetchAdminUserByCWID(cwid)
+                        return fetchAdminUserByCWIDOrEmail(cwid,'cwid')
                     }  
 
                     return { cwid, has_access: false };
