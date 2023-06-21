@@ -17,7 +17,7 @@ const fetchAdminUserByCWIDOrEmail = async (attrValue,attrIndicator) =>{
     {
         adminUser.databaseUser = adminUser
         adminUser.personIdentifier
-        grantDefaultRolesToAdminUser(adminUser);
+        await grantDefaultRolesToAdminUser(adminUser);
         const userRoles = await findUserPermissions(attrValue, attrIndicator);
         adminUser.userRoles = userRoles;
         return adminUser;
@@ -77,8 +77,9 @@ const options = {
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
                   if (apiResponse.statusCode == 200) {
-                        const adminUser = await findOrCreateAdminUsers(credentials.username)
-                        apiResponse.databaseUser = adminUser;
+                       // const adminUser = await findOrCreateAdminUsers(credentials.username)
+                        //apiResponse.databaseUser = adminUser;
+                    await fetchAdminUserByCWIDOrEmail(credentials.username,'cwid')
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
                     apiResponse.userRoles = userRoles;
                     return apiResponse;
@@ -134,11 +135,11 @@ const options = {
                             return adminUser;
                         }
                         else{
-                           return fetchAdminUserByCWIDOrEmail(cwid,'cwid')
+                           return await fetchAdminUserByCWIDOrEmail(cwid,'cwid')
                         }
                     }
                     if (cwid) {
-                        return fetchAdminUserByCWIDOrEmail(cwid,'cwid')
+                        return await fetchAdminUserByCWIDOrEmail(cwid,'cwid')
                     }  
 
                     return { cwid, has_access: false };
