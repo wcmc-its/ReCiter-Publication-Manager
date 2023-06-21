@@ -207,7 +207,7 @@ const AdminSettings = () => {
                               <div>
                                 <Form.Check
                                   type="checkbox"
-                                  id=""
+                                  id="check"
                                   checked={isVisible}
                                 // value={isChecked}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isVisible", e)}
@@ -259,11 +259,11 @@ const AdminSettings = () => {
                             {
                               innerObj && innerObj.hasOwnProperty('isRoleGroup') && roles.map((roleInfo, rolesIndex) => {
                                 const { roleId, roleLabel, isChecked } = roleInfo;
-                                return <div className="d-flex">
+                                return <div className="d-flex" key={`${rolesIndex}`}>
                                   <div>
                                     <Form.Check
                                       type="checkbox"
-                                      id=""
+                                      id="rolecheckbox"
                                       checked={isChecked}
                                       // value={isChecked}
                                       onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isChecked", e, rolesIndex)}
