@@ -41,7 +41,21 @@ export const updateAdminSettings = async (req: NextApiRequest, res: NextApiRespo
         console.log(e)
     }
 };
-
+export const findOneAdminSettings = async (viewName: string) => {
+    
+    try {
+        const adminSettings = await models.AdminSettings.findOne({
+            where: {
+                viewName : viewName
+            },
+            attributes: ["viewName", "viewAttributes", "viewLabel"]
+        });
+        return adminSettings
+    } catch (e) {
+        console.log(e)
+    }
+    
+};
 
 
 

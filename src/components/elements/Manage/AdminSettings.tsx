@@ -8,6 +8,7 @@ import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
 import { Accordion, Button, Form, InputGroup, Card } from "react-bootstrap"
 import Loader from "../Common/Loader";
+import { resolveSrv } from "dns";
 
 const AdminSettings = () => {
 
@@ -77,7 +78,21 @@ const AdminSettings = () => {
                 if(name === "isVisible") return { ...innerObj, [name]: !innerObj.isVisible }
                 else if(labelName === "Reporting Article RTF" && e.target.value > 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: true }
                 else if(labelName === "Reporting Article RTF" && e.target.value < 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: false }
-
+                else if(name === "isChecked" && innerObj.hasOwnProperty('isRoleGroup')){
+                  return {
+                    ...innerObj,
+                    roles:
+                      innerObj.roles.map((rolesInfo, rolesIndex) => {
+                        if(!innerObj.isRoleGroup){
+                          if (rolesIndex === labelName) return { ...rolesInfo, [name]: !rolesInfo.isChecked }
+                          else return { ...rolesInfo }
+                        }else{
+                          if (rolesIndex === labelName) return { ...rolesInfo, [name]: !rolesInfo.isChecked }
+                          else return { ...rolesInfo, [name]: false }
+                        }
+                      })
+                  }
+                }
                 else return { ...innerObj, [name]: e.target.value }
               }
               else return { ...innerObj }
@@ -140,7 +155,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank} = innerObj;
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles} = innerObj;
                       return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
@@ -228,6 +243,36 @@ const AdminSettings = () => {
                             </div>
                             {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
                            }
+                           { helpTextUserView &&
+                            <div className="d-flex mt-2 mb-2">
+                              <p className={styles.labels}>Help Text</p>
+                              <Form.Control
+                                type="textarea"
+                                as="textarea"
+                                className={`form-control ${styles.searchInput} ml-5`}
+                                placeholder="Help text"
+                                value={helpTextUserView}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "helpTextUserView", e)}
+                              />
+                            </div>
+                            }
+                            {
+                              innerObj && innerObj.hasOwnProperty('isRoleGroup') && roles.map((roleInfo, rolesIndex) => {
+                                const { roleId, roleLabel, isChecked } = roleInfo;
+                                return <div className="d-flex">
+                                  <div>
+                                    <Form.Check
+                                      type="checkbox"
+                                      id=""
+                                      checked={isChecked}
+                                      // value={isChecked}
+                                      onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isChecked", e, rolesIndex)}
+                                    />
+                                  </div>
+                                  <p className={styles.rolesLabel}>{roleLabel}</p>
+                                </div>
+                              })
+                            }
                           </Card.Text>
                         </Card.Body>
                       </Card>

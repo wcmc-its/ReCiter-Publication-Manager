@@ -1,14 +1,11 @@
 import React from "react";
 import { Row, Container} from "react-bootstrap";
-import { Footer } from "../Footer/Footer";
-import Header from "../Header/Header";
 import styles from "./NoAccess.module.css"; 
 
 
 const NoAccess: React.FC = () => {
     return (
         <>
-        <Header/>
         <Container className={styles.noAccessContainer}>
             <Row>
                 <span className={styles.noAccessText}>
@@ -18,7 +15,6 @@ const NoAccess: React.FC = () => {
                 </span>
             </Row>
         </Container>
-        <Footer/>
         </>
     )
 }
