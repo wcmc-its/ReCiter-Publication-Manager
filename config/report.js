@@ -90,11 +90,14 @@ export const reportConfig = {
 export const sortOptions = {
   datePublicationAddedToEntrez: true,
   journalImpactScore1: true,
+  journalImpactScore2: true,
   percentileNIH: true,
   citationCountNIH: true,
   trendingPubsScore: true,
-  readersMendeley: false,
-  publicationDateStandarized: false
+  readersMendeley: true,
+  publicationDateStandarized: true,
+  relativeCitationRatioNIH:true,
+  citationCountScopus:true
 }
 
 export const infoBubblesConfig = {
