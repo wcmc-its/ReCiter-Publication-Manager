@@ -174,19 +174,7 @@ const options = {
                                 if(adminUser)
                                     return adminUser;
                             }
-                            else
-                            {
-                                adminUser = await findOrCreateAdminUsers(credentials.CWID)
-                                if(adminUser)
-                                {
-                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    console.log('newly assigned roles**********************',assignedRoles);
-                                    const userRoles = await findUserPermissions(credentials.username, "cwid");
-                                    adminUser.userRoles = userRoles;
-                                    if(adminUser)
-                                        return adminUser;
-                                }     
-                            }  
+                           
                          }
                     }
                     else if(cwid){
@@ -204,7 +192,19 @@ const options = {
                                 if(adminUser)
                                     return adminUser;
                             } 
-                           
+                            else
+                            {
+                                adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                                if(adminUser)
+                                {
+                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                    console.log('newly assigned roles**********************',assignedRoles);
+                                    const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                    adminUser.userRoles = userRoles;
+                                    if(adminUser)
+                                        return adminUser;
+                                }     
+                            }  
                         
                     }
                    else { //create an adminUser and assign default role(REPORTER_ALL) and selected roles from configuration 
