@@ -17,12 +17,14 @@ interface ReportsResultPaneProps {
   trendingPubsScore?: number
   journalImpactScore1?: number,
   journalImpactScore2?:number,
+  citationCountScopus:number,
   authors: Author[]
   journalTitleVerbose: string
   publicationDateDisplay: string
   publicationTypeCanonical: string
   onClickAuthor?: (personalIdentifier: string) => void,
-  reportingWebDisplay:any
+  reportingWebDisplay:any,
+  
 }
 
 export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ 
@@ -35,12 +37,14 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   trendingPubsScore, 
   journalImpactScore1, 
   journalImpactScore2,
+  citationCountScopus,
   authors,
   journalTitleVerbose,
   publicationDateDisplay,
   publicationTypeCanonical,
   onClickAuthor,
   reportingWebDisplay
+  
  }) => {
   const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
   const doiUrl = 'https://doi.org/';
@@ -87,12 +91,20 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
       value: trendingPubsScore,
       displayRank : setReportFilterDisplayRank(reportingWebDisplay,"TrendingPubs score"),
       isVisible : setIsVisible(reportingWebDisplay,"TrendingPubs score")
+    },
+    {
+      label: setReportFilterLabels(reportingWebDisplay,"Citation count (Scopus)"),
+      title: setHelptextInfo(reportingWebDisplay,"Citation count (Scopus)"),
+      value: citationCountScopus,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Citation count (Scopus)"),
+      isVisible : setIsVisible(reportingWebDisplay,"Citation count (Scopus)")
     }
   ]
 
   const HIGHLIGHT_AUTHORS = reportConfig.authorFilters?.list?.author?.isEnabled;
 
   const DisplayInfo = ({ label, title, value}) => {
+    console.log('label title value',value);
     if (value) {
       if (title) {
         return (
@@ -110,6 +122,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
           </OverlayTrigger>
         )
       } else {
+        console.log('value',value)
         return (
           <span className={styles.midDot}>{' '}<span>{`${label}:`}</span>{' '}{value}</span>
         )
