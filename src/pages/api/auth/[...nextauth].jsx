@@ -11,22 +11,7 @@ const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
 
-const fetchAdminUserByCWIDOrEmail = async (attrValue,attrIndicator) =>{
-    const adminUser = await findAdminUser(attrValue, attrIndicator);
-    if(adminUser)
-    {
-        adminUser.databaseUser = adminUser
-        adminUser.personIdentifier
-        await grantDefaultRolesToAdminUser(adminUser);
-        const userRoles = await findUserPermissions(attrValue, attrIndicator);
-        adminUser.userRoles = userRoles;
-        return adminUser;
-    }
-    return false;
-}
-const grantDefaultRolesToAdminUser = async(adminUserResp) => {
-
-    let adminUser = adminUserResp;
+const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
     {
@@ -57,11 +42,10 @@ const grantDefaultRolesToAdminUser = async(adminUserResp) => {
             'createTimestamp': new Date()
             });
 
-        // let  assignRolesPayload1=  findRolesDifference(userRoles,assignRolesPayload);
         if(assignRolesPayload && assignRolesPayload.length > 0)
         {
-            const adminSettings = await  findOrCreateAdminUserRole (assignRolesPayload); 
-            return adminSettings;
+            const userRole = await  findOrCreateAdminUserRole (assignRolesPayload); 
+            return userRole;
         }
     }
 }
@@ -77,9 +61,10 @@ const options = {
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
                   if (apiResponse.statusCode == 200) {
-                       // const adminUser = await findOrCreateAdminUsers(credentials.username)
-                        //apiResponse.databaseUser = adminUser;
-                    await fetchAdminUserByCWIDOrEmail(credentials.username,'cwid')
+                    const adminUser = await findOrCreateAdminUsers(credentials.username)
+                    apiResponse.databaseUser = adminUser;
+                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
+                    console.log('assignedRoles******************************',assignedRoles);
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
                     apiResponse.userRoles = userRoles;
                     return apiResponse;
@@ -124,22 +109,54 @@ const options = {
                     }
                     let dupUser = JSON.stringify(user.attributes);
                     let smalUserEmail = null;
+                    let adminUser =null;
                     if(dupUser)
                         samlEmail = JSON.parse(dupUser);
                     if(samlEmail && samlEmail['user.email'] && samlEmail['user.email'].length > 0)
                         smalUserEmail = samlEmail['user.email'][0];
-
                     if(smalUserEmail){
-                        const adminUser = await fetchAdminUserByCWIDOrEmail(smalUserEmail,"email")
-                        if(adminUser){
-                            return adminUser;
-                        }
-                        else{
-                           return await fetchAdminUserByCWIDOrEmail(cwid,'cwid')
+                       // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
+                          adminUser = await findAdminUser(smalUserEmail,"email")
+                          if(adminUser){
+                            adminUser.databaseUser = adminUser
+                            adminUser.personIdentifier
+                            const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                            console.log('newly assigned roles**********************',assignedRoles);
+                            const userRoles = await findUserPermissions(smalUserEmail,"email");
+                            adminUser.userRoles = userRoles;
+                            if(adminUser)
+                                return adminUser;
                         }
                     }
-                    if (cwid) {
-                        return await fetchAdminUserByCWIDOrEmail(cwid,'cwid')
+                    else if(cwid){
+                             //find an adminUser and if exists then assign default role(REPORTER_ALL) and selected roles from configuration
+                            adminUser = await findAdminUser(credentials.CWID,"cwid")
+                            if(adminUser)
+                            {
+                                adminUser.databaseUser = adminUser
+                                adminUser.personIdentifier
+                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                console.log('newly assigned roles**********************',assignedRoles);
+                                const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                adminUser.userRoles = userRoles;
+                                if(adminUser)
+                                    return adminUser;
+                            } 
+                           
+                        
+                    }
+                   else { //create an adminUser and assign default role(REPORTER_ALL) and selected roles from configuration 
+                         adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                         if(adminUser)
+                         {
+                            const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                            console.log('newly assigned roles**********************',assignedRoles);
+                            const userRoles = await findUserPermissions(credentials.username, "cwid");
+                            adminUser.userRoles = userRoles;
+                            if(adminUser)
+                                return adminUser;
+                         }                              
+
                     }  
 
                     return { cwid, has_access: false };
