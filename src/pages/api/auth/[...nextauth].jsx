@@ -126,7 +126,35 @@ const options = {
                             adminUser.userRoles = userRoles;
                             if(adminUser)
                                 return adminUser;
-                        }
+                         }
+                         else if(cwid)
+                         {
+                            adminUser = await findAdminUser(credentials.CWID,"cwid")
+                            if(adminUser)
+                            {
+                                adminUser.databaseUser = adminUser
+                                adminUser.personIdentifier
+                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                console.log('newly assigned roles**********************',assignedRoles);
+                                const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                adminUser.userRoles = userRoles;
+                                if(adminUser)
+                                    return adminUser;
+                            }    
+                         }
+                         else
+                         {
+                            adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                            if(adminUser)
+                            {
+                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                console.log('newly assigned roles**********************',assignedRoles);
+                                const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                adminUser.userRoles = userRoles;
+                                if(adminUser)
+                                    return adminUser;
+                            }  
+                         }
                     }
                     else if(cwid){
                              //find an adminUser and if exists then assign default role(REPORTER_ALL) and selected roles from configuration
