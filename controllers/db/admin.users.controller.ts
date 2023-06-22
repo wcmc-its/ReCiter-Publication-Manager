@@ -1,5 +1,7 @@
+import { AdminUsersRole } from '../../src/db/models/AdminUsersRole';
 import models from '../../src/db/sequelize'
 import { findOnePerson } from './person.controller'
+import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string) => {
     try {
@@ -14,7 +16,7 @@ export const findOrCreateAdminUsers = async (uid: string) => {
                 nameMiddle: (person && person.middleName)?person.middleName:null,
                 nameLast: (person && person.lastName)?person.lastName:null,
                 createTimestamp: new Date(),
-                status: 0//Start of with no access for everybody(person && person.personIdentifier)? 1:0
+                status: 1//Start of with no access for everybody(person && person.personIdentifier)? 1:0
             }
         })
 
@@ -46,4 +48,38 @@ export const findAdminUser = async (attrValue: string, attrType:string) => {
         })
         return user;
     }
-}
+};
+
+export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => {
+    try {
+
+        const data =  await Promise.all(userRolePayload.map(async role=>{
+            let userRole = JSON.parse(JSON.stringify(role));
+            let userID = userRole.userID;
+            let roleID = userRole.roleID;
+            let createTimestamp = userRole.createTimestamp;
+            const [adminUserRole, created]  = await models.AdminUsersRole.findOrCreate({
+                where: {
+                     [Op.and]: [{userID: userID}, {roleID: roleID}] ,
+                },
+                defaults: {
+                    userID: userID,
+                    roleID: roleID,
+                    createTimestamp: new Date()
+                }
+
+            });
+          
+
+        created?console.log('Role ' + roleID + ' is created for the Admin user with UserId '+userID): 
+            console.log('User ' + userID + ' and role Id '+ roleID +'already exists in adminUsersroles table')
+        
+        console.log(adminUserRole.toJSON())
+        return adminUserRole
+        }));
+        console.log('data************************',data);
+        return data;
+    } catch (e) {
+        console.log(e)
+    }
+};

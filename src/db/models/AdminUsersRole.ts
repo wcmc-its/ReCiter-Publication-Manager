@@ -44,7 +44,7 @@ export class AdminUsersRole extends Model<AdminUsersRoleAttributes, AdminUsersRo
     },
     userID: {
       type: DataTypes.INTEGER,
-      allowNull: true,
+      allowNull: false,
       references: {
         model: 'adminUsers',
         key: 'userID'
@@ -52,7 +52,7 @@ export class AdminUsersRole extends Model<AdminUsersRoleAttributes, AdminUsersRo
     },
     roleID: {
       type: DataTypes.INTEGER,
-      allowNull: true,
+      allowNull: false,
       references: {
         model: 'adminRoles',
         key: 'roleID'
@@ -61,7 +61,7 @@ export class AdminUsersRole extends Model<AdminUsersRoleAttributes, AdminUsersRo
     createTimestamp: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: "0000-00-00 00:00:00"
+      defaultValue: Sequelize.Sequelize.fn('current_timestamp')
     },
     modifyTimestamp: {
       type: DataTypes.DATE,

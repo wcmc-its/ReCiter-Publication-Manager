@@ -12,7 +12,7 @@ import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../config/local";
 import { useDispatch, useSelector } from "react-redux";
-import { clearPubSearchFilters } from "../../redux/actions/actions";
+import { clearPubSearchFilters, getAdminDepartments, getAdminRoles } from "../../redux/actions/actions";
 
 
 export const AppLayout = ({ children }) => {
@@ -35,12 +35,21 @@ export const AppLayout = ({ children }) => {
       dispatch(clearPubSearchFilters());
     }
     
+    
+    if(router?.pathname === "/manageusers/[userId]") {
+      dispatch(getAdminRoles());
+      dispatch(getAdminDepartments())
+    }
+
+
+    
     if (!session && !loading) {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
     }
   }, [router]);
+
 
   const handleCloseModal = ()=> {
     setVissibleNoAccessModal(false)
@@ -61,7 +70,7 @@ export const AppLayout = ({ children }) => {
     session.data.databaseUser &&
     session.data.databaseUser.status == 1 ? (
     <>
-      <Header />
+      {/* <Header /> */}
       <Row className="row-content">
         <ExpandNavContext.Provider
           value={{ expand: expandedNav, updateExpand: toggleExpand }}
@@ -80,9 +89,9 @@ export const AppLayout = ({ children }) => {
             </Col>
             {reciterConfig?.showToasts?<ToastContainerWrapper/>: null}
           </Row>
-          <Row>
+          {/* <Row>
             <Footer />
-          </Row>
+          </Row> */}
         </div>
       </Row>
     </>

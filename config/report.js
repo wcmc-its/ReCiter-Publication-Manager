@@ -90,11 +90,14 @@ export const reportConfig = {
 export const sortOptions = {
   datePublicationAddedToEntrez: true,
   journalImpactScore1: true,
+  journalImpactScore2: true,
   percentileNIH: true,
   citationCountNIH: true,
   trendingPubsScore: true,
-  readersMendeley: false,
-  publicationDateStandarized: false
+  readersMendeley: true,
+  publicationDateStandarized: true,
+  relativeCitationRatioNIH:true,
+  citationCountScopus:true
 }
 
 export const infoBubblesConfig = {
@@ -108,7 +111,7 @@ export const infoBubblesConfig = {
   citationCountNIH: "This is the number of citations an article has received from CrossRef, MEDLINE, PubMed Central, and Entrez. NIH citation counts generally correlate closely with the counts in Scopus and Web of Knowledge.",
   includeHeadshot: true,
   headshotSyntax: "https://directory.weill.cornell.edu/api/v1/person/profile/{personID}.png?returnGenericOn404=false",
-  
+  journalImpactScore2: "An additional journal-level metric"
 }
 
 export const limits = {
@@ -126,13 +129,13 @@ export const metrics = {
   },
   article: {
     journalImpactScore1: true,
-    journalImpactScore2: false,
+    journalImpactScore2: true,
     readersMendeley: true,
     percentileNIH: true,
-    relativeCitationRatioNIH: false,
+    relativeCitationRatioNIH: true,
     trendingPubsScore: true,
     citationCountNIH: true,
-    citationCountScopus: false
+    citationCountScopus: true
   }
 }
 
@@ -152,7 +155,7 @@ export const labels = {
   },
   article: {
     journalImpactScore1: "Scimago Journal Rank",
-    journalImpactScore2: "Journal impact",
+    journalImpactScore2: "Journal Metric",
     readersMendeley: "Mendeley readers",
     percentileNIH: "NIH Percentile Rank",
     relativeCitationRatioNIH: "Relative Citation Ratio (NIH)",

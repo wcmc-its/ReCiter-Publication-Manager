@@ -11,7 +11,7 @@ import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publ
 import Excel from 'exceljs';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { setReportFilterDisplayRank, setReportFilterLabels } from "../../../utils/constants";
+import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible, setReportFilterKeyNames } from "../../../utils/constants";
 
 
 const SearchSummary = ({ 
@@ -58,8 +58,14 @@ const SearchSummary = ({
 
     let sortWithDisplayRank = [];
     Object.keys(sortOptions).filter(option => sortOptions[option] === true).map((sortOption, index) => {
-      let labelObj = { labelName: setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]), displayRank: setReportFilterDisplayRank(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption]) };
-      sortWithDisplayRank.push(labelObj);
+      let labelObj = { labelName: setReportFilterLabels(reportLabelsForSort,sortOption), 
+        displayRank: setReportFilterDisplayRank(reportLabelsForSort, sortOption),
+        isVisible: setIsVisible(reportLabelsForSort, sortOption),
+        keyName: setReportFilterKeyNames(reportLabelsForSort, sortOption)
+       };
+      {
+        labelObj.isVisible && sortWithDisplayRank.push(labelObj);
+      }
     })
     serFormatedSOrtOptions(sortWithDisplayRank.sort((a: any, b: any) => a.displayRank - b.displayRank))
   }, [])
@@ -200,14 +206,14 @@ const SearchSummary = ({
     if (labels.person) {
       Object.keys(labels.person).forEach((labelField) => {
         let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels, labels.person[labelField]) , key: labelField, displayRank : setReportFilterDisplayRank(exportAuthorShipLabels, labels.person[labelField]) };
-        columns.push(labelObj);
+        if(setIsVisible(exportAuthorShipLabels, labels.person[labelField])) columns.push(labelObj);
       })
     }
 
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
         let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.articleInfo[articleInfoField]), key: articleInfoField, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.articleInfo[articleInfoField]) };
-        columns.push(labelObj);
+        if(setIsVisible(exportAuthorShipLabels,labels.articleInfo[articleInfoField])) columns.push(labelObj);
       })
     }
 
@@ -215,7 +221,7 @@ const SearchSummary = ({
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[articleField]), key: articleField, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.article[articleField])};
-          columns.push(labelObj);
+          if(setIsVisible(exportAuthorShipLabels,labels.article[articleField])) columns.push(labelObj);
         }
       })
     }
@@ -224,7 +230,7 @@ const SearchSummary = ({
       Object.keys(labels.article).forEach(label => {
         if (!metrics.article.hasOwnProperty(label)) {
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.article[label]), key: label, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.article[label])};
-          columns.push(labelObj);
+          if(setIsVisible(exportAuthorShipLabels,labels.article[label])) columns.push(labelObj);
         }
       })
     }
@@ -232,7 +238,7 @@ const SearchSummary = ({
     if (labels.authorsInfo) {
       Object.keys(labels.authorsInfo).forEach(label => {
           let labelObj = { header: setReportFilterLabels(exportAuthorShipLabels,labels.authorsInfo[label]), key: label, displayRank:setReportFilterDisplayRank(exportAuthorShipLabels,labels.authorsInfo[label])};
-          columns.push(labelObj);
+          if(setIsVisible(exportAuthorShipLabels,labels.authorsInfo[label])) columns.push(labelObj);
         })
     }
     columns.sort((a: any, b: any) => a.displayRank - b.displayRank)
@@ -309,7 +315,7 @@ const SearchSummary = ({
     if (labels.articleInfo) {
       Object.keys(labels.articleInfo).forEach((articleInfoField) => {
         let labelObj = { header: setReportFilterLabels(exportArticleLabels, labels.articleInfo[articleInfoField]), key: articleInfoField, displayRank:setReportFilterDisplayRank(exportArticleLabels, labels.articleInfo[articleInfoField]) };
-        columns.push(labelObj);
+        if(setIsVisible(exportArticleLabels, labels.articleInfo[articleInfoField])) columns.push(labelObj);
       })
     }
     
@@ -317,7 +323,7 @@ const SearchSummary = ({
       Object.keys(metrics.article).forEach(articleField => {
         if (metrics.article[articleField] == true) {
           let labelObj = { header:setReportFilterLabels(exportArticleLabels,  labels.article[articleField]), key: articleField, displayRank: setReportFilterDisplayRank(exportArticleLabels,  labels.article[articleField])};
-          columns.push(labelObj);
+          if(setIsVisible(exportArticleLabels,  labels.article[articleField])) columns.push(labelObj);
         }
       })
     }
@@ -326,7 +332,7 @@ const SearchSummary = ({
     if (labels.authorsInfo) {
       Object.keys(labels.authorsInfo).forEach(label => {
           let labelObj = { header: setReportFilterLabels(exportArticleLabels,labels.authorsInfo[label]), key: label, displayRank:setReportFilterDisplayRank(exportArticleLabels,labels.authorsInfo[label])};
-          columns.push(labelObj);
+          if(setIsVisible(exportArticleLabels,labels.authorsInfo[label])) columns.push(labelObj);
         })
     }
     columns.sort((a: any, b: any) => a.displayRank - b.displayRank)
@@ -377,21 +383,22 @@ const SearchSummary = ({
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
           {
             formattedSortOptions.map((sortOption, index) => {
+              const {labelName, keyName} = sortOption || {};
               return (
                 <div key={index}>
-                  <Dropdown.Item eventKey={`${sortOption}_DESC`} key={`${sortOption}_DESC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
-                    {selected.type === sortOption && selected.order === 'DESC' && <AiOutlineCheck />} 
+                  <Dropdown.Item eventKey={`${keyName}_DESC`} key={`${keyName}_DESC`} className={`dropdown-item ${selected.type === keyName && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
+                    {selected.type === keyName && selected.order === 'DESC' && <AiOutlineCheck />} 
                     {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
                     {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
-                    {sortOption.labelName}
+                    {labelName}
 
                     {<ArrowDownwardIcon />}
                   </Dropdown.Item>
-                  <Dropdown.Item eventKey={`${sortOption}_ASC`} key={`${sortOption}_ASC`} className={`dropdown-item ${selected.type === sortOption && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
-                    {selected.type === sortOption && selected.order === 'ASC' && <AiOutlineCheck />} 
+                  <Dropdown.Item eventKey={`${keyName}_ASC`} key={`${keyName}_ASC`} className={`dropdown-item ${selected.type === keyName && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
+                    {selected.type === keyName && selected.order === 'ASC' && <AiOutlineCheck />} 
                     {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
                     {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
-                    {sortOption.labelName}
+                    {labelName}
 
                     {<ArrowUpwardIcon />}
                   </Dropdown.Item>
@@ -413,7 +420,7 @@ const SearchSummary = ({
         authorLimit= {authorLimit}
         reportsResultsIds = {reportsResultsIds}
         count = {count}
-        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${formatter.format(reportsResultsIds?.personIdentifiers?.length)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
+        countInfo={ `${formatter.format(reportsResultsIds?.personIdentifiers?.length || 0)} known authorships and ${count ? formatter.format(count) : 0} articles`}
         buttonsList={
           [
             {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
@@ -427,7 +434,7 @@ const SearchSummary = ({
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${count ? formatter.format(count) : 0} articles` : ""}
+        countInfo={`${count ? formatter.format(count) : 0} articles`}
         loadingResults={reportsResultsIdsLoading}
         error={exportError}
         buttonsList={[

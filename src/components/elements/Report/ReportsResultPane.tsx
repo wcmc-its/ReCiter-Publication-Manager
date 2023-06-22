@@ -5,7 +5,7 @@ import { infoBubblesConfig } from "../../../../config/report";
 import { AuthorsComponent } from "../Common/AuthorsComponent";
 import { Author } from "../../../../types/Author";
 import { reportConfig } from "../../../../config/report";
-import { setHelptextInfo, setReportFilterLabels,setReportFilterDisplayRank } from "../../../utils/constants";
+import { setHelptextInfo, setReportFilterLabels,setReportFilterDisplayRank, setIsVisible } from "../../../utils/constants";
 
 interface ReportsResultPaneProps {
   title: string
@@ -15,13 +15,16 @@ interface ReportsResultPaneProps {
   percentileRank: number
   relativeCitationRatio: number
   trendingPubsScore?: number
-  journalImpactScore1?: number
+  journalImpactScore1?: number,
+  journalImpactScore2?:number,
+  citationCountScopus:number,
   authors: Author[]
   journalTitleVerbose: string
   publicationDateDisplay: string
   publicationTypeCanonical: string
   onClickAuthor?: (personalIdentifier: string) => void,
-  reportingWebDisplay:any
+  reportingWebDisplay:any,
+  
 }
 
 export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({ 
@@ -33,12 +36,15 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   relativeCitationRatio, 
   trendingPubsScore, 
   journalImpactScore1, 
+  journalImpactScore2,
+  citationCountScopus,
   authors,
   journalTitleVerbose,
   publicationDateDisplay,
   publicationTypeCanonical,
   onClickAuthor,
   reportingWebDisplay
+  
  }) => {
   const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
   const doiUrl = 'https://doi.org/';
@@ -48,37 +54,57 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
       label: setReportFilterLabels(reportingWebDisplay,"Citation count (NIH)") ,
       title:  setHelptextInfo(reportingWebDisplay,"Citation count (NIH)"),
       value: citationCount,
-      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Citation count (NIH)")
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Citation count (NIH)"),
+      isVisible : setIsVisible(reportingWebDisplay,"Citation count (NIH)")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"Percentile Rank"),
       title: setHelptextInfo(reportingWebDisplay,"Percentile Rank"),
       value: percentileRank,
-      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Percentile Rank")
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Percentile Rank"),
+      isVisible : setIsVisible(reportingWebDisplay,"Percentile Rank")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"Relative Citation Ratio (NIH)"),
       title: setHelptextInfo(reportingWebDisplay,"Relative Citation Ratio (NIH)"),
       value: relativeCitationRatio,
-      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Relative Citation Ratio (NIH)")
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Relative Citation Ratio (NIH)"),
+      isVisible : setIsVisible(reportingWebDisplay,"Relative Citation Ratio (NIH)")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"Journal Rank"),
       title: setHelptextInfo(reportingWebDisplay,"Journal Rank"),
       value: journalImpactScore1,
-      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal Rank")
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal Rank"),
+      isVisible : setIsVisible(reportingWebDisplay,"Journal Rank")
+    },
+    {
+      label: setReportFilterLabels(reportingWebDisplay,"Journal impact"),
+      title: setHelptextInfo(reportingWebDisplay,"Journal impact"),
+      value: journalImpactScore2,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal impact"),
+      isVisible : setIsVisible(reportingWebDisplay,"Journal impact")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"TrendingPubs score"),
       title: setHelptextInfo(reportingWebDisplay,"TrendingPubs score"),
       value: trendingPubsScore,
-      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"TrendingPubs score")
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"TrendingPubs score"),
+      isVisible : setIsVisible(reportingWebDisplay,"TrendingPubs score")
+    },
+    {
+      label: setReportFilterLabels(reportingWebDisplay,"Citation count (Scopus)"),
+      title: setHelptextInfo(reportingWebDisplay,"Citation count (Scopus)"),
+      value: citationCountScopus,
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Citation count (Scopus)"),
+      isVisible : setIsVisible(reportingWebDisplay,"Citation count (Scopus)")
     }
   ]
 
   const HIGHLIGHT_AUTHORS = reportConfig.authorFilters?.list?.author?.isEnabled;
 
   const DisplayInfo = ({ label, title, value}) => {
+    console.log('label title value',value);
     if (value) {
       if (title) {
         return (
@@ -96,8 +122,9 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
           </OverlayTrigger>
         )
       } else {
+        console.log('value',value)
         return (
-          <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value}</span>
+          <span className={styles.midDot}>{' '}<span>{`${label}:`}</span>{' '}{value}</span>
         )
       } 
     } else
@@ -122,9 +149,10 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
        <div className={`${styles.reportsAdditionalInfo} pt-2`}>
           <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a>{' '}</span>
           {doi && <span className={styles.midDot}>{' '}<a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>}
-          {
-            ADDITIONAL_INFO_CONFIGS.sort((a: any, b: any) => a.displayRank - b.displayRank).map(({ label, title, value}) => {
+          { 
+            ADDITIONAL_INFO_CONFIGS.sort((a: any, b: any) => a.displayRank - b.displayRank).map(({ label, title, value,isVisible}) => {
               return (
+                isVisible &&
                 <DisplayInfo
                   label={label}
                   title={title}

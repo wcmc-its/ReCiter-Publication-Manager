@@ -25,6 +25,7 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
     <>
       {
         Object.keys(results).length > 0 && results?.rows && results?.rows?.map((row) => {
+          console.log('row*********************************',row)
           return (
             <ReportsResultPane
             key={row.pmid}
@@ -36,12 +37,15 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
             relativeCitationRatio={row.relativeCitationRatioNIH}
             trendingPubsScore={row.trendingPubsScore}
             journalImpactScore1={row.journalImpactScore1}
+            journalImpactScore2={row.journalImpactScore2}
+            citationCountScopus = {row.citationCountScopus}
             authors={highlightSelectedAuthors(row.authors, pubSearchFilter)}
             journalTitleVerbose={row.journalTitleVerbose}
             publicationDateDisplay={row.publicationDateDisplay}
             publicationTypeCanonical={row.publicationTypeCanonical}
             onClickAuthor={onClickAuthor}
             reportingWebDisplay = {reportingWebDisplay}
+           
           />
         )})
       }

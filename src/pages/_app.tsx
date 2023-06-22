@@ -39,6 +39,8 @@ import type { AppProps } from 'next/app'
 import { Provider } from "next-auth/client"
 import type { NextPage } from 'next'
 import type { ReactElement, ReactNode } from 'react'
+import Header from '../components/elements/Header/Header'
+import { Footer } from '../components/elements/Footer/Footer'
 
 
 // this should give a better typing
@@ -63,7 +65,9 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
   return (
     <Provider session={pageProps.session}>
         <ReduxProvider store={store}>
+        <Header/>
           {getLayout(<Component {...pageProps} />)}
+          <Footer/>
         </ReduxProvider>
     </Provider>
   )
