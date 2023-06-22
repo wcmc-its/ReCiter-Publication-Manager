@@ -181,8 +181,10 @@ const options = {
                              //find an adminUser and if exists then assign default role(REPORTER_ALL) and selected roles from configuration
                              console.log('Tryinh with CWID section*************************');
                              adminUser = await findAdminUser(credentials.CWID,"cwid")
+                             console.log('CWID adminUser********************',adminUser);
                             if(adminUser)
-                            {
+                            {   
+                                console.log('CWID **********************');
                                 adminUser.databaseUser = adminUser
                                 adminUser.personIdentifier
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -194,7 +196,9 @@ const options = {
                             } 
                             else
                             {
+                                console.log('creating an admin user from CWID Else**********************')
                                 adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                                console.log('adminUser in CWID****************',adminUser)
                                 if(adminUser)
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
