@@ -161,7 +161,7 @@ const AdminSettings = () => {
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
                           <Card.Text>
-                          { labelUserView &&
+                          {(innerObj && innerObj.hasOwnProperty('labelUserView'))  &&
                             <div className="d-flex">
                               <p className={styles.labels}>Label Override</p>
                               <Form.Control
@@ -174,7 +174,7 @@ const AdminSettings = () => {
                               />
                             </div>
                             }
-                            { helpTextUserView &&
+                            {(innerObj && innerObj.hasOwnProperty('helpTextUserView')) &&
                             <div className="d-flex mt-2 mb-2">
                               <p className={styles.labels}>Help Text</p>
                               <Form.Control
@@ -187,8 +187,7 @@ const AdminSettings = () => {
                               />
                             </div>
                             }
-                            {
-                              syntax && 
+                            {(innerObj && innerObj.hasOwnProperty('syntax')) && 
                               <div className="d-flex">
                               <p className={styles.labels}>Image Path</p>
                               <Form.Control
@@ -228,7 +227,7 @@ const AdminSettings = () => {
                               />
                             </div>
                            }
-                           { maxLimit && maxLimit >= 0 && <>
+                           { (innerObj && innerObj.hasOwnProperty('maxLimit')) && <>
                            <div className="d-flex">
                               <p className={styles.labels}>Max Limit</p>
                               <Form.Control
@@ -243,19 +242,6 @@ const AdminSettings = () => {
                             </div>
                             {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
                            }
-                           { helpTextUserView &&
-                            <div className="d-flex mt-2 mb-2">
-                              <p className={styles.labels}>Help Text</p>
-                              <Form.Control
-                                type="textarea"
-                                as="textarea"
-                                className={`form-control ${styles.searchInput} ml-5`}
-                                placeholder="Help text"
-                                value={helpTextUserView}
-                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "helpTextUserView", e)}
-                              />
-                            </div>
-                            }
                             {
                               innerObj && innerObj.hasOwnProperty('isRoleGroup') && roles.map((roleInfo, rolesIndex) => {
                                 const { roleId, roleLabel, isChecked } = roleInfo;
