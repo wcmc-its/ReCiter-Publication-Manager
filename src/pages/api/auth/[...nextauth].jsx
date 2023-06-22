@@ -141,7 +141,7 @@ const options = {
                                 adminUser.personIdentifier
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 console.log('newly assigned roles**********************',assignedRoles);
-                                const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                const userRoles = await findUserPermissions(cwid, "cwid");
                                 adminUser.userRoles = userRoles;
                                 if(adminUser)
                                     return adminUser;
@@ -154,7 +154,7 @@ const options = {
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                     console.log('newly assigned roles**********************',assignedRoles);
-                                    const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                    const userRoles = await findUserPermissions(cwid, "cwid");
                                     adminUser.userRoles = userRoles;
                                     if(adminUser)
                                         return adminUser;
@@ -169,7 +169,7 @@ const options = {
                             {
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 console.log('newly assigned roles**********************',assignedRoles);
-                                const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                const userRoles = await findUserPermissions(cwid, "cwid");
                                 adminUser.userRoles = userRoles;
                                 if(adminUser)
                                     return adminUser;
@@ -189,7 +189,7 @@ const options = {
                                 adminUser.personIdentifier
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 console.log('newly assigned roles CWID**********************',assignedRoles);
-                                const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                const userRoles = await findUserPermissions(cwid, "cwid");
                                 adminUser.userRoles = userRoles;
                                 if(adminUser)
                                     return adminUser;
@@ -203,7 +203,7 @@ const options = {
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                     console.log('newly assigned roles**********************',assignedRoles);
-                                    const userRoles = await findUserPermissions(credentials.username, "cwid");
+                                    const userRoles = await findUserPermissions(cwid, "cwid");
                                     adminUser.userRoles = userRoles;
                                     if(adminUser)
                                         return adminUser;
@@ -218,7 +218,7 @@ const options = {
                          {
                             const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                             console.log('newly assigned roles**********************',assignedRoles);
-                            const userRoles = await findUserPermissions(credentials.username, "cwid");
+                            const userRoles = await findUserPermissions(cwid, "cwid");
                             adminUser.userRoles = userRoles;
                             if(adminUser)
                                 return adminUser;
