@@ -111,7 +111,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
         )
       } else {
         return (
-          <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value}</span>
+          <span className={styles.midDot}>{' '}<span>{`${label}:`}</span>{' '}{value}</span>
         )
       } 
     } else

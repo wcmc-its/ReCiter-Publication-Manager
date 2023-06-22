@@ -420,7 +420,7 @@ const SearchSummary = ({
         authorLimit= {authorLimit}
         reportsResultsIds = {reportsResultsIds}
         count = {count}
-        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${formatter.format(reportsResultsIds?.personIdentifiers?.length || 0)} known authorships and ${count ? formatter.format(count) : 0} articles` : ""}
+        countInfo={ `${formatter.format(reportsResultsIds?.personIdentifiers?.length || 0)} known authorships and ${count ? formatter.format(count) : 0} articles`}
         buttonsList={
           [
             {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
@@ -434,7 +434,7 @@ const SearchSummary = ({
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={Object.keys(reportsResultsIds)?.length > 0 ? `${count ? formatter.format(count) : 0} articles` : ""}
+        countInfo={`${count ? formatter.format(count) : 0} articles`}
         loadingResults={reportsResultsIdsLoading}
         error={exportError}
         buttonsList={[
