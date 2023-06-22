@@ -16,7 +16,7 @@ export const findOrCreateAdminUsers = async (uid: string) => {
                 nameMiddle: (person && person.middleName)?person.middleName:null,
                 nameLast: (person && person.lastName)?person.lastName:null,
                 createTimestamp: new Date(),
-                status: 0//Start of with no access for everybody(person && person.personIdentifier)? 1:0
+                status: 1//Start of with no access for everybody(person && person.personIdentifier)? 1:0
             }
         })
 
@@ -53,7 +53,7 @@ export const findAdminUser = async (attrValue: string, attrType:string) => {
 export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => {
     try {
 
-        userRolePayload.map(async role=>{
+        const data =  await Promise.all(userRolePayload.map(async role=>{
             let userRole = JSON.parse(JSON.stringify(role));
             let userID = userRole.userID;
             let roleID = userRole.roleID;
@@ -72,12 +72,13 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
           
 
         created?console.log('Role ' + roleID + ' is created for the Admin user with UserId '+userID): 
-            console.log('User ' + userID + ' and role Id'+ roleID +'already exists in adminUsersroles table')
+            console.log('User ' + userID + ' and role Id '+ roleID +'already exists in adminUsersroles table')
         
         console.log(adminUserRole.toJSON())
         return adminUserRole
-        });
-
+        }));
+        console.log('data************************',data);
+        return data;
     } catch (e) {
         console.log(e)
     }
