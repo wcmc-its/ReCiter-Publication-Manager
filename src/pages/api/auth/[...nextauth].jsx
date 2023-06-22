@@ -133,7 +133,7 @@ const options = {
                          else if(cwid)
                          {
                             console.log('CWID section*************************');
-                            adminUser = await findAdminUser(credentials.CWID,"cwid")
+                            adminUser = await findAdminUser(cwid,"cwid")
                             if(adminUser)
                             {
                                 console.log('found adminUser with CWID******************************')
@@ -149,7 +149,7 @@ const options = {
                             else
                             {
                                 console.log('creating an adminUser after cound not find with Email and CWID*************************');
-                                adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                                adminUser = await findOrCreateAdminUsers(cwid)
                                 if(adminUser)
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -164,7 +164,7 @@ const options = {
                          else
                          {
                             console.log('else CWID section*************************');
-                            adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                            adminUser = await findOrCreateAdminUsers(cwid)
                             if(adminUser)
                             {
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -179,8 +179,8 @@ const options = {
                     }
                     else if(cwid){
                              //find an adminUser and if exists then assign default role(REPORTER_ALL) and selected roles from configuration
-                             console.log('Tryinh with CWID section*************************');
-                             adminUser = await findAdminUser(credentials.CWID,"cwid")
+                             console.log('Tryinh with CWID section*************************',cwid);
+                             adminUser = await findAdminUser(cwid,"cwid")
                              console.log('CWID adminUser********************',adminUser);
                             if(adminUser)
                             {   
@@ -197,7 +197,7 @@ const options = {
                             else
                             {
                                 console.log('creating an admin user from CWID Else**********************')
-                                adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                                adminUser = await findOrCreateAdminUsers(cwid)
                                 console.log('adminUser in CWID****************',adminUser)
                                 if(adminUser)
                                 {
@@ -213,7 +213,7 @@ const options = {
                     }
                    else { //create an adminUser and assign default role(REPORTER_ALL) and selected roles from configuration 
                         console.log('couldnt find with SAML and CWID. So creating one***********************'); 
-                        adminUser = await findOrCreateAdminUsers(credentials.CWID)
+                        adminUser = await findOrCreateAdminUsers(cwid)
                          if(adminUser)
                          {
                             const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
