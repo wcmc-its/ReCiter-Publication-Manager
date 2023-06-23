@@ -1,0 +1,97 @@
+/* Subgrid of content section in main-container */
+
+.searchContentContainer {
+    grid-row-start: page-content;
+    display: grid;
+    grid-template-rows: [search-bar] auto [search-table] auto [start-footer];
+}
+
+.searchBar {
+    grid-row-start: search-bar;
+    padding: 1rem 0rem;
+    color: #555;
+}
+
+.individualLink {
+    color: #337ab7;
+    cursor: pointer;
+}
+
+.dropdownMenu {
+  max-height: 200px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.textButton {
+  color: #0d6efd;
+  cursor: pointer;
+}
+
+.searchFormContainer {
+  background: #efefef;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  padding: 20px;
+  margin: inherit;
+  margin-bottom: 30px;
+}
+
+.searchFormLabel {
+  font-weight: bold;
+  color: #333;
+}
+
+.table > thead {
+  background-color: #2E414F;
+  color: #fff;
+}
+
+.table th:first-child {
+  padding-left: 30px;
+}
+
+.table tr td:first-child {
+  padding-left: 30px;
+}
+
+.table tr td p {
+  margin: auto;
+  line-height: 1.3;
+  padding: 0.2rem 0;
+}
+
+.table tr {
+  border-color: black;
+}
+
+.table {
+  border: 1px solid;
+  border-left-color: black;
+  border-right-color: black;
+}
+
+.table tbody {
+  background-color: #fff;
+}
+
+.table tr a {
+  text-decoration: none;
+  color: #337ab7;
+}
+
+.noitemsList {
+  text-align: center;
+  margin: 10px 0px;
+  padding: 0px;
+  font-size: 16px;
+  font-weight: 300;
+}
+
+.btnLink {
+  text-decoration: none;
+  color: #337ab7;
+  background: none;
+  border: none;
+  padding: 0px;
+}

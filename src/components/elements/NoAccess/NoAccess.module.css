@@ -1,0 +1,12 @@
+.noAccessContainer {
+    display: flex;
+    justify-content: center;
+    height: 100vh;
+}
+
+.noAccessText {
+    color: red;
+    text-align: center;
+    margin-top: 25px;
+    font-size: 20px;
+}

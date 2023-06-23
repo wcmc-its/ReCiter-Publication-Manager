@@ -1,0 +1,168 @@
+:root {
+  --wcm-orange: #cf4520;
+}
+
+html,
+#root {
+  height: 100vh;
+}
+
+body {
+  height: 100vh;
+  background: #fff !important;
+}
+
+#root > div {
+  height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#__next {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+.row-content {
+  flex: 1;
+}
+
+.drawer-container {
+  height: 0px;
+}
+
+.btn-primary.primary {
+  background: #337ab7;
+  border-color: #337ab7;
+}
+
+.btn-primary.primary:hover {
+  background: #549ad8;
+}
+
+.transparent-btn.btn.btn-primary {
+  background-color: #ffffff;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  margin-left: 10px;
+  color: #333333;
+}
+
+.text-btn, .transparent-button {
+  color: #0d6efd !important;
+  text-decoration: underline;
+  cursor: pointer !important;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+.modal-backdrop.show {
+  z-index: 2055;
+}
+
+.modal.show {
+  z-index: 2055;
+}
+
+.modal.show {
+  z-index: 2055 ;
+}
+
+.modal.fade {
+  transition: none;
+}
+
+h1 {
+  font-weight: 200 !important;
+  color: #666363;
+  font-size: 20px !important;
+  font-family: Open Sans, sans-serif, Arial;
+  padding-bottom: 10px;
+}
+
+.table {
+  vertical-align: middle !important;
+}
+
+.wcm-primary-lg.btn {
+  background-color: var(--wcm-orange);
+  border: none;
+  font-size: 1.3rem;
+  padding: 0.525rem 1.25rem;
+}
+
+.text-button {
+  color: #0d6efd;
+  cursor: pointer;
+}
+
+.break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+.DateRangePickerInput {
+  display: flex !important;
+  align-items: center;
+}
+
+.border-right-0 {
+  border-right: 0px !important;
+}
+
+.border-top-right-radius-0 {
+  border-top-right-radius: 0px !important;
+}
+
+.border-bottom-right-radius-0 {
+  border-bottom-right-radius: 0px !important;
+}
+
+.border-grey {
+  border: 1px solid #ced4da;
+}
+
+.rounded-right {
+  border-top-right-radius: 0.25rem;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.dropdown .btn-white {
+  background-color: white;
+  border: 1px solid #ced4da;
+}
+
+.text-decoration-underline-dotted {
+  text-decoration: underline dotted;
+}
+
+.noSpace{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.cursorStyle{
+  cursor: pointer !important;
+}
+.menuDisplayNone{
+  display:none !important;
+}
+.floatRight{
+  float: right;
+}
+.textAlignCenter{
+  text-align: center !important;
+}
+.fullWidth{
+  width:100%
+}

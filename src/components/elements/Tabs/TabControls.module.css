@@ -1,0 +1,31 @@
+.tabControlsContainer {
+    background: #efefef;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.acceptAll {
+    margin-right: 10px;
+}
+
+.rejectAll {
+    margin-right: 10px;
+}
+
+.tabControlsContainer .filterContainer {
+    float: right;
+    min-width: 390px;
+}
+.tabControlsContainer .filterContainer input {
+    float: right;
+    max-width: 200px;
+    margin-right: 10px;
+}
+.tabControlsContainer .filterContainer .dropdown {
+    float: right;
+}
+.tabControlsContainer .btn-default.disabled {
+    color: #777;
+    background-color: #ffffff;
+    border-color: #ccc;
+}

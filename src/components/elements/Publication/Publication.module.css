@@ -1,0 +1,263 @@
+.mainContainer {
+    font-family: 'Helvetica Neue', Helvetica;
+}
+
+
+.publicationField {
+    line-height: 1.1em !important;
+}
+
+
+.publicationCitation {
+    display: none;
+}
+
+.publicationShowEvidenceContainer {
+    display: none;
+    margin-top: 20px;
+}
+.publicationShowEvidenceContainer.publicationShowEvidenceContainerOpen {
+    display: block;
+}
+.publicationEvidenceBar {
+    margin-left: 0px !important;
+    margin-bottom: 15px !important;
+}
+
+.publicationShowEvidenceLink publication-evidence-hide {
+    margin-left: -10px;
+}
+
+.publicationsEvidenceTable {
+    font-size: 14px;
+}
+.publicationsEvidenceTable thead th {
+    background: #202B3C;
+    color: #fff;
+    padding: 10px;
+    text-align: center;
+}
+.publicationsEvidenceTable td {
+    padding: 5px 10px;
+}
+.publicationsEvidenceTable tbody {
+  border-top: none;
+}
+.publicationsEvidenceTable thead .firstCell {
+    text-align: right !important;
+    border-left: none;
+}
+
+.publicationsEvidenceTable p {
+    margin: 5px 0px;
+}
+
+.publicationButtons {
+    text-align: center;
+    padding-top: 23px !important;
+    padding-left: 0px;
+    vertical-align: baseline;
+}
+.publicationContent {
+    padding-top: 20px !important;
+    width : 850px !important;
+    
+}
+.publicationAccept {
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 5px;
+    background-color: #66FF66;
+    color:black;
+}
+.publicationReject {
+    font-size: 12px;
+    font-weight: 600;
+}
+.publicationUndo {
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 5px;
+}
+.publicationScore {
+    display: inline-block;
+    background: #202B3C;
+    color: #ffffff;
+    border-radius: 4px;
+    text-align: center;
+    padding: 7px 15px;
+    line-height: 1.2em;
+    margin-top: 20px;
+    font-size: 14px;
+}
+.publicationScore strong {
+    display: block;
+    font-size: 28px;
+    text-align: center;
+    padding: 10px 0px 10px 0px;
+}
+.publicationContent p {
+    line-height: 1.1em;
+}
+
+.publicationRowButtons {
+    float: right;
+}
+.publicationRowButtons button {
+    background-color: #ffffff;
+    font-size: 12px;
+    border: 1px solid #ccc;
+    margin-left: 10px;
+    color: #333333;
+}
+.publicationRowButtons button:hover {
+  background-color: #f5f5f5;
+  color: #333333;
+  border-color: #ccc;
+}
+.publicationShowEvidenceContainer {
+    font-size: 14px;
+}
+.publicationShowEvidenceLink {
+    color: #337ab7;
+    cursor: pointer;
+}
+.cursorPointer{
+  cursor: pointer;
+}
+.publicationShowEvidenceLink.publicationEvidenceShow::before {
+    content: '-';
+    padding: 10px 10px 10px 0;
+    font-size: 26px;
+}
+
+.publicationShowEvidenceLink.publicationEvidenceHide::before {
+    content: '+';
+    padding: 10px 10px 10px 0;
+    font-size: 26px;
+}
+
+.publicationShowEvidenceLink {
+    text-decoration: none !important;
+}
+.publicationShowEvidenceLink:hover {
+    text-decoration: none;
+}
+
+.publicationAuthorHighlighted {
+    background-color: #fffdd4;
+}
+
+.evidenceScorePopupContainer {
+    text-align: left;
+    max-width: 300px;
+}
+
+.reciterType {
+  display: inline-block;
+  background: #d9d9d9;
+  border-radius: 2px;
+  text-align: center;
+  padding: 5px;
+  line-height: 1em;
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  font-stretch: normal;
+  font-style: normal;
+  line-height: normal;
+  letter-spacing: normal;
+  color: #0a0e13;
+  margin-left: 6px;
+  letter-spacing: .11px;
+  font-weight: 700;
+}
+
+.publicationUndo {
+    color: #777;
+    /* color: #ffffff; */
+    background-color: #ffffff;
+    border-color: #ccc;
+    /* background-color: red; */
+}
+.publicationUndo:hover {
+    color: #333;
+    /* color: #ffffff; */
+    border-color: #999;
+}
+
+.facultyTitle {
+  color: #173A7F;
+  font-size: 1.5rem;
+}
+
+.facultyHeader {
+  font-size: 18px;
+  color: #777;
+}
+
+.publicationsSummary {
+  text-align: left;
+}
+
+.listInline {
+  list-style: none;
+  padding: 0;
+  display: inline;
+}
+
+.listInline > li {
+  display: inline;
+}
+
+.btnNoStyling {
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+}
+
+.midDot::before {
+  content: "•";
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.midDot:first-of-type::before {
+  display: none;
+}
+
+.publicationContainer {
+  background-color: #ffffff;
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+.publicationHeader>button {
+  background-color: transparent !important;
+  color: transparent !important;
+  display: block !important;
+}
+
+.highlighted {
+  background-color: #D9D9D9;
+  font-weight: strong;
+}
+
+.publicationAdditionalInfo span {
+  color: #65686B;
+}
+
+.publicationAdditionalInfo a {
+  color: #65686B;
+}
+
+.publicationAdditionalInfo .midDot:first-of-type::before {
+  content: "";
+}
+
+.highlightedAuthor {
+  background-color: #EBF4BC;
+}
+.acceptedCheck > i{
+  color : red;
+}

@@ -1,0 +1,11 @@
+.dropdownItem {
+  padding-left: 20px;
+}
+
+.selected {
+  padding-left: 4px;
+}
+
+.selected svg {
+  padding-right: 4px;
+}

@@ -1,0 +1,29 @@
+.reportsAdditionalInfo span {
+  color: #65686B;
+}
+
+.reportsAdditionalInfo a {
+  color: #65686B;
+}
+
+.reportsAdditionalInfo .midDot:first-of-type::before {
+  content: "";
+}
+
+.midDot::before {
+  content: "•";
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.midDot:first-of-type::before {
+  display: none;
+}
+
+.infoTitle {
+  text-decoration: underline dotted;
+}
+
+.searchResultContainer {
+  padding: 25px 30px;
+}
