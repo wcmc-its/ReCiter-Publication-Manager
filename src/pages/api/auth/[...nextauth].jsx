@@ -89,7 +89,7 @@ const options = {
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const apiResponse = await authenticate(credentials);
                   if (apiResponse.statusCode == 200) {
-                    const adminUser = await findOrCreateAdminUsers(credentials.username)
+                    const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
                     apiResponse.databaseUser = adminUser;
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
@@ -130,17 +130,26 @@ const options = {
                     const { user } = await postAssert(idp, samlBody);
                     let cwid = null;
                     let email = null;
-                    let samlEmail = null;
+                    let usrAttr = null;
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
                     }
                     let dupUser = JSON.stringify(user.attributes);
                     let smalUserEmail = null;
+                    let firstName = null;
+                    let lastName = null;
                     let adminUser =null;
                     if(dupUser)
-                        samlEmail = JSON.parse(dupUser);
-                    if(samlEmail && samlEmail['user.email'] && samlEmail['user.email'].length > 0)
-                        smalUserEmail = samlEmail['user.email'][0];
+                        usrAttr = JSON.parse(dupUser);
+                    if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
+                        smalUserEmail = usrAttr['user.email'][0];
+                    
+                    if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
+                        firstName = usrAttr['urn:oid:2.5.4.42'][0];
+                    
+                    if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
+                        lastName = usrAttr['urn:oid:2.5.4.4'][0];    
+
                     if(smalUserEmail){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                             adminUser = await findAdminUser(smalUserEmail,"email")
@@ -168,7 +177,7 @@ const options = {
                             }
                             else
                             {
-                                adminUser = await findOrCreateAdminUsers(cwid)
+                                adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -181,7 +190,7 @@ const options = {
                          }
                          else
                          {
-                            adminUser = await findOrCreateAdminUsers(cwid)
+                            adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                             if(adminUser)
                             {
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -208,7 +217,7 @@ const options = {
                             } 
                             else
                             {
-                                adminUser = await findOrCreateAdminUsers(cwid)
+                                adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -221,7 +230,7 @@ const options = {
                         
                     }
                    else { //create an adminUser and assign default role(REPORTER_ALL) and selected roles from configuration 
-                        adminUser = await findOrCreateAdminUsers(cwid)
+                        adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                          if(adminUser)
                          {
                             const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
