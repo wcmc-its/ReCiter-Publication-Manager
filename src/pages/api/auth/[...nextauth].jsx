@@ -6,6 +6,7 @@ import { authenticate } from "../../../../controllers/authentication.controller"
 import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
+import { ContactSupportOutlined } from "@mui/icons-material";
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
@@ -16,12 +17,14 @@ const fetchAdminUserWithCWID = async (cwid) =>{
     const adminUser = await findAdminUser(cwid,"cwid")
     if(adminUser)
     {
+        console.log('adminUser*********************',adminUser)
         adminUser.databaseUser = adminUser
         adminUser.personIdentifier
         let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
        // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
        // const userRoles = await findUserPermissions(cwid, "cwid");
-        adminUser.userRoles = userRoles;
+       console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
+       adminUser.userRoles = userRoles;
         if(adminUser)
             return adminUser;
     }
@@ -33,10 +36,12 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
     adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(adminUser)
     {
+        Console.log('AdminUser****************************',adminUser);
         let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
        // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
        // const userRoles = await findUserPermissions(cwid, "cwid");
-        adminUser.userRoles = userRoles;
+       console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
+       adminUser.userRoles = userRoles;
         if(adminUser)
             return adminUser;
     }
@@ -231,7 +236,7 @@ const options = {
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
                 session.adminSettings = await fetchUpdatedAdminSettings();
-             console.log('session************************',session);   
+                console.log('roles in session**************************',session.userRoles);            
             return session
         },
         async jwt(token, apiResponse) {
@@ -247,9 +252,10 @@ const options = {
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles
+                    console.log('roles in token*****************',token.userRoles);
               }
             }
-            console.log('token************************',token);   
+            
             return token
         },
     },
