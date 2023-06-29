@@ -47,7 +47,7 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
         if(adminUser)
             return adminUser;
     }
-    return adminUser;  
+    
 }
 
 const grantDefaultRolesToAdminUser = async(adminUser) => {
