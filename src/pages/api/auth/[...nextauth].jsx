@@ -143,13 +143,15 @@ const options = {
                         usrAttr = JSON.parse(dupUser);
                     if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
                         smalUserEmail = usrAttr['user.email'][0];
-                    
+                        console.log('smalUserEmail******************',smalUserEmail);
+                        console.log('First Name before******************',usrAttr['urn:oid:2.5.4.42']);  
                     if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
                         firstName = usrAttr['urn:oid:2.5.4.42'][0];
-                    
+                       console.log('First Name******************',firstName);
+                       console.log('lastName before******************',usrAttr['urn:oid:2.5.4.4'])   
                     if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
                         lastName = usrAttr['urn:oid:2.5.4.4'][0];    
-
+                        console.log('lastName******************',lastName);
                     if(smalUserEmail){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                             adminUser = await findAdminUser(smalUserEmail,"email")
