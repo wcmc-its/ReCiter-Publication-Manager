@@ -18,8 +18,9 @@ const fetchAdminUserWithCWID = async (cwid) =>{
     {
         adminUser.databaseUser = adminUser
         adminUser.personIdentifier
-        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        const userRoles = await findUserPermissions(cwid, "cwid");
+        let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
+       // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+       // const userRoles = await findUserPermissions(cwid, "cwid");
         adminUser.userRoles = userRoles;
         if(adminUser)
             return adminUser;
@@ -32,8 +33,9 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
     adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(adminUser)
     {
-        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        const userRoles = await findUserPermissions(cwid, "cwid");
+        let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
+       // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+       // const userRoles = await findUserPermissions(cwid, "cwid");
         adminUser.userRoles = userRoles;
         if(adminUser)
             return adminUser;
@@ -151,18 +153,21 @@ const options = {
                         lastName = usrAttr['urn:oid:2.5.4.4'][0];    
                     if(smalUserEmail){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
+                           console.log('coming into samlEmail section*******************');
                             adminUser = await findAdminUser(smalUserEmail,"email")
                           if(adminUser){
                             adminUser.databaseUser = adminUser
                             adminUser.personIdentifier
-                            const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                            const userRoles = await findUserPermissions(smalUserEmail,"email");
+                            let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(smalUserEmail,"email")]);
+                           // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                          //  const userRoles = await findUserPermissions(smalUserEmail,"email");
                             adminUser.userRoles = userRoles;
                             if(adminUser)
                                 return adminUser;
                          }
                          else if(cwid)
                          {
+                            console.log('coming into cwid section*******************');
                              adminUser = await fetchAdminUserWithCWID(cwid);
                             if(adminUser)
                             {
@@ -170,6 +175,7 @@ const options = {
                             }
                             else
                             {
+                                console.log('coming into createAdminUserWithCWID1*******************');
                                 adminUser =  await createAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                     return adminUser;
@@ -177,6 +183,7 @@ const options = {
                          }
                          else
                          {
+                            console.log('coming into createAdminUserWithCWID2*******************');
                             adminUser = await createAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                             if(adminUser)
                                 return adminUser;
@@ -185,13 +192,15 @@ const options = {
                     }
                     else if(cwid){
                              //find an adminUser and if exists then assign default role(REPORTER_ALL) and selected roles from configuration
-                            adminUser = fetchAdminUserWithCWID(cwid);
+                             console.log('coming into cwid section1*******************');
+                             adminUser = fetchAdminUserWithCWID(cwid);
                             if(adminUser)
                             {
                                 return adminUser;
                             }
                             else
                             {
+                                console.log('coming into createAdminUserWithCWID3*******************'); 
                                adminUser = await createAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                     return adminUser;
@@ -199,7 +208,8 @@ const options = {
                         
                     }
                    else { //create an adminUser and assign default role(REPORTER_ALL) and selected roles from configuration 
-                           adminUser = await createAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                    console.log('coming into createAdminUserWithCWID3*******************');
+                            adminUser = await createAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                            if(adminUser)
                                 return adminUser; 
    
