@@ -5,6 +5,7 @@ import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
+        console.log('attributes**************',uid,samlEmail,samlFirstName,samlLastName);
         const person = await findOnePerson(uid)
         const [user, created] = await models.AdminUser.findOrCreate({
             where: {
