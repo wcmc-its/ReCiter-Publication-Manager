@@ -34,6 +34,7 @@ const fetchAdminUserWithCWID = async (cwid) =>{
 const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
    
     adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+    console.log('adminUser*************************',adminUser);
     if(adminUser)
     {
         Console.log('AdminUser****************************',adminUser);
@@ -45,7 +46,7 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
         if(adminUser)
             return adminUser;
     }
-    return false;  
+    return adminUser;  
 }
 
 const grantDefaultRolesToAdminUser = async(adminUser) => {
