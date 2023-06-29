@@ -38,7 +38,7 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
     console.log('adminUser*************************',adminUser);
     if(adminUser)
     {
-        Console.log('AdminUser****************************',adminUser);
+        Console.log('AdminUser1****************************',adminUser);
         let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
        // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
        // const userRoles = await findUserPermissions(cwid, "cwid");
