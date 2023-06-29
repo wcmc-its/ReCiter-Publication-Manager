@@ -32,7 +32,8 @@ const fetchAdminUserWithCWID = async (cwid) =>{
 }
 
 const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
-   
+
+    console.log('All attributes**********************',cwid,samlEmail,samlFirstName,samlLastName);
     adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     console.log('adminUser*************************',adminUser);
     if(adminUser)
