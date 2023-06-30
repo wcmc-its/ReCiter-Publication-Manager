@@ -23,10 +23,12 @@ const fetchAdminUserWithCWID = async (cwid) =>{
       //  let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
       //  const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
        // console.log('assignedRoles *************************',assignedRoles);
-       const assignedRoles =  grantDefaultRolesToAdminUser(adminUser).then(adminUser => 
+       const assignedRoles =  grantDefaultRolesToAdminUser(adminUser).then(roles => 
         {
+            console.log('After resolving grantDefaultRoles**************** ',roles);
             userRoles = findUserPermissions(cwid, "cwid")
             adminUser.userRoles = userRoles;
+            console.log('user roles are **********************',userRoles);
                 if(adminUser)
                     return adminUser;
 
@@ -49,8 +51,10 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
         const userRoles = null;
         const assignedRoles =  grantDefaultRolesToAdminUser(createdAdminUser).then(createdAdminUser => 
         {
+            console.log('After resolving grantDefaultRoles1**************** ',roles);
             userRoles = findUserPermissions(cwid, "cwid")
              createdAdminUser.userRoles = userRoles;
+             console.log('user roles are1 **********************',userRoles);
                 if(createdAdminUser)
                     return createdAdminUser;
 
