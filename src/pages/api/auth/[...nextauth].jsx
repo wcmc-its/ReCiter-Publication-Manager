@@ -20,13 +20,14 @@ const fetchAdminUserWithCWID = async (cwid) =>{
         console.log('adminUser*********************',adminUser)
         adminUser.databaseUser = adminUser
         adminUser.personIdentifier
-        let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
-       // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-       // const userRoles = await findUserPermissions(cwid, "cwid");
+      //  let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
+        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+        console.log('assignedRoles *************************',assignedRoles);
+       /* const userRoles = await findUserPermissions(cwid, "cwid");
        console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
        adminUser.userRoles = userRoles;
         if(adminUser)
-            return adminUser;
+            return adminUser;*/
     }
  
     return false;
@@ -49,12 +50,12 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
         console.log('assigned roles******************',assignedRoles);
         if(assignedRoles)
         {
-            console.log('coming inside if condition of assigned roles***********');
-            userRoles = await findUserPermissions(cwid, "cwid");
+            console.log('coming inside if condition of assigned roles***********',assignedRoles);
+            /*userRoles = await findUserPermissions(cwid, "cwid");
             console.log('userRoles******************',userRoles); 
             createdAdminUser.userRoles = userRoles;
                 if(createdAdminUser)
-                    return createdAdminUser;
+                    return createdAdminUser;*/
         }
     }
     console.log('returning admin user quickly withthout waiting for the roles to be assigned************');
@@ -94,8 +95,16 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
 
         if(assignRolesPayload && assignRolesPayload.length > 0)
         {
-            const userRole = await  findOrCreateAdminUserRole (assignRolesPayload); 
-            return userRole;
+            const userRole = await  findOrCreateAdminUserRole (assignRolesPayload);
+            if(userRole)
+            {
+                userRoles = await findUserPermissions(cwid, "cwid");
+                console.log(' Fetching userRoles******************',userRoles); 
+                adminUser.userRoles = userRoles;
+                    if(adminUser)
+                        return adminUser;
+            } 
+           
         }
     }
 }
@@ -176,12 +185,14 @@ const options = {
                           if(adminUser){
                             adminUser.databaseUser = adminUser
                             adminUser.personIdentifier
-                            let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(smalUserEmail,"email")]);
-                           // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                           // let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(smalUserEmail,"email")]);
+                            const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                           //  const userRoles = await findUserPermissions(smalUserEmail,"email");
-                            adminUser.userRoles = userRoles;
-                            if(adminUser)
-                                return adminUser;
+                           // adminUser.userRoles = userRoles;
+                            //if(adminUser)
+                              //  return adminUser;
+                             if(assignedRoles)
+                                return  assignedRoles;
                          }
                          else if(cwid)
                          {
