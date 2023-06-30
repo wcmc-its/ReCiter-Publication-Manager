@@ -14,7 +14,7 @@ const authHandler = async (req, res) => {
 
 const fetchAdminUserWithCWID = async (cwid) =>{
 
-    const adminUser =  await Promise.all(findAdminUser(cwid,"cwid"))
+    const adminUser =  await findAdminUser(cwid,"cwid")
     if(adminUser)
     {
         console.log('adminUser*********************',adminUser)
