@@ -39,10 +39,10 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
     console.log('adminUser after creating1*************************',createdAdminUser);
    // console.log('adminUser after creating2*************************',createdAdminUser.toJSON());
     console.log('adminUser after creating3*************************',createdAdminUser);
-   // if(createdAdminUser && Object.keys(createdAdminUser) && Object.keys(createdAdminUser).length > 0)
+    if(createdAdminUser)
     {
-        Console.log('AdminUser inside condition****************************',adminUser);
-        let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
+        Console.log('AdminUser inside condition****************************',createdAdminUser);
+        let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(createdAdminUser), findUserPermissions(cwid, "cwid")]);
        // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
        // const userRoles = await findUserPermissions(cwid, "cwid");
        console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
