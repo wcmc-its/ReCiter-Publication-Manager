@@ -35,18 +35,18 @@ const fetchAdminUserWithCWID = async (cwid) =>{
 const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
 
     console.log('All attributes**********************',cwid,samlEmail,samlFirstName,samlLastName);
-    let adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+    const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     console.log('adminUser after creating*************************',adminUser.toJSON());
-    if(adminUser || (adminUser!=null && adminUser!='' && adminUser!=undefined))
+    if(createdAdminUser || (createdAdminUser!=null && createdAdminUser!='' && createdAdminUser!=undefined))
     {
         Console.log('AdminUser inside condition****************************',adminUser);
         let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
        // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
        // const userRoles = await findUserPermissions(cwid, "cwid");
        console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
-       adminUser.userRoles = userRoles;
-        if(adminUser)
-            return adminUser;
+       createdAdminUser.userRoles = userRoles;
+        if(createdAdminUser)
+            return createdAdminUser;
     }
     console.log('returning admin user quickly withthout waiting for the roles to be assigned************');
     
