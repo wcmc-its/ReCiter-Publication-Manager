@@ -21,8 +21,16 @@ const fetchAdminUserWithCWID = async (cwid) =>{
         adminUser.databaseUser = adminUser
         adminUser.personIdentifier
       //  let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
-        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        console.log('assignedRoles *************************',assignedRoles);
+      //  const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+       // console.log('assignedRoles *************************',assignedRoles);
+       const assignedRoles =  grantDefaultRolesToAdminUser(adminUser).then(adminUser => 
+        {
+            userRoles = findUserPermissions(cwid, "cwid")
+            adminUser.userRoles = userRoles;
+                if(adminUser)
+                    return adminUser;
+
+        });
        /* const userRoles = await findUserPermissions(cwid, "cwid");
        console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
        adminUser.userRoles = userRoles;
@@ -35,35 +43,34 @@ const fetchAdminUserWithCWID = async (cwid) =>{
 
 const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
 
-    console.log('All attributes**********************',cwid,samlEmail,samlFirstName,samlLastName);
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    console.log('adminUser after creating1*************************',createdAdminUser);
-   // console.log('adminUser after creating2*************************',createdAdminUser.toJSON());
-    console.log('adminUser after creating3*************************',createdAdminUser);
     if(createdAdminUser)
     {
         const userRoles = null;
-        console.log('coming iinside*********************************');
-        //Console.log('AdminUser inside condition****************************',createdAdminUser);
-        //let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(createdAdminUser), findUserPermissions(cwid, "cwid")]);
-        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        console.log('assigned roles******************',assignedRoles);
-        if(assignedRoles)
+        const assignedRoles =  grantDefaultRolesToAdminUser(createdAdminUser).then(createdAdminUser => 
         {
-            console.log('coming inside if condition of assigned roles***********',assignedRoles);
+            userRoles = findUserPermissions(cwid, "cwid")
+             createdAdminUser.userRoles = userRoles;
+                if(createdAdminUser)
+                    return createdAdminUser;
+
+        });
+        /*if(assignedRoles)
+        {
+            //console.log('coming inside if condition of assigned roles***********',assignedRoles);
             /*userRoles = await findUserPermissions(cwid, "cwid");
             console.log('userRoles******************',userRoles); 
             createdAdminUser.userRoles = userRoles;
                 if(createdAdminUser)
                     return createdAdminUser;*/
-        }
+        //}
     }
-    console.log('returning admin user quickly withthout waiting for the roles to be assigned************');
     
 }
-
-const grantDefaultRolesToAdminUser = async(adminUser) => {
-    const adminSettings = await findOneAdminSettings('userRoles');
+ function grantDefaultRolesToAdminUser(adminUser) {
+    return  new Promise((resolve, reject) => {
+// const grantDefaultRolesToAdminUser = async(adminUser) => {
+    const adminSettings = findOneAdminSettings('userRoles');
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
     {
         let viewAttributes = JSON.parse(adminSettings.viewAttributes);
@@ -95,19 +102,20 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
 
         if(assignRolesPayload && assignRolesPayload.length > 0)
         {
-            const userRole = await  findOrCreateAdminUserRole (assignRolesPayload);
-            if(userRole)
+            const userRole = findOrCreateAdminUserRole (assignRolesPayload);
+            return userRole;
+           /* if(userRole)
             {
-                userRoles = await findUserPermissions(cwid, "cwid");
-                console.log(' Fetching userRoles******************',userRoles); 
+                userRoles = findUserPermissions(cwid, "cwid");
                 adminUser.userRoles = userRoles;
                     if(adminUser)
                         return adminUser;
-            } 
+            } */
            
         }
     }
-}
+})
+ }
 
 
 const options = {
