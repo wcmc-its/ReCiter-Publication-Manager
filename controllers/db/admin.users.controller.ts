@@ -26,10 +26,10 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
             console.log('User ' + uid + ' already exists in adminUsers table')
         
         console.log('user***********',user);    
-        console.log('JSON user********************',user.toJSON())
+        console.log('JSON user********************',user.get({plain:true}))
         console.log('About to return user****************');
-        return user.toJSON();
-
+        return user.get({plain:true});
+        
     } catch (e) {
         console.log(e)
     }
