@@ -41,6 +41,7 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
     console.log('adminUser after creating3*************************',createdAdminUser);
     if(createdAdminUser)
     {
+        console.log('coming iinside*********************************');
         Console.log('AdminUser inside condition****************************',createdAdminUser);
         let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(createdAdminUser), findUserPermissions(cwid, "cwid")]);
        // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
