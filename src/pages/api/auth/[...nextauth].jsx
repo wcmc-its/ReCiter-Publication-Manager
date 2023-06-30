@@ -36,7 +36,9 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
 
     console.log('All attributes**********************',cwid,samlEmail,samlFirstName,samlLastName);
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    console.log('adminUser after creating*************************',adminUser.toJSON());
+    console.log('adminUser after creating1*************************',createdAdminUser);
+    console.log('adminUser after creating2*************************',createdAdminUser.toJSON());
+    console.log('adminUser after creating3*************************',createdAdminUser);
     if(createdAdminUser || (createdAdminUser!=null && createdAdminUser!='' && createdAdminUser!=undefined))
     {
         Console.log('AdminUser inside condition****************************',adminUser);
