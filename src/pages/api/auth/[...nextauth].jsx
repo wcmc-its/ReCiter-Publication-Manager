@@ -41,15 +41,21 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
     console.log('adminUser after creating3*************************',createdAdminUser);
     if(createdAdminUser)
     {
+        const userRoles = null;
         console.log('coming iinside*********************************');
         //Console.log('AdminUser inside condition****************************',createdAdminUser);
-        let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(createdAdminUser), findUserPermissions(cwid, "cwid")]);
-       // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-       // const userRoles = await findUserPermissions(cwid, "cwid");
-       console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
-       createdAdminUser.userRoles = userRoles;
-        if(createdAdminUser)
-            return createdAdminUser;
+        //let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(createdAdminUser), findUserPermissions(cwid, "cwid")]);
+        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+
+        if(assignedRoles)
+        {
+            console.log('coming inside if condition of assigned roles***********');
+            userRoles = await findUserPermissions(cwid, "cwid");
+            console.log('assigned roles and userRoles******************',assignedRoles,userRoles); 
+            createdAdminUser.userRoles = userRoles;
+                if(createdAdminUser)
+                    return createdAdminUser;
+        }
     }
     console.log('returning admin user quickly withthout waiting for the roles to be assigned************');
     
