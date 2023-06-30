@@ -14,7 +14,7 @@ const authHandler = async (req, res) => {
 
 const fetchAdminUserWithCWID = async (cwid) =>{
 
-    const adminUser = await findAdminUser(cwid,"cwid")
+    const adminUser =  await Promise.all(findAdminUser(cwid,"cwid"))
     if(adminUser)
     {
         console.log('adminUser*********************',adminUser)
@@ -28,6 +28,7 @@ const fetchAdminUserWithCWID = async (cwid) =>{
         if(adminUser)
             return adminUser;
     }
+    console.log('returning admin user quickly withthout waiting for the roles to be assigned************');
     return false;
 }
 
