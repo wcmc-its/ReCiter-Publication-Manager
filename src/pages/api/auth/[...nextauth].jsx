@@ -28,7 +28,7 @@ const fetchAdminUserWithCWID = async (cwid) =>{
         if(adminUser)
             return adminUser;
     }
-    console.log('returning admin user quickly withthout waiting for the roles to be assigned************');
+ 
     return false;
 }
 
@@ -36,10 +36,10 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
 
     console.log('All attributes**********************',cwid,samlEmail,samlFirstName,samlLastName);
     let adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    console.log('adminUser*************************',adminUser);
-    if(adminUser)
+    console.log('adminUser after creating*************************',adminUser.toJSON());
+    if(adminUser || (adminUser!=null && adminUser!='' && adminUser!=undefined))
     {
-        Console.log('AdminUser1****************************',adminUser);
+        Console.log('AdminUser inside condition****************************',adminUser);
         let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(cwid, "cwid")]);
        // const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
        // const userRoles = await findUserPermissions(cwid, "cwid");
@@ -48,6 +48,7 @@ const createAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName)
         if(adminUser)
             return adminUser;
     }
+    console.log('returning admin user quickly withthout waiting for the roles to be assigned************');
     
 }
 
