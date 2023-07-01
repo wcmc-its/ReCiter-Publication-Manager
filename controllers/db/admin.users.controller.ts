@@ -5,7 +5,6 @@ import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
-        console.log('attributes**************',uid,samlEmail,samlFirstName,samlLastName);
         const person = await findOnePerson(uid)
         const [user, created] = await models.AdminUser.findOrCreate({
             where: {
@@ -25,9 +24,6 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
         created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
             console.log('User ' + uid + ' already exists in adminUsers table')
         
-        console.log('user***********',user);    
-        console.log('JSON user********************',user.get({plain:true}))
-        console.log('About to return user****************');
         return user.get({plain:true});
         
     } catch (e) {
@@ -81,7 +77,6 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
         console.log(adminUserRole.toJSON())
         return adminUserRole
         }));
-        console.log('data************************',data);
         return data;
     } catch (e) {
         console.log(e)

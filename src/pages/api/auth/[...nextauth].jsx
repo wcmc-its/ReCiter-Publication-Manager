@@ -14,22 +14,6 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-/*const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
-   
-    const adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    if(adminUser)
-    {
-        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        await sleep(200); // sleep until roles persist to db 
-        const userRoles = await findUserPermissions(cwid, "cwid");
-        adminUser.userRoles = userRoles;
-        console.log('userRoles*******************',userRoles)
-        if(adminUser)
-            return adminUser;
-    }
-     
-}*/
-
 const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
@@ -139,7 +123,6 @@ const options = {
                         lastName = usrAttr['urn:oid:2.5.4.4'][0];    
                     if(smalUserEmail){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
-                           console.log('coming into samlEmail section*******************');
                             adminUser = await findAdminUser(smalUserEmail,"email")
                           if(adminUser){
                             adminUser.databaseUser = adminUser
@@ -153,7 +136,6 @@ const options = {
                          }
                          else if(cwid)
                          {
-                                console.log('coming into createAdminUserWithCWID1*******************');
                                // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                                if(adminUser)
@@ -162,7 +144,6 @@ const options = {
                                     await sleep(200); // sleep until roles persist to db 
                                     const userRoles = await findUserPermissions(cwid, "cwid");
                                     adminUser.userRoles = userRoles;
-                                    console.log('userRoles*******************',userRoles)
                                     if(adminUser)
                                         return adminUser;
                                }
@@ -172,7 +153,6 @@ const options = {
                     }
                     else if(cwid){
                             
-                            console.log('coming into createAdminUserWithCWID3*******************'); 
                            // adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                            adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                            if(adminUser)
@@ -181,7 +161,6 @@ const options = {
                                 await sleep(200); // sleep until roles persist to db 
                                 const userRoles = await findUserPermissions(cwid, "cwid");
                                 adminUser.userRoles = userRoles;
-                                console.log('userRoles*******************',userRoles)
                                 if(adminUser)
                                     return adminUser;
                            }
@@ -203,7 +182,6 @@ const options = {
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
                 session.adminSettings = await fetchUpdatedAdminSettings();
-                console.log('roles in session**************************',session.data.databaseUser.userRoles);            
             return session
         },
         async jwt(token, apiResponse) {
@@ -219,7 +197,6 @@ const options = {
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles
-                    console.log('roles in token*****************',token.userRoles);
               }
             }
             
