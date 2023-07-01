@@ -122,8 +122,10 @@ const options = {
                     if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
                         lastName = usrAttr['urn:oid:2.5.4.4'][0];    
                     if(smalUserEmail){
+                        console.log('coming into samlEmail******************************',smalUserEmail);
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                             adminUser = await findAdminUser(smalUserEmail,"email")
+                            console.log('adminUser in SAMLEmail******************************',adminUser);  
                           if(adminUser){
                             console.log('adminUser***********************',adminUser)
                             adminUser.databaseUser = adminUser
@@ -140,8 +142,10 @@ const options = {
                          }
                          else if(cwid)
                          {
+                            console.log('coming into CWID******************************',cwid);  
                                // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                               console.log('adminUser in CWID******************************',adminUser);
                                if(adminUser)
                                {
                                     console.log('adminUser***********************',adminUser)
@@ -161,14 +165,20 @@ const options = {
                     }
                     else if(cwid){
                             
+                        console.log('No SAML Email.******************************',cwid);
                            // adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                            adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                           console.log('No SAML Email adminUser.******************************',adminUser);
                            if(adminUser)
                            { 
+                            console.log('No SAML Email adminUser inside******************************',adminUser);
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                console.log('No SAML Email adminUser inside assignedRoles******************************',assignedRoles);
                                 await sleep(200); // sleep until roles persist to db 
                                 const userRoles = await findUserPermissions(cwid, "cwid");
                                 adminUser.userRoles = userRoles;
+                                
+                                console.log('No SAML Email adminUser inside userRoles******************************',userRoles);
                                 if(adminUser)
                                     return adminUser;
                            }
