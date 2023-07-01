@@ -24,7 +24,7 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(100);
         console.log('After resolving grantDefaultRoles1**************** ',roles);
-        const userRoles = findUserPermissions(cwid, "cwid")
+        const userRoles = await findUserPermissions(cwid, "cwid")
          createdAdminUser.userRoles = userRoles;
           console.log('user roles are1 **********************',userRoles);
         if(createdAdminUser)
