@@ -126,14 +126,14 @@ const options = {
                         console.log('coming into samlEmail******************************',smalUserEmail);
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                             adminUser = await findAdminUser(smalUserEmail,"email")
-                            await sleep(500)
+                            await sleep(100)
                             console.log('adminUser in SAMLEmail******************************',adminUser);  
                           if(adminUser){
                             console.log('adminUser***********************',adminUser)
                             adminUser.databaseUser = adminUser
                             adminUser.personIdentifier
                             const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                            await sleep(500)
+                            await sleep(100)
                             console.log('assignedRoles***********************',assignedRoles)
                             const userRoles = await findUserPermissions(smalUserEmail,"email");
                             adminUser.userRoles = userRoles;
@@ -147,13 +147,13 @@ const options = {
                             console.log('coming into CWID dsdasd****************************** ',cwid);  
                                // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-                               await sleep(500)
+                               await sleep(100)
                                console.log('adminUser in CWID******************************',adminUser);
                                if(adminUser)
                                {
                                     console.log('adminUser***********************',adminUser)
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    await sleep(500); // sleep until roles persist to db 
+                                    await sleep(100); // sleep until roles persist to db 
                                     console.log('assignedRoles***********************',assignedRoles)
                                     const userRoles = await findUserPermissions(cwid, "cwid");
                                     adminUser.userRoles = userRoles;
