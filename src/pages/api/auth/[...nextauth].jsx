@@ -112,7 +112,6 @@ const options = {
                     let smalUserEmail = null;
                     let firstName = null;
                     let lastName = null;
-                    const adminUser =null;
                     if(dupUser)
                         usrAttr = JSON.parse(dupUser);
                     if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
@@ -125,7 +124,7 @@ const options = {
                     if(smalUserEmail){
                         console.log('coming into samlEmail******************************',smalUserEmail);
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
-                            adminUser = await findAdminUser(smalUserEmail,"email")
+                            const adminUser = await findAdminUser(smalUserEmail,"email")
                             await sleep(100)
                             console.log('adminUser in SAMLEmail******************************',adminUser);  
                           if(adminUser){
@@ -170,7 +169,7 @@ const options = {
                             
                         console.log('No SAML Email.******************************',cwid);
                            // adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                           adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                           const adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                            await sleep(500)
                            console.log('No SAML Email adminUser.******************************',adminUser);
                            if(adminUser)
