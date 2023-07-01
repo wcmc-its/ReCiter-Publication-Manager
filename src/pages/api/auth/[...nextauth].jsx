@@ -165,7 +165,7 @@ const options = {
                     else if(cwid){
                             
                             console.log('coming into createAdminUserWithCWID3*******************'); 
-                            adminUser = await createAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                            adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                             if(adminUser)
                                 return adminUser;
                       
