@@ -35,7 +35,7 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
 };
 
 export const findAdminUser = async (attrValue: string, attrType:string) => {
-    
+    console.log('Fiinding an Adming User with email**********************',attrValue);
     if (attrType === "email"){
         const user = await models.AdminUser.findOne({
             where: {
