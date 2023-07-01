@@ -14,6 +14,26 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
+const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
+    console.log('coming into findOrcreateAdminUserWithCWID');
+    const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+    console.log('After createdAdminUser*****************************',createdAdminUser);
+    if(createdAdminUser)
+    {
+        console.log('inside createdAdminUser*******************************');
+        const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
+        await sleep(100);
+        console.log('After resolving grantDefaultRoles1**************** ',roles);
+        const userRoles = findUserPermissions(cwid, "cwid")
+         createdAdminUser.userRoles = userRoles;
+          console.log('user roles are1 **********************',userRoles);
+        if(createdAdminUser)
+            return createdAdminUser;
+
+        
+    }
+    
+}
 const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
@@ -144,20 +164,20 @@ const options = {
                          else if(cwid)
                          {
                             console.log('coming into CWID dsdasd****************************** ',cwid);  
-                               // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                               adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                                adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                               /*adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                                await sleep(100)
-                               console.log('adminUser in CWID******************************',adminUser);
+                               console.log('adminUser in CWID******************************',adminUser);*/
                                if(adminUser)
                                {
-                                    console.log('adminUser***********************',adminUser)
+                                 /*   console.log('adminUser***********************',adminUser)
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                     await sleep(100); // sleep until roles persist to db 
                                     console.log('assignedRoles***********************',assignedRoles)
                                     const userRoles = await findUserPermissions(cwid, "cwid");
                                     adminUser.userRoles = userRoles;
                                     console.log('userRoles***********************',userRoles)
-                                    console.log('adminUser***********************',adminUser)
+                                    console.log('adminUser***********************',adminUser)*/
                                     if(adminUser)
                                         return adminUser;
                                }
@@ -168,20 +188,20 @@ const options = {
                     else if(cwid){
                             
                         console.log('No SAML Email.******************************',cwid);
-                           // adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                           const adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                           const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           /*const adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                            await sleep(500)
-                           console.log('No SAML Email adminUser.******************************',adminUser);
+                           console.log('No SAML Email adminUser.******************************',adminUser);*/
                            if(adminUser)
                            { 
                             console.log('No SAML Email adminUser inside******************************',adminUser);
-                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                            /*    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 console.log('No SAML Email adminUser inside assignedRoles******************************',assignedRoles);
                                 await sleep(200); // sleep until roles persist to db 
                                 const userRoles = await findUserPermissions(cwid, "cwid");
                                 adminUser.userRoles = userRoles;
                                 
-                                console.log('No SAML Email adminUser inside userRoles******************************',userRoles);
+                                console.log('No SAML Email adminUser inside userRoles******************************',userRoles);*/
                                 if(adminUser)
                                     return adminUser;
                            }
