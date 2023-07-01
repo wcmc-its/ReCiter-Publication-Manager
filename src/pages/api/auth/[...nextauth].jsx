@@ -112,7 +112,7 @@ const options = {
                     let smalUserEmail = null;
                     let firstName = null;
                     let lastName = null;
-                    let adminUser =null;
+                    const adminUser =null;
                     if(dupUser)
                         usrAttr = JSON.parse(dupUser);
                     if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
