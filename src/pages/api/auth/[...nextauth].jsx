@@ -14,13 +14,13 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
+/*const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
    
     const adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(adminUser)
     {
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        await sleep(50); // sleep until roles persist to db 
+        await sleep(200); // sleep until roles persist to db 
         const userRoles = await findUserPermissions(cwid, "cwid");
         adminUser.userRoles = userRoles;
         console.log('userRoles*******************',userRoles)
@@ -28,7 +28,7 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
             return adminUser;
     }
      
-}
+}*/
 
 const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
@@ -144,9 +144,8 @@ const options = {
                           if(adminUser){
                             adminUser.databaseUser = adminUser
                             adminUser.personIdentifier
-                           // let [assignedRoles, userRoles] = await Promise.all([grantDefaultRolesToAdminUser(adminUser), findUserPermissions(smalUserEmail,"email")]);
                             const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                            await sleep(50)
+                            await sleep(200)
                             const userRoles = await findUserPermissions(smalUserEmail,"email");
                             adminUser.userRoles = userRoles;
                             if(adminUser)
@@ -155,9 +154,18 @@ const options = {
                          else if(cwid)
                          {
                                 console.log('coming into createAdminUserWithCWID1*******************');
-                                adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                                if(adminUser)
-                                    return adminUser;
+                               // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                               adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                               if(adminUser)
+                               {
+                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                    await sleep(200); // sleep until roles persist to db 
+                                    const userRoles = await findUserPermissions(cwid, "cwid");
+                                    adminUser.userRoles = userRoles;
+                                    console.log('userRoles*******************',userRoles)
+                                    if(adminUser)
+                                        return adminUser;
+                               }
                                
                          }
                          
@@ -165,9 +173,18 @@ const options = {
                     else if(cwid){
                             
                             console.log('coming into createAdminUserWithCWID3*******************'); 
-                            adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                            if(adminUser)
-                                return adminUser;
+                           // adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                           if(adminUser)
+                           { 
+                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                await sleep(200); // sleep until roles persist to db 
+                                const userRoles = await findUserPermissions(cwid, "cwid");
+                                adminUser.userRoles = userRoles;
+                                console.log('userRoles*******************',userRoles)
+                                if(adminUser)
+                                    return adminUser;
+                           }
                       
                     }
                     return { cwid, has_access: false };
