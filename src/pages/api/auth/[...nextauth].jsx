@@ -120,11 +120,13 @@ const options = {
                     if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
                         firstName = usrAttr['urn:oid:2.5.4.42'][0];
                     if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
-                        lastName = usrAttr['urn:oid:2.5.4.4'][0];    
+                        lastName = usrAttr['urn:oid:2.5.4.4'][0];   
+                        console.log('coming into samlEmail******************************',smalUserEmail); 
                     if(smalUserEmail){
                         console.log('coming into samlEmail******************************',smalUserEmail);
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                             adminUser = await findAdminUser(smalUserEmail,"email")
+                            await sleep(500)
                             console.log('adminUser in SAMLEmail******************************',adminUser);  
                           if(adminUser){
                             console.log('adminUser***********************',adminUser)
@@ -145,6 +147,7 @@ const options = {
                             console.log('coming into CWID******************************',cwid);  
                                // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                               await sleep(500)
                                console.log('adminUser in CWID******************************',adminUser);
                                if(adminUser)
                                {
@@ -168,6 +171,7 @@ const options = {
                         console.log('No SAML Email.******************************',cwid);
                            // adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                            adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+                           await sleep(500)
                            console.log('No SAML Email adminUser.******************************',adminUser);
                            if(adminUser)
                            { 
