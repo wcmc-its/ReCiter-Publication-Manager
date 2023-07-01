@@ -170,8 +170,8 @@ const options = {
                                console.log('adminUser in CWID******************************',adminUser);*/
                                if(adminUser)
                                {
-                                 /*   console.log('adminUser***********************',adminUser)
-                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                    console.log('adminUser returning***********************',adminUser)
+                                   /* const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                     await sleep(100); // sleep until roles persist to db 
                                     console.log('assignedRoles***********************',assignedRoles)
                                     const userRoles = await findUserPermissions(cwid, "cwid");
@@ -194,7 +194,7 @@ const options = {
                            console.log('No SAML Email adminUser.******************************',adminUser);*/
                            if(adminUser)
                            { 
-                            console.log('No SAML Email adminUser inside******************************',adminUser);
+                            console.log('No SAML Email adminUser returning inside******************************',adminUser);
                             /*    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 console.log('No SAML Email adminUser inside assignedRoles******************************',assignedRoles);
                                 await sleep(200); // sleep until roles persist to db 
@@ -223,6 +223,7 @@ const options = {
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
                 session.adminSettings = await fetchUpdatedAdminSettings();
+             console.log('session************************',session);   
             return session
         },
         async jwt(token, apiResponse) {
@@ -240,7 +241,7 @@ const options = {
                     token.userRoles = apiResponse.userRoles
               }
             }
-            
+            console.log('token************************',token);  
             return token
         },
     },
