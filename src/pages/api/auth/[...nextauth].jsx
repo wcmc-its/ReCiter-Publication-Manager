@@ -125,12 +125,16 @@ const options = {
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                             adminUser = await findAdminUser(smalUserEmail,"email")
                           if(adminUser){
+                            console.log('adminUser***********************',adminUser)
                             adminUser.databaseUser = adminUser
                             adminUser.personIdentifier
                             const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                            await sleep(200)
+                            await sleep(500)
+                            console.log('assignedRoles***********************',assignedRoles)
                             const userRoles = await findUserPermissions(smalUserEmail,"email");
                             adminUser.userRoles = userRoles;
+                            console.log('userRoles***********************',userRoles)
+                            console.log('adminUser***********************',adminUser)
                             if(adminUser)
                                 return adminUser;
                          }
@@ -140,10 +144,14 @@ const options = {
                                adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                                if(adminUser)
                                {
+                                    console.log('adminUser***********************',adminUser)
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    await sleep(200); // sleep until roles persist to db 
+                                    await sleep(500); // sleep until roles persist to db 
+                                    console.log('assignedRoles***********************',assignedRoles)
                                     const userRoles = await findUserPermissions(cwid, "cwid");
                                     adminUser.userRoles = userRoles;
+                                    console.log('userRoles***********************',userRoles)
+                                    console.log('adminUser***********************',adminUser)
                                     if(adminUser)
                                         return adminUser;
                                }
