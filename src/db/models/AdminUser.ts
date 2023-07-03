@@ -151,6 +151,13 @@ export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttri
           { name: "userID" },
         ]
       },
+      {
+        name: "personIdentifier",
+        using: "BTREE",
+        fields: [
+          { name: "personIdentifier" },
+        ]
+      },
     ]
   });
   return AdminUser;

@@ -195,17 +195,34 @@ export const journalFilter = async (
         },
       };
     }
-    const journalTitles = await models.AnalysisSummaryArticle.findAll({
-      attributes: [
-        [
-          Sequelize.fn("DISTINCT", Sequelize.col("journalTitleVerbose")),
-          "journalTitleVerbose",
+    let journalTitles = [];
+    if(journalFilter){
+       journalTitles = await models.AnalysisSummaryArticle.findAll({
+        attributes: [
+          [
+            Sequelize.fn("DISTINCT", Sequelize.col("journalTitleVerbose")),
+            "journalTitleVerbose",
+          ],
         ],
-      ],
-      where: where,
-      order: [["journalTitleVerbose", "ASC"]],
-      limit: limit,
-    });
+        where: where,
+        order: [["journalTitleVerbose", "ASC"]],
+        // limit: limit,
+      });
+    }else{
+       journalTitles = await models.AnalysisSummaryArticle.findAll({
+        attributes: [
+          [
+            Sequelize.fn("DISTINCT", Sequelize.col("journalTitleVerbose")),
+            "journalTitleVerbose",
+          ],
+        ],
+        where: where,
+        order: [["journalTitleVerbose", "ASC"]],
+        limit: limit,
+      });
+    }
+
+    
     res.send(journalTitles);
   } catch (e) {
     console.log(e);

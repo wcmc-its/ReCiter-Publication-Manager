@@ -264,6 +264,7 @@ const SearchSummary = ({
           }
         })
         itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
+        itemRow = {...itemRow, authorPosition: item.authorPosition?.replace(/[\])}[{(]/g, '')};
         worksheet.addRow(itemRow);
       })
 
@@ -355,6 +356,7 @@ const SearchSummary = ({
           }
         })
         itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
+        itemRow = {...itemRow, authorPosition: item.authorPosition?.replace(/[\])}[{(]/g, '')};
         worksheet.addRow(itemRow);
       })
 

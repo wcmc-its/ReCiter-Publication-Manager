@@ -5,15 +5,24 @@ import Image from 'next/image'
 import Link from "next/link";
 import { useRouter } from 'next/router'
 import { Button } from 'react-bootstrap';
+import { sendNotification } from '../../../redux/actions/actions';
 
 interface UsersTableProps {
-  data: any
+  data: any,
+  onSendNotifications: () => void,
+  nameOrcwidLabel?:string
 }
 
-const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
+const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOrcwidLabel }) => {
   const router = useRouter();
+
+  const onClicked = ()=>{
+    sendNotification()
+  }
+
+
   return (
-    <Table striped bordered hover>
+    <Table striped hover>
       <thead className={styles.tableHead}>
         <tr className={styles.tableHeadRow}>
           <th className={styles.tableHeadCell}>Name</th>
@@ -25,16 +34,17 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
       <tbody>
         {
          data && data.length > 0 ? data.map((user, index) => {
-            const {nameFirst, nameLast, userID,personIdentifier,email} = user;
+          const {nameFirst, nameLast, userID,personIdentifier,email, department, primaryOrganizationalUnit} = user;
             return (
               <tr key={index}>
                 <td><div>
-                  <p className="text-primary mb-0">{`${nameFirst && nameFirst != "null" ? nameFirst : "" } ${nameLast && nameLast != "null" ? nameLast : ""}`}</p>
-                  <p>person ID: {personIdentifier}</p>
+                  <p className="text-primary mb-0">{`${nameFirst || "" } ${nameLast || ""}`}</p>
+                  <p className="mb-0">{primaryOrganizationalUnit || ""}</p>
+                  <p className="mb-0">{nameOrcwidLabel || "Person ID "}: {personIdentifier || ""}</p>
                   </div>
                   </td>
-                <td>{""}</td>
-                <td>{email}</td>
+                <td>{department || ""}</td>
+                <td>{email || ""}</td>
                 <td> <div> <Button   variant="outline-dark" className='fw-bold' href={`/manageusers/${userID}`} size="sm">Manage User</Button> <Button size="sm" variant="outline-dark"  className='d-none text-light'>Manage Notifications</Button></div>
                 </td>
               </tr>

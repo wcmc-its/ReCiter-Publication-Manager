@@ -17,6 +17,7 @@ import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
 import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
+import Profile from "../Profile/Profile";
 
 const Search = () => {
 
@@ -33,7 +34,7 @@ const Search = () => {
   const identityPaginatedFetching = useSelector((state) => state.identityPaginatedFetching)
   const filters = useSelector((state) => state.filters)
   const updatedAdminSettings = useSelector((state) => state.updatedAdminSettings)
-
+  
 
   const errors = useSelector((state) => state.errors)
 
@@ -62,7 +63,9 @@ const Search = () => {
   const [findPeopleLabels, setFindPeopleLabels] = useState([])
   const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
 
-
+  //for ViewProfile
+  // const [showProfile, setShowprofile] = useState(false);
+  // const [showProfileID, setShowprofileID] = useState("");
   
   //ref
   const searchValue = useRef()
@@ -100,27 +103,27 @@ const Search = () => {
         setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     } else if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All)) {
         setDropdownTitle("Curate Publications");
-        let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+        let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
         setDropdownMenuItems(dropDownMenuItems);
         setIsCuratorAll(true);
         setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     }else if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser)) {
         setDropdownTitle("Curate Publications");
-        let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+        let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
         setDropdownMenuItems(dropDownMenuItems);
         setIsSuperUser(true)
         setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     }
     else if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
       setDropdownTitle("Curate Publications");
-      setDropdownMenuItems([]);
+      setDropdownMenuItems([{title: 'View Profile', to:''}]);
       setIsCuratorSelf(true)
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     }
     else if(userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser ))
     {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true);
@@ -132,7 +135,7 @@ const Search = () => {
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true);
@@ -143,7 +146,7 @@ const Search = () => {
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true);
@@ -154,7 +157,7 @@ const Search = () => {
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser  )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsReporterAll(true)  
       setIsCuratorAll(true);
@@ -164,7 +167,7 @@ const Search = () => {
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
         setDropdownTitle("Curate Publications");
-        let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+        let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
         setDropdownMenuItems(dropDownMenuItems);
         setIsReporterAll(true)  
         setIsCuratorAll(true);
@@ -182,14 +185,14 @@ const Search = () => {
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
     && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
     setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{}];
+      let dropDownMenuItems = [{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsCuratorAll(true)
       } 
     else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsSuperUser(true);
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
@@ -206,16 +209,18 @@ const Search = () => {
   }
 
   const fetchPaginatedData = (newCount) => {
-    dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
+    if (newCount === 'reset') {
+      let filters = {}
+      dispatch(identityFetchPaginatedData(1, count, filters))
+    } else {
+      dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
+    }
   }
 
 
   const handlePaginationUpdate = (page) => {
     setPage(page)
-
-    if (Object.keys(filters).length === 0) {
       dispatch(identityFetchPaginatedData(page, count, filters))
-    }
   }
 
   const handleCountUpdate = (count) => {
@@ -320,6 +325,7 @@ const Search = () => {
     dispatch(updateFilters(updatedFilters));
     dispatch(identityFetchAllData(request));
     setPage(1);
+    setFilterByPending(false);
   }
 
   const handlePendingFilterUpdate = (value) => {
@@ -337,6 +343,9 @@ const Search = () => {
   }
 
   const onClickProfile = (personIdentifier) => {
+    // setShowprofile(true);
+    // setShowprofileID(personIdentifier)
+   
     router.push(`/curate/${personIdentifier}`);
     if (identityAllData && !identityAllFetching) {
       dispatch(identityClearAllData())
@@ -344,9 +353,14 @@ const Search = () => {
     }
   }
 
+  const handleClose = () => setShowprofile(false);
+  const handleShow = () => setShowprofile(false);
+
   const resetData = () => {
     dispatch(clearFilters())
-    fetchPaginatedData()
+    setPage(1)
+    setCount(20)
+    fetchPaginatedData('reset')
     fetchCount()
   }
 
@@ -379,6 +393,8 @@ const Search = () => {
   }
 
   const redirectToCurate = (isFor, data) => {
+    // console.log("data", data)
+    // console.log("isFor", isFor)
 
     // if()
     if (isFor === "individual") {
@@ -549,6 +565,15 @@ const Search = () => {
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
                   />
+
+                  {/* <Profile
+                    uid={showProfileID}
+                    modalShow={showProfile}
+                    handleShow={handleShow}
+                    handleClose={handleClose}
+                    viewProfileLabels={""}
+                    headShotLabelData={""}
+                  /> */}
                 </React.Fragment>
               </div>
             )

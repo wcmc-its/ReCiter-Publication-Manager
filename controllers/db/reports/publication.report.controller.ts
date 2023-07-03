@@ -316,7 +316,7 @@ export const generatePubsPeopleOnlyRtf = async (
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
         order:sort,
         subQuery: false,
-        attributes: ["authors"],
+        attributes: ["authors","authorPosition"],
         limit : apiBody.limit
       })
       return searchOutput;
@@ -541,7 +541,7 @@ export const generatePubsPeopleOnlyRtf = async (
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
-          attributes: ["authors"],
+          attributes: ["authors","authorPosition"],
           limit : apiBody.limit
         })
       }
@@ -613,7 +613,7 @@ export const generatePubsPeopleOnlyRtf = async (
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
-          attributes: ["authors"],
+          attributes: ["authors","authorPosition"],
           limit : apiBody.limit,
           benchmark :true
         })
@@ -710,7 +710,7 @@ export const generatePubsPeopleOnlyRtf = async (
         group: ["AnalysisSummaryAuthor.pmid"],
         order: [],
         subQuery: false,
-        attributes: ["authors"],
+        attributes: ["authors","authorPosition"],
         limit : apiBody.limit,
         benchmark :true
       })
