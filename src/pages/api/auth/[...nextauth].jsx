@@ -22,7 +22,7 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
     {
         console.log('inside createdAdminUser*******************************');
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
-        await sleep(100);
+        await sleep(50);
         console.log('After resolving grantDefaultRoles1**************** ',assignedRoles);
         const userRoles = await findUserPermissions(cwid, "cwid")
          createdAdminUser.userRoles = userRoles;
@@ -148,22 +148,22 @@ const options = {
                             await sleep(100)
                             console.log('adminUser in SAMLEmail******************************',adminUser);  
                           if(adminUser){
-                            console.log('adminUser***********************',adminUser)
-                            adminUser.databaseUser = adminUser
-                            adminUser.personIdentifier
-                            const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                            await sleep(100)
-                            console.log('assignedRoles***********************',assignedRoles)
-                            const userRoles = await findUserPermissions(smalUserEmail,"email");
-                            adminUser.userRoles = userRoles;
-                            console.log('userRoles***********************',userRoles)
-                            console.log('adminUser***********************',adminUser)
-                            if(adminUser)
-                                return adminUser;
+                                console.log('adminUser***********************',adminUser)
+                                adminUser.databaseUser = adminUser
+                                adminUser.personIdentifier
+                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                await sleep(100)
+                                console.log('assignedRoles***********************',assignedRoles)
+                                const userRoles = await findUserPermissions(smalUserEmail,"email");
+                                adminUser.userRoles = userRoles;
+                                console.log('userRoles***********************',userRoles)
+                                console.log('adminUser***********************',adminUser)
+                                if(adminUser)
+                                    return adminUser;
                          }
                          else if(cwid)
                          {
-                            console.log('coming into CWID dsdasd****************************** ',cwid);  
+                                console.log('coming into CWID dsdasd****************************** ',cwid);  
                                 adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                /*adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                                await sleep(100)
