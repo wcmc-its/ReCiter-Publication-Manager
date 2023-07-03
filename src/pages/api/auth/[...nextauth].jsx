@@ -27,8 +27,15 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
         const userRoles = await findUserPermissions(cwid, "cwid")
          createdAdminUser.userRoles = userRoles;
           console.log('user roles are1 **********************',userRoles);
-        if(createdAdminUser)
+          console.log('createdAdminUser1111 **********************',createdAdminUser);
+          console.log('createdAdminUserSpread **********************',{...createdAdminUser, ...userRoles});
+
+          
+        if(createdAdminUser){
+          console.log('createdAdminUser2222222 **********************',createdAdminUser);
+
             return createdAdminUser;
+        }
 
         
     }
