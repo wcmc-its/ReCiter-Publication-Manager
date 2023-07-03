@@ -216,6 +216,7 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
+            console.log('apiResponse**************************',apiResponse);
             return apiResponse
         },
         async session(session, token,apiResponse) {
