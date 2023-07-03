@@ -166,8 +166,8 @@ const options = {
                                 console.log('coming into CWID dsdasd****************************** ',cwid);  
                                 adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                /*adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-                               await sleep(100)
-                               console.log('adminUser in CWID******************************',adminUser);*/
+                               await sleep(100)*/
+                               console.log('adminUser in CWID******************************');
                                if(adminUser)
                                {
                                     console.log('adminUser returning***********************',adminUser)
