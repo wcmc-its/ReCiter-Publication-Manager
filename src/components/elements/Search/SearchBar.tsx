@@ -98,7 +98,8 @@ useEffect(() => {
     <Container className={styles.searchFormContainer}>
       <Form onSubmit={onFormSubmit}>
         <Form.Group>
-          <Form.Label className={styles.searchFormLabel}>Name or {allLabelSettings?.cwidLabel}(s)</Form.Label>
+          {/* <Form.Label className={styles.searchFormLabel}>Name or {allLabelSettings?.cwidLabel}(s)</Form.Label> */}
+          <Form.Label className={styles.searchFormLabel}> {allLabelSettings?.cwidLabel ? `Name or ${allLabelSettings?.cwidLabel} (s)` : `Name` }</Form.Label>
           <InputGroup>
             <Form.Control type="input" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}></Form.Control>
           </InputGroup>

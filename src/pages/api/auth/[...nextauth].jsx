@@ -6,6 +6,7 @@ import { authenticate } from "../../../../controllers/authentication.controller"
 import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
+import { createAdminUser } from "../../../redux/actions/actions";
 
 
 const authHandler = async (req, res) => {
@@ -45,7 +46,7 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
 
         
     }
-    
+    return createAdminUser;
 }
 const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');

@@ -42,7 +42,7 @@ const Filter: FunctionComponent<FuncProps> = (props) => {
                 type="text"
                 className="form-control"
                 placeholder="Filter..."
-                onChange={handleSearchUpdate}
+                onChange={(e)=>handleSearchUpdate(e)}
             />
         </div>
     );

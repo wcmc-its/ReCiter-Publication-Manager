@@ -1117,9 +1117,9 @@ export const publicationSearchWithFilterPmids = async (
               where: where,
               subQuery: false,
               order: sort,
-              group: ["AnalysisSummaryAuthor.pmid"],
+             // group: ["AnalysisSummaryAuthor.pmid"],
               attributes: ["pmid"],
-              distinct:true,
+             // distinct:true,
               col:'pmid',
               benchmark: true
             });
@@ -1169,9 +1169,9 @@ export const publicationSearchWithFilterPmids = async (
               where: where,
               subQuery: false,
               order: sort,
-              group: ["AnalysisSummaryAuthor.pmid"],
+             // group: ["AnalysisSummaryAuthor.pmid"],
               attributes: ["pmid"],
-              distinct:true,
+           //   distinct:true,
               col:'pmid',
               benchmark: true
             });
@@ -1209,10 +1209,10 @@ export const publicationSearchWithFilterPmids = async (
             where: where,
             subQuery: false,
             order: sort,
-            group: ["AnalysisSummaryAuthor.pmid"],
-            attributes: ["pmid"],
-            distinct: true,
-            col:'pmid',
+          //  group: ["AnalysisSummaryAuthor.pmid"],
+            attributes: ["id"],
+          //  distinct: true,
+            col:'id',
             benchmark: true
           });
         }

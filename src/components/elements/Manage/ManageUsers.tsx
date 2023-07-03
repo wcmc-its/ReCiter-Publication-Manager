@@ -8,22 +8,29 @@ import { reciterConfig } from '../../../../config/local';
 import UsersTable from "./UsersTable";
 import { useRouter } from 'next/router'
 import { Button, Card, Row, Col,InputGroup,Form } from 'react-bootstrap';
-import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, getAdminRoles } from "../../../redux/actions/actions";
+import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, getAdminRoles, sendNotification } from "../../../redux/actions/actions";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { toast } from "react-toastify"
 import Pagination from '../Pagination/Pagination';
 import Filter from "../Filter/Filter";
+import { useSession } from 'next-auth/client';
+
 
 
 const ManageUsers = () => {
 
   const createORupdateUserID = useSelector((state: RootStateOrAny) => state.createORupdateUserID);
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
+
+  const [session, loading] = useSession();
 
   const [users, setUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [searchText, setSearchText] = useState("")
-  const [loading, setLoading] = useState(false);
+  const [pageLoading, setpageLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
+
 
   const router = useRouter()
   const dispatch = useDispatch();
@@ -36,10 +43,30 @@ const ManageUsers = () => {
         dispatch(getAdminDepartments());
         dispatch(getAdminRoles());
         fetchAllAdminUsers(page, count)
+        adminConfigurations();
   }, [])
 
+  const adminConfigurations = ()=>{
+    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    var viewAttributes = [];
+    if (updatedAdminSettings.length > 0) {
+      // updated settings from manage settings page
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
+      viewAttributes = updatedData.viewAttributes;
+
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      setNameOrcwidLabel(cwidLabel.labelUserView)
+    } else {
+      // regular settings from session
+      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "findPeople")
+      viewAttributes = JSON.parse(data.viewAttributes)
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      setNameOrcwidLabel(cwidLabel.labelUserView)
+    }
+  }
+
   const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string)=>{
-    setLoading(true);
+    setpageLoading(true);
     const offset = (page - 1) * limit;
     const request = { limit, offset , searchTextInput};
     fetch(`/api/db/admin/users`, {
@@ -53,11 +80,10 @@ const ManageUsers = () => {
       body: JSON.stringify(request),
     }).then(response => response.json())
       .then(data => {
-        setUsers(data.usersData);
-        setAllUsers(data.usersData)
+        prepareTabelData(data.usersData)
         setTotalCount( data.totalUsersCount)
         dispatch(adminUsersListAction(data))
-        setLoading(false);
+        setpageLoading(false);
         if (createORupdateUserID) toast.success(createORupdateUserID + " successfully", {
           position: "top-right",
           autoClose: 2000,
@@ -67,8 +93,42 @@ const ManageUsers = () => {
       })
       .catch(error => {
         console.log(error)
-        setLoading(false);
+        setpageLoading(false);
       });
+  }
+
+  const prepareTabelData = (usersData) => {
+    let tableData = [];
+    usersData.map((data) => {
+      const {nameFirst, nameLast, userID,personIdentifier,email, department,person} = data;
+     if(data.AdminUserDept?.length > 0){
+       data.AdminUserDept && data.AdminUserDept.map((deptData => {
+        let obj = {
+          email : email,
+          personIdentifier : personIdentifier,
+          userID: userID,
+          nameFirst: nameFirst,
+          nameLast : nameLast,
+          department : deptData.departmentLabel,
+          primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
+        }
+        tableData.push(obj);
+      }))
+    }else{
+      let obj = {
+          email : email,
+          personIdentifier : personIdentifier,
+          userID: userID,
+          nameFirst: nameFirst,
+          nameLast : nameLast,
+          department : "",
+          primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
+      }
+      tableData.push(obj);
+    }
+    })
+    setUsers(tableData);
+    setAllUsers(tableData)
   }
 
   const onReset = ()=>{
@@ -92,43 +152,48 @@ const ManageUsers = () => {
   }
 
   const handleFilterUpdate= (searchText)=>{
-    filter(searchText ? searchText : "");
+    filter(searchText ? searchText.trim() : "");
   }
 
-  const filter = (search) => { 
+  const filter = (search) => {
     let filteredUsers = []
-    if (users  && users.length > 0) {
-      users.forEach((user) => {
-    if (search ) {
-      if (/^[0-9 ]*$/.test(search)) {
-        var userIds = search.split(" ");
-        if (userIds.some(userId => Number(userId) === user.userID)) {
-            filteredUsers.push(user);
-        }
-      }else{
-        var addUser = true;
+    if (allUsers && allUsers.length > 0) {
+      allUsers.forEach((user) => {
         if (search) {
-          addUser = false;
-          //nameFirst
-          if (user.nameFirst && user.nameFirst.toLowerCase().includes(search.toLowerCase())) {
-            addUser = true
-          }
-          //nameLast
-          if (user.nameLast && user.nameLast.toLowerCase().includes(search.toLowerCase())) {
+          var addUser = true;
+          if (search) {
+            addUser = false;
+            //nameFirst
+            if (user.nameFirst && user.nameFirst.toLowerCase().includes(search.toLowerCase())) {
               addUser = true
+            }
+            //nameLast
+            if (user.nameLast && user.nameLast.toLowerCase().includes(search.toLowerCase())) {
+              addUser = true
+            }
+            //personIdentifier
+            if (user.personIdentifier && user.personIdentifier.toLowerCase().includes(search.toLowerCase())) {
+              addUser = true
+            }
+            //departmentLabel
+            if (user.department && user.department.toLowerCase().includes(search.toLowerCase())) {
+              addUser = true
+            }
+            //primaryOrganizationalUnit
+            if (user.primaryOrganizationalUnit && user.primaryOrganizationalUnit.toLowerCase().includes(search.toLowerCase())) {
+              addUser = true
+            }
           }
+          if (addUser) {
+            filteredUsers.push(user);
+          }
+        }else{
+          filteredUsers.push(user)
         }
-        if (addUser) {
-          filteredUsers.push(user);
-        }
-      }
+      })
     }
-  })
+    setUsers(filteredUsers)
   }
-  if(filteredUsers && filteredUsers.length > 0 ) setUsers( filteredUsers)
-  else setUsers( allUsers)
- 
-}
 
   
   const handleCountUpdate = (count) => {
@@ -143,6 +208,12 @@ const ManageUsers = () => {
     let inputBySearch = e.target.value;
     await setSearchText(inputBySearch);
     }
+
+    const onSendNotifications = ()=>{
+      console.log("clicked")
+     sendNotification()
+    }
+
     const onSearch = ()=>{
      if(searchText.trim().length >= 3) {
       fetchAllAdminUsers(page, count, searchText)
@@ -172,7 +243,7 @@ const ManageUsers = () => {
         </Col>
       </Row>
       {/* <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button> */}
-      {loading ?
+      {pageLoading ?
         <div className="d-flex justify-content-center align-items"><Loader /> </div>
         :
         <>
@@ -183,7 +254,7 @@ const ManageUsers = () => {
               <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
             </div>
           </div>
-            <UsersTable data={users} />
+            <UsersTable data={users} onSendNotifications = {onSendNotifications} nameOrcwidLabel={nameOrcwidLabel}/>
           <Pagination total={totalCount} page={page} count={count}  onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
         </>}
       <ToastContainerWrapper />

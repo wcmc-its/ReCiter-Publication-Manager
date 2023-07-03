@@ -225,7 +225,7 @@ const Report = () => {
   }
 
   const updateJournalFilterData = (input: string, count: number = 10) => {
-    if(input) dispatch(updateJournalFilter(input, count));
+    if(input) dispatch(updateJournalFilter(input, input ? "" : count));
   }
 
   const onPaginationUpdate = (newPage: number) => {
