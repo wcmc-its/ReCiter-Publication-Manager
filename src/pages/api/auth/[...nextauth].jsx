@@ -18,13 +18,19 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
     console.log('coming into findOrcreateAdminUserWithCWID');
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     console.log('After createdAdminUser*****************************',createdAdminUser);
+    console.log('Typ top createdAdminUser*******************************', typeof(createdAdminUser));
+
     if(createdAdminUser)
     {
-        console.log('inside createdAdminUser*******************************');
+        console.log('Type inside createdAdminUser*******************************', typeof(createdAdminUser));
+
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
+
         console.log('After resolving grantDefaultRoles1**************** ',assignedRoles);
         const userRoles = await findUserPermissions(cwid, "cwid")
+        console.log('inside createdAdminUser*******************************', createdAdminUser);
+
          createdAdminUser.userRoles = userRoles;
           console.log('user roles are1 **********************',userRoles);
           console.log('createdAdminUser1111 **********************',createdAdminUser);
