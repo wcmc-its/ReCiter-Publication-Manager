@@ -168,6 +168,9 @@ const options = {
                                /*adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                                await sleep(100)*/
                                console.log('adminUser in CWID******************************');
+                               const userRoles = await findUserPermissions(cwid, "cwid");
+                               adminUser.userRoles = userRoles;
+                               console.log('adminUser After roles******************************');
                                if(adminUser)
                                {
                                     console.log('adminUser returning***********************',adminUser)
