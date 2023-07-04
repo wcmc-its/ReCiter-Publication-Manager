@@ -181,13 +181,14 @@ const options = {
                                const  adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                 {
-                                    adminUser.databaseUser = adminUser
-                                    adminUser.personIdentifier
+                                    
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                     await sleep(50);
                                     const userRoles = await findUserPermissions(cwid, "cwid");
                                     console.log('userroles returned after assigning************',userRoles);
                                     adminUser.userRoles = userRoles;
+                                    adminUser.databaseUser = adminUser
+                                    adminUser.personIdentifier
                                     console.log('admin user after assigning the userroles************',adminUser);
                                     if(adminUser)
                                         return adminUser;
