@@ -181,6 +181,8 @@ const options = {
                                const  adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                 {
+                                    adminUser.databaseUser = adminUser
+                                    adminUser.personIdentifier
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                     await sleep(50);
                                     const userRoles = await findUserPermissions(cwid, "cwid");
@@ -278,12 +280,6 @@ const options = {
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
-              }
-              else if(apiResponse.personIdentifier)
-              {
-                    console.log('coming into this to assign token username************',apiResponse.personIdentifier)
-                    token.username = apiResponse.personIdentifier;
-                    
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
