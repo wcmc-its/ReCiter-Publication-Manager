@@ -187,9 +187,10 @@ const options = {
                                     const userRoles = await findUserPermissions(cwid, "cwid");
                                     console.log('userroles returned after assigning************',userRoles);
                                     adminUser.userRoles = userRoles;
+                                    console.log('admin user after assigning the userroles************',adminUser);
                                     adminUser.databaseUser = adminUser
                                     adminUser.personIdentifier
-                                    console.log('admin user after assigning the userroles************',adminUser);
+                                    console.log('admin user after setting the databaseUser************',adminUser);
                                     if(adminUser)
                                         return adminUser;
                                 }    
@@ -280,6 +281,13 @@ const options = {
                 console.log('apiresponse database user***************',apiResponse.databaseUser);
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
+                    token.databaseUser = apiResponse.databaseUser
+              }
+              else if(apiResponse)
+              {
+                console.log('apiResponse in callbacks else',apiResponse);
+                  token.username = apiResponse.personIdentifier;
+                  if(apiResponse.databaseUser)
                     token.databaseUser = apiResponse.databaseUser
               }
               if(apiResponse.userRoles) {
