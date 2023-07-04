@@ -274,9 +274,16 @@ const options = {
                 token.username = apiResponse.statusMessage.username
               }
               if(apiResponse.databaseUser) {
+                console.log('apiresponse database user***************',apiResponse.databaseUser);
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
+              }
+              else if(apiResponse.personIdentifier)
+              {
+                    console.log('coming into this to assign token username************',apiResponse.personIdentifier)
+                    token.username = apiResponse.personIdentifier;
+                    
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
