@@ -182,9 +182,11 @@ const options = {
                                 if(adminUser)
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    await sleep(20);
+                                    await sleep(50);
                                     const userRoles = await findUserPermissions(cwid, "cwid");
+                                    console.log('userroles returned after assigning************',userRoles);
                                     adminUser.userRoles = userRoles;
+                                    console.log('admin user after assigning the userroles************',adminUser);
                                     if(adminUser)
                                         return adminUser;
                                 }    
@@ -219,9 +221,11 @@ const options = {
                                 if(adminUser)
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    await sleep(20);
+                                    await sleep(50);
                                     const userRoles = await findUserPermissions(cwid, "cwid");
+                                    console.log('userroles returned after assigning1************',userRoles);
                                     adminUser.userRoles = userRoles;
+                                    console.log('admin user after assigning the userroles1************',adminUser);
                                     if(adminUser)
                                         return adminUser;
                                 }   
