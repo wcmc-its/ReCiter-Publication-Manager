@@ -178,10 +178,20 @@ const options = {
                          else if(cwid)
                          {
                                 console.log('coming into CWID dsdasd****************************** ',cwid);  
-                                adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                               const  adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
+                                if(adminUser)
+                                {
+                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                    await sleep(20);
+                                    const userRoles = await findUserPermissions(cwid, "cwid");
+                                    adminUser.userRoles = userRoles;
+                                    if(adminUser)
+                                        return adminUser;
+                                }    
+                                // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                /*adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                                await sleep(100)*/
-                               console.log('adminUser in CWID******************************');
+                               /*console.log('adminUser in CWID******************************');
                                const userRoles = await findUserPermissions(cwid, "cwid");
                                adminUser.userRoles = userRoles;
                                console.log('adminUser After roles******************************');
@@ -195,9 +205,9 @@ const options = {
                                     adminUser.userRoles = userRoles;
                                     console.log('userRoles***********************',userRoles)
                                     console.log('adminUser***********************',adminUser)*/
-                                    if(adminUser)
-                                        return adminUser;
-                               }
+                                    /*if(adminUser)
+                                        return adminUser;*/
+                              // }
                                
                          }
                          
@@ -205,13 +215,23 @@ const options = {
                     else if(cwid){
                             
                         console.log('No SAML Email.******************************',cwid);
-                           const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           const adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
+                                if(adminUser)
+                                {
+                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                    await sleep(20);
+                                    const userRoles = await findUserPermissions(cwid, "cwid");
+                                    adminUser.userRoles = userRoles;
+                                    if(adminUser)
+                                        return adminUser;
+                                }   
+                          // const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                            /*const adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
                            await sleep(500)
                            console.log('No SAML Email adminUser.******************************',adminUser);*/
-                           if(adminUser)
-                           { 
-                            console.log('No SAML Email adminUser returning inside******************************',adminUser);
+                          // if(adminUser)
+                          // { 
+                           // console.log('No SAML Email adminUser returning inside******************************',adminUser);
                             /*    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 console.log('No SAML Email adminUser inside assignedRoles******************************',assignedRoles);
                                 await sleep(200); // sleep until roles persist to db 
@@ -219,9 +239,9 @@ const options = {
                                 adminUser.userRoles = userRoles;
                                 
                                 console.log('No SAML Email adminUser inside userRoles******************************',userRoles);*/
-                                if(adminUser)
-                                    return adminUser;
-                           }
+                            //    if(adminUser)
+                              //      return adminUser;
+                           //}
                       
                     }
                     return { cwid, has_access: false };
