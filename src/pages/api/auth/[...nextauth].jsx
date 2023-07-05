@@ -242,6 +242,20 @@ const options = {
                                     console.log('userroles returned after assigning1************',userRoles);
                                     adminUser.userRoles = userRoles;
                                     console.log('admin user after assigning the userroles1************',adminUser);
+                                    let databaseUser = {
+                                        "userID" : adminUser.userID,
+                                        "personIdentifier": adminUser.personIdentifier,
+                                        "nameFirst": adminUser.firstName,
+                                        "nameMiddle": adminUser.nameMiddle,
+                                        "nameLast":adminUser.lastName,
+                                        "email" : adminUser.samlEmail,
+                                        "status":adminUser.status,
+                                        "createTimestamp":adminUser.createTimestamp,
+                                        "modifyTimestamp":adminUser.modifyTimestamp
+                                    }
+                                    console.log('No SAML databaseUser details************',databaseUser);
+                                    adminUser.databaseUser = databaseUser
+                                    adminUser.personIdentifier
                                     if(adminUser)
                                         return adminUser;
                                 }   
