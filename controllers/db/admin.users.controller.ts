@@ -5,9 +5,7 @@ import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
-        console.log('coming into findOrCreateAdminUsers*************************',uid,samlEmail);
         const person = await findOnePerson(uid)
-        console.log('coming into findOrCreateAdminUsers Persom*************************',person);
         const [user, created] = await models.AdminUser.findOrCreate({
             where: {
                 personIdentifier: uid,
@@ -27,8 +25,6 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
         created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
             console.log('User ' + uid + ' already exists in adminUsers table')
         
-            console.log('user JSON created******************',user.toJSON())    
-        console.log('user created******************',user.get({plain:true}))    
         return user.get({plain:true});
         
     } catch (e) {
@@ -37,7 +33,6 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
 };
 
 export const findAdminUser = async (attrValue: string, attrType:string) => {
-    console.log('Fiinding an Adming User with email**********************',attrValue);
     if (attrType === "email"){
         const user = await models.AdminUser.findOne({
             where: {
