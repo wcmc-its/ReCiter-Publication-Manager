@@ -37,15 +37,15 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
           console.log('createdAdminUser1111 **********************',createdAdminUser);
           console.log('createdAdminUserSpread **********************',{...createdAdminUser, ...userRoles});
           let databaseUser = {
-            "userID" : adminUser.userID,
-            "personIdentifier": adminUser.personIdentifier,
-            "nameFirst": adminUser.firstName,
-            "nameMiddle": adminUser.nameMiddle,
-            "nameLast":adminUser.lastName,
-            "email" : adminUser.samlEmail,
-            "status":adminUser.status,
-            "createTimestamp":adminUser.createTimestamp,
-            "modifyTimestamp":adminUser.modifyTimestamp
+            "userID" : createdAdminUser.userID,
+            "personIdentifier": createdAdminUser.personIdentifier,
+            "nameFirst": createdAdminUser.firstName,
+            "nameMiddle": createdAdminUser.nameMiddle,
+            "nameLast":createdAdminUser.lastName,
+            "email" : createdAdminUser.samlEmail,
+            "status":createdAdminUser.status,
+            "createTimestamp":createdAdminUser.createTimestamp,
+            "modifyTimestamp":createdAdminUser.modifyTimestamp
         }
         console.log('databaseUser details************',databaseUser);
         createdAdminUser.databaseUser = databaseUser
