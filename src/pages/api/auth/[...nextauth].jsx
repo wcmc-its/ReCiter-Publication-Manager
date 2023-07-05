@@ -36,7 +36,20 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
           console.log('user roles are1 **********************',userRoles);
           console.log('createdAdminUser1111 **********************',createdAdminUser);
           console.log('createdAdminUserSpread **********************',{...createdAdminUser, ...userRoles});
-
+          let databaseUser = {
+            "userID" : adminUser.userID,
+            "personIdentifier": adminUser.personIdentifier,
+            "nameFirst": adminUser.firstName,
+            "nameMiddle": adminUser.nameMiddle,
+            "nameLast":adminUser.lastName,
+            "email" : adminUser.samlEmail,
+            "status":adminUser.status,
+            "createTimestamp":adminUser.createTimestamp,
+            "modifyTimestamp":adminUser.modifyTimestamp
+        }
+        console.log('databaseUser details************',databaseUser);
+        adminUser.databaseUser = databaseUser
+        adminUser.personIdentifier    
           
         if(createdAdminUser){
           console.log('createdAdminUser2222222 **********************',createdAdminUser);
@@ -178,7 +191,7 @@ const options = {
                          else if(cwid)
                          {
                                 console.log('coming into CWID dsdasd****************************** ',cwid);  
-                               const  adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
+                              /* const  adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                 {
                                     
@@ -205,14 +218,8 @@ const options = {
                                     console.log('admin user after setting the databaseUser************',adminUser);
                                     if(adminUser)
                                         return adminUser;
-                                }    
-                                // adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                               /*adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-                               await sleep(100)*/
-                               /*console.log('adminUser in CWID******************************');
-                               const userRoles = await findUserPermissions(cwid, "cwid");
-                               adminUser.userRoles = userRoles;
-                               console.log('adminUser After roles******************************');
+                                }*/    
+                               const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                if(adminUser)
                                {
                                     console.log('adminUser returning***********************',adminUser)
@@ -223,9 +230,9 @@ const options = {
                                     adminUser.userRoles = userRoles;
                                     console.log('userRoles***********************',userRoles)
                                     console.log('adminUser***********************',adminUser)*/
-                                    /*if(adminUser)
-                                        return adminUser;*/
-                              // }
+                                    if(adminUser)
+                                        return adminUser;
+                               }
                                
                          }
                          
@@ -233,7 +240,7 @@ const options = {
                     else if(cwid){
                             
                         console.log('No SAML Email.******************************',cwid);
-                           const adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
+                          /* const adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
                                 if(adminUser)
                                 {
                                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -258,14 +265,11 @@ const options = {
                                     adminUser.personIdentifier
                                     if(adminUser)
                                         return adminUser;
-                                }   
-                          // const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                           /*const adminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-                           await sleep(500)
-                           console.log('No SAML Email adminUser.******************************',adminUser);*/
-                          // if(adminUser)
-                          // { 
-                           // console.log('No SAML Email adminUser returning inside******************************',adminUser);
+                                } */  
+                           const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           if(adminUser)
+                           { 
+                             console.log('No SAML Email adminUser returning inside******************************',adminUser);
                             /*    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 console.log('No SAML Email adminUser inside assignedRoles******************************',assignedRoles);
                                 await sleep(200); // sleep until roles persist to db 
@@ -273,9 +277,9 @@ const options = {
                                 adminUser.userRoles = userRoles;
                                 
                                 console.log('No SAML Email adminUser inside userRoles******************************',userRoles);*/
-                            //    if(adminUser)
-                              //      return adminUser;
-                           //}
+                                if(adminUser)
+                                    return adminUser;
+                           }
                       
                     }
                     return { cwid, has_access: false };
