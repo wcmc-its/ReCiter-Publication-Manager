@@ -16,26 +16,13 @@ const authHandler = async (req, res) => {
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
-    console.log('coming into findOrcreateAdminUserWithCWID');
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    console.log('After createdAdminUser*****************************',createdAdminUser);
-    console.log('Typ top createdAdminUser*******************************', typeof(createdAdminUser));
-
     if(createdAdminUser)
     {
-        console.log('Type inside createdAdminUser*******************************', typeof(createdAdminUser));
-
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
-
-        console.log('After resolving grantDefaultRoles1**************** ',assignedRoles);
         const userRoles = await findUserPermissions(cwid, "cwid")
-        console.log('inside createdAdminUser*******************************', createdAdminUser);
-
          createdAdminUser.userRoles = userRoles;
-          console.log('user roles are1 **********************',userRoles);
-          console.log('createdAdminUser1111 **********************',createdAdminUser);
-          console.log('createdAdminUserSpread **********************',{...createdAdminUser, ...userRoles});
           let databaseUser = {
             "userID" : createdAdminUser.userID,
             "personIdentifier": createdAdminUser.personIdentifier,
@@ -47,17 +34,10 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
             "createTimestamp":createdAdminUser.createTimestamp,
             "modifyTimestamp":createdAdminUser.modifyTimestamp
         }
-        console.log('databaseUser details************',databaseUser);
         createdAdminUser.databaseUser = databaseUser
         createdAdminUser.personIdentifier    
-          
-        if(createdAdminUser){
-          console.log('createdAdminUser2222222 **********************',createdAdminUser);
-
+        if(createdAdminUser)
             return createdAdminUser;
-        }
-
-        
     }
     return createAdminUser;
 }
@@ -167,120 +147,32 @@ const options = {
                         firstName = usrAttr['urn:oid:2.5.4.42'][0];
                     if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
                         lastName = usrAttr['urn:oid:2.5.4.4'][0];   
-                        console.log('coming into samlEmail******************************',smalUserEmail); 
                     if(smalUserEmail){
-                        console.log('coming into samlEmail******************************',smalUserEmail);
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                             const adminUser = await findAdminUser(smalUserEmail,"email")
                             await sleep(100)
-                            console.log('adminUser in SAMLEmail******************************',adminUser);  
                           if(adminUser){
-                                console.log('adminUser***********************',adminUser)
                                 adminUser.databaseUser = adminUser
                                 adminUser.personIdentifier
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
                                 await sleep(100)
-                                console.log('assignedRoles***********************',assignedRoles)
                                 const userRoles = await findUserPermissions(smalUserEmail,"email");
                                 adminUser.userRoles = userRoles;
-                                console.log('userRoles***********************',userRoles)
-                                console.log('adminUser***********************',adminUser)
                                 if(adminUser)
                                     return adminUser;
                          }
                          else if(cwid)
                          {
-                                console.log('coming into CWID dsdasd****************************** ',cwid);  
-                              /* const  adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
-                                if(adminUser)
-                                {
-                                    
-                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    await sleep(50);
-                                    const userRoles = await findUserPermissions(cwid, "cwid");
-                                    console.log('userroles returned after assigning************',userRoles);
-                                    adminUser.userRoles = userRoles;
-                                    console.log('admin user after assigning the userroles************',adminUser);
-                                    let databaseUser = {
-                                        "userID" : adminUser.userID,
-                                        "personIdentifier": adminUser.personIdentifier,
-                                        "nameFirst": adminUser.firstName,
-                                        "nameMiddle": adminUser.nameMiddle,
-                                        "nameLast":adminUser.lastName,
-                                        "email" : adminUser.samlEmail,
-                                        "status":adminUser.status,
-                                        "createTimestamp":adminUser.createTimestamp,
-                                        "modifyTimestamp":adminUser.modifyTimestamp
-                                    }
-                                    console.log('databaseUser details************',databaseUser);
-                                    adminUser.databaseUser = databaseUser
-                                    adminUser.personIdentifier
-                                    console.log('admin user after setting the databaseUser************',adminUser);
-                                    if(adminUser)
-                                        return adminUser;
-                                }*/    
                                const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                                if(adminUser)
-                               {
-                                    console.log('adminUser returning***********************',adminUser)
-                                   /* const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    await sleep(100); // sleep until roles persist to db 
-                                    console.log('assignedRoles***********************',assignedRoles)
-                                    const userRoles = await findUserPermissions(cwid, "cwid");
-                                    adminUser.userRoles = userRoles;
-                                    console.log('userRoles***********************',userRoles)
-                                    console.log('adminUser***********************',adminUser)*/
-                                    if(adminUser)
-                                        return adminUser;
-                               }
-                               
+                                    return adminUser;
                          }
                          
                     }
                     else if(cwid){
-                            
-                        console.log('No SAML Email.******************************',cwid);
-                          /* const adminUser = await findOrCreateAdminUsers(cwid,smalUserEmail,firstName,lastName)
-                                if(adminUser)
-                                {
-                                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                    await sleep(50);
-                                    const userRoles = await findUserPermissions(cwid, "cwid");
-                                    console.log('userroles returned after assigning1************',userRoles);
-                                    adminUser.userRoles = userRoles;
-                                    console.log('admin user after assigning the userroles1************',adminUser);
-                                    let databaseUser = {
-                                        "userID" : adminUser.userID,
-                                        "personIdentifier": adminUser.personIdentifier,
-                                        "nameFirst": adminUser.firstName,
-                                        "nameMiddle": adminUser.nameMiddle,
-                                        "nameLast":adminUser.lastName,
-                                        "email" : adminUser.samlEmail,
-                                        "status":adminUser.status,
-                                        "createTimestamp":adminUser.createTimestamp,
-                                        "modifyTimestamp":adminUser.modifyTimestamp
-                                    }
-                                    console.log('No SAML databaseUser details************',databaseUser);
-                                    adminUser.databaseUser = databaseUser
-                                    adminUser.personIdentifier
-                                    if(adminUser)
-                                        return adminUser;
-                                } */  
                            const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
                            if(adminUser)
-                           { 
-                             console.log('No SAML Email adminUser returning inside******************************',adminUser);
-                            /*    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                console.log('No SAML Email adminUser inside assignedRoles******************************',assignedRoles);
-                                await sleep(200); // sleep until roles persist to db 
-                                const userRoles = await findUserPermissions(cwid, "cwid");
-                                adminUser.userRoles = userRoles;
-                                
-                                console.log('No SAML Email adminUser inside userRoles******************************',userRoles);*/
-                                if(adminUser)
                                     return adminUser;
-                           }
-                      
                     }
                     return { cwid, has_access: false };
                 } catch (error) {
@@ -291,7 +183,6 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
-            console.log('apiResponse**************************',apiResponse);
             return apiResponse
         },
         async session(session, token,apiResponse) {
@@ -299,7 +190,6 @@ const options = {
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
                 session.adminSettings = await fetchUpdatedAdminSettings();
-             console.log('session************************',session);   
             return session
         },
         async jwt(token, apiResponse) {
@@ -308,24 +198,22 @@ const options = {
                 token.username = apiResponse.statusMessage.username
               }
               if(apiResponse.databaseUser) {
-                console.log('apiresponse database user***************',apiResponse.databaseUser);
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
               }
-              else if(apiResponse)
+             /* else if(apiResponse)
               {
                 console.log('apiResponse in callbacks else',apiResponse);
                   token.username = apiResponse.personIdentifier;
                   if(apiResponse.databaseUser)
                     token.databaseUser = apiResponse.databaseUser
-              }
+              }*/
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles
               }
             }
-            console.log('token************************',token);  
             return token
         },
     },
