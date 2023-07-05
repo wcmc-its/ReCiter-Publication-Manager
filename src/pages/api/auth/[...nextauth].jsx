@@ -48,8 +48,8 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
             "modifyTimestamp":adminUser.modifyTimestamp
         }
         console.log('databaseUser details************',databaseUser);
-        adminUser.databaseUser = databaseUser
-        adminUser.personIdentifier    
+        createdAdminUser.databaseUser = databaseUser
+        createdAdminUser.personIdentifier    
           
         if(createdAdminUser){
           console.log('createdAdminUser2222222 **********************',createdAdminUser);
