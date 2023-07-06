@@ -266,8 +266,12 @@ const Report = () => {
     journalFilterData: updateJournalFilterData,
   }
 
-  const onLoadMore = (seemoreCount)=>{
-    dispatch(updateAuthorFilter("", seemoreCount));
+  const onLoadMore = (title, seemoreCount) => {
+    if (title === "Journal") {
+      dispatch(updateJournalFilter("", seemoreCount));
+    } else if (title === "Author") {
+      dispatch(updateAuthorFilter("", seemoreCount));
+    }
   }
 
   const onSetSearchFilters = (filter, value) => {
@@ -304,6 +308,7 @@ const Report = () => {
     dispatch(clearPubSearchFilters());
     setReset(!reset)
     dispatch(updateAuthorFilter());
+    dispatch(updateJournalFilter());
   }
 
   const searchResults = () => {

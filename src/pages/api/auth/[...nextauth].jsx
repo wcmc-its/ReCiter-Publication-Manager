@@ -202,13 +202,6 @@ const options = {
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
               }
-             /* else if(apiResponse)
-              {
-                console.log('apiResponse in callbacks else',apiResponse);
-                  token.username = apiResponse.personIdentifier;
-                  if(apiResponse.databaseUser)
-                    token.databaseUser = apiResponse.databaseUser
-              }*/
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles

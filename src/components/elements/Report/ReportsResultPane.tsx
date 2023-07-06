@@ -104,7 +104,6 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
   const HIGHLIGHT_AUTHORS = reportConfig.authorFilters?.list?.author?.isEnabled;
 
   const DisplayInfo = ({ label, title, value}) => {
-    console.log('label title value',value);
     if (value) {
       if (title) {
         return (
@@ -122,7 +121,6 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
           </OverlayTrigger>
         )
       } else {
-        console.log('value',value)
         return (
           <span className={styles.midDot}>{' '}<span>{`${label}:`}</span>{' '}{value}</span>
         )

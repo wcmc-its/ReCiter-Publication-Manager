@@ -25,7 +25,6 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
     <>
       {
         Object.keys(results).length > 0 && results?.rows && results?.rows?.map((row) => {
-          console.log('row*********************************',row)
           return (
             <ReportsResultPane
             key={row.pmid}
