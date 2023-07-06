@@ -78,7 +78,7 @@ const Login = () => {
 
     return (
         <div className={styles.loginMainContainer}>
-        <Header/>
+        {/* <Header/> */}
         <div className={styles.formContainer}>
             <Form className={styles.loginForm} onSubmit={handleSubmit}>
             <h3>Sign in to your account</h3>
@@ -134,7 +134,7 @@ const Login = () => {
             </Form>
         </div>
 
-        <Footer />
+        {/* <Footer /> */}
         </div>
     );
 };

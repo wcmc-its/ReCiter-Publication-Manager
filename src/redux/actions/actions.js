@@ -1709,7 +1709,7 @@ export const updateAuthorFilter = (authorInput, count,isFrom) => (dispatch) => {
 
 // Update Journal Filter
 export const updateJournalFilter = (journalInput, count) => (dispatch) => {
-    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}&count=${count || ""}`, {
+    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput || ""}&count=${count || ""}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {

@@ -137,11 +137,10 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     onUpdateFilter(filterName, updatedSelected);
   }
 
-  const onClickLoadMore = () => {
+  const onClickLoadMore = (title) => {
     let updatedCount = totalCount + 12;
     setTotalCount(updatedCount);
-    // filterUpdateOptions[value](userInput, updatedCount);
-    onLoadMore(updatedCount);
+    onLoadMore(title, updatedCount);
   }
 
   return (
@@ -184,7 +183,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
        {
          isDynamicFetch &&
          <div className="d-flex justify-content-center">
-          {!isHideSeeMoreLink ? <Button className="transparent-button" onClick={onClickLoadMore}>See More</Button> : ""}
+          {!isHideSeeMoreLink ? <Button className="transparent-button" onClick={()=>onClickLoadMore(title)}>See More</Button> : ""}
          </div>
        }
         {

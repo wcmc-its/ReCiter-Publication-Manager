@@ -63,9 +63,10 @@ const Search = () => {
   const [findPeopleLabels, setFindPeopleLabels] = useState([])
   const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
 
-  //for ViewProfile
-  // const [showProfile, setShowprofile] = useState(false);
-  // const [showProfileID, setShowprofileID] = useState("");
+  const [showProfile, setShowprofile] = useState(false);
+  const [showProfileID, setShowprofileID] = useState("");
+  const [headShot, setHeadShot] = useState([]);
+  const [viewProfileLabels, setViewProfileLabels] = useState([])
   
   //ref
   const searchValue = useRef()
@@ -176,7 +177,7 @@ const Search = () => {
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'View Profile', to: ''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true)
@@ -202,7 +203,50 @@ const Search = () => {
       fetchPaginatedData()
       fetchCount()
     // }
+    fetchAllAdminSettings()
   }, [])
+
+  const fetchAllAdminSettings = () => {
+    const request = {};
+    fetch(`/api/db/admin/settings`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(request),
+    }).then(response => response.json())
+      .then(data => {
+        let parsedSettingsArray = [];
+        data.map((obj, index1) => {
+          let a = JSON.stringify(obj.viewAttributes)
+          let b = JSON.parse(a);
+          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          let parsedSettings = {
+            viewName : obj.viewName,
+            viewAttributes: c,
+            viewLabel: obj.viewLabel
+          }
+          parsedSettingsArray.push(parsedSettings)
+        })
+        var viewAttributes = [];
+        var headShotViewAttributes = [];
+
+        let updatedData = parsedSettingsArray.find(obj => obj.viewName === "viewProfile")
+        let headShotData = parsedSettingsArray.find(obj => obj.viewName === "headshot")
+
+        viewAttributes = updatedData.viewAttributes;
+        headShotViewAttributes = headShotData.viewAttributes
+        setViewProfileLabels(viewAttributes)
+        setHeadShot(headShotViewAttributes)
+      })
+      .catch(error => {
+        // setLoading(false);
+      });
+  }
+
 
   const fetchIdentityData = () => {
     dispatch(identityFetchAllData(filters));
@@ -392,11 +436,12 @@ const Search = () => {
     }
   }
 
-  const redirectToCurate = (isFor, data) => {
-    // console.log("data", data)
-    // console.log("isFor", isFor)
-
-    // if()
+  const redirectToCurate = (isFor, data, title) => {
+    if(title === "View Profile"){
+      // let isLoggedInUser =  data === loggedInPersonIdentifier
+      setShowprofile(true);
+      setShowprofileID(data.personIdentifier)
+    }else {
     if (isFor === "individual") {
       router.push({
         pathname: `/curate/${data}`,
@@ -414,6 +459,7 @@ const Search = () => {
         pathname: '/curate',
       })
     }
+  }
   }
 
   // Spinner when navigating between pages
@@ -442,11 +488,11 @@ const Search = () => {
     {
       return  <SplitDropdown
         title={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? "Curate Publications" : "Create Reports"}
-        onDropDownClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? () => redirectToCurate("individual",identity.identity.personIdentifier) : () => redirectToCurate("report", identity.identity.personIdentifier)}
+        onDropDownClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
         id={`curate-publications_${identity.identity.personIdentifier}`}
         listItems={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? dropdownMenuItems : []} //{isUserRole && isUserRole === allowedPermissions.Superuser ? dropdownItemsSuper : dropdownItemsReport}
         secondary={true}
-        onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? () => redirectToCurate("report", identity.identity): "undefined"}/>
+        onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
     }
     else if((isCuratorAll && isReporterAll && isCuratorSelf) ||isSuperUser || (isCuratorAll && isReporterAll))
     {
@@ -455,11 +501,11 @@ const Search = () => {
         //{isUserRole && isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}
         // to={`/curate/${identity.personIdentifier}`}
         //onDropDownClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report",identity.personIdentifier) : () => redirectToCurate("individual", identity.personIdentifier)}
-        onDropDownClick={() => redirectToCurate("individual",identity.identity.personIdentifier)}
+        onDropDownClick={(e) => redirectToCurate("individual",identity.identity.personIdentifier,e)}
         id={`curate-publications_${identity.identity.personIdentifier}`}
         listItems={dropdownMenuItems} 
         secondary={true}
-        onClick={() => redirectToCurate("report", identity.identity)}/>
+        onClick={(e) => redirectToCurate("report", identity.identity,e)}/>
     }
     else
        return null;
@@ -566,14 +612,14 @@ const Search = () => {
                     onCountChange={handleCountUpdate}
                   />
 
-                  {/* <Profile
+                  <Profile
                     uid={showProfileID}
                     modalShow={showProfile}
                     handleShow={handleShow}
                     handleClose={handleClose}
-                    viewProfileLabels={""}
-                    headShotLabelData={""}
-                  /> */}
+                    viewProfileLabels={viewProfileLabels}
+                    headShotLabelData = {headShot}
+                  />
                 </React.Fragment>
               </div>
             )

@@ -7,7 +7,7 @@ import styles from './Dropdown.module.css';
 interface DropdownProps {
   title: string,
   to?: string,
-  onClick?: () => void,
+  onClick?:(title:string) => void,
   id: string, 
   listItems: Array<ListItem>,
   secondary?: boolean,
@@ -30,7 +30,7 @@ const SplitDropdown: React.FC<DropdownProps> = ({ title, to, onClick, id, listIt
           id={id}
           key={id}
           disabled={disabled}
-          onClick={()=>onDropDownClick()}
+          onClick={(title)=>onDropDownClick(title)}
         >
           {listItems.map((item: ListItem, index: number) => {
             if (item.onClick !== undefined) {
@@ -42,7 +42,7 @@ const SplitDropdown: React.FC<DropdownProps> = ({ title, to, onClick, id, listIt
             } else {
               return (
                 // <Link key={index} href={item.to} passHref><Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`}   eventKey={index}>{item.title}</Dropdown.Item></Link>
-                <Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`} onClick={onClick}   eventKey={index}>{item.title}</Dropdown.Item>
+                <Dropdown.Item className={styles.dropdownItem} key={`${id}__${index}`}  onClick={()=>onClick(item.title)}   eventKey={index}>{item.title}</Dropdown.Item>
               )
             }
           })}
