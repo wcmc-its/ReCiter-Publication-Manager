@@ -86,6 +86,8 @@ export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,select
           focusedInput={focusedInput} // PropTypes.oneOf([START_DATE, END_DATE]) or null,
           onFocusChange={focusedInput =>{ setFocusedInput(focusedInput)}} // PropTypes.func.isRequired,
           isOutsideRange={()=> false}
+          startDatePlaceholderText="MM/DD/YYYY"
+          endDatePlaceholderText="MM/DD/YYYY"
         />
         <div className="mt-1">
           <Button varient="primary" className="fullWidth" onClick= {handleCustomDateRange}>Last 30 days</Button>
