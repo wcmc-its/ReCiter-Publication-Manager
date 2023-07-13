@@ -13,12 +13,12 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
             defaults: {
                 personIdentifier: uid,
                 nameFirst: samlFirstName?samlFirstName:((person && person.firstName)?person.firstName:null),
-                nameMiddle: samlLastName?samlLastName:((person && person.middleName)?person.middleName:null),
-                nameLast: (person && person.lastName)?person.lastName:null,
+                nameMiddle: (person && person.middleName)?person.middleName:null,
+                nameLast: samlLastName?samlLastName:(person && person.lastName)?person.lastName:null,
                 createTimestamp: new Date(),
                 modifyTimestamp: new Date(),
                 status: 1,//Start of with no access for everybody(person && person.personIdentifier)? 1:0
-                email:samlEmail?samlEmail:((person && person.lastName)?person.lastName:null)
+                email:samlEmail?samlEmail:((person && person.primaryEmail.toString())?person.primaryEmail.toString():null)
             }
         })
 
