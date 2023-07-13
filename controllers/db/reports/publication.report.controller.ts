@@ -313,7 +313,7 @@ export const generatePubsPeopleOnlyRtf = async (
         ],
         where: where,
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
-        having: sequelize.fn("FIND_IN_SET",`${apiBody.filters.personTypes}`, sequelize.literal("`PersonPersonTypes.personType`")),
+        having: Sequelize.fn("FIND_IN_SET",`${apiBody.filters.personTypes}`, Sequelize.literal("`PersonPersonTypes.personType`")),
         order:sort,
         subQuery: false,
         attributes: ["authors","authorPosition"],

@@ -282,7 +282,7 @@ const Profile = ({
     }
 
     if (list.emails) {
-      let roleAccess = userPermissions.some(role => role.roleLabel === (allowedPermissions.Superuser  ) )
+      let roleAccess = userPermissions.some(role => role.roleLabel === (allowedPermissions.Superuser || allowedPermissions.Curator_Self  ) )
       if (list.emails.length > 0 && userPermissions.length >= 0 && roleAccess) {
         let formattedEmails = list.emails.map((email) => {
           return {name: email}
