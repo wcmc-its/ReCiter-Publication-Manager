@@ -209,7 +209,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.personTypes.length > 0
         ) {
           // No need to add personTypes for the export as they are expecting all the personType should be included in excel
-          /* where[Op.and].push({
+         /*  where[Op.and].push({
              "$PersonPersonTypes.personType$": {
                [Op.in]: apiBody.filters.personTypes,
              },
@@ -249,7 +249,6 @@ export const generatePubsPeopleOnlyRtf = async (
       }
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let searchOutput: any[] = [];
-
 
       searchOutput = await models.AnalysisSummaryAuthor.findAll({
         include: [
@@ -314,6 +313,7 @@ export const generatePubsPeopleOnlyRtf = async (
         ],
         where: where,
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
+        having: sequelize.fn("FIND_IN_SET",`${apiBody.filters.personTypes}`, sequelize.literal("`PersonPersonTypes.personType`")),
         order:sort,
         subQuery: false,
         attributes: ["authors","authorPosition"],
