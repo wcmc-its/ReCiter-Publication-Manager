@@ -3,7 +3,7 @@ import models from '../../src/db/sequelize'
 import { findOnePerson } from './person.controller'
 import { Op} from "sequelize"
 
-export const findOrCreateAdminUsers = async (uid: string) => {
+export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
         const person = await findOnePerson(uid)
         const [user, created] = await models.AdminUser.findOrCreate({
@@ -12,27 +12,27 @@ export const findOrCreateAdminUsers = async (uid: string) => {
             },
             defaults: {
                 personIdentifier: uid,
-                nameFirst: (person && person.firstName)?person.firstName:null,
+                nameFirst: samlFirstName?samlFirstName:((person && person.firstName)?person.firstName:null),
                 nameMiddle: (person && person.middleName)?person.middleName:null,
-                nameLast: (person && person.lastName)?person.lastName:null,
+                nameLast: samlLastName?samlLastName:(person && person.lastName)?person.lastName:null,
                 createTimestamp: new Date(),
-                status: 1//Start of with no access for everybody(person && person.personIdentifier)? 1:0
+                modifyTimestamp: new Date(),
+                status: 1,//Start of with no access for everybody(person && person.personIdentifier)? 1:0
+                email:samlEmail?samlEmail:((person && person.primaryEmail.toString())?person.primaryEmail.toString():null)
             }
         })
 
         created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
             console.log('User ' + uid + ' already exists in adminUsers table')
         
-        console.log(user.toJSON())
-        return user
-
+        return user.get({plain:true});
+        
     } catch (e) {
         console.log(e)
     }
 };
 
 export const findAdminUser = async (attrValue: string, attrType:string) => {
-    
     if (attrType === "email"){
         const user = await models.AdminUser.findOne({
             where: {
@@ -77,7 +77,6 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
         console.log(adminUserRole.toJSON())
         return adminUserRole
         }));
-        console.log('data************************',data);
         return data;
     } catch (e) {
         console.log(e)

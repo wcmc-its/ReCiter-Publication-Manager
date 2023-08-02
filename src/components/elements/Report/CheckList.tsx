@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState,useEffect } from "react";
 import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form } from "react-bootstrap";
 import styles from "./ChecboxSelect.module.css";
 import { setReportFilterLabels } from "../../../utils/constants";
 
-export const CheckList = ({ reportFiltersLabes,title, options, onUpdateFilter, filterName, selectedOptions }) => {
+export const CheckList = ({ reportFiltersLabes,title, options, onUpdateFilter, filterName, selectedOptions,isFilterClear }) => {
   const [selectedList, setSelectedList] = useState<any>([]);
 
   const onSelect = (event) => {
@@ -31,6 +31,12 @@ export const CheckList = ({ reportFiltersLabes,title, options, onUpdateFilter, f
     }
     onUpdateFilter(filterName, updatedSelected);
   }
+
+  useEffect(() => {
+
+    if(selectedList) setSelectedList([]);
+
+  }, [isFilterClear ])
 
   return (
     <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>

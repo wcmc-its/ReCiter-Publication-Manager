@@ -43,7 +43,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
 
   const Feedbacklog = ({ userId, timestamp, feedback, userDetails}) => {
     let date = new Date(timestamp).toUTCString();
-    date = moment().tz("America/New_York").format("YYYY-MM-DD HH:mm:ss z")
+    date = moment(date).tz("America/New_York").format("YYYY-MM-DD HH:mm:ss z")
     let action = getAction(feedback);
     let userFullName = userDetails.nameFirst + " "+ userDetails.nameLast;
     return (

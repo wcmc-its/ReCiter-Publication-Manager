@@ -17,6 +17,7 @@ import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
 import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
+import Profile from "../Profile/Profile";
 
 const Search = () => {
 
@@ -33,7 +34,7 @@ const Search = () => {
   const identityPaginatedFetching = useSelector((state) => state.identityPaginatedFetching)
   const filters = useSelector((state) => state.filters)
   const updatedAdminSettings = useSelector((state) => state.updatedAdminSettings)
-
+  
 
   const errors = useSelector((state) => state.errors)
 
@@ -62,7 +63,10 @@ const Search = () => {
   const [findPeopleLabels, setFindPeopleLabels] = useState([])
   const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
 
-
+  const [showProfile, setShowprofile] = useState(false);
+  const [showProfileID, setShowprofileID] = useState("");
+  const [headShot, setHeadShot] = useState([]);
+  const [viewProfileLabels, setViewProfileLabels] = useState([])
   
   //ref
   const searchValue = useRef()
@@ -100,27 +104,27 @@ const Search = () => {
         setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     } else if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All)) {
         setDropdownTitle("Curate Publications");
-        let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+        let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
         setDropdownMenuItems(dropDownMenuItems);
         setIsCuratorAll(true);
         setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     }else if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser)) {
         setDropdownTitle("Curate Publications");
-        let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+        let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
         setDropdownMenuItems(dropDownMenuItems);
         setIsSuperUser(true)
         setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     }
     else if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) {
       setDropdownTitle("Curate Publications");
-      setDropdownMenuItems([]);
+      setDropdownMenuItems([{title: 'View Profile', to:''}]);
       setIsCuratorSelf(true)
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     }
     else if(userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser ))
     {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true);
@@ -132,7 +136,7 @@ const Search = () => {
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true);
@@ -143,7 +147,7 @@ const Search = () => {
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true);
@@ -154,7 +158,7 @@ const Search = () => {
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser  )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsReporterAll(true)  
       setIsCuratorAll(true);
@@ -164,7 +168,7 @@ const Search = () => {
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
         setDropdownTitle("Curate Publications");
-        let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+        let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
         setDropdownMenuItems(dropDownMenuItems);
         setIsReporterAll(true)  
         setIsCuratorAll(true);
@@ -173,7 +177,7 @@ const Search = () => {
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
       && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All )) {
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'View Profile', to: ''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsReporterAll(true)
@@ -182,14 +186,14 @@ const Search = () => {
     else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
     && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
     setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{}];
+      let dropDownMenuItems = [{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsCuratorAll(true)
       } 
     else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''}];
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsSuperUser(true);
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
@@ -199,23 +203,68 @@ const Search = () => {
       fetchPaginatedData()
       fetchCount()
     // }
+    fetchAllAdminSettings()
   }, [])
+
+  const fetchAllAdminSettings = () => {
+    const request = {};
+    fetch(`/api/db/admin/settings`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(request),
+    }).then(response => response.json())
+      .then(data => {
+        let parsedSettingsArray = [];
+        data.map((obj, index1) => {
+          let a = JSON.stringify(obj.viewAttributes)
+          let b = JSON.parse(a);
+          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          let parsedSettings = {
+            viewName : obj.viewName,
+            viewAttributes: c,
+            viewLabel: obj.viewLabel
+          }
+          parsedSettingsArray.push(parsedSettings)
+        })
+        var viewAttributes = [];
+        var headShotViewAttributes = [];
+
+        let updatedData = parsedSettingsArray.find(obj => obj.viewName === "viewProfile")
+        let headShotData = parsedSettingsArray.find(obj => obj.viewName === "headshot")
+
+        viewAttributes = updatedData.viewAttributes;
+        headShotViewAttributes = headShotData.viewAttributes
+        setViewProfileLabels(viewAttributes)
+        setHeadShot(headShotViewAttributes)
+      })
+      .catch(error => {
+        // setLoading(false);
+      });
+  }
+
 
   const fetchIdentityData = () => {
     dispatch(identityFetchAllData(filters));
   }
 
   const fetchPaginatedData = (newCount) => {
-    dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
+    if (newCount === 'reset') {
+      let filters = {}
+      dispatch(identityFetchPaginatedData(1, count, filters))
+    } else {
+      dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
+    }
   }
 
 
   const handlePaginationUpdate = (page) => {
     setPage(page)
-
-    if (Object.keys(filters).length === 0) {
       dispatch(identityFetchPaginatedData(page, count, filters))
-    }
   }
 
   const handleCountUpdate = (count) => {
@@ -320,6 +369,7 @@ const Search = () => {
     dispatch(updateFilters(updatedFilters));
     dispatch(identityFetchAllData(request));
     setPage(1);
+    setFilterByPending(false);
   }
 
   const handlePendingFilterUpdate = (value) => {
@@ -337,6 +387,9 @@ const Search = () => {
   }
 
   const onClickProfile = (personIdentifier) => {
+    // setShowprofile(true);
+    // setShowprofileID(personIdentifier)
+   
     router.push(`/curate/${personIdentifier}`);
     if (identityAllData && !identityAllFetching) {
       dispatch(identityClearAllData())
@@ -344,9 +397,14 @@ const Search = () => {
     }
   }
 
+  const handleClose = () => setShowprofile(false);
+  const handleShow = () => setShowprofile(false);
+
   const resetData = () => {
     dispatch(clearFilters())
-    fetchPaginatedData()
+    setPage(1)
+    setCount(20)
+    fetchPaginatedData('reset')
     fetchCount()
   }
 
@@ -378,9 +436,12 @@ const Search = () => {
     }
   }
 
-  const redirectToCurate = (isFor, data) => {
-
-    // if()
+  const redirectToCurate = (isFor, data, title) => {
+    if(title === "View Profile"){
+      // let isLoggedInUser =  data === loggedInPersonIdentifier
+      setShowprofile(true);
+      setShowprofileID(data.personIdentifier)
+    }else {
     if (isFor === "individual") {
       router.push({
         pathname: `/curate/${data}`,
@@ -398,6 +459,7 @@ const Search = () => {
         pathname: '/curate',
       })
     }
+  }
   }
 
   // Spinner when navigating between pages
@@ -426,11 +488,11 @@ const Search = () => {
     {
       return  <SplitDropdown
         title={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? "Curate Publications" : "Create Reports"}
-        onDropDownClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? () => redirectToCurate("individual",identity.identity.personIdentifier) : () => redirectToCurate("report", identity.identity.personIdentifier)}
+        onDropDownClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
         id={`curate-publications_${identity.identity.personIdentifier}`}
         listItems={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? dropdownMenuItems : []} //{isUserRole && isUserRole === allowedPermissions.Superuser ? dropdownItemsSuper : dropdownItemsReport}
         secondary={true}
-        onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? () => redirectToCurate("report", identity.identity): "undefined"}/>
+        onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
     }
     else if((isCuratorAll && isReporterAll && isCuratorSelf) ||isSuperUser || (isCuratorAll && isReporterAll))
     {
@@ -439,11 +501,11 @@ const Search = () => {
         //{isUserRole && isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}
         // to={`/curate/${identity.personIdentifier}`}
         //onDropDownClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report",identity.personIdentifier) : () => redirectToCurate("individual", identity.personIdentifier)}
-        onDropDownClick={() => redirectToCurate("individual",identity.identity.personIdentifier)}
+        onDropDownClick={(e) => redirectToCurate("individual",identity.identity.personIdentifier,e)}
         id={`curate-publications_${identity.identity.personIdentifier}`}
         listItems={dropdownMenuItems} 
         secondary={true}
-        onClick={() => redirectToCurate("report", identity.identity)}/>
+        onClick={(e) => redirectToCurate("report", identity.identity,e)}/>
     }
     else
        return null;
@@ -548,6 +610,15 @@ const Search = () => {
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
+                  />
+
+                  <Profile
+                    uid={showProfileID}
+                    modalShow={showProfile}
+                    handleShow={handleShow}
+                    handleClose={handleClose}
+                    viewProfileLabels={viewProfileLabels}
+                    headShotLabelData = {headShot}
                   />
                 </React.Fragment>
               </div>

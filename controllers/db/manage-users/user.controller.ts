@@ -4,6 +4,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
+models.AdminUser.hasMany(models.AdminUsersDepartment, {as:'AdminUserDept', constraints: false,foreignKey:"userID" });
+models.AdminUser.hasOne(models.Person, {as:'person', constraints: false,foreignKey:"personIdentifier" });
+models.AdminUser.hasMany(models.AdminDepartment, {as:'AdminDepartment', constraints: false,foreignKey:"departmentID" });
 
 export const listAllUsers = async (
   req: NextApiRequest,
@@ -17,9 +20,24 @@ export const listAllUsers = async (
       searchTextInput
     } = req.body;
     if (req.body.limit != undefined && req.body.offset != undefined) {
+
+     
       if (searchTextInput) {
         const where = {}
+        const whereForPerson = {}
+        whereForPerson[Op.and] =[];
         where[Op.and] = []
+
+        whereForPerson[Op.and].push({
+          // [Op.or]:[
+          //   {
+          //     '$primaryOrganizationalUnit$': {
+          //       [Op.like]: `%${searchTextInput}%`
+          //     }
+          //   }
+          // ]
+        })
+        
          where[Op.and].push({
           [Op.or]: [{
             '$nameFirst$': {
@@ -33,16 +51,71 @@ export const listAllUsers = async (
             '$nameLast$': {
               [Op.like]: `%${searchTextInput}%`
             }
+          },{
+            '$AdminUser.personIdentifier$': {
+              [Op.like]: `%${searchTextInput}%`
+            }
+          },{
+            '$departmentLabel$': {
+              [Op.like]: `%${searchTextInput}%`
+            }
+          },{
+            '$email$': {
+              [Op.like]: `%${searchTextInput}%`
+            }
+          },{
+            '$primaryOrganizationalUnit$': {
+              [Op.like]: `%${searchTextInput}%`
+            }
           }]
         }) 
         const {
           count,
           rows
         } = await models.AdminUser.findAndCountAll({
-          offset: offset,
-          // limit: limit,
-          where: where
+
+          // new code 
+          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", ],
+          include: [
+            {
+              model: models.Person,
+              as: "person",
+              required: false,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUser.personIdentifier'), "=", Sequelize.col('person.personIdentifier'))
+              },
+              attributes: ['primaryOrganizationalUnit'],
+              where: whereForPerson,
+            },
+            {
+              model: models.AdminUsersDepartment,
+              as: "AdminUserDept",
+              required: true,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUser.userID'), "=", Sequelize.col('AdminUserDept.userID'))
+              },
+              attributes: [[Sequelize.fn("GROUP_CONCAT", Sequelize.col('AdminDepartment.departmentLabel')),"departmentLabel",],'userID'],
+            },
+            {
+              model: models.AdminDepartment,
+              as: "AdminDepartment",
+              required: true,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUserDept.departmentID'), "=", Sequelize.col('AdminDepartment.departmentID'))
+              },
+              where: where,
+              attributes: ["departmentLabel"]
+            },
+          ],
+          where: where,
+          group: ['AdminUser.userID'],
+          order: [["nameFirst","ASC"],["nameLast","ASC"]],
+          subQuery: false,
+          offset: req.body.offset,
+          limit: req.body.limit,
+
         });
+        console.log("rows", rows)
         users['usersData'] = rows;
         users['totalUsersCount'] = count;
       } else {
@@ -50,11 +123,44 @@ export const listAllUsers = async (
           count,
           rows
         } = await models.AdminUser.findAndCountAll({
+          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", ],
+          include: [
+            {
+              model: models.Person,
+              as: "person",
+              required: true,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUser.personIdentifier'), "=", Sequelize.col('person.personIdentifier'))
+              },
+              attributes: ['primaryOrganizationalUnit'],
+            },
+            {
+              model: models.AdminUsersDepartment,
+              as: "AdminUserDept",
+              required: false,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUser.userID'), "=", Sequelize.col('AdminUserDept.userID'))
+              },
+              attributes: [[Sequelize.fn("GROUP_CONCAT", Sequelize.col('AdminDepartment.departmentLabel')),"departmentLabel",],'userID'],
+            },
+            {
+              model: models.AdminDepartment,
+              as: "AdminDepartment",
+              required: false,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUserDept.departmentID'), "=", Sequelize.col('AdminDepartment.departmentID'))
+              },
+              attributes: ["departmentLabel"]
+            },
+          ],
+          group: ['AdminUser.userID'],
+          subQuery: false,
+          order: [["nameFirst","ASC"],["nameLast","ASC"]],
           offset: req.body.offset,
           limit: req.body.limit,
         });
         users['usersData'] = rows;
-        users['totalUsersCount'] = count;
+        users['totalUsersCount'] = count.length;
       }
     }
     res.send(users);

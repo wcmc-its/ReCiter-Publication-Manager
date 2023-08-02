@@ -44,25 +44,45 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     let updatedSelectedList = selectedOptions && selectedOptions.map((selectedOption) => {
       return options.find(option => option[optionValue] == selectedOption);
     })
+    
     let filteredData = updatedSelectedList?.filter(item => item !== undefined) 
+
     if (filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
       const uniqueIds = selectedList;
       let isPersonIdentifier = false;
+      let isJournalTitleVerbose = false;
       filteredData.filter(element => {
-        if(element.hasOwnProperty("personIdentifier")) isPersonIdentifier = true;
-
+        if(element.hasOwnProperty("journalTitleVerbose")){
+          if(element.hasOwnProperty("journalTitleVerbose")) isJournalTitleVerbose = true;
+          const isDuplicate = uniqueIds.includes(element);
+          if (!isDuplicate) {
+              uniqueIds.push(element);
+              return true;
+          }
+          return false;
+        }else if(element.hasOwnProperty("personIdentifier")){
+          if(element.hasOwnProperty("personIdentifier")) isPersonIdentifier = true;
           const isDuplicate = uniqueIds.includes(element.personIdentifier);
           if (!isDuplicate) {
               uniqueIds.push(element);
               return true;
           }
           return false;
+        }
       });
-      const ids = uniqueIds.map(i => i.personIdentifier)
-       const filtered = uniqueIds.filter(({
+      let filtered =[];
+      if(uniqueIds.some(i=> i.hasOwnProperty("personIdentifier"))){
+        const ids = uniqueIds.map(i => i.personIdentifier)
+        filtered = uniqueIds.filter(({
           personIdentifier
-      }, index) => !ids.includes(personIdentifier, index + 1)) 
-       if(isPersonIdentifier)  setSelectedList(filtered);
+        }, index) => !ids.includes(personIdentifier, index + 1))
+      }else if(uniqueIds.some(i=> i.hasOwnProperty("journalTitleVerbose"))){
+        const ids = uniqueIds.map(i => i.journalTitleVerbose)
+        filtered = uniqueIds.filter(({
+          journalTitleVerbose
+        }, index) => !ids.includes(journalTitleVerbose, index + 1))
+      }
+      if(isPersonIdentifier || isJournalTitleVerbose)  setSelectedList(filtered);
       else setSelectedList(filteredData)
   }
   }
@@ -117,11 +137,10 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     onUpdateFilter(filterName, updatedSelected);
   }
 
-  const onClickLoadMore = () => {
+  const onClickLoadMore = (title) => {
     let updatedCount = totalCount + 12;
     setTotalCount(updatedCount);
-    // filterUpdateOptions[value](userInput, updatedCount);
-    onLoadMore(updatedCount);
+    onLoadMore(title, updatedCount);
   }
 
   return (
@@ -164,7 +183,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
        {
          isDynamicFetch &&
          <div className="d-flex justify-content-center">
-          {!isHideSeeMoreLink ? <Button className="transparent-button" onClick={onClickLoadMore}>See More</Button> : ""}
+          {!isHideSeeMoreLink ? <Button className="transparent-button" onClick={()=>onClickLoadMore(title)}>See More</Button> : ""}
          </div>
        }
         {

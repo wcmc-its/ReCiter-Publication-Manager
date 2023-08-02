@@ -111,7 +111,8 @@ export const infoBubblesConfig = {
   citationCountNIH: "This is the number of citations an article has received from CrossRef, MEDLINE, PubMed Central, and Entrez. NIH citation counts generally correlate closely with the counts in Scopus and Web of Knowledge.",
   includeHeadshot: true,
   headshotSyntax: "https://directory.weill.cornell.edu/api/v1/person/profile/{personID}.png?returnGenericOn404=false",
-  journalImpactScore2: "An additional journal-level metric"
+  journalImpactScore2: "An additional journal-level metric",
+  citationCountScopus:"citationCountScopus"
 }
 
 export const limits = {
@@ -135,7 +136,7 @@ export const metrics = {
     relativeCitationRatioNIH: true,
     trendingPubsScore: true,
     citationCountNIH: true,
-    citationCountScopus: true
+    citationCountScopus: true 
   }
 }
 
@@ -187,6 +188,7 @@ export const labels = {
   authorsInfo:
   {
     authors:"Authors",
+    authorPosition:"Author Position"
   } 
 }
 

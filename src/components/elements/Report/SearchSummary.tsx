@@ -16,14 +16,14 @@ import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible, setRepo
 
 const SearchSummary = ({ 
   reportLabelsForSort,
-  count, 
+  articlesCount, 
   onClick,
   selected,
   onGetReportsDatabyPubFilters,
   exportAuthorShipLabels,
   exportArticleLabels,
   exportArticlesRTF,
-}: {exportArticlesRTF:any, exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,count: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
+}: {exportArticlesRTF:any, exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,articlesCount: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -264,6 +264,7 @@ const SearchSummary = ({
           }
         })
         itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
+        itemRow = {...itemRow, authorPosition: item.authorPosition?.replace(/[\])}[{(]/g, '')};
         worksheet.addRow(itemRow);
       })
 
@@ -355,6 +356,7 @@ const SearchSummary = ({
           }
         })
         itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
+        itemRow = {...itemRow, authorPosition: item.authorPosition?.replace(/[\])}[{(]/g, '')};
         worksheet.addRow(itemRow);
       })
 
@@ -378,7 +380,7 @@ const SearchSummary = ({
   return (
     <>
       <div className="d-flex justify-content-between align-items-center pt-5">
-        <p className="mb-0"><b>{count ? formatter.format(count) : 0} articles</b></p>
+        <p className="mb-0"><b>{articlesCount && articlesCount > 0? formatter.format(articlesCount) : 0} articles</b></p>
         <div className="search-summary-buttons">
         <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
           {
@@ -407,8 +409,8 @@ const SearchSummary = ({
             })
           }
         </DropdownButton>
-          <Button variant="warning" className="m-2" disabled={count == 0} onClick={() =>  getReportsDatabyPubFilters("CSV")}>Export to CSV</Button>
-          <Button variant="warning" className="m-2" disabled={count == 0} onClick={() =>  getReportsDatabyPubFilters("RTF")}>Export to RTF</Button>
+          <Button variant="warning" className="m-2" disabled={articlesCount ? false : true  } onClick={() =>  getReportsDatabyPubFilters("CSV")}>Export to CSV</Button>
+          <Button variant="warning" className="m-2" disabled={articlesCount ? false : true} onClick={() =>  getReportsDatabyPubFilters("RTF")}>Export to RTF</Button>
         </div>
       </div>
       <ExportModal
@@ -419,8 +421,8 @@ const SearchSummary = ({
         articleLimit = {articleLimit}
         authorLimit= {authorLimit}
         reportsResultsIds = {reportsResultsIds}
-        count = {count}
-        countInfo={ `${formatter.format(reportsResultsIds?.personIdentifiers?.length || 0)} known authorships and ${count ? formatter.format(count) : 0} articles`}
+        articlesCount = {articlesCount}
+        countInfo={ `${formatter.format(reportsResultsIds?.authorshipsCount || 0)} known authorships and ${articlesCount ? formatter.format(articlesCount) : 0} articles`}
         buttonsList={
           [
             {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
@@ -434,13 +436,13 @@ const SearchSummary = ({
         show={openRTF}
         handleClose={() => setOpenRTF(false)}
         title="RTF"
-        countInfo={`${count ? formatter.format(count) : 0} articles`}
+        countInfo={`${articlesCount ? formatter.format(articlesCount) : 0} articles`}
         loadingResults={reportsResultsIdsLoading}
         error={exportError}
         buttonsList={[
           { title: 'Export article report', loading: exportArticleLoading, onClick: exportArticle}
         ]}
-        count = {count}
+        articlesCount = {articlesCount}
         exportArticleCsvLoading = {exportArticleLoading}
         articleLimit = {articleLimitForRTF}
       />

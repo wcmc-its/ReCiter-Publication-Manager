@@ -21,6 +21,7 @@ models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryArticle, {
 });
 models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
+  
 });
 
 export const generatePubsRtf = async (
@@ -189,8 +190,7 @@ export const generatePubsPeopleOnlyRtf = async (
           });
         }
         if (
-          apiBody.filters.journalImpactScoreLowerBound &&
-          apiBody.filters.journalImpactScoreUpperBound
+          apiBody.filters.journalImpactScoreLowerBound 
         ) {
 								  
           where[Op.and].push({
@@ -198,6 +198,9 @@ export const generatePubsPeopleOnlyRtf = async (
               [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
             },
           });
+        }
+        if(apiBody.filters.journalImpactScoreUpperBound)  
+        {
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
               [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
@@ -209,7 +212,7 @@ export const generatePubsPeopleOnlyRtf = async (
           apiBody.filters.personTypes.length > 0
         ) {
           // No need to add personTypes for the export as they are expecting all the personType should be included in excel
-          /* where[Op.and].push({
+         /*  where[Op.and].push({
              "$PersonPersonTypes.personType$": {
                [Op.in]: apiBody.filters.personTypes,
              },
@@ -249,7 +252,6 @@ export const generatePubsPeopleOnlyRtf = async (
       }
       let articleLevelMetrics = Object.keys(metrics.article).filter(metric => metrics.article[metric]);
       let searchOutput: any[] = [];
-
 
       searchOutput = await models.AnalysisSummaryAuthor.findAll({
         include: [
@@ -314,9 +316,10 @@ export const generatePubsPeopleOnlyRtf = async (
         ],
         where: where,
         group: ["AnalysisSummaryAuthor.pmid", "AnalysisSummaryAuthor.personIdentifier"],
+        having:(apiBody.filters.personTypes && apiBody.filters.personTypes.toString()!='' && apiBody.filters.personTypes.toString()!='undefined')?Sequelize.fn("FIND_IN_SET",`${apiBody.filters.personTypes}`, Sequelize.literal("`PersonPersonTypes.personType`")):null,
         order:sort,
         subQuery: false,
-        attributes: ["authors"],
+        attributes: ["authors","authorPosition"],
         limit : apiBody.limit
       })
       return searchOutput;
@@ -408,6 +411,23 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
+        else if(apiBody.filters.datePublicationAddedToEntrezLowerBound )
+          {
+            where[Op.and].push({
+              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
+              },
+            });
+          }
+          else if(apiBody.filters.datePublicationAddedToEntrezUpperBound )
+          {
+            where[Op.and].push({
+              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
+              },
+            });
+          }  
+
         if (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
@@ -541,7 +561,7 @@ export const generatePubsPeopleOnlyRtf = async (
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
-          attributes: ["authors"],
+          attributes: ["authors","authorPosition"],
           limit : apiBody.limit
         })
       }
@@ -613,7 +633,7 @@ export const generatePubsPeopleOnlyRtf = async (
           group: ["AnalysisSummaryAuthor.pmid"],
           order: sort,
           subQuery: false,
-          attributes: ["authors"],
+          attributes: ["authors","authorPosition"],
           limit : apiBody.limit,
           benchmark :true
         })
@@ -710,7 +730,7 @@ export const generatePubsPeopleOnlyRtf = async (
         group: ["AnalysisSummaryAuthor.pmid"],
         order: [],
         subQuery: false,
-        attributes: ["authors"],
+        attributes: ["authors","authorPosition"],
         limit : apiBody.limit,
         benchmark :true
       })

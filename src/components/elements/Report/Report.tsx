@@ -58,8 +58,6 @@ const Report = () => {
   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
-
-
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
   const [reset, setReset] = useState<boolean>(false);
@@ -225,7 +223,7 @@ const Report = () => {
   }
 
   const updateJournalFilterData = (input: string, count: number = 10) => {
-    if(input) dispatch(updateJournalFilter(input, count));
+    if(input) dispatch(updateJournalFilter(input, input ? "" : count));
   }
 
   const onPaginationUpdate = (newPage: number) => {
@@ -266,8 +264,12 @@ const Report = () => {
     journalFilterData: updateJournalFilterData,
   }
 
-  const onLoadMore = (seemoreCount)=>{
-    dispatch(updateAuthorFilter("", seemoreCount));
+  const onLoadMore = (title, seemoreCount) => {
+    if (title === "Journal") {
+      dispatch(updateJournalFilter("", seemoreCount));
+    } else if (title === "Author") {
+      dispatch(updateAuthorFilter("", seemoreCount));
+    }
   }
 
   const onSetSearchFilters = (filter, value) => {
@@ -304,6 +306,7 @@ const Report = () => {
     dispatch(clearPubSearchFilters());
     setReset(!reset)
     dispatch(updateAuthorFilter());
+    dispatch(updateJournalFilter());
   }
 
   const searchResults = () => {
@@ -370,11 +373,11 @@ const Report = () => {
   }
 
   const onGetReportsDatabyPubFilters =()=>{
-    const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical, authorPosition } = pubSearchFilter.filters;
+    const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical, authorPosition, journalImpactScoreLowerBound,journalImpactScoreUpperBound } = pubSearchFilter.filters;
 
-    if((personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0 || authorPosition.length > 0) && (datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length === 0 && publicationTypeCanonical.length === 0)) {
-        
-    }  else  dispatch(fetchReportsResultsIds(pubSearchFilter)) 
+    if((personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0) 
+          && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) 
+      dispatch(fetchReportsResultsIds(pubSearchFilter)) 
   }
 
   if (reportingFiltersLoading) {
@@ -408,19 +411,19 @@ const Report = () => {
         <div className="search-results-container">
           {reportsSearchResults && 
           <SearchSummary
-            count={reportsSearchResults.count}
+            articlesCount={reportsSearchResults.articlesCount}
             onClick={updateSort}
             onGetReportsDatabyPubFilters = { ()=> onGetReportsDatabyPubFilters()}
             selected={getSelectedValues(pubSearchFilter)}
             reportLabelsForSort={reportLabelsForSort}
             exportAuthorShipLabels = {exportAuthorShipLabels}
             exportArticleLabels = {exportArticleLabels}
-          exportArticlesRTF = {exportArticlesRTF}
+            exportArticlesRTF = {exportArticlesRTF}
             />
             }
           <Pagination
             count={count}
-            total={reportsSearchResults?.count}
+            total={reportsSearchResults?.articlesCount}
             page={page}
             onChange={onPaginationUpdate}
             onCountChange={onCountUpdate}

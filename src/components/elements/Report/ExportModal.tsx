@@ -16,12 +16,12 @@ interface ExportModalProps {
   articleLimit?:any,
   authorLimit?:any,
   reportsResultsIds?:any,
-  count?: any
+  articlesCount?: any
 }
 
-const ExportModal = ({ count, reportsResultsIds,articleLimit,authorLimit, exportArticleCsvLoading,exportAuthorshipCsvLoading, show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
+const ExportModal = ({ articlesCount, reportsResultsIds,articleLimit,authorLimit, exportArticleCsvLoading,exportAuthorshipCsvLoading, show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
   const formatter = new Intl.NumberFormat('en-US')
-  const isDownloading = (exportAuthorshipCsvLoading && reportsResultsIds?.personIdentifiers?.length  > authorLimit?.maxLimit )|| (exportArticleCsvLoading && count > articleLimit?.maxLimit )
+  const isDownloading = (exportAuthorshipCsvLoading && reportsResultsIds?.authorshipsCount  > authorLimit?.maxLimit )|| (exportArticleCsvLoading && articlesCount > articleLimit?.maxLimit )
   return (
     <div>
       <Modal show={show} onHide={handleClose}>

@@ -97,6 +97,7 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           filterName={filterName}
           selectedOptions={selectedFilters[filterName]}
           reportFiltersLabes={reportFiltersLabes}
+          isFilterClear={isFilterClear}
         />
       )
     default:

@@ -159,9 +159,9 @@ export const identityClearAllData = () => dispatch => {
     })
 }
 
-export const identityFetchPaginatedData = (page, limit) => dispatch => {
+export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
     const offset = (page - 1) * limit;
-    const request = { limit, offset };
+    const request = { limit, offset, filters };
     dispatch({
         type: methods.IDENTITY_FETCH_PAGINATED_DATA
     })
@@ -1709,7 +1709,7 @@ export const updateAuthorFilter = (authorInput, count,isFrom) => (dispatch) => {
 
 // Update Journal Filter
 export const updateJournalFilter = (journalInput, count) => (dispatch) => {
-    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}&count=${count}`, {
+    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput || ""}&count=${count || ""}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
@@ -1903,8 +1903,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             }
         })
         .then(data => {
-
-            if (data.count == 0 || Object.keys(data).length == 0) {
+            if (data.articlesCount == 0 || Object.keys(data).length == 0) {
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
                     payload: data,
@@ -1921,7 +1920,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
                 if (data && data.rows && data.rows.length > 0) {
                     let updatePmidRespData  = {
                         pmids: data.pmidList,
-                        personIdentifiers : data.personIdentifiersList
+                        authorshipsCount : data.authorshipsCount
                     }
 
                     dispatch({
@@ -1949,7 +1948,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
 
                         dispatch({
                             type: methods.REPORTS_SEARCH_UPDATE,
-                            payload: { count: data.count, rows: results },
+                            payload: { articlesCount: data.articlesCount, rows: results },
                         })
                         if (paginationUpdate) {
                             dispatch({
@@ -2034,7 +2033,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
         })
         .then(data => {
 
-            if (data.count === 0) {
+            if (data.articlesCount === 0) {
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
                     payload: data,
@@ -2047,7 +2046,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
                 let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
                 let updatePmidRespData = {
                     pmids: data.pmidList,
-                    personIdentifiers: data.personIdentifiersList
+                    authorshipsCount : data.authorshipsCount
                 }
 
                 dispatch({
@@ -2073,7 +2072,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
 
                     dispatch({
                         type: methods.REPORTS_SEARCH_UPDATE,
-                        payload: { count: data.count, rows: results },
+                        payload: { articlesCount: data.articlesCount, rows: results },
                     })
 
                     dispatch({
@@ -2300,7 +2299,7 @@ export const saveNotification = (payload) => dispatch => {
         )
       })
     }
-export const  sendNotification = (toEmail, body, subject) =>{
+export const  sendNotification = (payload) =>{
     return fetch(`/api/notification`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2309,7 +2308,7 @@ export const  sendNotification = (toEmail, body, subject) =>{
             "Content-Type": "application/json",
             'Authorization': reciterConfig.backendApiKey
         },
-        body: ""
+        body: JSON.stringify(payload)
     })
         .then(response => {
             if (response.status === 200) {

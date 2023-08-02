@@ -12,6 +12,7 @@ import getConfig from 'next/config';
 import path from 'path';
 import fsPromises from 'fs/promises';
 import {getSession} from 'next-auth/client'									   
+import sequelize from "../../../src/db/db";
 
 
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
@@ -19,10 +20,12 @@ models.AnalysisSummaryArticle.hasMany(models.PersonPersonType, {
   constraints: false,
   foreignKey: 'AnalysisSummaryArticleId'  
 });
+models.PersonPersonType.belongsToMany(models.AnalysisSummaryArticle,{through: models.AnalysisSummaryAuthor})
 models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
   foreignKey: 'AnalysisSummaryArticleId'
 });
+//models.AnalysisSummaryAuthor.belongsTo(models.AnalysisSummaryArticle);
 
 const fs = require("fs")
 
@@ -47,6 +50,23 @@ export const publicationSearchWithFilter = async (
     let isPersonTypeFilter = false;
     let isOrgORInstitues = false;
 
+    let whereAuthorsSql : any =[];
+    let replacementWhereAuthorsSql : any = [] ;
+    let replacementWhereObj;
+    let replaceOfPersonIdentifier;
+    let replaceOfOrgs;
+    let replaceOfInstitutions;
+    let replaceOfAuthPos;
+    let replaceOfPersonTypes;
+
+    let whereArticlesSql : any =[];
+    let replacementWhereArticleSql : any = [] ;
+    let replaceDatePubEntrizeLower; 
+    let replaceDatePubEntrizeUpper;
+    let replacePublicationTypeCanonical;
+    let replaceJournalTitleVerbose;
+    let replaceJounrnalImpactScoreLowerBound;
+    let replaceJounrnalImpactScoreUpperBound
   
     if (apiBody.filters) {
       where[Op.and] = [];
@@ -228,7 +248,7 @@ export const publicationSearchWithFilter = async (
           },
         });
         where[Op.and].push({
-          "$AnalysisSummaryArticle.journalImpactScore2$": {
+          "$AnalysisSummaryArticle.journalImpactScore1$": {
             [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
           },
         });
@@ -238,7 +258,7 @@ export const publicationSearchWithFilter = async (
           },
         });
         whereForOnlyArticles[Op.and].push({
-          "$AnalysisSummaryArticle.journalImpactScore2$": {
+          "$AnalysisSummaryArticle.journalImpactScore1$": {
             [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
           },
         });
@@ -276,7 +296,7 @@ export const publicationSearchWithFilter = async (
         isPersonTypeFilter =true;
       }
     }
-	
+
     const sort = [];
     if (apiBody && apiBody.sort) {
       let sortType = apiBody.sort.type;
@@ -308,9 +328,10 @@ export const publicationSearchWithFilter = async (
     }
 	
     let searchOutput: { count?: number; rows?: AnalysisSummaryArticle[] } = {};
-    let results:any  =[];
+    let articleResults:any  =[];
     let authorsResults:any = [];
-				 
+    let authorsCount;
+		let articleCount;		 
 
     if (isAuthorFilter || isArticleFilter) {
       if(isAuthorFilter && !isArticleFilter)
@@ -321,12 +342,21 @@ export const publicationSearchWithFilter = async (
            // models.PersonPersonType.belongsTo(models.AnalysisSummaryAuthor);
            models.Person.hasMany(models.PersonPersonType, {constraints: false, foreignKey: 'personIdentifier' });
             if(isPersonTypeFilter){ // When author filters present and including PersonType
-              if( !isOrgORInstitues){
-                authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ 
-                  attributes: ["personIdentifier", "pmid"],
+              if( !isOrgORInstitues) /*&& apiBody && apiBody.filters && apiBody.filters.personTypes)*/{
+                articleCount = await models.AnalysisSummaryArticle.count({ 
+                  attributes: [],
                   distinct:true,
                   col:'pmid',
                   include: [
+                    {
+                      model: models.AnalysisSummaryAuthor,
+                      as: "AnalysisSummaryAuthor",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                        },
+                      attributes: {exclude:[`AnalysisSummaryArticleId`,`PersonId`,`AnalysisSummaryAuthorId`]},
+                    },
                     {
                       model: models.PersonPersonType,
                       as: "PersonPersonTypes",
@@ -338,16 +368,60 @@ export const publicationSearchWithFilter = async (
                     },
                   ],
                   where: whereForOnlyAuthors,
-                  subQuery: false,
+                 // subQuery: false,
                   benchmark: true
                 });
-              } else{
-
-                authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ 
-                  attributes: ["personIdentifier", "pmid"],
+               // let personTypes = apiBody.filters.personTypes;
+                
+                if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
+                {
+                  whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                  let authorPosition = apiBody.filters.authorPosition;
+                  replaceOfAuthPos = {"authorPosition": [authorPosition]};
+                }
+                if(apiBody.filters.personTypes && apiBody.filters.personTypes.length > 0)
+                {
+                    whereAuthorsSql.push(" ppt.personType IN  :personTypes ");
+                    let personTypes = apiBody.filters.personTypes;
+                    replaceOfPersonTypes = {"personTypes": [personTypes]};
+                
+                }
+                
+                  if(whereAuthorsSql && whereAuthorsSql.length > 0)
+                  {
+                        replacementWhereObj = {
+                          ...replaceOfAuthPos,
+                          ...replaceOfPersonTypes
+                        }
+                        let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
+                        authorsResults = await sequelize.query(
+                          "SELECT distinct asu.pmid,count(asu.id) over() authorsCount from analysis_summary_author asu INNER JOIN" +
+                          " analysis_summary_article asa ON asa.pmid = asu.pmid INNER JOIN " +
+                          " person_person_type  ppt ON asu.personIdentifier = ppt.personIdentifier WHERE  "
+                          + whereAuthorsSqlReplacements ,
+                          {
+                              replacements: replacementWhereObj ,
+                              model: models.AnalysisSummaryAuthor,
+                              mapToModel : true
+                          }
+                      );
+                    }
+                       
+              } else if(apiBody && apiBody.filters){
+                articleCount = await models.AnalysisSummaryArticle.count({ 
+                  attributes: ["pmid"],
                   distinct:true,
                   col:'pmid',
                   include: [
+                    {
+                      model: models.AnalysisSummaryAuthor,
+                      as: "AnalysisSummaryAuthor",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                        },
+                      attributes: [],
+                    },
                     {
                       model: models.Person,
                       as: "Person",
@@ -363,24 +437,95 @@ export const publicationSearchWithFilter = async (
                       required: true,
                       on: {
                         col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
-                        },
-                      attributes: [`personIdentifier`],
+                        }
                     },
                   ],
                   where: joinWhereAuthorsFilters,
-                  subQuery: false,
                   benchmark: true
                 });
+                
+                 if(apiBody.filters.personIdentifers && apiBody.filters.personIdentifers.length > 0)
+                 {
+                     
+                     whereAuthorsSql.push(" asu.personIdentifier IN  :personIdentifier");
+                     let personIdentifiers = apiBody.filters.personIdentifers;
+                     replaceOfPersonIdentifier = {"personIdentifier": [personIdentifiers]};
+                 }
+                 if(apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0)
+                 {
+                      let orgUnitsArray = apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0 && apiBody.filters.orgUnits.toString().split(',');
+                      let orgUnitsLikeArray:String[]= [];
+                      orgUnitsArray.map(orgUnit =>{
+                        orgUnitsLikeArray.push("p.primaryOrganizationalUnit LIKE '%"+ orgUnit + "%' OR p.primaryOrganizationalUnit LIKE '%("+ orgUnit +")%'")
+                      })
+                      let orgUnitsLikeString =  orgUnitsLikeArray.join(' OR ') ;
+                      whereAuthorsSql.push(" ((p.primaryOrganizationalUnit IN  :orgUnits OR ("+ orgUnitsLikeString +")))")//OR (p.primaryOrganizationalUnit LIKE :orgUnitsLike OR p.primaryOrganizationalUnit LIKE :orgUnitsLike1 )))");
+                      let orgUnits = apiBody.filters.orgUnits;
+                      replaceOfOrgs = {"orgUnits": [orgUnits]}//,"orgUnitsLike" : ['%'+ orgUnits + '%'],"orgUnitsLike1" : ['%('+orgUnits +')%']};
+                 }
+                 if(apiBody.filters.institutions && apiBody.filters.institutions.length > 0)
+                 {
+                     whereAuthorsSql.push(" p.primaryInstitution IN  :institutions");
+                     let institutions = apiBody.filters.institutions
+                      replaceOfInstitutions = {"institutions": [institutions]};
+                 }
+                 if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
+                 {
+                     whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                     let authorPosition = apiBody.filters.authorPosition;
+                      replaceOfAuthPos = {"authorPosition": [authorPosition]};
+                 }
+                 if(apiBody.filters.personTypes && apiBody.filters.personTypes.length > 0)
+                 {
+                     whereAuthorsSql.push(" ppt.personType IN  :personTypes ");
+                     let personTypes = apiBody.filters.personTypes;
+                      replaceOfPersonTypes = {"personTypes": [personTypes]};
+                 
+                 }
+                 if(whereAuthorsSql && whereAuthorsSql.length > 0)
+                 {
+                  replacementWhereObj = {
+                    ...replaceOfPersonIdentifier,
+                    ...replaceOfOrgs,
+                    ...replaceOfInstitutions,
+                    ...replaceOfAuthPos,
+                    ...replaceOfPersonTypes
+                  }
+
+                      let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
+                        authorsResults = await sequelize.query(
+                          "SELECT distinct asu.pmid,count(asu.id) over() authorsCount from analysis_summary_author asu INNER JOIN" +
+                          " analysis_summary_article asa ON asu.pmid = asa.pmid INNER JOIN" +
+                          " person_person_type  ppt ON asu.personIdentifier = ppt.personIdentifier   " + 
+                          " INNER JOIN person p ON asu.personIdentifier = p.personIdentifier WHERE  " 
+                          + whereAuthorsSqlReplacements ,
+                          
+                          {
+                            replacements: replacementWhereObj,  
+                              model: models.AnalysisSummaryAuthor,
+                              mapToModel : true
+                          }
+                      );
+                 }
               }
               
             }
             else  { // When author filters present and no PersonType
-        
-                authorsResults = await models.AnalysisSummaryAuthor.findAndCountAll({ // review commnet:Change this to findAll
-                  attributes: ["personIdentifier", "pmid"],
+              console.log('in else statement****************')
+              articleCount = await models.AnalysisSummaryArticle.count({ // review commnet:Change this to findAll
+                  attributes: ["pmid"],
                   distinct:true,
                   col:'pmid',
                   include: [
+                    {
+                      model: models.AnalysisSummaryAuthor,
+                      as: "AnalysisSummaryAuthor",
+                      required: true,
+                      on: {
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                        },
+                      attributes: [],
+                    },
                     {
                       model: models.Person,
                       as: "Person",
@@ -392,26 +537,92 @@ export const publicationSearchWithFilter = async (
                     }
                   ],
                   where: joinWhereAuthorsFilters,
-                  subQuery: false,
                   benchmark: true
                 });
+
+              if(apiBody.filters.personIdentifers && apiBody.filters.personIdentifers.length > 0)
+              {
+                  
+                  whereAuthorsSql.push(" asu.personIdentifier IN  :personIdentifier");
+                  let personIdentifiers = apiBody.filters.personIdentifers;
+                  replaceOfPersonIdentifier = {"personIdentifier": [personIdentifiers]};
               }
+              if(apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0)
+              {
+                   let orgUnitsArray = apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0 && apiBody.filters.orgUnits.toString().split(',');
+                   let orgUnitsLikeArray:String[]= [];
+                   orgUnitsArray.map(orgUnit =>{
+                     orgUnitsLikeArray.push("p.primaryOrganizationalUnit LIKE '%"+ orgUnit + "%' OR p.primaryOrganizationalUnit LIKE '%("+ orgUnit +")%'")
+                   })
+                   let orgUnitsLikeString =  orgUnitsLikeArray.join(' OR ') ;
+                   whereAuthorsSql.push(" ((p.primaryOrganizationalUnit IN  :orgUnits OR ("+ orgUnitsLikeString +")))")//OR (p.primaryOrganizationalUnit LIKE :orgUnitsLike OR p.primaryOrganizationalUnit LIKE :orgUnitsLike1 )))");
+                   let orgUnits = apiBody.filters.orgUnits;
+                   replaceOfOrgs = {"orgUnits": [orgUnits]}//,"orgUnitsLike" : ['%'+ orgUnits + '%'],"orgUnitsLike1" : ['%('+orgUnits +')%']};
+              }
+              if(apiBody.filters.institutions && apiBody.filters.institutions.length > 0)
+              {
+                  whereAuthorsSql.push(" p.primaryInstitution IN  :institutions");
+                  let institutions = apiBody.filters.institutions
+                  replaceOfInstitutions = {"institutions": [institutions]};
+              }
+              if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
+              {
+                  whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                  let authorPosition = apiBody.filters.authorPosition;
+                  replaceOfAuthPos = {"authorPosition": [authorPosition]};
+              }
+              if(whereAuthorsSql && whereAuthorsSql.length > 0)
+              {
+              replacementWhereObj = {
+                ...replaceOfPersonIdentifier,
+                ...replaceOfOrgs,
+                ...replaceOfInstitutions,
+                ...replaceOfAuthPos
+                
+              }
+
+                let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
+
+                    authorsResults = await sequelize.query(
+                      "SELECT pmid,count(id) over() as authorsCount from (SELECT distinct asu.id,asu.pmid from analysis_summary_author asu INNER JOIN" +
+                      " analysis_summary_article asa ON asu.pmid = asa.pmid INNER JOIN" +
+                      " person  p ON asu.personIdentifier = p.personIdentifier WHERE" + whereAuthorsSqlReplacements +")x",
+                      {
+                        replacements: replacementWhereObj ,
+                          model: models.AnalysisSummaryAuthor,
+                          mapToModel : true
+                      }
+                  );	
+                    }											   
+            }
       }else if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
-        results = await models.AnalysisSummaryArticle.findAndCountAll({
+        articleResults = await models.AnalysisSummaryArticle.findAndCountAll({
+          include: [
+            {
+              model: models.AnalysisSummaryAuthor,
+              as: "AnalysisSummaryAuthor",
+              required: true,
+              on: {
+                col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                },
+              attributes: [],
+            },
+          ],
           where: whereForOnlyArticles,
           subQuery: false,
           limit: apiBody.limit,
           offset: apiBody.offset,
           order: sort,
           distinct: true,
-          attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+          attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('AnalysisSummaryArticle.pmid')), 'pmid'], `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
           col:'pmid',
+          raw:true,
           benchmark: true
         });
       }else if(isAuthorFilter && isArticleFilter){ // Filter with Authors and Articles
         if(isPersonTypeFilter){ // When author filters present and including PersonType
           if( !isOrgORInstitues){
-            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
+            articleCount = await models.AnalysisSummaryArticle.count({ 
               include: [
                 {
                   model: models.AnalysisSummaryAuthor,
@@ -443,17 +654,103 @@ export const publicationSearchWithFilter = async (
                 },
               ],
               where: where,
-              subQuery: false,
-              limit: apiBody.limit,
-              offset: apiBody.offset,
-              order: sort,
               attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
               col: 'pmid',
               distinct : true,
               benchmark: true
             });
+            if(apiBody.filters.personIdentifers && apiBody.filters.personIdentifers.length > 0)
+            {
+                
+                whereAuthorsSql.push(" asu.personIdentifier IN  :personIdentifier");
+                let personIdentifiers = apiBody.filters.personIdentifers;
+                replaceOfPersonIdentifier = {"personIdentifier": [personIdentifiers]};
+                
+            }
+            if(apiBody.filters.personTypes && apiBody.filters.personTypes.length > 0)
+            {
+                whereAuthorsSql.push(" ppt.personType IN  :personTypes ");
+                let personTypes = apiBody.filters.personTypes;
+                  replaceOfPersonTypes = {"personTypes": [personTypes]};
+              
+            
+            }
+            if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
+            {
+                      whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                      let authorPosition = apiBody.filters.authorPosition;
+                      replaceOfAuthPos = {"authorPosition": [authorPosition]};
+              
+            }
+            if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
+            {
+               whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
+               let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
+               replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
+            }
+            if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
+            {
+               whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
+               let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
+               replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
+               
+            }
+            if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
+            {
+               whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");
+               let publicationTypeCanonical = apiBody.filters.publicationTypeCanonical;
+               replacePublicationTypeCanonical = {"publicationTypeCanonical" : [publicationTypeCanonical]}
+               
+            }
+            if(apiBody.filters.journalTitleVerbose && apiBody.filters.journalTitleVerbose.length > 0)
+            {
+               whereArticlesSql.push(" asa.journalTitleVerbose IN :journalTitleVerbose");
+               let journalTitleVerbose = apiBody.filters.journalTitleVerbose;
+               replaceJournalTitleVerbose = {"journalTitleVerbose" : [journalTitleVerbose]}
+                
+            }
+            if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
+             {
+               whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+               let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
+               replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
+             }
+             if(apiBody.filters.journalImpactScoreUpperBound && apiBody.filters.journalImpactScoreUpperBound > 0)
+             {
+               whereArticlesSql.push(" asa.journalImpactScore1 < :journalImpactScore1Upper");
+               let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
+               replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
+             }
+            if((whereAuthorsSql && whereAuthorsSql.length > 0) ||
+                   whereArticlesSql && whereArticlesSql.length > 0)
+                    {
+                          replacementWhereObj = {
+                            ...replaceOfPersonIdentifier,
+                            ...replaceOfAuthPos,
+                            ...replaceOfPersonTypes,
+                            ...replaceDatePubEntrizeLower,
+                            ...replaceDatePubEntrizeUpper,
+                            ...replacePublicationTypeCanonical,
+                            ...replaceJournalTitleVerbose,
+                            ...replaceJounrnalImpactScoreLowerBound,
+                            ...replaceJounrnalImpactScoreUpperBound
+                        }
+                    let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
+                    let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');    
+                    authorsResults = await sequelize.query(
+                    "SELECT distinct asu.pmid,count(asu.id) over() as authorsCount from analysis_summary_article asa INNER JOIN " +
+                    "analysis_summary_author  asu ON asu.pmid = asa.pmid INNER JOIN" +
+                    " person_person_type  ppt ON asu.personIdentifier = ppt.personIdentifier WHERE "
+                    + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+                    {
+                      replacements: replacementWhereObj ,
+                      model: models.AnalysisSummaryArticle,
+                      mapToModel : true
+                    }
+                  );
+            }								
           } else{
-            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
+            articleCount = await models.AnalysisSummaryArticle.count({ 
               include: [
                 {
                   model: models.AnalysisSummaryAuthor,
@@ -496,19 +793,127 @@ export const publicationSearchWithFilter = async (
                 },
               ],
               where: where,
-              subQuery: false,
-              limit: apiBody.limit,
-              offset: apiBody.offset,
-              order: sort,
-              group: ["AnalysisSummaryAuthor.pmid"],
-              attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+              attributes:[],
               col:'pmid',
               distinct: true,
               benchmark: true
             });
+
+            let whereAuthorsSql : any =[];
+            let replacementWhereAuthorsSql : any = [] ;
+             if(apiBody.filters.personIdentifers && apiBody.filters.personIdentifers.length > 0)
+             {
+                 whereAuthorsSql.push(" asu.personIdentifier IN :personIdentifiers");
+				          let personIdentifers = apiBody.filters.personIdentifers;
+                   replaceOfPersonIdentifier = {"personIdentifiers": [personIdentifers]};
+             }
+           
+             if(apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0)
+             {
+                  let orgUnitsArray = apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0 && apiBody.filters.orgUnits.toString().split(',');
+                  let orgUnitsLikeArray:String[]= [];
+                  orgUnitsArray.map(orgUnit =>{
+                    orgUnitsLikeArray.push("p.primaryOrganizationalUnit LIKE '%"+ orgUnit + "%' OR p.primaryOrganizationalUnit LIKE '%("+ orgUnit +")%'")
+                  })
+                  let orgUnitsLikeString =  orgUnitsLikeArray.join(' OR ') ;
+                  whereAuthorsSql.push(" ((p.primaryOrganizationalUnit IN  :orgUnits OR ("+ orgUnitsLikeString +")))")//OR (p.primaryOrganizationalUnit LIKE :orgUnitsLike OR p.primaryOrganizationalUnit LIKE :orgUnitsLike1 )))");
+                  let orgUnits = apiBody.filters.orgUnits;
+                  replaceOfOrgs = {"orgUnits": [orgUnits]}//,"orgUnitsLike" : ['%'+ orgUnits + '%'],"orgUnitsLike1" : ['%('+orgUnits +')%']};
+             }
+             if(apiBody.filters.institutions && apiBody.filters.institutions.length > 0)
+             {
+                  whereAuthorsSql.push(" p.primaryInstitution IN  :institutions");
+                  let institutions = apiBody.filters.institutions
+                  replaceOfInstitutions = {"institutions": [institutions]};
+             }
+             if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
+             {
+                 whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                  let authorPosition = apiBody.filters.authorPosition;
+                  replaceOfAuthPos = {"authorPosition": [authorPosition]};
+             }
+			 
+             if(apiBody.filters.personTypes && apiBody.filters.personTypes.length > 0)
+                 {
+                   whereAuthorsSql.push(" ppt.personType IN  :personTypes ");
+                    let personTypes = apiBody.filters.personTypes;
+                     replaceOfPersonTypes = {"personTypes": [personTypes]};
+                 }
+
+               if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
+                 {
+					          whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
+                    let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
+                    replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
+                 }
+                 if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
+                 {
+                    whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
+                    let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
+                    replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
+                    
+                 }
+                 if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
+                 {
+                    whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");
+                    let publicationTypeCanonical = apiBody.filters.publicationTypeCanonical;
+                    replacePublicationTypeCanonical = {"publicationTypeCanonical" : [publicationTypeCanonical]}
+                    
+                 }
+                 if(apiBody.filters.journalTitleVerbose && apiBody.filters.journalTitleVerbose.length > 0)
+                 {
+                    whereArticlesSql.push(" asa.journalTitleVerbose IN :journalTitleVerbose");
+                    let journalTitleVerbose = apiBody.filters.journalTitleVerbose;
+                    replaceJournalTitleVerbose = {"journalTitleVerbose" : [journalTitleVerbose]}
+                     
+                 }
+                 if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
+                  {
+                    whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+                    let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
+                    replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
+                  }
+                  if(apiBody.filters.journalImpactScoreUpperBound && apiBody.filters.journalImpactScoreUpperBound > 0)
+                  {
+                    whereArticlesSql.push(" asa.journalImpactScore1 < :journalImpactScore1Upper");
+                    let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
+                    replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
+                  }
+             if((whereAuthorsSql && whereAuthorsSql.length > 0)
+			    || (whereArticlesSql && whereArticlesSql > 0))
+             {
+                    replacementWhereObj = {
+                      ...replaceOfPersonIdentifier,
+                      ...replaceOfOrgs,
+                      ...replaceOfInstitutions,
+                      ...replaceOfAuthPos,
+                      ...replaceOfPersonTypes,
+                      ...replaceDatePubEntrizeLower,
+                      ...replaceDatePubEntrizeUpper,
+                      ...replacePublicationTypeCanonical,
+                      ...replaceJournalTitleVerbose,
+                      ...replaceJounrnalImpactScoreLowerBound,
+                      ...replaceJounrnalImpactScoreUpperBound
+                      
+                    }
+                  let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
+				          let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');
+                  authorsResults = await sequelize.query(
+                      "SELECT distinct asa.pmid, count(asu.id) over() as authorsCount from analysis_summary_article asa INNER JOIN " +
+                      "analysis_summary_author  asu ON asa.pmid = asu.pmid INNER JOIN" +
+                      " person  p ON asu.personIdentifier = p.personIdentifier INNER JOIN" + 
+                      " person_person_type  ppt ON ppt.personIdentifier = p.personIdentifier WHERE " +
+             whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+                      {
+                          replacements: replacementWhereObj,
+                          model: models.AnalysisSummaryArticle,
+                          mapToModel : true
+                      }
+                  );
+             }												   
           }
         }else{
-          results = await models.AnalysisSummaryArticle.findAndCountAll({ 
+          articleCount = await models.AnalysisSummaryArticle.count({ 
             include: [
               {
                 model: models.AnalysisSummaryAuthor,
@@ -538,34 +943,128 @@ export const publicationSearchWithFilter = async (
               },
             ],
             where: where,
-            subQuery: false,
-            limit: apiBody.limit,
-            offset: apiBody.offset,
-            order: sort,
-            group: ["AnalysisSummaryAuthor.pmid"],
-            attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+            distinct:true,
+            col:'pmid',
+            attributes: [],
             benchmark: true
           });
+          let whereAuthorsSql : any =[];
+          let replacementWhereAuthorsSql : any = [] ;
+           if(apiBody.filters.personIdentifers && apiBody.filters.personIdentifers.length > 0)
+           {
+                whereAuthorsSql.push(" asu.personIdentifier IN  :personIdentifier");
+                    let personIdentifiers = apiBody.filters.personIdentifers;
+                    replaceOfPersonIdentifier = {"personIdentifier": [personIdentifiers]};
+           }
+           if(apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0)
+           {
+                let orgUnitsArray = apiBody.filters.orgUnits && apiBody.filters.orgUnits.length > 0 && apiBody.filters.orgUnits.toString().split(',');
+                let orgUnitsLikeArray:String[]= [];
+                orgUnitsArray.map(orgUnit =>{
+                  orgUnitsLikeArray.push("p.primaryOrganizationalUnit LIKE '%"+ orgUnit + "%' OR p.primaryOrganizationalUnit LIKE '%("+ orgUnit +")%'")
+                })
+                let orgUnitsLikeString =  orgUnitsLikeArray.join(' OR ') ;
+                whereAuthorsSql.push(" ((p.primaryOrganizationalUnit IN  :orgUnits OR ("+ orgUnitsLikeString +")))")//OR (p.primaryOrganizationalUnit LIKE :orgUnitsLike OR p.primaryOrganizationalUnit LIKE :orgUnitsLike1 )))");
+                let orgUnits = apiBody.filters.orgUnits;
+                replaceOfOrgs = {"orgUnits": [orgUnits]}//,"orgUnitsLike" : ['%'+ orgUnits + '%'],"orgUnitsLike1" : ['%('+orgUnits +')%']};
+           }
+           if(apiBody.filters.institutions && apiBody.filters.institutions.length > 0)
+           {
+                 whereAuthorsSql.push(" p.primaryInstitution IN  :institutions");
+                     let institutions = apiBody.filters.institutions
+                      replaceOfInstitutions = {"institutions": [institutions]};
+           }
+           if(apiBody.filters.authorPosition && apiBody.filters.authorPosition.length > 0)
+           {
+               whereAuthorsSql.push(" asu.authorPosition IN  :authorPosition");
+                     let authorPosition = apiBody.filters.authorPosition;
+                      replaceOfAuthPos = {"authorPosition": [authorPosition]};
+           }
+
+           if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
+            {
+            whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
+              let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
+              replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
+              
+            }
+            if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
+            {
+            whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
+              let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
+              replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
+            }
+            if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
+            {
+            whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");
+              let publicationTypeCanonical = apiBody.filters.publicationTypeCanonical;
+              replacePublicationTypeCanonical = {"publicationTypeCanonical" : [publicationTypeCanonical]}    
+            }
+            if(apiBody.filters.journalTitleVerbose && apiBody.filters.journalTitleVerbose.length > 0)
+            {
+            whereArticlesSql.push(" asa.journalTitleVerbose IN :journalTitleVerbose");
+              let journalTitleVerbose = apiBody.filters.journalTitleVerbose;
+              replaceJournalTitleVerbose = {"journalTitleVerbose" : [journalTitleVerbose]}
+            }
+            if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
+            {
+              whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+              let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
+              replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
+            }
+            if(apiBody.filters.journalImpactScoreUpperBound && apiBody.filters.journalImpactScoreUpperBound > 0)
+            {
+              whereArticlesSql.push(" asa.journalImpactScore1 < :journalImpactScore1Upper");
+              let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
+              replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
+            }
+
+			 if((whereAuthorsSql && whereAuthorsSql.length > 0)
+			    || (whereArticlesSql && whereArticlesSql > 0))
+             {
+				  replacementWhereObj = {
+					  ...replaceOfPersonIdentifier,
+					  ...replaceOfOrgs,
+					  ...replaceOfInstitutions,
+					  ...replaceOfAuthPos,
+            ...replaceDatePubEntrizeLower,
+            ...replaceDatePubEntrizeUpper,
+            ...replacePublicationTypeCanonical,
+            ...replaceJournalTitleVerbose,
+            ...replaceJounrnalImpactScoreLowerBound,
+            ...replaceJounrnalImpactScoreUpperBound
+				  } 	 
+          let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
+          let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');
+				  authorsResults = await sequelize.query(
+					"SELECT distinct asa.pmid, count(asu.id) over() as authorsCount from analysis_summary_article asa INNER JOIN " +
+					"analysis_summary_author  asu ON asa.pmid = asu.pmid INNER JOIN" +
+					" person  p ON asu.personIdentifier = p.personIdentifier WHERE " + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+					{
+					  replacements: replacementWhereObj ,
+						model: models.AnalysisSummaryArticle,
+						mapToModel : true
+					}
+				);
+			}				
         }
       }
-
-      if (isAuthorFilter && !isArticleFilter) {
+      
+      if ((isAuthorFilter && !isArticleFilter) || (isAuthorFilter && isArticleFilter)) {
         //  preparing PMIDS from filtered data
+
         let pmidList = [];
-        authorsResults?.rows?.map((rowData) => {
+        let authorsDetails:any =[];
+        authorsDetails['rows'] = authorsResults; 
+        
+        authorsDetails['articleCount'] = articleCount;
+        authorsDetails?.rows?.map((rowData) => {
           pmidList.push(rowData?.dataValues?.pmid)
         });
-        let personIdentifiersList =[];
-        authorsResults?.rows?.map((rowData) => {
-          personIdentifiersList.push(rowData?.dataValues?.personIdentifier)
-        });
-		 let jsonData = {
+		  let jsonData = {
           pmidList : pmidList,
-          personIdentifierList : personIdentifiersList
+          authorshipsCount : (authorsDetails && authorsDetails?.rows && authorsDetails.rows.length > 0 )?authorsDetails.rows[0].dataValues.authorsCount : 0
         }
-        const jsonString = JSON.stringify(jsonData)
-        const session = await getSession({req});
-        
         let articleResults ={};
         if(pmidList && pmidList.length > 0)
         {
@@ -591,26 +1090,34 @@ export const publicationSearchWithFilter = async (
         }
         searchOutput = {
           ... articlesDetails,
-          count: authorsResults?.count,
+          articlesCount: authorsDetails?.articleCount,
           pmidList:pmidList,
-          personIdentifiersList : personIdentifiersList
+          authorshipsCount : jsonData.authorshipsCount 
         }
       } else if(!isAuthorFilter && isArticleFilter) {
 																			   
         searchOutput = {
-          ...results,
-          count: results?.count
-        }
-      }else if(isAuthorFilter && isArticleFilter){
-																			   
-        searchOutput = {
-          ...results,
-          count: typeof(results?.count) === "number" ?  results?.count : results?.count?.length
+          ...articleResults,
+          articlesCount : articleResults?.count
         }
       }
     } else {
       searchOutput = await models.AnalysisSummaryArticle.findAndCountAll({
-       
+        include: [
+          {
+            model: models.AnalysisSummaryAuthor,
+            as: "AnalysisSummaryAuthor",
+            required: true,
+            on: {
+              col: Sequelize.where(
+                Sequelize.col("AnalysisSummaryAuthor.pmid"),
+                "=",
+                Sequelize.col("AnalysisSummaryArticle.pmid")
+              ),
+            },
+            attributes: [],
+          },
+        ],
         limit: apiBody.limit,
         offset: apiBody.offset,
         distinct : true,
@@ -619,6 +1126,11 @@ export const publicationSearchWithFilter = async (
         col:'pmid',
         benchmark: true
       });
+	 let formatedSearchOutput = {
+      rows : searchOutput.rows,
+      articlesCount : searchOutput.count
+    }
+	searchOutput = formatedSearchOutput;
     }
     return searchOutput;
   } catch (e) {
@@ -706,6 +1218,23 @@ export const publicationSearchWithFilterPmids = async (
     let isArticleFilter = false;
     let isPersonTypeFilter = false;
     let isOrgORInstitues = false;
+
+    let whereAuthorsSql : any =[];
+    let replacementWhereObj;
+    let replaceOfPersonIdentifier;
+    let replaceOfOrgs;
+    let replaceOfInstitutions;
+    let replaceOfAuthPos;
+    let replaceOfPersonTypes;
+
+    let whereArticlesSql : any =[];
+    let replaceDatePubEntrizeLower; 
+    let replaceDatePubEntrizeUpper;
+    let replacePublicationTypeCanonical;
+    let replaceJournalTitleVerbose;
+    let replaceJounrnalImpactScoreLowerBound;
+    let replaceJounrnalImpactScoreUpperBound;
+
   
     if (apiBody.filters) {
       where[Op.and] = [];
@@ -916,7 +1445,7 @@ export const publicationSearchWithFilterPmids = async (
         apiBody.filters.personTypes &&
         apiBody.filters.personTypes.length > 0
       ) {
-        where[Op.and].push({
+       where[Op.and].push({
           "$PersonPersonTypes.personType$": {
             [Op.in]: apiBody.filters.personTypes,
           },
@@ -976,91 +1505,94 @@ export const publicationSearchWithFilterPmids = async (
     }
 	
     let results:any  =[];
+    let resultsCount;
 
     if (isAuthorFilter || isArticleFilter) {
-     /* if(isAuthorFilter && !isArticleFilter)
-      { // Filter Only with Authors and not Articles
-            models.AnalysisSummaryAuthor.hasOne(models.Person, { constraints: false, foreignKey: 'personIdentifier' });
-            models.AnalysisSummaryAuthor.hasMany(models.PersonPersonType, {constraints: false, foreignKey: 'personIdentifier' }); 
-
-            if(isPersonTypeFilter){ // When author filters present and including PersonType
-              if( !isOrgORInstitues){
-                results = await models.AnalysisSummaryAuthor.findAndCountAll({ 
-                  attributes: ["personIdentifier", "pmid"],
-                  distinct:true,
-                  col:'pmid',
-                  include: [
-                    {
-                      model: models.PersonPersonType,
-                      as: "PersonPersonTypes",
-                      required: true,
-                      on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
-                        },
-                      attributes: {exclude:[`AnalysisSummaryArticleId`,`PersonId`,`AnalysisSummaryAuthorId`]},
-                    },
-                  ],
-                  where: whereForOnlyAuthors,
-                  subQuery: false,
-                  benchmark: true
-                });
-
-              } else{
-                results = await models.AnalysisSummaryAuthor.findAndCountAll({ 
-                  attributes: ["personIdentifier", "pmid"],
-                  distinct:true,
-                  col:'pmid',
-                  include: [
-                    {
-                      model: models.Person,
-                      as: "Person",
-                      required: true,
-                      on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
-                        },
-                      attributes: [],
-                    },
-                    {
-                      model: models.PersonPersonType,
-                      as: "PersonPersonTypes",
-                      required: true,
-                      on: {
-                        col1: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier')),
-                        },
-                      attributes: [`personIdentifier`],
-                    },
-                  ],
-                  where: joinWhereAuthorsFilters,
-                  subQuery: false,
-                  benchmark: true
-                });
-              }
-            }
-            else  { // When author filters present and no PersonType
-              results = await models.AnalysisSummaryAuthor.findAndCountAll({ // review commnet:Change this to findAll
-                  attributes: ["personIdentifier", "pmid"],
-                  distinct:true,
-                  col:'pmid',
-                  include: [
-                    {
-                      model: models.Person,
-                      as: "Person",
-                      required: true,
-                      on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
-                        },
-                      attributes: [],
-                    }
-                  ],
-                  where: joinWhereAuthorsFilters,
-                  subQuery: false,
-                  benchmark: true
-                });
-              }
-      }*/
+    
       if(!isAuthorFilter && isArticleFilter){   // Filter Only with Articles and not Authors
-        results = await models.AnalysisSummaryArticle.findAndCountAll({
-          include:[{
+        if(apiBody.filters.datePublicationAddedToEntrezLowerBound && apiBody.filters.datePublicationAddedToEntrezLowerBound.length > 0)
+        {
+             whereArticlesSql.push(" asa.datePublicationAddedToEntrez > :datePubEntrezLower");
+             let datePubEntrizLower = apiBody.filters.datePublicationAddedToEntrezLowerBound;
+             replaceDatePubEntrizeLower = {"datePubEntrezLower" : [datePubEntrizLower]}
+    
+        }
+        if(apiBody.filters.datePublicationAddedToEntrezUpperBound && apiBody.filters.datePublicationAddedToEntrezUpperBound.length > 0)
+        {
+             whereArticlesSql.push(" asa.datePublicationAddedToEntrez < :datePubEntrezUpper");
+             let datePubEntrizUpper = apiBody.filters.datePublicationAddedToEntrezUpperBound;
+             replaceDatePubEntrizeUpper = {"datePubEntrezUpper" : [datePubEntrizUpper]}
+         
+        }
+        if(apiBody.filters.publicationTypeCanonical && apiBody.filters.publicationTypeCanonical.length > 0)
+        {
+           whereArticlesSql.push(" asa.publicationTypeCanonical IN :publicationTypeCanonical");
+           let publicationTypeCanonical = apiBody.filters.publicationTypeCanonical;
+           replacePublicationTypeCanonical = {"publicationTypeCanonical" : [publicationTypeCanonical]}
+
+        }
+        if(apiBody.filters.journalTitleVerbose && apiBody.filters.journalTitleVerbose.length > 0)
+        {
+           whereArticlesSql.push(" asa.journalTitleVerbose IN :journalTitleVerbose");
+           let journalTitleVerbose = apiBody.filters.journalTitleVerbose;
+           replaceJournalTitleVerbose = {"journalTitleVerbose" : [journalTitleVerbose]}
+        }
+        if(apiBody.filters.journalImpactScoreLowerBound && apiBody.filters.journalImpactScoreLowerBound > 0)
+        {
+           whereArticlesSql.push(" asa.journalImpactScore1 > :journalImpactScore1Lower");
+           let journalImpactScore1LowerBound = apiBody.filters.journalImpactScoreLowerBound;
+           replaceJounrnalImpactScoreLowerBound = {"journalImpactScore1Lower" : [journalImpactScore1LowerBound]}
+        }
+        if(apiBody.filters.journalImpactScoreUpperBound && apiBody.filters.journalImpactScoreUpperBound > 0)
+        {
+           whereArticlesSql.push(" asa.journalImpactScore1 < :journalImpactScore1Upper");
+           let journalImpactScore1UpperBound = apiBody.filters.journalImpactScoreUpperBound;
+           replaceJounrnalImpactScoreUpperBound = {"journalImpactScore1Upper" : [journalImpactScore1UpperBound]}
+        }
+
+        if(whereArticlesSql && whereArticlesSql.length > 0)
+        {
+                replacementWhereObj = {
+                  ...replaceDatePubEntrizeLower,
+                  ...replaceDatePubEntrizeUpper,
+                  ...replacePublicationTypeCanonical,
+                  ...replaceJournalTitleVerbose,
+                  ...replaceJounrnalImpactScoreLowerBound,
+                  ...replaceJounrnalImpactScoreUpperBound
+                  
+                }
+              let replacementWhereArticlesSql =  whereArticlesSql.join(' AND ');
+                    results = await sequelize.query(
+                        "SELECT distinct asu.id,asa.pmid,asu.personIdentifier from analysis_summary_article asa INNER JOIN " +
+                        "analysis_summary_author  asu ON asa.pmid = asu.pmid " +
+                        "WHERE" +  replacementWhereArticlesSql ,
+                        {
+                            replacements:  replacementWhereObj, 
+                           raw : true
+                        }
+                    );
+           }	
+
+      }
+     
+
+      let personIdentifiers = [];
+      let pmids = [];
+      let authorshipsArray
+      let authorshipsCount
+      if(!isAuthorFilter && isArticleFilter){
+        pmids = results?.length > 0 && results[0]?.map(data => data.pmid);
+        personIdentifiers =  results?.length >0 && results[0]?.map(data =>  data.personIdentifier);
+         authorshipsArray = results?.length >0 && results[0]?.map(data => data.id ) 
+         authorshipsCount = authorshipsArray && authorshipsArray.length;
+      }
+      finalSearchOutput = { authorshipsCount, pmids }; 
+    } 
+    else {
+      let results = await models.AnalysisSummaryArticle.findAll({
+        subQuery:false,
+        include :[
+          { 
             model: models.AnalysisSummaryAuthor,
             as: "AnalysisSummaryAuthor",
             required: true,
@@ -1071,191 +1603,19 @@ export const publicationSearchWithFilterPmids = async (
                 Sequelize.col("AnalysisSummaryArticle.pmid")
               ),
             },
-            attributes: ["personIdentifier","pmid"],
-          }],
-          where: whereForOnlyArticles,
-          subQuery: false,
-          order: sort,
-          attributes:[],
-          distinct: true,
-          col:'pmid',
-          benchmark: true
-        });
-
-      }else if(isAuthorFilter && isArticleFilter){ // Filter with Authors and Articles
-        if(isPersonTypeFilter){ // When author filters present and including PersonType
-          if( !isOrgORInstitues){
-            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
-              include: [
-                {
-                  model: models.AnalysisSummaryAuthor,
-                  as: "AnalysisSummaryAuthor",
-                  required: true,
-                  on: {
-                    col: Sequelize.where(
-                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
-                      "=",
-                      Sequelize.col("AnalysisSummaryArticle.pmid")
-                    ),
-                  },
-                  attributes: ["personIdentifier"],
-                },
-                {
-                  model: models.PersonPersonType,
-                  as: "PersonPersonTypes",
-                  required: false, // changed to same as search one earlier it was true
-                  on: {
-                    col1: Sequelize.where( 
-                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
-                      "=",
-                      Sequelize.col("PersonPersonTypes.personIdentifier"),
-                    ),
-                  },
-                  attributes:[]
-                },
-              ],
-              where: where,
-              subQuery: false,
-              order: sort,
-              group: ["AnalysisSummaryAuthor.pmid"],
-              attributes: ["pmid"],
-              distinct:true,
-              col:'pmid',
-              benchmark: true
-            });
-          } else{
-            results = await models.AnalysisSummaryArticle.findAndCountAll({ 
-              include: [
-                {
-                  model: models.AnalysisSummaryAuthor,
-                  as: "AnalysisSummaryAuthor",
-                  required: true,
-                  on: {
-                    col: Sequelize.where(
-                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
-                      "=",
-                      Sequelize.col("AnalysisSummaryArticle.pmid")
-                    ),
-                  },
-                  attributes: ["personIdentifier"],
-                },
-                {
-                  model: models.Person,
-                  as: "Person",
-                  required: true,
-                  on: {
-                    col: Sequelize.where(
-                      Sequelize.col("Person.personIdentifier"),
-                      "=",
-                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
-                    ),
-                  },
-                  attributes: [],
-                },
-                {
-                  model: models.PersonPersonType,
-                  as: "PersonPersonTypes",
-                  required: false,
-                  on: {
-                    col1: Sequelize.where( 
-                      Sequelize.col("Person.personIdentifier"),
-                      "=",
-                      Sequelize.col("PersonPersonTypes.personIdentifier"),
-                    ),
-                  },
-                  attributes:[]
-                },
-              ],
-              where: where,
-              subQuery: false,
-              order: sort,
-              group: ["AnalysisSummaryAuthor.pmid"],
-              attributes: ["pmid"],
-              distinct:true,
-              col:'pmid',
-              benchmark: true
-            });
-          }
-        }else{
-          results = await models.AnalysisSummaryArticle.findAndCountAll({ 
-            include: [
-              {
-                model: models.AnalysisSummaryAuthor,
-                as: "AnalysisSummaryAuthor",
-                required: true,
-                on: {
-                  col: Sequelize.where(
-                    Sequelize.col("AnalysisSummaryAuthor.pmid"),
-                    "=",
-                    Sequelize.col("AnalysisSummaryArticle.pmid")
-                  ),
-                },
-                attributes: ["personIdentifier"],
-              },
-              {
-                model: models.Person,
-                as: "Person",
-                required: true,
-                on: {
-                  col: Sequelize.where(
-                    Sequelize.col("Person.personIdentifier"),
-                    "=",
-                    Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
-                  ),
-                },
-                attributes: [],
-              },
-            ],
-            where: where,
-            subQuery: false,
-            order: sort,
-            group: ["AnalysisSummaryAuthor.pmid"],
-            attributes: ["pmid"],
-            distinct: true,
-            col:'pmid',
-            benchmark: true
-          });
-        }
-      }
-      let personIdentifiers = [];
-      let pmids = [];
-
-      if (isAuthorFilter && !isArticleFilter) { 
-				
-        const session = await getSession({req});
-														
-
-      }else if(!isAuthorFilter && isArticleFilter){
-       pmids = results.rows?.length && results.rows?.map(data => data.dataValues.AnalysisSummaryAuthor.dataValues.pmid);
-        personIdentifiers =  results.rows?.length && results.rows?.map(data =>  data.dataValues.AnalysisSummaryAuthor.dataValues.personIdentifier);
-      }else{
-        pmids = results.rows?.length && results.rows?.map(data => data.dataValues.pmid);
-        personIdentifiers =  results.rows?.length && results.rows?.map(data =>  data.dataValues.AnalysisSummaryAuthor.dataValues.personIdentifier);
-      }
-      finalSearchOutput = { personIdentifiers, pmids }; 
-    } else {
-      let results = await models.AnalysisSummaryArticle.findAll({
-        where: Sequelize.where(
-          Sequelize.fn(
-            "DATEDIFF",
-            Sequelize.literal("CURRENT_DATE"),
-            Sequelize.fn(
-              "STR_TO_DATE",
-              Sequelize.col("datePublicationAddedToEntrez"),
-              "%Y-%m-%d"
-            )
-          ),
-          {
-            [Op.lte]: 60,
-          }
-        ),
-        limit: apiBody.limit,
-        offset: apiBody.offset,
-        order: sort,
-        attributes: [`id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+            attributes: [],
+          },
+        ],
+       
+        attributes: [`AnalysisSummaryAuthor.id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         benchmark: true
       });
-      finalSearchOutput = results.map(result => result.pmid);
+
+      let pmids = results.map(result => result.pmid);
+      let authorshipsCount = results && results.length || 0 ;
+
+      finalSearchOutput = { authorshipsCount, pmids }; 
+
     }
     return finalSearchOutput;
   } catch (e) {
