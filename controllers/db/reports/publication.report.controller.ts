@@ -21,6 +21,7 @@ models.AnalysisSummaryAuthor.hasOne(models.AnalysisSummaryArticle, {
 });
 models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
   constraints: false,
+  
 });
 
 export const generatePubsRtf = async (
