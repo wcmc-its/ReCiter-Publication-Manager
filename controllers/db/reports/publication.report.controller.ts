@@ -189,8 +189,7 @@ export const generatePubsPeopleOnlyRtf = async (
           });
         }
         if (
-          apiBody.filters.journalImpactScoreLowerBound &&
-          apiBody.filters.journalImpactScoreUpperBound
+          apiBody.filters.journalImpactScoreLowerBound 
         ) {
 								  
           where[Op.and].push({
@@ -198,6 +197,9 @@ export const generatePubsPeopleOnlyRtf = async (
               [Op.gt]: apiBody.filters.journalImpactScoreLowerBound,
             },
           });
+        }
+        if(apiBody.filters.journalImpactScoreUpperBound)  
+        {
           where[Op.and].push({
             "$AnalysisSummaryArticle.journalImpactScore1$": {
               [Op.lt]: apiBody.filters.journalImpactScoreUpperBound,
@@ -408,6 +410,23 @@ export const generatePubsPeopleOnlyRtf = async (
             },
           });
         }
+        else if(apiBody.filters.datePublicationAddedToEntrezLowerBound )
+          {
+            where[Op.and].push({
+              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezLowerBound,
+              },
+            });
+          }
+          else if(apiBody.filters.datePublicationAddedToEntrezUpperBound )
+          {
+            where[Op.and].push({
+              "$AnalysisSummaryArticle.datePublicationAddedToEntrez$": {
+                [Op.gt]: apiBody.filters.datePublicationAddedToEntrezUpperBound,
+              },
+            });
+          }  
+
         if (
           apiBody.filters.publicationTypeCanonical &&
           apiBody.filters.publicationTypeCanonical.length > 0
