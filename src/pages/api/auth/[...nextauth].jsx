@@ -7,7 +7,8 @@ import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from 
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import { createAdminUser } from "../../../redux/actions/actions";
-
+import sequelizeASMS from "../../../db/asmsDB";
+import DateTime from "tedious/lib/data-types/datetime";
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
@@ -95,6 +96,7 @@ const options = {
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
                     apiResponse.userRoles = userRoles;
+					persistUserLogin(credentials.username);									   
                     return apiResponse;
                   } else {
                       return null;
@@ -158,12 +160,14 @@ const options = {
                                 await sleep(100)
                                 const userRoles = await findUserPermissions(smalUserEmail,"email");
                                 adminUser.userRoles = userRoles;
+                                persistUserLogin(credentials.username);	
                                 if(adminUser)
                                     return adminUser;
                          }
                          else if(cwid)
                          {
                                const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                               persistUserLogin(credentials.username);	
                                if(adminUser)
                                     return adminUser;
                          }
@@ -171,6 +175,7 @@ const options = {
                     }
                     else if(cwid){
                            const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           persistUserLogin(credentials.username);	
                            if(adminUser)
                                     return adminUser;
                     }
@@ -215,6 +220,29 @@ const options = {
         maxAge: 7200,
     },
 };
+
+const persistUserLogin =async (cwid)=>{
+
+    let userLoginDetails1 = await sequelizeASMS.query(
+        "SELECT au.default_title, au.id FROM wp_module as au WHERE au.slug = 'publication_manager' ",
+        {
+            raw: true
+        }
+    );
+    let wpModuleID = userLoginDetails1[0]
+
+    let userLoginDetails = sequelizeASMS.query(
+        'INSERT INTO wp_module_usage (module_id,created_at,cwid) values (:moduleId, :createdAt , :cwid )',
+        {
+             type: sequelizeASMS.QueryTypes.INSERT ,
+             replacements: {moduleId: wpModuleID[0].id,  createdAt: new Date(Date.now()).toISOString(), cwid: cwid },
+             raw:true
+        }
+    ).then(function (userInsertUsageId) {
+        console.log(userInsertUsageId);
+    });
+
+}
 
 export default authHandler;
 
