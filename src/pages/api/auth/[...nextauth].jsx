@@ -160,14 +160,14 @@ const options = {
                                 await sleep(100)
                                 const userRoles = await findUserPermissions(smalUserEmail,"email");
                                 adminUser.userRoles = userRoles;
-                                persistUserLogin(credentials.username);	
+                                persistUserLogin(cwid);	
                                 if(adminUser)
                                     return adminUser;
                          }
                          else if(cwid)
                          {
                                const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                               persistUserLogin(credentials.username);	
+                               persistUserLogin(cwid);	
                                if(adminUser)
                                     return adminUser;
                          }
@@ -175,7 +175,7 @@ const options = {
                     }
                     else if(cwid){
                            const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                           persistUserLogin(credentials.username);	
+                           persistUserLogin(cwid);	
                            if(adminUser)
                                     return adminUser;
                     }
