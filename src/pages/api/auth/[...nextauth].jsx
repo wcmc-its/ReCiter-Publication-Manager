@@ -230,6 +230,7 @@ const persistUserLogin =async (cwid)=>{
             raw: true
         }
     );
+    console.log('userLoginDetails1**************************',userLoginDetails1);
     let wpModuleID = userLoginDetails1[0]
     console.log('coming into wpModuleID**************************',wpModuleID);
     let userLoginDetails = sequelizeASMS.query(
