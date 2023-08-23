@@ -223,6 +223,7 @@ const options = {
 
 const persistUserLogin =async (cwid)=>{
 
+    console.log('coming into persistUserLogin**************************',cwid);
     let userLoginDetails1 = await sequelizeASMS.query(
         "SELECT au.default_title, au.id FROM wp_module as au WHERE au.slug = 'publication_manager' ",
         {
@@ -230,7 +231,7 @@ const persistUserLogin =async (cwid)=>{
         }
     );
     let wpModuleID = userLoginDetails1[0]
-
+    console.log('coming into wpModuleID**************************',wpModuleID);
     let userLoginDetails = sequelizeASMS.query(
         'INSERT INTO wp_module_usage (module_id,created_at,cwid) values (:moduleId, :createdAt , :cwid )',
         {
@@ -241,7 +242,7 @@ const persistUserLogin =async (cwid)=>{
     ).then(function (userInsertUsageId) {
         console.log(userInsertUsageId);
     });
-
+    console.log('inserted**************************',userLoginDetails);
 }
 
 export default authHandler;
