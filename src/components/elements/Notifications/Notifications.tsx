@@ -4,27 +4,36 @@ import appStyles from '../App/App.module.css';
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import Loader from "../Common/Loader";
 import { Form,Button } from "react-bootstrap";
-import { saveNotification, sendNotification } from "../../../redux/actions/actions";
+import { saveNotification, sendNotification,sendEmailData } from "../../../redux/actions/actions";
 import { useSession } from "next-auth/client";
+import { useRouter } from "next/router";
 
 const Notifications = () => {
  const dispatch = useDispatch()
  const [session, loading] = useSession();
+ const router = useRouter()
  const [state, setState] = useState({
   frequency: 1,
   minimumThreshold:8,
 })
 
 const identityData = useSelector((state: RootStateOrAny) => state.identityData);
+const notificationEmailCarier = useSelector((state: RootStateOrAny) => state.notificationEmailCarier)
 const {frequency,minimumThreshold} = state
 const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
 const [accepted, setAccepted] = useState<boolean>(false);
 const [status, setStatus] = useState<boolean>(false);
 const [evidence, setEvidance] = useState<boolean>(true)
-const [userId, setUserId] = useState<string>("")
+const [userId, setUserId] = useState<any>("");
+const [email, setEmail] = useState<string>()
 
 useEffect(()=>{
- setUserId( session.data.username)
+  setUserId( session.data.username);
+  setEmail(router.query.userId && router.query.userId !== undefined ? notificationEmailCarier : session.data?.email)
+},[])
+
+useEffect(()=>{
+  setUserId( router.query.userId || session.data.username)
 },[])
 
  const handleAccept = ()=>{
@@ -33,10 +42,16 @@ useEffect(()=>{
  const handleEvidence = ()=>{
   setEvidance(!evidence)
  }
+ 
  const onSave = ()=>{
   let payload = {frequency,accepted : accepted === true ? 1 : 0,status : status === true ? 1 : 0,minimumThreshold, userId}
   dispatch(saveNotification(payload))
  }
+
+ const sendEmail = ()=>{
+  dispatch(sendEmailData())
+ }
+
  const handleStatus= ()=>{
   setStatus(!status)
  }
@@ -82,9 +97,11 @@ useEffect(()=>{
       <option value="4">4</option>
      </Form.Select>
     </div>
-    <p className="mt-3">Emails will be sent to Email</p>
+    <p className="mt-3">Emails will be sent to {notificationEmailCarier || email}</p>
    </div>
   <Button variant="warning" className="m-2" onClick={()=>onSave()}>Save</Button>
+  <Button variant="warning" className="m-2" onClick={()=>sendEmail()}>Send Email</Button>
+
   </div>
  )
 }

@@ -5,7 +5,8 @@ import Image from 'next/image'
 import Link from "next/link";
 import { useRouter } from 'next/router'
 import { Button } from 'react-bootstrap';
-import { sendNotification } from '../../../redux/actions/actions';
+import { notificationEmail, sendNotification } from '../../../redux/actions/actions';
+import { useDispatch } from 'react-redux';
 
 interface UsersTableProps {
   data: any,
@@ -15,9 +16,17 @@ interface UsersTableProps {
 
 const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOrcwidLabel }) => {
   const router = useRouter();
+  const dispatch = useDispatch();
+  
 
   const onClicked = ()=>{
     sendNotification()
+  }
+
+  const redirectToNotifications  = (userID, email)=>{
+    console.log("email", email)
+    dispatch(notificationEmail(email));
+    router.push(`/notifications/${userID}`)
   }
 
 
@@ -45,7 +54,7 @@ const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOr
                   </td>
                 <td>{department || ""}</td>
                 <td>{email || ""}</td>
-                <td> <div> <Button   variant="outline-dark" className='fw-bold' href={`/manageusers/${userID}`} size="sm">Manage User</Button> <Button size="sm" variant="outline-dark"  className='d-none text-light'>Manage Notifications</Button></div>
+                <td> <div> <Button   variant="outline-dark" className='fw-bold' href={`/manageusers/${userID}`} size="sm">Manage User</Button> <Button size="sm" variant="outline-dark"  className='fw-bold text-light' onClick={()=> redirectToNotifications(userID, email)}>Manage Notifications</Button></div>
                 </td>
               </tr>
             )

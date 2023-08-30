@@ -179,7 +179,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
       disabled: false,
-      allowedRoleNames: ["Department_user"],
+      allowedRoleNames: ["Department_user","Superuser"],
     },
     {title: 'Manage Users', 
       to: '/manageusers', 

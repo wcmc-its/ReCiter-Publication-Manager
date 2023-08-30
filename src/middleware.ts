@@ -59,10 +59,10 @@ export async function middleware(request: NextRequest) {
             {
               //correct role restrictions will be implemented once notification functionality is ready. It is just a placeholder for now.
               
-              if(isCuratorSelf)
+             /* if(isCuratorSelf && !isSuperUser)
                 return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-              else if (isReporterAll || isCuratorAll || isSuperUser)  
-                return redirectToLandingPage(request,'/search');     
+              else if (isReporterAll || isCuratorAll )  
+                return redirectToLandingPage(request,'/search');*/     
             }
             else if (pathName && pathName.startsWith('/manageusers')  && !isSuperUser)  
             {

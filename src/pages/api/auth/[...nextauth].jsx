@@ -206,6 +206,7 @@ const options = {
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
+                    token.email = apiResponse.databaseUser.email ?? ""
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
