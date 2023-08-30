@@ -709,6 +709,15 @@ export const reportingFiltersLoading = (state=false, action) => {
   }
 }
 
+export const notificationEmailCarier = (state="", action) => {
+  switch(action.type) {
+      case methods.NOTIFICATION_EMAIL_CARIER :
+          return action.payload
+      default :
+          return state
+  }
+}
+
 export const initialStatePubSearchFilter = {
   filters: {
     personIdentifers: [],
@@ -861,6 +870,6 @@ export default combineReducers({
     createORupdateUserID,
     authorFilterDataFromSearch,
     showEvidenceDefault,
-    updatedAdminSettings
-
+    updatedAdminSettings,
+    notificationEmailCarier
 })

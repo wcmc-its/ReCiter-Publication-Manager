@@ -2329,3 +2329,60 @@ export const  sendNotification = (payload) =>{
             console.log(error)
         })
 }
+
+export const notificationEmail = (email) => dispatch => {
+    dispatch({
+        type: methods.NOTIFICATION_EMAIL_CARIER,
+        payload: email
+    })
+}
+
+export const sendEmailData = (requestBody) => dispatch => {
+    // dispatch({
+    //     type: methods.NOTIFICATION_EMAIL_CARIER,
+    //     payload: email
+    // })
+    console.log("actionsss111111111111")
+    fetch(`/api/notification/sendEmail`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        },
+        body: JSON.stringify(requestBody)
+    }).then(response => {
+        // if (response.status === 200) {
+        //     return response.json()
+        // } else {
+        //     throw {
+        //         type: response.type,
+        //         title: response.statusText,
+        //         status: response.status,
+        //         detail: "Error occurred with api " + response.url + ". Please, try again later "
+        //     }
+        // }
+    }).then(data => {
+        // dispatch({
+        //     type: methods.REPORTS_RESULTS_IDS_UPDATE,
+        //     payload: data
+        // })
+        // dispatch({
+        //     type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+        // })
+    }).catch(error => {
+        console.log(error)
+        // toast.error("Reports Search Pmids Api failed - " + error.title, {
+        //     position: "top-right",
+        //     autoClose: 2000,
+        //     theme: 'colored'
+        // });
+        // dispatch(
+        //     addError(error)
+        // )
+        // dispatch({
+        //     type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+        // })
+    })
+}
