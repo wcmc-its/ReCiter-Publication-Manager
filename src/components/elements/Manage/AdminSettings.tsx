@@ -2,13 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import { reciterConfig } from '../../../../config/local';
 import { useRouter } from 'next/router'
-import { adminSettingsListAction, updatedAdminSettings } from "../../../redux/actions/actions";
+import { adminSettingsListAction, updatedAdminSettings ,sendEmailData} from "../../../redux/actions/actions";
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
 import { Accordion, Button, Form, InputGroup, Card } from "react-bootstrap"
 import Loader from "../Common/Loader";
+import { toast } from "react-toastify";
 import { resolveSrv } from "dns";
+import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 
 const AdminSettings = () => {
 
@@ -21,11 +23,10 @@ const AdminSettings = () => {
   const [labelOverRide, setLabelOverride] = useState("");
   const [helpText, setHelpText] = useState("");
   const [isChecked, setIsChecked] = useState(false);
+  const [personIdentifierError, setPersonIdentifierError ] = useState('');
 
  
   const dispatch = useDispatch();
-
-
 
   useEffect(() => {
     fetchAllAdminSettings()
@@ -93,7 +94,10 @@ const AdminSettings = () => {
                       })
                   }
                 }
-                else return { ...innerObj, [name]: e.target.value }
+                else {
+                  if(name === "personIdentifier") setPersonIdentifierError("")
+                  return { ...innerObj, [name]: e.target.value }
+                }
               }
               else return { ...innerObj }
             })
@@ -138,6 +142,24 @@ const AdminSettings = () => {
       });
   }
 
+
+  const sendTestEmail= (personIdentifier, emailOverride)=>{
+    if(personIdentifier){
+      let infoMessage = `Email for “${personIdentifier}” sent to ${emailOverride}`
+      toast.info(infoMessage + " ", {
+        position: "top-right",
+        autoClose: 4000,
+        theme: 'colored'
+      });
+      let payLoad = {
+        "personIdentifier":personIdentifier, "emailOverride":emailOverride
+      }
+      dispatch(sendEmailData(payLoad))
+    }else{
+      setPersonIdentifierError("PersonIdentifier(s) are required");
+    }
+  }
+
   return (
     <div className={appStyles.mainContainer}>
       <PageHeader label="Settings" />
@@ -155,13 +177,13 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles} = innerObj;
-                      return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton} = innerObj;
+                      return <Card style={{ width: '60rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
                           <Card.Text>
-                          {(innerObj && innerObj.hasOwnProperty('labelUserView'))  &&
+                          {(innerObj && innerObj.hasOwnProperty('labelUserView'))  && labelSettingsView !== "Email Notifications" &&
                             <div className="d-flex">
                               <p className={styles.labels}>Label Override</p>
                               <Form.Control
@@ -174,13 +196,28 @@ const AdminSettings = () => {
                               />
                             </div>
                             }
+                            {(innerObj && innerObj.hasOwnProperty('labelUserView')) && labelSettingsView == "Email Notifications" &&
+
+                              <div className="d-flex">
+                                <p className={styles.labels}>Label</p>
+                                <Form.Control
+                                  type="textarea"
+                                  name="labelOverRide"
+                                  as="textarea" rows={3}
+                                  className={`form-control ${styles.searchInput}`}
+                                  placeholder="Label"
+                                  value={labelUserView}
+                                  onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "labelUserView", e)}
+                                />
+                              </div>
+                            }
                             {(innerObj && innerObj.hasOwnProperty('helpTextUserView')) &&
-                            <div className="d-flex mt-2 mb-2">
+                            <div className="d-flex mt-4 mb-4">
                               <p className={styles.labels}>Help Text</p>
                               <Form.Control
                                 type="textarea"
                                 as="textarea"
-                                className={`form-control ${styles.searchInput} ml-5`}
+                                className={`form-control ${styles.searchInput} ml-8`}
                                 placeholder="Help text"
                                 value={helpTextUserView}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "helpTextUserView", e)}
@@ -227,7 +264,47 @@ const AdminSettings = () => {
                               />
                             </div>
                            }
-                           { (innerObj && innerObj.hasOwnProperty('maxLimit')) && <>
+                           { (innerObj && innerObj.hasOwnProperty('personIdentifier')) && <>
+                            <div className="d-flex mb-2">
+                              <p className={styles.labels}>Person Identifier(s)</p>
+                              <Form.Control
+                                type="textarea"
+                                as="textarea" rows={3}
+                                name="personIdentifier"
+                                className={`form-control ${styles.searchInput}`}
+                                placeholder="PersonIdentifier1, PersonIdentifier2, PersonIdentifier3, etc"
+                                value={personIdentifier}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "personIdentifier", e, obj.viewLabel)}
+                              />
+                            </div>
+                              {personIdentifierError && personIdentifier === "" && <p className="textError" >{personIdentifierError}</p>}
+                              </>
+                           }
+                           { (innerObj && innerObj.hasOwnProperty('emailOverride')) && 
+                            <div className="d-flex">
+                              <p className={styles.labels}>Email</p>
+                              <Form.Control
+                                type="text"
+                                name="emailOverride"
+                                className={`form-control ${styles.searchInput}`}
+                                placeholder="Recipient email address"
+                                value={emailOverride}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "emailOverride", e, obj.viewLabel)}
+                              />
+                            </div>
+                           }
+                           { (innerObj && innerObj.hasOwnProperty('submitButton')) &&
+                            <div className="d-flex">
+                             <Button
+                                type="button"
+                                name="submitButton"
+                                variant="primary" className="mt-3" 
+                                //onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "emailOverride", e, obj.viewLabel)}
+                                onClick={()=>sendTestEmail(personIdentifier,emailOverride)}
+                              > Send test email</Button>
+                            </div>
+                           }
+                           { (innerObj && innerObj.hasOwnProperty('maxLimit')) && labelUserKey !== "suggestedEmailNotificationsLimit" && labelUserKey !== "acceptedEmailNotificationsLimit" && <>
                            <div className="d-flex">
                               <p className={styles.labels}>Max Limit</p>
                               <Form.Control
@@ -242,6 +319,15 @@ const AdminSettings = () => {
                             </div>
                             {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
                            }
+                           {(innerObj && innerObj.hasOwnProperty('maxLimit')) && (labelUserKey === "suggestedEmailNotificationsLimit" || labelUserKey === "acceptedEmailNotificationsLimit") && <>
+                              <div className="d-flex">
+                                <p className={styles.labels}>Max Limit</p>
+                                <Form.Select aria-label="Default select example" value={maxLimit} defaultValue={1} onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)} className={styles.selectFrequecy}>
+                                {[ ...Array(20) ].map((e, i) =>{ return <option value={1+i}>{1+i}</option>})}
+                                </Form.Select>
+                              </div>
+                              {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
+                            }
                             {
                               innerObj && innerObj.hasOwnProperty('isRoleGroup') && roles.map((roleInfo, rolesIndex) => {
                                 const { roleId, roleLabel, isChecked } = roleInfo;
@@ -274,6 +360,8 @@ const AdminSettings = () => {
       <Button variant="primary" className="mt-3" onClick={() => handleSubmit()}>Update</Button>
       </>
       }
+
+<ToastContainerWrapper />
     </div>
   )
 

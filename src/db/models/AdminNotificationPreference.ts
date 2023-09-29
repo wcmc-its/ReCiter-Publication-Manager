@@ -8,7 +8,9 @@ export interface AdminNotificationPreferenceAttributes {
   minimumThreshold?: number;
   frequency?: number;
   accepted?: number;
+  suggested?:number;
   status?: number;
+  personIdentifier :String;
   createTimestamp: Date;
   modifyTimestamp: Date;
 }
@@ -24,7 +26,9 @@ export class AdminNotificationPreference extends Model<AdminNotificationPreferen
   minimumThreshold?: number;
   frequency?: number;
   accepted?: number;
+  suggested?: number;
   status?: number;
+  personIdentifier:string; 
   createTimestamp!: Date;
   modifyTimestamp!: Date;
 
@@ -63,10 +67,20 @@ export class AdminNotificationPreference extends Model<AdminNotificationPreferen
       allowNull: true,
       defaultValue: 1
     },
+    suggested: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 1
+    },
     status: {
       type: DataTypes.INTEGER,
       allowNull: true,
       defaultValue: 1
+    },
+    personIdentifier: {
+       type : DataTypes.STRING,
+       allowNull:false,
+       primaryKey: true
     },
     createTimestamp: {
       type: DataTypes.DATE,

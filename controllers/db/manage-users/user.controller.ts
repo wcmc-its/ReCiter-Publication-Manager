@@ -90,7 +90,7 @@ export const listAllUsers = async (
             {
               model: models.AdminUsersDepartment,
               as: "AdminUserDept",
-              required: true,
+              required: false,
               on: {
                 col: Sequelize.where(Sequelize.col('AdminUser.userID'), "=", Sequelize.col('AdminUserDept.userID'))
               },
@@ -99,7 +99,7 @@ export const listAllUsers = async (
             {
               model: models.AdminDepartment,
               as: "AdminDepartment",
-              required: true,
+              required: false,
               on: {
                 col: Sequelize.where(Sequelize.col('AdminUserDept.departmentID'), "=", Sequelize.col('AdminDepartment.departmentID'))
               },

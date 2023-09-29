@@ -12,7 +12,7 @@ import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../config/local";
 import { useDispatch, useSelector } from "react-redux";
-import { clearPubSearchFilters, getAdminDepartments, getAdminRoles } from "../../redux/actions/actions";
+import { clearPubSearchFilters, getAdminDepartments, getAdminRoles,notificationEmail } from "../../redux/actions/actions";
 
 
 export const AppLayout = ({ children }) => {
@@ -34,11 +34,15 @@ export const AppLayout = ({ children }) => {
     if (router?.pathname !== "/report") {
       dispatch(clearPubSearchFilters());
     }
-    
-    
+
+
     if(router?.pathname === "/manageusers/[userId]") {
       dispatch(getAdminRoles());
       dispatch(getAdminDepartments())
+    }
+
+    if(router?.pathname !== "/notifictions/[userId]") {
+      dispatch(notificationEmail(""));
     }
 
 

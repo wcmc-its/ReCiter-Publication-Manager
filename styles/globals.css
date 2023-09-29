@@ -166,3 +166,10 @@ h1 {
 .fullWidth{
   width:100%
 }
+
+.textError {
+  color: red;
+  text-align: left;
+  margin-left: 10.5em;
+  font-size: 18px;
+}
