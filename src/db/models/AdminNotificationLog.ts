@@ -11,11 +11,12 @@ export interface AdminNotificationLogAttributes {
   dateSent?: Date;
   createTimestamp: Date;
   modifyTimestamp: Date;
+  messageID?: number;
 }
 
 export type AdminNotificationLogPk = "notificationID";
 export type AdminNotificationLogId = AdminNotificationLog[AdminNotificationLogPk];
-export type AdminNotificationLogOptionalAttributes = "notificationID" | "userID" | "articleIdentifier" | "articleScore" | "email" | "dateSent" | "createTimestamp" | "modifyTimestamp";
+export type AdminNotificationLogOptionalAttributes = "notificationID" | "userID" | "articleIdentifier" | "articleScore" | "email" | "dateSent" | "createTimestamp" | "modifyTimestamp" | "messageID";
 export type AdminNotificationLogCreationAttributes = Optional<AdminNotificationLogAttributes, AdminNotificationLogOptionalAttributes>;
 
 export class AdminNotificationLog extends Model<AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes> implements AdminNotificationLogAttributes {
@@ -27,6 +28,7 @@ export class AdminNotificationLog extends Model<AdminNotificationLogAttributes, 
   dateSent?: Date;
   createTimestamp!: Date;
   modifyTimestamp!: Date;
+  messageID?:number
 
   // AdminNotificationLog belongsTo AdminUser via userID
   user!: AdminUser;
@@ -55,6 +57,10 @@ export class AdminNotificationLog extends Model<AdminNotificationLogAttributes, 
       allowNull: true
     },
     articleScore: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    messageID: {
       type: DataTypes.INTEGER,
       allowNull: true
     },

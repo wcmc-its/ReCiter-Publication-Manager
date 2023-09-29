@@ -9,6 +9,8 @@ import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../contr
 import { createAdminUser } from "../../../redux/actions/actions";
 import sequelizeASMS from "../../../db/asmsDB";
 import DateTime from "tedious/lib/data-types/datetime";
+import { reciterConfig } from "../../../../config/local";
+
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
@@ -223,29 +225,32 @@ const options = {
 };
 
 const persistUserLogin =async (cwid)=>{
-
-    console.log('coming into persistUserLogin**************************',cwid);
-    let userLoginDetails1 = await sequelizeASMS.query(
-        "SELECT au.default_title, au.id FROM wp_module as au WHERE au.slug = 'publication_manager' ",
-        {
-            raw: true
-        }
-    );
-    console.log('userLoginDetails1**************************',userLoginDetails1);
-    let wpModuleID = userLoginDetails1[0]
-    console.log('coming into wpModuleID**************************',wpModuleID);
-    let userLoginDetails = sequelizeASMS.query(
-        'INSERT INTO wp_module_usage (module_id,created_at,cwid) values (:moduleId, :createdAt , :cwid )',
-        {
-             type: sequelizeASMS.QueryTypes.INSERT ,
-             replacements: {moduleId: wpModuleID[0].id,  createdAt: new Date(Date.now()).toISOString(), cwid: cwid },
-             raw:true
-        }
-    ).then(function (userInsertUsageId) {
-        console.log(userInsertUsageId);
-    });
-    console.log('inserted**************************',userLoginDetails);
+    let payload = {
+        "cwid":  cwid,
+        "module":  "publication_manager"
+    }
+    let uri = `${reciterConfig.asmsDatabase.userTrackerEndPointAPI}`
+    return fetch(uri, {
+            method: "POST",
+            headers: {
+                'Authorization': 'Bearer ' + reciterConfig.asmsDatabase.userTrackerEndPointAPIAuthorization,
+            },
+            body: JSON.stringify(payload)
+        })
+            .then(async(res)=> {
+                console.log('ASMS User tracker end point api is Successfull: ', res)
+                if(res.status == 200) {
+                } 
+            })
+            .catch((error) => {
+                console.log('ASMS User tracker end point api is not reachable: ' + error)
+                return {
+                    statusCode: error.status,
+                    statusText: error
+                }
+            });
 }
+
 
 export default authHandler;
 

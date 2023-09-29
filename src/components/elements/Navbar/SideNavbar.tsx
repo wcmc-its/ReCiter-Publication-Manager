@@ -144,8 +144,12 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const theme = useTheme();
   const [open, setOpen] = React.useState(true);
   const filters = useSelector((state: RootStateOrAny) => state.filters)
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
    
   const [isCurateSelf, setIsCurateSelf] = React.useState(false);
+  const [isVisibleNotification, setVisibleNotification] = React.useState(true);
+
+
   const [session, loading] = useSession();
 
   const menuItems: Array<MenuItem> = [
@@ -156,6 +160,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: facultyIconActive,
       disabled: false,
       allowedRoleNames: ["Superuser", "Curator_All","Reporter_All"],
+      isRequired:true
     },
     {
       title: 'Curate Publications',
@@ -164,6 +169,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: settingsIconActive,
       disabled: (Object.keys(filters).length === 0),
       allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
+      isRequired:true
     },
     {
       title: 'Create Reports',
@@ -172,6 +178,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: chartIconActive,
       disabled: false,
       allowedRoleNames: ["Superuser","Reporter_All" ],
+      isRequired:true
     },
     {
       title: 'Manage Notifications',
@@ -180,6 +187,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: chartIconActive,
       disabled: false,
       allowedRoleNames: ["Department_user","Superuser"],
+      isRequired: isVisibleNotification
     },
     {title: 'Manage Users', 
       to: '/manageusers', 
@@ -187,6 +195,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: facultyIconActive, 
       disabled: false,
       allowedRoleNames: ["Superuser"],
+      isRequired:true
     },
     {title: 'Configuration', 
     to: '/configuration', 
@@ -194,6 +203,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     imgUrlActive: SettingsGareIconActive, 
     disabled: false,
     allowedRoleNames: ["Superuser"],
+    isRequired:true
   },
     // {
     //   title: 'Manage Users',
@@ -240,6 +250,21 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     expandNavCotext.updateExpand();
     setOpen(!open);
   };
+  
+
+  React.useEffect(()=>{
+    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    var manageNotifications = [];
+    if (updatedAdminSettings.length > 0) {
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
+      manageNotifications = updatedData.viewAttributes;
+    }else {
+      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
+      manageNotifications = JSON.parse(data.viewAttributes);
+    }
+    let settingsObj = manageNotifications.find(data=> data.isVisible)
+    setVisibleNotification(settingsObj && settingsObj.isVisible || false)
+  },[])
 
   return (
     <Drawer variant="permanent" className='drawer-container' open={open} theme={theme}>
@@ -255,7 +280,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             menuItems.map((item: MenuItem, index: number) => {
               let userPermissions = JSON.parse(session.data.userRoles);
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
-              if(matchedRoles.length >= 1){
+              if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ? 
                 <NestedListItem 
                   header={item.title}
