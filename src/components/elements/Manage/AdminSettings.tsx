@@ -322,8 +322,8 @@ const AdminSettings = () => {
                            {(innerObj && innerObj.hasOwnProperty('maxLimit')) && (labelUserKey === "suggestedEmailNotificationsLimit" || labelUserKey === "acceptedEmailNotificationsLimit") && <>
                               <div className="d-flex">
                                 <p className={styles.labels}>Max Limit</p>
-                                <Form.Select aria-label="Default select example" value={maxLimit} defaultValue={1} onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)} className={styles.selectFrequecy}>
-                                {[ ...Array(20) ].map((e, i) =>{ return <option value={1+i}>{1+i}</option>})}
+                                <Form.Select aria-label="Default select example"  value={maxLimit} defaultValue={1} onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)} className={styles.selectFrequecy}>
+                                {[ ...Array(20) ].map((e, i) =>{ return <option value={1+i} key={i} >{1+i}</option>})}
                                 </Form.Select>
                               </div>
                               {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
