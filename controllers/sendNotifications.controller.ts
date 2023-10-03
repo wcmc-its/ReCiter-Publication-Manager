@@ -1,9 +1,10 @@
 
 import { Request, Response } from 'express';
 import NodeMailer from "nodemailer";
+import Handlebars from "handlebars";
+
 
 export async function sendNotification(req,res) {
-    console.log("sendNotification *********************************" )
     if (req.method !== "POST") {
         res.status(404).send({ message: "only post request allowed" });
         return;
