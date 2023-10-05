@@ -46,6 +46,7 @@ export async function sendNotification(emailData,req,res) {
     const personIdentifierProfileLink = originLocation + '/curate/' + personIdentifier;
     let acceptedPublicationArray = accepted_publications && accepted_publications.indexOf('~!,') > -1 ? accepted_publications.split('~!,') : accepted_publications.split('~!');
     let suggestedPublicationArray = suggested_publications && suggested_publications.indexOf('~!,') > -1 ? suggested_publications.split('~!,'): suggested_publications.split('~!');
+    console.log("recipient*********************", recipient)
     
     const emailNotificationTemplate = `<div><p>{{salutation}},</p>
                    <p>{{acceptedSubjectHeadline}}</p>
@@ -87,10 +88,14 @@ export async function sendNotification(emailData,req,res) {
     let mailOptions = {
       from: sender || fromAddress,
       to: /*recipient ||*/ process.env.SMTP_ADMIN_EMAIL, // admin_users.email
+      // to: recipient,
       subject: subject,
       html: emailBody
     }
-
+    console.log('HOST NAME:*********************',process.env.SMTP_HOST_NAME);
+    console.log('NODE_ENV:*********************',process.env.NODE_ENV);
+    console.log('SMTP_USER:*********************',process.env.SMTP_USER);
+    console.log('SMTP_PASSWORD:*********************',process.env.SMTP_PASSWORD);
     let transporter = NodeMailer.createTransport(({
       host: process.env.SMTP_HOST_NAME,
       port: process.env.NODE_ENV === "production" ? 465 : 25,
