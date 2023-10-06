@@ -150,7 +150,7 @@ export async function saveNotificationsLog (admin_user_id,recipient,accepted_pub
             'messageID': frequency,
             'articleIdentifier': pub.PMID,
             'articleScore': pub.totalArticleScoreStandardized,
-            'email': recipient, // Hardcoded 1 to make user active bydefault
+            'email': recipient, 
             'userID': admin_user_id,
             'dateSent': new Date(),
             'createTimestamp': new Date()
@@ -160,7 +160,6 @@ export async function saveNotificationsLog (admin_user_id,recipient,accepted_pub
       )
       const result = await sequelize.transaction(async (t) => {
           const saveNotificationResp = await models.AdminNotificationLog.bulkCreate(acceptAndSuggestPubs, { transaction: t })
-          res.send(saveNotificationResp)
       });
   } catch (e) {
       console.log(e);
