@@ -13,7 +13,7 @@ import path from 'path';
 import fsPromises from 'fs/promises';
 import {getSession} from 'next-auth/client'									   
 import sequelize from "../../../src/db/db";
-import { setQuery } from "../../../src/utils/rawQueryConstants";
+import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 
 
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
@@ -396,7 +396,7 @@ export const publicationSearchWithFilter = async (
                         }
                         let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
                         authorsResults = await sequelize.query(
-                          setQuery.personTypeWithoutAuthors + whereAuthorsSqlReplacements ,
+                          QueryConstants.personTypeWithoutAuthors + whereAuthorsSqlReplacements ,
                           {
                               replacements: replacementWhereObj ,
                               model: models.AnalysisSummaryAuthor,
@@ -492,7 +492,7 @@ export const publicationSearchWithFilter = async (
 
                       let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
                         authorsResults = await sequelize.query(
-                          setQuery.personTypeWithAuthors + whereAuthorsSqlReplacements ,
+                          QueryConstants.personTypeWithAuthors + whereAuthorsSqlReplacements ,
                           {
                             replacements: replacementWhereObj,  
                               model: models.AnalysisSummaryAuthor,
@@ -577,7 +577,7 @@ export const publicationSearchWithFilter = async (
                 let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
 
                     authorsResults = await sequelize.query(
-                      setQuery.authorsWithoutPersonType + whereAuthorsSqlReplacements +")x",
+                      QueryConstants.authorsWithoutPersonType + whereAuthorsSqlReplacements +")x",
                       {
                         replacements: replacementWhereObj ,
                           model: models.AnalysisSummaryAuthor,
@@ -729,7 +729,7 @@ export const publicationSearchWithFilter = async (
                     let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
                     let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');    
                     authorsResults = await sequelize.query(
-                      setQuery.personTypeWithoutCombo  + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+                      QueryConstants.personTypeWithoutCombo  + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
                     {
                       replacements: replacementWhereObj ,
                       model: models.AnalysisSummaryArticle,
@@ -887,7 +887,7 @@ export const publicationSearchWithFilter = async (
                   let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
 				          let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');
                   authorsResults = await sequelize.query(
-                    setQuery.personTypeWithCombo +  whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+                    QueryConstants.personTypeWithCombo +  whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
                       {
                           replacements: replacementWhereObj,
                           model: models.AnalysisSummaryArticle,
@@ -1021,7 +1021,7 @@ export const publicationSearchWithFilter = async (
           let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
           let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');
 				  authorsResults = await sequelize.query(
-            setQuery.comboWithoutPersonType + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+            QueryConstants.comboWithoutPersonType + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
 					{
 					  replacements: replacementWhereObj ,
 						model: models.AnalysisSummaryArticle,
