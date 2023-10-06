@@ -229,11 +229,11 @@ const persistUserLogin =async (cwid)=>{
         "cwid":  cwid,
         "module":  "publication_manager"
     }
-    let uri = `${reciterConfig.asmsDatabase.userTrackerEndPointAPI}`
+    let uri = `${reciterConfig.asms.userTrackingAPI}`
     return fetch(uri, {
             method: "POST",
             headers: {
-                'Authorization': 'Bearer ' + reciterConfig.asmsDatabase.userTrackerEndPointAPIAuthorization,
+                'Authorization': 'Bearer ' + reciterConfig.asms.userTrackingAPIAuthorization,
             },
             body: JSON.stringify(payload)
         })
