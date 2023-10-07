@@ -230,6 +230,8 @@ const persistUserLogin =async (cwid)=>{
         "module":  "publication_manager"
     }
     let uri = `${reciterConfig.asms.userTrackingAPI}`
+    console.log('asms url*******************',url);
+    console.log('asms auth header*****************',reciterConfig.asms.userTrackingAPIAuthorization);
     return fetch(uri, {
             method: "POST",
             headers: {
