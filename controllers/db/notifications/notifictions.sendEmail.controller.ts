@@ -106,9 +106,9 @@ export async function sendNotification(emailData,req,res) {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD
       },
-      tls: {
+     /* tls: {
         rejectUnAuthorized: process.env.NODE_ENV === "production" ? true : false,
-      }
+      }*/
     }))
 
     // saveNotificationsLog(admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res)
