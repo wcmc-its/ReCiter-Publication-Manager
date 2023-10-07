@@ -87,8 +87,7 @@ export async function sendNotification(emailData,req,res) {
     
     let mailOptions = {
       from: sender || fromAddress,
-      to: /*recipient ||*/ process.env.SMTP_ADMIN_EMAIL, // admin_users.email
-      // to: recipient,
+      to:  process.env.SMTP_ADMIN_EMAIL, // admin_users.email || recipient  to: recipient,
       subject: subject,
       html: emailBody
     }
@@ -106,9 +105,9 @@ export async function sendNotification(emailData,req,res) {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD
       },
-     /* tls: {
+      tls: {
         rejectUnAuthorized: process.env.NODE_ENV === "production" ? true : false,
-      }*/
+      }
     }))
 
     // saveNotificationsLog(admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res)
