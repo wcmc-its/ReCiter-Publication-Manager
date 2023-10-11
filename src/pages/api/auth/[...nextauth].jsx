@@ -162,7 +162,7 @@ const options = {
                                 await sleep(100)
                                 const userRoles = await findUserPermissions(smalUserEmail,"email");
                                 adminUser.userRoles = userRoles;
-				   console.log('asms cwid*******************',cwid); 
+				   console.log('asms cwid1*******************',cwid); 
                                 persistUserLogin(cwid);	
                                 if(adminUser)
                                     return adminUser;
@@ -170,7 +170,7 @@ const options = {
                          else if(cwid)
                          {
                                const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-			  console.log('asms cwid*******************',cwid);	 
+			  console.log('asms cwid2*******************',cwid);	 
                                persistUserLogin(cwid);	
                                if(adminUser)
                                     return adminUser;
@@ -179,7 +179,7 @@ const options = {
                     }
                     else if(cwid){
                            const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-			    console.log('asms cwid*******************',cwid); 
+			    console.log('asms cwid3*******************',cwid); 
                            persistUserLogin(cwid);	
                            if(adminUser)
                                     return adminUser;
@@ -232,6 +232,7 @@ const persistUserLogin =async (cwid)=>{
         "cwid":  cwid,
         "module":  "publication_manager"
     }
+    console.log('Coming into persistUserLogin******************************');	
     let uri = `${reciterConfig.asms.userTrackingAPI}`
     console.log('asms url*******************',url);
     console.log('asms auth header*****************',reciterConfig.asms.userTrackingAPIAuthorization);
