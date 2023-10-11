@@ -121,7 +121,7 @@ export const reciterConfig = {
     backendApiKey: process.env.NEXT_PUBLIC_RECITER_BACKEND_API_KEY,
 
     asms: {
-        userTrackingAPI: process.env.ASMS_USER_TRCKING_API,
-        userTrackingAPIAuthorization: process.env.ASMS_USER_TRACKING_API_AUTHORIZATON
+        userTrackingAPI: process.env.NEXT_PUBLIC_ASMS_USER_TRCKING_API,
+        userTrackingAPIAuthorization: process.env.NEXT_PUBLIC_ASMS_USER_TRACKING_API_AUTHORIZATON
     },
 };
