@@ -232,7 +232,7 @@ const persistUserLogin =async (cwid)=>{
         "cwid":  cwid,
         "module":  "publication_manager"
     }
-    console.log('Coming into persistUserLogin******************************');	
+    console.log('Coming into persistUserLogin******************************',reciterConfig.asms.userTrackingAPI,`${reciterConfig.asms.userTrackingAPI}`);	
     let uri = `${reciterConfig.asms.userTrackingAPI}`
     console.log('asms url*******************',url);
     console.log('asms auth header*****************',reciterConfig.asms.userTrackingAPIAuthorization);
