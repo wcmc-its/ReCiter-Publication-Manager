@@ -182,7 +182,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     },
     {
       title: 'Manage Notifications',
-      to: '/notifications',
+      to: `/notifications/${session.data.username}`,
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
       disabled: false,
