@@ -234,8 +234,9 @@ const persistUserLogin =async (cwid)=>{
     }
     console.log('Coming into persistUserLogin******************************',reciterConfig.asms.userTrackingAPI,`${reciterConfig.asms.userTrackingAPI}`);	
     let uri = `${reciterConfig.asms.userTrackingAPI}`
-    console.log('asms url*******************',url);
+    console.log('asms uri*******************',uri);
     console.log('asms auth header*****************',reciterConfig.asms.userTrackingAPIAuthorization);
+    console.log('payload********************',payload);	
     return fetch(uri, {
             method: "POST",
             headers: {
