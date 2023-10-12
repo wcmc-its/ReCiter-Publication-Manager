@@ -11,6 +11,8 @@ import Loader from "../Common/Loader";
 import { toast } from "react-toastify";
 import { resolveSrv } from "dns";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import moment from 'moment-timezone';
+
 
 const AdminSettings = () => {
 
@@ -24,6 +26,9 @@ const AdminSettings = () => {
   const [helpText, setHelpText] = useState("");
   const [isChecked, setIsChecked] = useState(false);
   const [personIdentifierError, setPersonIdentifierError ] = useState('');
+  const [showTestEmailText, setShowTestEmailText] = useState(false)
+  const [timeZone, setTimeZone] = useState("")
+
 
  
   const dispatch = useDispatch();
@@ -144,13 +149,11 @@ const AdminSettings = () => {
 
 
   const sendTestEmail= (personIdentifier, emailOverride)=>{
+    let date = new Date().toUTCString();
+    date = moment(date).tz("America/New_York").format("ha zz")
+    setTimeZone(date)
     if(personIdentifier){
-      let infoMessage = `Email for “${personIdentifier}” sent to ${emailOverride}`
-      toast.info(infoMessage + " ", {
-        position: "top-right",
-        autoClose: 4000,
-        theme: 'colored'
-      });
+      setShowTestEmailText(true)
       let payLoad = {
         "personIdentifier":personIdentifier, "emailOverride":emailOverride
       }
@@ -294,7 +297,7 @@ const AdminSettings = () => {
                             </div>
                            }
                            { (innerObj && innerObj.hasOwnProperty('submitButton')) &&
-                            <div className="d-flex">
+                            <div className="d-flex sendTestEmailInfo">
                              <Button
                                 type="button"
                                 name="submitButton"
@@ -302,6 +305,7 @@ const AdminSettings = () => {
                                 //onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "emailOverride", e, obj.viewLabel)}
                                 onClick={()=>sendTestEmail(personIdentifier,emailOverride)}
                               > Send test email</Button>
+                              {showTestEmailText && <p className=""> Email for “{personIdentifier}” sent to <span>{emailOverride}</span> at {timeZone}</p> }
                             </div>
                            }
                            { (innerObj && innerObj.hasOwnProperty('maxLimit')) && labelUserKey !== "suggestedEmailNotificationsLimit" && labelUserKey !== "acceptedEmailNotificationsLimit" && <>

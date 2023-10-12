@@ -173,3 +173,16 @@ h1 {
   margin-left: 10.5em;
   font-size: 18px;
 }
+
+.sendTestEmailInfo{
+  vertical-align: middle;
+    align-items: baseline;
+}
+.sendTestEmailInfo p{ 
+  color: red;
+  padding-left: 3.5em;
+  font-weight: 500;
+}
+.sendTestEmailInfo p span{ 
+  text-decoration: underline;
+}

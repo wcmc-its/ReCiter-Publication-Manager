@@ -30,12 +30,9 @@ const [disableAll, setDisableAll] = useState<boolean>(false);
 const [email, setEmail] = useState<string>();
 
 useEffect(()=>{
-  setUserId( session.data.username);
-  setEmail(router.query.userId && router.query.userId !== undefined ? notificationEmailCarier : session.data?.email)
-},[])
-
-useEffect(()=>{
-  setUserId( router.query.userId || session.data.username)
+  setUserId( router.query.userId)
+  if(router.query.userId === session.data.username) setEmail(session.data.email)
+  else setEmail( notificationEmailCarier)
 },[])
 
  const handleAccept = ()=>{

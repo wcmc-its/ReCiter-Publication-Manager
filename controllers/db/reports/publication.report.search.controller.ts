@@ -729,7 +729,7 @@ export const publicationSearchWithFilter = async (
                     let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
                     let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');    
                     authorsResults = await sequelize.query(
-                      QueryConstants.personTypeWithoutCombo  + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+                      QueryConstants.personTypeWitoutCombo  + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
                     {
                       replacements: replacementWhereObj ,
                       model: models.AnalysisSummaryArticle,
@@ -1104,7 +1104,8 @@ export const publicationSearchWithFilter = async (
         offset: apiBody.offset,
         distinct : true,
         order: sort,
-        attributes: [`id`,`pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+        attributes:[[sequelize.fn('DISTINCT', sequelize.col("AnalysisSummaryAuthor.pmid")), 'pmid'],
+              `id`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         col:'pmid',
         benchmark: true
       });
