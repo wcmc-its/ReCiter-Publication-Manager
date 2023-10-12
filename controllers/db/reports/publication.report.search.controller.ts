@@ -1104,7 +1104,7 @@ export const publicationSearchWithFilter = async (
         offset: apiBody.offset,
         distinct : true,
         order: sort,
-        attributes:[[Sequelize.fn('DISTINCT', sequelize.col("AnalysisSummaryAuthor.pmid")), 'pmid'],
+        attributes:[[Sequelize.fn('DISTINCT', Sequelize.col("AnalysisSummaryAuthor.pmid")), 'pmid'],
               `id`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         col:'pmid',
         benchmark: true
