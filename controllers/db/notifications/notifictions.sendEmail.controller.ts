@@ -91,6 +91,7 @@ export async function sendNotification(emailData,req,res) {
       subject: subject,
       html: emailBody
     }
+    console.log('SMTP_ADMIN_EMAIL:*********************',process.env.SMTP_ADMIN_EMAIL);	  
     console.log('HOST NAME:*********************',process.env.SMTP_HOST_NAME);
     console.log('NODE_ENV:*********************',process.env.NODE_ENV);
     console.log('SMTP_USER:*********************',process.env.SMTP_USER);
