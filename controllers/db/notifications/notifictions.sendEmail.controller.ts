@@ -89,6 +89,7 @@ export async function sendNotification(emailData,req,res) {
       subject: subject,
       html: emailBody
     }
+
     let transporter = NodeMailer.createTransport(({
       host: process.env.SMTP_HOST_NAME,
       port: process.env.NODE_ENV === "production" ? 465 : 25,
