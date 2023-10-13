@@ -59,7 +59,9 @@ const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOr
                   </td>
                 <td>{department || ""}</td>
                 <td>{email || ""}</td>
-                <td> <div> <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageUsers(userID)} size="sm">Manage User</Button>{isVisibleNotification && <Button size="sm" variant="outline-dark"  className='fw-bold' onClick={()=> redirectToNotifications(personIdentifier, email)}>Manage Notifications</Button> }</div>
+                <td> <div> 
+                  <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageUsers(userID)} size="sm">Manage User</Button>
+                  {isVisibleNotification && email && <Button size="sm" variant="outline-dark"  className='fw-bold' onClick={()=> redirectToNotifications(personIdentifier, email)}>Manage Notifications</Button> }</div>
                 </td>
               </tr>
             )

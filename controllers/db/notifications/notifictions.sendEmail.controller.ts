@@ -23,7 +23,6 @@ export const sendEmail = async (
 	
     sendNotification(generateEmailNotifications,req,res);
 										 
-	// return generateEmailNotifications;
   } catch (e) {
     console.log(e);
     res.status(500).send(e);
@@ -46,9 +45,8 @@ export async function sendNotification(emailData,req,res) {
     const personIdentifierProfileLink = originLocation + '/curate/' + personIdentifier;
     let acceptedPublicationArray = accepted_publications && accepted_publications.indexOf('~!,') > -1 ? accepted_publications.split('~!,') : accepted_publications.split('~!');
     let suggestedPublicationArray = suggested_publications && suggested_publications.indexOf('~!,') > -1 ? suggested_publications.split('~!,'): suggested_publications.split('~!');
-    console.log("recipient*********************", recipient)
     
-    const emailNotificationTemplate = `<div><p>{{salutation}},</p>
+    const emailNotificationTemplate = `<div style="font-family: Arial; font-size : 11pt"><p>{{salutation}},</p>
                    <p>{{acceptedSubjectHeadline}}</p>
                    <p>{{#each_limit acceptedPublicationArray maxAcceptedPublicationToDisplay}}
                         <ul style="margin-bottom: 0 !important; padding-bottom:0 !important; margin:0">
@@ -64,7 +62,7 @@ export async function sendNotification(emailData,req,res) {
                    {{/each_limit}}</p>
                   <p><li>{{#seeAllLink suggestedPubCount maxSuggestedPublicationToDisplay "See all" personIdentifierProfileLink 'SUGGESTED'}}{{/seeAllLink}}</li></p> 
                   <p>To update your notification preferences, navigate to the {{link "Notifications" notificationsLink}} page.
-                  <pre><span style="color:#00000; font-size:13px; font-weight:400; font-family: Arial, Helvetica, sans-serif !important" >{{signature}}</span></pre>
+                  <pre><span style="color:#00000; font-family: Arial; font-size : 11pt !important" >{{signature}}</span></pre>
                   </p></div>`;
 
     var template = Handlebars.compile(emailNotificationTemplate);
@@ -91,11 +89,7 @@ export async function sendNotification(emailData,req,res) {
       subject: subject,
       html: emailBody
     }
-    console.log('SMTP_ADMIN_EMAIL:*********************',process.env.SMTP_ADMIN_EMAIL);	  
-    console.log('HOST NAME:*********************',process.env.SMTP_HOST_NAME);
-    console.log('NODE_ENV:*********************',process.env.NODE_ENV);
-    console.log('SMTP_USER:*********************',process.env.SMTP_USER);
-    console.log('SMTP_PASSWORD:*********************',process.env.SMTP_PASSWORD);
+
     let transporter = NodeMailer.createTransport(({
       host: process.env.SMTP_HOST_NAME,
       port: process.env.NODE_ENV === "production" ? 465 : 25,
@@ -180,14 +174,11 @@ Handlebars.registerHelper('each_limit', function(ary, max, options) {
 });
 Handlebars.registerHelper('seeAllLink', function(v1, v2, text, url,assertion) {
   if(v1 > v2) {
-    //url = url + "?userAssertion ='"+assertion +"'";
-    //url = url + "/"+assertion;
     let url1 = Handlebars.escapeExpression(url),
       text1 = Handlebars.escapeExpression(text);
       console.log('redirectUrl*************************',url1);
       return new Handlebars.SafeString("<a href='" + url1 +"' style='text-decoration:none' " + "target='_blank'>" + text1 +"</a>"); 
   }
-  //return '';
 });
 
 Handlebars.registerHelper("link", function(text, url) {
