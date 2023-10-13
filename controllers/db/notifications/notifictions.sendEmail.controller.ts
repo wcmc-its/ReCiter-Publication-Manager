@@ -176,7 +176,6 @@ Handlebars.registerHelper('seeAllLink', function(v1, v2, text, url,assertion) {
   if(v1 > v2) {
     let url1 = Handlebars.escapeExpression(url),
       text1 = Handlebars.escapeExpression(text);
-      console.log('redirectUrl*************************',url1);
       return new Handlebars.SafeString("<a href='" + url1 +"' style='text-decoration:none' " + "target='_blank'>" + text1 +"</a>"); 
   }
 });
