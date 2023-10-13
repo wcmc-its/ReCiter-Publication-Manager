@@ -27,7 +27,8 @@ const AdminSettings = () => {
   const [isChecked, setIsChecked] = useState(false);
   const [personIdentifierError, setPersonIdentifierError ] = useState('');
   const [showTestEmailText, setShowTestEmailText] = useState(false)
-  const [timeZone, setTimeZone] = useState("")
+  const [timeZone, setTimeZone] = useState("");
+  const [sendTestEmailTo, setSendTestEmailTo] = useState("");
 
 
  
@@ -148,16 +149,19 @@ const AdminSettings = () => {
   }
 
 
-  const sendTestEmail= (personIdentifier, emailOverride)=>{
+  const sendTestEmail= (personIdentifier, emailOverride,sendTestem)=>{
     let date = new Date().toUTCString();
     date = moment(date).tz("America/New_York").format("ha zz")
     setTimeZone(date)
     if(personIdentifier){
       setShowTestEmailText(true)
+      setSendTestEmailTo(emailOverride);
       let payLoad = {
         "personIdentifier":personIdentifier, "emailOverride":emailOverride
       }
-      dispatch(sendEmailData(payLoad))
+      
+      if(sendTestem) dispatch(sendEmailData(payLoad))
+      
     }else{
       setPersonIdentifierError("PersonIdentifier(s) are required");
     }
@@ -180,6 +184,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
+                      let sendTestem = obj.viewAttributes.find(value=> value.labelSettingsView === 'Enable email notifications')?.isVisible;
                       const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton} = innerObj;
                       return <Card style={{ width: '60rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
@@ -296,18 +301,20 @@ const AdminSettings = () => {
                               />
                             </div>
                            }
-                           { (innerObj && innerObj.hasOwnProperty('submitButton')) &&
-                            <div className="d-flex sendTestEmailInfo">
-                             <Button
-                                type="button"
-                                name="submitButton"
-                                variant="primary" className="mt-3" 
-                                //onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "emailOverride", e, obj.viewLabel)}
-                                onClick={()=>sendTestEmail(personIdentifier,emailOverride)}
-                              > Send test email</Button>
-                              {showTestEmailText && <p className=""> Email for “{personIdentifier}” sent to <span>{emailOverride}</span> at {timeZone}</p> }
-                            </div>
-                           }
+                          {(innerObj && innerObj.hasOwnProperty('submitButton')) &&
+                              <div className="d-flex sendTestEmailInfo">
+                                <Button
+                                  type="button"
+                                  name="submitButton"
+                                  variant="primary" className="mt-3"
+                                  onClick={() => sendTestEmail(personIdentifier, emailOverride,sendTestem)}
+                                > Send test email</Button>
+                                {showTestEmailText && sendTestem ? <p > Email for “{personIdentifier}” sent to <span>{sendTestEmailTo}</span> at {timeZone}</p> :
+                                  showTestEmailText && !sendTestem ?
+                                    <p>Enable notifications has not been checked. Therefore, no email will be sent out.</p> : ""
+                                }
+                              </div>
+                            }
                            { (innerObj && innerObj.hasOwnProperty('maxLimit')) && labelUserKey !== "suggestedEmailNotificationsLimit" && labelUserKey !== "acceptedEmailNotificationsLimit" && <>
                            <div className="d-flex">
                               <p className={styles.labels}>Max Limit</p>

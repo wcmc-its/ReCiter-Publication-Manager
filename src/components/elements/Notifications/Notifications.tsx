@@ -13,7 +13,7 @@ const Notifications = () => {
  const [session, loading] = useSession();
  const router = useRouter()
  const [state, setState] = useState({
-  frequency: 1,
+  frequency: 7,
   minimumThreshold:8,
 })
 
@@ -22,11 +22,11 @@ const notificationEmailCarier = useSelector((state: RootStateOrAny) => state.not
 const {frequency,minimumThreshold} = state
 const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
 const [accepted, setAccepted] = useState<boolean>(false);
-const [status, setStatus] = useState<boolean>(false);
+const [status, setStatus] = useState<boolean>(true);
 const [evidence, setEvidance] = useState<boolean>(false)
 const [suggested, setSuggested] = useState<boolean>(false)
 const [userId, setUserId] = useState<any>("");
-const [disableAll, setDisableAll] = useState<boolean>(false);
+const [disableAll, setDisableAll] = useState<boolean>(true);
 const [email, setEmail] = useState<string>();
 
 useEffect(()=>{
@@ -63,10 +63,7 @@ useEffect(()=>{
 
  const handleStatus= ()=>{
   setStatus(!status);
-  setState(state => ({ ...state, ["minimumThreshold"]: 0, ["frequency"]: 1 }))
-  setSuggested(false);
-  setEvidance(false);
-  setAccepted(false);
+  setState(state => ({ ...state, ["minimumThreshold"]: 0, ["frequency"]: 7 }))
   setDisableAll(!disableAll)
  }
 
@@ -79,7 +76,7 @@ useEffect(()=>{
   <div className={appStyles.mainContainer}>
    <h1 className={styles.header}>Manage Notifications</h1>
    <Form.Group className="mb-3" controlId="formBasicCheckbox">
-    <Form.Check type="checkbox" label="Disable all notifications"   onChange={()=>handleStatus()}/>
+    <Form.Check type="checkbox" checked={status} label="Disable all notifications"   onChange={()=>handleStatus()}/>
    </Form.Group>
 
    <Form.Label className="fw-bold">Frequency</Form.Label>
