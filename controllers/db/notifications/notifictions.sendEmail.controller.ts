@@ -43,6 +43,7 @@ export async function sendNotification(emailData,req,res) {
   emailData.map((emailDetails) => {
     let { admin_user_id,sender,recipient, subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det } = JSON.parse(JSON.stringify(emailDetails))
     const personIdentifierProfileLink = originLocation + '/curate/' + personIdentifier;
+    const navigateToCurateSelfPage = originLocation + '/curate' ;
     let acceptedPublicationArray = accepted_publications && accepted_publications.indexOf('~!,') > -1 ? accepted_publications.split('~!,') : accepted_publications.split('~!');
     let suggestedPublicationArray = suggested_publications && suggested_publications.indexOf('~!,') > -1 ? suggested_publications.split('~!,'): suggested_publications.split('~!');
     
@@ -53,15 +54,14 @@ export async function sendNotification(emailData,req,res) {
                             <li style="margin-bottom: 0; padding:0" >{{this}}</li>
                         </ul>
                    {{/each_limit}}</p>
-                  <p><li>{{#seeAllLink acceptedPubCount maxAcceptedPublicationToDisplay "See all" personIdentifierProfileLink 'ACCEPTED'}}{{/seeAllLink}}</li></p>
                   <p>{{suggestedSubjectHeadline}}</p>
                   <p>{{#each_limit suggestedPublicationArray maxSuggestedPublicationToDisplay}}
                        <ul style="margin-bottom: 0; padding:0">
                             <li style='list-style-position: inside'>{{this}}</li>
                        </ul
                    {{/each_limit}}</p>
-                  <p><li>{{#seeAllLink suggestedPubCount maxSuggestedPublicationToDisplay "See all" personIdentifierProfileLink 'SUGGESTED'}}{{/seeAllLink}}</li></p> 
-                  <p>To update your notification preferences, navigate to the {{link "Notifications" notificationsLink}} page.
+
+                  <p><b>Review and update:</b> {{seeMore acceptedPubCount suggestedPubCount personIdentifierProfileLink 'ACCEPTED' 'SUGGESTED' navigateToCurateSelfPage }}. To update your notification preferences, navigate to the {{link "Notifications" notificationsLink}} page.
                   <pre><span style="color:#00000; font-family: Arial; font-size : 11pt !important" >{{signature}}</span></pre>
                   </p></div>`;
 
@@ -78,14 +78,15 @@ export async function sendNotification(emailData,req,res) {
             acceptedPubCount : accepted_pub_count,
             suggestedPubCount : suggested_pub_count,
             notificationsLink : notificationsLink,
-            personIdentifierProfileLink : personIdentifierProfileLink
+            personIdentifierProfileLink : personIdentifierProfileLink,
+            navigateToCurateSelfPage : navigateToCurateSelfPage
         };
         var emailBody = template(replacements);     
 
     
     let mailOptions = {
       from: sender || fromAddress,
-      to:  process.env.SMTP_ADMIN_EMAIL, // admin_users.email || recipient  to: recipient,
+      to:  recipient || process.env.SMTP_ADMIN_EMAIL, // admin_users.email || recipient  to: 
       subject: subject,
       html: emailBody
     }
@@ -172,11 +173,12 @@ Handlebars.registerHelper('each_limit', function(ary, max, options) {
   }
   return result.length > 0?result.join(''):'';
 });
+
 Handlebars.registerHelper('seeAllLink', function(v1, v2, text, url,assertion) {
   if(v1 > v2) {
     let url1 = Handlebars.escapeExpression(url),
       text1 = Handlebars.escapeExpression(text);
-      return new Handlebars.SafeString("<a href='" + url1 +"' style='text-decoration:none' " + "target='_blank'>" + text1 +"</a>"); 
+      return new Handlebars.SafeString("<a href='" + url1 +"' style='text-decoration:none; font-size: 11pt' " + "target='_blank'>" + text1 +"</a>"); 
   }
 });
 
@@ -185,6 +187,23 @@ Handlebars.registerHelper("link", function(text, url) {
       text1 = Handlebars.escapeExpression(text)
       
  return new Handlebars.SafeString("<a href='" + url1 + "' style='text-decoration:none' "+" target='_blank'>" + text1 +"</a>");
+});
+
+Handlebars.registerHelper("seeMore", function(acceptedPubCount, suggestedPubCount, personIdentifierProfileLink, accepetedText, suggestedText,navigateToCurateSelfPage ) {
+  let acceptedPubCount1 = Handlebars.escapeExpression(acceptedPubCount),
+      suggestedPubCount1 = Handlebars.escapeExpression(suggestedPubCount),
+      personIdentifierProfileLink1 = Handlebars.escapeExpression(personIdentifierProfileLink),
+      accepetedText1 = Handlebars.escapeExpression(accepetedText),
+      suggestedText1 = Handlebars.escapeExpression(suggestedText),
+      navigateToCurateSelfPage1 = Handlebars.escapeExpression(navigateToCurateSelfPage)
+
+      if(acceptedPubCount1  && suggestedPubCount1){
+        return new Handlebars.SafeString("There are currently "+ suggestedPubCount1 +" pending and "+ acceptedPubCount1 +" newly accepted publications linked to <a href='" + navigateToCurateSelfPage1 + "' style='text-decoration:none; font-size: 11pt' "+" target='_blank'> your profile</a>") 
+      }else if(!acceptedPubCount1  && suggestedPubCount1){
+        return new Handlebars.SafeString("There are currently "+ suggestedPubCount1 +" pending publications linked to <a href='" + personIdentifierProfileLink1 + "' style='text-decoration:none; font-size: 11pt' "+" target='_blank'> your profile</a>") 
+      }else if(acceptedPubCount1  && !suggestedPubCount1){
+        return new Handlebars.SafeString("There are currently "+ acceptedPubCount1 +" newly accepted publications linked to <a href='" + personIdentifierProfileLink1 + "' style='text-decoration:none; font-size: 11pt' "+" target='_blank'> your profile</a>") 
+      }
 });
 
 

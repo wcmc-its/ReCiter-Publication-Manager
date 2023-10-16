@@ -29,6 +29,7 @@ const AdminSettings = () => {
   const [showTestEmailText, setShowTestEmailText] = useState(false)
   const [timeZone, setTimeZone] = useState("");
   const [sendTestEmailTo, setSendTestEmailTo] = useState("");
+  const [isSendTestEmail, setIsSendTestEmail] = useState(false);
 
 
  
@@ -64,6 +65,10 @@ const AdminSettings = () => {
           }
           parsedSettingsArray.push(parsedSettings)
         })
+        let emailNotificationsInfo = parsedSettingsArray.find(value=> value.viewName === 'EmailNotifications');
+        let allowSendTestEmail = emailNotificationsInfo.viewAttributes.find(value=> value.labelSettingsView === 'Enable email notifications')?.isVisible;
+
+        setIsSendTestEmail(allowSendTestEmail);
         setSettings(parsedSettingsArray);
         setLoading(false);
       })
@@ -139,6 +144,11 @@ const AdminSettings = () => {
     }).then(response => response.json())
       .then(data => {
         dispatch(updatedAdminSettings(data))
+        let emailNotificationsInfo = data.find(value=> value.viewName === 'EmailNotifications');
+        let allowSendTestEmail = emailNotificationsInfo.viewAttributes.find(value=> value.labelSettingsView === 'Enable email notifications')?.isVisible;
+
+        setIsSendTestEmail(allowSendTestEmail);
+        setShowTestEmailText(false)
         setSettings(data);
         setLoading(false);
       })
@@ -149,7 +159,7 @@ const AdminSettings = () => {
   }
 
 
-  const sendTestEmail= (personIdentifier, emailOverride,sendTestem)=>{
+  const sendTestEmail= (personIdentifier, emailOverride)=>{
     let date = new Date().toUTCString();
     date = moment(date).tz("America/New_York").format("ha zz")
     setTimeZone(date)
@@ -160,7 +170,7 @@ const AdminSettings = () => {
         "personIdentifier":personIdentifier, "emailOverride":emailOverride
       }
       
-      if(sendTestem) dispatch(sendEmailData(payLoad))
+      if(isSendTestEmail) dispatch(sendEmailData(payLoad))
       
     }else{
       setPersonIdentifierError("PersonIdentifier(s) are required");
@@ -184,7 +194,6 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      let sendTestem = obj.viewAttributes.find(value=> value.labelSettingsView === 'Enable email notifications')?.isVisible;
                       const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton} = innerObj;
                       return <Card style={{ width: '60rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
@@ -307,11 +316,11 @@ const AdminSettings = () => {
                                   type="button"
                                   name="submitButton"
                                   variant="primary" className="mt-3"
-                                  onClick={() => sendTestEmail(personIdentifier, emailOverride,sendTestem)}
+                                  onClick={() => sendTestEmail(personIdentifier, emailOverride)}
                                 > Send test email</Button>
-                                {showTestEmailText && sendTestem ? <p > Email for “{personIdentifier}” sent to <span>{sendTestEmailTo}</span> at {timeZone}</p> :
-                                  showTestEmailText && !sendTestem ?
-                                    <p>Enable notifications has not been checked. Therefore, no email will be sent out.</p> : ""
+                                {showTestEmailText && isSendTestEmail ? <p > Email for “{personIdentifier}” sent to <span>{sendTestEmailTo}</span> at {timeZone}</p> :
+                                  showTestEmailText && !isSendTestEmail ?
+                                    <p>"Enable notifications has not been checked. Therefore, no email will be sent out."</p> : ""
                                 }
                               </div>
                             }
