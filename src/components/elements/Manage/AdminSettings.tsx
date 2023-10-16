@@ -320,7 +320,7 @@ const AdminSettings = () => {
                                 > Send test email</Button>
                                 {showTestEmailText && isSendTestEmail ? <p > Email for “{personIdentifier}” sent to <span>{sendTestEmailTo}</span> at {timeZone}</p> :
                                   showTestEmailText && !isSendTestEmail ?
-                                    <p>"Enable notifications has not been checked. Therefore, no email will be sent out."</p> : ""
+                                    <p>Enable notifications has not been checked. Therefore, no email will be sent out.</p> : ""
                                 }
                               </div>
                             }
