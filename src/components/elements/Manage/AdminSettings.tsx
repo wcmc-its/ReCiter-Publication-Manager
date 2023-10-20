@@ -65,10 +65,6 @@ const AdminSettings = () => {
           }
           parsedSettingsArray.push(parsedSettings)
         })
-        let emailNotificationsInfo = parsedSettingsArray.find(value=> value.viewName === 'EmailNotifications');
-        let allowSendTestEmail = emailNotificationsInfo.viewAttributes.find(value=> value.labelSettingsView === 'Enable email notifications')?.isVisible;
-
-        setIsSendTestEmail(allowSendTestEmail);
         setSettings(parsedSettingsArray);
         setLoading(false);
       })
@@ -144,12 +140,8 @@ const AdminSettings = () => {
     }).then(response => response.json())
       .then(data => {
         dispatch(updatedAdminSettings(data))
-        let emailNotificationsInfo = data.find(value=> value.viewName === 'EmailNotifications');
-        let allowSendTestEmail = emailNotificationsInfo.viewAttributes.find(value=> value.labelSettingsView === 'Enable email notifications')?.isVisible;
-
-        setIsSendTestEmail(allowSendTestEmail);
-        setShowTestEmailText(false)
         setSettings(data);
+        setIsSendTestEmail(false);
         setLoading(false);
       })
       .catch(error => {
@@ -161,16 +153,16 @@ const AdminSettings = () => {
 
   const sendTestEmail= (personIdentifier, emailOverride)=>{
     let date = new Date().toUTCString();
-    date = moment(date).tz("America/New_York").format("ha zz")
+    date = moment(date).tz("America/New_York").format("hh:mm A zz")
     setTimeZone(date)
     if(personIdentifier){
-      setShowTestEmailText(true)
+      setIsSendTestEmail(true)
+
       setSendTestEmailTo(emailOverride);
       let payLoad = {
         "personIdentifier":personIdentifier, "emailOverride":emailOverride
       }
-      
-      if(isSendTestEmail) dispatch(sendEmailData(payLoad))
+      dispatch(sendEmailData(payLoad))
       
     }else{
       setPersonIdentifierError("PersonIdentifier(s) are required");
@@ -253,8 +245,22 @@ const AdminSettings = () => {
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "syntax", e)}
                               />
                             </div>
-                            } 
-                          {(innerObj && innerObj.hasOwnProperty('isVisible')) &&
+                            }
+                           {(innerObj && innerObj.hasOwnProperty('isVisible')) && labelUserKey == 'emailNotifications' &&
+                            <div className="d-flex">
+                              <p className={styles.labelForCheckBox}>Is enabled</p>
+                              <div>
+                                <Form.Check
+                                  type="checkbox"
+                                  id="check"
+                                  checked={isVisible}
+                                // value={isChecked}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isVisible", e)}
+                                />
+                              </div> 
+                            </div>
+                           }  
+                          {(innerObj && innerObj.hasOwnProperty('isVisible')) && labelUserKey != 'emailNotifications' && 
                             <div className="d-flex">
                               <p className={styles.labelForCheckBox}>Is visible</p>
                               <div>
@@ -318,10 +324,7 @@ const AdminSettings = () => {
                                   variant="primary" className="mt-3"
                                   onClick={() => sendTestEmail(personIdentifier, emailOverride)}
                                 > Send test email</Button>
-                                {showTestEmailText && isSendTestEmail ? <p > Email for “{personIdentifier}” sent to <span>{sendTestEmailTo}</span> at {timeZone}</p> :
-                                  showTestEmailText && !isSendTestEmail ?
-                                    <p>Enable notifications has not been checked. Therefore, no email will be sent out.</p> : ""
-                                }
+                               {isSendTestEmail && <p > Email for “{personIdentifier}” sent to <span>{sendTestEmailTo}</span> at {timeZone}</p>  }
                               </div>
                             }
                            { (innerObj && innerObj.hasOwnProperty('maxLimit')) && labelUserKey !== "suggestedEmailNotificationsLimit" && labelUserKey !== "acceptedEmailNotificationsLimit" && <>
