@@ -186,7 +186,7 @@ const Notifications = () => {
             <p>Your user does not have the Curator Self role. To edit the Manage Notification preferences for another user, first click on the Manager Users tab.</p>
           </div>
             :  !isSuperUserORCuratorAll && !isCuratorSelf && isReporterAll  ? <div className="noAccessRole">
-              <p>Currently there is no way to test this as reporter all role we don't show Manage Notifications page at all</p>
+              <p>Your user does not have the Curator Self role. Therefore, you are not eligible to receive notifications.</p>
             </div> :"" }
     </div>
   )
