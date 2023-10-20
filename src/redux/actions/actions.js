@@ -2259,6 +2259,10 @@ export const adminSettingsListAction = (adminSettingsList) => dispatch => {
 }
 
 export const saveNotification = (payload) => dispatch => {
+    dispatch({
+        type: methods.NOTIFICATION_PREFERENCE_SAVE_LOADING,
+    })
+
       fetch(`/api/db/admin/notifications`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2280,13 +2284,22 @@ export const saveNotification = (payload) => dispatch => {
           }
         }
       }).then(data => {
-        // dispatch({
-        //   type: methods.REPORTS_RESULTS_IDS_UPDATE,
-        //   payload: data
-        // })
-        // dispatch({
-        //   type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
-        // })
+        if(data.message === "User does not exist"){
+            toast.error(data.message, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+        }else{
+            toast.success('Manager Notification Preferences has been saved for this person identifier '+ data.personIdentifier, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+        }
+        dispatch({
+            type: methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING,
+           })
       }).catch(error => {
         console.log(error)
         toast.error("Save notification Api failed - " + error.title, {
@@ -2299,6 +2312,7 @@ export const saveNotification = (payload) => dispatch => {
         )
       })
     }
+
 export const  sendNotification = (payload) =>{
     return fetch(`/api/notification`, {
         credentials: "same-origin",

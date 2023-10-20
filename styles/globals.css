@@ -186,3 +186,20 @@ h1 {
 .sendTestEmailInfo p span{ 
   text-decoration: underline;
 }
+
+.noAccessRole {
+  /* height: 100px; */
+  align-items: center;
+  display: flex;
+}
+.noAccessRole p{
+  font-size: 16px;
+  padding: 1em 0;
+  font-style: italic;
+  /* color: black; */
+  /* font-weight: bold; */
+}
+.cursorPointer{
+  cursor: pointer;
+  /* text-decoration: underline; */
+}

@@ -9,23 +9,54 @@ export const saveNotifications = async (
     req: NextApiRequest,
     res: NextApiResponse
 ) => {
-    const { frequency, accepted, status, minimumThreshold, userId,suggested } = req.body;
-
+    const { frequency, accepted, status, minimumThreshold, userId, suggested } = req.body;
     try {
+
         let createUserPayload = {
             'frequency': frequency,
             'accepted': accepted,
             'minimumThreshold': minimumThreshold,
             'status': 1, // Hardcoded 1 to make user active bydefault
             'personIdentifier': userId,
-            'suggested':suggested,
+            'suggested': suggested,
             'createTimestamp': new Date(),
             // 'userID': userId
         }
-        const result = await sequelize.transaction(async (t) => {
-            const saveNotificationResp = await models.AdminNotificationPreference.create(createUserPayload, { transaction: t })
-            res.send(saveNotificationResp)
-        });
+
+        let AdminUserData = await models.AdminUser.findOne({
+            where: { "personIdentifier": userId }
+        })
+
+        if (AdminUserData) {
+            let userNotifiedUser = await models.AdminNotificationPreference.findOne({
+                where: { "personIdentifier": userId }
+            })
+
+            if (userNotifiedUser) {
+                const result = await sequelize.transaction(async (t) => {
+                    const updateNotificationResp = await models.AdminUser.update(createUserPayload,
+                        {
+                          where: { personIdentifier: userId },
+                          transaction: t
+                        });
+                        if(updateNotificationResp) {
+                            let result = {"personIdentifier":userId}
+                            res.send(result)
+                        }
+                        else res.send(updateNotificationResp)
+                });
+            }else{
+                const result = await sequelize.transaction(async (t) => {
+                    const saveNotificationResp = await models.AdminNotificationPreference.create(createUserPayload, { transaction: t })
+                    res.send(saveNotificationResp)
+                });
+            }
+        }else{
+            let noData = {
+                "message" : "User does not exist"
+            }
+            res.send(noData)
+        }
     } catch (e) {
         console.log(e);
         res.status(500).send(e);
@@ -52,6 +83,42 @@ export const disableNotificationByID = async (
             {
               where: { personIdentifier: userId },
             });
+    } catch (e) {
+        console.log(e);
+        res.status(500).send(e);
+    }
+}
+
+export const getNotificationByPersonIdentifier = async(
+    req: NextApiRequest,
+    res: NextApiResponse
+) => {
+    const {personIdentifier} = req.query;
+    try {
+
+        let AdminUserData = await models.AdminUser.findOne({
+            where: { "personIdentifier": personIdentifier }
+        })
+
+        console.log("AdminUserData****",AdminUserData)
+        if(AdminUserData){
+            let notification = await models.AdminNotificationPreference.findOne({
+                where:{"personIdentifier" : personIdentifier}
+            }) 
+            
+            if(notification) { res.send(notification) }
+            else {
+                let result = {
+                    "message": "No data found"
+                }
+                res.send(result)
+            }
+        }else{
+            let noData = {
+                "message" : "User does not exist"
+            }
+            res.send(noData)
+        }
     } catch (e) {
         console.log(e);
         res.status(500).send(e);
