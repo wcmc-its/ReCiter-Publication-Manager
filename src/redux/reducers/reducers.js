@@ -815,6 +815,18 @@ export const reportsResultsIdsLoading = (state = false, action) => {
   }
 }
 
+export const saveNotificationsLoading = (state = false, action) => {
+  switch(action.type) {
+    case methods.NOTIFICATION_PREFERENCE_SAVE_LOADING:
+      return true
+    case methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING:
+      return false
+    default:
+      return state
+  }
+}
+
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -871,5 +883,6 @@ export default combineReducers({
     authorFilterDataFromSearch,
     showEvidenceDefault,
     updatedAdminSettings,
-    notificationEmailCarier
+    notificationEmailCarier,
+    saveNotificationsLoading
 })
