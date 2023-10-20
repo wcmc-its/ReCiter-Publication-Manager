@@ -91,7 +91,8 @@ const Notifications = () => {
           setSuggested(suggested == 1 ? true : false);
           setEvidance(minimumThreshold == 0 ? false : true);
           setAccepted(accepted == 1 ? true : false);
-        } else {
+        } 
+        else if(data && data.message !='No data found') {
           toast.error("User Doest Not Exist", {
             position: "top-right",
             autoClose: 2000,
