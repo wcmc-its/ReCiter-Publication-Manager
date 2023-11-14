@@ -112,9 +112,9 @@ export async function processPubNotification(pubDetails,req,res) {
      //Preparing an object for the messages
      let emailNotificationPubMsgDetails = 
      {
-       "noConfiguredNotificationMsg": noConfiguredNotifPersonIdentifiers && noConfiguredNotifPersonIdentifiers.length > 0 && `No email has been sent to ${noConfiguredNotifPersonIdentifiers.join()} due to no notifications configured`,
-       "noEligiblePubNotifMsg": noEligiblePubNotifPersonIdentifiers && noEligiblePubNotifPersonIdentifiers.length > 0 && `No email has been sent to ${noEligiblePubNotifPersonIdentifiers.join()} due to no eligible publications`,
-       "successEmailNotifMsg":successEmailNotifPersonIdentifiers && successEmailNotifPersonIdentifiers.length > 0 && `Email for ${successEmailNotifPersonIdentifiers.join()} sent to`  
+       "noConfiguredNotificationMsg": noConfiguredNotifPersonIdentifiers && noConfiguredNotifPersonIdentifiers.length > 0 ? `No email has been sent to ${noConfiguredNotifPersonIdentifiers.join()} due to no notifications configured.`:'',
+       "noEligiblePubNotifMsg": noEligiblePubNotifPersonIdentifiers && noEligiblePubNotifPersonIdentifiers.length > 0 ? `No email has been sent to ${noEligiblePubNotifPersonIdentifiers.join()} due to no eligible publications.`:'',
+       "successEmailNotifMsg": successEmailNotifPersonIdentifiers && successEmailNotifPersonIdentifiers.length > 0 ? `Email for ${successEmailNotifPersonIdentifiers.join()} sent to` :'' 
      }
      return emailNotificationPubMsgDetails;
  }
