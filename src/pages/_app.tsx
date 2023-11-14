@@ -41,6 +41,8 @@ import type { NextPage } from 'next'
 import type { ReactElement, ReactNode } from 'react'
 import Header from '../components/elements/Header/Header'
 import { Footer } from '../components/elements/Footer/Footer'
+import "slick-carousel/slick/slick.css";
+import "slick-carousel/slick/slick-theme.css";
 
 
 // this should give a better typing

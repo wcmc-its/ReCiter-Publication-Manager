@@ -1,7 +1,7 @@
 
 import { Request, Response } from 'express';
 import NodeMailer from "nodemailer";
-import Handlebars from "handlebars";
+// import Handlebars from "handlebars";
 
 
 export async function sendNotification(req,res) {

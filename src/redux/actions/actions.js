@@ -2399,7 +2399,7 @@ export const sendEmailData = (requestBody) => dispatch => {
     //     type: methods.NOTIFICATION_EMAIL_CARIER,
     //     payload: email
     // })
-    fetch(`/api/notification/sendEmail`, {
+    fetch(`/api/notification/sendPubEmailNotifications`, {
         credentials: "same-origin",
         method: 'POST',
         headers: {

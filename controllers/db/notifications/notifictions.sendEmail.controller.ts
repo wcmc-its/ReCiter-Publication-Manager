@@ -2,11 +2,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import sequelize from "../../../src/db/db";
 import NodeMailer from "nodemailer";
-import Handlebars from "handlebars";
+import Handlebars, { Exception } from "handlebars";
 import models from '../../../src/db/sequelize'
 
 
-export const sendEmail = async (
+export const sendPubEmailNotifications = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
@@ -20,8 +20,15 @@ export const sendEmail = async (
         raw: true,
       }
     );
-	
-    sendNotification(generateEmailNotifications,req,res);
+
+    if(generateEmailNotifications.length > 0){
+      res.status(200).send(await processPubNotification(generateEmailNotifications,req,res));
+      }else{
+        let noData = {
+          message: "Could not find any notifications"
+        }
+        res.send(noData)
+      }
 										 
   } catch (e) {
     console.log(e);
@@ -31,22 +38,31 @@ export const sendEmail = async (
 
 
 
-export async function sendNotification(emailData,req,res) {
-  const originLocation = req?.headers?.origin;//window.location.origin;
-  const notificationsLink = originLocation + '/notifications';
+export async function processPubNotification(pubDetails,req,res) {
+  const originLocation = req?.headers?.origin;
+  
   
   const fromAddress =
     process.env.NODE_ENV === "production"
       ? '"Reciter Pub Manager" <publications@med.cornell.edu>'
       : '"Reciter Pub Manager Test" <doNotReply@med.cornell.edu>';
-
-  emailData.map((emailDetails) => {
-    let { admin_user_id,sender,recipient, subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det } = JSON.parse(JSON.stringify(emailDetails))
+  let noConfiguredNotifPersonIdentifiers = [];
+  let noEligiblePubNotifPersonIdentifiers = [];
+  let successEmailNotifPersonIdentifiers =[];
+  await Promise.all(pubDetails.map(async (pubRec) => {
+    let { admin_user_id,sender,recipient,subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det,pub_error_message, notif_error_message } = JSON.parse(JSON.stringify(pubRec))
+   
+    if(pub_error_message){
+      noEligiblePubNotifPersonIdentifiers.push(personIdentifier)
+    }else if(notif_error_message){
+      noConfiguredNotifPersonIdentifiers.push(personIdentifier)
+    }else{
     const personIdentifierProfileLink = originLocation + '/curate/' + personIdentifier;
-    const navigateToCurateSelfPage = originLocation + '/curate' ;
+    const navigateToCurateSelfPage = originLocation + '/curate/' + personIdentifier ;
     let acceptedPublicationArray = accepted_publications && accepted_publications.indexOf('~!,') > -1 ? accepted_publications.split('~!,') : accepted_publications.split('~!');
     let suggestedPublicationArray = suggested_publications && suggested_publications.indexOf('~!,') > -1 ? suggested_publications.split('~!,'): suggested_publications.split('~!');
-    
+    const notificationsLink = originLocation + '/notifications/' + personIdentifier;
+
     const emailNotificationTemplate = `<div style="font-family: Arial; font-size : 11pt"><p>{{salutation}},</p>
                    <p>{{acceptedSubjectHeadline}}</p>
                    <p>{{#each_limit acceptedPublicationArray maxAcceptedPublicationToDisplay}}
@@ -82,7 +98,6 @@ export async function sendNotification(emailData,req,res) {
             navigateToCurateSelfPage : navigateToCurateSelfPage
         };
         var emailBody = template(replacements);     
-
     
     let mailOptions = {
       from: sender || fromAddress,
@@ -90,76 +105,94 @@ export async function sendNotification(emailData,req,res) {
       subject: subject,
       html: emailBody
     }
-
-    let transporter = NodeMailer.createTransport(({
-      host: process.env.SMTP_HOST_NAME,
-      port: process.env.NODE_ENV === "production" ? 465 : 25,
-      secure: process.env.NODE_ENV === "production" ? true : false,
-      logger: true,
-      debug: true,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD
-      },
-      tls: {
-        rejectUnAuthorized: process.env.NODE_ENV === "production" ? true : false,
-      }
-    }))
-
-    // saveNotificationsLog(admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res)
-    
-    // comment for testing
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) {
-         console.log(err);
-       } else {
-        saveNotificationsLog(admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res)
-       }
-     res.status(200).json({ success: true });
-     });
+    let emailSuccessNotifPersonIdentier = await sendEmailNotification(pubRec,mailOptions,req,res);
+    successEmailNotifPersonIdentifiers.push(emailSuccessNotifPersonIdentier);
   }
-  );
+}));
+     //Preparing an object for the messages
+     let emailNotificationPubMsgDetails = 
+     {
+       "noConfiguredNotificationMsg": noConfiguredNotifPersonIdentifiers && noConfiguredNotifPersonIdentifiers.length > 0 && `No email has been sent to ${noConfiguredNotifPersonIdentifiers.join()} due to no notifications configured`,
+       "noEligiblePubNotifMsg": noEligiblePubNotifPersonIdentifiers && noEligiblePubNotifPersonIdentifiers.length > 0 && `No email has been sent to ${noEligiblePubNotifPersonIdentifiers.join()} due to no eligible publications`,
+       "successEmailNotifMsg":successEmailNotifPersonIdentifiers && successEmailNotifPersonIdentifiers.length > 0 && `Email for ${successEmailNotifPersonIdentifiers.join()} sent to`  
+     }
+     return emailNotificationPubMsgDetails;
+ }
+
+export async function sendEmailNotification(pubRec,mailOptions,req,res){
+  let { admin_user_id,sender,recipient,subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det,pub_error_message, notif_error_message } = JSON.parse(JSON.stringify(pubRec))
+  let transporter = NodeMailer.createTransport(({
+    host: process.env.SMTP_HOST_NAME,
+    port: process.env.NODE_ENV === "production" ? 465 : 25,
+    secure: process.env.NODE_ENV === "production" ? true : false,
+    logger: true,
+    debug: true,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD
+    },
+    tls: {
+      rejectUnAuthorized: process.env.NODE_ENV === "production" ? true : false,
+    }
+  }))
+
+  transporter.sendMail(mailOptions, async (err, info) => {
+    if (err) {
+       console.log(err);
+     } else {
+      await saveNotificationsLog(admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res)
+      
+    }
+   });
+   return  personIdentifier;
+
 }
 
 export async function saveNotificationsLog (admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res) {
   const { frequency, accepted, status, minimumThreshold, userId } = req.body;
   try {
     let acceptAndSuggestPubs = [];
+    if(!accepted_publication_det) console.error('Unable to save Notification log due to missing accepted publication details',admin_user_id);  
 
     accepted_publication_det && JSON.parse(accepted_publication_det)  && JSON.parse(accepted_publication_det).length > 0 && JSON.parse(accepted_publication_det).map((pub)=>{
     let obj = {
           'messageID': frequency,
-          'articleIdentifier': pub.PMID,
+          'pmid': pub.PMID,
           'articleScore': pub.totalArticleScoreStandardized,
           'email': recipient, 
           'userID': admin_user_id,
           'dateSent': new Date(),
-          'createTimestamp': new Date()
+          'createTimestamp': new Date(),
+          'notificationType': 'Accepted'
     }
     acceptAndSuggestPubs.push(obj)
     }
     )
 
+    if(!suggested_publication_det) console.error('Unable to save Notification log due to missing accepted publication details',admin_user_id);
+
     suggested_publication_det && JSON.parse(suggested_publication_det) && JSON.parse(suggested_publication_det).length > 0 && JSON.parse(suggested_publication_det).map((pub)=>{
       let obj = {
             'messageID': frequency,
-            'articleIdentifier': pub.PMID,
+            'pmid': pub.PMID,
             'articleScore': pub.totalArticleScoreStandardized,
             'email': recipient, 
             'userID': admin_user_id,
             'dateSent': new Date(),
-            'createTimestamp': new Date()
+            'createTimestamp': new Date(),
+            'notificationType':'Suggested'
       }
       acceptAndSuggestPubs.push(obj)
       }
       )
       const result = await sequelize.transaction(async (t) => {
-          const saveNotificationResp = await models.AdminNotificationLog.bulkCreate(acceptAndSuggestPubs, { transaction: t })
+          return await models.AdminNotificationLog.bulkCreate(acceptAndSuggestPubs, { transaction: t })
       });
   } catch (e) {
       console.log(e);
       res.status(500).send(e);
   }
+  
 }
 
 Handlebars.registerHelper('each_limit', function(ary, max, options) {
