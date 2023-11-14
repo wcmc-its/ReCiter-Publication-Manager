@@ -6,7 +6,7 @@ import { adminSettingsListAction, updatedAdminSettings ,sendEmailData} from "../
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
-import { Accordion, Button, Form, InputGroup, Card } from "react-bootstrap"
+import { Accordion, Button, Form, InputGroup, Card,Spinner } from "react-bootstrap"
 import Loader from "../Common/Loader";
 import { toast } from "react-toastify";
 import { resolveSrv } from "dns";
@@ -27,12 +27,14 @@ const AdminSettings = () => {
   const [isChecked, setIsChecked] = useState(false);
   const [personIdentifierError, setPersonIdentifierError ] = useState('');
   const [showTestEmailText, setShowTestEmailText] = useState(false)
-  const [timeZone, setTimeZone] = useState("");
-  const [sendTestEmailTo, setSendTestEmailTo] = useState("");
+  const [emailDeliveredTime, setEmailDeliveredTime] = useState("");
+  const [emailRecipient, setEmailRecipient] = useState("");
   const [isSendTestEmail, setIsSendTestEmail] = useState(false);
+  const[noConfiguredNotifMsg,setNoConfiguredNotifMsg] = useState(""); 
+  const[noEligiblePubNotifMsg,setNoEligiblePubNotifMsg] = useState("");
+  const[successEmailNotifMsg,setSuccessEmailNotifMsg] = useState("");
+  const [senTestEmailLoading, setSendTestEmailLoading] = useState(false);
 
-
- 
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -75,6 +77,8 @@ const AdminSettings = () => {
   }
 
   const handleValueChange = (viewLabelIndex?: number, viewAttrIndex?: number, name? : string, e?:any , labelName? : string) => {
+    if(name === "personIdentifier" || name === "emailOverride") setIsSendTestEmail(false);
+
     setSettings(settings.map((obj, index1) => {
       if (index1 == viewLabelIndex) {
         return {
@@ -151,23 +155,81 @@ const AdminSettings = () => {
   }
 
 
-  const sendTestEmail= (personIdentifier, emailOverride)=>{
-    let date = new Date().toUTCString();
-    date = moment(date).tz("America/New_York").format("hh:mm A zz")
-    setTimeZone(date)
-    if(personIdentifier){
-      setIsSendTestEmail(true)
-
-      setSendTestEmailTo(emailOverride);
+  const sendTestEmail = (personIdentifier, emailRecipient) => {
+    let emailSentDate = moment(new Date().toUTCString()).tz("America/New_York").format("hh:mm A zz")
+    setEmailDeliveredTime(emailSentDate);
+    setSuccessEmailNotifMsg("");
+    setNoEligiblePubNotifMsg("");
+    setNoConfiguredNotifMsg("");
+    if (personIdentifier) {
+      // setIsSendTestEmail(true)
+      setEmailRecipient(emailRecipient);
+      setSendTestEmailLoading(true);
       let payLoad = {
-        "personIdentifier":personIdentifier, "emailOverride":emailOverride
+        "personIdentifier": personIdentifier, "emailOverride": emailRecipient
       }
-      dispatch(sendEmailData(payLoad))
-      
-    }else{
+
+      fetch(`/api/notification/sendEmail`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          "Content-Type": "application/json",
+          'Authorization': reciterConfig.backendApiKey
+        },
+        body: JSON.stringify(payLoad)
+      }).then(response => {
+        if (response.status === 200) {
+          return response.json()
+        } else {
+          throw {
+            type: response.type,
+            title: response.statusText,
+            status: response.status,
+            detail: "Error occurred with api " + response.url + ". Please, try again later "
+          }
+        }
+      }).then(data => {
+        if (data.message && data.message === "Could not find any notifications") {
+          setIsSendTestEmail(false);
+          setSendTestEmailLoading(false);
+          toast.info("No data found to send an email", {
+            position: "top-right",
+            autoClose: 4000,
+            theme: 'colored'
+          });
+        } else {
+          setIsSendTestEmail(true)
+          if(data && data.noConfiguredNotificationMsg)
+            setNoConfiguredNotifMsg(data.noConfiguredNotificationMsg);
+          if(data && data.noEligiblePubNotifMsg)
+            setNoEligiblePubNotifMsg(data.noEligiblePubNotifMsg);
+          if(data && data.successEmailNotifMsg)
+          {
+            let successEmailNotifMsg = data.successEmailNotifMsg;
+            setSuccessEmailNotifMsg(successEmailNotifMsg);
+          }
+          setSendTestEmailLoading(false);
+          toast.success("Test email sent Successfully - to " + payLoad.emailOverride, {
+            position: "top-right",
+            autoClose: 4000,
+            theme: 'colored'
+          });
+        }
+      }).catch(error => {
+      setSendTestEmailLoading(false);
+        toast.error("Send Test Email failed - " + error.title, {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+      })
+
+    } else {
       setPersonIdentifierError("PersonIdentifier(s) are required");
     }
   }
+
 
   return (
     <div className={appStyles.mainContainer}>
@@ -323,8 +385,17 @@ const AdminSettings = () => {
                                   name="submitButton"
                                   variant="primary" className="mt-3"
                                   onClick={() => sendTestEmail(personIdentifier, emailOverride)}
-                                > Send test email</Button>
-                               {isSendTestEmail && <p > Email for “{personIdentifier}” sent to <span>{sendTestEmailTo}</span> at {timeZone}</p>  }
+                                > 
+                                 { senTestEmailLoading ? <div className="d-flex">
+                    <Spinner animation="border" role="status" className="danger">
+                      {/* <span className="">Loading...</span> */}
+                    </Spinner> <h5>Loading...</h5></div>: "Send test email" }
+                                </Button>
+                                <div>
+                               {isSendTestEmail && <p> {noConfiguredNotifMsg}</p>  }
+                               {isSendTestEmail && <p> {noEligiblePubNotifMsg}</p>  }
+                               {isSendTestEmail && successEmailNotifMsg ? <p> {successEmailNotifMsg} <span> {emailRecipient}</span> at {emailDeliveredTime}.</p> :'' }
+                               </div>
                               </div>
                             }
                            { (innerObj && innerObj.hasOwnProperty('maxLimit')) && labelUserKey !== "suggestedEmailNotificationsLimit" && labelUserKey !== "acceptedEmailNotificationsLimit" && <>

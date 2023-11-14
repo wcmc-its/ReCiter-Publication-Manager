@@ -186,6 +186,9 @@ h1 {
 .sendTestEmailInfo p span{ 
   text-decoration: underline;
 }
+.sendTestEmailInfo p:nth-child(3){
+  color: #1ea446ff;
+}
 
 .noAccessRole {
   /* height: 100px; */

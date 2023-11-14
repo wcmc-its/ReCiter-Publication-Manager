@@ -1,13 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterConfig } from '../../../../../config/local'
-import { sendEmail } from '../../../../../controllers/db/notifications/notifictions.sendEmail.controller'
+import { sendPubEmailNotifications } from '../../../../../controllers/db/notifications/notifictions.sendEmail.controller'
 
 
 export default async function handler(req: NextApiRequest,
     res: NextApiResponse<any>) {
     if (req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
-            await sendEmail (req, res)
+            await sendPubEmailNotifications (req, res)
         } else if(req.headers.authorization === undefined) {
             res.status(400).send("Authorization header is needed")
         } else {

@@ -1,8 +1,3 @@
-
-.header{
-    color: black;
-}
-
 .selectFrequecy{
     width: 300px;
 }
@@ -11,4 +6,41 @@
 }
 .selectCount{
     width: 80px;
+}
+/* .sliderMain div h3{
+    background-color: grey;
+    color: white;
+    padding: 1em;
+    clear: both;
+    margin: 0 1px;
+} */
+.nonActiveBlocks{
+    background-color: rgb(128, 128, 128) !important;
+    color: white;
+    padding: 1em;
+    clear: both;
+    margin: 0 1px;
+    cursor: pointer;
+}
+.activeBlock{
+    background-color: #e87722 !important;
+    color: white;
+    padding: 1em;
+    clear: both;
+    margin: 0 1px;
+    cursor: pointer;
+}
+.noActions{
+    background-color: rgb(80, 70, 70) !important;
+    color: white;
+    padding: 1em;
+    clear: both;
+    margin: 0 1px;
+}
+
+/* .sliderMain .slick-arrow > .slick-prev::before{
+    color: red;
+} */
+.sliderMain .slick-prev:before, .slick-next:before{
+color: #e87722 !important;
 }

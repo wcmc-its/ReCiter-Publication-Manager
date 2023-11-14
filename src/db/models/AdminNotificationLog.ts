@@ -5,30 +5,32 @@ import type { AdminUser, AdminUserId } from './AdminUser';
 export interface AdminNotificationLogAttributes {
   notificationID: number;
   userID?: number;
-  articleIdentifier?: number;
+  pmid?: number;
   articleScore?: number;
   email?: string;
   dateSent?: Date;
   createTimestamp: Date;
   modifyTimestamp: Date;
   messageID?: number;
+  notificationType?: string;
 }
 
 export type AdminNotificationLogPk = "notificationID";
 export type AdminNotificationLogId = AdminNotificationLog[AdminNotificationLogPk];
-export type AdminNotificationLogOptionalAttributes = "notificationID" | "userID" | "articleIdentifier" | "articleScore" | "email" | "dateSent" | "createTimestamp" | "modifyTimestamp" | "messageID";
+export type AdminNotificationLogOptionalAttributes = "notificationID" | "userID" | "pmid" | "articleScore" | "email" | "dateSent" | "createTimestamp" | "modifyTimestamp" | "messageID" | "notificationType";
 export type AdminNotificationLogCreationAttributes = Optional<AdminNotificationLogAttributes, AdminNotificationLogOptionalAttributes>;
 
 export class AdminNotificationLog extends Model<AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes> implements AdminNotificationLogAttributes {
   notificationID!: number;
   userID?: number;
-  articleIdentifier?: number;
+  pmid?: number;
   articleScore?: number;
   email?: string;
   dateSent?: Date;
   createTimestamp!: Date;
   modifyTimestamp!: Date;
-  messageID?:number
+  messageID?:number;
+  notificationType?:string;
 
   // AdminNotificationLog belongsTo AdminUser via userID
   user!: AdminUser;
@@ -52,7 +54,7 @@ export class AdminNotificationLog extends Model<AdminNotificationLogAttributes, 
         key: 'userID'
       }
     },
-    articleIdentifier: {
+    pmid: {
       type: DataTypes.INTEGER,
       allowNull: true
     },
@@ -81,6 +83,10 @@ export class AdminNotificationLog extends Model<AdminNotificationLogAttributes, 
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: Sequelize.Sequelize.fn('current_timestamp')
+    },
+    notificationType : {
+      type: DataTypes.STRING(128),
+      allowNull: true
     }
   }, {
     sequelize,

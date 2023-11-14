@@ -34,7 +34,7 @@ export const saveNotifications = async (
 
             if (userNotifiedUser) {
                 const result = await sequelize.transaction(async (t) => {
-                    const updateNotificationResp = await models.AdminUser.update(createUserPayload,
+                    const updateNotificationResp = await models.AdminNotificationPreference.update(createUserPayload,
                         {
                           where: { personIdentifier: userId },
                           transaction: t
@@ -100,7 +100,6 @@ export const getNotificationByPersonIdentifier = async(
             where: { "personIdentifier": personIdentifier }
         })
 
-        console.log("AdminUserData****",AdminUserData)
         if(AdminUserData){
             let notification = await models.AdminNotificationPreference.findOne({
                 where:{"personIdentifier" : personIdentifier}
@@ -129,7 +128,7 @@ export const saveNotificationsLog = async (
     req: NextApiRequest,
     res: NextApiResponse
 ) => {
-    const { frequency, accepted, status, minimumThreshold, userId } = req.body;
+    const { frequency, accepted, status, minimumThreshold, userId,notificatonType } = req.body;
     try {
         let createUserPayload = {
             'messageID': frequency,
@@ -138,7 +137,8 @@ export const saveNotificationsLog = async (
             'email': status, // Hardcoded 1 to make user active bydefault
             'userId': userId,
             'dateSent': new Date(),
-            'createTimestamp': new Date()
+            'createTimestamp': new Date(),
+            'notificationType': notificatonType
         }
         const result = await sequelize.transaction(async (t) => {
             const saveNotificationResp = await models.AdminNotificationLog.create(createUserPayload, { transaction: t })
