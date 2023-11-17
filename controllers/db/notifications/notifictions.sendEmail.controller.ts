@@ -3,7 +3,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import sequelize from "../../../src/db/db";
 import NodeMailer from "nodemailer";
 import Handlebars, { Exception } from "handlebars";
-import models from '../../../src/db/sequelize'
+import models from '../../../src/db/sequelize';
+import { sendEmailNotification } from "./../../../src/utils/emailUtilityHelper";
+
 
 
 export const sendPubEmailNotifications = async (
@@ -37,7 +39,6 @@ export const sendPubEmailNotifications = async (
 }
 
 
-
 export async function processPubNotification(pubDetails,req,res) {
   const originLocation = req?.headers?.origin;
   
@@ -65,18 +66,17 @@ export async function processPubNotification(pubDetails,req,res) {
 
     const emailNotificationTemplate = `<div style="font-family: Arial; font-size : 11pt"><p>{{salutation}},</p>
                    <p>{{acceptedSubjectHeadline}}</p>
-                   <p>{{#each_limit acceptedPublicationArray maxAcceptedPublicationToDisplay}}
+                   <div>{{#each_limit acceptedPublicationArray maxAcceptedPublicationToDisplay}}
                         <ul style="margin-bottom: 0 !important; padding-bottom:0 !important; margin:0">
-                            <li style="margin-bottom: 0; padding:0" >{{this}}</li>
+                            <li style="margin-bottom: 0 !important; padding:0 0 1em 0 !important" >{{this}}</li>
                         </ul>
-                   {{/each_limit}}</p>
+                   {{/each_limit}}</div>
                   <p>{{suggestedSubjectHeadline}}</p>
-                  <p>{{#each_limit suggestedPublicationArray maxSuggestedPublicationToDisplay}}
-                       <ul style="margin-bottom: 0; padding:0">
-                            <li style='list-style-position: inside'>{{this}}</li>
-                       </ul
-                   {{/each_limit}}</p>
-
+                  <div>{{#each_limit suggestedPublicationArray maxSuggestedPublicationToDisplay}}
+                       <ul style="margin-bottom: 0 !important; padding-bottom:0 !important; margin:0">
+                            <li style="margin-bottom: 0 !important; padding:0 0 1em 0 !important">{{this}}</li>
+                       </ul>
+                   {{/each_limit}}</div>
                   <p><b>Review and update:</b> {{seeMore acceptedPubCount suggestedPubCount personIdentifierProfileLink 'ACCEPTED' 'SUGGESTED' navigateToCurateSelfPage }}. To update your notification preferences, navigate to the {{link "Notifications" notificationsLink}} page.
                   <pre><span style="color:#00000; font-family: Arial; font-size : 11pt !important" >{{signature}}</span></pre>
                   </p></div>`;
@@ -101,52 +101,29 @@ export async function processPubNotification(pubDetails,req,res) {
     
     let mailOptions = {
       from: sender || fromAddress,
-      to:  recipient || process.env.SMTP_ADMIN_EMAIL, // admin_users.email || recipient  to: 
+      to: process.env.SMTP_ADMIN_EMAIL, // admin_users.email || recipient  to: 
       subject: subject,
       html: emailBody
     }
     let emailSuccessNotifPersonIdentier = await sendEmailNotification(pubRec,mailOptions,req,res);
-    successEmailNotifPersonIdentifiers.push(emailSuccessNotifPersonIdentier);
+    if(emailSuccessNotifPersonIdentier)
+    {
+        successEmailNotifPersonIdentifiers.push(emailSuccessNotifPersonIdentier);
+        //calling upon sending successful email notifications
+        await saveNotificationsLog(admin_user_id, recipient, accepted_publication_det, suggested_publication_det, req, res)
+    }
   }
 }));
      //Preparing an object for the messages
      let emailNotificationPubMsgDetails = 
      {
-       "noConfiguredNotificationMsg": noConfiguredNotifPersonIdentifiers && noConfiguredNotifPersonIdentifiers.length > 0 ? `No email has been sent to ${noConfiguredNotifPersonIdentifiers.join()} due to no notifications configured.`:'',
-       "noEligiblePubNotifMsg": noEligiblePubNotifPersonIdentifiers && noEligiblePubNotifPersonIdentifiers.length > 0 ? `No email has been sent to ${noEligiblePubNotifPersonIdentifiers.join()} due to no eligible publications.`:'',
+       "noConfiguredNotificationMsg": noConfiguredNotifPersonIdentifiers && noConfiguredNotifPersonIdentifiers.length > 0 ? `No email has been sent for ${noConfiguredNotifPersonIdentifiers.join()} due to no notifications configured.`:'',
+       "noEligiblePubNotifMsg": noEligiblePubNotifPersonIdentifiers && noEligiblePubNotifPersonIdentifiers.length > 0 ? `No email has been sent for ${noEligiblePubNotifPersonIdentifiers.join()} due to no eligible publications.`:'',
        "successEmailNotifMsg": successEmailNotifPersonIdentifiers && successEmailNotifPersonIdentifiers.length > 0 ? `Email for ${successEmailNotifPersonIdentifiers.join()} sent to` :'' 
      }
      return emailNotificationPubMsgDetails;
  }
 
-export async function sendEmailNotification(pubRec,mailOptions,req,res){
-  let { admin_user_id,sender,recipient,subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det,pub_error_message, notif_error_message } = JSON.parse(JSON.stringify(pubRec))
-  let transporter = NodeMailer.createTransport(({
-    host: process.env.SMTP_HOST_NAME,
-    port: process.env.NODE_ENV === "production" ? 465 : 25,
-    secure: process.env.NODE_ENV === "production" ? true : false,
-    logger: true,
-    debug: true,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD
-    },
-    tls: {
-      rejectUnAuthorized: process.env.NODE_ENV === "production" ? true : false,
-    }
-  }))
-
-  transporter.sendMail(mailOptions, async (err, info) => {
-    if (err) {
-       console.log(err);
-     } else {
-      await saveNotificationsLog(admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res)
-      
-    }
-   });
-   return  personIdentifier;
-
-}
 
 export async function saveNotificationsLog (admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res) {
   const { frequency, accepted, status, minimumThreshold, userId } = req.body;

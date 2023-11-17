@@ -709,9 +709,9 @@ export const reportingFiltersLoading = (state=false, action) => {
   }
 }
 
-export const notificationEmailCarier = (state="", action) => {
+export const notificationEmailCarier = (state={}, action) => {
   switch(action.type) {
-      case methods.NOTIFICATION_EMAIL_CARIER :
+      case methods.NOTIFICATION_EMAIL_CARRIER :
           return action.payload
       default :
           return state

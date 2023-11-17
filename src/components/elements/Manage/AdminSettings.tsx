@@ -156,17 +156,24 @@ const AdminSettings = () => {
 
 
   const sendTestEmail = (personIdentifier, emailRecipient) => {
+    let personIdentifiersStr = '';
+    if(personIdentifier && personIdentifier.length > 0)
+    {
+      let personIdentifierArr = personIdentifier.split(',');
+      personIdentifiersStr = personIdentifierArr.map(s => s.trim()).join(',');
+       
+    }
     let emailSentDate = moment(new Date().toUTCString()).tz("America/New_York").format("hh:mm A zz")
     setEmailDeliveredTime(emailSentDate);
     setSuccessEmailNotifMsg("");
     setNoEligiblePubNotifMsg("");
     setNoConfiguredNotifMsg("");
-    if (personIdentifier) {
+    if (personIdentifiersStr && personIdentifiersStr.length > 0) {
       // setIsSendTestEmail(true)
       setEmailRecipient(emailRecipient);
       setSendTestEmailLoading(true);
       let payLoad = {
-        "personIdentifier": personIdentifier, "emailOverride": emailRecipient
+        "personIdentifier": personIdentifiersStr, "emailOverride": emailRecipient
       }
 
       fetch(`/api/notification/sendEmail`, {

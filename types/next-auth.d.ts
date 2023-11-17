@@ -17,6 +17,7 @@ declare module "next-auth" {
       databaseUser: {
         userID: number,
         status: number,
+        nameFirst: string,
       }
       userRoles : Array,
       adminSettings : Array
