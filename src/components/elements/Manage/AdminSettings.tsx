@@ -34,6 +34,7 @@ const AdminSettings = () => {
   const[noEligiblePubNotifMsg,setNoEligiblePubNotifMsg] = useState("");
   const[successEmailNotifMsg,setSuccessEmailNotifMsg] = useState("");
   const [senTestEmailLoading, setSendTestEmailLoading] = useState(false);
+  const [emailError, setEmailError ] = useState('');
 
   const dispatch = useDispatch();
 
@@ -107,7 +108,9 @@ const AdminSettings = () => {
                 }
                 else {
                   if(name === "personIdentifier") setPersonIdentifierError("")
+                  if(name=== "emailOverride") setEmailError("")
                   return { ...innerObj, [name]: e.target.value }
+                 
                 }
               }
               else return { ...innerObj }
@@ -156,17 +159,29 @@ const AdminSettings = () => {
 
 
   const sendTestEmail = (personIdentifier, emailRecipient) => {
+    let personIdentifiersStr = '';
+    if(personIdentifier && personIdentifier.length > 0)
+    {
+      let personIdentifierArr = personIdentifier.split(',');
+      personIdentifiersStr = personIdentifierArr.map(s => s.trim()).join(',');
+       
+    }
+    if(!emailRecipient || emailRecipient.length <=0)
+    {
+      setEmailError("Email is required");
+      return;
+    }
     let emailSentDate = moment(new Date().toUTCString()).tz("America/New_York").format("hh:mm A zz")
     setEmailDeliveredTime(emailSentDate);
     setSuccessEmailNotifMsg("");
     setNoEligiblePubNotifMsg("");
     setNoConfiguredNotifMsg("");
-    if (personIdentifier) {
+    if (personIdentifiersStr && personIdentifiersStr.length > 0) {
       // setIsSendTestEmail(true)
       setEmailRecipient(emailRecipient);
       setSendTestEmailLoading(true);
       let payLoad = {
-        "personIdentifier": personIdentifier, "emailOverride": emailRecipient
+        "personIdentifier": personIdentifiersStr, "emailOverride": emailRecipient
       }
 
       fetch(`/api/notification/sendEmail`, {
@@ -226,7 +241,7 @@ const AdminSettings = () => {
       })
 
     } else {
-      setPersonIdentifierError("PersonIdentifier(s) are required");
+      setPersonIdentifierError("Person Identifier(s) are required");
     }
   }
 
@@ -254,7 +269,7 @@ const AdminSettings = () => {
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
                           <Card.Text>
-                          {(innerObj && innerObj.hasOwnProperty('labelUserView'))  && labelSettingsView !== "Email Notifications" &&
+                          {(innerObj && innerObj.hasOwnProperty('labelUserView'))  && labelSettingsView !== "Email signature" &&
                             <div className="d-flex">
                               <p className={styles.labels}>Label Override</p>
                               <Form.Control
@@ -267,7 +282,7 @@ const AdminSettings = () => {
                               />
                             </div>
                             }
-                            {(innerObj && innerObj.hasOwnProperty('labelUserView')) && labelSettingsView == "Email Notifications" &&
+                            {(innerObj && innerObj.hasOwnProperty('labelUserView')) && labelSettingsView == "Email signature" &&
 
                               <div className="d-flex">
                                 <p className={styles.labels}>Label</p>
@@ -365,7 +380,7 @@ const AdminSettings = () => {
                               {personIdentifierError && personIdentifier === "" && <p className="textError" >{personIdentifierError}</p>}
                               </>
                            }
-                           { (innerObj && innerObj.hasOwnProperty('emailOverride')) && 
+                           { (innerObj && innerObj.hasOwnProperty('emailOverride')) && <>
                             <div className="d-flex">
                               <p className={styles.labels}>Email</p>
                               <Form.Control
@@ -377,6 +392,8 @@ const AdminSettings = () => {
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "emailOverride", e, obj.viewLabel)}
                               />
                             </div>
+                              {emailError && emailOverride === "" && <p className="textError" >{emailError}</p>}
+                              </>
                            }
                           {(innerObj && innerObj.hasOwnProperty('submitButton')) &&
                               <div className="d-flex sendTestEmailInfo">

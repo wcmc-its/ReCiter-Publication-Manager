@@ -43,6 +43,8 @@ const Notifications = () => {
   const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
   const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
   const [stepsCount, setStepsCount] = useState<any>();
+  const [useName, setUserName] = useState<string>();
+
 
   useEffect(() => {
     const marks = [];
@@ -76,8 +78,15 @@ const Notifications = () => {
     }
 
     setUserId(router.query.userId)
-    if (router.query.userId === session.data.username) setEmail(session.data.email)
-    else setEmail(notificationEmailCarier)
+    if (router.query.userId === session.data.username) {
+      setEmail(session.data.email);
+      setUserName(session.data.databaseUser.nameFirst)
+    }
+    else {
+      setEmail(notificationEmailCarier.email);
+      setUserName(notificationEmailCarier.userName);
+
+    }
     getNotification(router.query.userId);
   }, [])
 
@@ -132,7 +141,7 @@ const Notifications = () => {
   }
 
   const onSave = () => {
-    let payload = { frequency, suggested: suggested ? 1 : 0, accepted: accepted === true ? 1 : 0, status: status === true ? 1 : 0, minimumThreshold: suggested ? minimumThreshold : 0, userId }
+    let payload = { frequency, suggested: suggested ? 1 : 0, accepted: accepted === true ? 1 : 0, status: status === true ? 1 : 0, minimumThreshold: suggested ? minimumThreshold : 0, userId,recipient : notificationEmailCarier || email,isReqFrom :"notificationPref", recipientName :useName   }
     dispatch(saveNotification(payload))
   }
 

@@ -2387,10 +2387,10 @@ export const disableNotificationbyID = (payload) => dispatch => {
     })
   }
 
-export const notificationEmail = (email) => dispatch => {
+export const notificationEmail = (userInfo) => dispatch => {
     dispatch({
-        type: methods.NOTIFICATION_EMAIL_CARIER,
-        payload: email
+        type: methods.NOTIFICATION_EMAIL_CARRIER,
+        payload: userInfo
     })
 }
 
