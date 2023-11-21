@@ -43,7 +43,7 @@ export const saveNotifications = async (
                         if(updateNotificationResp) {
                             let result = {"personIdentifier":userId}
                             res.send(result);
-                            snedNotifiationPrefEmail(req.body, req,res)
+                            //sendNotifiationPrefEmail(req.body, req,res)
                         }
                         else res.send(updateNotificationResp)
                 });
@@ -51,7 +51,7 @@ export const saveNotifications = async (
                 const result = await sequelize.transaction(async (t) => {
                     const saveNotificationResp = await models.AdminNotificationPreference.create(createUserPayload, { transaction: t })
                     res.send(saveNotificationResp);
-                    snedNotifiationPrefEmail(req.body,req,res)
+                   // sendNotifiationPrefEmail(req.body,req,res)
                 });
             }
         }else{
@@ -66,7 +66,7 @@ export const saveNotifications = async (
     }
 }
 
-export const snedNotifiationPrefEmail = (paylaod,req,res) => {
+export const sendNotifiationPrefEmail = async(paylaod,req,res) => {
     const { frequency, accepted, status, minimumThreshold, userId, suggested, recipient, isReqFrom, recipientName } = req.body;
 
     const fromAddress =
@@ -79,7 +79,7 @@ export const snedNotifiationPrefEmail = (paylaod,req,res) => {
                             <p>new publication has been accepted on your behalf: ${accepted == 0 ? false : true}</p>
                             <p>A new publication has been suggested: ${suggested == 0 ? false : true}</p>
                             <p>Minimum evidence score for triggering a notification: ${minimumThreshold}</p>
-                            <p>Frequency of notifications: ${frequency == 1 ? "daily" : frequency + "days"}</p>
+                            <p>Frequency of notifications: ${frequency == 1 ? "daily" : frequency + " days"}</p>
                             </div>`
     let mailOptions = {
         from: fromAddress,
@@ -87,7 +87,7 @@ export const snedNotifiationPrefEmail = (paylaod,req,res) => {
         subject: subject,
         html: emailBody
     }
-    sendEmailNotification(paylaod, mailOptions, req, res);
+    const emailInfo = await sendEmailNotification(mailOptions);
 }
 
 export const disableNotificationByID = async (

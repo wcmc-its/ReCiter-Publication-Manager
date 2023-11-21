@@ -50,78 +50,88 @@ export async function processPubNotification(pubDetails,req,res) {
   let noConfiguredNotifPersonIdentifiers = [];
   let noEligiblePubNotifPersonIdentifiers = [];
   let successEmailNotifPersonIdentifiers =[];
-  await Promise.all(pubDetails.map(async (pubRec) => {
+  const data = pubDetails.map(async (pubRec) => {
     let { admin_user_id,sender,recipient,subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det,pub_error_message, notif_error_message } = JSON.parse(JSON.stringify(pubRec))
    
-    if(pub_error_message){
-      noEligiblePubNotifPersonIdentifiers.push(personIdentifier)
-    }else if(notif_error_message){
-      noConfiguredNotifPersonIdentifiers.push(personIdentifier)
-    }else{
-    const personIdentifierProfileLink = originLocation + '/curate/' + personIdentifier;
-    const navigateToCurateSelfPage = originLocation + '/curate/' + personIdentifier ;
-    let acceptedPublicationArray = accepted_publications && accepted_publications.indexOf('~!,') > -1 ? accepted_publications.split('~!,') : accepted_publications.split('~!');
-    let suggestedPublicationArray = suggested_publications && suggested_publications.indexOf('~!,') > -1 ? suggested_publications.split('~!,'): suggested_publications.split('~!');
-    const notificationsLink = originLocation + '/notifications/' + personIdentifier;
-
-    const emailNotificationTemplate = `<div style="font-family: Arial; font-size : 11pt"><p>{{salutation}},</p>
-                   <p>{{acceptedSubjectHeadline}}</p>
-                   <div>{{#each_limit acceptedPublicationArray maxAcceptedPublicationToDisplay}}
-                        <ul style="margin-bottom: 0 !important; padding-bottom:0 !important; margin:0">
-                            <li style="margin-bottom: 0 !important; padding:0 0 1em 0 !important" >{{this}}</li>
-                        </ul>
-                   {{/each_limit}}</div>
-                  <p>{{suggestedSubjectHeadline}}</p>
-                  <div>{{#each_limit suggestedPublicationArray maxSuggestedPublicationToDisplay}}
-                       <ul style="margin-bottom: 0 !important; padding-bottom:0 !important; margin:0">
-                            <li style="margin-bottom: 0 !important; padding:0 0 1em 0 !important">{{this}}</li>
-                       </ul>
-                   {{/each_limit}}</div>
-                  <p><b>Review and update:</b> {{seeMore acceptedPubCount suggestedPubCount personIdentifierProfileLink 'ACCEPTED' 'SUGGESTED' navigateToCurateSelfPage }}. To update your notification preferences, navigate to the {{link "Notifications" notificationsLink}} page.
-                  <pre><span style="color:#00000; font-family: Arial; font-size : 11pt !important" >{{signature}}</span></pre>
-                  </p></div>`;
-
-    var template = Handlebars.compile(emailNotificationTemplate);
-        var replacements = {
-            salutation : salutation,
-            acceptedSubjectHeadline : accepted_subject_headline,
-            acceptedPublicationArray : acceptedPublicationArray,
-            suggestedSubjectHeadline: suggested_subject_headline,
-            suggestedPublicationArray : suggestedPublicationArray,
-            signature : signature,
-            maxAcceptedPublicationToDisplay:max_accepted_publication_to_display,
-            maxSuggestedPublicationToDisplay:max_suggested_publication_to_display,
-            acceptedPubCount : accepted_pub_count,
-            suggestedPubCount : suggested_pub_count,
-            notificationsLink : notificationsLink,
-            personIdentifierProfileLink : personIdentifierProfileLink,
-            navigateToCurateSelfPage : navigateToCurateSelfPage
-        };
-        var emailBody = template(replacements);     
-    
-    let mailOptions = {
-      from: sender || fromAddress,
-      to: process.env.SMTP_ADMIN_EMAIL, // admin_users.email || recipient  to: 
-      subject: subject,
-      html: emailBody
-    }
-    let emailSuccessNotifPersonIdentier = await sendEmailNotification(pubRec,mailOptions,req,res);
-    if(emailSuccessNotifPersonIdentier)
+    if(pub_error_message)
     {
-        successEmailNotifPersonIdentifiers.push(emailSuccessNotifPersonIdentier);
-        //calling upon sending successful email notifications
-        await saveNotificationsLog(admin_user_id, recipient, accepted_publication_det, suggested_publication_det, req, res)
-    }
+      noEligiblePubNotifPersonIdentifiers.push(personIdentifier)
+    }else if(notif_error_message)
+    {
+      noConfiguredNotifPersonIdentifiers.push(personIdentifier)
+    }else
+    {
+      const personIdentifierProfileLink = originLocation + '/curate/' + personIdentifier;
+      const navigateToCurateSelfPage = originLocation + '/curate/' + personIdentifier ;
+      let acceptedPublicationArray = accepted_publications && accepted_publications.indexOf('~!,') > -1 ? accepted_publications.split('~!,') : accepted_publications.split('~!');
+      let suggestedPublicationArray = suggested_publications && suggested_publications.indexOf('~!,') > -1 ? suggested_publications.split('~!,'): suggested_publications.split('~!');
+      const notificationsLink = originLocation + '/notifications/' + personIdentifier;
+
+      const emailNotificationTemplate = `<div style="font-family: Arial; font-size : 11pt"><p>{{salutation}},</p>
+                    <p>{{acceptedSubjectHeadline}}</p>
+                    <div>{{#each_limit acceptedPublicationArray maxAcceptedPublicationToDisplay}}
+                          <ul style="margin-bottom: 0 !important; padding-bottom:0 !important; margin:0">
+                              <li style="margin-bottom: 0 !important; padding:0 0 1em 0 !important" >{{this}}</li>
+                          </ul>
+                    {{/each_limit}}</div>
+                    <p>{{suggestedSubjectHeadline}}</p>
+                    <div>{{#each_limit suggestedPublicationArray maxSuggestedPublicationToDisplay}}
+                        <ul style="margin-bottom: 0 !important; padding-bottom:0 !important; margin:0">
+                              <li style="margin-bottom: 0 !important; padding:0 0 1em 0 !important">{{this}}</li>
+                        </ul>
+                    {{/each_limit}}</div>
+                    <p><b>Review and update:</b> {{seeMore acceptedPubCount suggestedPubCount personIdentifierProfileLink 'ACCEPTED' 'SUGGESTED' navigateToCurateSelfPage }}. To update your notification preferences, navigate to the Notifications tab.
+                    <pre><span style="color:#00000; font-family: Arial; font-size : 11pt !important" >{{signature}}</span></pre>
+                    </p></div>`;
+
+      var template = Handlebars.compile(emailNotificationTemplate);
+          var replacements = {
+              salutation : salutation,
+              acceptedSubjectHeadline : accepted_subject_headline,
+              acceptedPublicationArray : acceptedPublicationArray,
+              suggestedSubjectHeadline: suggested_subject_headline,
+              suggestedPublicationArray : suggestedPublicationArray,
+              signature : signature,
+              maxAcceptedPublicationToDisplay:max_accepted_publication_to_display,
+              maxSuggestedPublicationToDisplay:max_suggested_publication_to_display,
+              acceptedPubCount : accepted_pub_count,
+              suggestedPubCount : suggested_pub_count,
+              notificationsLink : notificationsLink,
+              personIdentifierProfileLink : personIdentifierProfileLink,
+              navigateToCurateSelfPage : navigateToCurateSelfPage
+          };
+          var emailBody = template(replacements);     
+      
+      let mailOptions = {
+        from: sender || fromAddress,
+        to: recipient, // admin_users.email || recipient  to: 
+        subject: subject,
+        html: emailBody
+      }
+      let emailInfo = await sendEmailNotification(mailOptions) //{
+
+        if(emailInfo && personIdentifier)
+        {
+            successEmailNotifPersonIdentifiers.push(personIdentifier);
+            //calling upon sending successful email notifications
+            saveNotificationsLog(admin_user_id, recipient, accepted_publication_det, suggested_publication_det, req, res)
+    
+        }
   }
-}));
+});
+
+    const emailNotificationDetails = await Promise.all(data);
      //Preparing an object for the messages
-     let emailNotificationPubMsgDetails = 
+     if(emailNotificationDetails)
      {
-       "noConfiguredNotificationMsg": noConfiguredNotifPersonIdentifiers && noConfiguredNotifPersonIdentifiers.length > 0 ? `No email has been sent for ${noConfiguredNotifPersonIdentifiers.join()} due to no notifications configured.`:'',
-       "noEligiblePubNotifMsg": noEligiblePubNotifPersonIdentifiers && noEligiblePubNotifPersonIdentifiers.length > 0 ? `No email has been sent for ${noEligiblePubNotifPersonIdentifiers.join()} due to no eligible publications.`:'',
-       "successEmailNotifMsg": successEmailNotifPersonIdentifiers && successEmailNotifPersonIdentifiers.length > 0 ? `Email for ${successEmailNotifPersonIdentifiers.join()} sent to` :'' 
-     }
-     return emailNotificationPubMsgDetails;
+        let emailNotificationPubMsgDetails = 
+        {
+          "noConfiguredNotificationMsg": noConfiguredNotifPersonIdentifiers && noConfiguredNotifPersonIdentifiers.length > 0 ? `No email has been sent for ${noConfiguredNotifPersonIdentifiers.join()} due to no notifications configured.`:'',
+          "noEligiblePubNotifMsg": noEligiblePubNotifPersonIdentifiers && noEligiblePubNotifPersonIdentifiers.length > 0 ? `No email has been sent for ${noEligiblePubNotifPersonIdentifiers.join()} due to no eligible publications.`:'',
+          "successEmailNotifMsg": successEmailNotifPersonIdentifiers && successEmailNotifPersonIdentifiers.length > 0 ? `Email for ${successEmailNotifPersonIdentifiers.join()} sent to` :'' 
+        }
+        return emailNotificationPubMsgDetails;
+      }
  }
 
 
@@ -142,7 +152,7 @@ export async function saveNotificationsLog (admin_user_id,recipient,accepted_pub
           'createTimestamp': new Date(),
           'notificationType': 'Accepted'
     }
-    acceptAndSuggestPubs.push(obj)
+      acceptAndSuggestPubs.push(obj)
     }
     )
 
@@ -159,7 +169,7 @@ export async function saveNotificationsLog (admin_user_id,recipient,accepted_pub
             'createTimestamp': new Date(),
             'notificationType':'Suggested'
       }
-      acceptAndSuggestPubs.push(obj)
+        acceptAndSuggestPubs.push(obj)
       }
       )
       const result = await sequelize.transaction(async (t) => {
