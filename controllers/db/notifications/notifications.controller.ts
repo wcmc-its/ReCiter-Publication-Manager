@@ -13,6 +13,7 @@ export const saveNotifications = async (
 ) => {
     const { frequency, accepted, status, minimumThreshold, userId, suggested, recipient, isReqFrom,recipientName } = req.body;
     try {
+        console.log('PersonIdentifier in notification controller******************',userId);
         let createUserPayload = {
             'frequency': frequency,
             'accepted': accepted,
