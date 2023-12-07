@@ -79,11 +79,11 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
       isVisible : setIsVisible(reportingWebDisplay,"Journal Rank")
     },
     {
-      label: setReportFilterLabels(reportingWebDisplay,"Journal impact"),
-      title: setHelptextInfo(reportingWebDisplay,"Journal impact"),
+      label: setReportFilterLabels(reportingWebDisplay,"Journal Metric"),
+      title: setHelptextInfo(reportingWebDisplay,"Journal Metric"),
       value: journalImpactScore2,
-      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal impact"),
-      isVisible : setIsVisible(reportingWebDisplay,"Journal impact")
+      displayRank : setReportFilterDisplayRank(reportingWebDisplay,"Journal Metric"),
+      isVisible : setIsVisible(reportingWebDisplay,"Journal Metric")
     },
     {
       label: setReportFilterLabels(reportingWebDisplay,"TrendingPubs score"),
