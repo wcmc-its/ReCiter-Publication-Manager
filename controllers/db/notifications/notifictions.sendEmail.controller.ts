@@ -51,7 +51,7 @@ export async function processPubNotification(pubDetails,req,res) {
   let noEligiblePubNotifPersonIdentifiers = [];
   let successEmailNotifPersonIdentifiers =[];
   const data = pubDetails.map(async (pubRec) => {
-    let { admin_user_id,sender,recipient,subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det,pub_error_message, notif_error_message } = JSON.parse(JSON.stringify(pubRec))
+    let { admin_user_id,sender,recipient,subject,salutation, accepted_subject_headline,accepted_publications,suggested_subject_headline,suggested_publications,signature,max_accepted_publication_to_display,max_suggested_publication_to_display,personIdentifier,accepted_pub_count,suggested_pub_count,accepted_publication_det,suggested_publication_det,pub_error_message, notif_error_message,max_message_id } = JSON.parse(JSON.stringify(pubRec))
    
     if(pub_error_message)
     {
@@ -114,7 +114,7 @@ export async function processPubNotification(pubDetails,req,res) {
         {
             successEmailNotifPersonIdentifiers.push(personIdentifier);
             //calling upon sending successful email notifications
-            saveNotificationsLog(admin_user_id, recipient, accepted_publication_det, suggested_publication_det, req, res)
+            saveNotificationsLog(admin_user_id, recipient, accepted_publication_det, suggested_publication_det, req, res,max_message_id)
     
         }
   }
@@ -135,7 +135,7 @@ export async function processPubNotification(pubDetails,req,res) {
  }
 
 
-export async function saveNotificationsLog (admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res) {
+export async function saveNotificationsLog (admin_user_id,recipient,accepted_publication_det,suggested_publication_det,req,res,max_message_id) {
   const { frequency, accepted, status, minimumThreshold, userId } = req.body;
   try {
     let acceptAndSuggestPubs = [];
@@ -143,7 +143,7 @@ export async function saveNotificationsLog (admin_user_id,recipient,accepted_pub
 
     accepted_publication_det && JSON.parse(accepted_publication_det)  && JSON.parse(accepted_publication_det).length > 0 && JSON.parse(accepted_publication_det).map((pub)=>{
     let obj = {
-          'messageID': frequency,
+          'messageID': max_message_id +1,
           'pmid': pub.PMID,
           'articleScore': pub.totalArticleScoreStandardized,
           'email': recipient, 
@@ -151,6 +151,7 @@ export async function saveNotificationsLog (admin_user_id,recipient,accepted_pub
           'dateSent': new Date(),
           'createTimestamp': new Date(),
           'notificationType': 'Accepted'
+          
     }
       acceptAndSuggestPubs.push(obj)
     }
@@ -160,7 +161,7 @@ export async function saveNotificationsLog (admin_user_id,recipient,accepted_pub
 
     suggested_publication_det && JSON.parse(suggested_publication_det) && JSON.parse(suggested_publication_det).length > 0 && JSON.parse(suggested_publication_det).map((pub)=>{
       let obj = {
-            'messageID': frequency,
+            'messageID': max_message_id +1,
             'pmid': pub.PMID,
             'articleScore': pub.totalArticleScoreStandardized,
             'email': recipient, 
