@@ -77,17 +77,17 @@ const Notifications = () => {
       setIsCuratorSelf(true)
     }
 
-    setUserId(router.query.userId)
-    if (router.query.userId === session.data.username) {
-      setEmail(session.data.email);
-      setUserName(session.data.databaseUser.nameFirst)
-    }
-    else {
-      setEmail(notificationEmailCarier.email);
-      setUserName(notificationEmailCarier.userName);
+    // setUserId(router.query.userId)
+    // if (router.query.userId === session.data.username) {
+    //   setEmail(session.data.email);
+    //   setUserName(session.data.databaseUser.nameFirst)
+    // }
+    // else {
+    //   setEmail(notificationEmailCarier.email);
+    //   setUserName(notificationEmailCarier.userName);
+    // }
 
-    }
-    getNotification(router.query.userId);
+    getNotification(router.query.userId ? router.query.userId : session.data.username );
   }, [])
 
   const valuetext = (value: number) => {
@@ -118,13 +118,14 @@ const Notifications = () => {
             theme: 'colored'
           });
         } else if(data.message === "No data found"){
-         // no data 
+          setEmail(data.email);
         }else{
-          const { minimumThreshold, suggested, accepted, frequency } = data;
+          const { minimumThreshold, suggested, accepted, frequency, email} = data;
           setState(state => ({ ...state, ["minimumThreshold"]: minimumThreshold == 0 ? 3 : minimumThreshold, ["frequency"]: frequency }))
           setSuggested(suggested == 1 ? true : false);
           setEvidance(minimumThreshold == 0 ? false : true);
           setAccepted(accepted == 1 ? true : false);
+          setEmail(email)
         }
       })
       .catch(error => {
