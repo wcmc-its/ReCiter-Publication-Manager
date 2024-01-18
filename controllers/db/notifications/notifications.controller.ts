@@ -133,10 +133,26 @@ export const getNotificationByPersonIdentifier = async(
                 where:{"personIdentifier" : personIdentifier}
             }) 
             
-            if(notification) { res.send(notification) }
+            if(notification) { 
+                let result = {
+                    "accepted":notification.accepted,
+                    "createTimestamp":notification.createTimestamp,
+                    "frequency": notification.frequency,
+                    "minimumThreshold":notification.minimumThreshold,
+                    "id":notification.id,
+                    "modifyTimestamp":notification.modifyTimestamp,
+                    "personIdentifier":notification.personIdentifier,
+                    "status":notification.status,
+                    "userID":notification.userID,
+                    "suggested":notification.suggested,
+                    "email":AdminUserData.email
+                }
+                res.send(result); 
+            }
             else {
                 let result = {
-                    "message": "No data found"
+                    "message": "No data found",
+                    "email" : AdminUserData.email
                 }
                 res.send(result)
             }
