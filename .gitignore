@@ -37,4 +37,3 @@ node_modules
 
 /config/local.js
 /config/certs
-/kubernetes/k8-deployment.yaml
