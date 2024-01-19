@@ -89,6 +89,7 @@ const AdminSettings = () => {
               if (index2 == viewAttrIndex) {
                 //  return innerObj[name] = e.target.value
                 if(name === "isVisible") return { ...innerObj, [name]: !innerObj.isVisible }
+                else if(name === "useEmailForScheduledJobs" ) return { ...innerObj, [name]: !innerObj.useEmailForScheduledJobs }
                 else if(labelName === "Reporting Article RTF" && e.target.value > 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: true }
                 else if(labelName === "Reporting Article RTF" && e.target.value < 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: false }
                 else if(name === "isChecked" && innerObj.hasOwnProperty('isRoleGroup')){
@@ -263,7 +264,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton} = innerObj;
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton,useEmailForScheduledJobs} = innerObj;
                       return <Card style={{ width: '60rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
@@ -395,6 +396,20 @@ const AdminSettings = () => {
                               {emailError && emailOverride === "" && <p className="textError" >{emailError}</p>}
                               </>
                            }
+                           {(innerObj && innerObj.hasOwnProperty('useEmailForScheduledJobs'))  && 
+                            <div className={`d-flex ${styles.pt5}`}>
+                              <p >Use email in regularly scheduled jobs</p>
+                              <div className={styles.pl20}>
+                                <Form.Check
+                                  type="checkbox"
+                                  id="check"
+                                  checked={useEmailForScheduledJobs}
+                                // value={isChecked}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "useEmailForScheduledJobs", e)}
+                                />
+                              </div> 
+                            </div>
+                           }  
                           {(innerObj && innerObj.hasOwnProperty('submitButton')) &&
                               <div className="d-flex sendTestEmailInfo">
                                 <Button
