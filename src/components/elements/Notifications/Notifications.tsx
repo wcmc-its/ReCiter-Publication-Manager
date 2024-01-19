@@ -214,7 +214,7 @@ const Notifications = () => {
                 </div>
                
                 <p className="mt-4">Emails will be sent to {notificationEmailCarier || email}</p>
-                <Button variant="warning" className="m-2" onClick={() => onSave()} >
+                <Button variant="warning" className="m-2" onClick={() => onSave()} disabled={ !accepted && !suggested}>
                   {saveNotificationsLoading ?
                     <Spinner animation="border" role="status" className="danger">
                       <span className="visually-hidden">Loading...</span>
