@@ -1,7 +1,6 @@
 
 import { Request, Response } from 'express';
 import NodeMailer from "nodemailer";
-// import Handlebars from "handlebars";
 
 
 export async function sendNotification(req,res) {
@@ -39,7 +38,6 @@ export async function sendNotification(req,res) {
     let mailOptions = {
         from: fromAddress,
         to: process.env.SMTP_ADMIN_EMAIL, // admin_users.email
-        //cc: req.body.email,
         subject: req.body.subject,
         text: req.body.message,
         html: `<div>${req.body.message}</div><p>Sent from:
