@@ -2259,7 +2259,6 @@ export const adminSettingsListAction = (adminSettingsList) => dispatch => {
 }
 
 export const saveNotification = (payload) => dispatch => {
-    console.log('personIdentifier in action**************',payload);
     dispatch({
         type: methods.NOTIFICATION_PREFERENCE_SAVE_LOADING,
     })
