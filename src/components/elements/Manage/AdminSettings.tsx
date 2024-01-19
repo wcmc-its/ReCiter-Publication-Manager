@@ -263,7 +263,7 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton} = innerObj;
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton,useEmailForScheduledJobs} = innerObj;
                       return <Card style={{ width: '60rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
@@ -395,6 +395,20 @@ const AdminSettings = () => {
                               {emailError && emailOverride === "" && <p className="textError" >{emailError}</p>}
                               </>
                            }
+                           {(innerObj && innerObj.hasOwnProperty('useEmailForScheduledJobs')) && labelUserKey != 'emailNotifications' && 
+                            <div className="d-flex">
+                              <p className={styles.labelForCheckBox}>Use email in regularly scheduled jobs</p>
+                              <div>
+                                <Form.Check
+                                  type="checkbox"
+                                  id="check"
+                                  checked={useEmailForScheduledJobs}
+                                // value={isChecked}
+                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "useEmailForScheduledJobs", e)}
+                                />
+                              </div> 
+                            </div>
+                           }  
                           {(innerObj && innerObj.hasOwnProperty('submitButton')) &&
                               <div className="d-flex sendTestEmailInfo">
                                 <Button
