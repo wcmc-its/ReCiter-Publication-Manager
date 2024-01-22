@@ -398,7 +398,7 @@ const AdminSettings = () => {
                            }
                            {(innerObj && innerObj.hasOwnProperty('useEmailForScheduledJobs'))  && 
                             <div className={`d-flex ${styles.pt5}`}>
-                              <p >Use email in regularly scheduled jobs</p>
+                              <p >Use Email Override in all regularly scheduled jobs</p>
                               <div className={styles.pl20}>
                                 <Form.Check
                                   type="checkbox"
