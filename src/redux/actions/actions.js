@@ -2276,12 +2276,12 @@ export const saveNotification = (payload) => dispatch => {
         if (response.status === 200) {
           return response.json()
         } else {
-          throw {
-            type: response.type,
-            title: response.statusText,
-            status: response.status,
-            detail: "Error occurred with api " + response.url + ". Please, try again later "
-          }
+        //   throw {
+        //     type: response.type,
+        //     title: response.statusText,
+        //     status: response.status,
+        //     detail: "Error occurred with api " + response.url + ". Please, try again later "
+        //   }
         }
       }).then(data => {
         if(data.message === "User does not exist"){
@@ -2307,9 +2307,9 @@ export const saveNotification = (payload) => dispatch => {
           autoClose: 2000,
           theme: 'colored'
         });
-        dispatch(
-          addError(error)
-        )
+        // dispatch(
+        //   addError(error)
+        // )
       })
     }
 

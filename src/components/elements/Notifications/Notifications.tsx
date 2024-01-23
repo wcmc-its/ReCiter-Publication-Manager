@@ -44,6 +44,8 @@ const Notifications = () => {
   const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
   const [stepsCount, setStepsCount] = useState<any>();
   const [useName, setUserName] = useState<string>();
+  const [disableSaveBtn, setDisableSaveBtn] = useState(false);
+
 
 
   useEffect(() => {
@@ -119,13 +121,15 @@ const Notifications = () => {
           });
         } else if(data.message === "No data found"){
           setEmail(data.email);
+          setDisableSaveBtn(true);
         }else{
           const { minimumThreshold, suggested, accepted, frequency, email} = data;
           setState(state => ({ ...state, ["minimumThreshold"]: minimumThreshold == 0 ? 3 : minimumThreshold, ["frequency"]: frequency }))
           setSuggested(suggested == 1 ? true : false);
           setEvidance(minimumThreshold == 0 ? false : true);
           setAccepted(accepted == 1 ? true : false);
-          setEmail(email)
+          setEmail(email);
+          setDisableSaveBtn(false);
         }
       })
       .catch(error => {
@@ -142,7 +146,7 @@ const Notifications = () => {
   }
 
   const onSave = () => {
-    let payload = { frequency, suggested: suggested ? 1 : 0, accepted: accepted === true ? 1 : 0, status: status === true ? 1 : 0, minimumThreshold: suggested ? minimumThreshold : 0, userId,recipient : notificationEmailCarier || email,isReqFrom :"notificationPref", recipientName :useName   }
+    let payload = { frequency, suggested: suggested ? 1 : 0, accepted: accepted === true ? 1 : 0, status: status === true ? 1 : 0, minimumThreshold: suggested ? minimumThreshold : 0, userId :router.query.userId ? router.query.userId : session.data.username ,recipient : notificationEmailCarier || email,isReqFrom :"notificationPref", recipientName :useName   }
     console.log('personIdentifier in Notifications **************',userId);
     dispatch(saveNotification(payload))
   }
@@ -214,7 +218,7 @@ const Notifications = () => {
                 </div>
                
                 <p className="mt-4">Emails will be sent to {notificationEmailCarier || email}</p>
-                <Button variant="warning" className="m-2" onClick={() => onSave()} disabled={ !accepted && !suggested}>
+                <Button variant="warning" className="m-2" onClick={() => onSave()} disabled={disableSaveBtn  && !accepted && !suggested} >
                   {saveNotificationsLoading ?
                     <Spinner animation="border" role="status" className="danger">
                       <span className="visually-hidden">Loading...</span>
