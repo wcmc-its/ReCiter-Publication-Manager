@@ -45,6 +45,8 @@ const Notifications = () => {
   const [stepsCount, setStepsCount] = useState<any>();
   const [useName, setUserName] = useState<string>();
   const [disableSaveBtn, setDisableSaveBtn] = useState(false);
+  const [isExistingUser, setIsExistingUser] = useState(true);
+
 
 
 
@@ -114,6 +116,8 @@ const Notifications = () => {
       .then(data => {
         console.log("data", data)
         if (data.message === "User does not exist") {
+          setDisableSaveBtn(true);
+          setIsExistingUser(false);
           toast.error("User does not exist", {
             position: "top-right",
             autoClose: 2000,
@@ -217,7 +221,7 @@ const Notifications = () => {
                 </div>
                
                 <p className="mt-4">Emails will be sent to {notificationEmailCarier || email}</p>
-                <Button variant="warning" className="m-2" onClick={() => onSave()} disabled={disableSaveBtn  && !accepted && !suggested} >
+                <Button variant="warning" className="m-2" onClick={() => onSave()} disabled={(disableSaveBtn  && !accepted && !suggested) || !isExistingUser} >
                   {saveNotificationsLoading ?
                     <Spinner animation="border" role="status" className="danger">
                       <span className="visually-hidden">Loading...</span>
