@@ -147,7 +147,6 @@ const Notifications = () => {
 
   const onSave = () => {
     let payload = { frequency, suggested: suggested ? 1 : 0, accepted: accepted === true ? 1 : 0, status: status === true ? 1 : 0, minimumThreshold: suggested ? minimumThreshold : 0, userId :router.query.userId ? router.query.userId : session.data.username ,recipient : notificationEmailCarier || email,isReqFrom :"notificationPref", recipientName :useName   }
-    console.log('personIdentifier in Notifications **************',userId);
     dispatch(saveNotification(payload))
   }
 
