@@ -2259,6 +2259,10 @@ export const adminSettingsListAction = (adminSettingsList) => dispatch => {
 }
 
 export const saveNotification = (payload) => dispatch => {
+    dispatch({
+        type: methods.NOTIFICATION_PREFERENCE_SAVE_LOADING,
+    })
+
       fetch(`/api/db/admin/notifications`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2272,21 +2276,30 @@ export const saveNotification = (payload) => dispatch => {
         if (response.status === 200) {
           return response.json()
         } else {
-          throw {
-            type: response.type,
-            title: response.statusText,
-            status: response.status,
-            detail: "Error occurred with api " + response.url + ". Please, try again later "
-          }
+        //   throw {
+        //     type: response.type,
+        //     title: response.statusText,
+        //     status: response.status,
+        //     detail: "Error occurred with api " + response.url + ". Please, try again later "
+        //   }
         }
       }).then(data => {
-        // dispatch({
-        //   type: methods.REPORTS_RESULTS_IDS_UPDATE,
-        //   payload: data
-        // })
-        // dispatch({
-        //   type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
-        // })
+        if(data.message === "User does not exist"){
+            toast.error(data.message, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+        }else{
+            toast.success('Manager Notification Preferences has been saved for this person identifier '+ data.personIdentifier, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+              });
+        }
+        dispatch({
+            type: methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING,
+           })
       }).catch(error => {
         console.log(error)
         toast.error("Save notification Api failed - " + error.title, {
@@ -2294,11 +2307,12 @@ export const saveNotification = (payload) => dispatch => {
           autoClose: 2000,
           theme: 'colored'
         });
-        dispatch(
-          addError(error)
-        )
+        // dispatch(
+        //   addError(error)
+        // )
       })
     }
+
 export const  sendNotification = (payload) =>{
     return fetch(`/api/notification`, {
         credentials: "same-origin",
@@ -2328,4 +2342,107 @@ export const  sendNotification = (payload) =>{
         .catch(error => {
             console.log(error)
         })
+}
+
+
+export const disableNotificationbyID = (payload) => dispatch => {
+    fetch(`/api/db/admin/notifications/disableNotifications`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify(payload)
+    }).then(response => {
+      if (response.status === 200) {
+        return response.json()
+      } else {
+        throw {
+          type: response.type,
+          title: response.statusText,
+          status: response.status,
+          detail: "Error occurred with api " + response.url + ". Please, try again later "
+        }
+      }
+    }).then(data => {
+      // dispatch({
+      //   type: methods.REPORTS_RESULTS_IDS_UPDATE,
+      //   payload: data
+      // })
+      // dispatch({
+      //   type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+      // })
+    }).catch(error => {
+      console.log(error)
+      toast.error("Save notification Api failed - " + error.title, {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
+      dispatch(
+        addError(error)
+      )
+    })
+  }
+
+export const notificationEmail = (userInfo) => dispatch => {
+    dispatch({
+        type: methods.NOTIFICATION_EMAIL_CARRIER,
+        payload: userInfo
+    })
+}
+
+export const sendEmailData = (requestBody) => dispatch => {
+    // dispatch({
+    //     type: methods.NOTIFICATION_EMAIL_CARIER,
+    //     payload: email
+    // })
+    fetch(`/api/notification/sendPubEmailNotifications`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        },
+        body: JSON.stringify(requestBody)
+    }).then(response => {
+        if (response.status === 200) {
+            toast.success("Test email sent Successfully - to " + requestBody.emailOverride, {
+            position: "top-right",
+            autoClose: 4000,
+            theme: 'colored'
+        });
+            return response.json()
+        } else {
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        }
+    }).then(data => {
+        // dispatch({
+        //     type: methods.REPORTS_RESULTS_IDS_UPDATE,
+        //     payload: data
+        // })
+        // dispatch({
+        //     type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+        // })
+    }).catch(error => {
+        toast.error("Send Test Email failed - " + error.title, {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+        });
+        // dispatch(
+        //     addError(error)
+        // )
+        // dispatch({
+        //     type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+        // })
+    })
 }

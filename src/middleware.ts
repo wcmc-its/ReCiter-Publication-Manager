@@ -11,9 +11,10 @@ export const config = {
 export async function middleware(request: NextRequest) {
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
-   
+  
     if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))  
     {
+      const loginUrl = new URL('/login', request.url)
       let decodedTokenJson = jwt_decode(request.cookies.get('next-auth.session-token') || request.cookies.get('__Secure-next-auth.session-token'));
       let allUserRoles ='';
       if(decodedTokenJson )
@@ -59,10 +60,10 @@ export async function middleware(request: NextRequest) {
             {
               //correct role restrictions will be implemented once notification functionality is ready. It is just a placeholder for now.
               
-              if(isCuratorSelf)
-                return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-              else if (isReporterAll || isCuratorAll || isSuperUser)  
-                return redirectToLandingPage(request,'/search');     
+              /* if(isCuratorSelf && !isSuperUser)
+                 return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+               else if (isReporterAll || ((isCuratorAll || isSuperUser) && !isCuratorSelf && pathName ==  '/notifications/'+loggedInUserInfo))  
+                 return   showNoAccessMessage();//redirectToLandingPage(request,'/search');  */   
             }
             else if (pathName && pathName.startsWith('/manageusers')  && !isSuperUser)  
             {
@@ -101,6 +102,12 @@ export async function middleware(request: NextRequest) {
     {
       redirectToLandingPage(request,'/error');
     }
+  }
+  else
+  {
+    const loginUrl = new URL('/login', request.url)
+    // redirect to the new URL
+    return NextResponse.redirect(loginUrl)
   }
   return res;
 }

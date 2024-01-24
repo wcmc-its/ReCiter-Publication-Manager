@@ -7,6 +7,9 @@ import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from 
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import { createAdminUser } from "../../../redux/actions/actions";
+import sequelizeASMS from "../../../db/asmsDB";
+import DateTime from "tedious/lib/data-types/datetime";
+import { reciterConfig } from "../../../../config/local";
 
 
 const authHandler = async (req, res) => {
@@ -95,6 +98,7 @@ const options = {
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
                     apiResponse.userRoles = userRoles;
+					persistUserLogin(credentials.username);									   
                     return apiResponse;
                   } else {
                       return null;
@@ -158,12 +162,14 @@ const options = {
                                 await sleep(100)
                                 const userRoles = await findUserPermissions(smalUserEmail,"email");
                                 adminUser.userRoles = userRoles;
+                                persistUserLogin(cwid);	
                                 if(adminUser)
                                     return adminUser;
                          }
                          else if(cwid)
                          {
                                const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                               persistUserLogin(cwid);	
                                if(adminUser)
                                     return adminUser;
                          }
@@ -171,6 +177,7 @@ const options = {
                     }
                     else if(cwid){
                            const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           persistUserLogin(cwid);	
                            if(adminUser)
                                     return adminUser;
                     }
@@ -201,6 +208,7 @@ const options = {
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
+                    token.email = apiResponse.databaseUser.email ?? ""
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
@@ -215,6 +223,36 @@ const options = {
         maxAge: 7200,
     },
 };
+
+const persistUserLogin =async (cwid)=>{
+    let payload = {
+        "cwid":  cwid,
+        "module":  "publication_manager"
+    }
+
+    let uri = `${reciterConfig.asms.userTrackingAPI}`
+    return fetch(uri, {
+            method: "POST",
+            headers: {
+                'Authorization': 'Bearer ' + reciterConfig.asms.userTrackingAPIAuthorization,
+            },
+            body: JSON.stringify(payload)
+        })
+            .then(async(res)=> {
+                console.log('ASMS User tracker end point api is Successfull: ', res)
+                if(res.status == 200) {
+                } 
+            })
+            .catch((error) => {
+                console.log('ASMS User tracker end point api is not reachable: ' + error)
+                return {
+                    statusCode: error.status,
+                    statusText: error
+                }
+            });
+            
+}
+
 
 export default authHandler;
 

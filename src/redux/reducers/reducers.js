@@ -709,6 +709,15 @@ export const reportingFiltersLoading = (state=false, action) => {
   }
 }
 
+export const notificationEmailCarier = (state={}, action) => {
+  switch(action.type) {
+      case methods.NOTIFICATION_EMAIL_CARRIER :
+          return action.payload
+      default :
+          return state
+  }
+}
+
 export const initialStatePubSearchFilter = {
   filters: {
     personIdentifers: [],
@@ -806,6 +815,18 @@ export const reportsResultsIdsLoading = (state = false, action) => {
   }
 }
 
+export const saveNotificationsLoading = (state = false, action) => {
+  switch(action.type) {
+    case methods.NOTIFICATION_PREFERENCE_SAVE_LOADING:
+      return true
+    case methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING:
+      return false
+    default:
+      return state
+  }
+}
+
+
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -861,6 +882,7 @@ export default combineReducers({
     createORupdateUserID,
     authorFilterDataFromSearch,
     showEvidenceDefault,
-    updatedAdminSettings
-
+    updatedAdminSettings,
+    notificationEmailCarier,
+    saveNotificationsLoading
 })

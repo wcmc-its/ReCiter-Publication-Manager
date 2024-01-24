@@ -30,6 +30,8 @@ const ManageUsers = () => {
   const [pageLoading, setpageLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
+  const [isVisibleNotification, setVisibleNotification] =useState(true)
+
 
 
   const router = useRouter()
@@ -49,20 +51,29 @@ const ManageUsers = () => {
   const adminConfigurations = ()=>{
     let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
     var viewAttributes = [];
+    var emailNotifications = [];
+
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
-      viewAttributes = updatedData.viewAttributes;
+      let notificationsData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
 
+      viewAttributes = updatedData.viewAttributes;
+      emailNotifications = notificationsData.viewAttributes;
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel.labelUserView)
     } else {
       // regular settings from session
       let data = JSON.parse(adminSettings).find(obj => obj.viewName === "findPeople")
-      viewAttributes = JSON.parse(data.viewAttributes)
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      setNameOrcwidLabel(cwidLabel.labelUserView)
+      let notificationsData = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
+
+      viewAttributes = JSON.parse(data.viewAttributes)
+      emailNotifications = JSON.parse(notificationsData.viewAttributes);
+      cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
     }
+    let settingsObj = emailNotifications && emailNotifications.find(data=> data.isVisible)
+    setVisibleNotification(settingsObj && settingsObj.isVisible || false)
   }
 
   const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string)=>{
@@ -254,11 +265,10 @@ const ManageUsers = () => {
               <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
             </div>
           </div>
-            <UsersTable data={users} onSendNotifications = {onSendNotifications} nameOrcwidLabel={nameOrcwidLabel}/>
+            <UsersTable isVisibleNotification ={isVisibleNotification} data={users} onSendNotifications = {onSendNotifications} nameOrcwidLabel={nameOrcwidLabel}/>
           <Pagination total={totalCount} page={page} count={count}  onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
         </>}
       <ToastContainerWrapper />
-
     </div>
   )
 }

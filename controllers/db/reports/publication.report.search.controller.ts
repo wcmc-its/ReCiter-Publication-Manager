@@ -13,7 +13,7 @@ import path from 'path';
 import fsPromises from 'fs/promises';
 import {getSession} from 'next-auth/client'									   
 import sequelize from "../../../src/db/db";
-																		
+import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 
 
 models.AnalysisSummaryArticle.hasOne(models.Person, { constraints: false, foreignKey: 'AnalysisSummaryArticleId' });
@@ -396,10 +396,7 @@ export const publicationSearchWithFilter = async (
                         }
                         let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
                         authorsResults = await sequelize.query(
-                          "SELECT distinct asu.pmid,count(asu.id) over() authorsCount from analysis_summary_author asu INNER JOIN" +
-                          " analysis_summary_article asa ON asa.pmid = asu.pmid INNER JOIN " +
-                          " person_person_type  ppt ON asu.personIdentifier = ppt.personIdentifier WHERE  "
-                          + whereAuthorsSqlReplacements ,
+                          QueryConstants.personTypeWithoutAuthors + whereAuthorsSqlReplacements ,
                           {
                               replacements: replacementWhereObj ,
                               model: models.AnalysisSummaryAuthor,
@@ -495,12 +492,7 @@ export const publicationSearchWithFilter = async (
 
                       let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
                         authorsResults = await sequelize.query(
-                          "SELECT distinct asu.pmid,count(asu.id) over() authorsCount from analysis_summary_author asu INNER JOIN" +
-                          " analysis_summary_article asa ON asu.pmid = asa.pmid INNER JOIN" +
-                          " person_person_type  ppt ON asu.personIdentifier = ppt.personIdentifier   " + 
-                          " INNER JOIN person p ON asu.personIdentifier = p.personIdentifier WHERE  " 
-                          + whereAuthorsSqlReplacements ,
-                          
+                          QueryConstants.personTypeWithAuthors + whereAuthorsSqlReplacements ,
                           {
                             replacements: replacementWhereObj,  
                               model: models.AnalysisSummaryAuthor,
@@ -585,9 +577,7 @@ export const publicationSearchWithFilter = async (
                 let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ')
 
                     authorsResults = await sequelize.query(
-                      "SELECT pmid,count(id) over() as authorsCount from (SELECT distinct asu.id,asu.pmid from analysis_summary_author asu INNER JOIN" +
-                      " analysis_summary_article asa ON asu.pmid = asa.pmid INNER JOIN" +
-                      " person  p ON asu.personIdentifier = p.personIdentifier WHERE" + whereAuthorsSqlReplacements +")x",
+                      QueryConstants.authorsWithoutPersonType + whereAuthorsSqlReplacements +")x",
                       {
                         replacements: replacementWhereObj ,
                           model: models.AnalysisSummaryAuthor,
@@ -739,10 +729,7 @@ export const publicationSearchWithFilter = async (
                     let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
                     let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');    
                     authorsResults = await sequelize.query(
-                    "SELECT distinct asu.pmid,count(asu.id) over() as authorsCount from analysis_summary_article asa INNER JOIN " +
-                    "analysis_summary_author  asu ON asu.pmid = asa.pmid INNER JOIN" +
-                    " person_person_type  ppt ON asu.personIdentifier = ppt.personIdentifier WHERE "
-                    + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+                      QueryConstants.personTypeWitoutCombo  + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
                     {
                       replacements: replacementWhereObj ,
                       model: models.AnalysisSummaryArticle,
@@ -900,11 +887,7 @@ export const publicationSearchWithFilter = async (
                   let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
 				          let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');
                   authorsResults = await sequelize.query(
-                      "SELECT distinct asa.pmid, count(asu.id) over() as authorsCount from analysis_summary_article asa INNER JOIN " +
-                      "analysis_summary_author  asu ON asa.pmid = asu.pmid INNER JOIN" +
-                      " person  p ON asu.personIdentifier = p.personIdentifier INNER JOIN" + 
-                      " person_person_type  ppt ON ppt.personIdentifier = p.personIdentifier WHERE " +
-             whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+                    QueryConstants.personTypeWithCombo +  whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
                       {
                           replacements: replacementWhereObj,
                           model: models.AnalysisSummaryArticle,
@@ -1038,9 +1021,7 @@ export const publicationSearchWithFilter = async (
           let whereAuthorsSqlReplacements =   whereAuthorsSql.join(' AND ');
           let whereArticleSqlReplacements =  whereArticlesSql.join(' AND ');
 				  authorsResults = await sequelize.query(
-					"SELECT distinct asa.pmid, count(asu.id) over() as authorsCount from analysis_summary_article asa INNER JOIN " +
-					"analysis_summary_author  asu ON asa.pmid = asu.pmid INNER JOIN" +
-					" person  p ON asu.personIdentifier = p.personIdentifier WHERE " + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
+            QueryConstants.comboWithoutPersonType + whereAuthorsSqlReplacements + " AND " + whereArticleSqlReplacements,
 					{
 					  replacements: replacementWhereObj ,
 						model: models.AnalysisSummaryArticle,
@@ -1123,7 +1104,8 @@ export const publicationSearchWithFilter = async (
         offset: apiBody.offset,
         distinct : true,
         order: sort,
-		attributes:[[Sequelize.fn('DISTINCT', Sequelize.col("AnalysisSummaryAuthor.pmid")), 'pmid'],
+
+        attributes:[[Sequelize.fn('DISTINCT', Sequelize.col("AnalysisSummaryAuthor.pmid")), 'pmid'],
               `id`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         col:'pmid',
         benchmark: true

@@ -374,10 +374,15 @@ const Report = () => {
 
   const onGetReportsDatabyPubFilters =()=>{
     const {personIdentifers,personTypes,institutions,orgUnits ,datePublicationAddedToEntrezLowerBound,datePublicationAddedToEntrezUpperBound,journalTitleVerbose,publicationTypeCanonical, authorPosition, journalImpactScoreLowerBound,journalImpactScoreUpperBound } = pubSearchFilter.filters;
-
+    let journalImpactScoreLowerBound1 = journalImpactScoreLowerBound;
+    let journalImpactScoreUpperBound2 = journalImpactScoreUpperBound;
+    
     if((personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0) 
-          && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) 
+    && (datePublicationAddedToEntrezLowerBound != "" || datePublicationAddedToEntrezUpperBound != "" || journalTitleVerbose.length > 0 || publicationTypeCanonical.length > 0 || journalImpactScoreLowerBound || journalImpactScoreUpperBound )) {
       dispatch(fetchReportsResultsIds(pubSearchFilter)) 
+  }else if(personIdentifers.length == 0 && personTypes.length == 0 && institutions.length == 0 && orgUnits.length == 0 && authorPosition.length == 0 && datePublicationAddedToEntrezLowerBound == "" && datePublicationAddedToEntrezUpperBound == "" && journalTitleVerbose.length == 0 && publicationTypeCanonical.length == 0 && journalImpactScoreLowerBound1 == undefined && journalImpactScoreUpperBound2 == undefined){
+    dispatch(fetchReportsResultsIds(pubSearchFilter))
+  }
   }
 
   if (reportingFiltersLoading) {

@@ -14,7 +14,7 @@ export default async function handler(
   res: Response<Data>,
   credential: Credential
 ) {
-  sendNotification(req);
+  sendNotification(req,res);
   // const apiResponse = await sendNotification(req);
 
   //     if(req.method === "POST") {

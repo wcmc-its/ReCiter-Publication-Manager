@@ -166,3 +166,43 @@ h1 {
 .fullWidth{
   width:100%
 }
+
+.textError {
+  color: red;
+  text-align: left;
+  margin-left: 10.5em;
+  font-size: 18px;
+}
+
+.sendTestEmailInfo{
+  vertical-align: middle;
+    align-items: baseline;
+}
+.sendTestEmailInfo p{ 
+  color: red;
+  padding-left: 3.5em;
+  font-weight: 500;
+}
+.sendTestEmailInfo p span{ 
+  text-decoration: underline;
+}
+.sendTestEmailInfo p:nth-child(3){
+  color: #1ea446ff;
+}
+
+.noAccessRole {
+  /* height: 100px; */
+  align-items: center;
+  display: flex;
+}
+.noAccessRole p{
+  font-size: 16px;
+  padding: 1em 0;
+  font-style: italic;
+  /* color: black; */
+  /* font-weight: bold; */
+}
+.cursorPointer{
+  cursor: pointer;
+  /* text-decoration: underline; */
+}
