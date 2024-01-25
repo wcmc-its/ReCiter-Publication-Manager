@@ -76,7 +76,8 @@ const Notifications = () => {
     }else{
       setIsCuratorSelf(true)
     }
-
+    console.log('router query userId*****************',router.query.userId);
+    console.log('session data username******************',session.data.username);
     getNotification(router.query.userId ? router.query.userId : session.data.username );
   }, [])
 
@@ -89,6 +90,7 @@ const Notifications = () => {
   }
 
   const getNotification = (personIdentifier) => {
+    console.log('personIdentifier*****************',personIdentifier);
     let url = `/api/db/admin/notifications/getNotificationsByID?personIdentifier=${personIdentifier || ""}`
     fetch(url, {
       credentials: "same-origin",
