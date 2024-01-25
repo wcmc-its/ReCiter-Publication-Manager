@@ -145,8 +145,11 @@ const Notifications = () => {
 
   const handleValueChange = (field, e) => {
     let value = field === "minimumThreshold" ? e.target.value : e;
-    if (value >= 3 && suggested) {
+    if (value >= 3 && suggested && field && field === "minimumThreshold") {
       if (value != '') formErrorsInst[field] = '';
+      setState(state => ({ ...state, [field]: value }))
+    }
+    else if(field && field !== "minimumThreshold") {
       setState(state => ({ ...state, [field]: value }))
     } 
   }
