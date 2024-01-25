@@ -115,7 +115,6 @@ export const listAllUsers = async (
           limit: req.body.limit,
 
         });
-        console.log("rows", rows)
         users['usersData'] = rows;
         users['totalUsersCount'] = count;
       } else {

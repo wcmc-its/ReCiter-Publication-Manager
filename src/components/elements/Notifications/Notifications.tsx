@@ -77,16 +77,12 @@ const Notifications = () => {
       setIsCuratorSelf(true)
     }
     let userId = null;
-    console.log('window location ********************',window.location.pathname);
     //some times router query userId not updating correctly. Hence,reading the userId from window location. 
     // Will be analyzed when we upgrade the next JS and code will be removed if it is obsolete. 
     if(!router.query.userId && session.data.username)
          userId = window.location.pathname.substring(window.location.pathname.lastIndexOf('/')+1)
     else
        userId = router.query.userId ? router.query.userId : session.data.username
-    console.log('router details*********',router);
-    console.log('router query userId*****************',router.query.userId);
-    console.log('session data username******************',session.data.username);
     getNotification(userId);
   }, [])
 
@@ -99,7 +95,6 @@ const Notifications = () => {
   }
 
   const getNotification = (personIdentifier) => {
-    console.log('personIdentifier*****************',personIdentifier);
     let url = `/api/db/admin/notifications/getNotificationsByID?personIdentifier=${personIdentifier || ""}`
     fetch(url, {
       credentials: "same-origin",
