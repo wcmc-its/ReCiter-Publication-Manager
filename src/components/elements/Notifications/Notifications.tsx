@@ -103,6 +103,7 @@ const Notifications = () => {
         if (data.message === "User does not exist") {
           setDisableSaveBtn(true);
           setIsExistingUser(false);
+          setEmail(data.email);
           toast.error("User does not exist", {
             position: "top-right",
             autoClose: 2000,

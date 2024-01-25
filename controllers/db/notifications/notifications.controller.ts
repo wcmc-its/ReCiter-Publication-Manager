@@ -149,7 +149,9 @@ export const getNotificationByPersonIdentifier = async(
             }
         }else{
             let noData = {
-                "message" : "User does not exist"
+                "message" : "User does not exist",
+                "email" : ''
+                
             }
             res.send(noData)
         }
