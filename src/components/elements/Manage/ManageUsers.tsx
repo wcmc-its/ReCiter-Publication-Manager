@@ -221,7 +221,6 @@ const ManageUsers = () => {
     }
 
     const onSendNotifications = ()=>{
-      console.log("clicked")
      sendNotification()
     }
 

@@ -30,7 +30,6 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
     const { userID, personIdentifier, articleIdentifier, feedback } = req.body;
     try {
         if(userID && personIdentifier && articleIdentifier && feedback) {
-            console.log('Valid request body for createFeedbackLog')
             const isUserExistAndActive = await models.AdminUser.findOne({
                 where: {
                     userID: userID,
@@ -51,7 +50,6 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
                 });
                 const feedbackLog = await models.AdminFeedbackLog.bulkCreate(data)
                 res.status(201).send(feedbackLog)
-                console.log('Successful creation of feedbacklog ' + feedbackLog.length)
 
                 //Update pending count for articles in person table
                 await updatePendingArticleCount(personIdentifier, feedback)

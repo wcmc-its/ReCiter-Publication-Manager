@@ -504,7 +504,6 @@ export const publicationSearchWithFilter = async (
               
             }
             else  { // When author filters present and no PersonType
-              console.log('in else statement****************')
               articleCount = await models.AnalysisSummaryArticle.count({ // review commnet:Change this to findAll
                   attributes: ["pmid"],
                   distinct:true,
