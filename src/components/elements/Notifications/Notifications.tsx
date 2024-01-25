@@ -13,7 +13,6 @@ import { allowedPermissions } from "../../../utils/constants";
 import { toast } from "react-toastify";
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
-import { redirect } from "next/dist/server/api-utils";
 
 
 const Notifications = () => {
@@ -26,9 +25,7 @@ const Notifications = () => {
   })
 
   const getNotificationsByIdLoading = useSelector((state: RootStateOrAny) => state.getNotificationsByIdLoading);
-  const getNotificationsDataById = useSelector((state: RootStateOrAny) => state.getNotificationsDataById);
   const saveNotificationsLoading = useSelector((state: RootStateOrAny) => state.saveNotificationsLoading);
-  const notificationEmailCarier = useSelector((state: RootStateOrAny) => state.notificationEmailCarier)
 
   const { frequency, minimumThreshold } = state;
   const [formErrorsInst, setformErrInst] = useState<{ [key: string]: any }>({});
@@ -37,13 +34,12 @@ const Notifications = () => {
   const [evidence, setEvidance] = useState<boolean>(false)
   const [suggested, setSuggested] = useState<boolean>(false)
   const [userId, setUserId] = useState<any>("");
-  const [disableAll, setDisableAll] = useState<boolean>(true);
   const [email, setEmail] = useState<string>();
   const [isCuratorSelf, setIsCuratorSelf] = useState<boolean>(false);
   const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
   const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
-  const [stepsCount, setStepsCount] = useState<any>();
-  const [useName, setUserName] = useState<string>();
+  const [evidenceScoreStepsCount, setEvidenceScoreStepsCount] = useState<any>();
+  const [userName, setUserName] = useState<string>();
   const [disableSaveBtn, setDisableSaveBtn] = useState(false);
   const [isExistingUser, setIsExistingUser] = useState(true);
 
@@ -51,16 +47,16 @@ const Notifications = () => {
 
 
   useEffect(() => {
-    const marks = [];
+    const evidenceScore = [];
     [...Array(10)].map((e, i) => {
       let index = i + 1
       let obj = {
         value: index,
         label: index,
       }
-      marks.push(obj);
+      evidenceScore.push(obj);
     })
-    setStepsCount(marks);
+    setEvidenceScoreStepsCount(evidenceScore);
 
     let userPermissions = JSON.parse(session.data.userRoles);
     let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
@@ -80,18 +76,14 @@ const Notifications = () => {
     }else{
       setIsCuratorSelf(true)
     }
-
-    // setUserId(router.query.userId)
-    // if (router.query.userId === session.data.username) {
-    //   setEmail(session.data.email);
-    //   setUserName(session.data.databaseUser.nameFirst)
-    // }
-    // else {
-    //   setEmail(notificationEmailCarier.email);
-    //   setUserName(notificationEmailCarier.userName);
-    // }
-
-    getNotification(router.query.userId ? router.query.userId : session.data.username );
+    let userId = null;
+    //some times router query userId not updating correctly. Hence,reading the userId from window location. 
+    // Will be analyzed when we upgrade the next JS and code will be removed if it is obsolete. 
+    if(!router.query.userId && session.data.username)
+         userId = window.location.pathname.substring(window.location.pathname.lastIndexOf('/')+1)
+    else
+       userId = router.query.userId ? router.query.userId : session.data.username
+    getNotification(userId);
   }, [])
 
   const valuetext = (value: number) => {
@@ -114,10 +106,10 @@ const Notifications = () => {
       },
     }).then(response => response.json())
       .then(data => {
-        console.log("data", data)
         if (data.message === "User does not exist") {
           setDisableSaveBtn(true);
           setIsExistingUser(false);
+          setEmail(data.email);
           toast.error("User does not exist", {
             position: "top-right",
             autoClose: 2000,
@@ -125,14 +117,16 @@ const Notifications = () => {
           });
         } else if(data.message === "No data found"){
           setEmail(data.email);
+          setUserId(data.userID)
           setDisableSaveBtn(true);
         }else{
-          const { minimumThreshold, suggested, accepted, frequency, email} = data;
-          setState(state => ({ ...state, ["minimumThreshold"]: minimumThreshold == 0 ? 3 : minimumThreshold, ["frequency"]: frequency }))
+          const { minimumThreshold, suggested, accepted, frequency, email,userID} = data;
+          setState(state => ({ ...state, ["minimumThreshold"]: minimumThreshold == 0 ? 8 : minimumThreshold, ["frequency"]: frequency }))
           setSuggested(suggested == 1 ? true : false);
           setEvidance(minimumThreshold == 0 ? false : true);
           setAccepted(accepted == 1 ? true : false);
           setEmail(email);
+          setUserId(userID)
           setDisableSaveBtn(false);
         }
       })
@@ -144,30 +138,21 @@ const Notifications = () => {
   const handleSuggested = () => {
     setSuggested(!suggested)
   }
-
-  const handleEvidence = () => {
-    setEvidance(!evidence)
-  }
-
   const onSave = () => {
-    let payload = { frequency, suggested: suggested ? 1 : 0, accepted: accepted === true ? 1 : 0, status: status === true ? 1 : 0, minimumThreshold: suggested ? minimumThreshold : 0, userId :router.query.userId ? router.query.userId : session.data.username ,recipient : notificationEmailCarier || email,isReqFrom :"notificationPref", recipientName :useName   }
+    let payload = { frequency, suggested: suggested ? 1 : 0, accepted: accepted === true ? 1 : 0, status: status === true ? 1 : 0, minimumThreshold: suggested ? minimumThreshold : 0, personIdentifier :router.query.userId ? router.query.userId : session.data.username ,userID :userId ? userId:'' ,recipient : email,isReqFrom :"notificationPref", recipientName :userName   }
     dispatch(saveNotification(payload))
   }
 
   const handleValueChange = (field, e) => {
     let value = field === "minimumThreshold" ? e.target.value : e;
-    if (value >= 3) {
+    if (value >= 3 && suggested && field && field === "minimumThreshold") {
       if (value != '') formErrorsInst[field] = '';
       setState(state => ({ ...state, [field]: value }))
-    } else {
-      
     }
+    else if(field && field !== "minimumThreshold") {
+      setState(state => ({ ...state, [field]: value }))
+    } 
   }
-
-  const redirectToManageUsers = () => {
-    // router.push(`/manageusers/${userId}`)
-  }
- 
   return (
     <div className={appStyles.mainContainer}>
         <h1 className={styles.header}>Manage Notifications</h1>
@@ -186,9 +171,6 @@ const Notifications = () => {
                     <Form.Check type="checkbox" checked={suggested} label="A new publication has been suggested" onChange={() => handleSuggested()} />
                   </Form.Group>
                   <div className={styles.nestedMenu}>
-                    {/* <Form.Group className="mb-3" >
-                      <Form.Check type="checkbox" checked={evidence} label="Minimum evidence score for triggering a notification (higher scores indicate greater confidence)" onChange={() => handleEvidence()} />
-                    </Form.Group> */}
                     <p>Minimum evidence score for triggering a notification (higher scores indicate greater confidence)</p>
                      <div className="my-3 mx-4">
                      <Box sx={{ width: 400 }}>
@@ -199,7 +181,7 @@ const Notifications = () => {
                           min={1}
                           max={10}
                           valueLabelDisplay="auto"
-                          marks={stepsCount}
+                          marks={evidenceScoreStepsCount}
                           track={false}
                           onChange={(e) => handleValueChange("minimumThreshold", e)}
                           value={minimumThreshold}
@@ -220,7 +202,7 @@ const Notifications = () => {
                   </Form.Select>
                 </div>
                
-                <p className="mt-4">Emails will be sent to {notificationEmailCarier || email}</p>
+                <p className="mt-4">Emails will be sent to {email}</p>
                 <Button variant="warning" className="m-2" onClick={() => onSave()} disabled={(disableSaveBtn  && !accepted && !suggested) || !isExistingUser} >
                   {saveNotificationsLoading ?
                     <Spinner animation="border" role="status" className="danger">

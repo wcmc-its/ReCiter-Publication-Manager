@@ -1,6 +1,5 @@
 import { response } from "express";
 import type { NextApiRequest, NextApiResponse } from "next";
-//import { Op, Sequelize, where,Transaction } from "sequelize";
 import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
@@ -11,40 +10,33 @@ export const saveNotifications = async (
     req: NextApiRequest,
     res: NextApiResponse
 ) => {
-    const { frequency, accepted, status, minimumThreshold, userId, suggested, recipient, isReqFrom,recipientName } = req.body;
+    const { frequency, accepted, status, minimumThreshold, userID, suggested, recipient, isReqFrom,recipientName,personIdentifier } = req.body;
     try {
-        console.log('PersonIdentifier in notification controller******************',userId);
         let createUserPayload = {
             'frequency': frequency,
             'accepted': accepted,
             'minimumThreshold': minimumThreshold,
             'status': 1, // Hardcoded 1 to make user active bydefault
-            'personIdentifier': userId,
+            'personIdentifier': personIdentifier,
             'suggested': suggested,
             'createTimestamp': new Date(),
-            // 'userID': userId
+            'userID': userID
         }
 
-        let AdminUserData = await models.AdminUser.findOne({
-            where: { "personIdentifier": userId }
-        })
-
-        if (AdminUserData) {
+        if (userID){
             let userNotifiedUser = await models.AdminNotificationPreference.findOne({
-                where: { "personIdentifier": userId }
+                where: { "personIdentifier": personIdentifier }
             })
-
             if (userNotifiedUser) {
                 const result = await sequelize.transaction(async (t) => {
                     const updateNotificationResp = await models.AdminNotificationPreference.update(createUserPayload,
                         {
-                          where: { personIdentifier: userId },
+                          where: { personIdentifier: personIdentifier },
                           transaction: t
                         });
                         if(updateNotificationResp) {
-                            let result = {"personIdentifier":userId}
+                            let result = {"personIdentifier":personIdentifier}
                             res.send(result);
-                            //sendNotifiationPrefEmail(req.body, req,res)
                         }
                         else res.send(updateNotificationResp)
                 });
@@ -52,7 +44,6 @@ export const saveNotifications = async (
                 const result = await sequelize.transaction(async (t) => {
                     const saveNotificationResp = await models.AdminNotificationPreference.create(createUserPayload, { transaction: t })
                     res.send(saveNotificationResp);
-                   // sendNotifiationPrefEmail(req.body,req,res)
                 });
             }
         }else{
@@ -123,13 +114,12 @@ export const getNotificationByPersonIdentifier = async(
 ) => {
     const {personIdentifier} = req.query;
     try {
-
-        let AdminUserData = await models.AdminUser.findOne({
+        let notification:any='';
+        let adminUserData = await models.AdminUser.findOne({
             where: { "personIdentifier": personIdentifier }
         })
-
-        if(AdminUserData){
-            let notification = await models.AdminNotificationPreference.findOne({
+        if(adminUserData){
+             notification = await models.AdminNotificationPreference.findOne({
                 where:{"personIdentifier" : personIdentifier}
             }) 
             
@@ -145,20 +135,23 @@ export const getNotificationByPersonIdentifier = async(
                     "status":notification.status,
                     "userID":notification.userID,
                     "suggested":notification.suggested,
-                    "email":AdminUserData.email
+                    "email":adminUserData.email
                 }
                 res.send(result); 
             }
             else {
                 let result = {
                     "message": "No data found",
-                    "email" : AdminUserData.email
+                    "email" : adminUserData.email,
+                    "userID": adminUserData.userID
                 }
                 res.send(result)
             }
         }else{
             let noData = {
-                "message" : "User does not exist"
+                "message" : "User does not exist",
+                "email" : ''
+                
             }
             res.send(noData)
         }
