@@ -2,8 +2,6 @@ import methods from '../methods/methods'
 import fetchWithTimeout from '../../utils/fetchWithTimeout';
 import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
-import { useSession } from 'next-auth/client';
-import { ErrorTwoTone } from '@mui/icons-material';
 import { initialStatePubSearchFilter } from "../reducers/reducers";
 
 
@@ -424,9 +422,7 @@ export const pubmedFetchData = query => dispatch => {
                 autoClose: 2000,
                 theme: 'colored'
             });
-            // dispatch(
-            //     addError(error)
-            // )
+            
 
             dispatch({
                 type: methods.PUBMED_CHANGE_DATA,
@@ -1305,14 +1301,7 @@ const getDateFilter = () => async (dispatch) => {
     }).then(response => {
         return response.json()
     }).then(data => {
-        // let startDate = new Date();
-        // let endDate = new Date();
-        // startDate.setDate(endDate.getDate() - 30);
-
-        // let date = [{
-        //     "minDate": startDate,
-        //     "maxDate": endDate
-        // }]
+        
         dispatch({
             type: methods.DATE_FILTER_CHANGE_ALL_DATA,
             payload: data
@@ -1812,9 +1801,7 @@ export const clearPubSearchFilters = ()  => {
             type: methods.REPORTS_SEARCH_CLEAR,
             payload: []
         })
-        // dispatch({
-        //     type: methods.AUTHOR_FILTER_CLEAR_ALL_DATA
-        // })
+        
     }
 }
 
@@ -2006,9 +1993,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
     // set the search filters to get results from the last 30 days and sorted by date
     let startDate = new Date();
     let endDate = new Date();
-    // startDate.setDate(endDate.getDate() - 30);
-    // let filters = {"datePublicationAddedToEntrezLowerBound" : new Date(startDate).toISOString().slice(0,10)};
-    let filters = {};
+      let filters = {};
     fetch(`/api/db/reports/publication/search`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2275,14 +2260,7 @@ export const saveNotification = (payload) => dispatch => {
       }).then(response => {
         if (response.status === 200) {
           return response.json()
-        } else {
-        //   throw {
-        //     type: response.type,
-        //     title: response.statusText,
-        //     status: response.status,
-        //     detail: "Error occurred with api " + response.url + ". Please, try again later "
-        //   }
-        }
+        } 
       }).then(data => {
         if(data.message === "User does not exist"){
             toast.error(data.message, {
@@ -2307,9 +2285,10 @@ export const saveNotification = (payload) => dispatch => {
           autoClose: 2000,
           theme: 'colored'
         });
-        // dispatch(
-        //   addError(error)
-        // )
+        //Cancel the save button loader
+        dispatch({
+            type: methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING,
+           })
       })
     }
 
@@ -2327,14 +2306,7 @@ export const  sendNotification = (payload) =>{
         .then(response => {
             if (response.status === 200) {
                 return response.json()
-            } else {
-                // throw {
-                //     type: response.type,
-                //     title: response.statusText,
-                //     status: response.status,
-                //     detail: "Error occurred with api " + response.url + ". Please, try again later "
-                // }
-            }
+            } 
         })
         .then(data => {
             // return data
@@ -2367,13 +2339,7 @@ export const disableNotificationbyID = (payload) => dispatch => {
         }
       }
     }).then(data => {
-      // dispatch({
-      //   type: methods.REPORTS_RESULTS_IDS_UPDATE,
-      //   payload: data
-      // })
-      // dispatch({
-      //   type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
-      // })
+      
     }).catch(error => {
       console.log(error)
       toast.error("Save notification Api failed - " + error.title, {
@@ -2395,10 +2361,7 @@ export const notificationEmail = (userInfo) => dispatch => {
 }
 
 export const sendEmailData = (requestBody) => dispatch => {
-    // dispatch({
-    //     type: methods.NOTIFICATION_EMAIL_CARIER,
-    //     payload: email
-    // })
+   
     fetch(`/api/notification/sendPubEmailNotifications`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2425,24 +2388,13 @@ export const sendEmailData = (requestBody) => dispatch => {
             }
         }
     }).then(data => {
-        // dispatch({
-        //     type: methods.REPORTS_RESULTS_IDS_UPDATE,
-        //     payload: data
-        // })
-        // dispatch({
-        //     type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
-        // })
+        
     }).catch(error => {
         toast.error("Send Test Email failed - " + error.title, {
             position: "top-right",
             autoClose: 2000,
             theme: 'colored'
         });
-        // dispatch(
-        //     addError(error)
-        // )
-        // dispatch({
-        //     type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
-        // })
+        
     })
 }
