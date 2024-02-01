@@ -351,10 +351,10 @@ export const publicationSearchWithFilter = async (
                   include: [
                     {
                       model: models.AnalysisSummaryAuthor,
-                      as: "AnalysisSummaryAuthor4",
+                      as: "AnalysisSummaryAuthor",
                       required: true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor4.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
                         },
                       attributes: {exclude:[`AnalysisSummaryArticleId`,`PersonId`,`AnalysisSummaryAuthorId`]},
                     },
@@ -363,7 +363,7 @@ export const publicationSearchWithFilter = async (
                       as: "PersonPersonTypes",
                       required: true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor4.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         },
                       attributes: {exclude:[`AnalysisSummaryArticleId`,`PersonId`,`AnalysisSummaryAuthorId`]},
                     },
@@ -413,10 +413,10 @@ export const publicationSearchWithFilter = async (
                   include: [
                     {
                       model: models.AnalysisSummaryAuthor,
-                      as: "AnalysisSummaryAuthor5",
+                      as: "AnalysisSummaryAuthor",
                       required: true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor5.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
                         },
                       attributes: [],
                     },
@@ -425,7 +425,7 @@ export const publicationSearchWithFilter = async (
                       as: "Person",
                       required: true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor5.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
                         },
                       attributes: [],
                     },
@@ -434,7 +434,7 @@ export const publicationSearchWithFilter = async (
                       as: "PersonPersonTypes",
                       required: true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor5.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                         }
                     },
                   ],
@@ -511,10 +511,10 @@ export const publicationSearchWithFilter = async (
                   include: [
                     {
                       model: models.AnalysisSummaryAuthor,
-                      as: "AnalysisSummaryAuthor6",
+                      as: "AnalysisSummaryAuthor",
                       required: true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor6.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
                         },
                       attributes: [],
                     },
@@ -523,7 +523,7 @@ export const publicationSearchWithFilter = async (
                       as: "Person",
                       required: true,
                       on: {
-                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor6.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
+                        col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.personIdentifier'), "=", Sequelize.col('Person.personIdentifier'))
                         },
                       attributes: [],
                     }
@@ -590,10 +590,10 @@ export const publicationSearchWithFilter = async (
           include: [
             {
               model: models.AnalysisSummaryAuthor,
-              as: "AnalysisSummaryAuthor7",
+              as: "AnalysisSummaryAuthor",
               required: true,
               on: {
-                col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor7.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
+                col: Sequelize.where(Sequelize.col('AnalysisSummaryAuthor.pmid'), "=", Sequelize.col('AnalysisSummaryArticle.pmid'))
                 },
               attributes: [],
             },
@@ -616,11 +616,11 @@ export const publicationSearchWithFilter = async (
               include: [
                 {
                   model: models.AnalysisSummaryAuthor,
-                  as: "AnalysisSummaryAuthor8",
+                  as: "AnalysisSummaryAuthor",
                   required: true,
                   on: {
                     col: Sequelize.where(
-                      Sequelize.col("AnalysisSummaryAuthor8.pmid"),
+                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
                       "=",
                       Sequelize.col("AnalysisSummaryArticle.pmid")
                     ),
@@ -634,7 +634,7 @@ export const publicationSearchWithFilter = async (
                   // separate : true,
                   on: {
                     col1: Sequelize.where( 
-                      Sequelize.col("AnalysisSummaryAuthor8.personIdentifier"),
+                      Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
                       // Sequelize.col("AnalysisSummaryAuthor.personIdentifier"),
                       "=",
                       Sequelize.col("PersonPersonTypes.personIdentifier"),
@@ -741,11 +741,11 @@ export const publicationSearchWithFilter = async (
               include: [
                 {
                   model: models.AnalysisSummaryAuthor,
-                  as: "AnalysisSummaryAuthor9",
+                  as: "AnalysisSummaryAuthor",
                   required: true,
                   on: {
                     col: Sequelize.where(
-                      Sequelize.col("AnalysisSummaryAuthor9.pmid"),
+                      Sequelize.col("AnalysisSummaryAuthor.pmid"),
                       "=",
                       Sequelize.col("AnalysisSummaryArticle.pmid")
                     ),
@@ -900,11 +900,11 @@ export const publicationSearchWithFilter = async (
             include: [
               {
                 model: models.AnalysisSummaryAuthor,
-                as: "AnalysisSummaryAuthor1",
+                as: "AnalysisSummaryAuthor",
                 required: true,
                 on: {
                   col: Sequelize.where(
-                    Sequelize.col("AnalysisSummaryAuthor1.pmid"),
+                    Sequelize.col("AnalysisSummaryAuthor.pmid"),
                     "=",
                     Sequelize.col("AnalysisSummaryArticle.pmid")
                   ),
@@ -919,7 +919,7 @@ export const publicationSearchWithFilter = async (
                   col: Sequelize.where(
                     Sequelize.col("Person.personIdentifier"),
                     "=",
-                    Sequelize.col("AnalysisSummaryAuthor1.personIdentifier")
+                    Sequelize.col("AnalysisSummaryAuthor.personIdentifier")
                   ),
                 },
                 attributes: [],
@@ -1087,11 +1087,11 @@ export const publicationSearchWithFilter = async (
         include: [
           {
             model: models.AnalysisSummaryAuthor,
-            as: "AnalysisSummaryAuthor2",
+            as: "AnalysisSummaryAuthor",
             required: true,
             on: {
               col: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor2.pmid"),
+                Sequelize.col("AnalysisSummaryAuthor.pmid"),
                 "=",
                 Sequelize.col("AnalysisSummaryArticle.pmid")
               ),
@@ -1104,7 +1104,7 @@ export const publicationSearchWithFilter = async (
         distinct : true,
         order: sort,
 
-        attributes:[[Sequelize.fn('DISTINCT', Sequelize.col("AnalysisSummaryAuthor2.pmid")), 'pmid'],
+        attributes:[[Sequelize.fn('DISTINCT', Sequelize.col("AnalysisSummaryAuthor.pmid")), 'pmid'],
               `id`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         col:'pmid',
         benchmark: true
@@ -1577,11 +1577,11 @@ export const publicationSearchWithFilterPmids = async (
         include :[
           { 
             model: models.AnalysisSummaryAuthor,
-            as: "AnalysisSummaryAuthor3",
+            as: "AnalysisSummaryAuthor",
             required: true,
             on: {
               col: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor3.pmid"),
+                Sequelize.col("AnalysisSummaryAuthor.pmid"),
                 "=",
                 Sequelize.col("AnalysisSummaryArticle.pmid")
               ),
@@ -1590,7 +1590,7 @@ export const publicationSearchWithFilterPmids = async (
           },
         ],
        
-        attributes: [`AnalysisSummaryAuthor3.id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+        attributes: [`AnalysisSummaryAuthor.id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
         benchmark: true
       });
 
