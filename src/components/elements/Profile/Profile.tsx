@@ -49,6 +49,7 @@ const Profile = ({
  }) => {
   const dispatch = useDispatch()
   const relationshipsDisplayed = 10;
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
@@ -59,6 +60,8 @@ const Profile = ({
   const [session, loading] = useSession();
   const userPermissions = JSON.parse(session.data.userRoles);
   const [displayImage, setDisplayImage] = useState<boolean>(true);
+  const [exportArticlesRTF, setExportArticlesRTF] = useState([])
+
 
 
 
@@ -77,6 +80,21 @@ const Profile = ({
      Promise.all([fetchIdentityPromise, showBiblioAnalysisPromise]).then(() => { setIsLoading(false); })
     }
   }, [modalShow])
+
+  useEffect(()=>{
+    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    let exportArticleRTFViewAttr = [];
+
+    if (updatedAdminSettings.length > 0) {
+      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+      exportArticleRTFViewAttr = exportRTF.viewAttributes;
+    }else{
+      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
+      exportArticleRTFViewAttr = JSON.parse(exportRTF.viewAttributes);
+    }
+    setExportArticlesRTF(exportArticleRTFViewAttr)
+
+  },[])
 
   const ADDITIONAL_INFO_CONFIGS = [
     {
@@ -447,7 +465,7 @@ const Profile = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify({ personIdentifiers: [uid] })
+      body: JSON.stringify({ personIdentifiers: [uid],limit: exportArticlesRTF && exportArticlesRTF.length > 0 && exportArticlesRTF[0].maxLimit  })
     }).then(response => {
       return response.blob();
     })
