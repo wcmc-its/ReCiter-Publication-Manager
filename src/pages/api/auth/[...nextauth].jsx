@@ -12,6 +12,9 @@ import DateTime from "tedious/lib/data-types/datetime";
 import { reciterConfig } from "../../../../config/local";
 
 
+// Determine the condition for choosing the authentication method
+const isSamlEnabled = process.env.SAML_ENABLED === 'true';
+
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
@@ -84,7 +87,7 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
 }
 
 const options = {
-    providers: [
+    providers:[
         Providers.Credentials({
             name: "ReCiter Publication Manager App",
             id: "direct_login",
@@ -98,7 +101,9 @@ const options = {
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
                     apiResponse.userRoles = userRoles;
-					persistUserLogin(credentials.username);									   
+                    if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                            && reciterConfig.asms.userTrackingAPIAuthorization)
+					    persistUserLogin(credentials.username);									   
                     return apiResponse;
                   } else {
                       return null;
@@ -162,14 +167,18 @@ const options = {
                                 await sleep(100)
                                 const userRoles = await findUserPermissions(smalUserEmail,"email");
                                 adminUser.userRoles = userRoles;
-                                persistUserLogin(cwid);	
+                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                            && reciterConfig.asms.userTrackingAPIAuthorization)
+                                    persistUserLogin(cwid);	
                                 if(adminUser)
                                     return adminUser;
                          }
                          else if(cwid)
                          {
                                const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                               persistUserLogin(cwid);	
+                               if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                        && reciterConfig.asms.userTrackingAPIAuthorization)
+                                    persistUserLogin(cwid);	
                                if(adminUser)
                                     return adminUser;
                          }
@@ -177,7 +186,9 @@ const options = {
                     }
                     else if(cwid){
                            const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
-                           persistUserLogin(cwid);	
+                           if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                    && reciterConfig.asms.userTrackingAPIAuthorization)
+                                persistUserLogin(cwid);	
                            if(adminUser)
                                     return adminUser;
                     }

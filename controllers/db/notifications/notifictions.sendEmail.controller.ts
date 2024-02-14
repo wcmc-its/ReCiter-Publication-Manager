@@ -22,8 +22,10 @@ export const sendPubEmailNotifications = async (
         raw: true,
       }
     );
-
-    if(generateEmailNotifications.length > 0){
+    let smtpHostName = process.env.SMTP_HOST_NAME || '';
+    let smtpUserName = process.env.SMTP_USER || '';
+    let smtpPassword = process.env.SMTP_PASSWORD|| '';  
+    if(generateEmailNotifications.length > 0 && smtpHostName && smtpUserName && smtpPassword){
       res.status(200).send(await processPubNotification(generateEmailNotifications,req,res));
       }else{
         let noData = {
