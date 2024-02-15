@@ -206,3 +206,9 @@ h1 {
   cursor: pointer;
   /* text-decoration: underline; */
 }
+.inputORCID{
+  width: 500px;
+}
+.width400{
+  width: 400px;
+}
