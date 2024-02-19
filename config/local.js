@@ -8,6 +8,10 @@ export const reciterConfig = {
          */
         adminApiKey: process.env.NEXT_PUBLIC_RECITER_API_KEY,
         /**
+         * Reciter API EndPoint Base Url. It reads values from environment variables.
+         */
+         reciterApiBaseUrl : process.env.RECITER_API_BASE_URL,
+        /**
          * This is where you specify all the Identity endpoints in reciter. Please refer to the Identity controller in swagger-ui for all the related
          * Identity endpoints.
          */
@@ -15,12 +19,12 @@ export const reciterConfig = {
             /**
              * This endpoint get Identity based on supplied unique id.
              */
-            identityByUid: process.env.RECITER_IDENITY_BY_UID,
+            identityByUid: process.env.RECITER_API_BASE_URL + '/reciter/find/identity/by/uid',
             /**
              * This endpoint get all identity listed in your database. This API consumes significant resources when making a call.
              * So when in /search page refrain from refreshing the page since that entails a fresh api call.
              */
-            getAllIdentity: process.env.RECITER_GET_ALL_IDENTITY,
+            getAllIdentity: process.env.RECITER_API_BASE_URL + '/reciter/find/all/identity',
             /**
              * This is the image that is shown in the search page and the Individual page. If you have an api that serves image for each of your identity
              * then specify it here. Otherwise if its blank it uses a stock image specified.
@@ -33,7 +37,7 @@ export const reciterConfig = {
          */
         featureGenerator: {
             featureGeneratorEndpoint:
-                process.env.RECITER_FEATURE_GENERATOR_ENDPOINT,
+                    process.env.RECITER_API_BASE_URL + '/reciter/feature-generator/by/uid',
             featutreGeneratorApiParams: {
                 /**
                  * This is the minimum score that the publication will be filtered on.
@@ -68,7 +72,7 @@ export const reciterConfig = {
          */
         featureGeneratorByGroup: {
             featureGeneratorByGroupEndpoint:
-                process.env.RECITER_FEATURE_GENERATOR_GROUP_ENDPOINT,
+                    process.env.RECITER_API_BASE_URL + '/reciter/feature-generator/by/group',
             featureGeneratorByGroupApiParams: {
                 /**
                  * This is the minimum score that the publication will be filtered on.
@@ -89,20 +93,20 @@ export const reciterConfig = {
          * This is the endpoint in ReCiter-Publication-Manager controller for authentication.
          */
         reciterPubManagerAuthenticationEndpoint:
-            process.env.RECITER_AUTHENTICATION_ENDPOINT,
+                process.env.RECITER_API_BASE_URL + '/reciter/publication/manager/authenticate',
         /**
          * This endpoint is to update the feedback for users.
          */
         reciterUpdateGoldStandardEndpoint:
-            process.env.RECITER_GOLD_STANDARD_ENDPOINT,
+                process.env.RECITER_API_BASE_URL + '/reciter/goldstandard',
         /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */
         reciterUserFeedbackEndpoints: {
-            saveUserFeedback: process.env.RECITER_SAVE_USER_FEEDBACK,
-            deleteUserFeedback: process.env.RECITER_DELETE_USER_FEEDBACK,
-            findUserFeedback: process.env.RECITER_FIND_USER_FEEDBACK,
+            saveUserFeedback:  process.env.RECITER_API_BASE_URL + '/reciter/publication/manager/userfeedback/save',
+            deleteUserFeedback: process.env.RECITER_API_BASE_URL + '/reciter/publication/manager/userfeedback/delete',
+            findUserFeedback: process.env.RECITER_API_BASE_URL + '/reciter/publication/manager/userfeedback/find',
         },
     },
     /**
@@ -110,18 +114,19 @@ export const reciterConfig = {
      * for details.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: process.env.RECITER_SEARCH_PUBMED,
-        searchPubmedCountEndpoint: process.env.RECITER_SEARCH_COUNT_PUBMED,
+        searchPubmedEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-complex/',
+        searchPubmedCountEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-number-pubmed-articles/',
     },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
      * Make sure its a good secret with good mix of alpha numeric characters.
      */
-    tokenSecret: process.env.NEXT_PUBLIC_RECITER_TOKEN_SECRET,
+    tokenSecret:  process.env.NEXT_PUBLIC_RECITER_TOKEN_SECRET,
     backendApiKey: process.env.NEXT_PUBLIC_RECITER_BACKEND_API_KEY,
 
     asms: {
-        userTrackingAPI: process.env.ASMS_USER_TRCKING_API,
+        asmsApiBaseUrl: process.env.ASMS_API_BASE_URL,
+        userTrackingAPI: process.env.ASMS_API_BASE_URL + '/api/v2/track/module',
         userTrackingAPIAuthorization: process.env.ASMS_USER_TRACKING_API_AUTHORIZATON
     },
 };
