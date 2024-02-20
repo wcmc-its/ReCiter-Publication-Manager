@@ -64,6 +64,8 @@ export async function middleware(request: NextRequest) {
                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                else if (isReporterAll || ((isCuratorAll || isSuperUser) && !isCuratorSelf && pathName ==  '/notifications/'+loggedInUserInfo))  
                  return   showNoAccessMessage();//redirectToLandingPage(request,'/search');  */   
+            }else if (pathName && pathName.startsWith('/manageprofile')){
+
             }
             else if (pathName && pathName.startsWith('/manageusers')  && !isSuperUser)  
             {

@@ -206,3 +206,30 @@ h1 {
   cursor: pointer;
   /* text-decoration: underline; */
 }
+.inputORCID{
+  width: 500px;
+}
+.width400{
+  width: 400px;
+}
+
+.customLabel a{
+  margin-bottom: 0;
+  padding-right: 2px;
+  text-decoration: none;
+  color: #333333;
+  margin-top: 3px !important;
+}
+.customLabel p{
+  margin-top: 3px !important;
+  margin-bottom: 0 !important;
+  
+}
+.customLabelForRadio{
+  margin-bottom: 0 !important;
+  margin-top: 6px !important;
+}
+.textDecorationLabel{
+  text-decoration: none;
+  color: #333333;
+}
