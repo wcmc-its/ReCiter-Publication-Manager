@@ -58,7 +58,7 @@ const ManageProfle = () => {
         else
             userId = router.query.userId ? router.query.userId : session.data.username
         getManageProfileData(userId)
-    }, [])
+    }, [router.query.userId])
 
     const onSave = () => {
         let payload = {
