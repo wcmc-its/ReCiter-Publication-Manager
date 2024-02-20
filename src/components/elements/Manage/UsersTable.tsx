@@ -33,6 +33,10 @@ const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOr
     router.push(`/notifications/${userID}`)
   }
 
+  const redirectToManageProfile = (userID)=>{
+    router.push(`/manageprofile/${userID}`)
+  }
+
   const redirectToManageUsers = (userID)=>{
     router.push(`/manageusers/${userID}`)
   }
@@ -65,6 +69,7 @@ const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOr
                 <td>{email || ""}</td>
                 <td> <div> 
                   <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageUsers(userID)} size="sm">Manage User</Button>
+                  <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageProfile(personIdentifier)} size="sm">Manage Profile</Button>
                   {isVisibleNotification && email && <Button size="sm" variant="outline-dark"  className='fw-bold' onClick={()=> redirectToNotifications(personIdentifier, email, nameFirst)}>Manage Notifications</Button> }</div>
                 </td>
               </tr>

@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, Sequelize } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
+import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 
 export const getManageProfileByID = async (
     req: NextApiRequest,
@@ -14,34 +15,22 @@ export const getManageProfileByID = async (
         let adminUserData = await models.AdminUser.findOne({
             where: { "personIdentifier": personIdentifier }
         })
+
         if (adminUserData) {
-            profileInfo = await models.PersonArticleAuthor.findOne({
-                // attributes:['personIdentifier', [Sequelize.fn("GROUP_CONCAT", Sequelize.col('AdminDepartment.departmentLabel')),"departmentLabel",],'userID'],
-                where: { "personIdentifier": personIdentifier }
-            })
-            console.log("profileInfo", profileInfo)
+            profileInfo = await sequelize.query(
+                QueryConstants.getManageProfileForOCIDData,
+                {
+                replacements: {personIdentifier: personIdentifier} , 
+                   raw : true,
+                //    benchmark:true
+                },
+                
+            );
 
             if (profileInfo) {
                 let result = {
-                    // "accepted":notification.accepted,
-                    // "createTimestamp":notification.createTimestamp,
-                    // "frequency": notification.frequency,
-                    // "minimumThreshold":notification.minimumThreshold,
-                    // "id":notification.id,
-                    // "modifyTimestamp":notification.modifyTimestamp,
-                    // "personIdentifier":notification.personIdentifier,
-                    // "status":notification.status,
-                    // "userID":notification.userID,
-                    // "suggested":notification.suggested,
-                    "email": adminUserData.email
-                    // 'id',
-                    // 'personIdentifier',
-                    // 'pmid',
-                    // 'authorFirstName',
-                    // 'authorLastName',
-                    // 'targetAuthor',
-                    // 'rank',
-                    // 'orcid'
+                    "email": adminUserData.email,
+                    "data": profileInfo
                 }
                 res.send(result);
             }
@@ -51,7 +40,7 @@ export const getManageProfileByID = async (
                     "email": adminUserData.email,
                     "userID": adminUserData.userID
                 }
-                res.send(result)
+                res.send(result);
             }
         } else {
             let noData = {
@@ -66,3 +55,28 @@ export const getManageProfileByID = async (
         res.status(500).send(e);
     }
 }
+
+export const saveORCIDProfile = async (
+    req: NextApiRequest,
+    res: NextApiResponse
+) => {
+    const { orcid, personIdentifier } = req.body;
+
+    console.log("req.body))))))))", req.body)
+    try {
+        let createUserPayload = {
+            'personIdentifier': personIdentifier,
+            'orcid': orcid,
+        }
+        const result = await sequelize.transaction(async (t) => {
+            const response = await models.AdminOrcid.create(createUserPayload, { transaction: t })
+            console.log("response****************", response)
+            res.send(response)
+        });
+    } catch (e) {
+        console.log(e);
+        res.status(500).send(e);
+    }
+}
+
+
