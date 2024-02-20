@@ -185,15 +185,15 @@ const ManageProfle = () => {
 
         let finalCOntent = `${orcidData + acceptedData + suggestedData ? suggestedData : "" + rejectedData}`
         let formattedLabel = <div className="d-flex customLabel">
-            <p><a href={` https://orcid.org/${orcid}`} target="blank" > {orcid}</a> - </p>
+            <p><a href={` https://orcid.org/${orcid}`} target="blank" rel="noreferrer"> {orcid}</a> - </p>
             {
-                articleCount_accepted > 0 && <a href={pmids_accepted} target="blank" > {articleCount_accepted} accepted</a>
+                articleCount_accepted > 0 && <a href={pmids_accepted} target="blank" rel="noreferrer"> {articleCount_accepted} accepted</a>
             }
             {
-                articleCount_null > 0 && <a href={pmids_null} target="blank" >, {articleCount_null} suggested</a>
+                articleCount_null > 0 && <a href={pmids_null} target="blank" rel="noreferrer">, {articleCount_null} suggested</a>
             }
             {
-                articleCount_rejected > 0 && <a href={pmids_rejected} target="blank" >, {articleCount_rejected} rejected</a>
+                articleCount_rejected > 0 && <a href={pmids_rejected} target="blank" rel="noreferrer">, {articleCount_rejected} rejected</a>
             }
         </div>
         return formattedLabel
@@ -206,7 +206,7 @@ const ManageProfle = () => {
                 isCuratorSelf && !isSuperUserORCuratorAll && !isReporterAll ? <>
                     <div className="pb-4">
                         <h5>ORCID</h5>
-                        <p>Provide your unique <a className="textDecorationLabel" href="https://orcid.org/" target="_blank">ORCID ID</a> to retrieve unclaimed PubMed publications. In the interests of <br />streamlining your administrative tasks, your ORCID may be shared with select authorized parties.</p>
+                        <p>Provide your unique <a className="textDecorationLabel" href="https://orcid.org/" target="_blank" rel="noreferrer">ORCID ID</a> to retrieve unclaimed PubMed publications. In the interests of <br />streamlining your administrative tasks, your ORCID may be shared with select authorized parties.</p>
                     </div>
 
                     <div className="pb-4">
@@ -229,7 +229,7 @@ const ManageProfle = () => {
                                                         {
                                                             profileData.map((values, i) => {
                                                                 const { orcid } = values;
-                                                                return <div className="d-flex"><FormControlLabel key={i} value={orcid} control={<Radio onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
+                                                                return <div className="d-flex" key={i}><FormControlLabel key={i} value={orcid} control={<Radio onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
                                                             }
                                                             )
                                                         }
