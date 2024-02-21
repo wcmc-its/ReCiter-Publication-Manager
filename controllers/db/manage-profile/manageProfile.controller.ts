@@ -26,7 +26,6 @@ export const getManageProfileByID = async (
                 },
                 
             );
-
             if (profileInfo) {
                 let result = {
                     "email": adminUserData.email,
@@ -62,7 +61,6 @@ export const saveORCIDProfile = async (
 ) => {
     const { orcid, personIdentifier } = req.body;
 
-    console.log("req.body))))))))", req.body)
     try {
         let createUserPayload = {
             'personIdentifier': personIdentifier,
@@ -70,7 +68,6 @@ export const saveORCIDProfile = async (
         }
         const result = await sequelize.transaction(async (t) => {
             const response = await models.AdminOrcid.create(createUserPayload, { transaction: t })
-            console.log("response****************", response)
             res.send(response)
         });
     } catch (e) {

@@ -216,7 +216,7 @@ const Notifications = () => {
           <ToastContainerWrapper />
         </>
           : isSuperUserORCuratorAll && !isCuratorSelf && !isReporterAll ? <div className="noAccessRole">
-            <p>Your user does not have the Curator Self role. To edit the Manage Notification preferences for another user, first click on the Manager Users tab.</p>
+            <p>Your user does not have the Curator Self role. To edit the Manage Notification preferences for another user, first click on the Manage Users tab.</p>
           </div>
             :  !isSuperUserORCuratorAll && !isCuratorSelf && isReporterAll  ? <div className="noAccessRole">
             </div> :"" }
