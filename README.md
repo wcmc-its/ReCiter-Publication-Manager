@@ -47,6 +47,8 @@ See the [Functionality](#functionality) section to see screencaps and animations
     - [Output results](#output-results)
     - [Generating a bibliometric report](#generating-a-bibliometric-report)
   - [Configuration](#configuration)
+  - [Manage notifications](#manage-notifications)
+  - [Manage profile](#manage-profile)
 - [Funding acknowledgment](#funding-acknowledgment)
 
 
@@ -368,6 +370,21 @@ Here's how to generate a narrative bibliometric summary (see sample) of a full-t
 1. This will download a bibliometric summary (see below) which you can open up in Word. 
     
 ![Bibliometric report](/files/BibliometricReport.gif)
+
+
+
+### Manage notifications
+
+Users assigned the "curator_self" role have the ability to opt-in for email notifications regarding pending and newly accepted publications. This feature ensures that curators are promptly informed about updates that require their attention.
+
+![Emailed Notifications](/files/EmailNotifications.png)
+
+### Manage profile
+
+ReCiter intelligently suggests ORCID identifiers for individuals based on their record of accepted publications and inferred author positions. Users with the "curator_self" role have the flexibility to either accept these suggested ORCID values or manually enter an ORCID identifier of their choice. This allows for accurate association of publications to the correct individual.
+
+![Manage Profile](/files/ManageProfile.png)
+
 
 
 
