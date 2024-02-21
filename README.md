@@ -16,6 +16,8 @@ ReCiter Publication Manager is a powerful web application that streamlines the p
 - [ReCiterDB](https://github.com/wcmc-its/ReCiterDB) - the back end data store for Publication Manager; in addition to the schema and stored procedures, this repository contains a set of scripts that retrieve data from ReCiter and imports them into this MySQL database
 - [ReCiter PubMed Retrieval Tool](https://github.com/wcmc-its/reciter-pubmed-Retrieval-Tool/) - An application which provides an API which sits on top of PubMed's eFetch web service. Generally speaking, this API provides some basic inferences and makes the PubMed data easier to work with.
 
+Publication Manager also integrates with [ReCiter PubNotifier](https://github.com/wcmc-its/ReCiter-PubNotifier) which utlizes AWS Lambda to enhance the publication notification process within academic environments. It automates notifications to faculty regarding new academic publications, whether accepted or in-review, and integrates with ReCiter Publication Manager and ReCiterDB.
+
 See the [Functionality](#functionality) section to see screencaps and animations of ReCiter Publication Manager in action.
 
 
@@ -25,11 +27,13 @@ See the [Functionality](#functionality) section to see screencaps and animations
 - [Technical](#technical)
   - [Prerequisites](#prerequisites)
   - [Technological stack](#technological-stack)
-  - [Installation](#installation)
-  - [Stopping and removing an instance](#stopping-and-removing-an-instance)
-  - [Installation as a development box](#installation-as-a-development-box)
-  - [Making changes in the development box](#making-changes-in-the-development-box)
-  - [Starting the app](#starting-the-app)
+  - [Installation guide](#installation-guide)
+    - [Initial setup](#initial-setup)
+    - [Setting up native authentication](#setting-up-native-authentication)
+    - [Docker commands for troubleshooting](#docker-commands-for-troubleshooting)    
+    - [Installation as a development box](#installation-as-a-development-box)
+    - [Making changes in the development box](#making-changes-in-the-development-box)
+    - [Starting the app](#starting-the-app)
 - [Functionality](#functionality)
   - [Access](#access)
     - [Authentication](#authentication)
@@ -42,21 +46,16 @@ See the [Functionality](#functionality) section to see screencaps and animations
     - [Filters](#filters)
     - [Output results](#output-results)
     - [Generating a bibliometric report](#generating-a-bibliometric-report)
+  - [Configuration](#configuration)
 - [Funding acknowledgment](#funding-acknowledgment)
 
 
 
 
+# Technical
 
 
-
-
-
-
-## Technical
-
-
-### Prerequisites
+## Prerequisites
 
 Requirements for Publication Manager itself:
 
@@ -75,7 +74,7 @@ Publication Manager is part of the ReCiter suite of applications. In addition to
 - [ReCiter PubMed Retrieval Tool](https://github.com/wcmc-its/reciter-pubmed-Retrieval-Tool/) - An API on top of PubMed's eFetch web service. Generally speaking, this API makes the PubMed data easier to work with.
 
 
-### Technological stack
+## Technological stack
 
 - **Next.js** - an open-source web development framework created by Vercel enabling React-based web applications with server-side rendering and generating static websites.
 - **ReactJS** - a front-end JavaScript library for building user interfaces based on components
@@ -84,70 +83,100 @@ Publication Manager is part of the ReCiter suite of applications. In addition to
 
 
 
-### Installation
-
-1. Clone the repository to a local folder using `git clone https://github.com/wcmc-its/ReCiter-Publication-Manager.git`
-1. In Terminal, navigate to local directory where the repository is installed
-1. Enter `docker build -t reciter/pub-manager .`
-1. Update local.js
-   1. Navigate to `directory/config/local.js`.
-   1. Update the endpoint with appropriate endpoint for ReCiter and Reciter-Pubmed. (For local development mode, follow instructions in the "Installation as a development box" section.)
-   1. If you are using Docker to run the project then you must not specify `localhost` for hostname. Since the container does not understand the DNS entry. See [Connect to services running on host from within Docker container](https://stackoverflow.com/a/43541732)
-   1. If you are using Windows machine use your machine IP for hostname or `host.docker.internal` for hostname
-   1. If you are using Mac use `docker.for.mac.host.internal` for hostname 
-   1. Add your adminApiKey.
-   1. Save the file. 
-1. Enter `docker run -d -p 8081:8081 --name <container-name> reciter/pub-manager`
-1. Let's see what is happening in the logs as we make changes to our application. 
-   1. You can check the container details using - 
-   1. Enter `docker ps`
-   1. The console will return return a range of attributes for the instance. Look for the "NAMES" column in these attributes. It should  be the container name you provided: `reciter_pub_manager` 
-   1. Enter `docker logs -f -t reciter_pub_manager` where `reciter_pub_manager` is the name of your container.
-1. Go to your browser and enter `https://localhost:8081/login`
-1. To login, enter your username and password. You can setup username and password using the reciter api 
-`http://<reciter-endpoint>:<port-number>/swagger-ui.html#/re-citer-pub-manager-controller/createUserUsingPOST`
 
 
-### Stopping and removing an instance
+## Installation guide
 
-1. Go to Terminal and enter `docker stop reciter_pub_manager` where `reciter_pub_manager` is the name of your instance. 
-2. Enter `docker rm reciter_pub_manager`.
+This guide details the steps for setting up the application locally, through AWS ECS, and as a development box for making and testing changes.
+
+### Initial setup
+
+1. **Clone the repository:**
+   Clone the repository to your local machine using the command:
+```
+git clone https://github.com/wcmc-its/ReCiter-Publication-Manager.git
+```
+
+2. **Build the Docker image:**
+Navigate to the cloned directory and build the Docker image:
+sudo docker build -t reciter-pub-manager .
+
+Confirm the image creation by listing all Docker images:
+
+```
+sudo docker images
+```
+
+
+3. **Check and stop containers:** Verify no containers are running on port 3000 and stop them if necessary:
+```
+sudo docker ps -q --filter "publish=3000"
+sudo docker stop <container ID>
+```
+
+4. **Environment variables setup:**
+Configure the environment variables following the instructions in the [environmental variables wiki](https://github.com/wcmc-its/ReCiter-Publication-Manager/wiki/Environmental-variables-for-ReCiter-Publication-Manager). Use "env.local" for local setups and AWS Secrets Manager for AWS ECS setups.
+
+5. **Run the Docker container:**
+Start the Docker container, mapping the desired port (e.g., 5001 to 3000):
+```
+sudo docker run -d -p 5001:3000 --env-file env.local reciter-pub-manager:latest
+```
+
+
+### Setting up native authentication
+
+To use native authentication for initial testing:
+
+1. **Create a New User:** Utilize the ReCiter API to create a new user with the necessary details, which creates an entry in the `ApplicationUser` table.
+
+2. **Login:** Access the ReCiter Publication Manager login page and log in to create a record in the `admin_users` table.
+
+3. **Update Roles:** Modify roles by adding a new row in the `admin_users_roles` table with the userID and `roleID` as "1" for superuser privileges.
+
+4. **Access the Application:** Navigate to the application by logging in through the specified port on your local machine.
+
+### Docker commands for troubleshooting
+
+- **View Docker logs:**
+To check the logs for troubleshooting:
+```
+sudo docker logs <<Container ID/Container Name>>
+docker logs -f -t reciter-pub-manager
+```
+
+
+- **Stopping and removing instances:**
+If needed, stop and remove Docker instances using:
+```
+docker stop reciter-pub-manager
+docker rm reciter-pub-manager
+```
 
 
 ### Installation as a development box
 
-These steps allow us to make and test out changess locally. We're going to run our front end application on port 3000 (using React Redux) and have it talk to a back end app (using NodeJS), which runs on port 5000.
+To set up a development environment for making and testing changes:
 
-1. Let's install the application dependencies including nodeJS.
-   1. In Terminal, navigate to the local directory where the repository is installed.
-   1. Enter `npm i`.
-1. Next, let's install the client dependencies including the React Redux dependencies.
-   1. Enter `cd client`
-   1. Enter `npm i`.
-1. We now want to run Publication Manager and trigger the application to automatically restart any time code changes are detected.
-   1. Go to the `Publication-Manager` directory. Enter `..`
-   1. Enter `npm i -g  node-dev`.
-1. Enter `npm run dev` This will run the nodejs express server in development mode and also the react server concurrently.
-1. If you get an error because a port is already in use, you need to do the following.
-   1. Interrupt the existing process by entering control-C.
-   1. Identify the existing PID. Enter `lsof -f :5000`
-   1. Enter `kill -9 41046` where 41046 is the PID of the existing process.
-1. This should open a new tab in your default browser.
-1. Add `/login` to URL as in `https://localhost:3000/login`
-1. Try logging in.
+1. **Install Dependencies:**
+ Install application and client dependencies, including NodeJS and React Redux.
 
+2. **Run Publication Manager:**
+ Use `npm run dev` to start both the NodeJS express server and the React server concurrently. Address any port conflicts as necessary.
+
+3. **Access the Application:**
+ The application should automatically open in your default browser. Log in through the `/login` page.
 
 ### Making changes in the development box
 
-1. Open your repository in Visual Studio Code or your tool of choice.
-1. Navigate to `/client/src/css`
-1. Open Header.css and change background-color to #ff6600, and save the file.
-1. The changes should instantly appear in Chrome.
+For real-time changes and testing:
 
+1. **Modify CSS:**
+ Example: Change the `Header.css` background-color to `#ff6600` and observe instant updates in the browser.
 
 ### Starting the app
- 
-First, run the development server:
+
+To start the development server:
 
 ```bash
 npm run dev
@@ -155,28 +184,24 @@ npm run dev
 yarn dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
-
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
-
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+Access the app at `http://localhost:5001` and start editing. API routes can be explored and modified as described.
 
 
 
 
-## Functionality
+
+
+# Functionality
 
 
 
 
-### Access
+## Access
 
 
 
 
-#### Populating users
+### Populating users
 
 Application users are stored in the `admin_users` table in ReCiterDB. There are two options for adding and updating users:
 
@@ -185,7 +210,7 @@ Application users are stored in the `admin_users` table in ReCiterDB. There are 
 
 
 
-#### Authentication
+### Authentication
 
 ReCiter Publication Manager supports two options for authentication:
 
@@ -197,7 +222,7 @@ ReCiter Publication Manager supports two options for authentication:
 
 
 
-#### Access Roles
+### Access roles
 
 To utilize the Publication Manager, users must have specific access roles assigned to them. The access roles available and their corresponding privileges are as follows:
 
@@ -214,13 +239,13 @@ Role assignments are stored in the `admin_users_roles` table.
 
 
 
-### Curating
+## Curating
 
 The publication lists for the ~6,000 or so key people of interest (e.g., full-time faculty) are curated by WCM librarians every business day. Other types of users such as NYP residents and PhD alumni have profiles that are curated less frequently.
 
 In the event of an error or omission, faculty and departmental users may wish to update these lists through curation.
 
-#### For individuals
+### For individuals
 
 - If you are a faculty or other user with a profile:
   - You will be directed to your profile upon login.
@@ -257,7 +282,7 @@ In the event of an error or omission, faculty and departmental users may wish to
 
 
 
-#### For groups
+### For groups
 
 Here's how you curate the publication lists for a group of individuals:
 
@@ -269,7 +294,7 @@ Here's how you curate the publication lists for a group of individuals:
 
 
 
-### Reporting
+## Reporting
 
 Data for reporting is refreshed on a nightly basis. Any curation work performed during the day won't appear until early the next morning.
 
@@ -295,7 +320,7 @@ If you are reporting on the publication output of a person, you can do it in two
     
 ![Bulk reporting](/files/BulkReporting2.gif)
 
-#### Filters
+### Filters
 
 The Filters section of the Publication Manager allows users to narrow down the article results displayed. The following filters are available for people:
 
@@ -316,7 +341,7 @@ The following filters are available for articles:
 
 
 
-#### Output results
+### Output results
 - Export to CSV
   - Option #1: Export authorships. (See below.) An authorship is a case where a NetID has been assigned by a human to an author on a given publication. One publication may have up to dozens of known authorships. 
   - Option #2: Export articles. An article-level report.
@@ -331,7 +356,7 @@ The following filters are available for articles:
 ![Export to RTF](/files/ExportRTF2.gif)
 
 
-#### Generating a bibliometric report
+### Generating a bibliometric report
 
 Here's how to generate a narrative bibliometric summary (see sample) of a full-time faculty at Weill Cornell Medicine. The summary includes h-index, h5-index, NIH-provided article-level bibliometrics, a ranking of an individual's most impactful publications, and a summary statement.
 
@@ -348,9 +373,9 @@ Here's how to generate a narrative bibliometric summary (see sample) of a full-t
 
 
 
-#### Settings
+## Configuration
 
-The Publication Manager's configuration settings can be accessed and modified by superusers through the user interface by visiting `Manage module >> Settings`. All changes made in the web interface will automatically update for all users.
+The Publication Manager's configuration settings can be accessed and modified by superusers through the user interface by visiting `Configuration`. All changes made in the web interface will automatically update for all users.
 
 The available settings are:
 
@@ -359,10 +384,13 @@ The available settings are:
 - **Inclusion of attributes** - The decision to include attributes such as citation count in the output of an article CSV, authorship CSV, on the web page itself, or as a sortable attribute
 - **Order of output attributes** - Allows admins to decide the order in which attributes are displayed, including in the CSV outputs, the web interface, and sort function
 - **Maximum records output** - The maximum number of records that can be output to the CSV files
+- **Headshot** - The full URL for a third party headshot API
+- **Email notifications** - Ability to email out notifications to scholars when they have newly accepted or suggested publications.
+- **Automatic role assignment** - Users who login can automatically be assigned a reporter_all or curator_all role.
 
 
 
-## Funding acknowledgment
+# Funding acknowledgment
 
 Publication Manager has been funded by:
 - Lyrasis through its Catalyst fund
@@ -373,7 +401,7 @@ The ReCiter suite of applications has been funded by the following:
 
 
 
-## Learn more
+# Learn more
 
 Please submit any questions to [Paul Albert](mailto:paa2013@med.cornell.edu) or publications@med.cornell.edu. You may expect a response within one to two business days. 
 
