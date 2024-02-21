@@ -377,7 +377,7 @@ Here's how to generate a narrative bibliometric summary (see sample) of a full-t
 
 Users assigned the "curator_self" role have the ability to opt-in for email notifications regarding pending and newly accepted publications. This feature ensures that curators are promptly informed about updates that require their attention.
 
-![Emailed Notifications](/files/EmailNotifications.png)
+![Emailed Notifications](/files/ManageNotifications.png)
 
 ### Manage profile
 
