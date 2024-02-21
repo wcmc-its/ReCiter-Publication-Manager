@@ -176,24 +176,18 @@ const ManageProfle = () => {
             pmids_accepted,
             orcid,
             personIdentifier
-        } = values
-        // retrun label={`${orcid + ' - ' + articleCount_accepted} accepted ${articleCount_null} null ${articleCount_rejected} rejected`} 
-        let orcidData = orcid;
-        let acceptedData = articleCount_accepted > 0 && ` ${articleCount_accepted}  accepted`
-        let suggestedData = articleCount_null > 0 && `${articleCount_null}  suggested`
-        let rejectedData = articleCount_rejected > 0 && `${articleCount_rejected}  rejected`
+        } = values;
 
-        let finalCOntent = `${orcidData + acceptedData + suggestedData ? suggestedData : "" + rejectedData}`
         let formattedLabel = <div className="d-flex customLabel">
-            <p><a href={` https://orcid.org/${orcid}`} target="blank" rel="noreferrer"> {orcid}</a> - </p>
+            <p><a href={` https://orcid.org/${orcid}`} target="blank" rel="noreferrer"><span>{orcid}</span></a>- </p>
             {
-                articleCount_accepted > 0 && <a href={pmids_accepted} target="blank" rel="noreferrer"> {articleCount_accepted} accepted</a>
+                articleCount_accepted > 0 && <a href={pmids_accepted} target="blank" rel="noreferrer"><span> {articleCount_accepted} accepted {articleCount_null > 0 && ","}</span></a>
             }
             {
-                articleCount_null > 0 && <a href={pmids_null} target="blank" rel="noreferrer">, {articleCount_null} suggested</a>
+                articleCount_null > 0 && <a href={pmids_null} target="blank" rel="noreferrer"><span> {articleCount_null} suggested {articleCount_rejected > 0 && ","}</span></a>
             }
             {
-                articleCount_rejected > 0 && <a href={pmids_rejected} target="blank" rel="noreferrer">, {articleCount_rejected} rejected</a>
+                articleCount_rejected > 0 && <a href={pmids_rejected} target="blank" rel="noreferrer"> <span> {articleCount_rejected} rejected</span></a>
             }
         </div>
         return formattedLabel
@@ -229,12 +223,12 @@ const ManageProfle = () => {
                                                         {
                                                             profileData.map((values, i) => {
                                                                 const { orcid } = values;
-                                                                return <div className="d-flex" key={i}><FormControlLabel key={i} value={orcid} control={<Radio onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
+                                                                return <div className="d-flex" key={i}><FormControlLabel className="orcidLabel" key={i} value={orcid} control={<Radio onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
                                                             }
                                                             )
                                                         }
                                                     </RadioGroup>
-                                                </FormControl> : <p><b>No available suggestions.</b></p>
+                                                </FormControl> : <p>No available suggestions.</p>
                                         }
                                     </>
                             }
@@ -261,7 +255,7 @@ const ManageProfle = () => {
                     </div>
                     <ToastContainerWrapper />
                 </> : isSuperUserORCuratorAll && !isCuratorSelf && !isReporterAll ? <div className="noAccessRole">
-                    <p>Your user does not have the Curator Self role. To edit the Manage Profile for another user, first click on the Manager Users tab.</p>
+                    <p>Your user does not have the Curator Self role. To edit the Manage Profile for another user, first click on the Manage Users tab.</p>
                 </div>
                     : !isSuperUserORCuratorAll && !isCuratorSelf && isReporterAll ? <div className="noAccessRole">
                     </div> : ""}
