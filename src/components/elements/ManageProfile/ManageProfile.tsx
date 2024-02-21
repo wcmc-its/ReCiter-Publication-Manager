@@ -228,7 +228,7 @@ const ManageProfle = () => {
                                                             )
                                                         }
                                                     </RadioGroup>
-                                                </FormControl> : <p>No available suggestions.</p>
+                                                </FormControl> : <p><i>No available suggestions.</i></p>
                                         }
                                     </>
                             }

@@ -190,7 +190,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       isRequired: isVisibleNotification && session.data.email ? true : false
     },
     {
-      title: 'Manage profile',
+      title: 'Manage Profile',
       to: `/manageprofile/${session.data.username}`,
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
