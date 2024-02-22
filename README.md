@@ -16,7 +16,7 @@ ReCiter Publication Manager is a powerful web application that streamlines the p
 - [ReCiterDB](https://github.com/wcmc-its/ReCiterDB) - the back end data store for Publication Manager; in addition to the schema and stored procedures, this repository contains a set of scripts that retrieve data from ReCiter and imports them into this MySQL database
 - [ReCiter PubMed Retrieval Tool](https://github.com/wcmc-its/reciter-pubmed-Retrieval-Tool/) - An application which provides an API which sits on top of PubMed's eFetch web service. Generally speaking, this API provides some basic inferences and makes the PubMed data easier to work with.
 
-Publication Manager also integrates with [ReCiter PubNotifier](https://github.com/wcmc-its/ReCiter-PubNotifier) which utlizes AWS Lambda to enhance the publication notification process within academic environments. It automates notifications to faculty regarding new academic publications, whether accepted or in-review, and integrates with ReCiter Publication Manager and ReCiterDB.
+Publication Manager optionally integrates with [ReCiter PubNotifier](https://github.com/wcmc-its/ReCiter-PubNotifier), which use AWS Lambda to automatically send emails to faculty members about publications that are newly accepted or under review. It is designed to work in conjunction with both ReCiter Publication Manager and ReCiterDB for efficient notification management.
 
 See the [Functionality](#functionality) section to see screencaps and animations of ReCiter Publication Manager in action.
 
