@@ -92,11 +92,6 @@ spec:
               secretKeyRef:
                 name: reciter-pm-dev-secrets
                 key : SMTP_HOST_NAME
-          - name: NODE_ENV
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-dev-secrets
-                key : NODE_ENV 
           - name: SMTP_USER
             valueFrom:
               secretKeyRef:
