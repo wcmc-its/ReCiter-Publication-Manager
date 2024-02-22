@@ -117,7 +117,12 @@ sudo docker stop <container ID>
 ```
 
 4. **Environment variables setup:**
-Configure the environment variables following the instructions in the [environmental variables wiki](https://github.com/wcmc-its/ReCiter-Publication-Manager/wiki/Environmental-variables-for-ReCiter-Publication-Manager). Use "env.local" for local setups and AWS Secrets Manager for AWS ECS setups.
+Configure the environment variables using the values in the [environmental variables wiki](https://github.com/wcmc-its/ReCiter-Publication-Manager/wiki/Environmental-variables). Use "env.local" for local setups and AWS Secrets Manager for AWS ECS setups.
+  ```
+  NEXT_PUBLIC_RECITER_API_KEY=<<value>>
+  RECITER_API_BASE_URL=<<value>>
+  etc.
+  ```
 
 5. **Run the Docker container:**
 Start the Docker container, mapping the desired port (e.g., 5001 to 3000):
