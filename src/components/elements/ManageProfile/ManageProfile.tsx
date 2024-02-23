@@ -30,7 +30,13 @@ const ManageProfle = () => {
     const [isCuratorSelf, setIsCuratorSelf] = useState<boolean>(false);
     const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
+      const [serverValue, setServerValue] = useState('');
 
+    // Update selectedOption state when serverValue changes
+    useEffect(() => {
+       console.log('serverValue*********************',serverValue); 
+       setSelectOrcid(serverValue);
+    }, [serverValue]);
     useEffect(() => {
         let userPermissions = JSON.parse(session.data.userRoles);
         let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
@@ -152,6 +158,7 @@ const ManageProfle = () => {
             setSelectOrcid('')
         } else {
             setSelectOrcid(orcidValue)
+            
             setManualORCID('');
         }
         setErrorMessage('');
@@ -219,11 +226,12 @@ const ManageProfle = () => {
                                                         defaultValue="female"
                                                         name="radio-buttons-group"
                                                         value={selectedOrcidValue}
+                                                        
                                                     >
                                                         {
                                                             profileData.map((values, i) => {
-                                                                const { orcid } = values;
-                                                                return <div className="d-flex" key={i}><FormControlLabel className="orcidLabel" key={i} value={orcid} control={<Radio onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
+                                                                const { orcid,recent_updated_orcid} = values;
+                                                                return <div className="d-flex" key={i}><FormControlLabel className="orcidLabel" key={i} value={orcid} control={<Radio  onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
                                                             }
                                                             )
                                                         }

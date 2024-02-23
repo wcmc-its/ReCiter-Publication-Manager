@@ -67,7 +67,7 @@ export const saveORCIDProfile = async (
             'orcid': orcid,
         }
         const result = await sequelize.transaction(async (t) => {
-            const response = await models.AdminOrcid.create(createUserPayload, { transaction: t })
+            const response = await models.AdminOrcid.upsert(createUserPayload)
             res.send(response)
         });
     } catch (e) {

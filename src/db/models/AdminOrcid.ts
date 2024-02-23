@@ -39,7 +39,7 @@ export class AdminOrcid extends Model<AdminOrcidAttributes, AdminOrcidCreationAt
     personIdentifier: {
        type : DataTypes.STRING,
        allowNull:false,
-       primaryKey: true
+       unique: true
     },
     orcid: {
         type : DataTypes.STRING,
