@@ -84,7 +84,7 @@ const Notifications = () => {
     else
        userId = router.query.userId ? router.query.userId : session.data.username
     getNotification(userId);
-  }, [])
+  }, [router.query.userId])
 
   const valuetext = (value: number) => {
     return `${value}`;
@@ -157,7 +157,7 @@ const Notifications = () => {
     <div className={appStyles.mainContainer}>
         <h1 className={styles.header}>Manage Notifications</h1>
       {
-        isCuratorSelf && !isSuperUserORCuratorAll && !isReporterAll ? <>
+        (isCuratorSelf || isSuperUserORCuratorAll) ? <>
         
           {
             getNotificationsByIdLoading ? <div className="d-flex justify-content-center align-items">  <Loader /></div>
@@ -215,12 +215,10 @@ const Notifications = () => {
 
           <ToastContainerWrapper />
         </>
-          : isSuperUserORCuratorAll && !isCuratorSelf && !isReporterAll ? <div className="noAccessRole">
-            <p>Your user does not have the Curator Self role. To edit the Manage Notification preferences for another user, first click on the Manager Users tab.</p>
-          </div>
-            :  !isSuperUserORCuratorAll && !isCuratorSelf && isReporterAll  ? <div className="noAccessRole">
-            </div> :"" }
-    </div>
+          : (!isCuratorSelf || !isReporterAll) ? <div className="noAccessRole">
+            <p>Your user does not have the Curator Self role. To edit the Manage Notification preferences for another user, first click on the Manage Users tab.</p>
+          </div>: ""}
+        </div>
   )
 }
 

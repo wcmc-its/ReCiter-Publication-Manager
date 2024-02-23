@@ -10,8 +10,14 @@ import styles from './Navbar.module.css'
 
 const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive, disabled }) => {
   const router = useRouter();
-  const pathName = router.pathname === "/notifications/[userId]" ? "/notifications" : router.pathname ;
-  const  selected =  pathName.includes(to.includes("/notifications") ? "/notifications" : to );
+  const customRouterPathNames = (routerPath) => {
+    if (routerPath === "/notifications/[userId]") { return "/notifications" }
+    else if (routerPath === "/manageprofile/[userId]") { return "/manageprofile" }
+    else return router.pathname
+  }
+
+  const pathName = customRouterPathNames(router.pathname);
+  const selected = to.includes(pathName);
 
   if (disabled && !selected) {
     return (

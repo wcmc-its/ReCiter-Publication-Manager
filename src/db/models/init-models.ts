@@ -78,6 +78,10 @@ import type { PersonPersonTypeAttributes, PersonPersonTypeCreationAttributes } f
 import { ScienceMetrix } from "./ScienceMetrix";
 import type { ScienceMetrixAttributes, ScienceMetrixCreationAttributes } from "./ScienceMetrix";
 import { AdminSettings } from "./AdminSettings";
+import { AdminOrcid } from "./AdminOrcid";
+import type {AdminOrcidAttributes,
+  AdminOrcidCreationAttributes, } from "./AdminOrcid";
+
 
 export {
   Nlm,
@@ -87,6 +91,7 @@ export {
   AdminNotificationPreference,
   AdminRole,
   AdminUser,
+  AdminOrcid,
   AdminUsersDepartment,
   AdminUsersRole,
   Altmetric,
@@ -132,6 +137,8 @@ export type {
   AdminNotificationLogCreationAttributes,
   AdminNotificationPreferenceAttributes,
   AdminNotificationPreferenceCreationAttributes,
+  AdminOrcidAttributes,
+  AdminOrcidCreationAttributes,
   AdminRoleAttributes,
   AdminRoleCreationAttributes,
   AdminUserAttributes,
@@ -212,6 +219,7 @@ export function initModels(sequelize: Sequelize) {
   AdminUser.initModel(sequelize);
   AdminUsersDepartment.initModel(sequelize);
   AdminUsersRole.initModel(sequelize);
+  AdminOrcid.initModel(sequelize);
   Altmetric.initModel(sequelize);
   AnalysisOverrideAuthorPosition.initModel(sequelize);
   AnalysisRcr.initModel(sequelize);
@@ -258,6 +266,8 @@ export function initModels(sequelize: Sequelize) {
   AdminUser.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "userID"});
   AdminUsersRole.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
   AdminUser.hasMany(AdminUsersRole, { as: "adminUsersRoles", foreignKey: "userID"});
+  AdminOrcid.belongsTo(AdminUser, { as: "user", foreignKey: "personIdentifier"});
+
 
   return {
     Nlm: Nlm,
@@ -269,6 +279,7 @@ export function initModels(sequelize: Sequelize) {
     AdminUser: AdminUser,
     AdminUsersDepartment: AdminUsersDepartment,
     AdminUsersRole: AdminUsersRole,
+    AdminOrcid: AdminOrcid,
     Altmetric: Altmetric,
     AnalysisOverrideAuthorPosition: AnalysisOverrideAuthorPosition,
     AnalysisRcr: AnalysisRcr,

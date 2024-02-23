@@ -189,6 +189,15 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       allowedRoleNames: ["Department_user","Curator_Self","Superuser", "Curator_All"],
       isRequired: isVisibleNotification && session.data.email ? true : false
     },
+    {
+      title: 'Manage Profile',
+      to: `/manageprofile/${session.data.username}`,
+      imgUrl: chartIcon,
+      imgUrlActive: chartIconActive,
+      disabled: false,
+      allowedRoleNames: ["Department_user","Curator_Self","Superuser", "Curator_All"],
+      isRequired: true
+    },
     {title: 'Manage Users', 
       to: '/manageusers', 
       imgUrl: facultyIcon, 

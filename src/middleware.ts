@@ -5,7 +5,7 @@ import jwt_decode from "jwt-decode";
 
 //middleware should run for these router paths
 export const config = {
-  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*'],
+  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*'],
 }
 
 export async function middleware(request: NextRequest) {
@@ -59,11 +59,27 @@ export async function middleware(request: NextRequest) {
             else if (pathName && pathName.startsWith('/notifications')) 
             {
               //correct role restrictions will be implemented once notification functionality is ready. It is just a placeholder for now.
+              if (userRoles.length == 1 && isReporterAll )
+                return redirectToLandingPage(request,'/search'); 
+              else if (userRoles.length == 1  && (pathName !==  '/notifications/'+loggedInUserInfo && isCuratorSelf )) {
+                return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+              }
+              else if (userRoles.length == 2 && (pathName !==  '/notifications/'+loggedInUserInfo || pathName.endsWith('notifications')) && isCuratorSelf && isReporterAll ) {
+                return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+              }
+                
               
-              /* if(isCuratorSelf && !isSuperUser)
-                 return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-               else if (isReporterAll || ((isCuratorAll || isSuperUser) && !isCuratorSelf && pathName ==  '/notifications/'+loggedInUserInfo))  
-                 return   showNoAccessMessage();//redirectToLandingPage(request,'/search');  */   
+            }else if (pathName && pathName.startsWith('/manageprofile')){
+
+                if (userRoles.length == 1 && isReporterAll )
+                  return redirectToLandingPage(request,'/search'); 
+                else if (userRoles.length == 1  && (pathName !==  '/manageprofile/'+loggedInUserInfo && isCuratorSelf )) {
+                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+                }
+                else if (userRoles.length == 2 && (pathName !==  '/manageprofile/'+loggedInUserInfo || pathName.endsWith('notifications')) && isCuratorSelf && isReporterAll ) {
+                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+                }
+
             }
             else if (pathName && pathName.startsWith('/manageusers')  && !isSuperUser)  
             {

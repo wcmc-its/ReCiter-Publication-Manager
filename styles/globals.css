@@ -206,3 +206,40 @@ h1 {
   cursor: pointer;
   /* text-decoration: underline; */
 }
+.inputORCID{
+  width: 500px;
+}
+.width400{
+  width: 400px;
+}
+
+.customLabel a{
+  padding-right: 2px;
+  text-decoration: none; /* Remove default underline */
+  /* border-bottom: 1px dotted black; Dotted underline */
+  padding-bottom: 2px; /* Adjust the space between text and underline */
+  color: #333333;
+  margin-top: 3px !important;
+  margin-right: 5px;
+}
+.customLabel a span{
+  border-bottom: 1px dotted black; /*Dotted underline*/
+}
+.customLabel p{
+  margin-top: 3px !important;
+  margin-bottom: 0 !important;
+  margin-right: 5px ;
+  
+}
+.customLabelForRadio{
+  margin-bottom: 0 !important;
+  margin-top: 6px !important;
+}
+.textDecorationLabel{
+ /* text-decoration: underline;
+  text-decoration-style: dotted;*/
+  color: #333333;
+}
+.orcidLabel{
+  margin-right: 0 !important;
+}
