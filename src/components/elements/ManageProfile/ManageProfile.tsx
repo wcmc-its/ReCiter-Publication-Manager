@@ -197,7 +197,7 @@ const ManageProfle = () => {
         <div className={appStyles.mainContainer}>
             <h1 className={styles.header}>Manage Profile</h1>
             {
-                isCuratorSelf && !isSuperUserORCuratorAll && !isReporterAll ? <>
+                (isCuratorSelf || isSuperUserORCuratorAll) ? <>
                     <div className="pb-4">
                         <h5>ORCID</h5>
                         <p>Provide your unique <a className="textDecorationLabel" href="https://orcid.org/" target="_blank" rel="noreferrer">ORCID ID</a> to retrieve unclaimed PubMed publications. In the interests of <br />streamlining your administrative tasks, your ORCID may be shared with select authorized parties.</p>
@@ -254,11 +254,10 @@ const ManageProfle = () => {
                         </Button>
                     </div>
                     <ToastContainerWrapper />
-                </> : isSuperUserORCuratorAll && !isCuratorSelf && !isReporterAll ? <div className="noAccessRole">
+                </> : (!isCuratorSelf || !isReporterAll) ? <div className="noAccessRole">
                     <p>Your user does not have the Curator Self role. To edit the Manage Profile for another user, first click on the Manage Users tab.</p>
-                </div>
-                    : !isSuperUserORCuratorAll && !isCuratorSelf && isReporterAll ? <div className="noAccessRole">
-                    </div> : ""}
+                </div> :"" }
+                    
         </div>
     )
 }
