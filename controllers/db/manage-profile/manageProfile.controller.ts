@@ -1,6 +1,6 @@
-import { response } from "express";
+import { raw, response } from "express";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Op, Sequelize } from "sequelize";
+import { Op, Sequelize,QueryTypes } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
@@ -11,7 +11,7 @@ export const getManageProfileByID = async (
 ) => {
     const { personIdentifier } = req.query;
     try {
-        let profileInfo: any = '';
+        let profileInfo: any = [];
         let adminUserData = await models.AdminUser.findOne({
             where: { "personIdentifier": personIdentifier }
         })
@@ -20,7 +20,8 @@ export const getManageProfileByID = async (
             profileInfo = await sequelize.query(
                 QueryConstants.getManageProfileForOCIDData,
                 {
-                replacements: {personIdentifier: personIdentifier} , 
+                type: QueryTypes.SELECT,    
+                replacements: {personIdentifier: personIdentifier} ,
                    raw : true,
                 //    benchmark:true
                 },

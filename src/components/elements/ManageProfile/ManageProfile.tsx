@@ -32,11 +32,6 @@ const ManageProfle = () => {
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
       const [serverValue, setServerValue] = useState('');
 
-    // Update selectedOption state when serverValue changes
-    useEffect(() => {
-       console.log('serverValue*********************',serverValue); 
-       setSelectOrcid(serverValue);
-    }, [serverValue]);
     useEffect(() => {
         let userPermissions = JSON.parse(session.data.userRoles);
         let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
@@ -82,11 +77,13 @@ const ManageProfle = () => {
             body: JSON.stringify(payload)
         }).then(response => {
             if (response.status === 200) {
+                setManualORCID("")
                 toast.success("ORCID Saved Successfully", {
                     position: "top-right",
                     autoClose: 2000,
                     theme: 'colored'
                 });
+                getManageProfileData(router.query.userId ? router.query.userId : "")
             }
         }).then(data => {
 
@@ -124,7 +121,11 @@ const ManageProfle = () => {
                 } else if (data.message === "No data found") {
                     setLoadProfileData(false)
                 } else {
-                    setProfileData(data.data[0])
+                    let orcidData = data?.data || ""
+                    let recentUpdatedOrcid = orcidData.find(value => value.recent_updated_orcid == 1);
+                    // setServerValue(recentUpdatedOrcid.orcid);
+                    setSelectOrcid(recentUpdatedOrcid.orcid);
+                    setProfileData(orcidData)
                     setLoadProfileData(false)
                 }
             })
@@ -225,8 +226,7 @@ const ManageProfle = () => {
                                                         aria-labelledby="demo-radio-buttons-group-label"
                                                         defaultValue="female"
                                                         name="radio-buttons-group"
-                                                        value={selectedOrcidValue}
-                                                        
+                                                        value={selectedOrcidValue }
                                                     >
                                                         {
                                                             profileData.map((values, i) => {

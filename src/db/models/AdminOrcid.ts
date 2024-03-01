@@ -44,7 +44,6 @@ export class AdminOrcid extends Model<AdminOrcidAttributes, AdminOrcidCreationAt
     orcid: {
         type : DataTypes.STRING,
         allowNull:false,
-        primaryKey: true
      },
     // createTimestamp: {
     //   type: DataTypes.DATE,
