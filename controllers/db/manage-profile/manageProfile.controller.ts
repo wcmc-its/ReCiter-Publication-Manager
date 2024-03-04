@@ -1,6 +1,6 @@
-import { response } from "express";
+import { raw, response } from "express";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Op, Sequelize } from "sequelize";
+import { Op, Sequelize,QueryTypes } from "sequelize";
 import models from "../../../src/db/sequelize";
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
@@ -11,7 +11,7 @@ export const getManageProfileByID = async (
 ) => {
     const { personIdentifier } = req.query;
     try {
-        let profileInfo: any = '';
+        let profileInfo: any = [];
         let adminUserData = await models.AdminUser.findOne({
             where: { "personIdentifier": personIdentifier }
         })
@@ -20,7 +20,8 @@ export const getManageProfileByID = async (
             profileInfo = await sequelize.query(
                 QueryConstants.getManageProfileForOCIDData,
                 {
-                replacements: {personIdentifier: personIdentifier} , 
+                type: QueryTypes.SELECT,    
+                replacements: {personIdentifier: personIdentifier} ,
                    raw : true,
                 //    benchmark:true
                 },
@@ -67,7 +68,7 @@ export const saveORCIDProfile = async (
             'orcid': orcid,
         }
         const result = await sequelize.transaction(async (t) => {
-            const response = await models.AdminOrcid.create(createUserPayload, { transaction: t })
+            const response = await models.AdminOrcid.upsert(createUserPayload)
             res.send(response)
         });
     } catch (e) {
@@ -76,4 +77,25 @@ export const saveORCIDProfile = async (
     }
 }
 
+export const resetProfileORCID = async (
+    req: NextApiRequest,
+    res: NextApiResponse
+) => {
+    const { orcid, personIdentifier } = req.query;
+    try {
+        let createUserPayload = {
+            'personIdentifier': personIdentifier,
+            'orcid': orcid,
+        }
 
+            const response = await models.AdminOrcid.destroy({
+                where:{
+                    personIdentifier : personIdentifier
+                }
+            })
+            res.send(response)
+    } catch (e) {
+        console.log(e);
+        res.status(500).send(e);
+    }
+}
