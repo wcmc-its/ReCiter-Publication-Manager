@@ -30,7 +30,7 @@ const ManageProfle = () => {
     const [isCuratorSelf, setIsCuratorSelf] = useState<boolean>(false);
     const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
-      const [serverValue, setServerValue] = useState('');
+    const [serverValue, setServerValue] = useState('');
 
     useEffect(() => {
         let userPermissions = JSON.parse(session.data.userRoles);
@@ -77,7 +77,6 @@ const ManageProfle = () => {
             body: JSON.stringify(payload)
         }).then(response => {
             if (response.status === 200) {
-                setManualORCID("")
                 toast.success("ORCID Saved Successfully", {
                     position: "top-right",
                     autoClose: 2000,
@@ -92,9 +91,27 @@ const ManageProfle = () => {
         })
     }
 
+
     const onReset = () => {
-        setManualORCID("");
-        setSelectOrcid("");
+        let url = `/api/db/admin/manageProfile/resetProfileORCID?personIdentifier=${router.query.userId}`;
+        fetch(url, {
+            credentials: "same-origin",
+            method: 'DELETE',
+            headers: {
+                Accept: 'application/json',
+                "Content-Type": "application/json",
+                'Authorization': reciterConfig.backendApiKey
+            },
+        })
+            .then(res => res.json()) // or res.json()
+            .then(res => {
+                setManualORCID("");
+                setSelectOrcid("");
+        
+            })
+            .catch(error => {
+                console.log(error);
+            });
     }
 
     const getManageProfileData = (personIdentifier) => {
@@ -111,7 +128,6 @@ const ManageProfle = () => {
         }).then(response => response.json())
             .then(data => {
                 if (data.message === "User does not exist") {
-
                     toast.error("User does not exist", {
                         position: "top-right",
                         autoClose: 2000,
@@ -123,10 +139,9 @@ const ManageProfle = () => {
                 } else {
                     let orcidData = data?.data || ""
                     let recentUpdatedOrcid = orcidData.find(value => value.recent_updated_orcid == 1);
-                    // setServerValue(recentUpdatedOrcid.orcid);
-                    setSelectOrcid(recentUpdatedOrcid.orcid);
-                    setProfileData(orcidData)
-                    setLoadProfileData(false)
+                    setSelectOrcid(recentUpdatedOrcid?.orcid);
+                    setProfileData(orcidData);
+                    setLoadProfileData(false);
                 }
             })
             .catch(error => {
@@ -159,7 +174,7 @@ const ManageProfle = () => {
             setSelectOrcid('')
         } else {
             setSelectOrcid(orcidValue)
-            
+
             setManualORCID('');
         }
         setErrorMessage('');
@@ -226,12 +241,12 @@ const ManageProfle = () => {
                                                         aria-labelledby="demo-radio-buttons-group-label"
                                                         defaultValue="female"
                                                         name="radio-buttons-group"
-                                                        value={selectedOrcidValue }
+                                                        value={selectedOrcidValue}
                                                     >
                                                         {
                                                             profileData.map((values, i) => {
-                                                                const { orcid,recent_updated_orcid} = values;
-                                                                return <div className="d-flex" key={i}><FormControlLabel className="orcidLabel" key={i} value={orcid} control={<Radio  onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
+                                                                const { orcid, recent_updated_orcid } = values;
+                                                                return <div className="d-flex" key={i}><FormControlLabel className="orcidLabel" key={i} value={orcid} control={<Radio onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
                                                             }
                                                             )
                                                         }
@@ -264,8 +279,8 @@ const ManageProfle = () => {
                     <ToastContainerWrapper />
                 </> : (!isCuratorSelf || !isReporterAll) ? <div className="noAccessRole">
                     <p>Your user does not have the Curator Self role. To edit the Manage Profile for another user, first click on the Manage Users tab.</p>
-                </div> :"" }
-                    
+                </div> : ""}
+
         </div>
     )
 }

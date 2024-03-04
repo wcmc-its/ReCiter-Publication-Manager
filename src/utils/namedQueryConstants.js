@@ -37,7 +37,7 @@ export const QueryConstants = {
     "person_article_author a " +
 "JOIN " +
     "person_article b ON b.pmid = a.pmid AND b.personIdentifier = a.personIdentifier " +
-"JOIN " +
+"LEFT JOIN " +
     "admin_orcid ao2  on a.personIdentifier = ao2.personIdentifier AND ao2.personIdentifier = b.personIdentifier " +     
 "WHERE " +
     "a.orcid IS NOT NULL " +

@@ -77,4 +77,25 @@ export const saveORCIDProfile = async (
     }
 }
 
+export const resetProfileORCID = async (
+    req: NextApiRequest,
+    res: NextApiResponse
+) => {
+    const { orcid, personIdentifier } = req.query;
+    try {
+        let createUserPayload = {
+            'personIdentifier': personIdentifier,
+            'orcid': orcid,
+        }
 
+            const response = await models.AdminOrcid.destroy({
+                where:{
+                    personIdentifier : personIdentifier
+                }
+            })
+            res.send(response)
+    } catch (e) {
+        console.log(e);
+        res.status(500).send(e);
+    }
+}
