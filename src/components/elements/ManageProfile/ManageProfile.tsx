@@ -105,9 +105,14 @@ const ManageProfle = () => {
         })
             .then(res => res.json()) // or res.json()
             .then(res => {
+                toast.success("ORCID has been deleted successfully", {
+                    position: "top-right",
+                    autoClose: 2000,
+                    theme: 'colored'
+                });
                 setManualORCID("");
                 setSelectOrcid("");
-        
+                
             })
             .catch(error => {
                 console.log(error);
