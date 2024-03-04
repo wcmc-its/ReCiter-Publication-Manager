@@ -143,8 +143,11 @@ const ManageProfle = () => {
                     setLoadProfileData(false)
                 } else {
                     let orcidData = data?.data || ""
-                    let recentUpdatedOrcid = orcidData.find(value => value.recent_updated_orcid == 1);
-                    setSelectOrcid(recentUpdatedOrcid?.orcid);
+                    let recentUpdatedOrcid = orcidData.find(value => value.recently_selected_orcid == value.orcid);
+                    if(recentUpdatedOrcid)
+                        setSelectOrcid(recentUpdatedOrcid?.recently_selected_orcid);
+                    else
+                       setManualORCID(orcidData && orcidData.length > 0?orcidData[0].recently_selected_orcid:""); 
                     setProfileData(orcidData);
                     setLoadProfileData(false);
                 }

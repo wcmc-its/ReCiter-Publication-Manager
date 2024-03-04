@@ -32,7 +32,7 @@ export const QueryConstants = {
     "COUNT(DISTINCT CASE WHEN userAssertion = 'ACCEPTED' THEN b.pmid END) AS articleCount_accepted, " +
     "COUNT(DISTINCT CASE WHEN userAssertion = 'NULL' THEN b.pmid END) AS articleCount_null, " +   
     "COUNT(DISTINCT CASE WHEN userAssertion = 'REJECTED' THEN b.pmid END) AS articleCount_rejected, " +
-    "CASE WHEN ao2.orcid = a.orcid THEN true else false end recent_updated_orcid " +
+    "ao2.orcid recently_selected_orcid " +
 "FROM " +
     "person_article_author a " +
 "JOIN " +
