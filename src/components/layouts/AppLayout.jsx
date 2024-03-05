@@ -75,29 +75,21 @@ export const AppLayout = ({ children }) => {
     session.data.databaseUser.status == 1 ? (
     <>
       {/* <Header /> */}
-      <Row className="row-content">
-        <ExpandNavContext.Provider
+      <Row>
+      <Col lg={ expandedNav ? 2 :1}>
+      <ExpandNavContext.Provider
           value={{ expand: expandedNav, updateExpand: toggleExpand }}
         >
           <SideNavbar />
         </ExpandNavContext.Provider>
-        <div
-          className={`col-md-12 d-flex flex-column ${styles.main} ${
-            expandedNav ? styles.mainCompact : ""
-          }`}
-          id="page-content-wrapper"
-        >
-          <Row className="row-content">
-            <Col className="main-content p-0" lg={12}>
+      </Col>
+      <Col lg={expandedNav ? 10 :11} >
+      <div className={expandedNav ? styles.expandedSideBarContent : styles.nonExpandedSideBarContent}>
                {children} 
-            </Col>
+            </div>
             {reciterConfig?.showToasts?<ToastContainerWrapper/>: null}
-          </Row>
-          {/* <Row>
-            <Footer />
-          </Row> */}
-        </div>
-      </Row>
+      </Col>
+     </Row>
     </>
   ) : (
     <NoAccess />
