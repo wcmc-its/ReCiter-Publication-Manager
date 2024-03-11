@@ -38,7 +38,7 @@ const CurateIndividual = () => {
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
-  const [data: session, status] = useSession();
+  const {data: session, status} = useSession();
   const loading = status === "loading"
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [viewProfileLabels, setViewProfileLabels] = useState([])

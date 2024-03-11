@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
-import Providers from "next-auth/providers";
+//import sessionProvider from "next-auth/providers";
+import { SessionProvider } from "next-auth/react"
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";

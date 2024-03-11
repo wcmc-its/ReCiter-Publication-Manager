@@ -34,7 +34,8 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
     const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
     const [modalShow, setModalShow] = useState(false);
-    const [session, loading] = useSession();
+    const { data: session, status } = useSession()
+    const loading = status === "loading"
     const dispatch = useDispatch();
 
     const router = useRouter()

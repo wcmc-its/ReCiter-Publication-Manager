@@ -7,13 +7,14 @@ import { useSession } from 'next-auth/react';
 
 
 const ToastContainerWrapper = () => {
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession()
+  const loading = status === "loading"
 
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [isToastVisible, setIsToastVisible] = useState<boolean>(false)
 
   useEffect(() => {
-    let adminSettings = session && JSON.parse(JSON.stringify(session?.adminSettings));
+    let adminSettings = session && JSON.parse(JSON.stringify(session.data?.adminSettings));
     var displayToastMessages = [];
     if (updatedAdminSettings.length > 0) { 
       let displayMessages = updatedAdminSettings.find(obj => obj.viewName === "displayMessages")

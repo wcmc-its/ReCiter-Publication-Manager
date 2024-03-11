@@ -23,7 +23,8 @@ import { useSession } from 'next-auth/react';
 
 const Report = () => {
   const dispatch = useDispatch()
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession()
+  const loading = status === "loading"
 
   // state to manage what content to display on inital load
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
@@ -84,7 +85,7 @@ const Report = () => {
   // fetch filters on mount
   useEffect(() => {
     // let parsedAdminSettings:adminSettings["adminSettings"]  = 
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    let adminSettings = JSON.parse(JSON.stringify(session.data?.adminSettings));
     var viewAttributes = [];
     var profileViewAttributes = [];
     var sortLabelViewAttributes = [];

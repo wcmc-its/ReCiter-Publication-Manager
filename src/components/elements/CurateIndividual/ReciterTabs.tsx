@@ -16,7 +16,8 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
-  const [session, loading] = useSession();
+  const {data: session, status} = useSession();
+  const loading = status === "loading"
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
   const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
   const [pubSearchFilters, setPubSearchFilters] = useState();

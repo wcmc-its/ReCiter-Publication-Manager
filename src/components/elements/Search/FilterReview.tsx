@@ -30,7 +30,8 @@ const FilterReview = ({
   const [filter, setFilter] = useState(false);
   const router = useRouter();
   const dispatch = useDispatch();
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession()
+  const loading = status === "loading"
 
   const[dropdownTitle, setDropdownTitle] = useState("");
   const[dropdownMenuItems, setDropdownMenuItems] = useState([]);

@@ -21,7 +21,8 @@ import Profile from "../Profile/Profile";
 
 const Search = () => {
 
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession()
+  const loading = status === "loading"
 
   const router = useRouter()
   const history = useHistory();

@@ -19,7 +19,8 @@ export const AppLayout = ({ children }) => {
   const router = useRouter();
   const dispatch = useDispatch ()
 
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession()
+  const loading = status === "loading"
   const errors = useSelector((state) => state.errors);
 
   useEffect(() => {

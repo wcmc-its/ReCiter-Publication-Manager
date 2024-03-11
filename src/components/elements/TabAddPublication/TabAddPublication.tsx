@@ -44,7 +44,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     const totalPubMedPubCount = useSelector((state: RootStateOrAny) => state.pubMedCount)
 
     const errors = useSelector((state: RootStateOrAny) => state.errors)
-    const [session, loading] = useSession();
+    const { data: session, status } = useSession()
+    const loading = status === "loading"
 
     const [sort, setSort] = useState<string>("0")
     const [search, setSearch] = useState<string>("")

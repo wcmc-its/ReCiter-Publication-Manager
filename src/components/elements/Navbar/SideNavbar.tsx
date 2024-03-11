@@ -150,7 +150,8 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const [isVisibleNotification, setVisibleNotification] = React.useState(true);
 
 
-  const [session, loading] = useSession();
+  const {data: session, status} = useSession();
+  const loading = status === "loading"
 
   const menuItems: Array<MenuItem> = [
     {
@@ -262,7 +263,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   
 
   React.useEffect(()=>{
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    let adminSettings = JSON.parse(JSON.stringify(session.data?.adminSettings));
     var manageNotifications = [];
     if (updatedAdminSettings.length > 0) {
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")

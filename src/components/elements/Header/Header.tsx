@@ -5,7 +5,7 @@ import { signOut, useSession} from 'next-auth/react';
 import { getSigninUrl } from '../../../utils/loginHelper'
 
 const Header = () => {
-    const [data: session, status]:any = useSession()
+    const { data: session, status } = useSession()
     const loading = status === "loading"
     return (
         <Navbar bg="primary" className={styles.opNav}>

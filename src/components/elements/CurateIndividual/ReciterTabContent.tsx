@@ -30,7 +30,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(50)
-  const [data:session, loading] = useSession();
+  const {data: session, status} = useSession();
+  const loading = status === "loading"
   const [totalCount, setTotalCount] = useState<number>(publications.length || 0);
   const dispatch = useDispatch();
 

@@ -57,7 +57,8 @@ const Profile = ({
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState<boolean>(false);
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession()
+    const loading = status === "loading"
   const userPermissions = JSON.parse(session.data.userRoles);
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
@@ -82,7 +83,7 @@ const Profile = ({
   }, [modalShow])
 
   useEffect(()=>{
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    let adminSettings = JSON.parse(JSON.stringify(session.data?.adminSettings));
     let exportArticleRTFViewAttr = [];
 
     if (updatedAdminSettings.length > 0) {

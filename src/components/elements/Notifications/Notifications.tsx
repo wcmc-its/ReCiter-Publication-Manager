@@ -17,7 +17,8 @@ import Box from '@mui/material/Box';
 
 const Notifications = () => {
   const dispatch = useDispatch()
-  const [session, loading] = useSession();
+  const {data: session} = useSession();
+  //const loading = status === "loading"
   const router = useRouter()
   const [state, setState] = useState({
     frequency: 7,

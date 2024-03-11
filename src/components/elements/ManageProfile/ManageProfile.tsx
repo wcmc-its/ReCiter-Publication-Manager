@@ -18,7 +18,8 @@ import Loader from "../Common/Loader";
 
 const ManageProfle = () => {
     const dispatch = useDispatch()
-    const [session, loading] = useSession();
+    const {data: session, status} = useSession();
+    const loading = status === "loading"
     const router = useRouter()
     const [suggested, setSuggested] = useState<boolean>(false);
     const [manualORCID, setManualORCID] = useState('');

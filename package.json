@@ -74,7 +74,7 @@
     "http-build-query": "^0.7.0",
     "jsonwebtoken": "^8.5.1",
     "sequelize-auto": "^0.8.5",
-    "typescript": "4.4.3"
+    "typescript": "4.5.2"
   },
   "resolutions": {
     "@types/react": "^17.0.38",

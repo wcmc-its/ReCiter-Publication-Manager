@@ -24,7 +24,8 @@ type NestedListItemProps = {
 
 const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgUrl}) => {
   const [open, setOpen] = React.useState(false);
-  const [session, loading] = useSession();
+  const {data: session, status} = useSession();
+  const loading = status === "loading"
 
 
   const handleClick = () => {
