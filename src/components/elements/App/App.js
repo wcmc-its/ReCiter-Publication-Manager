@@ -10,7 +10,7 @@ import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import {getSession } from "next-auth/client"
+import {getSession } from "next-auth/react"
 
 const App = (props) => {
 

@@ -8,7 +8,7 @@ import SplitDropdown from "../Dropdown/SplitDropdown";
 import { useRouter } from 'next/router';
 import { useDispatch } from "react-redux";
 import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { allowedPermissions, dropdownItemsReport } from "../../../utils/constants";
 import styles from './Search.module.css'
 

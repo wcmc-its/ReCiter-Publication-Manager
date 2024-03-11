@@ -13,7 +13,7 @@ import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrappe
 import { toast } from "react-toastify"
 import Pagination from '../Pagination/Pagination';
 import Filter from "../Filter/Filter";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 
 

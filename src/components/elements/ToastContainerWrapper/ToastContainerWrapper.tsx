@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useSelector, useDispatch,RootStateOrAny } from "react-redux";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 
 

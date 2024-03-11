@@ -6,7 +6,7 @@ import styles from "./CurateIndividual.module.css";
 import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
 import { allowedPermissions } from "../../../utils/constants";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault } from "../../../redux/actions/actions";
 
 

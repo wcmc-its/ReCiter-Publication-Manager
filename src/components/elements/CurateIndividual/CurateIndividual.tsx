@@ -12,7 +12,7 @@ import SuggestionsBanner from "./SuggestionsBanner";
 import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { allowedPermissions, toastMessage } from "../../../utils/constants";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
@@ -38,7 +38,8 @@ const CurateIndividual = () => {
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
-  const [session, loading] = useSession();
+  const [data: session, status] = useSession();
+  const loading = status === "loading"
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [viewProfileLabels, setViewProfileLabels] = useState([])
   const [isLoading, setLoading] = useState(false);

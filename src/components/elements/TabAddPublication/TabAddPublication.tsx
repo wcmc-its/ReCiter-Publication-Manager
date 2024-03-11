@@ -8,7 +8,7 @@ import { RootStateOrAny, useSelector, useDispatch } from "react-redux";
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
 import { YearPicker } from 'react-dropdown-date';
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 // import { VrpanoSharp, ClearIcon } from "@mui/icons-material";
 import ClearIcon from '@mui/icons-material/Clear';
 import {Form,Button} from "react-bootstrap"

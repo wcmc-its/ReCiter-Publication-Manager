@@ -19,7 +19,7 @@ import { useModal } from "../../../hooks/useModal";
 import { Container } from "react-bootstrap";
 import { ReportResults } from "./ReportResults";
 import { countPersons } from "../../../../controllers/db/person.controller";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 const Report = () => {
   const dispatch = useDispatch()

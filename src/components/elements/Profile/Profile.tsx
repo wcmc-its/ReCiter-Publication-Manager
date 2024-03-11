@@ -10,7 +10,7 @@ import { reciterConfig } from '../../../../config/local';
 import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 import { allowedPermissions, setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
 
 

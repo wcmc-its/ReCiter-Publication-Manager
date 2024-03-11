@@ -1,13 +1,14 @@
 import React, { Component } from "react";
 import { Navbar, Container} from "react-bootstrap";
 import styles from "./Header.module.css";
-import { signOut, useSession} from 'next-auth/client';
+import { signOut, useSession} from 'next-auth/react';
 import { getSigninUrl } from '../../../utils/loginHelper'
 
 const Header = () => {
-    const [session, loading] = useSession()
+    const [data: session, status]:any = useSession()
+    const loading = status === "loading"
     return (
-        <Navbar bg="primary" className={styles.topNav}>
+        <Navbar bg="primary" className={styles.opNav}>
           <div>
               <Navbar.Brand className={styles.headerText}>
                   <b>ReCiter Publication Manager</b>

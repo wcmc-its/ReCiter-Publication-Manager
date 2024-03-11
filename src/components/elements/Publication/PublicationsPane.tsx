@@ -11,7 +11,7 @@ import Publication from "./Publication";
 import { reciterConfig } from "../../../../config/local";
 import Divider from "../Common/Divider";
 import Profile from "../Profile/Profile";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { useDispatch } from "react-redux";
 import { reciterUpdatePublicationGroup } from "../../../redux/actions/actions"; 
 

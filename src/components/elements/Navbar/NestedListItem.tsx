@@ -11,7 +11,7 @@ import Image from 'next/image';
 import MenuListItem from "./MenuListItem";
 import Box from '@mui/material/Box';
 import styles from './Navbar.module.css';
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 
 type ImageSourcePropType = React.ComponentProps<typeof Image>['src']

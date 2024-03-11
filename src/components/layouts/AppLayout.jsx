@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { Row, Col } from "react-bootstrap";
 import SideNavbar from "../elements/Navbar/SideNavbar";
 import { Footer } from "../elements/Footer/Footer";

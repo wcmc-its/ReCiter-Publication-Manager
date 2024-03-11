@@ -5,7 +5,7 @@ import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import Loader from "../Common/Loader";
 import { Form, Button, Spinner,Carousel } from "react-bootstrap";
 import { saveNotification, sendNotification, sendEmailData, disableNotificationbyID } from "../../../redux/actions/actions";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { reciterConfig } from "../../../../config/local";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';

@@ -5,10 +5,9 @@ import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination from '../Pagination/Pagination';
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { curateSearchtextAction, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
-import { FormControlUnstyled } from "@mui/material";
 
 interface TabContentProps {
   tabType: string,
@@ -31,7 +30,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(50)
-  const [session, loading] = useSession();
+  const [data:session, loading] = useSession();
   const [totalCount, setTotalCount] = useState<number>(publications.length || 0);
   const dispatch = useDispatch();
 

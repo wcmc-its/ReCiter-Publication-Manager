@@ -3,7 +3,7 @@ import appStyles from '../App/App.module.css';
 import styles from './ManageProfile.module.css';
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import { Form, Button, Spinner, Carousel, InputGroup } from "react-bootstrap";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import Radio from '@mui/material/Radio';
