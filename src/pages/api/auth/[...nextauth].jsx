@@ -50,6 +50,7 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
 }
 const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
+    console.log('adminSettings*********************',adminSettings);
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
     {
         let viewAttributes = JSON.parse(adminSettings.viewAttributes);
@@ -82,6 +83,7 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
         if(assignRolesPayload && assignRolesPayload.length > 0)
         {
             const userRole = await  findOrCreateAdminUserRole (assignRolesPayload); 
+            console.log('userRole*******************************',userRole);
             return userRole;
         }
     }
