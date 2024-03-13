@@ -1,3 +1,4 @@
+import { Json } from 'sequelize/types/lib/utils';
 import { AdminUsersRole } from '../../src/db/models/AdminUsersRole';
 import models from '../../src/db/sequelize'
 import { findOnePerson } from './person.controller'
@@ -5,11 +6,28 @@ import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
-        const person = await findOnePerson(uid)
+
+        let whereCondition:any ='';
+
+        if(samlEmail)
+        {
+            whereCondition = {email: samlEmail}
+        }
+        else if(uid)
+        {
+            whereCondition = { personIdentifier: uid}
+        }
+        let person:any=null;
+        if(uid)
+             person = await findOnePerson("personIdentifier",uid);
+        else if(samlEmail)
+             person = await findOnePerson("email",samlEmail);   
         const [user, created] = await models.AdminUser.findOrCreate({
-            where: {
+
+            where : whereCondition,
+           /* where: {
                 personIdentifier: uid,
-            },
+            },*/
             defaults: {
                 personIdentifier: uid,
                 nameFirst: samlFirstName?samlFirstName:((person && person.firstName)?person.firstName:null),

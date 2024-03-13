@@ -21,7 +21,7 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
+const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
@@ -148,6 +148,7 @@ const options = {
                     let smalUserEmail = null;
                     let firstName = null;
                     let lastName = null;
+                    let userPrincipalName = null;
                     if(dupUser)
                         usrAttr = JSON.parse(dupUser);
                     if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
@@ -155,11 +156,31 @@ const options = {
                     if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
                         firstName = usrAttr['urn:oid:2.5.4.42'][0];
                     if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
-                        lastName = usrAttr['urn:oid:2.5.4.4'][0];   
-                    if(smalUserEmail){
+                        lastName = usrAttr['urn:oid:2.5.4.4'][0];
+                    if(usrAttr && usrAttr['userPrincipalName'] && usrAttr['userPrincipalName'].length > 0)
+                        userPrincipalName = usrAttr['userPrincipalName'][0];
+                    
+                        
+                    /*
+                        User is trying to authenticate to Publication Manager.
+ 
+                        1. Does user have first, middle, and last name in SAML payload? 
+                        - If yes, get data from SAML. Create record in admin_users
+                        - If no, go to 2.
+                        
+                        2. Does record exist in person table?
+                        - If yes, get name data from person table.
+                        - If no, create record without populating name data.
+                        
+                        In all cases, populate email in admin_users. Failing that, populate userPrincipalName (EPPN).
+                    */  
+                    if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
-                            const adminUser = await findAdminUser(smalUserEmail,"email")
-                            await sleep(100)
+                           // const adminUser = await findAdminUser(smalUserEmail||userPrincipalName,"email")
+                           console.log('smalUserEmail************************',smalUserEmail);
+                           console.log('userPrincipalName************************',userPrincipalName);
+                           const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
+                           await sleep(100)
                           if(adminUser){
                                 adminUser.databaseUser = adminUser
                                 adminUser.personIdentifier
@@ -175,7 +196,7 @@ const options = {
                          }
                          else if(cwid)
                          {
-                               const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                               const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                         && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
@@ -185,7 +206,7 @@ const options = {
                          
                     }
                     else if(cwid){
-                           const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           const adminUser = await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                            if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                     && reciterConfig.asms.userTrackingAPIAuthorization)
                                 persistUserLogin(cwid);	
