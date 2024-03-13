@@ -187,13 +187,20 @@ export const findAllInstitutions = async (req: NextApiRequest, res: NextApiRespo
 };
 
 
-export const findOnePerson = async (uid: string) => {
+export const findOnePerson = async (attrName: string,attrValue: string) => {
     
+    let whereCondition:any ='';
     try {
+         if(attrName && attrName =='personIdentifier')
+            whereCondition = {personIdentifier : attrValue};
+         else if(attrName && attrName == 'email')
+            whereCondition = {primaryEmail : attrValue}
+        
         const person = await models.Person.findOne({
-            where: {
+            where: whereCondition,
+            /*{
                 personIdentifier: uid
-            },
+            },*/
             attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]
         });
         return person
