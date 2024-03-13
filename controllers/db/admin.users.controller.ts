@@ -42,7 +42,7 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
 
         created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
             console.log('User ' + uid + ' already exists in adminUsers table')
-        
+        console.log('returning the user******************',user.get({plain:true}));
         return user.get({plain:true});
         
     } catch (e) {
