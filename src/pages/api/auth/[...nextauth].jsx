@@ -186,9 +186,12 @@ const options = {
                           if(adminUser){
                                 adminUser.databaseUser = adminUser
                                 adminUser.personIdentifier
+                                console.log('coming here as well*************');
                                 const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+                                console.log('After assigning the roles*************',assignedRoles);
                                 await sleep(100)
                                 const userRoles = await findUserPermissions(smalUserEmail,"email");
+                                console.log('After finding the user roles*************',userRoles);
                                 adminUser.userRoles = userRoles;
                                 if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
