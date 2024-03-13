@@ -23,6 +23,7 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+    console.log('createdAdminUser*******************',createdAdminUser);
     if(createdAdminUser)
     {
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
@@ -180,6 +181,7 @@ const options = {
                            console.log('smalUserEmail************************',smalUserEmail);
                            console.log('userPrincipalName************************',userPrincipalName);
                            const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
+                           console.log('adminUser************************',adminUser);
                            await sleep(100)
                           if(adminUser){
                                 adminUser.databaseUser = adminUser
@@ -191,6 +193,7 @@ const options = {
                                 if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
+                                 console.log('returning adminUser******************',adminUser);   
                                 if(adminUser)
                                     return adminUser;
                          }
@@ -213,6 +216,7 @@ const options = {
                            if(adminUser)
                                     return adminUser;
                     }
+                    console.log('coming no access******************'.cwid);  
                     return { cwid, has_access: false };
                 } catch (error) {
                     return null;
