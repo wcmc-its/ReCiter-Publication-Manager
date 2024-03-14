@@ -42,7 +42,6 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
 
         created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
             console.log('User ' + uid + ' already exists in adminUsers table')
-        console.log('returning the user******************',user.get({plain:true}));
         return user.get({plain:true});
         
     } catch (e) {
@@ -92,7 +91,6 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
         created?console.log('Role ' + roleID + ' is created for the Admin user with UserId '+userID): 
             console.log('User ' + userID + ' and role Id '+ roleID +'already exists in adminUsersroles table')
         
-        console.log(adminUserRole.toJSON())
         return adminUserRole
         }));
         return data;
