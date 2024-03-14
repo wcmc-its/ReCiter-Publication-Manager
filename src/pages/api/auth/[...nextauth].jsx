@@ -128,6 +128,7 @@ const options = {
                                 if (error) {
                                     reject(error);
                                 }
+                                console.log('response from SAML**********************',response);
                                 resolve(response);
                             }
                         );
