@@ -1,5 +1,3 @@
-import { Json } from 'sequelize/types/lib/utils';
-import { AdminUsersRole } from '../../src/db/models/AdminUsersRole';
 import models from '../../src/db/sequelize'
 import { findOnePerson } from './person.controller'
 import { Op} from "sequelize"
