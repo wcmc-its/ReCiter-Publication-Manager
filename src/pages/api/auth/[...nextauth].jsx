@@ -21,7 +21,6 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    console.log('createdAdminUser*******************',createdAdminUser);
     if(createdAdminUser)
     {
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
@@ -48,7 +47,6 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
 }
 const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
-    console.log('adminSettings*********************',adminSettings);
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
     {
         let viewAttributes = JSON.parse(adminSettings.viewAttributes);
@@ -81,7 +79,6 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
         if(assignRolesPayload && assignRolesPayload.length > 0)
         {
             const userRole = await  findOrCreateAdminUserRole (assignRolesPayload); 
-            console.log('userRole*******************************',userRole);
             return userRole;
         }
     }
@@ -177,26 +174,12 @@ const options = {
                     */  
                     if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
-                           // const adminUser = await findAdminUser(smalUserEmail||userPrincipalName,"email")
-                           console.log('smalUserEmail************************',smalUserEmail);
-                           console.log('userPrincipalName************************',userPrincipalName);
                            const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
-                           console.log('adminUser************************',adminUser);
                            await sleep(100)
                           if(adminUser){
-                               /* adminUser.databaseUser = adminUser
-                                adminUser.personIdentifier
-                                console.log('coming here as well*************');
-                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                console.log('After assigning the roles*************',assignedRoles);
-                                await sleep(100)
-                                const userRoles = await findUserPermissions(smalUserEmail,"email");
-                                console.log('After finding the user roles*************',userRoles);
-                                adminUser.userRoles = userRoles;*/
                                 if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
-                                 console.log('returning adminUser******************',adminUser);   
                                 if(adminUser)
                                     return adminUser;
                          }
@@ -219,7 +202,6 @@ const options = {
                            if(adminUser)
                                     return adminUser;
                     }
-                    console.log('coming no access******************'.cwid);  
                     return { cwid, has_access: false };
                 } catch (error) {
                     return null;
