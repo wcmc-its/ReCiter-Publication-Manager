@@ -23,6 +23,7 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
+        console.log('adminUserCreated******************',createdAdminUser);
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
         const userRoles = await findUserPermissions(cwid, "cwid")
@@ -39,7 +40,8 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
             "modifyTimestamp":createdAdminUser.modifyTimestamp
         }
         createdAdminUser.databaseUser = databaseUser
-        createdAdminUser.personIdentifier    
+        createdAdminUser.personIdentifier 
+        console.log('createdAdminUser**********************',createdAdminUser);   
         if(createdAdminUser)
             return createdAdminUser;
     }

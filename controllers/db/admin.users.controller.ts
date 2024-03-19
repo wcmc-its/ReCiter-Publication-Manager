@@ -4,7 +4,7 @@ import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
-
+        console.log('samlEmail*************',samlEmail);
         let whereCondition:any ='';
 
         if(samlEmail)
@@ -15,17 +15,17 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
         {
             whereCondition = { personIdentifier: uid}
         }
+        console.log('whereCondition*************',whereCondition);
         let person:any=null;
-        if(uid)
+        if(samlEmail)
+             person = await findOnePerson("email",samlEmail);  
+        else if(uid)
              person = await findOnePerson("personIdentifier",uid);
-        else if(samlEmail)
-             person = await findOnePerson("email",samlEmail);   
+         
+         console.log('person*****************',person);    
         const [user, created] = await models.AdminUser.findOrCreate({
 
             where : whereCondition,
-           /* where: {
-                personIdentifier: uid,
-            },*/
             defaults: {
                 personIdentifier: uid,
                 nameFirst: samlFirstName?samlFirstName:((person && person.firstName)?person.firstName:null),
