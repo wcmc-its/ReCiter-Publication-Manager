@@ -7,8 +7,6 @@ import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from 
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import { createAdminUser } from "../../../redux/actions/actions";
-import sequelizeASMS from "../../../db/asmsDB";
-import DateTime from "tedious/lib/data-types/datetime";
 import { reciterConfig } from "../../../../config/local";
 
 
@@ -131,7 +129,6 @@ const options = {
                                 if (error) {
                                     reject(error);
                                 }
-                                console.log('response from SAML**********************',response);
                                 resolve(response);
                             }
                         );
