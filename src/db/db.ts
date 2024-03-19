@@ -1,5 +1,4 @@
 import { Sequelize } from "sequelize"
-import * as tedious from 'tedious';
 
 const sequelize = new Sequelize(
     process.env.RECITER_DB_NAME || "",
@@ -15,7 +14,6 @@ const sequelize = new Sequelize(
             acquire: 30000,
             idle: 10000
         },
-        dialectModule : tedious
         //logging: false
 })
 
