@@ -54,10 +54,15 @@ const Login = () => {
                     let userPermissions = JSON.parse(session.data.userRoles);
                     let userName = session.data.username;
                     let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
-                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName)  
-                        router.push(`/curate/${personIdentifier}`);
+                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier) {
+                        console.log('navigating to curator profile page*******************',personIdentifier)
+                        router.push(`curate/${personIdentifier}`);
+                    }
                     else 
+                    {
+                        console.log('navigating into search page when no personIdentifier present********************');
                         router.push('/search');
+                    }
                 } 
             });
             
