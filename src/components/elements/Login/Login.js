@@ -51,20 +51,16 @@ const Login = () => {
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
                 if (session) {
+                    console.log('coming into the session******************************');
                     let userPermissions = JSON.parse(session.data.userRoles);
-                    console.log('userPermission in Login page****************',userPermissions);
                     let userName = session.data.username;
+                    console.log('session data userName*************',userName);
                     let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
-                    console.log('personIdentifier***********************',personIdentifier);
-                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier) {
-                        console.log('navigating to curator profile page*******************',personIdentifier)
+                    console.log('personIdentifier*********************',personIdentifier);
+                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
                         router.push(`curate/${personIdentifier}`);
-                    }
                     else 
-                    {
-                        console.log('navigating into search page when no personIdentifier present********************');
                         router.push('/search');
-                    }
                 } 
             });
             
