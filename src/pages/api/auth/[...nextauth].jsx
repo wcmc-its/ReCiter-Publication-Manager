@@ -32,6 +32,7 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
          else if(cwid)
             userRoles = await findUserPermissions(cwid, "cwid")
          createdAdminUser.userRoles = userRoles;
+         console.log('createdAdminUser*********************',createdAdminUser);
           let databaseUser = {
             "userID" : createdAdminUser.userID,
             "personIdentifier": createdAdminUser.personIdentifier,
@@ -181,6 +182,7 @@ const options = {
                     if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                            const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
+                           console.log('called from email section************************',adminUser);
                            await sleep(100)
                           if(adminUser){
                                 if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
@@ -191,6 +193,7 @@ const options = {
                          }
                          else if(cwid)
                          {
+                            console.log('called from email CWID section************************',adminUser);
                                const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                         && reciterConfig.asms.userTrackingAPIAuthorization)
@@ -201,6 +204,7 @@ const options = {
                          
                     }
                     else if(cwid){
+                        console.log('called from CWID section************************',adminUser);
                            const adminUser = await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                            if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                     && reciterConfig.asms.userTrackingAPIAuthorization)
