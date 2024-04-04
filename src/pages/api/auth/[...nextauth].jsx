@@ -237,9 +237,9 @@ const options = {
               }
               if(apiResponse.databaseUser) {
                 if(apiResponse.databaseUser.personIdentifier)
-                    token.username = apiResponse.databaseUser.personIdentifier
                     token.databaseUser = apiResponse.databaseUser
                     token.email = apiResponse.databaseUser.email ?? ""
+                    token.username = apiResponse.databaseUser.personIdentifier ?? apiResponse.databaseUser.email // shows email as signed user in absence of the personIdetifier. for ex: HSS WCM institution 
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)

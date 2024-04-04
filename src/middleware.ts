@@ -37,6 +37,9 @@ export async function middleware(request: NextRequest) {
                 else if (userRoles.length == 1  && (pathName !==  '/curate/'+loggedInUserInfo || pathName.endsWith('curate'))&& isCuratorSelf && !isReporterAll ) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                 }
+                else if (userRoles.length == 2 && !loggedInUserInfo && isCuratorSelf && isReporterAll ) {
+                  return redirectToLandingPage(request,'/search');
+                }
                 else if (userRoles.length == 2 && (pathName !==  '/curate/'+loggedInUserInfo || pathName.endsWith('curate')) && isCuratorSelf && isReporterAll ) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                 }
