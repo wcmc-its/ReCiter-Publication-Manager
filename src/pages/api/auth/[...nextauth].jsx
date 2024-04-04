@@ -225,12 +225,14 @@ const options = {
         },
         async session(session, token,apiResponse) {
             session.data = token
+            console.log('session callback**************************',session,token)
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
                 session.adminSettings = await fetchUpdatedAdminSettings();
             return session
         },
         async jwt(token, apiResponse) {
+            console.log('jwt callback start**************************',apiResponse,token)
             if(apiResponse) {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
@@ -246,6 +248,7 @@ const options = {
                     token.userRoles = apiResponse.userRoles
               }
             }
+            console.log('JWT callback end**************************',apiResponse,token)
             return token
         },
     },

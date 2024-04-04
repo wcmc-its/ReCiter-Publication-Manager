@@ -42,6 +42,7 @@ const Login = () => {
         password: password,
         redirect: false
        })
+       console.log('signInResponse********************************',signInResponse)
        if (signInResponse.status == 200) {
             toast.info("Successful Login", {
                 position: "top-right",
@@ -59,12 +60,14 @@ const Login = () => {
                     console.log('personIdentifier*********************',personIdentifier);
                     if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
                         router.push(`curate/${personIdentifier}`);
+                      //router.push('/search');
                     else 
                         router.push('/search');
                 } 
             });
             
         } else {
+            console.log('signInResponse invalid********************************')
             setInvalidCredentialsFlag(true)
             toast.error("Invalid credentials", {
                 position: "top-right",
