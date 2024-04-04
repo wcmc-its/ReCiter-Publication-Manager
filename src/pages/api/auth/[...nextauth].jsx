@@ -185,7 +185,7 @@ const options = {
                            console.log('called from email section************************',adminUser);
                            await sleep(100)
                           if(adminUser){
-                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
                                 if(adminUser)
