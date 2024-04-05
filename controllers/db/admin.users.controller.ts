@@ -7,7 +7,6 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
         console.log('samlEmail*************',samlEmail);
         let whereCondition:any ='';
 
-        console.log('whereCondition*************',whereCondition);
         let person:any=null;
         let adminUser=null
         if(samlEmail)
