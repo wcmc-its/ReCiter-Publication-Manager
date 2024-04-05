@@ -73,7 +73,7 @@ const Search = () => {
 
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
-
+    console.log('Inside Search js page useEffect***************');
     dispatch(clearFilters())
     let adminSettings = JSON.parse(session.adminSettings);
     var viewAttributes = [];
@@ -204,6 +204,7 @@ const Search = () => {
       fetchCount()
     // }
     fetchAllAdminSettings()
+    console.log('end of UseEffect in search***********************');
   }, [])
 
   const fetchAllAdminSettings = () => {
