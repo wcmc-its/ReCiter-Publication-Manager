@@ -241,7 +241,7 @@ const options = {
                 token.username = apiResponse.statusMessage.username
               }
              
-              if(apiResponse.databaseUser) {
+              if(apiResponse.databaseUser || apiResponse.personIdentifier) {
                 token.email = apiResponse.email ?? ""
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
