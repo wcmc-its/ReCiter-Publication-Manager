@@ -12,21 +12,27 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
         let adminUser=null
         if(samlEmail)
         {
+            console.log('In samlEmail of the admin user controller********',samlEmail)
             adminUser = await findAdminUser(samlEmail,'email');
+            console.log('In samlEmail of the admin user controller1********',adminUser)
             if(samlEmail && adminUser)
             {
                 whereCondition = {email: samlEmail}
                 person = await findOnePerson("email",samlEmail); 
             }
+            console.log('In samlEmail of the admin user controller2********',person)
         }
         if(!adminUser && uid)
         {
+            console.log('In samlEmail of the admin user controller4********',adminUser,uid)
             adminUser = await findAdminUser(uid,'personIdentifier');
+            console.log('In samlEmail of the admin user controller5********',adminUser)
              if(adminUser && uid)
              {
                 whereCondition = { personIdentifier: uid}
                 person = await findOnePerson("personIdentifier",uid);
              }
+             console.log('In samlEmail of the admin user controller6********',person)
         }
          console.log('person*****************',person);    
         const [user, created] = await models.AdminUser.findOrCreate({
