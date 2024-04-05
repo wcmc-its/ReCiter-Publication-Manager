@@ -242,7 +242,7 @@ const options = {
               }
              
               if(apiResponse.databaseUser) {
-                token.email = apiResponse.databaseUser.email ?? ""
+                token.email = apiResponse.email ?? ""
                 if(apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                 else
