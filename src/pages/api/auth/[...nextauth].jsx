@@ -154,8 +154,10 @@ const options = {
                     let firstName = null;
                     let lastName = null;
                     let userPrincipalName = null;
+                    console.log('userAttributes before parse*******************',dupUser);
                     if(dupUser)
                         usrAttr = JSON.parse(dupUser);
+                    console.log('userAttributes after parse*******************',usrAttr);
                     if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
                         smalUserEmail = usrAttr['user.email'][0];
                     if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
@@ -221,6 +223,7 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
+            console.log('signIn callback************************',apiResponse);
             return apiResponse
         },
         async session(session, token,apiResponse) {
