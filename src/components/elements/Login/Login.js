@@ -42,7 +42,6 @@ const Login = () => {
         password: password,
         redirect: false
        })
-       console.log('signInResponse********************************',signInResponse)
        if (signInResponse.status == 200) {
             toast.info("Successful Login", {
                 position: "top-right",
@@ -52,22 +51,17 @@ const Login = () => {
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
                 if (session) {
-                    console.log('coming into the session******************************');
                     let userPermissions = JSON.parse(session.data.userRoles);
                     let userName = session.data.username;
-                    console.log('session data userName*************',userName);
                     let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
-                    console.log('personIdentifier*********************',personIdentifier);
                     if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
                         router.push(`curate/${personIdentifier}`);
-                      //router.push('/search');
                     else 
                         router.push('/search');
                 } 
             });
             
         } else {
-            console.log('signInResponse invalid********************************')
             setInvalidCredentialsFlag(true)
             toast.error("Invalid credentials", {
                 position: "top-right",

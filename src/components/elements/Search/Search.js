@@ -204,7 +204,6 @@ const Search = () => {
       fetchCount()
     // }
     fetchAllAdminSettings()
-    console.log('end of UseEffect in search***********************');
   }, [])
 
   const fetchAllAdminSettings = () => {

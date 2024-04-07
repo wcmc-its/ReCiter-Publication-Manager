@@ -23,7 +23,6 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
-        console.log('adminUserCreated******************',createdAdminUser);
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
         let userRoles ='';
@@ -32,7 +31,6 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
          else if(cwid)
             userRoles = await findUserPermissions(cwid, "cwid")
          createdAdminUser.userRoles = userRoles;
-         console.log('createdAdminUser*********************',createdAdminUser);
           let databaseUser = {
             "userID" : createdAdminUser.userID,
             "personIdentifier": createdAdminUser.personIdentifier,
@@ -46,7 +44,6 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
         }
         createdAdminUser.databaseUser = databaseUser
         createdAdminUser.personIdentifier 
-        console.log('createdAdminUser**********************',createdAdminUser);   
         if(createdAdminUser)
             return createdAdminUser;
     }
@@ -154,10 +151,8 @@ const options = {
                     let firstName = null;
                     let lastName = null;
                     let userPrincipalName = null;
-                    console.log('userAttributes before parse*******************',dupUser);
                     if(dupUser)
                         usrAttr = JSON.parse(dupUser);
-                    console.log('userAttributes after parse*******************',usrAttr);
                     if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
                         smalUserEmail = usrAttr['user.email'][0];
                     if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
@@ -184,7 +179,6 @@ const options = {
                     if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                            const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
-                           console.log('called from email section************************',adminUser);
                            await sleep(100)
                           if(adminUser){
                                 if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
@@ -195,7 +189,6 @@ const options = {
                          }
                          else if(cwid)
                          {
-                            console.log('called from email CWID section************************',adminUser);
                                const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                         && reciterConfig.asms.userTrackingAPIAuthorization)
@@ -206,7 +199,6 @@ const options = {
                          
                     }
                     else if(cwid){
-                        console.log('called from CWID section************************',adminUser);
                            const adminUser = await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                            if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                     && reciterConfig.asms.userTrackingAPIAuthorization)
@@ -223,19 +215,16 @@ const options = {
     ],
     callbacks: {
         async signIn(apiResponse) {
-            console.log('signIn callback************************',apiResponse);
             return apiResponse
         },
         async session(session, token,apiResponse) {
             session.data = token
-            console.log('session callback**************************',session,token)
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
                 session.adminSettings = await fetchUpdatedAdminSettings();
             return session
         },
         async jwt(token, apiResponse) {
-            console.log('jwt callback start**************************',apiResponse,token)
             if(apiResponse) {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
@@ -243,15 +232,12 @@ const options = {
              
               if(apiResponse.databaseUser || apiResponse.personIdentifier) {
                 token.email = apiResponse.email || ""
-                console.log('personIdentifier 1******************',apiResponse.databaseUser.personIdentifier)
                 if(apiResponse.databaseUser.personIdentifier)
                 {
-                    console.log('personIdentifier 2******************',apiResponse.databaseUser.personIdentifier)
                     token.username = apiResponse.databaseUser.personIdentifier
                 }
                 else
                 {
-                    console.log('personIdentifier 3******************',apiResponse.personIdentifier)
                     token.username = apiResponse.personIdentifier || apiResponse.email // shows email as signed user in absence of the personIdetifier. for ex: HSS WCM institution 
                 }
                 token.databaseUser = apiResponse.databaseUser
@@ -261,7 +247,6 @@ const options = {
                     token.userRoles = apiResponse.userRoles
               }
             }
-            console.log('JWT callback end**************************',apiResponse,token)
             return token
         },
     },
