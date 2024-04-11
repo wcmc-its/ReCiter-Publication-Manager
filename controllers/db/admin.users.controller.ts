@@ -4,7 +4,7 @@ import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
-        let whereCondition:any ='';
+        let whereCondition:any =samlEmail?{'email':samlEmail}:{'personIdentifier':uid} ;
 
         let person:any=null;
         let adminUser=null
