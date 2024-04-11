@@ -7,7 +7,6 @@ import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from 
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import { createAdminUser } from "../../../redux/actions/actions";
-import DateTime from "tedious/lib/data-types/datetime";
 import { reciterConfig } from "../../../../config/local";
 
 
@@ -20,13 +19,17 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLastName) => {
+const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
         const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
-        const userRoles = await findUserPermissions(cwid, "cwid")
+        let userRoles ='';
+         if(samlEmail)
+            userRoles = await findUserPermissions(samlEmail, "email")
+         else if(cwid)
+            userRoles = await findUserPermissions(cwid, "cwid")
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
@@ -40,7 +43,7 @@ const findOrcreateAdminUserWithCWID = async(cwid,samlEmail,samlFirstName,samlLas
             "modifyTimestamp":createdAdminUser.modifyTimestamp
         }
         createdAdminUser.databaseUser = databaseUser
-        createdAdminUser.personIdentifier    
+        createdAdminUser.personIdentifier 
         if(createdAdminUser)
             return createdAdminUser;
     }
@@ -147,6 +150,7 @@ const options = {
                     let smalUserEmail = null;
                     let firstName = null;
                     let lastName = null;
+                    let userPrincipalName = null;
                     if(dupUser)
                         usrAttr = JSON.parse(dupUser);
                     if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
@@ -154,19 +158,30 @@ const options = {
                     if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
                         firstName = usrAttr['urn:oid:2.5.4.42'][0];
                     if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
-                        lastName = usrAttr['urn:oid:2.5.4.4'][0];   
-                    if(smalUserEmail){
+                        lastName = usrAttr['urn:oid:2.5.4.4'][0];
+                    if(usrAttr && usrAttr['userPrincipalName'] && usrAttr['userPrincipalName'].length > 0)
+                        userPrincipalName = usrAttr['userPrincipalName'][0];
+                    
+                        
+                    /*
+                        User is trying to authenticate to Publication Manager.
+ 
+                        1. Does user have first, middle, and last name in SAML payload? 
+                        - If yes, get data from SAML. Create record in admin_users
+                        - If no, go to 2.
+                        
+                        2. Does record exist in person table?
+                        - If yes, get name data from person table.
+                        - If no, create record without populating name data.
+                        
+                        In all cases, populate email in admin_users. Failing that, populate userPrincipalName (EPPN).
+                    */  
+                    if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
-                            const adminUser = await findAdminUser(smalUserEmail,"email")
-                            await sleep(100)
+                           const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
+                           await sleep(100)
                           if(adminUser){
-                                adminUser.databaseUser = adminUser
-                                adminUser.personIdentifier
-                                const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-                                await sleep(100)
-                                const userRoles = await findUserPermissions(smalUserEmail,"email");
-                                adminUser.userRoles = userRoles;
-                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
                                 if(adminUser)
@@ -174,7 +189,7 @@ const options = {
                          }
                          else if(cwid)
                          {
-                               const adminUser =  await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                               const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                         && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
@@ -184,7 +199,7 @@ const options = {
                          
                     }
                     else if(cwid){
-                           const adminUser = await findOrcreateAdminUserWithCWID(cwid,smalUserEmail,firstName,lastName)
+                           const adminUser = await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
                            if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                     && reciterConfig.asms.userTrackingAPIAuthorization)
                                 persistUserLogin(cwid);	
@@ -214,11 +229,18 @@ const options = {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
               }
-              if(apiResponse.databaseUser) {
+             
+              if(apiResponse.databaseUser || apiResponse.personIdentifier) {
+                token.email = apiResponse.email || ""
                 if(apiResponse.databaseUser.personIdentifier)
+                {
                     token.username = apiResponse.databaseUser.personIdentifier
-                    token.databaseUser = apiResponse.databaseUser
-                    token.email = apiResponse.databaseUser.email ?? ""
+                }
+                else
+                {
+                    token.username = apiResponse.personIdentifier || apiResponse.email // shows email as signed user in absence of the personIdetifier. for ex: HSS WCM institution 
+                }
+                token.databaseUser = apiResponse.databaseUser
               }
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)

@@ -13,3 +13,10 @@
 .containerFluid {
   height: 100%;
 }
+
+.expandedSideBarContent{
+  padding: 2em !important;
+}
+.nonExpandedSideBarContent{
+  padding: 1em .5em 1em .5em !important;
+}

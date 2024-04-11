@@ -73,7 +73,6 @@ const Search = () => {
 
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
-
     dispatch(clearFilters())
     let adminSettings = JSON.parse(session.adminSettings);
     var viewAttributes = [];
