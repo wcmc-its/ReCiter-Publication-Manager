@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reciter-pm-dev
+  name: reciter-pm-secrets
   namespace: reciter
   labels:
-    app: reciter-pm-dev
-    environment: dev
+    app: reciter-pm
+    environment: prod
     owner: szd2013
     tier: frontend
 spec:
   selector:
     matchLabels:
-     app: reciter-pm-dev
+      app: reciter-pm
       tier: frontend
   strategy:
     rollingUpdate:
@@ -20,104 +20,103 @@ spec:
   template:
     metadata:
       labels:
-       app: reciter-pm-dev
-        environment: dev
+        app: reciter-pm
+        environment: prod
         tier: frontend
         owner: szd2013
     spec:
       containers:
-      - image: reciter-publication-manager:dev_v2
+      - image: reciter-publication-manager:master
         name: reciter-pm
         imagePullPolicy: IfNotPresent
         env:
           - name: NEXTAUTH_URL_INTERNAL
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key: NEXTAUTH_URL_INTERNAL
           - name: NEXTAUTH_URL
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key: NEXTAUTH_URL
           - name: RECITER_DB_NAME
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key: RECITER_DB_NAME
           - name: RECITER_DB_USERNAME
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key: RECITER_DB_USERNAME
           - name: RECITER_DB_PASSWORD
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key: RECITER_DB_PASSWORD
           - name: RECITER_DB_HOST
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key: RECITER_DB_HOST
-          - name: RECITER_API_BASE_URL
+           - name: RECITER_API_BASE_URL
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
-                key: RECITER_API_BASE_URL
-          - name: LOGIN_PROVIDER
+                name: reciter-pm-secrets
+                key: RECITER_API_BASE_URL                           
+         - name: LOGIN_PROVIDER
             value: SAML
           - name : ENTITY_ID
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key: ENTITY_ID
           - name: ASSERT_ENDPOINT
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key:  ASSERT_ENDPOINT
           - name: SSO_LOGIN_URL
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key : SSO_LOGIN_URL
           - name: SSO_LOGOUT_URL
             valueFrom:
               secretKeyRef:
-                 name: reciter-pm-dev-secrets
-                key : SSO_LOGOUT_URL       
+                name: reciter-pm-secrets
+                key : SSO_LOGOUT_URL   
           - name: SMTP_HOST_NAME
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key : SMTP_HOST_NAME
           - name: SMTP_USER
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key : SMTP_USER 
           - name: SMTP_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
+                name: reciter-pm-secrets
                 key : SMTP_PASSWORD 
           - name: SMTP_ADMIN_EMAIL
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
-                key : SMTP_ADMIN_EMAIL
-          - name: ASMS_API_BASE_URL
+                name: reciter-pm-secrets
+                key : SMTP_ADMIN_EMAIL 
+           - name: ASMS_API_BASE_URL
             valueFrom: 
               secretKeyRef:
-                name: reciter-pm-dev-secrets
-                key: ASMS_API_BASE_URL            
+                name: reciter-pm-secrets
+                key: ASMS_API_BASE_URL        
           - name: ASMS_USER_TRACKING_API_AUTHORIZATON
             valueFrom:
               secretKeyRef:
-                name: reciter-pm-dev-secrets
-                key : ASMS_USER_TRACKING_API_AUTHORIZATON                                                                  
-
+                name: reciter-pm-secrets
+                key : ASMS_USER_TRACKING_API_AUTHORIZATON           
         ports:
           - containerPort: 3000
             name: reciter-pm
@@ -150,18 +149,18 @@ spec:
 apiVersion: autoscaling/v2beta2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: hpa-reciter-pm-dev
+  name: hpa-reciter-pm
   namespace: reciter
   labels:
-    app: reciter-pm-dev
-    environment: dev
+    app: reciter-pm
+    environment: prod
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: reciter-pm-dev
+    name: reciter-pm
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:
@@ -175,4 +174,3 @@ spec:
         target:
           type: Utilization
           averageUtilization: 85
-
