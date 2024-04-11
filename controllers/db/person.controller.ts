@@ -198,9 +198,6 @@ export const findOnePerson = async (attrName: string,attrValue: string) => {
         
         const person = await models.Person.findOne({
             where: whereCondition,
-            /*{
-                personIdentifier: uid
-            },*/
             attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]
         });
         return person
