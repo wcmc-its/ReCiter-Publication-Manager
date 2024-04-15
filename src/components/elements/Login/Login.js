@@ -53,9 +53,9 @@ const Login = () => {
                 if (session) {
                     let userPermissions = JSON.parse(session.data.userRoles);
                     let userName = session.data.username;
-                    let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
-                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName)  
-                        router.push(`/curate/${personIdentifier}`);
+                    let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
+                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
+                        router.push(`curate/${personIdentifier}`);
                     else 
                         router.push('/search');
                 } 

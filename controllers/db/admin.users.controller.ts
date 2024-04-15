@@ -1,15 +1,34 @@
-import { AdminUsersRole } from '../../src/db/models/AdminUsersRole';
 import models from '../../src/db/sequelize'
 import { findOnePerson } from './person.controller'
 import { Op} from "sequelize"
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
-        const person = await findOnePerson(uid)
+        let whereCondition:any =samlEmail?{'email':samlEmail}:{'personIdentifier':uid} ;
+
+        let person:any=null;
+        let adminUser=null
+        if(samlEmail)
+        {
+            adminUser = await findAdminUser(samlEmail,'email');
+            if(samlEmail && adminUser)
+            {
+                whereCondition = {email: samlEmail}
+                person = await findOnePerson("email",samlEmail); 
+            }
+        }
+        if(!adminUser && uid)
+        {
+            adminUser = await findAdminUser(uid,'personIdentifier');
+             if(adminUser && uid)
+             {
+                whereCondition = { personIdentifier: uid}
+                person = await findOnePerson("personIdentifier",uid);
+             }
+        }
         const [user, created] = await models.AdminUser.findOrCreate({
-            where: {
-                personIdentifier: uid,
-            },
+
+            where : whereCondition,
             defaults: {
                 personIdentifier: uid,
                 nameFirst: samlFirstName?samlFirstName:((person && person.firstName)?person.firstName:null),
@@ -24,7 +43,6 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
 
         created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
             console.log('User ' + uid + ' already exists in adminUsers table')
-        
         return user.get({plain:true});
         
     } catch (e) {
@@ -73,8 +91,6 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
 
         created?console.log('Role ' + roleID + ' is created for the Admin user with UserId '+userID): 
             console.log('User ' + userID + ' and role Id '+ roleID +'already exists in adminUsersroles table')
-        
-        console.log(adminUserRole.toJSON())
         return adminUserRole
         }));
         return data;
