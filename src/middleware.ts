@@ -28,22 +28,18 @@ export async function middleware(request: NextRequest) {
             let isSuperUser = userRoles.some((role) => role.roleLabel === allowedPermissions.Superuser)
             let isCuratorAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_All)
             let isReporterAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Reporter_All)
-
             if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser) 
             {
                 if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {
                   return redirectToLandingPage(request,'/search');
                 }
-                else if (userRoles.length == 1  && (pathName !==  '/curate/'+loggedInUserInfo || pathName.endsWith('curate'))&& isCuratorSelf && !isReporterAll ) {
+                else if (userRoles.length == 1  && pathName !==  '/curate/'+loggedInUserInfo && isCuratorSelf && !isReporterAll ) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                 }
-                else if (userRoles.length == 2 && !loggedInUserInfo && isCuratorSelf && isReporterAll ) {
-                  return redirectToLandingPage(request,'/search');
-                }
-                else if (userRoles.length == 2 && (pathName !==  '/curate/'+loggedInUserInfo || pathName.endsWith('curate')) && isCuratorSelf && isReporterAll ) {
+                else if (userRoles.length == 2 && pathName !==  '/curate/'+loggedInUserInfo && isCuratorSelf && isReporterAll ) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                 }
-               
+                
             }
             else if (pathName && pathName.startsWith('/search') && !isReporterAll && !isSuperUser && !isCuratorAll) 
             {

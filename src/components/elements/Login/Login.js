@@ -51,13 +51,17 @@ const Login = () => {
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
                 if (session) {
-                    let userPermissions = JSON.parse(session.data.userRoles);
+                    let userPermissions = session.data.userRoles && session.data.userRoles !="" && JSON.parse(session.data.userRoles);
                     let userName = session.data.username;
-                    let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
-                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
-                        router.push(`curate/${personIdentifier}`);
-                    else 
-                        router.push('/search');
+                     if(!userPermissions || userPermissions == "" ){
+                         router.push('/noaccess');
+                     }else{
+                        let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
+                        if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
+                            router.push(`curate/${personIdentifier}`);
+                        else 
+                           router.push('/search');
+                     }
                 } 
             });
             
