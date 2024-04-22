@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { Op, Sequelize } from "sequelize"
-import { Person } from '../../src/db/models/Person'
 import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
 import { findUserFeedback } from '../userfeedback.controller'
@@ -189,21 +188,29 @@ export const findAllInstitutions = async (req: NextApiRequest, res: NextApiRespo
 
 export const findOnePerson = async (attrName: string,attrValue: string) => {
     
-    let whereCondition:any ='';
     try {
          if(attrName && attrName =='personIdentifier')
-            whereCondition = {personIdentifier : attrValue};
-         else if(attrName && attrName == 'email')
-            whereCondition = {primaryEmail : attrValue}
-        
-        const person = await models.Person.findOne({
-            where: whereCondition,
-            /*{
-                personIdentifier: uid
-            },*/
-            attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]
-        });
-        return person
+           { 
+            const person = await models.Person.findOne({
+                where: {
+                        personIdentifier : attrValue,
+                    },
+                    attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]  
+                })
+                return person;
+
+           }            
+           else if(attrName && attrName == 'email')
+            {
+                const person = await models.Person.findOne({
+                where:           
+                    {
+                        primaryEmail : attrValue
+                    },
+                    attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]
+                });
+                return person;
+            }
     } catch (e) {
         console.log(e)
     }
