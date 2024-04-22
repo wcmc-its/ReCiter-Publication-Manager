@@ -7,7 +7,7 @@ export const findUserPermissions = async (attrValue: string, attrType: string) =
     try {
         if (attrType === "email") {
             userRolesList = await sequelize.query(
-                "SELECT au.personIdentifier, roleLabel FROM admin_users as au INNER JOIN admin_users_roles as aur " +
+                "SELECT au.personIdentifier, roleLabel,aur.roleID FROM admin_users as au INNER JOIN admin_users_roles as aur " +
                 "ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID     WHERE     au.email = :email",
                 {
                     replacements: { email: attrValue },
@@ -18,7 +18,7 @@ export const findUserPermissions = async (attrValue: string, attrType: string) =
             return JSON.stringify(userRolesList);
         } else {
             userRolesList = await sequelize.query(
-                "SELECT au.personIdentifier, roleLabel FROM admin_users as au INNER JOIN admin_users_roles as aur " +
+                "SELECT au.personIdentifier, roleLabel,aur.roleID FROM admin_users as au INNER JOIN admin_users_roles as aur " +
                 "ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID     WHERE     au.personIdentifier = :personIdentifier",
                 {
                     replacements: { personIdentifier: attrValue },

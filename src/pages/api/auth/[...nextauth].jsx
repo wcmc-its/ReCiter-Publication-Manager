@@ -3,12 +3,13 @@ import Providers from "next-auth/providers";
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
-import { findAdminUser, findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
+import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
-
+import { findOnePerson } from "../../../../controllers/db/person.controller";
+import { allowedPermissions } from "../../../utils/constants";
 
 // Determine the condition for choosing the authentication method
 const isSamlEnabled = process.env.SAML_ENABLED === 'true';
@@ -23,7 +24,7 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
-        const assignedRoles = await grantDefaultRolesToAdminUser(createdAdminUser);
+        await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
         let userRoles ='';
          if(samlEmail)
@@ -51,41 +52,75 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
 }
 const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
+    let assignRolesPayload =[];
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
     {
         let viewAttributes = JSON.parse(adminSettings.viewAttributes);
-        let configuredRoles = [];
-        let assignRolesPayload =[];
-        configuredRoles = viewAttributes && viewAttributes.forEach(attr => {
+        viewAttributes && viewAttributes.forEach(attr => {
             attr.roles.map(role=>{
-                if(role.isChecked && role.roleName !=='Repoter_All' )
+                if(role.isChecked)
                 {
                     let assignRolePayload = {
-                        'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
-                        'roleID': role.roleId,
-                        'createTimestamp': new Date() 
-                        }
-                        //check for the role assigned to the user or not
-                        assignRolesPayload.push(assignRolePayload);
-                } 
-                
-                })
-
+                            'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
+                            'roleID': role.roleId,
+                            'createTimestamp': new Date() 
+                            }
+                            //check for the role assigned to the user or not
+                            assignRolesPayload.push(assignRolePayload);
+                }
+            })
         });
-        
-        //Adding default Role as Reporter_All regardless of the roles assigned
-            assignRolesPayload.push({
-            'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
-            'roleID': 3,
-            'createTimestamp': new Date()
-            });
 
-        if(assignRolesPayload && assignRolesPayload.length > 0)
-        {
-            const userRole = await  findOrCreateAdminUserRole (assignRolesPayload); 
-            return userRole;
-        }
     }
+    let personAPIResponse;
+    let existingAdminUserRoles =[];
+    let finalAssignRolesPayload =[];
+    if(adminUser && adminUser.personIdentifier)
+    {
+        personAPIResponse = await findOnePerson("personIdentifier",adminUser.personIdentifier);
+        existingAdminUserRoles = JSON.parse(await findUserPermissions(adminUser.personIdentifier, "cwid"))
+    } 
+    if(assignRolesPayload && assignRolesPayload.length >= 2)
+    {
+        //nothing continue
+    } 
+    //Check for Curator_All role in assignRolesPaylaod if it is there then continue otherwise, 
+    // check for an entry in person table with the personIdentifier, if exist then assign curator_self role 
+    else if(personAPIResponse && personAPIResponse.personIdentifier 
+        && ((assignRolesPayload && assignRolesPayload.length <=0) || (assignRolesPayload && assignRolesPayload.length >0 && !assignRolesPayload.some((role) => role.roleID == 2)))
+        && ((existingAdminUserRoles && existingAdminUserRoles.length <=0) || (existingAdminUserRoles && existingAdminUserRoles.length > 0 && (!existingAdminUserRoles.some((role) => role.roleLabel == allowedPermissions.Curator_All)
+                        && !existingAdminUserRoles.some((role) => role.roleLabel == allowedPermissions.Curator_Self )))))
+    {
+        let assignRolePayload = {
+            'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
+            'roleID': 4,
+            'createTimestamp': new Date() 
+            }
+            //check for the role assigned to the user or not
+            assignRolesPayload.push(assignRolePayload);
+    }
+    //filtering the assignRolePayload with existingAdminUserRoles  if any 
+    if(existingAdminUserRoles && existingAdminUserRoles.length >0 && assignRolesPayload && assignRolesPayload.length >0)
+    {
+        finalAssignRolesPayload = assignRolesPayload.filter(value1 => !existingAdminUserRoles.some(value2 => value1.roleID === value2.roleID))
+    }
+    else if(assignRolesPayload && assignRolesPayload.length >0)
+    {
+        finalAssignRolesPayload = assignRolesPayload;
+    }
+
+    if(finalAssignRolesPayload && finalAssignRolesPayload.length > 0)
+    {
+        const userRole = await  findOrCreateAdminUserRole (finalAssignRolesPayload); 
+        return userRole;
+    }
+    //raise an error and display a message on the UI as "You have successfully authenticated, but you don't have any roles assigned. Please contact a system administrator".
+    else if(finalAssignRolesPayload && finalAssignRolesPayload.length <=0 && existingAdminUserRoles && existingAdminUserRoles.length <= 0)
+    {
+        return null;    
+    }
+    return existingAdminUserRoles;
+    
 }
 
 const options = {
