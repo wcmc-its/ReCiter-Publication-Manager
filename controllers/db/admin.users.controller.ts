@@ -91,7 +91,6 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
 
         created?console.log('Role ' + roleID + ' is created for the Admin user with UserId '+userID): 
             console.log('User ' + userID + ' and role Id '+ roleID +'already exists in adminUsersroles table')
-        
         return adminUserRole
         }));
         return data;

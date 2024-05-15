@@ -190,6 +190,7 @@ export const findOnePerson = async (attrName: string,attrValue: string) => {
     
     try {
          if(attrName && attrName =='personIdentifier')
+
            { 
             const person = await models.Person.findOne({
                 where: {
@@ -211,6 +212,7 @@ export const findOnePerson = async (attrName: string,attrValue: string) => {
                 });
                 return person;
             }
+
     } catch (e) {
         console.log(e)
     }
