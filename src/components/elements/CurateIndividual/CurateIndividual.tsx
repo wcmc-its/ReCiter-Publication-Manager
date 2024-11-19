@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData, reciterFetchData,reCalcPubMedPubCount, fetchFeedbacklog } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
-import { Container, Button, Row,Toast } from "react-bootstrap";
+import { Container, Button, Row, Toast } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
 import InferredKeywords from "./InferredKeywords"
@@ -29,12 +29,14 @@ interface PrimaryName {
 
 const CurateIndividual = () => {
   const router = useRouter()
-  const  {id}  = router.query;
-  const [newId, setNewId ] = useState<any>();
+  const { id } = router.query;
+  const [newId, setNewId] = useState<any>();
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
   const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
+  const identityORFeatureGenError = useSelector((state: RootStateOrAny) => state.identityORFeatureGenError)
+
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
@@ -42,21 +44,33 @@ const CurateIndividual = () => {
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [viewProfileLabels, setViewProfileLabels] = useState([])
   const [isLoading, setLoading] = useState(false);
-  const [headShot, setHeadShot] = useState<any>([])
-
+  const [headShot, setHeadShot] = useState<any>([]);
+  const [showNoPermitError, setShowNoPermitError] = useState(false)
 
   useEffect(() => {
-    let userPermissions = JSON.parse(session.data?.userRoles);
-    if(!id)
-	{
-		return;
-	}
+
+    if (!id) {
+      return;
+    }
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
-     setNewId(id);
-     dispatch(identityFetchData(id));
-     fetchData();
+    setNewId(id);
+    dispatch(identityFetchData(id));
+    fetchData();
   }, [id])
+
+ /* useEffect(() => {
+    let userPermissions = JSON.parse(session.data?.userRoles);
+    if (userPermissions && (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All) || userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser))) {
+      setShowNoPermitError(true);
+    } else if (userPermissions && userPermissions.length === 2 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self) && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
+      console.log("loaderUse",userPermissions);
+      router.push("/search")
+    } else if(userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self) ){
+      router.push("/error")
+    }
+
+  }, [identityORFeatureGenError])*/
 
   const fetchData = () => {
     dispatch(reciterFetchData(id, false));
@@ -81,9 +95,9 @@ const CurateIndividual = () => {
         data.map((obj, index1) => {
           let a = JSON.stringify(obj.viewAttributes)
           let b = JSON.parse(a);
-          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          let c = typeof (b) === "string" ? JSON.parse(b) : b
           let parsedSettings = {
-            viewName : obj.viewName,
+            viewName: obj.viewName,
             viewAttributes: c,
             viewLabel: obj.viewLabel
           }
@@ -116,68 +130,73 @@ const CurateIndividual = () => {
   const handleShow = () => setModalShow(true);
 
   if (identityFetching || reciterFetching) {
+    console.log("loader11")
     return (
       <Loader />
     )
   }
 
   return (
-      <div className={appStyles.mainContainer}>
-       <ToastContainerWrapper />
-        <h1 className={styles.header}>Curate Publications</h1>
-        {
-          identityData &&
-          <Container className={styles.indentityDataContainer} fluid={true}>
-            <div className="d-flex">
-              {
-                displayImage && identityData.identityImageEndpoint && headShot && headShot.length > 0 && headShot[0].isVisible &&
-                <div className={styles.profileImgWrapper}>
-                  <Image
-                    src={headShot.length > 0 && headShot[0]?.syntax?.replace("{personIdentifier}", identityData.uid)}
-                    alt="Profile photo"
-                    width={144}
-                    height={217}
-                    onError={() => setDisplayImage(false)}
-                  />
-                </div>
-              }
-              <div className="flex-grow-1">
-                <DisplayName
-                  name={identityData.primaryName}
-                />
-                <b>{identityData.title}</b>
-                <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
-                {reciterData && reciterData.reciter &&
-                  <InferredKeywords
-                    reciter={reciterData.reciter}
-                  />
+    <div className={appStyles.mainContainer}>
+      <ToastContainerWrapper />
+      {
+        showNoPermitError ? <p className="text-center">{`${id} does not have an identity to view this page. Please contact system administartor`}</p> : <>
+          <h1 className={styles.header}>Curate Publications</h1>
+          {
+            identityData &&
+            <Container className={styles.indentityDataContainer} fluid={true}>
+              <div className="d-flex">
+                {
+                  displayImage && identityData.identityImageEndpoint && headShot && headShot.length > 0 && headShot[0].isVisible &&
+                  <div className={styles.profileImgWrapper}>
+                    <Image
+                      src={headShot.length > 0 && headShot[0]?.syntax?.replace("{personIdentifier}", identityData.uid)}
+                      alt="Profile photo"
+                      width={144}
+                      height={217}
+                      onError={() => setDisplayImage(false)}
+                    />
+                  </div>
                 }
-                <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+                <div className="flex-grow-1">
+                  <DisplayName
+                    name={identityData.primaryName}
+                  />
+                  <b>{identityData.title}</b>
+                  <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
+                  {reciterData && reciterData.reciter &&
+                    <InferredKeywords
+                      reciter={reciterData.reciter}
+                    />
+                  }
+                  <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+                </div>
               </div>
-            </div>
-          </Container>
-        }
+            </Container>
+          }
 
-      {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
-        <SuggestionsBanner
-          uid={newId}
-          count={reciterData.reciterPending.length}
-        />
+          {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
+            <SuggestionsBanner
+              uid={newId}
+              count={reciterData.reciterPending.length}
+            />
+          }
+
+          <ReciterTabs
+            reciterData={reciterData}
+            fullName={fullName(identityData.primaryName)}
+            fetchOriginalData={fetchData}
+          />
+          <Profile
+            uid={identityData.uid}
+            modalShow={modalShow}
+            handleShow={handleShow}
+            handleClose={handleClose}
+            viewProfileLabels={viewProfileLabels}
+            headShotLabelData={headShot}
+          />
+        </>
       }
-
-      <ReciterTabs
-        reciterData={reciterData}
-        fullName={fullName(identityData.primaryName)}
-        fetchOriginalData={fetchData}
-      />
-      <Profile
-        uid={identityData.uid}
-        modalShow={modalShow}
-        handleShow={handleShow}
-        handleClose={handleClose}
-        viewProfileLabels={viewProfileLabels}
-        headShotLabelData = {headShot}
-      />
     </div>
   )
 }

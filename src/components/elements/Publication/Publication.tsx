@@ -260,7 +260,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { educationYearEvidence: 'Degree year discrepancy'},
       { genderEvidence: 'Inferred gender of name '},
       { articleCountEvidence: 'Candidate article count'},
-      { averageClusteringEvidence: 'Clustering'},
+      //{ averageClusteringEvidence: 'Clustering'},
       { coAuthorAffiliationEvidence: 'Co-authors\'s institutional affiliation'},
     ]
 
@@ -275,7 +275,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
        articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
-       averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
+       //averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
        personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
        coAuthorAffiliationEvidence: { dataFormat: 'true'},
     }
@@ -593,6 +593,80 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         )
     }
 
+// Type the parameter as an object with string keys and number values
+const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.Element => {
+  // Sort the object by score in descending order
+  const sortedFeedback = Object.entries(feedbackEvidence)
+  .sort((a, b) => b[1] - a[1])  // Sort by value in descending order
+  .map(([key, value]) => {
+    // Explicitly assert that key is a string and value is a number
+    const typedKey = key as string; // `key` is inferred as `string`
+    const typedValue = value as number; // `value` is inferred as `number`
+
+    //console.log('typedKey',typedKey);
+    const convertedTypedKey = typedKey
+    //remove the word feedbackScore from the label names
+    .replace('feedbackScore', '')
+    // Insert spaces before uppercase letters
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    // Capitalize the first letter of each word and lowercase the rest
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+    //console.log('convertedTypedKey',convertedTypedKey);
+    // Check if 'typedKey' contains 'Orcid' and update 'typedKey' accordingly
+    const updatedKey = convertedTypedKey.includes('Orcid')
+    ? convertedTypedKey.replace('Orcid', 'ORCID') // Change 'Orcid' to uppercase 'ORCID'
+    : convertedTypedKey;
+    
+   // console.log('updatedKey',updatedKey);
+    const updatedLabel = updatedKey.includes('Co Author Name')
+    ? updatedKey.replace('Co Author Name:', 'Co-Author Name')
+    : updatedKey;
+  
+    const updatedOrCidLabel = updatedLabel.includes('Co Author')
+    ? updatedLabel.replace('Co Author', 'Co-Author')
+    : updatedLabel;
+    
+    console.log('updatedOrCidLabel',updatedOrCidLabel);
+    
+    const updatedJournalSubFieldLabel = updatedOrCidLabel.includes('Journal Sub Field')
+    ? updatedOrCidLabel.replace('Journal Sub Field', 'Journal Subfield')
+    : updatedOrCidLabel;
+
+    return [updatedJournalSubFieldLabel, Math.round(typedValue)] as [string, number]; // Ensure that the return is of type [string, number]
+  });
+ console.log('sorted feedback ',sortedFeedback);
+   // Split the sorted feedback into 4 columns (each column has 3 items)
+   const columns: [string, number][][] = [[], [], [], []];
+  
+   sortedFeedback.forEach((item, index) => {
+     const columnIndex = Math.floor(index / 3); // Distribute every 3 items into a column
+     if (columnIndex < 4) {
+       columns[columnIndex].push(item);
+     }
+   });
+ 
+ console.log("columns",columns);
+
+  return (
+    <div className={styles.feedbackContainer}>
+      <div className={styles.columnContainer}>
+        {columns.map((column, index) => (
+          <div className={styles.column} key={index}>
+            {column.map(([key, value], index) => (
+              <div className={styles.feedbackItem} key={index}>
+                <strong>{key}:</strong> {value}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+    
+    
     return (
       <Row className={styles.articleContainer}>
         <Col md={2} className={styles.publicationButtons}>
@@ -605,12 +679,12 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       overlay={(      
                         <Popover id="keyword-information">
                           <Popover.Body>
-                          <strong>{`${reciterArticle.totalArticleScoreNonStandardized} :`}</strong> Raw score<br/><strong>{`${reciterArticle.totalArticleScoreStandardized} :`} </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>{props.fullName}</b> wrote this article. To investigate which evidence is used to generate this score, click on &quot;Show evidence behind this suggestion.&quot;
+                              These scores represent the strength of evidence supporting the possibility that <b>{props.fullName}</b> wrote this article. To investigate which evidence is used to generate this score, click on &quot;Explore supporting evidence.&quot;
                           </Popover.Body>
                         </Popover>)} placement="right">
                           <p className={styles.publicationScore}>
-                            Matching<br />Score<br />
-                            <strong>{reciterArticle.totalArticleScoreStandardized ? reciterArticle.totalArticleScoreStandardized : "N/A"}</strong>
+                            Likelihood<br />Score<br />
+                            <strong>{reciterArticle.authorshipLikelihoodScore ? Math.round(reciterArticle.authorshipLikelihoodScore) : "N/A"}</strong>
                           </p>
                     </OverlayTrigger>
                 </React.Fragment>: <p></p>
@@ -641,17 +715,22 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 {
                    (props.index === props.showEvidenceDefault) || showEvidence?
                     <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
+                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Explore supporting evidence</span>
                     :
                     <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Show evidence behind this suggestion</span>
+                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Explore supporting evidence</span>
                 }
               </p>
 
 
                         <div
                             className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
-                            <div className="table-responsive">
+							      <h5>Feedback-based scores</h5>
+                            <p>Based on attributes from articles you've previously accepted or rejected, we've generated the following scores for <b>{props.fullName.trim()}.</b> A score of 100 indicates a high likelihood that the article was authored by <b>{props.fullName.trim()}</b>, while a score of 0 or below suggests it is highly unlikely.</p>
+                            <>{displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)}</>
+                          <br></br>
+                          <h5>Identity-based scores</h5>
+	                        <div className="table-responsive">
                                 <table className={`${styles.publicationsEvidenceTable} table table-striped`}>
                                     <thead>
                                     <tr>

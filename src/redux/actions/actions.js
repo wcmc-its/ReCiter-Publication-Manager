@@ -11,6 +11,12 @@ export const addError = (message) =>
     payload: message
 })
 
+export const addIdentityORFeatureGenError = (message) =>
+({
+    type: methods.ERROR_FOR_IDENTITY_FEATURE_GENERATOR,
+    payload: message
+})
+
 export const clearError = () =>
 ({
     type: methods.CLEAR_ERROR
@@ -81,8 +87,12 @@ export const identityFetchData = uid => dispatch => {
             });
 
             dispatch(
-                addError(error)
+                addIdentityORFeatureGenError("Identity-Error")
             )
+
+            // dispatch(
+            //     addError(error)
+            // )
 
             dispatch({
                 type: methods.IDENTITY_CANCEL_FETCHING
@@ -267,8 +277,12 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             });
 
             dispatch(
-                addError(error)
+                addIdentityORFeatureGenError("Feature-Generator-Error")
             )
+
+            // dispatch(
+            //     addError(error)
+            // )
 
             dispatch({
                 type: methods.RECITER_CANCEL_FETCHING
