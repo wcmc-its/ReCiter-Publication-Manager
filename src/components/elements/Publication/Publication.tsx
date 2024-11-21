@@ -596,7 +596,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 // Type the parameter as an object with string keys and number values
 const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.Element => {
   // Sort the object by score in descending order
-  const sortedFeedback = Object.entries(feedbackEvidence)
+  const sortedFeedback = feedbackEvidence && Object.entries(feedbackEvidence)
   .sort((a, b) => b[1] - a[1])  // Sort by value in descending order
   .map(([key, value]) => {
     // Explicitly assert that key is a string and value is a number
@@ -639,7 +639,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
    // Split the sorted feedback into 4 columns (each column has 3 items)
    const columns: [string, number][][] = [[], [], [], []];
   
-   sortedFeedback.forEach((item, index) => {
+   sortedFeedback?.forEach((item, index) => {
      const columnIndex = Math.floor(index / 3); // Distribute every 3 items into a column
      if (columnIndex < 4) {
        columns[columnIndex].push(item);
