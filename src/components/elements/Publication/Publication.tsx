@@ -734,7 +734,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                             </>
                           ) : (
                             <>
-                            {/* <p>No feedback available.</p>                            */}
+                             <p>No feedback available.</p>                            
                             <br></br>
                             </>
                           )}
