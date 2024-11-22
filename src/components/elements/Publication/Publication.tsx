@@ -730,7 +730,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                       <>
                     <h5>Feedback-based scores</h5>
                             <p>Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following scores for <b>{props.fullName.trim()}.</b> A score of 100 indicates a high likelihood that the article was authored by <b>{props.fullName.trim()}</b>, while a score of 0 or below suggests it is highly unlikely.</p>
-                            <>{displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)}</>
+                            <>{displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)}<br></br></>
                             </>
                           ) : (
                             <>
