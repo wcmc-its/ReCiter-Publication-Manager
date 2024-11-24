@@ -59,19 +59,6 @@ const CurateIndividual = () => {
     fetchData();
   }, [id])
 
- /* useEffect(() => {
-    let userPermissions = JSON.parse(session.data?.userRoles);
-    if (userPermissions && (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All) || userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser))) {
-      setShowNoPermitError(true);
-    } else if (userPermissions && userPermissions.length === 2 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self) && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
-      console.log("loaderUse",userPermissions);
-      router.push("/search")
-    } else if(userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self) ){
-      router.push("/error")
-    }
-
-  }, [identityORFeatureGenError])*/
-
   const fetchData = () => {
     dispatch(reciterFetchData(id, false));
     dispatch(fetchFeedbacklog(id));
@@ -130,7 +117,6 @@ const CurateIndividual = () => {
   const handleShow = () => setModalShow(true);
 
   if (identityFetching || reciterFetching) {
-    console.log("loader11")
     return (
       <Loader />
     )
