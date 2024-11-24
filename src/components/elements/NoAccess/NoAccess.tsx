@@ -10,7 +10,6 @@ const NoAccess: React.FC = () => {
   const [noUserRoles, setNoUserRoles] = useState(false)
 
     useEffect(()=>{
-        console.log("session", session)
         let userPermissions = session?.data?.userRoles && session?.data?.userRoles !="" && JSON.parse(session?.data?.userRoles);
         setNoUserRoles(!userPermissions || userPermissions =="" ? true : false)
     },[])
