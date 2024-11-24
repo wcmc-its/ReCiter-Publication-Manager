@@ -261,3 +261,30 @@
 .acceptedCheck > i{
   color : red;
 }
+.feedbackContainer {
+  padding: 8px;
+}
+
+.columnContainer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 equal-width columns */
+  gap: 40px; /* Space between columns */
+  margin:-9px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column; /* Stack items vertically in each column */
+  gap: 3px; /* Space between items in each column */
+  text-align:left;
+}
+
+.feedbackItem {
+  font-size: 14px;
+  margin:0;
+}
+
+.feedbackItem strong {
+  margin-right: 3px;
+}
+

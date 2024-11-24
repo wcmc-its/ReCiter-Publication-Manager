@@ -826,6 +826,18 @@ export const saveNotificationsLoading = (state = false, action) => {
   }
 }
 
+export const identityORFeatureGenError = (state=[], action) => {
+  switch(action.type) {
+      case methods.ERROR_FOR_IDENTITY_FEATURE_GENERATOR :
+          return [
+              ...state,
+              action.payload
+          ]
+      default:
+          return state
+  }
+}
+
 
 export default combineReducers({
     reciterFetching,
@@ -884,5 +896,6 @@ export default combineReducers({
     showEvidenceDefault,
     updatedAdminSettings,
     notificationEmailCarier,
-    saveNotificationsLoading
+    saveNotificationsLoading,
+    identityORFeatureGenError
 })
