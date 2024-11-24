@@ -596,6 +596,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 // Type the parameter as an object with string keys and number values
 const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.Element => {
   // Sort the object by score in descending order
+  console.log('feedbackEvidence***********************',feedbackEvidence);
   const sortedFeedback = feedbackEvidence && Object.entries(feedbackEvidence)
   .sort((a, b) => b[1] - a[1])  // Sort by value in descending order
   .map(([key, value]) => {
@@ -726,10 +727,10 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                         <div
                             className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
 							      
-                    { reciterArticle.evidence && reciterArticle.evidence.feedbackEvidence ? (
+                    {reciterArticle.evidence && reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0 ? (
                       <>
-                    <h5>Feedback-based scores</h5>
-                            <p>Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following scores for <b>{props.fullName.trim()}.</b> A score of 100 indicates a high likelihood that the article was authored by <b>{props.fullName.trim()}</b>, while a score of 0 or below suggests it is highly unlikely.</p>
+                    <h5>{console.log("coming here and length",Object.keys(reciterArticle.evidence.feedbackEvidence).length) }Feedback-based scores</h5>
+                            <p>Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for <b>{props.fullName.trim()}.</b> Each subscore represents the contribution of a specific attribute, such as ORCID, institution, or journal, to the overall likelihood that the article was authored by <b>{props.fullName.trim()}</b>, A score of 100 for an attribute indicates strong evidence supporting authorship, while a score of -100 suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence, making the feedback more ambiguous for that category.</p>
                             <>{displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)}<br></br></>
                             </>
                           ) : (
