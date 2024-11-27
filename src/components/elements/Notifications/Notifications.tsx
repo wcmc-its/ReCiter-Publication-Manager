@@ -20,8 +20,8 @@ const Notifications = () => {
   const [session, loading] = useSession();
   const router = useRouter()
   const [state, setState] = useState({
-    frequency: 7,
-    minimumThreshold: 8,
+    frequency: 70,
+    minimumThreshold: 80,
   })
 
   const getNotificationsByIdLoading = useSelector((state: RootStateOrAny) => state.getNotificationsByIdLoading);
@@ -48,8 +48,8 @@ const Notifications = () => {
 
   useEffect(() => {
     const evidenceScore = [];
-    [...Array(10)].map((e, i) => {
-      let index = i + 1
+    [...Array(11)].map((e, i) => {
+      let index = i * 10
       let obj = {
         value: index,
         label: index,
@@ -121,7 +121,7 @@ const Notifications = () => {
           setDisableSaveBtn(true);
         }else{
           const { minimumThreshold, suggested, accepted, frequency, email,userID} = data;
-          setState(state => ({ ...state, ["minimumThreshold"]: minimumThreshold == 0 ? 8 : minimumThreshold, ["frequency"]: frequency }))
+          setState(state => ({ ...state, ["minimumThreshold"]: minimumThreshold == 0 ? 80 : minimumThreshold, ["frequency"]: frequency }))
           setSuggested(suggested == 1 ? true : false);
           setEvidance(minimumThreshold == 0 ? false : true);
           setAccepted(accepted == 1 ? true : false);
@@ -145,7 +145,7 @@ const Notifications = () => {
 
   const handleValueChange = (field, e) => {
     let value = field === "minimumThreshold" ? e.target.value : e;
-    if (value >= 3 && suggested && field && field === "minimumThreshold") {
+    if (value >= 30 && suggested && field && field === "minimumThreshold") {
       if (value != '') formErrorsInst[field] = '';
       setState(state => ({ ...state, [field]: value }))
     }
@@ -172,14 +172,14 @@ const Notifications = () => {
                   </Form.Group>
                   <div className={styles.nestedMenu}>
                     <p>Minimum evidence score for triggering a notification (higher scores indicate greater confidence)</p>
-                     <div className="my-3 mx-4">
-                     <Box sx={{ width: 400 }}>
+                     <div className="my-6 mx-6">
+                     <Box sx={{ width: 600 }}>
                         <Slider
                           aria-labelledby="track-false-slider"
                           getAriaValueText={valuetext}
-                          step={1}
-                          min={1}
-                          max={10}
+                          step={10}
+                          min={10}
+                          max={100}
                           valueLabelDisplay="auto"
                           marks={evidenceScoreStepsCount}
                           track={false}

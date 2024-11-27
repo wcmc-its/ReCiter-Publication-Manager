@@ -10,6 +10,7 @@ import { useSelector, RootStateOrAny, useDispatch } from "react-redux";
 import HistoryModal from "./HistoryModal";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
+import InfoIcon from '@mui/icons-material/Info';
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -658,7 +659,39 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
   );
 };
 
-    
+const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      <h5>Feedback-based scores</h5>
+      <React.Fragment>
+        <OverlayTrigger
+          trigger={["focus", "hover"]}
+          overlay={
+            <Popover id="feedback-information" style={{ maxWidth: "400px" }}>
+              <Popover.Body>
+                <p>
+                  Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for 
+                  <b> {fullName.trim()}.</b> Each subscore represents the contribution of a specific attribute, such as ORCID, institution, or journal, to the overall likelihood that the article was authored by 
+                  <b> {fullName.trim()}.</b>
+                </p>
+                <p>
+                  A score of 100 for an attribute indicates strong evidence supporting authorship, while a score of -100 suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence, making the feedback more ambiguous for that category.
+                </p>
+              </Popover.Body>
+            </Popover>
+          }
+          placement="right"
+        >
+          <p>
+            <span style={{ color: '#80808078', cursor: 'pointer' }}>
+              <InfoIcon fontSize="small" style={{ fontSize: '25px', marginLeft: '3px' }} /> <u>Learn more</u>
+            </span>
+          </p>
+        </OverlayTrigger>
+      </React.Fragment>
+    </div>
+  );
+};    
     
     return (
       <Row className={styles.articleContainer}>
@@ -670,10 +703,23 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                     <OverlayTrigger 
                       trigger={["focus", "hover"]} 
                       overlay={(      
-                        <Popover id="keyword-information">
+                        <Popover id="keyword-information" style={{ maxWidth: "395px" }}>
                           <Popover.Body>
-                              These scores represent the strength of evidence supporting the possibility that <b>{props.fullName}</b> wrote this article. To investigate which evidence is used to generate this score, click on &quot;Explore supporting evidence.&quot;
-                          </Popover.Body>
+                              <p>
+                              According to ReCiter’s neural network model, the 
+                              likelihood that <b>{props.fullName}</b> has authored this article is <br></br>
+                              <b>{reciterArticle.authorshipLikelihoodScore ?  (Math.floor(reciterArticle.authorshipLikelihoodScore * 100) / 100).toFixed(5)   : "N/A"}%.</b>
+                              </p>
+                              <p style={{marginBottom:'0px'}}>This estimate is based on: </p>
+                              <ul style={{paddingLeft: '1rem'}}>
+                                   <li>Identity information (e.g., known email address)</li>
+                                   <li>Feedback on other articles</li>
+                                   <li>Raw count of accepted and rejected articles</li>
+                              </ul>
+                                <p>To investigate which evidence is used to generate this 
+                                score, click on &quot;Explore supporting evidence.&quot;
+                                </p>												 
+	                      </Popover.Body>
                         </Popover>)} placement="right">
                           <p className={styles.publicationScore}>
                             Likelihood<br />Score<br />
@@ -721,13 +767,15 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
 							      
                     {reciterArticle.evidence && reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0 ? (
                       <>
-                    <h5>Feedback-based scores</h5>
-                            <p>Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for <b>{props.fullName.trim()}.</b> Each subscore represents the contribution of a specific attribute, such as ORCID, institution, or journal, to the overall likelihood that the article was authored by <b>{props.fullName.trim()}</b>, A score of 100 for an attribute indicates strong evidence supporting authorship, while a score of -100 suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence, making the feedback more ambiguous for that category.</p>
+                        {showOverlayFeedbackScoreLearnMorePopup(props.fullName.trim())}
                             <>{displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)}<br></br></>
                             </>
+				   
                           ) : (
                             <>
-                             <p>No feedback available.</p>                            
+                            {showOverlayFeedbackScoreLearnMorePopup(props.fullName.trim())}
+
+                             <p><i>No feedback available.</i></p>                            
                             <br></br>
                             </>
                           )}
