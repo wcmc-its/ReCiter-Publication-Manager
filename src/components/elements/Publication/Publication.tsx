@@ -662,7 +662,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
 const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
-      <h5>Feedback-based scores</h5>
+      <h5 style={{marginBottom:"20px"}}>Feedback-based scores</h5>
       <React.Fragment>
         <OverlayTrigger
           trigger={["focus", "hover"]}
@@ -684,7 +684,7 @@ const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
         >
           <p>
             <span style={{ color: '#80808078', cursor: 'pointer' }}>
-              <InfoIcon fontSize="small" style={{ fontSize: '25px', marginLeft: '3px' }} /> <u>Learn more</u>
+              <InfoIcon fontSize="small" style={{ fontSize: '22px', marginLeft: '7px' }} /> <u>Learn more</u>
             </span>
           </p>
         </OverlayTrigger>
@@ -707,7 +707,7 @@ const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
                           <Popover.Body>
                               <p>
                               According to ReCiter’s neural network model, the 
-                              likelihood that <b>{props.fullName}</b> has authored this article is <br></br>
+                              likelihood that <b>{props.fullName}</b> has authored this article is&nbsp;
                               <b>{reciterArticle.authorshipLikelihoodScore ?  (Math.floor(reciterArticle.authorshipLikelihoodScore * 100) / 100).toFixed(5)   : "N/A"}%.</b>
                               </p>
                               <p style={{marginBottom:'0px'}}>This estimate is based on: </p>
