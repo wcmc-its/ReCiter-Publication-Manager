@@ -309,6 +309,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
           let points = '';
+		  let pointsText:any = '';						  
           let source = '';
           let institutionalData = '-';
           let articleData = '-';
@@ -322,6 +323,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 if (evidence[rowName][rowFields['points']]) {
                   let unFormattedpoints = evidence[rowName][rowFields['points']]
                   points = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();
+				  pointsText = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();																					   
                 }
               }
             }
@@ -333,9 +335,12 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               }
 
               if (rowName === 'relationshipEvidence') {
-                if(evidence[rowName].hasOwnProperty('relationshipEvidenceTotalScore')) {
-                  points = evidence[rowName].relationshipEvidenceTotalScore.toFixed(2)
-                }
+				 points = (evidence[rowName].relationshipPositiveScore + evidence[rowName].relationshipNegativeScore).toFixed(2)
+                pointsText = <div>
+                <p>Positive match: {evidence[rowName].relationshipPositiveScore?.toFixed(2) || 0.00}</p>
+                <p>Negative match: {evidence[rowName].relationshipNegativeScore?.toFixed(2) || 0.00}</p>
+                <p>Identity match: {evidence[rowName].relationshipIdentityCount?.toFixed(2) || 0.00}</p>
+              </div>				  
                 if (evidence[rowName].hasOwnProperty('relationshipPositiveMatch')) {
                   displayInstDataList = true;
                   displayArticleDataList = true;
@@ -544,6 +549,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             title: Object.values(title),
             name: Object.keys(title)[0],
             points: points,
+			pointsText : pointsText,						
             institutionalData: institutionalData,
             articleData: articleData,
             displayInstDataList: displayInstDataList,
@@ -578,7 +584,8 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
-                      {<small>{`${evidenceRow.points} points`}</small>}
+                      {/*<small>{`${evidenceRow.points} points`}</small>*/}
+					   {<small>{evidenceRow.pointsText || evidenceRow.points}</small>}																 
                     </p>
                   </td>
                   <td width="40%">
