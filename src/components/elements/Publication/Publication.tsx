@@ -267,7 +267,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const evidenceTableCellFields = {
        authorNameEvidence: { points: 'nameScoreTotal', dataFormat: 'true' },
-       relationshipEvidence: { points: 'relationshipEvidenceTotalScore', dataFormat: 'true'},
+       relationshipEvidence: { relationshipNegativeScore: 'relationshipNegativeMatchScore',relationshipPostiveScore: 'relationshipPositiveMatchScore', relationshipIdentityCount: 'relationshipIdentityCount', dataFormat: 'true'},
        emailEvidence: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
        organizationalUnitEvidence: { dataFormat: 'true' },
        affiliationEvidence: { scopusUrl: 'https://www.scopus.com/affil/profile.uri?afid=', dataFormat: 'true' } ,
@@ -323,7 +323,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 if (evidence[rowName][rowFields['points']]) {
                   let unFormattedpoints = evidence[rowName][rowFields['points']]
                   points = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();
-				  pointsText = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();																					   
+				  																				   
                 }
               }
             }
@@ -335,11 +335,11 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               }
 
               if (rowName === 'relationshipEvidence') {
-				 points = (evidence[rowName].relationshipPositiveScore + evidence[rowName].relationshipNegativeScore).toFixed(2)
+				 points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
                 pointsText = <div>
-                <p>Positive match: {evidence[rowName].relationshipPositiveScore?.toFixed(2) || 0.00}</p>
-                <p>Negative match: {evidence[rowName].relationshipNegativeScore?.toFixed(2) || 0.00}</p>
-                <p>Identity match: {evidence[rowName].relationshipIdentityCount?.toFixed(2) || 0.00}</p>
+                <p>Positive match: {(evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2)}</p>
+                <p>Negative match: {(evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2)}</p>
+                <p>Identity count: {evidence[rowName].relationshipIdentityCount || 0}</p>
               </div>				  
                 if (evidence[rowName].hasOwnProperty('relationshipPositiveMatch')) {
                   displayInstDataList = true;
@@ -549,7 +549,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             title: Object.values(title),
             name: Object.keys(title)[0],
             points: points,
-			pointsText : pointsText,						
+			      pointsText : pointsText,						
             institutionalData: institutionalData,
             articleData: articleData,
             displayInstDataList: displayInstDataList,
@@ -584,8 +584,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
-                      {/*<small>{`${evidenceRow.points} points`}</small>*/}
-					   {<small>{evidenceRow.pointsText || evidenceRow.points}</small>}																 
+  				      {<small>{evidenceRow.pointsText || evidenceRow.points}</small>}																 
                     </p>
                   </td>
                   <td width="40%">
