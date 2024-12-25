@@ -261,6 +261,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { educationYearEvidence: 'Degree year discrepancy'},
       { genderEvidence: 'Inferred gender of name '},
       { articleCountEvidence: 'Candidate article count'},
+      { authorCountEvidence: 'Candidate author count'},
       //{ averageClusteringEvidence: 'Clustering'},
       { coAuthorAffiliationEvidence: 'Co-authors\'s institutional affiliation'},
     ]
@@ -276,6 +277,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
        articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
+       authorCountEvidence: { institutionalData:'-', articleData: 'countAuthors', points: 'authorCountScore'},
        //averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
        personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
        coAuthorAffiliationEvidence: { dataFormat: 'true'},
