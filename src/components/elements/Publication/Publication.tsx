@@ -311,7 +311,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
           let points = '';
-		  let pointsText:any = '';						  
+		      let pointsText:any = '';						  
           let source = '';
           let institutionalData = '-';
           let articleData = '-';
@@ -587,7 +587,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
-  				      {<small>{evidenceRow.pointsText || evidenceRow.points}</small>}																 
+  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points} points`}</small>}																 
                     </p>
                   </td>
                   <td width="40%">
