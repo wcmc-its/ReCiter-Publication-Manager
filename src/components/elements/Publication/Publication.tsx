@@ -586,7 +586,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
-  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points} points`}</small>}																 
+  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points > 0 ? evidenceRow.points : '0.00'} points`}</small>}																 
                     </p>
                   </td>
                   <td width="40%">
