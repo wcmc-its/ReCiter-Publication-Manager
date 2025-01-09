@@ -261,13 +261,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { educationYearEvidence: 'Degree year discrepancy'},
       { genderEvidence: 'Inferred gender of name '},
       { articleCountEvidence: 'Candidate article count'},
+      { authorCountEvidence: 'Candidate author count'},
       //{ averageClusteringEvidence: 'Clustering'},
       { coAuthorAffiliationEvidence: 'Co-authors\'s institutional affiliation'},
     ]
 
     const evidenceTableCellFields = {
        authorNameEvidence: { points: 'nameScoreTotal', dataFormat: 'true' },
-       relationshipEvidence: { points: 'relationshipEvidenceTotalScore', dataFormat: 'true'},
+       relationshipEvidence: { relationshipNegativeScore: 'relationshipNegativeMatchScore',relationshipPostiveScore: 'relationshipPositiveMatchScore', relationshipIdentityCount: 'relationshipIdentityCount', dataFormat: 'true'},
        emailEvidence: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
        organizationalUnitEvidence: { dataFormat: 'true' },
        affiliationEvidence: { scopusUrl: 'https://www.scopus.com/affil/profile.uri?afid=', dataFormat: 'true' } ,
@@ -276,6 +277,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
        articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
+       authorCountEvidence: { institutionalData:'-', articleData: 'countAuthors', points: 'authorCountScore'},
        //averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
        personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
        coAuthorAffiliationEvidence: { dataFormat: 'true'},
@@ -309,6 +311,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
           let points = '';
+		      let pointsText:any = '';						  
           let source = '';
           let institutionalData = '-';
           let articleData = '-';
@@ -322,6 +325,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 if (evidence[rowName][rowFields['points']]) {
                   let unFormattedpoints = evidence[rowName][rowFields['points']]
                   points = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();
+				  																				   
                 }
               }
             }
@@ -333,9 +337,13 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               }
 
               if (rowName === 'relationshipEvidence') {
-                if(evidence[rowName].hasOwnProperty('relationshipEvidenceTotalScore')) {
-                  points = evidence[rowName].relationshipEvidenceTotalScore.toFixed(2)
-                }
+		console.log('evidence*****',evidence);
+		points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
+                pointsText = <div>
+                <p>Positive match: {(evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2)}</p>
+                <p>Negative match: {(evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2)}</p>
+                <p>Identity count: {evidence[rowName].relationshipIdentityCount || 0}</p>
+              </div>				  
                 if (evidence[rowName].hasOwnProperty('relationshipPositiveMatch')) {
                   displayInstDataList = true;
                   displayArticleDataList = true;
@@ -544,6 +552,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             title: Object.values(title),
             name: Object.keys(title)[0],
             points: points,
+			      pointsText : pointsText,						
             institutionalData: institutionalData,
             articleData: articleData,
             displayInstDataList: displayInstDataList,
@@ -578,7 +587,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
-                      {<small>{`${evidenceRow.points} points`}</small>}
+  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points > 0 ? evidenceRow.points : '0.00'} points`}</small>}																 
                     </p>
                   </td>
                   <td width="40%">
