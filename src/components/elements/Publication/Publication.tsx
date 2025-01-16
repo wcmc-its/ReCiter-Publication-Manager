@@ -286,11 +286,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const displayRow = (row, evidence) => {
       if (evidence.hasOwnProperty(Object.keys(row)[0])) {
         if (Object.keys(row)[0] === 'relationshipEvidence') {
-          if (evidence.relationshipEvidence.hasOwnProperty('relationshipPositiveMatch')) {
             return true;
-          } else {
-            return false;
-          }
         } else {
           return true
         }
@@ -340,8 +336,9 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 		console.log('evidence*****',evidence);
 		points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
                 pointsText = <div>
-                <p>Positive match: {(evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2)}</p>
-                <p>Negative match: {(evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2)}</p>
+                  {console.log('evidence', evidence)}
+                <p>Positive match: {(evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2)}</p>
+                <p>Negative match: {(evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2)}</p>
                 <p>Identity count: {evidence[rowName].relationshipIdentityCount || 0}</p>
               </div>				  
                 if (evidence[rowName].hasOwnProperty('relationshipPositiveMatch')) {
@@ -587,7 +584,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
-  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points > 0 ? evidenceRow.points : '0.00'} points`}</small>}																 
+  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points != 0 ? evidenceRow.points : '0.00'} points`}</small>}																 
                     </p>
                   </td>
                   <td width="40%">
