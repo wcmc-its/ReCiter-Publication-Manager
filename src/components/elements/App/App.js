@@ -10,7 +10,7 @@ import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import {getSession } from "next-auth/client"
+import {useSession } from "next-auth/react"
 
 const App = (props) => {
 
@@ -26,7 +26,7 @@ const App = (props) => {
 
     const [tabActive, setTabActive] = useState("Suggested")
     const [identityData, setIdentityData] = useState({})
-    const session = getSession();
+    const session = useSession();
 
     useEffect(() => {
         // Call only if user has curator_self role. otherwise, we should not call these APIs.

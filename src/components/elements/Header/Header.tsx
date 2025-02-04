@@ -1,11 +1,11 @@
-import React, { Component } from "react";
-import { Navbar, Container} from "react-bootstrap";
+import React from "react";
+import { Navbar} from "react-bootstrap";
 import styles from "./Header.module.css";
-import { signOut, useSession} from 'next-auth/client';
+import { signOut, useSession } from "next-auth/react";
 import { getSigninUrl } from '../../../utils/loginHelper'
 
 const Header = () => {
-    const [session, loading] = useSession()
+    const { data: session } = useSession();
     return (
         <Navbar bg="primary" className={styles.topNav}>
           <div>

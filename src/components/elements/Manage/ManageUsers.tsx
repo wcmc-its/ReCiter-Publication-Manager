@@ -13,7 +13,7 @@ import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrappe
 import { toast } from "react-toastify"
 import Pagination from '../Pagination/Pagination';
 import Filter from "../Filter/Filter";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 
 
@@ -22,7 +22,7 @@ const ManageUsers = () => {
   const createORupdateUserID = useSelector((state: RootStateOrAny) => state.createORupdateUserID);
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
 
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession();
 
   const [users, setUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
@@ -49,7 +49,8 @@ const ManageUsers = () => {
   }, [])
 
   const adminConfigurations = ()=>{
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+   // let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+   let adminSettings = JSON.parse(JSON.stringify((session as any)?.adminSettings));
     var viewAttributes = [];
     var emailNotifications = [];
 

@@ -5,7 +5,7 @@ import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import Router from "next/router"
 import Header from "../Header/Header"
-import { signIn,getSession } from "next-auth/client"
+import { signIn,useSession, getSession } from "next-auth/react"
 import { toast } from "react-toastify"
 import { allowedPermissions } from "../../../utils/constants";
 import { useRouter } from 'next/router'
@@ -16,7 +16,7 @@ const Login = () => {
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [isShowButton, setIsShowButton] = useState(true)
-    const session = getSession();
+    const session = useSession();
     const router = useRouter()
 
     const validateForm = () => {
@@ -49,7 +49,7 @@ const Login = () => {
                 theme: "colored"
             });
             //if(session && session.data && session.data.userRoles)
-             getSession().then((session) => {
+            getSession().then((session) => {
                 if (session) {
                     let userPermissions = session.data.userRoles && session.data.userRoles !="" && JSON.parse(session.data.userRoles);
                     let userName = session.data.username;
@@ -66,12 +66,13 @@ const Login = () => {
             });
             
         } else {
-            setInvalidCredentialsFlag(true)
+            console.log("wrong credintials")
             toast.error("Invalid credentials", {
                 position: "top-right",
                 autoClose: 2000,
                 theme: "colored"
             });
+            setInvalidCredentialsFlag(true)
         }
     }
 

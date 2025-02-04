@@ -6,7 +6,7 @@ import styles from "./CurateIndividual.module.css";
 import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
 import { allowedPermissions } from "../../../utils/constants";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { clearPubMedData, showEvidenceByDefault } from "../../../redux/actions/actions";
 
 
@@ -16,7 +16,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   const dispatch = useDispatch();
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession(); 
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
   const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
   const [pubSearchFilters, setPubSearchFilters] = useState();

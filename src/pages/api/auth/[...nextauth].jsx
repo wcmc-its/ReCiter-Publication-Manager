@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import Providers from "next-auth/providers";
+import CredentialsProvider from "next-auth/providers/credentials"
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
@@ -125,30 +125,30 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
 
 const options = {
     providers:[
-        Providers.Credentials({
+        CredentialsProvider({
             name: "ReCiter Publication Manager App",
             id: "direct_login",
             async authorize(credentials) {
                 
                 if(credentials.username !== undefined && credentials.password !== undefined) {
-                  const apiResponse = await authenticate(credentials);
-                  if (apiResponse.statusCode == 200) {
+                  const user = await authenticate(credentials);
+                  if (user.statusCode == 200) {
                     const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
-                    apiResponse.databaseUser = adminUser;
+                    user.databaseUser = adminUser;
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
-                    apiResponse.userRoles = userRoles;
+                    user.userRoles = userRoles;
                     if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                             && reciterConfig.asms.userTrackingAPIAuthorization)
 					    persistUserLogin(credentials.username);									   
-                    return apiResponse;
+                    return user;
                   } else {
                       return null;
                   }
                   } 
             },
         }),
-        Providers.Credentials({
+        CredentialsProvider({
             id: "saml",
             name: "SAML",
             authorize: async ({ samlBody }) => {
@@ -249,46 +249,50 @@ const options = {
         }),
     ],
     callbacks: {
-        async signIn(apiResponse) {
-            return apiResponse
+        async signIn({user, account, profile, email, credentials}) {
+            return user
         },
-        async session(session, token,apiResponse) {
+        async session({session, token,user}) {
             session.data = token
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
-                session.adminSettings = await fetchUpdatedAdminSettings();
+            session.adminSettings = await fetchUpdatedAdminSettings();
             return session
         },
-        async jwt(token, apiResponse) {
-            if(apiResponse) {
-              if(apiResponse.statusMessage) {
-                token.username = apiResponse.statusMessage.username
+        async jwt({token, user}) {
+
+            if(user) {
+              if(user.statusMessage) {
+                token.username = user.statusMessage.username
               }
              
-              if(apiResponse.databaseUser || apiResponse.personIdentifier) {
-                token.email = apiResponse.email || ""
-                if(apiResponse.databaseUser.personIdentifier)
+              if(user.databaseUser || user.personIdentifier) {
+                token.email = user.email || ""
+                if(user.databaseUser.personIdentifier)
                 {
-                    token.username = apiResponse.databaseUser.personIdentifier
+                    token.username = user.databaseUser.personIdentifier
                 }
                 else
                 {
-                    token.username = apiResponse.personIdentifier || apiResponse.email // shows email as signed user in absence of the personIdetifier. for ex: HSS WCM institution 
+                    token.username = user.personIdentifier || user.email // shows email as signed user in absence of the personIdetifier. for ex: HSS WCM institution 
                 }
-                token.databaseUser = apiResponse.databaseUser
+                token.databaseUser = user.databaseUser
               }
-              if(apiResponse.userRoles) {
-                if(apiResponse.userRoles)
-                    token.userRoles = apiResponse.userRoles
+              if(user.userRoles) {
+                if(user.userRoles)
+                    token.userRoles = user.userRoles
               }
             }
             return token
         },
     },
     session: {
-        jwt: true,
-        maxAge: 7200,
+        strategy: "jwt",
+        // jwt: true,
+        // maxAge: 7200,
     },
+    secret: process.env.JWT_TOKEN_SECRET,
+    
 };
 
 const persistUserLogin =async (cwid)=>{

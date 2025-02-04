@@ -143,6 +143,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const { item } = props;
 
     const { reciterArticle } = props;
+    console.log("All the data",reciterArticle)
 
     const Buttons = ({index, pmid, userAssertion} : {
       index: number,

@@ -36,7 +36,7 @@ import { Provider as ReduxProvider } from 'react-redux'
 import { useStore } from '../redux/store/store'
 import type { Page } from '../../types/pages'
 import type { AppProps } from 'next/app'
-import { Provider } from "next-auth/client"
+import { SessionProvider } from "next-auth/react"
 import type { NextPage } from 'next'
 import type { ReactElement, ReactNode } from 'react'
 import Header from '../components/elements/Header/Header'
@@ -65,13 +65,13 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
   
 
   return (
-    <Provider session={pageProps.session}>
+    <SessionProvider session={session}>
         <ReduxProvider store={store}>
         <Header/>
           {getLayout(<Component {...pageProps} />)}
           <Footer/>
         </ReduxProvider>
-    </Provider>
+    </SessionProvider>
   )
   
 }

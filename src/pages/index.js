@@ -1,4 +1,4 @@
-import { getSession } from "next-auth/client"
+import { getSession } from "next-auth/react"
 import { useRouter } from 'next/router';
 import { useEffect } from "react";
 import { allowedPermissions } from "../utils/constants";

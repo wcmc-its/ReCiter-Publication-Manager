@@ -11,7 +11,7 @@ import {
 import getConfig from 'next/config';
 import path from 'path';
 import fsPromises from 'fs/promises';
-import {getSession} from 'next-auth/client'									   
+import {useSession} from 'next-auth/react'									   
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 

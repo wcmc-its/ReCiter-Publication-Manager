@@ -11,7 +11,7 @@ import Image from 'next/image';
 import MenuListItem from "./MenuListItem";
 import Box from '@mui/material/Box';
 import styles from './Navbar.module.css';
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 
 type ImageSourcePropType = React.ComponentProps<typeof Image>['src']
@@ -24,7 +24,7 @@ type NestedListItemProps = {
 
 const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgUrl}) => {
   const [open, setOpen] = React.useState(false);
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession();
 
 
   const handleClick = () => {

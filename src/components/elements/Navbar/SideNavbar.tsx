@@ -21,7 +21,7 @@ import settingsIconActive from '../../../../public/images/icon-side-faculty_admi
 import chartIconActive from '../../../../public/images/icon-side-faculty_report-active.png';
 import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
 import { useSelector, RootStateOrAny } from "react-redux";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 
 type SideNavBarProps = {
@@ -150,7 +150,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const [isVisibleNotification, setVisibleNotification] = React.useState(true);
 
 
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession(); 
 
   const menuItems: Array<MenuItem> = [
     {
@@ -262,7 +262,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   
 
   React.useEffect(()=>{
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+ let adminSettings = session && JSON.parse(JSON.stringify((session as any)?.adminSettings));
     var manageNotifications = [];
     if (updatedAdminSettings.length > 0) {
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")

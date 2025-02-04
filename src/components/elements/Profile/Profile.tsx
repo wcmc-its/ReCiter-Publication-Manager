@@ -10,7 +10,7 @@ import { reciterConfig } from '../../../../config/local';
 import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 import { allowedPermissions, setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
 
 
@@ -57,7 +57,7 @@ const Profile = ({
   const [exportArticleCsvLoading, setExportArticleCsvLoading] = useState<boolean>(false);
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
-  const [session, loading] = useSession();
+  const { data: session , status } = useSession(); 
   const userPermissions = JSON.parse(session.data.userRoles);
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
@@ -82,7 +82,9 @@ const Profile = ({
   }, [modalShow])
 
   useEffect(()=>{
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+    console.log("session In profile******", session);
+    //let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
+ let adminSettings = session && JSON.parse(JSON.stringify((session as any)?.adminSettings));
     let exportArticleRTFViewAttr = [];
 
     if (updatedAdminSettings.length > 0) {
