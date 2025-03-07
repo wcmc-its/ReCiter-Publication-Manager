@@ -711,6 +711,8 @@ const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
                         <Popover id="keyword-information" style={{ maxWidth: "395px" }}>
                           <Popover.Body>
                               <p>
+                                {console.log('pmid:',reciterArticle.pmid)}
+                                {console.log('likelihoodScore:',reciterArticle.authorshipLikelihoodScore)}
                               According to ReCiter’s neural network model, the 
                               likelihood that <b>{props.fullName}</b> has authored this article is&nbsp;
                               <b>{reciterArticle.authorshipLikelihoodScore ?  (Math.floor(reciterArticle.authorshipLikelihoodScore * 100) / 100).toFixed(5)   : "N/A"}%.</b>
