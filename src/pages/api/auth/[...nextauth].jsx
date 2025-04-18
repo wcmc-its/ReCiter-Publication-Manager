@@ -29,7 +29,7 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
         let userRoles ='';
          if(samlEmail)
             userRoles = await findUserPermissions(samlEmail, "email")
-         else if(cwid)
+         if(!userRoles && cwid)
             userRoles = await findUserPermissions(cwid, "cwid")
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
