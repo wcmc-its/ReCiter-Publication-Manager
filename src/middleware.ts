@@ -11,7 +11,10 @@ export const config = {
 export async function middleware(request: NextRequest) {
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
-  
+    
+    if (pathName && pathName.includes('.git')) { //redirect to forbidden if any request contains .git in the path.
+      return new Response('Forbidden', { status: 403 })
+    }
     if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))  
     {
       const loginUrl = new URL('/login', request.url)
