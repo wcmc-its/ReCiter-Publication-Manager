@@ -31,11 +31,12 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
          {   
             userRoles = await findUserPermissions(samlEmail, "email")
             console.log('userRoles with SAML email',userRoles);
-            if(!userRoles || userRoles.length ==0)
+            console.log(typeof userRoes);
+            if(!userRoles || userRoles === '')
               userRoles = await findUserPermissions(cwid, "cwid")
             console.log('userroles from email section',userRoles);      
          }
-         if((!userRoles || userRoles.length ==0) && cwid)
+         if((!userRoles || userRoles === '') && cwid)
          {  
             userRoles = await findUserPermissions(cwid, "cwid")
             console.log('userRoles with CWID ',userRoles);
