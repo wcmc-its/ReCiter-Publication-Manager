@@ -36,14 +36,14 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
             console.log('typeof:', typeof userroles)
             console.log('!userroles:', !userroles)
 
-            if(!userRoles || userroles == undefined)
+            if(!userRoles || userroles === undefined)
             {
               console.log('coming into this saml CWID ')      
               userRoles = await findUserPermissions(cwid, "cwid")
             }
             console.log('userroles from email section',userRoles);      
          }
-         if((!userRoles || userRoles == undefined ) && cwid)
+         if((!userRoles || userRoles === undefined ) && cwid)
          {  
             console.log('coming into this CWID ')   
             userRoles = await findUserPermissions(cwid, "cwid")
