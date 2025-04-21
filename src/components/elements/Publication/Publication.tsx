@@ -333,9 +333,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               }
 
               if (rowName === 'relationshipEvidence') {
-				 points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
+		
+		points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
                 pointsText = <div>
-                  {console.log('evidence', evidence)}
+                  
                 <p>Positive match: {(evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2)}</p>
                 <p>Negative match: {(evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2)}</p>
                 <p>Identity count: {evidence[rowName].relationshipIdentityCount || 0}</p>
