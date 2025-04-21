@@ -13,12 +13,19 @@ import { allowedPermissions } from "../../../utils/constants";
 
 // Determine the condition for choosing the authentication method
 const isSamlEnabled = process.env.SAML_ENABLED === 'true';
+const EMAIL ='email'
+const PERSONIDENTIFIER  = 'personIdentifier'
+
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+function isEmptyString(val) {
+    return typeof val !== 'string' || val.trim() === '';
+  };
 
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
@@ -28,24 +35,15 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
         await sleep(50);
         let userRoles ='';
         console.log('samlEmail and CWID', samlEmail, cwid)
-         if(samlEmail)
+         if(samlEmail || cwid)
          {   
-            userRoles = await findUserPermissions(samlEmail, "email")
+            
+            userRoles = await findUserPermissions([EMAIL, PERSONIDENTIFIER], [samlEmail, cwid])
             console.log('userRoles with SAML email',userRoles);
             console.log('type of userRoles', typeof userRoles);
-            if(!userRoles)
-            {
-              console.log('coming into this saml CWID ')      
-              userRoles = await findUserPermissions(cwid, "cwid")
-            }
-            console.log('userroles from email section',userRoles);      
+            
          }
-         if(cwid)
-         {  
-            console.log('coming into this CWID ')   
-            userRoles = await findUserPermissions(cwid, "cwid")
-            console.log('userRoles with CWID ',userRoles);
-         }
+       
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
@@ -92,8 +90,8 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
     let finalAssignRolesPayload =[];
     if(adminUser && adminUser.personIdentifier)
     {
-        personAPIResponse = await findOnePerson("personIdentifier",adminUser.personIdentifier);
-        existingAdminUserRoles = JSON.parse(await findUserPermissions(adminUser.personIdentifier, "cwid"))
+        personAPIResponse = await findOnePerson([EMAIL, PERSONIDENTIFIER], [adminUser.email, adminUser.personIdentifier]);
+        existingAdminUserRoles = JSON.parse(await findUserPermissions([EMAIL, PERSONIDENTIFIER], [adminUser.email, adminUser.personIdentifier]))
     } 
     if(assignRolesPayload && assignRolesPayload.length >= 2)
     {
@@ -151,7 +149,7 @@ const options = {
                     const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
                     apiResponse.databaseUser = adminUser;
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
-                    const userRoles = await findUserPermissions(credentials.username, "cwid");
+                    const userRoles = await findUserPermissions([EMAIL, PERSONIDENTIFIER], [credentials.email, credentials.username]);
                     apiResponse.userRoles = userRoles;
                     if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                             && reciterConfig.asms.userTrackingAPIAuthorization)
