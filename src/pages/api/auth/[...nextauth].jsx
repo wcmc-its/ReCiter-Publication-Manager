@@ -36,17 +36,17 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
             userRoles = await findUserPermissions(samlEmail, "email")
             if(isEmptyString(userroles))
             {
-	      console.log("fecthing userroles using cwid in email');				    
+	      console.log('fecthing userroles using cwid in email');				    
               userRoles = await findUserPermissions(cwid, "cwid")
-	      console.log("userroles are : ',userRoles);	    
+	      console.log('userroles are : ',userRoles);	    
             }
          }
          if(isEmptyString(userroles) && cwid)
          {  
 	   
-	      console.log("fecthing userroles using cwid');	 
+	      console.log('fecthing userroles using cwid');	 
             userRoles = await findUserPermissions(cwid, "cwid")
-	     console.log("userroles are : ',userRoles);	 
+	     console.log('userroles are : ',userRoles);	 
          }
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
