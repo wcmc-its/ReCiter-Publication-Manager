@@ -19,18 +19,22 @@ const authHandler = async (req, res) => {
 };
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
-
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
+	
         await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
         let userRoles ='';
          if(samlEmail)
-            userRoles = await findUserPermissions(samlEmail, "email")
-         else if(cwid)
-            userRoles = await findUserPermissions(cwid, "cwid")
+         {   
+	    userRoles = await findUserPermissions(samlEmail, "email")
+	 }
+         if(cwid)
+         {  
+	   userRoles = await findUserPermissions(cwid, "cwid")
+	  }
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
