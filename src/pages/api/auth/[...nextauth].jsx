@@ -28,12 +28,15 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
+	
         await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
         let userRoles ='';
          if(samlEmail)
          {   
+	    console.log('coming into this method***********');    	 
             userRoles = await findUserPermissions(samlEmail, "email")
+	    console.log('coming into this method***********',userRoles);    	 
             if(isEmptyString(userroles))
             {
 	      console.log('fecthing userroles using cwid in email');				    
