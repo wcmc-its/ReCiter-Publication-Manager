@@ -20,6 +20,8 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 function isEmptyString(val) {
+    console.log('type of val *********', typeof val)
+    console.log('val *********', val);	
     return typeof val !== 'string' || val.trim() === '';
   };
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
@@ -34,12 +36,17 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
             userRoles = await findUserPermissions(samlEmail, "email")
             if(isEmptyString(userroles))
             {
+	      console.log("fecthing userroles using cwid in email');				    
               userRoles = await findUserPermissions(cwid, "cwid")
+	      console.log("userroles are : ',userRoles);	    
             }
          }
          if(isEmptyString(userroles) && cwid)
          {  
+	   
+	      console.log("fecthing userroles using cwid');	 
             userRoles = await findUserPermissions(cwid, "cwid")
+	     console.log("userroles are : ',userRoles);	 
          }
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
