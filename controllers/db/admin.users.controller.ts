@@ -75,21 +75,7 @@ export const findAdminUser = async (attrTypes: string[], attrValues: string[]) =
       });
     
       return user ?? null;
-    /*if (attrType === "email"){
-        const user = await models.AdminUser.findOne({
-            where: {
-                email: attrValue,
-            }
-        })
-        return user;
-    }else {
-        const user = await models.AdminUser.findOne({
-            where: {
-                personIdentifier: attrValue,
-            }
-        })
-        return user;
-    }*/
+    
 };
 
 export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => {
