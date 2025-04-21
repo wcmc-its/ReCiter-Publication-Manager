@@ -2,29 +2,23 @@ import models from '../../src/db/sequelize'
 import { findOnePerson } from './person.controller'
 import { Op} from "sequelize"
 
+const EMAIL ='email'
+const PERSONIDENTIFIER  = 'personIdentifier'
+
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
         let whereCondition:any =samlEmail?{'email':samlEmail}:{'personIdentifier':uid} ;
 
         let person:any=null;
         let adminUser=null
-        if(samlEmail)
+        if(samlEmail || uid)
         {
-            adminUser = await findAdminUser(samlEmail,'email');
-            if(samlEmail && adminUser)
+            adminUser = await findAdminUser([EMAIL,PERSONIDENTIFIER],[samlEmail,uid]);
+            if((samlEmail || uid) && adminUser)
             {
-                whereCondition = {email: samlEmail}
-                person = await findOnePerson("email",samlEmail); 
+                person = await findOnePerson([EMAIL,PERSONIDENTIFIER],[samlEmail,uid]); 
             }
-        }
-        if(!adminUser && uid)
-        {
-            adminUser = await findAdminUser(uid,'personIdentifier');
-             if(adminUser && uid)
-             {
-                whereCondition = { personIdentifier: uid}
-                person = await findOnePerson("personIdentifier",uid);
-             }
+        
         }
         const [user, created] = await models.AdminUser.findOrCreate({
 
@@ -50,22 +44,38 @@ export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, sam
     }
 };
 
-export const findAdminUser = async (attrValue: string, attrType:string) => {
-    if (attrType === "email"){
-        const user = await models.AdminUser.findOne({
-            where: {
-                email: attrValue,
-            }
-        })
-        return user;
-    }else {
-        const user = await models.AdminUser.findOne({
-            where: {
-                personIdentifier: attrValue,
-            }
-        })
-        return user;
-    }
+export const findAdminUser = async (attrTypes: string[], attrValues: string[]) => {
+   
+    if (!Array.isArray(attrTypes) || !Array.isArray(attrValues)) {
+        throw new Error('Both attrTypes and attrValues must be arrays');
+      }
+    
+      if (attrTypes.length !== attrValues.length) {
+        throw new Error('attrTypes and attrValues must be the same length');
+      }
+
+      const allowedFields = ['email', 'personIdentifier'];
+      const whereConditions: any[] = [];
+    
+      attrTypes.forEach((field, i) => {
+        if (!allowedFields.includes(field)) return;
+    
+        const value = attrValues[i];
+        if (value != null) {
+          whereConditions.push({ [field]: value });
+        }
+      });
+    
+      if (whereConditions.length === 0) return null;
+    
+      const user = await models.AdminUser.findOne({
+        where: {
+          [Op.or]: whereConditions,
+        },
+      });
+    
+      return user ?? null;
+    
 };
 
 export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => {
