@@ -19,11 +19,6 @@ const authHandler = async (req, res) => {
 };
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
-function isEmptyString(val) {
-    console.log('type of val *********', typeof val)
-    console.log('val *********', val);	
-    return typeof val !== 'string' || val.trim() === '';
-  };
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
@@ -34,23 +29,12 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
         let userRoles ='';
          if(samlEmail)
          {   
-	    console.log('coming into this method***********');    	 
-            userRoles = await findUserPermissions(samlEmail, "email")
-	    console.log('coming into this method***********',userRoles);    	 
-            if(isEmptyString(userroles))
-            {
-	      console.log('fecthing userroles using cwid in email');				    
-              userRoles = await findUserPermissions(cwid, "cwid")
-	      console.log('userroles are : ',userRoles);	    
-            }
-         }
-         if(isEmptyString(userroles) && cwid)
+	    userRoles = await findUserPermissions(samlEmail, "email")
+	 }
+         if(cwid)
          {  
-	   
-	      console.log('fecthing userroles using cwid');	 
-            userRoles = await findUserPermissions(cwid, "cwid")
-	     console.log('userroles are : ',userRoles);	 
-         }
+	   userRoles = await findUserPermissions(cwid, "cwid")
+	  }
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
