@@ -19,7 +19,9 @@ const authHandler = async (req, res) => {
 };
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
-
+function isEmptyString(val) {
+    return typeof val !== 'string' || val.trim() === '';
+  };
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
@@ -30,12 +32,12 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
          if(samlEmail)
          {   
             userRoles = await findUserPermissions(samlEmail, "email")
-            if(!userRoles)
+            if(isEmptyString(userroles))
             {
               userRoles = await findUserPermissions(cwid, "cwid")
             }
          }
-         if(cwid)
+         if(isEmptyString(userroles) && cwid)
          {  
             userRoles = await findUserPermissions(cwid, "cwid")
          }
