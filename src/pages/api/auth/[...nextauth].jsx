@@ -23,17 +23,15 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-function isEmptyString(val) {
-    return typeof val !== 'string' || val.trim() === '';
-  };
-
 const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
+	
         await grantDefaultRolesToAdminUser(createdAdminUser);
         await sleep(50);
         let userRoles ='';
+
         console.log('samlEmail and CWID', samlEmail, cwid)
          if(samlEmail || cwid)
          {   
@@ -43,8 +41,8 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
             console.log('type of userRoles', typeof userRoles);
             
          }
-       
-         createdAdminUser.userRoles = userRoles;
+
+        createdAdminUser.userRoles = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
             "personIdentifier": createdAdminUser.personIdentifier,
