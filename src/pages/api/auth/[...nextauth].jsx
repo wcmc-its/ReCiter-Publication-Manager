@@ -227,6 +227,7 @@ const options = {
                     if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                            const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
+                           console.log('adminUser in SAML*************',adminUser);
                            await sleep(100)
                           if(adminUser){
                                 if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
@@ -238,6 +239,7 @@ const options = {
                          else if(cwid)
                          {
                                const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
+                               console.log('adminUser in CWID*************',adminUser);
                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                         && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
@@ -291,10 +293,12 @@ const options = {
                 token.databaseUser = apiResponse.databaseUser
               }
               if(apiResponse.userRoles) {
+                console.log('apiResponse****************',apiResponse.userRoles)
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles
               }
             }
+            console.log('token*****************',token)
             return token
         },
     },
