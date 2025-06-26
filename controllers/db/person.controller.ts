@@ -216,8 +216,7 @@ export const findOnePerson = async (attrTypes: string[], attrValues: string[]  )
         },
         attributes: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title'],
       });
-    
-      return person ?? null; 
+      return person ; 
     
 };
 

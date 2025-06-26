@@ -74,7 +74,7 @@ export const findAdminUser = async (attrTypes: string[], attrValues: string[]) =
         },
       });
     
-      return user ?? null;
+      return user;
     
 };
 
