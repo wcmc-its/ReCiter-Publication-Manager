@@ -1,12 +1,12 @@
 import sequelize from "../../src/db/db";
-import { QueryTypes } from 'sequelize';
+//import { QueryTypes } from 'sequelize';
 
 export const findUserPermissions = async (attrTypes: string[], attrValues: string[]) => {
 
     if (!Array.isArray(attrTypes) || !Array.isArray(attrValues)) {
         throw new Error('Both attrTypes and attrValues must be arrays');
     }
-    
+
     if (attrTypes.length !== attrValues.length) {
         throw new Error('attrTypes and attrValues must be the same length');
     }
@@ -32,11 +32,12 @@ export const findUserPermissions = async (attrTypes: string[], attrValues: strin
                     `ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID  WHERE  ${whereClause} LIMIT 1`,
         {
         replacements,
-        type: QueryTypes.SELECT,
+        nest: true,
+        raw:true
+        //type: QueryTypes.SELECT,
         }
     );
-    console.log('results*****************',userRolesList);
-    return userRolesList ? JSON.stringify(userRolesList) : null;
+    return JSON.stringify(userRolesList) ;
    
 };
 
