@@ -29,7 +29,7 @@ export const findUserPermissions = async (attrTypes: string[], attrValues: strin
 
     userRolesList = await sequelize.query(
         `SELECT au.personIdentifier, roleLabel,aur.roleID FROM admin_users as au INNER JOIN admin_users_roles as aur ` +
-                    `ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID  WHERE  ${whereClause} LIMIT 1`,
+                    `ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID  WHERE  ${whereClause} `,
         {
         replacements,
         nest: true,
