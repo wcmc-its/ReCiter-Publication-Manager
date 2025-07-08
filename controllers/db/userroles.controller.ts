@@ -18,7 +18,7 @@ export const findUserPermissions = async (attrTypes: string[], attrValues: strin
     attrTypes.forEach((field, i) => {
         const value = attrValues[i];
         if (!allowedFields.includes(field)) return;
-        if (value == null || value =='') return; // skip if null or undefined
+        if (value == null || value =='' || value == undefined) return; // skip if null or undefined
 
         const key = `val${i}`;
         conditions.push(`${field} = :${key}`);
