@@ -10,26 +10,50 @@ export const findUserPermissions = async (attrTypes: string[], attrValues: strin
     if (attrTypes.length !== attrValues.length) {
         throw new Error('attrTypes and attrValues must be the same length');
     }
+    
     const allowedFields = ['email', 'personIdentifier'];
-    const conditions: string[] = [];
     const replacements: Record<string, any> = {};
     let userRolesList = []
 
-    attrTypes.forEach((field, i) => {
-        const value = attrValues[i];
+    let whereClause = [];
+    
+    let personIdentifier = null;
+    let email = null;
+
+    attrTypes.forEach((field, index) => {
+        const value = attrValues[index]??'';
         if (!allowedFields.includes(field)) return;
-        if (value == null || value =='') return; // skip if null or undefined
 
-        const key = `val${i}`;
-        conditions.push(`${field} = :${key}`);
-        replacements[key] = attrValues[i];
+        if (field === 'personIdentifier') {
+            personIdentifier = value;
+            replacements.personIdentifier = value;
+        }
+
+        if (field === 'email') {
+            email = value;
+            replacements.email = value;
+        }
     });
-
-    const whereClause = conditions.join(' OR ');
+// Build condition blocks
+    whereClause.push(`
+        (au.personIdentifier = :personIdentifier AND au.email = :email)
+        OR
+        (
+        au.email = :email
+        AND au.email IS NOT NULL AND au.email <> ''
+        AND au.email IN (
+            SELECT email
+            FROM admin_users
+            WHERE email IS NOT NULL AND email <> ''
+            GROUP BY email
+            HAVING COUNT(*) = 1
+        )
+        )
+    `);
 
     userRolesList = await sequelize.query(
-        `SELECT au.personIdentifier, roleLabel,aur.roleID FROM admin_users as au INNER JOIN admin_users_roles as aur ` +
-                    `ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID  WHERE  ${whereClause} LIMIT 1`,
+        `SELECT DISTINCT au.personIdentifier, roleLabel,aur.roleID FROM admin_users as au INNER JOIN admin_users_roles as aur ` +
+                    `ON au.userID = aur.userID INNER JOIN admin_roles ar ON aur.roleID = ar.roleID  WHERE  ${whereClause} `,
         {
         replacements,
         nest: true,
