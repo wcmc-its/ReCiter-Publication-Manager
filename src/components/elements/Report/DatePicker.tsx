@@ -1,98 +1,240 @@
-// @ts-nocheck
-import React, { useEffect, useState } from "react";
-import { DateRangePicker, SingleDatePicker, DayPickerRangeController } from 'react-dates';
-import 'react-dates/initialize';
-import 'react-dates/lib/css/_datepicker.css';
-import moment from 'moment';
-import { Dropdown, Button} from "react-bootstrap";
+import React, { useEffect, useState, forwardRef } from "react";
+import DatePickerLib from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { Dropdown, Button } from "react-bootstrap";
 import { setReportFilterLabels } from "../../../utils/constants";
 
+// Custom input with two placeholders
 
-export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,selectedFilters, handleChange, filterLowerName, filterUpperName, selectedStartDate, selectedEndDate }) => {
-  const [focusedInput, setFocusedInput] = useState();
-  const [showDropdown, setShowDropdown] = useState<boolean>(false);
-  const [startDate, setStartDate] = useState();
-  const [endDate, setEndDate] = useState();
-  const [minDate, setMinDate] = useState();
+const DateRangeInput = forwardRef(
+  (
+    {
+      startDate,
+      endDate,
+      isClearable,
+      onClick,
+      onClear,
+      placeholderStart = "MM/DD/YYYY",
+      placeholderEnd = "MM/DD/YYYY",
+    }: any,
+    ref: any
+  ) => {
+    const showValue =
+      startDate || endDate
+        ? [
+            startDate
+              ? new Date(startDate).toLocaleDateString("en-US")
+              : placeholderStart,
+            endDate
+              ? new Date(endDate).toLocaleDateString("en-US")
+              : placeholderEnd,
+          ]
+        : [placeholderStart, placeholderEnd];
 
-
-  const handleCustomDateRange = ()=>{
-    let tempStartDate = new Date();
-    let tempMinDate = new Date();
-    let tempEndDate = new Date();
-    tempStartDate.setDate(tempEndDate.getDate() - 30);
-    tempMinDate.setDate(tempEndDate.getDate() - 3000)
-  
-    setMinDate(moment(tempMinDate))
-    setStartDate(moment(tempStartDate))
-    setEndDate(moment(tempEndDate))
-    handleChange(filterLowerName, filterUpperName, moment(tempStartDate).format('YYYY-MM-DD'), moment(tempEndDate).format('YYYY-MM-DD'));
+    return (
+      <div
+        ref={ref}
+        onClick={onClick}
+        style={{
+          border: "1px solid #ccc",
+          borderRadius: 4,
+          padding: "4px 8px",
+          minWidth: 287,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          fontSize: "20px",
+          background: "#fff",
+        }}
+      >
+        <span style={{ color: "#777" }}>{showValue[0]}</span>
+        <span style={{ margin: "0 10px", color: "#aaa" }}>→</span>
+        <span style={{ color: "#777" }}>{showValue[1]}</span>
+        {isClearable && (startDate || endDate) && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear?.();
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#888",
+              fontSize: 18,
+              cursor: "pointer",
+              marginLeft: 10,
+            }}
+            title="Clear"
+            tabIndex={-1}
+          >
+          </button>
+        )}
+      </div>
+    );
   }
+);
 
+export const DatePicker = ({
+  reportFiltersLabes,
+  name,
+  isFilterClear,
+  range,
+  selectedFilters,
+  handleChange,
+  filterLowerName,
+  filterUpperName,
+}) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [minDate, setMinDate] = useState<Date | null>(null);
 
-  useEffect(() => {
-    const { personIdentifers, institutions, orgUnits, personTypes, datePublicationAddedToEntrezLowerBound, datePublicationAddedToEntrezUpperBound } = selectedFilters
-    if (personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0) {
-      // handleCustomDateRange();
-    } else {
-      setStartDate()
-      setEndDate()
-      handleChange(filterLowerName, filterUpperName, null, null);
-    }
-  }, [])
+  // Inject custom CSS for horizontal layout
+  React.useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = `
+      .react-datepicker{
+        margin-left: 344px;
+        margin-top: 8px;
+       }
+      .horizontal-datepicker {
+        min-width: 620px !important;
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 32px;
+      }
+      .horizontal-datepicker .react-datepicker__month-container {
+        width: 300px;
+      }
+      .react-datepicker__month-container {
+        min-width: 300px;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
-  
-
-  useEffect(()=>{
-      setStartDate()
-      setEndDate()
-    },[isFilterClear])
-
-    if (!range || range.length == 0) {
-      return null;
-    }
-
-  const handleDatesChange = ({ startDate, endDate }) => {
-    setStartDate(startDate)
-    setEndDate(endDate)
-    let formattedStartDate = startDate ? startDate.format('YYYY-MM-DD') : null;
-    let formattedEndDate = endDate ? endDate.format('YYYY-MM-DD') : null;
-    handleChange(filterLowerName, filterUpperName, formattedStartDate, formattedEndDate);
+  // Helper to format date as YYYY-MM-DD
+  const formatDate = (d: Date | null) => {
+    if (!d) return null;
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
   };
 
+  const handleCustomDateRange = () => {
+    const tempEndDate = new Date();
+    const tempStartDate = new Date();
+    const tempMinDate = new Date();
+    tempStartDate.setDate(tempEndDate.getDate() - 30);
+    tempMinDate.setDate(tempEndDate.getDate() - 3000);
 
-  const isOutsideRange = day =>
-    day.isAfter(startDate) || day.isBefore(endDate);
+    setMinDate(tempMinDate);
+    setStartDate(tempStartDate);
+    setEndDate(tempEndDate);
+    handleChange(
+      filterLowerName,
+      filterUpperName,
+      formatDate(tempStartDate),
+      formatDate(tempEndDate)
+    );
+  };
 
-  const toggleDropdown = () => {
-    setShowDropdown(prevShowDropdown => !prevShowDropdown);
+  useEffect(() => {
+    const {
+      personIdentifers = [],
+      institutions = [],
+      orgUnits = [],
+      personTypes = [],
+    } = selectedFilters || {};
+    if (
+      personIdentifers.length === 0 &&
+      institutions.length === 0 &&
+      orgUnits.length === 0 &&
+      personTypes.length === 0
+    ) {
+      // handleCustomDateRange();
+    } else {
+      setStartDate(null);
+      setEndDate(null);
+      handleChange(filterLowerName, filterUpperName, null, null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setStartDate(null);
+    setEndDate(null);
+  }, [isFilterClear]);
+
+  if (!range || range.length === 0) {
+    return null;
   }
+
+  const handleDatesChange = (dates: [Date | null, Date | null]) => {
+    const [start, end] = dates;
+    setStartDate(start);
+    setEndDate(end);
+    handleChange(
+      filterLowerName,
+      filterUpperName,
+      formatDate(start),
+      formatDate(end)
+    );
+  };
+
+  // Clear dates
+  const handleClear = () => {
+    setStartDate(null);
+    setEndDate(null);
+    handleChange(filterLowerName, filterUpperName, null, null);
+  };
 
   return (
     <Dropdown className="d-inline-block" autoClose>
-      <Dropdown.Toggle variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-basic">
-      {setReportFilterLabels(reportFiltersLabes, name)}
+      <Dropdown.Toggle
+        variant={startDate || endDate ? "primary" : "white"}
+        id="dropdown-basic"
+      >
+        {setReportFilterLabels(reportFiltersLabes, name)}
       </Dropdown.Toggle>
-      <Dropdown.Menu className="px-4">
-        
-        <DateRangePicker
-          startDate={startDate ? startDate : null}
-          minDate={minDate? minDate : null} // momentPropTypes.momentObj or null,
-          startDateId="date_picker_start_date_id" // PropTypes.string.isRequired,
-          maxDate={endDate ? endDate : null}
-          endDate={endDate ? endDate : null}  // momentPropTypes.momentObj or null,
-          endDateId="date_picker_end_date_id" // PropTypes.string.isRequired,
-          onDatesChange={handleDatesChange} // PropTypes.func.isRequired,
-          focusedInput={focusedInput} // PropTypes.oneOf([START_DATE, END_DATE]) or null,
-          onFocusChange={focusedInput =>{ setFocusedInput(focusedInput)}} // PropTypes.func.isRequired,
-          isOutsideRange={()=> false}
-          startDatePlaceholderText="MM/DD/YYYY"
-          endDatePlaceholderText="MM/DD/YYYY"
-        />
+      <Dropdown.Menu className="px-4" style={{ minWidth: 339 }}>
+        <div>
+          <DatePickerLib
+            selectsRange
+            startDate={startDate}
+            endDate={endDate}
+            onChange={handleDatesChange}
+            minDate={minDate ? minDate : undefined}
+            dateFormat="MM/dd/yyyy"
+            isClearable={true}
+            monthsShown={2}
+            calendarClassName="horizontal-datepicker"
+            popperPlacement="bottom"
+            customInput={
+              <DateRangeInput
+                startDate={startDate}
+                endDate={endDate}
+                isClearable={true}
+                onClear={handleClear}
+              />
+            }
+          />
+        </div>
         <div className="mt-1">
-          <Button varient="primary" className="fullWidth" onClick= {handleCustomDateRange}>Last 30 days</Button>
+          <Button
+            variant="primary"
+            className="fullWidth"
+            onClick={handleCustomDateRange}
+          >
+            Last 30 days
+          </Button>
         </div>
       </Dropdown.Menu>
     </Dropdown>
-  )
-}
+  );
+};

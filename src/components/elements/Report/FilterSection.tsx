@@ -7,6 +7,7 @@ import { SliderFilter } from "./SliderFilter";
 import { CheckList } from "./CheckList";
 import { CheckboxSelect } from "./CheckboxSelect";
 import * as utils from "../../../utils/reportFilters";
+import React from 'react';
 
 // given filter name which redux state object property should be updated
 const filterNameToState = {
@@ -145,8 +146,8 @@ export const FilterSection = ({reportFiltersLabes, onLoadMore, filterOptions,isF
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
         return (
-          <>
-            <FilterRow
+          <React.Fragment key={config}>
+            <FilterRow 
               title={reportConfig[config].name}
               filters={reportConfig[config].list}
               filterOptions={filterOptions}
@@ -159,7 +160,7 @@ export const FilterSection = ({reportFiltersLabes, onLoadMore, filterOptions,isF
               reportFiltersLabes={reportFiltersLabes}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
-          </>
+         </React.Fragment>
         )
       })}
       <Buttons 

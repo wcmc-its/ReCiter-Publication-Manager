@@ -212,7 +212,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         <Row className="mb-3 pt-3" >
                             <Form.Group as={Col} sm={12} lg={4} controlId="formGridFirstname">
                                 <Form.Label>First Name<span className="text-danger">*</span></Form.Label>
-                                <Form.Control required  type="text" maxLength={128} placeholder="Enter First name" /*isInvalid={ validated && firstName.trim().length == 0}*/ value={firstName} name="firstName" onChange={(e) => handleValueChangeTargetValue("firstName", e.target.value)} 
+                                <Form.Control required  type="text" maxLength={128} placeholder="Enter First name" /*isInvalid={ validated && firstName.trim().length == 0}*/ value={firstName ?? ""} name="firstName" onChange={(e) => handleValueChangeTargetValue("firstName", e.target.value)} 
                                     isInvalid={formErrorsInst.firstName }/>
                                 <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
                                 <Form.Control.Feedback type='invalid'>

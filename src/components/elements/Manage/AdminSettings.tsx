@@ -269,10 +269,10 @@ const AdminSettings = () => {
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
-                          <Card.Text>
+                          <div>
                           {(innerObj && innerObj.hasOwnProperty('labelUserView'))  && labelSettingsView !== "Email signature" &&
                             <div className="d-flex">
-                              <p className={styles.labels}>Label Override</p>
+                              <span className={styles.labels}>Label Override</span>
                               <Form.Control
                                 type="text"
                                 name="labelOverRide"
@@ -286,7 +286,7 @@ const AdminSettings = () => {
                             {(innerObj && innerObj.hasOwnProperty('labelUserView')) && labelSettingsView == "Email signature" &&
 
                               <div className="d-flex">
-                                <p className={styles.labels}>Label</p>
+                                <label className={styles.labels}>Label</label>
                                 <Form.Control
                                   type="textarea"
                                   name="labelOverRide"
@@ -300,7 +300,7 @@ const AdminSettings = () => {
                             }
                             {(innerObj && innerObj.hasOwnProperty('helpTextUserView')) &&
                             <div className="d-flex mt-4 mb-4">
-                              <p className={styles.labels}>Help Text</p>
+                              <label className={styles.labels}>Help Text</label>
                               <Form.Control
                                 type="textarea"
                                 as="textarea"
@@ -313,7 +313,7 @@ const AdminSettings = () => {
                             }
                             {(innerObj && innerObj.hasOwnProperty('syntax')) && 
                               <div className="d-flex">
-                              <p className={styles.labels}>Image Path</p>
+                              <label className={styles.labels}>Image Path</label>
                               <Form.Control
                                 type="text"
                                 name="labelOverRide"
@@ -326,7 +326,7 @@ const AdminSettings = () => {
                             }
                            {(innerObj && innerObj.hasOwnProperty('isVisible')) && labelUserKey == 'emailNotifications' &&
                             <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Is enabled</p>
+                              <label  className={styles.labelForCheckBox}>Is enabled</label>
                               <div>
                                 <Form.Check
                                   type="checkbox"
@@ -340,7 +340,7 @@ const AdminSettings = () => {
                            }  
                           {(innerObj && innerObj.hasOwnProperty('isVisible')) && labelUserKey != 'emailNotifications' && 
                             <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Is visible</p>
+                              <label className={styles.labelForCheckBox}>Is visible</label>
                               <div>
                                 <Form.Check
                                   type="checkbox"
@@ -354,7 +354,7 @@ const AdminSettings = () => {
                            }
                            { (innerObj && innerObj.hasOwnProperty('displayRank')) &&
                             <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Display Rank</p>
+                              <label className={styles.labelForCheckBox}>Display Rank</label>
                               <Form.Control
                                 type="text"
                                 name="displayRank"
@@ -367,7 +367,7 @@ const AdminSettings = () => {
                            }
                            { (innerObj && innerObj.hasOwnProperty('personIdentifier')) && <>
                             <div className="d-flex mb-2">
-                              <p className={styles.labels}>Person Identifier(s)</p>
+                              <label className={styles.labels}>Person Identifier(s)</label>
                               <Form.Control
                                 type="textarea"
                                 as="textarea" rows={3}
@@ -378,12 +378,12 @@ const AdminSettings = () => {
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "personIdentifier", e, obj.viewLabel)}
                               />
                             </div>
-                              {personIdentifierError && personIdentifier === "" && <p className="textError" >{personIdentifierError}</p>}
+                              {personIdentifierError && personIdentifier === "" && <label className="textError" >{personIdentifierError}</label>}
                               </>
                            }
                            { (innerObj && innerObj.hasOwnProperty('emailOverride')) && <>
                             <div className="d-flex">
-                              <p className={styles.labels}>Email</p>
+                              <label className={styles.labels}>Email</label>
                               <Form.Control
                                 type="text"
                                 name="emailOverride"
@@ -393,12 +393,12 @@ const AdminSettings = () => {
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "emailOverride", e, obj.viewLabel)}
                               />
                             </div>
-                              {emailError && emailOverride === "" && <p className="textError" >{emailError}</p>}
+                              {emailError && emailOverride === "" && <div className="textError" >{emailError}</div>}
                               </>
                            }
                            {(innerObj && innerObj.hasOwnProperty('useEmailForScheduledJobs'))  && 
                             <div className={`d-flex ${styles.pt5}`}>
-                              <p >Use Email Override in all regularly scheduled jobs</p>
+                              <label >Use Email Override in all regularly scheduled jobs</label>
                               <div className={styles.pl20}>
                                 <Form.Check
                                   type="checkbox"
@@ -419,40 +419,40 @@ const AdminSettings = () => {
                                   onClick={() => sendTestEmail(personIdentifier, emailOverride)}
                                 > 
                                  { senTestEmailLoading ? <div className="d-flex">
-                    <Spinner animation="border" role="status" className="danger">
-                      {/* <span className="">Loading...</span> */}
-                    </Spinner> <h5>Loading...</h5></div>: "Send test email" }
+                            <Spinner animation="border" role="status" className="danger">
+                            {/* <span className="">Loading...</span> */}
+                            </Spinner> <h5>Loading...</h5></div>: "Send test email" }
                                 </Button>
                                 <div>
-                               {isSendTestEmail && <p> {noConfiguredNotifMsg}</p>  }
-                               {isSendTestEmail && <p> {noEligiblePubNotifMsg}</p>  }
-                               {isSendTestEmail && successEmailNotifMsg ? <p> {successEmailNotifMsg} <span> {emailRecipient}</span> at {emailDeliveredTime}.</p> :'' }
+                               {isSendTestEmail && <div> {noConfiguredNotifMsg}</div>  }
+                               {isSendTestEmail && <div> {noEligiblePubNotifMsg}</div>  }
+                               {isSendTestEmail && successEmailNotifMsg ? <div> {successEmailNotifMsg} <span> {emailRecipient}</span> at {emailDeliveredTime}.</div> :'' }
                                </div>
                               </div>
                             }
                            { (innerObj && innerObj.hasOwnProperty('maxLimit')) && labelUserKey !== "suggestedEmailNotificationsLimit" && labelUserKey !== "acceptedEmailNotificationsLimit" && <>
                            <div className="d-flex">
-                              <p className={styles.labels}>Max Limit</p>
+                              <label className={styles.labels}>Max Limit</label>
                               <Form.Control
                                 type="text"
                                 name="maxLimit"
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Max Limit"
-                                defaultValue="30000"
+                                // defaultValue="30000"
                                 value={maxLimit}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)}
                               />
                             </div>
-                            {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
+                            {isValidate && <div className={styles.errorMessage}>{errorMessage}</div>}</>
                            }
                            {(innerObj && innerObj.hasOwnProperty('maxLimit')) && (labelUserKey === "suggestedEmailNotificationsLimit" || labelUserKey === "acceptedEmailNotificationsLimit") && <>
                               <div className="d-flex">
-                                <p className={styles.labels}>Max Limit</p>
-                                <Form.Select aria-label="Default select example"  value={maxLimit} defaultValue={1} onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)} className={styles.selectFrequecy}>
+                                <label className={styles.labels}>Max Limit</label>
+                                <Form.Select aria-label="Default select example"  value={maxLimit} /*defaultValue={1} */ onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)} className={styles.selectFrequecy}>
                                 {[ ...Array(20) ].map((e, i) =>{ return <option value={1+i} key={i} >{1+i}</option>})}
                                 </Form.Select>
                               </div>
-                              {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
+                              {isValidate && <div className={styles.errorMessage}>{errorMessage}</div>}</>
                             }
                             {
                               innerObj && innerObj.hasOwnProperty('isRoleGroup') && roles.map((roleInfo, rolesIndex) => {
@@ -467,11 +467,11 @@ const AdminSettings = () => {
                                       onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isChecked", e, rolesIndex)}
                                     />
                                   </div>
-                                  <p className={styles.rolesLabel}>{roleLabel}</p>
+                                  <label className={styles.rolesLabel}>{roleLabel}</label>
                                 </div>
                               })
                             }
-                          </Card.Text>
+                          </div>
                         </Card.Body>
                       </Card>
                     })
@@ -479,7 +479,7 @@ const AdminSettings = () => {
                 </Accordion.Body>
               </Accordion.Item>
             }
-            ) : <p className={styles.noRecordsFound}>No Records Found</p>
+            ) : <div className={styles.noRecordsFound}>No Records Found</div>
           }
         </div>
       </Accordion>

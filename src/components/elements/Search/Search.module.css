@@ -42,11 +42,15 @@
   color: #333;
 }
 
-.table > thead {
+.table th
+{
+    background-color: #2e414f;
+    color: #fff;
+} 
+/* .table > thead {
   background-color: #2E414F;
   color: #fff;
-}
-
+} */
 .table th:first-child {
   padding-left: 30px;
 }

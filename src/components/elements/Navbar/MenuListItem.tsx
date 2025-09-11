@@ -19,10 +19,14 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
   const pathName = customRouterPathNames(router.pathname);
   const selected = to.includes(pathName);
 
+  const onRedirect = (linkTo)=>{
+    router.push(linkTo)
+  }
+
   if (disabled && !selected) {
     return (
       <>
-        <ListItem component="a" selected={selected}>
+        <ListItem component="a" selected={selected} >
           <ListItemIcon>
             <Image 
               src={selected ? imgUrlActive: imgUrl }
@@ -42,8 +46,8 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
 
   return (
     <>
-      <Link href={to} passHref key={`${title}_${id}`}>
-        <ListItem button component="a" selected={selected}>
+      {/* <Link href={to} passHref key={`${title}_${id}`} className="removeAtag"> */}
+        <ListItem button component="a"  key={`${title}_${id}`}  selected={selected} onClick={()=>onRedirect(to)}>
           <ListItemIcon>
             <Image 
               src={selected ? imgUrlActive: imgUrl }
@@ -57,7 +61,7 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
             primary={<span className={(disabled && !selected) ? styles.disabled : ''}>{title}</span>} 
             />
         </ListItem>
-      </Link>
+      {/* </Link> */}
     </>
   )
 }

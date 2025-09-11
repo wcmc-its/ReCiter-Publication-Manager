@@ -74,7 +74,15 @@ const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOr
                 </td>
               </tr>
             )
-          }) : <p className={styles.noRecordsFound}>No Records Found</p>
+          }) :
+          (
+             <tr>
+                <td>
+                 <p className={styles.noRecordsFound}>No Records Found</p>
+               </td> 
+             </tr>
+          ) 
+         
         }
       </tbody>
     </Table>

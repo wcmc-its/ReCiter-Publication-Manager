@@ -148,14 +148,14 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
           <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a>{' '}</span>
           {doi && <span className={styles.midDot}>{' '}<a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span>}
           { 
-            ADDITIONAL_INFO_CONFIGS.sort((a: any, b: any) => a.displayRank - b.displayRank).map(({ label, title, value,isVisible}) => {
+            ADDITIONAL_INFO_CONFIGS.sort((a: any, b: any) => a.displayRank - b.displayRank).map(({ label, title, value,isVisible},index) => {
               return (
                 isVisible &&
                 <DisplayInfo
                   label={label}
                   title={title}
                   value={value}
-                  key={title}
+                  key={title || `${label}-${index}`}
                 />
               )
             })

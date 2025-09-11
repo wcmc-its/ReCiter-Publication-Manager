@@ -581,12 +581,12 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               return (
                 <tr key={index}>
                   <td align="right" width="20%">
-                    <p>
+                    <div>
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
   				      {<small>{evidenceRow.pointsText || `${evidenceRow.points != 0 ? evidenceRow.points : '0.00'} points`}</small>}																 
-                    </p>
+                    </div>
                   </td>
                   <td width="40%">
                     {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList}></TableCellWithTypes> : <p>{evidenceRow.institutionalData}</p>}

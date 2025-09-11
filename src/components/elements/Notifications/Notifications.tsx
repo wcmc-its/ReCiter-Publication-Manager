@@ -194,7 +194,8 @@ const Notifications = () => {
                 <div className="mt-5">
 					 
                   <Form.Label >Frequency of notifications</Form.Label>
-                  <Form.Select aria-label="Default select example" value={frequency} defaultValue={1} onChange={(e) => handleValueChange("frequency", e.target.value)} className={styles.selectFrequecy}>
+                  {/* <Form.Select aria-label="Default select example" value={frequency} defaultValue={1} onChange={(e) => handleValueChange("frequency", e.target.value)} className={styles.selectFrequecy}> */}
+                  <Form.Select aria-label="Default select example" value={frequency}  onChange={(e) => handleValueChange("frequency", e.target.value)} className={styles.selectFrequecy}>
                     <option value="1">Daily</option>
                     <option value="7">Every 7 days</option>
                     <option value="14">Every 14 days</option>

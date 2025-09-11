@@ -243,3 +243,26 @@ h1 {
 .orcidLabel{
   margin-right: 0 !important;
 }
+/* year picker css*/
+.show-rows .react-datepicker__year-wrapper {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  max-height: 300px !important; 
+  overflow-y: auto !important;
+  flex-wrap: nowrap !important;
+  row-gap: 4px;
+  padding: 8px;
+}
+
+.show-rows .react-datepicker__header {
+  display: none !important;
+  
+}
+.show-rows .react-datepicker__year-text{
+  display:block !important;
+  padding: 5px 0 ;
+}
+.show-rows .react-datepicker__year-text:hover{
+  background-color: blue !important;
+}
