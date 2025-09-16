@@ -428,7 +428,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
     const ReadOnlyInput = React.forwardRef((props, ref) => (
         <input {...props} ref={ref} readOnly />
     ));
-
+ReadOnlyInput.displayName = 'ReadOnlyInput';
     return (
         <div>
             <div className={styles.addPublicationSearchContainer}>

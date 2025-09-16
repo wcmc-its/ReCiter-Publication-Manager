@@ -74,7 +74,7 @@ const DateRangeInput = forwardRef(
     );
   }
 );
-
+DateRangeInput.displayName = 'DateRangeInput';
 export const DatePicker = ({
   reportFiltersLabes,
   name,

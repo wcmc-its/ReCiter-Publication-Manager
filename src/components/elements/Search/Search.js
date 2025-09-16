@@ -74,7 +74,7 @@ const Search = () => {
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
     dispatch(clearFilters())
-    let adminSettings = JSON.parse(session.adminSettings);
+    let adminSettings = JSON.parse(session.data.adminSettings);
     var viewAttributes = [];
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
