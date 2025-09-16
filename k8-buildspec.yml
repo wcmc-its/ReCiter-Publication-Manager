@@ -25,7 +25,7 @@ phases:
         - echo "${CODEBUILD_WEBHOOK_HEAD_REF}"
         - echo "${BRANCH}"
         - |
-          if expr "${BRANCH}" : ".*dev" >/dev/null; then
+          if expr "${BRANCH}" : ".*dev" >/dev/null || expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
             aws s3 cp s3://reciter-config/config/dev/saml/idp.crt ./config/certs/idp.crt
             aws s3 cp s3://reciter-config/config/dev/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
@@ -53,7 +53,7 @@ phases:
   build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null || || expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
           docker build --build-arg NEXT_PUBLIC_RECITER_API_KEY=$ADMIN_API_KEY --build-arg NEXT_PUBLIC_RECITER_TOKEN_SECRET=$TOKEN_SECRET --tag $REPOSITORY_URI:$TAG .
         fi
 
@@ -61,7 +61,7 @@ phases:
   post_build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null || expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
           docker push $REPOSITORY_URI:$TAG
           # Log out from the Docker registry to clear credentials
           docker logout $REPOSITORY_URI
@@ -70,6 +70,6 @@ phases:
         if expr "${BRANCH}" : ".*master" >/dev/null; then
           kubectl set image deployment/reciter-pm-prod reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
         fi
-        if expr "${BRANCH}" : ".*dev" >/dev/null; then
+        if expr "${BRANCH}" : ".*dev" >/dev/null ||  expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
           kubectl set image deployment/reciter-pm-dev reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
         fi
