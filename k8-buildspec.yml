@@ -53,7 +53,9 @@ phases:
   build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null ||  expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || \
+           expr "${BRANCH}" : ".*dev" >/dev/null || \
+           expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
           docker build --build-arg NEXT_PUBLIC_RECITER_API_KEY=$ADMIN_API_KEY --build-arg NEXT_PUBLIC_RECITER_TOKEN_SECRET=$TOKEN_SECRET --tag $REPOSITORY_URI:$TAG .
         fi
 
