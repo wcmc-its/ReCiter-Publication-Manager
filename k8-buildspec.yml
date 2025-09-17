@@ -17,7 +17,7 @@ phases:
         # Print the Docker username to the CodeBuild log
         - echo "Docker Username $DOCKER_USERNAME"
         
-        # Log in to Docker registry
+        # Log in to Docker registry 
         - echo "Logging in to Docker registry"
         - echo "$DOCKER_PASSWORD" | docker login --username $DOCKER_USERNAME --password-stdin
         
