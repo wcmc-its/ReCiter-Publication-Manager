@@ -17,7 +17,7 @@ phases:
         # Print the Docker username to the CodeBuild log
         - echo "Docker Username $DOCKER_USERNAME"
         
-        # Log in to Docker registry
+        # Log in to Docker registry 
         - echo "Logging in to Docker registry"
         - echo "$DOCKER_PASSWORD" | docker login --username $DOCKER_USERNAME --password-stdin
         
@@ -53,7 +53,9 @@ phases:
   build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null ||  expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || \
+           expr "${BRANCH}" : ".*dev" >/dev/null || \
+           expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
           docker build --build-arg NEXT_PUBLIC_RECITER_API_KEY=$ADMIN_API_KEY --build-arg NEXT_PUBLIC_RECITER_TOKEN_SECRET=$TOKEN_SECRET --tag $REPOSITORY_URI:$TAG .
         fi
 
