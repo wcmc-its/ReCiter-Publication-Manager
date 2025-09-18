@@ -84,7 +84,8 @@ const Report = () => {
   // fetch filters on mount
   useEffect(() => {
     // let parsedAdminSettings:adminSettings["adminSettings"]  = 
-    let adminSettings = JSON.parse(session.data.adminSettings);
+    const adminSettingsStr = (session as any).adminSettings;
+    let adminSettings = JSON.parse(JSON.stringify(adminSettingsStr));
     var viewAttributes = [];
     var profileViewAttributes = [];
     var sortLabelViewAttributes = [];
