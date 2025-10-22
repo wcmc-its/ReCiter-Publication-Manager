@@ -132,9 +132,11 @@ const options = {
                 
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const user = await authenticate(credentials);
+				  console.log("user ***",user.statusCode);	
                   if (user.statusCode == 200) {
                     const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
-                    user.databaseUser = adminUser;
+                    console.log("adminUser",adminUser);
+					user.databaseUser = adminUser;
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
                     user.userRoles = userRoles;
