@@ -124,6 +124,7 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
 }
 
 const options = {
+	debug: true,
     providers:[
         CredentialsProvider({
             name: "ReCiter Publication Manager App",
