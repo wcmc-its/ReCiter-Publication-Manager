@@ -55,7 +55,8 @@
     "saml2-js": "^3.0.1",
     "sequelize": "^6.9.0",
     "slick-carousel": "^1.8.1",
-    "slick-slider": "^1.8.2"
+    "slick-slider": "^1.8.2",
+    "http-build-query": "^0.7.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.13",
