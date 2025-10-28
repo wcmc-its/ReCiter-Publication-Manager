@@ -124,6 +124,7 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
 }
 
 const options = {
+	debug: true,
     providers:[
         CredentialsProvider({
             name: "ReCiter Publication Manager App",
@@ -132,9 +133,10 @@ const options = {
                 
                 if(credentials.username !== undefined && credentials.password !== undefined) {
                   const user = await authenticate(credentials);
-                  if (user.statusCode == 200) {
+			      if (user.statusCode == 200) {
                     const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
-                    user.databaseUser = adminUser;
+                    console.log("adminUser",adminUser);
+					user.databaseUser = adminUser;
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions(credentials.username, "cwid");
                     user.userRoles = userRoles;
@@ -155,7 +157,11 @@ const options = {
                 samlBody: { label: "SAML Body", type: "text" },
             },
             authorize: async (credentials, req) => {
+                console.log("coming to saml authentication",credentials.samlBody);
                 samlBody = JSON.parse(decodeURIComponent(credentials.samlBody));
+                console.log("SAML Body",samlBody);
+
+				console.log("saml after parsing",samlBody);
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
                 const postAssert = (identityProvider, samlBody) =>
                     new Promise((resolve, reject) => {
@@ -178,11 +184,13 @@ const options = {
                         reciterSamlConfig.saml_idp_options
                     );
                     const { user } = await postAssert(idp, samlBody);
+					console.log("user*************",user);
                     let cwid = null;
                     let email = null;
                     let usrAttr = null;
                     if (user.attributes && user.attributes.CWID) {
                         cwid = user.attributes.CWID[0];
+						console.log("cwid*************",cwid);
                     }
                     let dupUser = JSON.stringify(user.attributes);
                     let smalUserEmail = null;
