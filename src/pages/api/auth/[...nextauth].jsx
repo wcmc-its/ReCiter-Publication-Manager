@@ -151,8 +151,11 @@ const options = {
         CredentialsProvider({
             id: "saml",
             name: "SAML",
-            authorize: async ({ samlBody }) => {
-                samlBody = JSON.parse(decodeURIComponent(samlBody));
+            credentials: {
+                samlBody: { label: "SAML Body", type: "text" },
+            },
+            authorize: async (credentials, req) => {
+                samlBody = JSON.parse(decodeURIComponent(credentials.samlBody));
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
                 const postAssert = (identityProvider, samlBody) =>
                     new Promise((resolve, reject) => {
@@ -163,7 +166,7 @@ const options = {
                             },
                             (error, response) => {
                                 if (error) {
-                                    reject(error);
+                                   return reject(error);
                                 }
                                 resolve(response);
                             }
