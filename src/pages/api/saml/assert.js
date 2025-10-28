@@ -6,16 +6,27 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 export default async function handler(req, res) {
     console.log('coming into handler function',req.method,req.headers.host);
     if (req.method === "POST") {
-        const { data, headers } = await axios.get("/api/auth/csrf", {
+        /*const { data, headers } = await axios.get("/api/auth/csrf", {
             baseURL: "https://" + req.headers.host,
         });
         console.log("data",data);
-        const { csrfToken } = data;
+        const { csrfToken } = data;*/
 
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
         console.log('encodedSAMLBody',encodedSAMLBody);
-        res.setHeader("set-cookie", headers["set-cookie"] ?? "");
-        return res.send(
+        //res.setHeader("set-cookie", headers["set-cookie"] ?? "");
+        res.setHeader("Content-Type", "text/html");
+        return res.send(`
+                <html>
+                <body onload="document.forms[0].submit()">
+                    <form action="/api/auth/callback/saml" method="POST">
+                    <input type="hidden" name="csrfToken" value="" />
+                    <input type="hidden" name="samlBody" value="${encodedSAMLBody}" />
+                    </form>
+                </body>
+                </html>
+            `);
+       /* return res.send(
             `<html>
           <body>
             <form action="/api/auth/callback/saml" method="POST">
@@ -27,7 +38,7 @@ export default async function handler(req, res) {
             </script>
           </body>
         </html>`
-        );
+        );*/
     }
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
