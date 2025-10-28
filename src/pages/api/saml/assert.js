@@ -4,6 +4,7 @@ import axios from "axios"
 import { reciterSamlConfig }  from "../../../../config/saml"
 
 export default async function handler(req, res) {
+    console.log('coming into handler function',req);
     if (req.method === "POST") {
         const { data, headers } = await axios.get("/api/auth/csrf", {
             baseURL: "https://" + req.headers.host,
