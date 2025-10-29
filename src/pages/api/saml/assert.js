@@ -11,7 +11,7 @@ export default async function handler(req, res) {
             baseURL: "https://" + req.headers.host,
         });
         console.log("data",data);
-        const { csrfToken } = data;*/
+        const { csrfToken } = data;
         const csrfToken = await getCsrfToken({ req });
         console.log('csrfToke********',csrfToken);
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
@@ -28,7 +28,8 @@ export default async function handler(req, res) {
                 </body>
                 </html>
             `);*/
-        return res.send(
+
+        /*return res.send(
             `<html>
           <body>
             <form action="/api/auth/callback/saml" method="POST">
@@ -40,7 +41,24 @@ export default async function handler(req, res) {
             </script>
           </body>
         </html>`
-        );
+        );*/
+        const formData = req.body; // or parse SAMLResponse from body
+        const samlResponse = formData.SAMLResponse;
+        const csrfToken = await getCsrfToken({ req });
+         const encodedSAMLBody = encodeURIComponent(samlResponse);
+
+            const html = `
+                <html>
+                <body onload="document.forms[0].submit()">
+                    <form action="/api/auth/callback/saml" method="POST">
+                    <input type="hidden" name="csrfToken" value="${csrfToken ?? ''}"/>
+                    <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
+                    </form>
+                </body>
+                </html>
+            `;
+            res.setHeader("Content-Type", "text/html"); // important!
+            res.status(200).send(html);  
     }
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
