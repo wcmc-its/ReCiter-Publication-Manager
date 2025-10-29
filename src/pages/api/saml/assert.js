@@ -2,6 +2,7 @@ import saml2 from "saml2-js"
 import axios from "axios"
 //import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterSamlConfig }  from "../../../../config/saml"
+import { getCsrfToken } from "next-auth";
 
 export default async function handler(req, res) {
     console.log('coming into handler function',req.method,req.headers.host);
@@ -11,12 +12,12 @@ export default async function handler(req, res) {
         });
         console.log("data",data);
         const { csrfToken } = data;*/
-
+        const csrfToken = await getCsrfToken({ req });
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
         console.log('encodedSAMLBody',encodedSAMLBody);
         //res.setHeader("set-cookie", headers["set-cookie"] ?? "");
         res.setHeader("Content-Type", "text/html");
-        return res.send(`
+        /*return res.send(`
                 <html>
                 <body onload="document.forms[0].submit()">
                     <form action="/api/auth/callback/saml" method="POST">
@@ -25,8 +26,8 @@ export default async function handler(req, res) {
                     </form>
                 </body>
                 </html>
-            `);
-       /* return res.send(
+            `);*/
+        return res.send(
             `<html>
           <body>
             <form action="/api/auth/callback/saml" method="POST">
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
             </script>
           </body>
         </html>`
-        );*/
+        );
     }
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
