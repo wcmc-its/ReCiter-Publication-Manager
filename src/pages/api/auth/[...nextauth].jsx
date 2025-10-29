@@ -153,9 +153,7 @@ const options = {
         CredentialsProvider({
             id: "saml",
             name: "SAML",
-            credentials: {
-                samlBody: { label: "SAML Body", type: "text" },
-            },
+            credentials: {},
             authorize: async (credentials, req) => {
                 console.log("coming to saml authentication",credentials.samlBody);
                 samlBody = JSON.parse(decodeURIComponent(credentials.samlBody));
