@@ -2,7 +2,7 @@ import saml2 from "saml2-js"
 import axios from "axios"
 //import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterSamlConfig }  from "../../../../config/saml"
-import { getCsrfToken } from "next-auth";
+import { getCsrfToken } from "next-auth/react";
 
 export default async function handler(req, res) {
     console.log('coming into handler function',req.method,req.headers.host);
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
             `<html>
           <body>
             <form action="/api/auth/callback/saml" method="POST">
-              <input type="hidden" name="csrfToken" value="${csrfToken}"/>
+              <input type="hidden" name="csrfToken" value="${csrfToken ?? "" }"/>
               <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
             </form>
             <script>
