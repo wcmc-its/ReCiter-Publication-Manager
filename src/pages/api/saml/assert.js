@@ -43,10 +43,13 @@ export default async function handler(req, res) {
         </html>`
         );*/
         const formData = req.body; // or parse SAMLResponse from body
+        console.log("formData**************",formData);
         const samlResponse = formData.SAMLResponse;
+        console.log("samlResponse**************",samlResponse);
         const csrfToken = await getCsrfToken({ req });
+        console.log("csrfToken**************",csrfToken);
          const encodedSAMLBody = encodeURIComponent(samlResponse);
-
+        console.log("encodedSAMLBody**************",encodedSAMLBody);
             const html = `
                 <html>
                 <body onload="document.forms[0].submit()">
