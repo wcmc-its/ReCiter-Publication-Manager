@@ -21,8 +21,8 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 COPY package.json package-lock.json ./
-RUN npm install --frozen-lockfile
-RUN npm ci
+#RUN npm install 
+RUN npm ci --frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM node:20-alpine AS builder
