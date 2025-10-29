@@ -7,13 +7,17 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 export default async function handler(req, res) {
     console.log('coming into handler function',req.method,req.headers.host);
     if (req.method === "POST") {
-        const { data, headers } = await axios.get("/api/auth/csrf", {
+
+        if (req.url?.includes("/api/auth/callback/saml")) {
+        req.options.csrf = false; // skip CSRF for SAML
+      }
+        /*const { data, headers } = await axios.get("/api/auth/csrf", {
             baseURL: "https://" + req.headers.host,
         });
         console.log("CSRF response data:", data);
-        console.log("CSRF response headers:", headers);
+        console.log("CSRF response headers:", headers);*/
         //console.log("data",data);
-        const { csrfToken } = data;
+        //const { csrfToken } = data;
       /*  const csrfToken = await getCsrfToken({ req });
         console.log('csrfToke********',csrfToken);
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
@@ -29,13 +33,13 @@ export default async function handler(req, res) {
                     </form>
                 </body>
                 </html>
+                <input type="hidden" name="csrfToken" value="${csrfToken}"/>
             `);*/
 
         return res.send(
             `<html>
           <body>
             <form action="/api/auth/callback/saml" method="POST">
-              <input type="hidden" name="csrfToken" value="${csrfToken}"/>
               <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
             </form>
             <script>
