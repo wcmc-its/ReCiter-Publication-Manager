@@ -2,17 +2,19 @@ import saml2 from "saml2-js"
 import axios from "axios"
 //import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterSamlConfig }  from "../../../../config/saml"
-import { getCsrfToken } from "next-auth/react";
+//import { getCsrfToken } from "next-auth/react";
 
 export default async function handler(req, res) {
     console.log('coming into handler function',req.method,req.headers.host);
     if (req.method === "POST") {
-        /*const { data, headers } = await axios.get("/api/auth/csrf", {
+        const { data, headers } = await axios.get("/api/auth/csrf", {
             baseURL: "https://" + req.headers.host,
         });
-        console.log("data",data);
+        console.log("CSRF response data:", data);
+        console.log("CSRF response headers:", headers);
+        //console.log("data",data);
         const { csrfToken } = data;
-        const csrfToken = await getCsrfToken({ req });
+      /*  const csrfToken = await getCsrfToken({ req });
         console.log('csrfToke********',csrfToken);
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
         console.log('encodedSAMLBody',encodedSAMLBody);
@@ -29,7 +31,7 @@ export default async function handler(req, res) {
                 </html>
             `);*/
 
-        /*return res.send(
+        return res.send(
             `<html>
           <body>
             <form action="/api/auth/callback/saml" method="POST">
@@ -41,8 +43,8 @@ export default async function handler(req, res) {
             </script>
           </body>
         </html>`
-        );*/
-        const formData = req.body; // or parse SAMLResponse from body
+        );
+        /*const formData = req.body; // or parse SAMLResponse from body
         console.log("formData**************",formData);
         const samlResponse = formData.SAMLResponse;
         console.log("samlResponse**************",samlResponse);
@@ -61,7 +63,7 @@ export default async function handler(req, res) {
                 </html>
             `;
             res.setHeader("Content-Type", "text/html"); // important!
-            res.status(200).send(html);  
+            res.status(200).send(html);*/
     }
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
