@@ -19,7 +19,7 @@ export default async function handler(req, res) {
         //console.log("data",data);
         //const { csrfToken } = data;
       /*  const csrfToken = await getCsrfToken({ req });
-        console.log('csrfToke********',csrfToken);
+        console.log('csrfToke********',csrfToken);*/
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
         console.log('encodedSAMLBody',encodedSAMLBody);
         //res.setHeader("set-cookie", headers["set-cookie"] ?? "");
