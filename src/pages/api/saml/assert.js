@@ -2,7 +2,7 @@ import saml2 from "saml2-js"
 import axios from "axios"
 //import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterSamlConfig }  from "../../../../config/saml"
-import { csrfToken } from "next-auth/core/lib/csrf";
+
 
 
 export default async function handler(req, res) {
