@@ -155,8 +155,10 @@ const options = {
             name: "SAML",
             credentials: {},
             authorize: async (credentials, req) => {
+                const samlResponse = req.body.SAMLResponse;
+                console.log("saml response************",samlResponse);
                 console.log("coming to saml authentication",credentials.samlBody);
-                samlBody = JSON.parse(decodeURIComponent(credentials.samlBody));
+                samlBody = JSON.parse(decodeURIComponent(samlResponse));//credentials.samlBody));
                 console.log("SAML Body",samlBody);
 
 				console.log("saml after parsing",samlBody);
@@ -261,7 +263,7 @@ const options = {
         async signIn({user, account, profile, email, credentials}) {
             return user
         },
-        async session({session, token,user}) {
+        async session({session, token}) {
             session.data = token
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)

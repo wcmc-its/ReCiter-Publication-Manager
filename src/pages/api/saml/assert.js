@@ -7,7 +7,9 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 export default async function handler(req, res) {
     console.log('coming into handler function',req.method,req.headers.host);
     if (req.method === "POST") {
-
+        const samlResponse = req.body.SAMLResponse;
+        console.log('samlResoinse',samlResponse);
+        if (!samlResponse) return res.status(400).send("Missing SAMLResponse");
         /*if (req.url?.includes("/api/auth/callback/saml")) {
             console.log('request url has above path',req.url);
         req.options.csrf = false; // skip CSRF for SAML
@@ -75,6 +77,7 @@ export default async function handler(req, res) {
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
     const createLoginRequestUrl = (idp, options = {}) =>
         new Promise((resolve, reject) => {
+            console.log('loginUrl**********',loginUrl);
             sp.create_login_request_url(idp, options, (error, loginUrl) => {
                 if (error) {
                     reject(error);
