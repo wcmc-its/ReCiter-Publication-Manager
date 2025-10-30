@@ -11,7 +11,7 @@ import { reciterConfig } from "../../../../config/local";
 import { findOnePerson } from "../../../../controllers/db/person.controller";
 import { allowedPermissions } from "../../../utils/constants";
 import BoxyHQSAMLProvider from "next-auth/providers/boxyhq-saml";
-
+import fs from 'fs'
 // Determine the condition for choosing the authentication method
 const isSamlEnabled = process.env.SAML_ENABLED === 'true';
 
