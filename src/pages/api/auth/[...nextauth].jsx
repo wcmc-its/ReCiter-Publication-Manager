@@ -153,15 +153,12 @@ const options = {
         CredentialsProvider({
             id: "saml",
             name: "SAML",
-            credentials: {},
-            authorize: async (credentials, req) => {
-                const samlResponse = req.body.SAMLResponse;
-                console.log("saml response************",samlResponse);
-                console.log("coming to saml authentication",credentials.samlBody);
-                samlBody = JSON.parse(decodeURIComponent(samlResponse));//credentials.samlBody));
-                console.log("SAML Body",samlBody);
-
-				console.log("saml after parsing",samlBody);
+            credentials: {
+                samlBody: { label: "SAML Body", type: "hidden" }
+            },
+            /*authorize: async (credentials, req) => {
+                
+                console.log("saml after parsing",samlBody);
                 const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
                 const postAssert = (identityProvider, samlBody) =>
                     new Promise((resolve, reject) => {
@@ -222,7 +219,7 @@ const options = {
                         
                         In all cases, populate email in admin_users. Failing that, populate userPrincipalName (EPPN).
                     */  
-                    if(smalUserEmail || userPrincipalName){
+                   /* if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                            const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
                            await sleep(100)
@@ -256,12 +253,44 @@ const options = {
                 } catch (error) {
                     return null;
                 }
-            },
+            },*/
+            async authorize(credentials, req) {
+                    try {
+                    const parsed = JSON.parse(decodeURIComponent(credentials.samlBody));
+                    const { SAMLResponse } = parsed;
+
+                    const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
+                    const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
+
+                    return await new Promise((resolve, reject) => {
+                        sp.post_assert(idp, { request_body: { SAMLResponse } }, (err, samlResponse) => {
+                        if (err) {
+                            console.error("SAML assertion failed:", err);
+                            return reject(null);
+                        }
+
+                        const user = {
+                            id: samlResponse.user.name_id,
+                            email: samlResponse.user.email,
+                            name: samlResponse.user.displayName,
+                        };
+
+                        console.log("SAML user authenticated:", user);
+                        resolve(user);
+                        });
+                    });
+                    } catch (e) {
+                    console.error("Authorize error:", e);
+                    return null;
+                    }
+                }
         }),
     ],
-    callbacks: {
+    /*callbacks: {
         async signIn({user, account, profile, email, credentials}) {
-            return user
+            //return user
+            console.log("signIn CallBack",user);
+            return true
         },
         async session({session, token}) {
             session.data = token
@@ -303,7 +332,20 @@ const options = {
         // maxAge: 7200,
     },
     pages: {},
-    secret: process.env.JWT_TOKEN_SECRET,
+    secret: process.env.JWT_TOKEN_SECRET,*/
+
+    session: { strategy: "jwt" },
+
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) token.user = user;
+      return token;
+    },
+    async session({ session, token }) {
+      session.user = token.user;
+      return session;
+    },
+  },
     
 };
 
