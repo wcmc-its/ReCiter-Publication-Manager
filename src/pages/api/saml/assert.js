@@ -3,7 +3,7 @@ import axios from "axios"
 //import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { randomBytes } from "crypto";
-
+import { serialize } from "cookie";
 
 export default async function handler(req, res) {
     console.log('coming into handler function',req.method,req.headers.host);
