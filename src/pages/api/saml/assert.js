@@ -77,11 +77,12 @@ export default async function handler(req, res) {
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
     const createLoginRequestUrl = (idp, options = {}) =>
         new Promise((resolve, reject) => {
-            console.log('loginUrl**********',loginUrl);
             sp.create_login_request_url(idp, options, (error, loginUrl) => {
                 if (error) {
                     reject(error);
                 }
+            
+                console.log('loginUrl********************',loginUrl);
                 resolve(loginUrl);
             });
         });
