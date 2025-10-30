@@ -2,60 +2,69 @@ import saml2 from "saml2-js"
 import axios from "axios"
 //import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterSamlConfig }  from "../../../../config/saml"
-//import { getCsrfToken } from "next-auth/react";
+import { csrfToken } from "next-auth/core/lib/csrf";
+
 
 export default async function handler(req, res) {
-  console.log("Incoming SAML request:", req.method);
+    console.log('coming into handler function',req.method,req.headers.host);
+    if (req.method === "POST") {
+       /* const { data, headers } = await axios.get("/api/auth/csrf", {
+            baseURL: "https://" + req.headers.host,
+        });*/
+        const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/csrf`);
+        const { csrfToken } = await res.json();
 
-  // When IdP posts the SAMLResponse (the ACS callback)
-  if (req.method === "POST") {
-    const samlResponse = req.body?.SAMLResponse;
+       // console.log("data",data);
+        //const { csrfToken } = data;
+        console.log('csrfToke********',csrfToken);
+        const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
+        console.log('encodedSAMLBody',encodedSAMLBody);
+        //res.setHeader("set-cookie", headers["set-cookie"] ?? "");
+       // res.setHeader("Content-Type", "text/html");
+       res.setHeader("Set-Cookie", serialize("next-auth.csrf-token", cookieValue, {
+            httpOnly: true,
+            path: "/",
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 60 * 60
+        }));
 
-    if (!samlResponse) {
-      console.error("Missing SAMLResponse in POST body");
-      return res.status(400).send("Missing SAMLResponse");
+        res.status(200).json({ csrfToken });
+        
+        return res.send(
+            `<html>
+          <body>
+            <form action="/api/auth/callback/saml" method="POST">
+              <input type="hidden" name="csrfToken" value="${csrfToken}"/>
+              <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
+            </form>
+            <script>
+              document.forms[0].submit();
+            </script>
+          </body>
+        </html>`
+        );
     }
 
-    // Wrap the SAMLResponse into the credentials format expected by NextAuth
-    const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
+    const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
+    const createLoginRequestUrl = (idp, options = {}) =>
+        new Promise((resolve, reject) => {
+            sp.create_login_request_url(idp, options, (error, loginUrl) => {
+                if (error) {
+                    reject(error);
+                }
+                resolve(loginUrl);
+            });
+        });
 
-    // Return an HTML form that automatically POSTs to NextAuth’s SAML callback
-    // This ensures it's treated as a same-origin form POST (bypassing CSRF)
-    res.setHeader("Content-Type", "text/html");
-
-    return res.send(`
-      <html>
-        <body>
-          <form action="/api/auth/callback/saml" method="POST">
-            <input type="hidden" name="samlBody" value="${encodedSAMLBody}" />
-          </form>
-          <script>
-            document.forms[0].submit();
-          </script>
-        </body>
-      </html>
-    `);
-  }
-
-  // 2️⃣ When user initiates login → create redirect to IdP
-  const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-  const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
-
-  const createLoginRequestUrl = () =>
-    new Promise((resolve, reject) => {
-      sp.create_login_request_url(idp, {}, (err, loginUrl) => {
-        if (err) return reject(err);
-        resolve(loginUrl);
-      });
-    });
-
-  try {
-    const loginUrl = await createLoginRequestUrl();
-    console.log("Redirecting to IdP login URL:", loginUrl);
-    return res.redirect(loginUrl);
-  } catch (err) {
-    console.error("SAML login redirect failed:", err);
-    return res.status(500).send("SAML login redirect failed");
-  }
+    try {
+        const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
+        console.log("idp",idp);
+        const loginUrl = await createLoginRequestUrl(idp);
+        console.log("loginUrl", loginUrl);
+        return res.redirect(loginUrl);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send(error);
+    }
 }
-
