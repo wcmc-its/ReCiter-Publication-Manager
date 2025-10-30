@@ -10,6 +10,7 @@ import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { findOnePerson } from "../../../../controllers/db/person.controller";
 import { allowedPermissions } from "../../../utils/constants";
+import BoxyHQSAMLProvider from "next-auth/providers/boxyhq-saml";
 
 // Determine the condition for choosing the authentication method
 const isSamlEnabled = process.env.SAML_ENABLED === 'true';
@@ -150,7 +151,7 @@ const options = {
                   } 
             },
         }),
-        CredentialsProvider({
+       /* CredentialsProvider({
             id: "saml",
             name: "SAML",
             credentials: {
@@ -218,7 +219,7 @@ const options = {
                         
                         In all cases, populate email in admin_users. Failing that, populate userPrincipalName (EPPN).
                     */  
-                    if(smalUserEmail || userPrincipalName){
+                   /* if(smalUserEmail || userPrincipalName){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                            const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
                            await sleep(100)
@@ -253,10 +254,52 @@ const options = {
                     return null;
                 }
             },
-        }),
+        }),*/
+
+        // --- BoxyHQ SAML Provider ---
+    BoxyHQSAMLProvider({
+        issuer: process.env.ENTITY_ID,
+        entryPoint: process.env.SSO_LOGIN_URL,
+        callbackUrl: process.env.NEXTAUTH_URL + "/api/auth/callback/saml",
+        cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
+        debug: true,
+        async profile(profile) {
+            // `profile` contains all attributes from SAML assertion
+            console.log("SAML attributes:", profile);
+
+            const cwid = profile.CWID || null;
+            const email = profile["user.email"]?.[0] || profile.userPrincipalName;
+            const firstName = profile["urn:oid:2.5.4.42"]?.[0];
+            const lastName = profile["urn:oid:2.5.4.4"]?.[0];
+
+            // Create or update admin user
+            const adminUser = await findOrCreateAdminUsers(cwid, email, firstName, lastName);
+
+            // Assign roles
+            await grantDefaultRolesToAdminUser(adminUser);
+            const userRoles = await findUserPermissions(email, "cwid");
+
+            // Optional user tracking
+            if (
+            reciterConfig.asms.asmsApiBaseUrl &&
+            reciterConfig.asms.userTrackingAPI &&
+            reciterConfig.asms.userTrackingAPIAuthorization
+            ) {
+            persistUserLogin(cwid || email);
+            }
+
+            return {
+            name: `${firstName || ""} ${lastName || ""}`.trim(),
+            email,
+            username: cwid || email,
+            databaseUser: adminUser,
+            userRoles,
+            };
+        },
+      }),
     ],
     callbacks: {
-        async signIn({user, account, profile, email, credentials}) {
+        async signIn({user, account}) {
             //return user
             console.log("signIn CallBack",user);
             return true
@@ -300,8 +343,7 @@ const options = {
         // jwt: true,
         // maxAge: 7200,
     },
-    pages: {},
-    secret: process.env.JWT_TOKEN_SECRET,
+    secret: process.env.NEXTAUTH_SECRET,
     
 };
 
