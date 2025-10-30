@@ -44,6 +44,7 @@ export default async function handler(req, res) {
               <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
             </form>
             <script>
+             console.log("coming into script");
              document.forms[0].submit();
          </script>
           </body>
