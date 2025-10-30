@@ -260,7 +260,7 @@ const options = {
     BoxyHQSAMLProvider({
         issuer: process.env.ENTITY_ID,
         entryPoint: process.env.SSO_LOGIN_URL,
-        callbackUrl: process.env.NEXTAUTH_URL + "/api/auth/callback/saml",
+        callbackUrl: process.env.RECITER_API_BASE_URL + "/api/auth/callback/saml",
         cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
         debug: true,
         async profile(profile) {
