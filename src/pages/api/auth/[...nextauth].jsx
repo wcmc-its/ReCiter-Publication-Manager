@@ -302,6 +302,7 @@ const options = {
         // jwt: true,
         // maxAge: 7200,
     },
+    pages: {},
     secret: process.env.JWT_TOKEN_SECRET,
     
 };
