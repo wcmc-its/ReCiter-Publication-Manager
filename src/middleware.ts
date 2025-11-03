@@ -10,7 +10,9 @@ export const config = {
     '/search',
     '/configuration',
     '/notifications/:path*',
-    '/manageprofile/:path*'
+    '/manageprofile/:path*',
+    // Skip middleware for NextAuth routes and static assets
+    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)'
   ]
 };
 
