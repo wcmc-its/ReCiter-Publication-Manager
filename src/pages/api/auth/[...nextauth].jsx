@@ -263,6 +263,8 @@ const options = {
         callbackUrl: process.env.RECITER_API_BASE_URL + "/api/auth/callback/saml",
         cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
         debug: true,
+        clientId: "dummy",
+        clientSecret: "dummy",
         async profile(profile) {
             // `profile` contains all attributes from SAML assertion
             console.log("SAML attributes:", profile);
