@@ -303,6 +303,17 @@ const options = {
         },
       }),
     ],
+    cookies: {
+    state: {
+      name: `__Secure-next-auth.state-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax', // 'lax' works well for most SAML flows
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
     callbacks: {
         async signIn({user, account}) {
             //return user
