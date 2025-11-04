@@ -259,19 +259,11 @@ const options = {
         // --- BoxyHQ SAML Provider ---
     BoxyHQSAMLProvider({
         issuer: process.env.ENTITY_ID +"/metadata",
-        entryPoint: process.env.SSO_LOGIN_URL,
-        callbackUrl: process.env.RECITER_API_BASE_URL + "/api/auth/callback/saml",
-        cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
         debug: true,
-        clientId: "dummy",
-        clientSecret: "dummy",
+        idpMetadata: true,
         async profile(profile) {
             // `profile` contains all attributes from SAML assertion
             console.log("SAML attributes:", profile);
-            console.log("ENTITY ID :", process.env.ENTITY_ID);
-            console.log("SSO_LOGIN_URL :", process.env.SSO_LOGIN_URL);
-            console.log("RECITER_API_BASE_URL :", process.env.RECITER_API_BASE_URL);
-
             const cwid = profile.CWID || null;
             const email = profile["user.email"]?.[0] || profile.userPrincipalName;
             const firstName = profile["urn:oid:2.5.4.42"]?.[0];

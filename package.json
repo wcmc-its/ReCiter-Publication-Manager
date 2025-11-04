@@ -11,13 +11,13 @@
     "generate-models": "node ./src/db/scripts/generateModels.js"
   },
   "dependencies": {
-    "http-build-query": "^0.7.0",
-    "@types/http-build-query": "^0.7.3",
     "@babel/runtime": "^7.17.8",
     "@emotion/react": "^11.5.0",
     "@emotion/styled": "^11.3.0",
     "@mui/icons-material": "^5.0.5",
     "@mui/material": "^5.0.6",
+    "@types/http-build-query": "^0.7.3",
+    "@types/jsonwebtoken": "^8.5.5",
     "@types/material-ui": "^0.21.12",
     "@types/react-bootstrap": "^0.32.29",
     "@types/react-dom": "^18.0.4",
@@ -30,13 +30,15 @@
     "exceljs": "^4.3.0",
     "fs": "0.0.1-security",
     "handlebars": "^4.7.8",
+    "http-build-query": "^0.7.0",
+    "jsonwebtoken": "^8.5.1",
     "jwt-decode": "^3.1.2",
     "moment": "^2.29.4",
     "mysql2": "^2.3.3-rc.0",
     "next": "^14.2.0",
-    "next-auth": "^4.22.1",
+    "next-auth": "^4.24.13",
     "next-redux-wrapper": "^7.0.5",
-    "nodemailer": "^6.9.1",
+    "nodemailer": "^7.0.7",
     "nodemailer-smtp-transport": "^2.7.4",
     "react": "18.2.0",
     "react-bootstrap": "^2.0.3",
@@ -57,10 +59,7 @@
     "saml2-js": "^3.0.1",
     "sequelize": "^6.9.0",
     "slick-carousel": "^1.8.1",
-    "slick-slider": "^1.8.2",
-    "@types/jsonwebtoken": "^8.5.5",
-     "jsonwebtoken": "^8.5.1"
-    
+    "slick-slider": "^1.8.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.13",
