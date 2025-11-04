@@ -258,7 +258,7 @@ const options = {
 
         // --- BoxyHQ SAML Provider ---
     BoxyHQSAMLProvider({
-        issuer: process.env.ENTITY_ID +"/metadata",
+        issuer: process.env.ENTITY_ID,
         debug: true,
         idpMetadata: true,
         async profile(profile) {
