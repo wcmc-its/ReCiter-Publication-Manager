@@ -100,7 +100,7 @@ export async function getServerSideProps(ctx) {
     }
     return {
         redirect: {
-            destination: "/api/saml/assert?callbackUrl=/search",
+            destination: "/api/auth/signin/boxyhq-saml?callbackUrl=/search",
             permanent: false,
         },
     };
