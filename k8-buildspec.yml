@@ -26,7 +26,12 @@ phases:
         - echo "${BRANCH}"
         - echo "${AWS_REGION}"
         - |
-          if expr "${BRANCH}" : ".*dev" >/dev/null || expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
+          if expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
+            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
+            aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/reciter-boxyhqsaml.pem ./config/certs/reciter-boxyhqsaml.pem
+          fi
+        - |
+          if expr "${BRANCH}" : ".*dev" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
             aws s3 cp s3://reciter-config/config/dev/saml/idp.crt ./config/certs/idp.crt
             aws s3 cp s3://reciter-config/config/dev/saml/reciter-saml.crt ./config/certs/reciter-saml.crt

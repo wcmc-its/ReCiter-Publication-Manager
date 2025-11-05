@@ -260,7 +260,8 @@ const options = {
     BoxyHQSAMLProvider({
         issuer: process.env.ENTITY_ID,
         debug: true,
-        idpMetadata: true,
+        idpMetadata: process.env.ENTITY_ID,
+        cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-boxyhqsaml.pem").toString(),
         async profile(profile) {
             // `profile` contains all attributes from SAML assertion
             console.log("SAML attributes:", profile);
