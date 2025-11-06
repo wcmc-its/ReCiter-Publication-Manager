@@ -2,10 +2,12 @@ import { ServiceProvider } from 'saml2-js';
 import { reciterSamlConfig }  from "../../../../config/saml";
 
 export default async function handler(req, res) {
+  console.log("coming into this function",req,res);  
   const sp = new ServiceProvider(reciterSamlConfig.saml_options);
   const idp = samlConfig.idp_options;
 
   sp.create_login_request_url(idp, {}, (err, loginUrl, requestId) => {
+    console.log('err***',err?.message,loginUrl,requestId);
     if (err) return res.status(500).send(err.message);
 
     // Redirect user to IdP

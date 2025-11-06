@@ -16,14 +16,16 @@ export const config = {
 };
 
 export async function middleware(request) {
+  console.log("in middleware****************",request);
   const token:any = await getToken({ req: request, secret: process.env.JWT_TOKEN_SECRET });
   const pathName = request.nextUrl.pathname;
-
+ console.log("pathName and token****************",pathName,token);
   if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   const userRoles = token.userRoles ? JSON.parse(token.userRoles) : [];
+  console.log("userRoles*********************",userRoles);
 
   const loggedInUserInfo = userRoles[0]?.personIdentifier;
   console.log("loggedInUserInfo________", loggedInUserInfo)
