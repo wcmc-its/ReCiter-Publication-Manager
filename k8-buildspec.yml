@@ -28,7 +28,7 @@ phases:
         - |
           if expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
-            aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/reciter-boxyhqsaml.pem ./config/certs/reciter-boxyhqsaml.pem
+            aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/reciter-boxyhqsaml.crt ./config/certs/reciter-boxyhqsaml.crt
             aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/metadata.xml ./config/certs/metadata.xml
           fi
         - |

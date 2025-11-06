@@ -261,7 +261,7 @@ const options = {
         issuer: process.env.ENTITY_ID,
         debug: true,
         idpMetadata: fs.readFileSync(process.cwd()+ "/config/certs/metadata.xml").toString(),
-        cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-boxyhqsaml.pem").toString(),
+        cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-boxyhqsaml.crt").toString(),
         async profile(profile) {
             // `profile` contains all attributes from SAML assertion
             console.log("SAML attributes:", profile);
