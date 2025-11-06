@@ -2,7 +2,7 @@ import { ServiceProvider } from 'saml2-js';
 import samlConfig from '../../../config/saml';
 
 export default async function handler(req, res) {
-  const sp = new ServiceProvider(samlConfig.saml_options);
+  const sp = new ServiceProvider(reciterSamlConfig.saml_options);
   const idp = samlConfig.idp_options;
 
   sp.create_login_request_url(idp, {}, (err, loginUrl, requestId) => {

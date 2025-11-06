@@ -1,10 +1,11 @@
 import saml2 from 'saml2-js';
-import { samlConfig } from '@/config/saml';
+import { reciterSamlConfig } from "../../../config/saml";
 import { setLoginSession } from '@/lib/nextauth-session'; // helper to call NextAuth internally
 
 export default async function handler(req, res) {
-  const sp = new saml2.ServiceProvider(samlConfig.saml_options);
-  const idp = new saml2.IdentityProvider(samlConfig.saml_idp_options);
+
+  const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
+  const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
 
   const samlResponse = req.body?.SAMLResponse;
   if (!samlResponse) return res.status(400).send('Missing SAMLResponse');
