@@ -1,9 +1,9 @@
 // pages/api/auth/saml-acs.js
 
 import saml2 from "saml2-js";
-import { reciterSamlConfig } from "../../../config/saml.js"; // ensure .js extension if using ESM
+import { reciterSamlConfig }  from "../../../../config/saml"
 import { getServerSession } from "next-auth/next";
-import NextAuth from "./[...nextauth].js"; // import NextAuth instance
+import NextAuth from "./[...nextauth].jsx"; // import NextAuth instance
 import { serialize } from "cookie";
 
 export default async function handler(req, res) {

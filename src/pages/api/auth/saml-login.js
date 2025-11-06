@@ -1,5 +1,5 @@
 import { ServiceProvider } from 'saml2-js';
-import { reciterSamlConfig } from "../../../config/saml.js";;
+import { reciterSamlConfig }  from "../../../../config/saml";
 
 export default async function handler(req, res) {
   const sp = new ServiceProvider(reciterSamlConfig.saml_options);
