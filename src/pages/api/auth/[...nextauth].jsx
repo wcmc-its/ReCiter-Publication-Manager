@@ -10,8 +10,6 @@ import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { findOnePerson } from "../../../../controllers/db/person.controller";
 import { allowedPermissions } from "../../../utils/constants";
-import BoxyHQSAMLProvider from "next-auth/providers/boxyhq-saml";
-import fs from 'fs'
 // Determine the condition for choosing the authentication method
 const isSamlEnabled = process.env.SAML_ENABLED === 'true';
 
@@ -126,234 +124,68 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
 
 const options = {
 	debug: true,
-    providers:[
-        CredentialsProvider({
-            name: "ReCiter Publication Manager App",
-            id: "direct_login",
-            async authorize(credentials) {
-                
-                if(credentials.username !== undefined && credentials.password !== undefined) {
-                  const user = await authenticate(credentials);
-			      if (user.statusCode == 200) {
-                    const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
-                    console.log("adminUser",adminUser);
-					user.databaseUser = adminUser;
-                    const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
-                    const userRoles = await findUserPermissions(credentials.username, "cwid");
-                    user.userRoles = userRoles;
-                    if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
-                            && reciterConfig.asms.userTrackingAPIAuthorization)
-					    persistUserLogin(credentials.username);									   
-                    return user;
-                  } else {
-                      return null;
-                  }
-                  } 
-            },
-        }),
-       /* CredentialsProvider({
-            id: "saml",
-            name: "SAML",
-            credentials: {
-                samlBody: { label: "SAML Body", type: "hidden" }
-            },
-            authorize: async (credentials, req) => {
-              	console.log("saml after parsing",samlBody);
-                const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-                const postAssert = (identityProvider, samlBody) =>
-                    new Promise((resolve, reject) => {
-                        sp.post_assert(
-                            identityProvider,
-                            {
-                                request_body: samlBody,
-                            },
-                            (error, response) => {
-                                if (error) {
-                                   return reject(error);
-                                }
-                                resolve(response);
-                            }
-                        );
-                    });
-
-                try {
-                    const idp = new saml2.IdentityProvider(
-                        reciterSamlConfig.saml_idp_options
-                    );
-                    const { user } = await postAssert(idp, samlBody);
-					console.log("user*************",user);
-                    let cwid = null;
-                    let email = null;
-                    let usrAttr = null;
-                    if (user.attributes && user.attributes.CWID) {
-                        cwid = user.attributes.CWID[0];
-						console.log("cwid*************",cwid);
-                    }
-                    let dupUser = JSON.stringify(user.attributes);
-                    let smalUserEmail = null;
-                    let firstName = null;
-                    let lastName = null;
-                    let userPrincipalName = null;
-                    if(dupUser)
-                        usrAttr = JSON.parse(dupUser);
-                    if(usrAttr && usrAttr['user.email'] && usrAttr['user.email'].length > 0)
-                        smalUserEmail = usrAttr['user.email'][0];
-                    if(usrAttr && usrAttr['urn:oid:2.5.4.42'] && usrAttr['urn:oid:2.5.4.42'].length > 0)
-                        firstName = usrAttr['urn:oid:2.5.4.42'][0];
-                    if(usrAttr && usrAttr['urn:oid:2.5.4.4'] && usrAttr['urn:oid:2.5.4.4'].length > 0)
-                        lastName = usrAttr['urn:oid:2.5.4.4'][0];
-                    if(usrAttr && usrAttr['userPrincipalName'] && usrAttr['userPrincipalName'].length > 0)
-                        userPrincipalName = usrAttr['userPrincipalName'][0];
-                    
-                        
-                    /*
-                        User is trying to authenticate to Publication Manager.
- 
-                        1. Does user have first, middle, and last name in SAML payload? 
-                        - If yes, get data from SAML. Create record in admin_users
-                        - If no, go to 2.
-                        
-                        2. Does record exist in person table?
-                        - If yes, get name data from person table.
-                        - If no, create record without populating name data.
-                        
-                        In all cases, populate email in admin_users. Failing that, populate userPrincipalName (EPPN).
-                    */  
-                   /* if(smalUserEmail || userPrincipalName){
-                       // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
-                           const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail||userPrincipalName,firstName,lastName)
-                           await sleep(100)
-                          if(adminUser){
-                                if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
-                                            && reciterConfig.asms.userTrackingAPIAuthorization)
-                                    persistUserLogin(cwid);	
-                                if(adminUser)
-                                    return adminUser;
-                         }
-                         else if(cwid)
-                         {
-                               const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
-                               if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
-                                        && reciterConfig.asms.userTrackingAPIAuthorization)
-                                    persistUserLogin(cwid);	
-                               if(adminUser)
-                                    return adminUser;
-                         }
-                         
-                    }
-                    else if(cwid){
-                           const adminUser = await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
-                           if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
-                                    && reciterConfig.asms.userTrackingAPIAuthorization)
-                                persistUserLogin(cwid);	
-                           if(adminUser)
-                                    return adminUser;
-                    }
-                    return { cwid, has_access: false };
-                } catch (error) {
-                    return null;
-                }
-            },
-        }),*/
-
-        // --- BoxyHQ SAML Provider ---
-    BoxyHQSAMLProvider({
-        issuer: process.env.ENTITY_ID,
-        debug: true,
-        idpMetadata: fs.readFileSync(process.cwd()+ "/config/certs/metadata.xml").toString(),
-        cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-boxyhqsaml.crt").toString(),
-        async profile(profile) {
-            // `profile` contains all attributes from SAML assertion
-            console.log("SAML attributes:", profile);
-            const cwid = profile.CWID || null;
-            const email = profile["user.email"]?.[0] || profile.userPrincipalName;
-            const firstName = profile["urn:oid:2.5.4.42"]?.[0];
-            const lastName = profile["urn:oid:2.5.4.4"]?.[0];
-
-            // Create or update admin user
-            const adminUser = await findOrCreateAdminUsers(cwid, email, firstName, lastName);
-
-            // Assign roles
-            await grantDefaultRolesToAdminUser(adminUser);
-            const userRoles = await findUserPermissions(email, "cwid");
-
-            // Optional user tracking
-            if (
-            reciterConfig.asms.asmsApiBaseUrl &&
-            reciterConfig.asms.userTrackingAPI &&
-            reciterConfig.asms.userTrackingAPIAuthorization
-            ) {
-            persistUserLogin(cwid || email);
-            }
-
-            return {
-            name: `${firstName || ""} ${lastName || ""}`.trim(),
-            email,
-            username: cwid || email,
-            databaseUser: adminUser,
-            userRoles,
-            };
-        },
-      }),
-    ],
-    cookies: {
-    state: {
-      name: `__Secure-next-auth.state-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax', // 'lax' works well for most SAML flows
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
+      providers: [
+    CredentialsProvider({
+      id: 'direct_login',
+      name: 'ReCiter Publication Manager App',
+      credentials: {
+        username: { label: 'Username', type: 'text' },
+        password: { label: 'Password', type: 'password' },
       },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) return null;
+
+        const user = await authenticate(credentials);
+        if (user?.statusCode !== 200) return null;
+
+        const adminUser = await findOrCreateAdminUsers(
+          credentials.username,
+          credentials.email,
+          credentials.firstName,
+          credentials.lastName
+        );
+
+        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+        const userRoles = await findUserPermissions(credentials.username, 'cwid');
+
+        if (process.env.ASMS_API_BASE_URL)
+          persistUserLogin(credentials.username);
+
+        user.databaseUser = adminUser;
+        user.userRoles = userRoles;
+        return user;
+      },
+    }),
+  ],
+
+  callbacks: {
+    async signIn({ user }) {
+      console.log('signIn Callback:', user);
+      return true;
+    },
+
+    async jwt({ token, user }) {
+      if (user) {
+        token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
+        token.email = user.email || '';
+        token.databaseUser = user.databaseUser;
+        token.userRoles = user.userRoles || [];
+      }
+      return token;
+    },
+
+    async session({ session, token }) {
+      session.data = token;
+      session.adminSettings = await fetchUpdatedAdminSettings();
+      return session;
     },
   },
-    callbacks: {
-        async signIn({user, account}) {
-            //return user
-            console.log("signIn CallBack",user);
-            return true
-        },
-        async session({session, token}) {
-            session.data = token
-            //loading adminsettings after creating users specific data as it does not belongs to specific user.
-          //  if(session || !session.adminSettings)
-            session.adminSettings = await fetchUpdatedAdminSettings();
-            return session
-        },
-        async jwt({token, user}) {
 
-            if(user) {
-              if(user.statusMessage) {
-                token.username = user.statusMessage.username
-              }
-             
-              if(user.databaseUser || user.personIdentifier) {
-                token.email = user.email || ""
-                if(user.databaseUser.personIdentifier)
-                {
-                    token.username = user.databaseUser.personIdentifier
-                }
-                else
-                {
-                    token.username = user.personIdentifier || user.email // shows email as signed user in absence of the personIdetifier. for ex: HSS WCM institution 
-                }
-                token.databaseUser = user.databaseUser
-              }
-              if(user.userRoles) {
-                if(user.userRoles)
-                    token.userRoles = user.userRoles
-              }
-            }
-            return token
-        },
-    },
-    session: {
-        strategy: "jwt",
-        // jwt: true,
-        // maxAge: 7200,
-    },
-    secret: process.env.NEXTAUTH_SECRET,
-    
+  session: {
+    strategy: 'jwt',
+  },
+
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 const persistUserLogin =async (cwid)=>{
