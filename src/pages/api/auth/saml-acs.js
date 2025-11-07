@@ -43,10 +43,15 @@ export default async function handler(req, res) {
       };
 
       // Now use NextAuth to create a session for this SAML user
-      const session = await getServerSession(req, res, NextAuth);
+      //const session = await getServerSession(req, res, NextAuth);
 
+       // 🔑 Create NextAuth session cookie
+    await setLoginSession(req, res, user);
+
+    // Redirect into app (middleware will run)
+    return res.redirect("/search");
       // Option 1: set your own cookie manually (optional)
-      res.setHeader(
+     /* res.setHeader(
         "Set-Cookie",
         serialize("saml_user", JSON.stringify(user), {
           httpOnly: true,
@@ -54,10 +59,13 @@ export default async function handler(req, res) {
           secure: process.env.NODE_ENV === "production",
           sameSite: "lax",
         })
-      );
+      );*/
 
       // Redirect to home or wherever you want
-      return res.redirect("/");
+      //return res.redirect("/search");
+      //res.writeHead(302, { Location: "/search" });
+      //res.end();
+
     });
   } catch (err) {
     console.error("SAML ACS handler error:", err);
