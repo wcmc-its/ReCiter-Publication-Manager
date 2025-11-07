@@ -2,9 +2,9 @@ import fs from 'fs';
 
 export const reciterSamlConfig = {
    samlOptions : {
-      callback_url: process.env.ACS_URL, // ACS URL
-      issuer: process.env.ENTITY_ID, // Your SP entity ID
-      cert: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
+      assert_endpoint: process.env.ACS_URL, // ACS URL
+      entity_id: process.env.ENTITY_ID, // Your SP entity ID
+      certificate: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
       private_key: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.key").toString(),
     },
 
