@@ -34,6 +34,7 @@ export default async function handler(req, res) {
 
       // Extract user attributes from the IdP response
       const attrs = response.user?.attributes || {};
+      console.log("attrs******************",attrs);
       const user = {
         email: attrs["user.email"]?.[0] || attrs["email"]?.[0],
         personIdentifier: attrs["CWID"]?.[0] || attrs["uid"]?.[0],
