@@ -2,6 +2,9 @@
 
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
+import { getServerSession } from "next-auth/next";
+import NextAuth from "./[...nextauth].jsx"; // import NextAuth instance
+import { serialize } from "cookie";
 
 
 export default async function handler(req, res) {
@@ -40,12 +43,16 @@ export default async function handler(req, res) {
         lastName: attrs["urn:oid:2.5.4.4"]?.[0] || "",
       };
 
-    const params = new URLSearchParams({
-        email: user.email,
-        callbackUrl: "/search",
-        });
-     console.log("params**************",params);   
-    res.redirect(`/api/auth/callback/credentials?${params}`);
+      // Now use NextAuth to create a session for this SAML user
+      const session = await getServerSession(req, res, NextAuth);
+     // console.log("session***************",session);
+       // 🔑 Create NextAuth session cookie
+   // await setLoginSession(req, res, user);
+
+    // Redirect into app (middleware will run)
+    return res.redirect("/search");
+     
+
     });
   } catch (err) {
     console.error("SAML ACS handler error:", err);
