@@ -165,7 +165,10 @@ const options = {
     },
 
     async jwt({ token, user }) {
-      console.log("jwt callback******************",token,user);  
+      console.log("jwt callback******************",token,user); 
+      if (user) console.log("JWT callback: new login for", user.email);
+       else console.log("JWT callback: existing token", token.email);
+ 
       if (user) {
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
         token.email = user.email || '';
@@ -177,6 +180,7 @@ const options = {
 
     async session({ session, token }) {
       console.log("Calling session callback*************");  
+      console.log("Session callback:", session.user.email);
       session.data = token;
       session.adminSettings = await fetchUpdatedAdminSettings();
       return session;
