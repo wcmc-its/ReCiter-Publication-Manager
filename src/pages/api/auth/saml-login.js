@@ -9,7 +9,8 @@ export default async function handler(req, res) {
   sp.create_login_request_url(idp, {}, (err, loginUrl, requestId) => {
     console.log('err***',err?.message,loginUrl,requestId);
     if (err) return res.status(500).send(err.message);
-
+    const samlRequest = new URL(loginUrl).searchParams.get("SAMLRequest");
+    console.log("Base64 SAMLRequest:", samlRequest?.slice(0, 80) + "...");
     // Redirect user to IdP
     res.redirect(loginUrl);
   });
