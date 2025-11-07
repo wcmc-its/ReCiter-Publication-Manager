@@ -50,7 +50,7 @@ export default async function handler(req, res) {
    // await setLoginSession(req, res, user);
 
     // Redirect into app (middleware will run)
-    return res.redirect("/search");
+    return res.redirect("/");
      
 
     });
