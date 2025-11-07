@@ -44,14 +44,30 @@ export default async function handler(req, res) {
       };
 
       // Now use NextAuth to create a session for this SAML user
-      const session = await getServerSession(req, res, NextAuth);
+     // const session = await getServerSession(req, res, NextAuth);
      // console.log("session***************",session);
        // 🔑 Create NextAuth session cookie
    // await setLoginSession(req, res, user);
 
     // Redirect into app (middleware will run)
-    return res.redirect("/");
-     
+    //return res.redirect("/search");
+      const callbackUrl = "/search";
+
+  // POST to the specific Credentials provider
+  const response = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/callback/credentials?saml-bridge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      email: user.email,
+      callbackUrl,
+    }),
+  });
+  console.log('response************************',response);
+  if (!response.ok) return res.status(500).send("NextAuth callback failed");
+
+  res.redirect(callbackUrl);
+
+
 
     });
   } catch (err) {

@@ -156,6 +156,17 @@ const options = {
         return user;
       },
     }),
+    CredentialsProvider({
+      id: "saml-bridge",  
+      name: "SAML Bridge",
+      credentials: { email: { label: "Email", type: "text" } },
+      async authorize(credentials) {
+        // Lookup user in DB by email
+        console.log('credentials in NextAuth***',credentials);
+        if (!user) return null; // invalid
+        return user; // NextAuth will create JWT & session
+      },
+    })
   ],
 
   callbacks: {
