@@ -6,6 +6,7 @@ export const reciterSamlConfig = {
       entity_id: process.env.ENTITY_ID, // Your SP entity ID
       certificate: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
       private_key: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.key").toString(),
+      sign_get_request: true
     },
 
    idpOptions : {
