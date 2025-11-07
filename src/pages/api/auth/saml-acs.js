@@ -5,7 +5,7 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 import { getServerSession } from "next-auth/next";
 import NextAuth from "./[...nextauth].jsx"; // import NextAuth instance
 import { serialize } from "cookie";
-import { setLoginSession } from "../../../lib/nextauth-session"
+
 
 export default async function handler(req, res) {
    console.log("coming into this function saml-acs", req,res,req.method); 
