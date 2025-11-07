@@ -15,8 +15,8 @@ export default async function handler(req, res) {
 
   try {
     // Create Service Provider (SP) and Identity Provider (IdP)
-    const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-    const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
+    const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
+    const idp = new saml2.IdentityProvider(reciterSamlConfig.idpOptions);
 
     // Verify that SAMLResponse exists
     const samlResponse = req.body?.SAMLResponse;

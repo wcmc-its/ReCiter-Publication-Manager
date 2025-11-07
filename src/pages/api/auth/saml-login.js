@@ -3,8 +3,8 @@ import { reciterSamlConfig }  from "../../../../config/saml";
 
 export default async function handler(req, res) {
   console.log("coming into this function",req,res);  
-  const sp = new ServiceProvider(reciterSamlConfig.saml_options);
-  const idp = samlConfig.idp_options;
+  const sp = new ServiceProvider(reciterSamlConfig.samlOptions);
+  const idp = samlConfig.idpOptions;
 
   sp.create_login_request_url(idp, {}, (err, loginUrl, requestId) => {
     console.log('err***',err?.message,loginUrl,requestId);
