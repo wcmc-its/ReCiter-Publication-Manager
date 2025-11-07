@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       const callbackUrl = "/search";
 
   // POST to the specific Credentials provider
-  const response = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/callback/credentials?saml-bridge`, {
+  const credResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/callback/credentials?saml-bridge`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -62,8 +62,8 @@ export default async function handler(req, res) {
       callbackUrl,
     }),
   });
-  console.log('response************************',response);
-  if (!response.ok) return res.status(500).send("NextAuth callback failed");
+  console.log('response************************',credResponse);
+  if (!credResponse.ok) return res.status(500).send("NextAuth callback failed");
 
   res.redirect(callbackUrl);
 
