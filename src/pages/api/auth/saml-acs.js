@@ -4,7 +4,7 @@ import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { getServerSession } from "next-auth/next";
 import NextAuth from "./[...nextauth].jsx"; // import NextAuth instance
-import { signIn } from "next-auth/react";
+import { signIn } from "next-auth";
 
 export default async function handler(req, res) {
    console.log("coming into this function saml-acs", req,res,req.method); 
