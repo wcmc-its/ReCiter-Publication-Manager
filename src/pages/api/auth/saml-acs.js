@@ -64,9 +64,11 @@ export default async function handler(req, res) {
     params.append("user", JSON.stringify(samlUser));
     //params.append("callbackUrl", "/search");
 
-    await axios.post(`http://localhost:3000/api/auth/callback/saml`, params, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  });
+   await fetch(`/api/auth/callback/saml`, {
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  body: params.toString(),
+});
     // Redirect to NextAuth credentials sign-in
     /*return res.redirect(
       302,
