@@ -5,7 +5,7 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 import { getServerSession } from "next-auth/next";
 import NextAuth from "./[...nextauth].jsx"; // import NextAuth instance
 import { serialize } from "cookie";
-
+import axios from "axios";
 
 export default async function handler(req, res) {
    console.log("coming into this function saml-acs", req,res,req.method); 
@@ -60,14 +60,19 @@ export default async function handler(req, res) {
       // Create an HTML form that posts to NextAuth
 // Pass this user into NextAuth's credentials sign-in route
     const params = new URLSearchParams();
+    params.append("csrfToken", "dummy");
     params.append("user", JSON.stringify(samlUser));
-    params.append("callbackUrl", "/search");
+    //params.append("callbackUrl", "/search");
 
+    await axios.post(`${process.env.NEXTAUTH_URL}/api/auth/callback/saml`, params, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  });
     // Redirect to NextAuth credentials sign-in
-    return res.redirect(
+    /*return res.redirect(
       302,
       `/api/auth/callback/saml?${params.toString()}`
-    );
+    );*/
+    res.redirect("/search");
 
  
     });
