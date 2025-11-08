@@ -58,19 +58,16 @@ export default async function handler(req, res) {
   // POST to the specific Credentials provider
 //res.redirect(307, `/api/auth/callback/credentials?${params.toString()}`);
       // Create an HTML form that posts to NextAuth
-  res.send(
-            `<html>
-          <body>
-            <form action="/api/auth/callback/credentials" method="POST">
-              <input type="hidden" name="csrfToken" value="dummy"/>
-              <input type="hidden" name="samlBody" value="${samlUser}"/>
-            </form>
-            <script>
-              document.forms[0].submit();
-            </script>
-          </body>
-        </html>`
-        );
+// Pass this user into NextAuth's credentials sign-in route
+    const params = new URLSearchParams();
+    params.append("user", JSON.stringify(samlUser));
+    params.append("callbackUrl", "/search");
+
+    // Redirect to NextAuth credentials sign-in
+    return res.redirect(
+      302,
+      `/api/auth/signin/saml?${params.toString()}`
+    );
 
  
     });
