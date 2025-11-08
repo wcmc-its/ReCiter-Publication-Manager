@@ -31,7 +31,9 @@ export default function SamlHandoff({ csrfToken, samlResponse }) {
 
 // Server-side function to get the CSRF token and the SAML data from the query
 export async function getServerSideProps(context) {
+   console.log("context******************",context); 
   const csrfToken = await getCsrfToken(context);
+ console.log("context.query.response", context?.query, context?.query?.response);
   // Decode the SAML response from the query parameter
   const samlResponse = context.query.response ? decodeURIComponent(context.query.response) : null;
   console.log('csrfToken from handoff***********',csrfToken);
