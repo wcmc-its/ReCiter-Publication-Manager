@@ -42,10 +42,10 @@ export default async function handler(req, res) {
         firstName: attrs["urn:oid:2.5.4.42"]?.[0] || "",
         lastName: attrs["urn:oid:2.5.4.4"]?.[0] || "",
       };
-      const params = new URLSearchParams();
+      //const params = new URLSearchParams();
       //params.append("csrfToken", "dummy"); // not strictly necessary if you POST directly
-      params.append("user", JSON.stringify(samlUser));
-       console.log('params************************',params);
+      //params.append("user", JSON.stringify(samlUser));
+      // console.log('params************************',params);
       // Now use NextAuth to create a session for this SAML user
      // const session = await getServerSession(req, res, NextAuth);
      // console.log("session***************",session);
@@ -56,8 +56,22 @@ export default async function handler(req, res) {
     //return res.redirect("/search");
   
   // POST to the specific Credentials provider
-     res.redirect(307, `/api/auth/callback/credentials?${params.toString()}`);
- 
+//res.redirect(307, `/api/auth/callback/credentials?${params.toString()}`);
+      // Create an HTML form that posts to NextAuth
+  res.send(
+            `<html>
+          <body>
+            <form action="/api/auth/callback/credentials" method="POST">
+              <input type="hidden" name="csrfToken" value="dummy"/>
+              <input type="hidden" name="samlBody" value="${samlUser}"/>
+            </form>
+            <script>
+              document.forms[0].submit();
+            </script>
+          </body>
+        </html>`
+        );
+
  
     });
   } catch (err) {
