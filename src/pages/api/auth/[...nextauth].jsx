@@ -157,7 +157,7 @@ const options = {
       },
     }),
     CredentialsProvider({
-      id: "saml-bridge",  
+      id: "saml",  
       name: "SAML Bridge",
       credentials: { email: { label: "Email", type: "text" } },
       async authorize(credentials) {
