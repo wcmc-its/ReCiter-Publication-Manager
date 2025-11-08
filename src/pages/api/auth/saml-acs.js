@@ -36,13 +36,16 @@ export default async function handler(req, res) {
       // Extract user attributes from the IdP response
       const attrs = response.user?.attributes || {};
       console.log("attrs******************",attrs);
-      const user = {
+      const samlUser = {
         email: attrs["user.email"]?.[0] || attrs["email"]?.[0],
         personIdentifier: attrs["CWID"]?.[0] || attrs["uid"]?.[0],
         firstName: attrs["urn:oid:2.5.4.42"]?.[0] || "",
         lastName: attrs["urn:oid:2.5.4.4"]?.[0] || "",
       };
-
+      const params = new URLSearchParams();
+      //params.append("csrfToken", "dummy"); // not strictly necessary if you POST directly
+      params.append("user", JSON.stringify(samlUser));
+       console.log('params************************',params);
       // Now use NextAuth to create a session for this SAML user
      // const session = await getServerSession(req, res, NextAuth);
      // console.log("session***************",session);
@@ -51,24 +54,11 @@ export default async function handler(req, res) {
 
     // Redirect into app (middleware will run)
     //return res.redirect("/search");
-      const callbackUrl = "/search";
-
+  
   // POST to the specific Credentials provider
-  const credResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/callback/credentials?saml-bridge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      email: user.email,
-      callbackUrl,
-    }),
-  });
-  console.log('response************************',credResponse);
-  if (!credResponse.ok) return res.status(500).send("NextAuth callback failed");
-
-  res.redirect(callbackUrl);
-
-
-
+     res.redirect(307, `/api/auth/callback/credentials?${params.toString()}`);
+ 
+ 
     });
   } catch (err) {
     console.error("SAML ACS handler error:", err);
