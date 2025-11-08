@@ -160,9 +160,65 @@ const options = {
       id: "saml",  
       name: "SAML Bridge",
       credentials: { email: { label: "Email", type: "text" } },
-      async authorize(credentials) {
-        // Lookup user in DB by email
+      async authorize(credentials,req) {
         console.log('credentials in NextAuth***',credentials);
+        
+        // All SAML logic is now inside this function scope
+        const samlBodyString = credentials.samlBody;
+
+        if (!samlBodyString) {
+          throw new Error("SAML response missing from credentials.");
+        }
+
+        try
+        {
+            
+            const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
+            const idp = new saml2.IdentityProvider(reciterSamlConfig.idpOptions);
+
+             // --- Post Assert Logic (Inline Helper) ---
+          const postAssert = (identityProvider, samlBody) =>
+              new Promise((resolve, reject) => {
+                  sp.post_assert(
+                      identityProvider,
+                      {
+                          request_body: samlBody, // Expects { SAMLResponse: '...' }
+                      },
+                      (error, response) => {
+                          if (error) {
+                              reject(error);
+                          }
+                          resolve(response); // Contains { user: {...} }
+                      }
+                  );
+              });
+
+               // --- Execution ---
+          const samlBodyForPostAssert = {
+            SAMLResponse: samlBodyString,
+          };
+
+          const { user: samlProfile } = await postAssert(idp, samlBodyForPostAssert);
+
+          if (!samlProfile) {
+              throw new Error("No user profile extracted from SAML assertion.");
+          }
+          console.log("samlProfile***********************",samlProfile);
+          // --- User Mapping ---
+          const user = {
+            id: samlProfile.uid || samlProfile.nameID, 
+            name: samlProfile.nameFirst || samlProfile.nameLast,
+            email: samlProfile.email_address,
+          };
+          console.log("user***************",user);
+          return user; // Return validated user to NextAuth
+
+        }
+        catch (error) {
+          console.error("SAML Authorization failed:", error.message);
+          return null; // NextAuth handles this as a sign-in error
+        }
+
         if (!user) return null; // invalid
         return user; // NextAuth will create JWT & session
       },

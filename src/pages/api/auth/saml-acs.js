@@ -16,8 +16,8 @@ export default async function handler(req, res) {
 
   try {
     // Create Service Provider (SP) and Identity Provider (IdP)
-    const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
-    const idp = new saml2.IdentityProvider(reciterSamlConfig.idpOptions);
+   // const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
+    //const idp = new saml2.IdentityProvider(reciterSamlConfig.idpOptions);
 
     // Verify that SAMLResponse exists
     const samlResponse = req.body?.SAMLResponse;
@@ -26,22 +26,22 @@ export default async function handler(req, res) {
     }
 
     // Validate the SAML response
-    sp.post_assert(idp, { request_body: req.body }, async (error, response) => {
+   /* sp.post_assert(idp, { request_body: req.body }, async (error, response) => {
         console.log('Post Assert************************',error,response);
         if (error) {
         console.error("SAML post_assert failed:", error);
         return res.status(401).send("SAML assertion failed");
-      }
+      }*/
 
       // Extract user attributes from the IdP response
-      const attrs = response.user?.attributes || {};
-      console.log("attrs******************",attrs);
-      const samlUser = {
+    //  const attrs = response.user?.attributes || {};
+     // console.log("attrs******************",attrs);
+     /* const samlUser = {
         email: attrs["user.email"]?.[0] || attrs["email"]?.[0],
         personIdentifier: attrs["CWID"]?.[0] || attrs["uid"]?.[0],
         firstName: attrs["urn:oid:2.5.4.42"]?.[0] || "",
         lastName: attrs["urn:oid:2.5.4.4"]?.[0] || "",
-      };
+      };*/
       //const params = new URLSearchParams();
       //params.append("csrfToken", "dummy"); // not strictly necessary if you POST directly
       //params.append("user", JSON.stringify(samlUser));
@@ -59,25 +59,17 @@ export default async function handler(req, res) {
 //res.redirect(307, `/api/auth/callback/credentials?${params.toString()}`);
       // Create an HTML form that posts to NextAuth
 // Pass this user into NextAuth's credentials sign-in route
-    const params = new URLSearchParams();
-    params.append("csrfToken", "dummy");
-    params.append("user", JSON.stringify(samlUser));
+ //   const params = new URLSearchParams();
+  //  params.append("csrfToken", "dummy");
+  //  params.append("user", JSON.stringify(samlUser));
     //params.append("callbackUrl", "/search");
 
-   await fetch(`/api/auth/callback/saml`, {
-  method: "POST",
-  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  body: params.toString(),
-});
-    // Redirect to NextAuth credentials sign-in
-    /*return res.redirect(
-      302,
-      `/api/auth/callback/saml?${params.toString()}`
-    );*/
-    res.redirect("/search");
-
+     // Redirect to the intermediate page, passing the SAML data as a query param.
+    // Make sure to use proper encoding.
+    res.redirect(302, `/saml-handoff?response=${encodeURIComponent(samlResponse)}`); 
  
-    });
+ 
+   // });
   } catch (err) {
     console.error("SAML ACS handler error:", err);
     return res.status(500).send("Internal Server Error");
