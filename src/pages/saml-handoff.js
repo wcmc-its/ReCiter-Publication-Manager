@@ -8,6 +8,7 @@ export default function SamlHandoff({ csrfToken, samlResponse }) {
 
   useEffect(() => {
     if (csrfToken && samlResponse) {
+       console.log("submiting form from handoff ") 
       // Auto submit the form to the NextAuth credentials provider API endpoint
       document.getElementById('samlForm').submit();
     } else if (!samlResponse) {
@@ -18,11 +19,9 @@ export default function SamlHandoff({ csrfToken, samlResponse }) {
 
   return (
     <div style={{ padding: '20px', textAlign: 'center' }}>
-      <h1>Processing SAML Login...</h1>
-      <p>Please wait while we sign you in.</p>
-      
+  
       {/* This form posts to the NEXTAUTH_URL/api/auth/signin/[providerId] route */}
-      <form id="samlForm" method="POST" action="/api/auth/signin/saml-login">
+      <form id="samlForm" method="POST" action="/api/auth/signin/saml">
         <input type="hidden" name="csrfToken" value={csrfToken} />
         <input type="hidden" name="samlBody" value={samlResponse} />
       </form>
@@ -35,7 +34,8 @@ export async function getServerSideProps(context) {
   const csrfToken = await getCsrfToken(context);
   // Decode the SAML response from the query parameter
   const samlResponse = context.query.response ? decodeURIComponent(context.query.response) : null;
-
+  console.log('csrfToken from handoff***********',csrfToken);
+  console.log("samlResponse***************",samlResponse);
   return {
     props: { csrfToken, samlResponse },
   };
