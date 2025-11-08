@@ -66,7 +66,7 @@ export default async function handler(req, res) {
     // Redirect to NextAuth credentials sign-in
     return res.redirect(
       302,
-      `/api/auth/signin/saml?${params.toString()}`
+      `/api/auth/callback/saml?${params.toString()}`
     );
 
  
