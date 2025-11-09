@@ -8,7 +8,7 @@ import { serialize } from "cookie";
 import axios from "axios";
 import { reciterConfig } from "../../../../config/local";
 
-export default async function handler(req, res) {
+async function handler(req, res) {
    console.log("coming into this function saml-acs", req,res,req.method); 
   // Allow only POST requests
   if (req.method !== "POST") {
@@ -114,7 +114,7 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
     }
     return createAdminUser;
 }
-const grantDefaultRolesToAdminUser = async(adminUser) => {
+ const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
     let assignRolesPayload =[];
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
@@ -186,7 +186,7 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
     return existingAdminUserRoles;
     
 }
-export const persistUserLogin =async (cwid)=>{
+ const persistUserLogin =async (cwid)=>{
     let payload = {
         "cwid":  cwid,
         "module":  "publication_manager"
@@ -214,3 +214,4 @@ export const persistUserLogin =async (cwid)=>{
             });
             
 }
+export default handler;
