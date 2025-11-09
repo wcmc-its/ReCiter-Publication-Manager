@@ -156,7 +156,7 @@ const options = {
         return user;
       },
     }),
-    CredentialsProvider({
+    /*CredentialsProvider({
       id: "saml",  
       name: "SAML Bridge",
       credentials: { email: { label: "Email", type: "text" } },
@@ -222,7 +222,7 @@ const options = {
         if (!user) return null; // invalid
         return user; // NextAuth will create JWT & session
       },
-    })
+    })*/
   ],
 
   callbacks: {
