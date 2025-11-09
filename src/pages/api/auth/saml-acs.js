@@ -13,7 +13,7 @@ import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { findOnePerson } from "../../../../controllers/db/person.controller";
 import { allowedPermissions } from "../../../utils/constants";
-
+import { encode } from "next-auth/jwt"; 
 
 async function handler(req, res) {
    console.log("coming into this function saml-acs", req,res,req.method); 
