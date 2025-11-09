@@ -53,9 +53,9 @@ async function handler(req, res) {
       const adminUser =  await findOrcreateAdminUser(samlUser.personIdentifier,samlUser.email,samlUser.firstName,samlUser.lastName)
       if(adminUser)
         {
-            if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+            if(samlUser.personIdentifier && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                         && reciterConfig.asms.userTrackingAPIAuthorization)
-                persistUserLogin(cwid);	
+                persistUserLogin(samlUser.personIdentifier);	
            
         }
         const sessionPayload = {
