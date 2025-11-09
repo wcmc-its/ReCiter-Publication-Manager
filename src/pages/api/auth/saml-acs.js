@@ -6,7 +6,6 @@ import { getServerSession } from "next-auth/next";
 //import {findOrcreateAdminUser,persistUserLogin} from "./[...nextauth].jsx"; // import NextAuth instance
 import { serialize } from "cookie";
 import axios from "axios";
-import { reciterConfig } from "../../../../config/local";
 import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
