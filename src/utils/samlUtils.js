@@ -1,31 +1,12 @@
-import NextAuth from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials"
-import saml2 from "saml2-js";
-import { reciterSamlConfig }  from "../../../../config/saml"
-import { authenticate } from "../../../../controllers/authentication.controller";
 import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
-import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
-import { createAdminUser } from "../../../redux/actions/actions";
-import { reciterConfig } from "../../../../config/local";
-import { findOnePerson } from "../../../../controllers/db/person.controller";
-import { allowedPermissions } from "../../../utils/constants";
-import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
-// Determine the condition for choosing the authentication method
-const isSamlEnabled = process.env.SAML_ENABLED === 'true';
 
-const authHandler = async (req, res) => {
-    await NextAuth(req, res, options);
-};
-
-const sleep = ms => new Promise(res => setTimeout(res, ms));
-
-/*const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
+export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
     if(createdAdminUser)
     {
         await grantDefaultRolesToAdminUser(createdAdminUser);
-        await sleep(50);
+        //await sleep(50);
         let userRoles ='';
          if(samlEmail)
             userRoles = await findUserPermissions(samlEmail, "email")
@@ -50,7 +31,7 @@ const sleep = ms => new Promise(res => setTimeout(res, ms));
     }
     return createAdminUser;
 }
-const grantDefaultRolesToAdminUser = async(adminUser) => {
+export const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
     let assignRolesPayload =[];
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
@@ -121,148 +102,8 @@ const grantDefaultRolesToAdminUser = async(adminUser) => {
     }
     return existingAdminUserRoles;
     
-}*/
-
-const options = {
-	debug: true,
-      providers: [
-    CredentialsProvider({
-      id: 'direct_login',
-      name: 'ReCiter Publication Manager App',
-      credentials: {
-        username: { label: 'Username', type: 'text' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) return null;
-
-        const user = await authenticate(credentials);
-        if (user?.statusCode !== 200) return null;
-
-        const adminUser = await findOrCreateAdminUsers(
-          credentials.username,
-          credentials.email,
-          credentials.firstName,
-          credentials.lastName
-        );
-
-        const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        const userRoles = await findUserPermissions(credentials.username, 'cwid');
-
-        if (process.env.ASMS_API_BASE_URL)
-          persistUserLogin(credentials.username);
-
-        user.databaseUser = adminUser;
-        user.userRoles = userRoles;
-        return user;
-      },
-    }),
-    /*CredentialsProvider({
-      id: "saml",  
-      name: "SAML Bridge",
-      credentials: { email: { label: "Email", type: "text" } },
-      async authorize(credentials,req) {
-        console.log('credentials in NextAuth***',credentials);
-        
-        // All SAML logic is now inside this function scope
-        const samlBodyString = credentials.samlBody;
-
-        if (!samlBodyString) {
-          throw new Error("SAML response missing from credentials.");
-        }
-
-        try
-        {
-            
-            const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
-            const idp = new saml2.IdentityProvider(reciterSamlConfig.idpOptions);
-
-             // --- Post Assert Logic (Inline Helper) ---
-          const postAssert = (identityProvider, samlBody) =>
-              new Promise((resolve, reject) => {
-                  sp.post_assert(
-                      identityProvider,
-                      {
-                          request_body: samlBody, // Expects { SAMLResponse: '...' }
-                      },
-                      (error, response) => {
-                          if (error) {
-                              reject(error);
-                          }
-                          resolve(response); // Contains { user: {...} }
-                      }
-                  );
-              });
-
-               // --- Execution ---
-          const samlBodyForPostAssert = {
-            SAMLResponse: samlBodyString,
-          };
-
-          const { user: samlProfile } = await postAssert(idp, samlBodyForPostAssert);
-
-          if (!samlProfile) {
-              throw new Error("No user profile extracted from SAML assertion.");
-          }
-          console.log("samlProfile***********************",samlProfile);
-          // --- User Mapping ---
-          const user = {
-            id: samlProfile.uid || samlProfile.nameID, 
-            name: samlProfile.nameFirst || samlProfile.nameLast,
-            email: samlProfile.email_address,
-          };
-          console.log("user***************",user);
-          return user; // Return validated user to NextAuth
-
-        }
-        catch (error) {
-          console.error("SAML Authorization failed:", error.message);
-          return null; // NextAuth handles this as a sign-in error
-        }
-
-        if (!user) return null; // invalid
-        return user; // NextAuth will create JWT & session
-      },
-    })*/
-  ],
-
-  callbacks: {
-    async signIn({ user }) {
-      console.log('signIn Callback:', user);
-      return true;
-    },
-
-    async jwt({ token, user }) {
-      console.log("jwt callback******************",token,user); 
-      if (user) console.log("JWT callback: new login for", user.email);
-       else console.log("JWT callback: existing token", token.email);
- 
-      if (user) {
-        token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
-        token.email = user.email || '';
-        token.databaseUser = user.databaseUser;
-        token.userRoles = user.userRoles || [];
-      }
-      return token;
-    },
-
-    async session({ session, token }) {
-      console.log("Calling session callback*************");  
-      console.log("Session callback:", session.user.email);
-      session.data = token;
-      session.adminSettings = await fetchUpdatedAdminSettings();
-      return session;
-    },
-  },
-
-  session: {
-    strategy: 'jwt',
-  },
-
-  secret: process.env.NEXTAUTH_SECRET,
-};
-
-/*const persistUserLogin =async (cwid)=>{
+}
+export const persistUserLogin =async (cwid)=>{
     let payload = {
         "cwid":  cwid,
         "module":  "publication_manager"
@@ -289,8 +130,5 @@ const options = {
                 }
             });
             
-}*/
-
-
-export default authHandler;
+}
 
