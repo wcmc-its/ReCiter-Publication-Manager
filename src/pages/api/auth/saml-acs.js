@@ -2,7 +2,8 @@ import * as saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
-import encode from "next-auth/jwt";
+import NextAuthJwt from "next-auth/jwt";
+const { encode } = NextAuthJwt;
 
 console.log({
   saml2: typeof saml2,
