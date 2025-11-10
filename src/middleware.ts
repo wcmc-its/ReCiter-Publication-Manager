@@ -16,7 +16,7 @@ export const config = {
 };
 
 export async function middleware(request) {
-  console.log("in middleware****************",request);
+  console.log("in middleware****************");
   const token:any = await getToken({ req: request, secret: process.env.JWT_TOKEN_SECRET });
   const pathName = request.nextUrl.pathname;
  console.log("pathName and token****************",pathName,token);

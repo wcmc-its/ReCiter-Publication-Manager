@@ -2,7 +2,7 @@ import { ServiceProvider } from 'saml2-js';
 import { reciterSamlConfig }  from "../../../../config/saml";
 
 export default async function handler(req, res) {
-  console.log("coming into this function",req,res);  
+  console.log("coming into saml-login handler function");  
   const sp = new ServiceProvider(reciterSamlConfig.samlOptions);
   const idp = reciterSamlConfig.idpOptions;
 

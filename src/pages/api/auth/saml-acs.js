@@ -5,7 +5,7 @@ import { encode } from "next-auth/jwt";
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
 
 async function handler(req, res) {
-   console.log("coming into this function saml-acs", req,res,req.method); 
+   console.log("coming into this function saml-acs",req.method); 
   // Allow only POST requests
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
@@ -24,7 +24,7 @@ async function handler(req, res) {
 
     // Validate the SAML response
    sp.post_assert(idp, { request_body: req.body }, async (error, response) => {
-        console.log('Post Assert************************',error,response);
+        console.log('Post Assert************************',error);
         if (error) {
         console.error("SAML post_assert failed:", error);
         return res.status(401).send("SAML assertion failed");
