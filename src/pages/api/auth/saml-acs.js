@@ -15,7 +15,7 @@ console.log({
   encode: typeof encode, // 👈 changed from NextAuthJwt
 });
 
-export async function handler(req, res) {
+export default async function handler(req, res) {
    console.log("coming into this function saml-acs",req.method); 
   // Allow only POST requests
   if (req.method !== "POST") {
