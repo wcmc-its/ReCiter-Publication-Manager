@@ -69,12 +69,20 @@ export default async function handler(req, res) {
             // Include other custom attributes if needed:
             // roles: ['some-role'], 
         };
+        console.log('sessionPayload', sessionPayload);
+        console.log('encode', encode);
         const { encode } = await import("next-auth/jwt");
         // 2. Manually encode the JWT
-        const jwt = await encode({
+        let jwt;
+        try {
+        jwt = await encode({
             token: sessionPayload,
             secret: process.env.NEXTAUTH_SECRET,
-        }); 
+        });
+        } catch (err) {
+        console.error('Error calling encode:', err);
+        return res.status(500).send('JWT encoding failed');
+        }
         // 3. Manually set the HTTP cookie header
         // Crucial: Use the correct cookie name and flags based on your environment
         res.setHeader('Set-Cookie', [
