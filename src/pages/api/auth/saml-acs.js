@@ -1,8 +1,12 @@
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
-import { encode } from "next-auth/jwt"; 
+import jwt from "next-auth/jwt"; 
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
+
+
+// Destructure the encode/decode functions
+const { encode } = jwt;
 
 async function handler(req, res) {
    console.log("coming into this function saml-acs",req.method); 
@@ -40,6 +44,7 @@ async function handler(req, res) {
         lastName: attrs["urn:oid:2.5.4.4"]?.[0] || "",
       };
       const adminUser =  await findOrcreateAdminUser(samlUser.personIdentifier,samlUser.email,samlUser.firstName,samlUser.lastName)
+      console.log('adminUser in saml-acs',adminUser)
       if(adminUser)
         {
             if(samlUser.personIdentifier && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
