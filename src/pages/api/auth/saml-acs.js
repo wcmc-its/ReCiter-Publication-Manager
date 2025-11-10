@@ -4,7 +4,7 @@ import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
-import { encode } from "next-auth/jwt";
+//import { encode } from "next-auth/jwt";
 
 console.log({
   saml2: typeof saml2,
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
       const attrs = response.user?.attributes || {};
       console.log("attrs******************",attrs);
       const samlUser = {
-        email: attrs["user.email"]?.[0] || attrs["email"]?.[0] || attr['userPrincipalName']?.[0],
+        email: attrs["user.email"]?.[0] || attrs["email"]?.[0] || attrs['userPrincipalName']?.[0],
         personIdentifier: attrs["CWID"]?.[0] || attrs["uid"]?.[0],
         firstName: attrs["urn:oid:2.5.4.42"]?.[0] || "",
         lastName: attrs["urn:oid:2.5.4.4"]?.[0] || "",
@@ -65,10 +65,11 @@ export default async function handler(req, res) {
             sub: samlUser.personIdentifier, // Use personIdentifier as the unique subject ID
             jti: 'a-unique-jwt-id-' + Date.now(),
             iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days expiry
+            exp: Math.floor(Date.now() / 1000) + (1 * 24 * 60 * 60), // 1 days expiry
             // Include other custom attributes if needed:
             // roles: ['some-role'], 
         };
+        const { encode } = await import("next-auth/jwt");
         // 2. Manually encode the JWT
         const jwt = await encode({
             token: sessionPayload,
