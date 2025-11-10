@@ -1,127 +1,13 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials"
-import saml2 from "saml2-js";
-import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
-import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
-import { createAdminUser } from "../../../redux/actions/actions";
-import { reciterConfig } from "../../../../config/local";
-import { findOnePerson } from "../../../../controllers/db/person.controller";
-import { allowedPermissions } from "../../../utils/constants";
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
-// Determine the condition for choosing the authentication method
-const isSamlEnabled = process.env.SAML_ENABLED === 'true';
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
-
-const sleep = ms => new Promise(res => setTimeout(res, ms));
-
-/*const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
-    const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    if(createdAdminUser)
-    {
-        await grantDefaultRolesToAdminUser(createdAdminUser);
-        await sleep(50);
-        let userRoles ='';
-         if(samlEmail)
-            userRoles = await findUserPermissions(samlEmail, "email")
-         else if(cwid)
-            userRoles = await findUserPermissions(cwid, "cwid")
-         createdAdminUser.userRoles = userRoles;
-          let databaseUser = {
-            "userID" : createdAdminUser.userID,
-            "personIdentifier": createdAdminUser.personIdentifier,
-            "nameFirst": createdAdminUser.firstName,
-            "nameMiddle": createdAdminUser.nameMiddle,
-            "nameLast":createdAdminUser.lastName,
-            "email" : createdAdminUser.samlEmail,
-            "status":createdAdminUser.status,
-            "createTimestamp":createdAdminUser.createTimestamp,
-            "modifyTimestamp":createdAdminUser.modifyTimestamp
-        }
-        createdAdminUser.databaseUser = databaseUser
-        createdAdminUser.personIdentifier 
-        if(createdAdminUser)
-            return createdAdminUser;
-    }
-    return createAdminUser;
-}
-const grantDefaultRolesToAdminUser = async(adminUser) => {
-    const adminSettings = await findOneAdminSettings('userRoles');
-    let assignRolesPayload =[];
-    if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
-    {
-        let viewAttributes = JSON.parse(adminSettings.viewAttributes);
-        viewAttributes && viewAttributes.forEach(attr => {
-            attr.roles.map(role=>{
-                if(role.isChecked)
-                {
-                    let assignRolePayload = {
-                            'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
-                            'roleID': role.roleId,
-                            'createTimestamp': new Date() 
-                            }
-                            //check for the role assigned to the user or not
-                            assignRolesPayload.push(assignRolePayload);
-                }
-            })
-        });
-
-    }
-    let personAPIResponse;
-    let existingAdminUserRoles =[];
-    let finalAssignRolesPayload =[];
-    if(adminUser && adminUser.personIdentifier)
-    {
-        personAPIResponse = await findOnePerson("personIdentifier",adminUser.personIdentifier);
-        existingAdminUserRoles = JSON.parse(await findUserPermissions(adminUser.personIdentifier, "cwid"))
-    } 
-    if(assignRolesPayload && assignRolesPayload.length >= 2)
-    {
-        //nothing continue
-    } 
-    //Check for Curator_All role in assignRolesPaylaod if it is there then continue otherwise, 
-    // check for an entry in person table with the personIdentifier, if exist then assign curator_self role 
-    else if(personAPIResponse && personAPIResponse.personIdentifier 
-        && ((assignRolesPayload && assignRolesPayload.length <=0) || (assignRolesPayload && assignRolesPayload.length >0 && !assignRolesPayload.some((role) => role.roleID == 2)))
-        && ((existingAdminUserRoles && existingAdminUserRoles.length <=0) || (existingAdminUserRoles && existingAdminUserRoles.length > 0 && (!existingAdminUserRoles.some((role) => role.roleLabel == allowedPermissions.Curator_All)
-                        && !existingAdminUserRoles.some((role) => role.roleLabel == allowedPermissions.Curator_Self )))))
-    {
-        let assignRolePayload = {
-            'userID': (JSON.parse(JSON.stringify(adminUser))).userID,
-            'roleID': 4,
-            'createTimestamp': new Date() 
-            }
-            //check for the role assigned to the user or not
-            assignRolesPayload.push(assignRolePayload);
-    }
-    //filtering the assignRolePayload with existingAdminUserRoles  if any 
-    if(existingAdminUserRoles && existingAdminUserRoles.length >0 && assignRolesPayload && assignRolesPayload.length >0)
-    {
-        finalAssignRolesPayload = assignRolesPayload.filter(value1 => !existingAdminUserRoles.some(value2 => value1.roleID === value2.roleID))
-    }
-    else if(assignRolesPayload && assignRolesPayload.length >0)
-    {
-        finalAssignRolesPayload = assignRolesPayload;
-    }
-
-    if(finalAssignRolesPayload && finalAssignRolesPayload.length > 0)
-    {
-        const userRole = await  findOrCreateAdminUserRole (finalAssignRolesPayload); 
-        return userRole;
-    }
-    //raise an error and display a message on the UI as "You have successfully authenticated, but you don't have any roles assigned. Please contact a system administrator".
-    else if(finalAssignRolesPayload && finalAssignRolesPayload.length <=0 && existingAdminUserRoles && existingAdminUserRoles.length <= 0)
-    {
-        return null;    
-    }
-    return existingAdminUserRoles;
-    
-}*/
 
 const options = {
 	debug: true,
@@ -139,7 +25,7 @@ const options = {
         const user = await authenticate(credentials);
         if (user?.statusCode !== 200) return null;
 
-        const adminUser = await findOrCreateAdminUsers(
+        const adminUser = await findOrcreateAdminUser(
           credentials.username,
           credentials.email,
           credentials.firstName,
@@ -156,74 +42,8 @@ const options = {
         user.userRoles = userRoles;
         return user;
       },
-    }),
-    /*CredentialsProvider({
-      id: "saml",  
-      name: "SAML Bridge",
-      credentials: { email: { label: "Email", type: "text" } },
-      async authorize(credentials,req) {
-        console.log('credentials in NextAuth***',credentials);
-        
-        // All SAML logic is now inside this function scope
-        const samlBodyString = credentials.samlBody;
+    })
 
-        if (!samlBodyString) {
-          throw new Error("SAML response missing from credentials.");
-        }
-
-        try
-        {
-            
-            const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
-            const idp = new saml2.IdentityProvider(reciterSamlConfig.idpOptions);
-
-             // --- Post Assert Logic (Inline Helper) ---
-          const postAssert = (identityProvider, samlBody) =>
-              new Promise((resolve, reject) => {
-                  sp.post_assert(
-                      identityProvider,
-                      {
-                          request_body: samlBody, // Expects { SAMLResponse: '...' }
-                      },
-                      (error, response) => {
-                          if (error) {
-                              reject(error);
-                          }
-                          resolve(response); // Contains { user: {...} }
-                      }
-                  );
-              });
-
-               // --- Execution ---
-          const samlBodyForPostAssert = {
-            SAMLResponse: samlBodyString,
-          };
-
-          const { user: samlProfile } = await postAssert(idp, samlBodyForPostAssert);
-
-          if (!samlProfile) {
-              throw new Error("No user profile extracted from SAML assertion.");
-          }
-          console.log("samlProfile***********************",samlProfile);
-          // --- User Mapping ---
-          const user = {
-            id: samlProfile.uid || samlProfile.nameID, 
-            name: samlProfile.nameFirst || samlProfile.nameLast,
-            email: samlProfile.email_address,
-          };
-          console.log("user***************",user);
-          return user; // Return validated user to NextAuth
-
-        }
-        catch (error) {
-          console.error("SAML Authorization failed:", error.message);
-          return null; // NextAuth handles this as a sign-in error
-        }
-
-        if (!user) return null; // invalid
-        return user; // NextAuth will create JWT & session
-      },
-    })*/
   ],
 
   callbacks: {
@@ -262,34 +82,7 @@ const options = {
   secret: process.env.NEXTAUTH_SECRET,
 };
 
-/*const persistUserLogin =async (cwid)=>{
-    let payload = {
-        "cwid":  cwid,
-        "module":  "publication_manager"
-    }
 
-    let uri = `${reciterConfig.asms.userTrackingAPI}`
-    return fetch(uri, {
-            method: "POST",
-            headers: {
-                'Authorization': 'Bearer ' + reciterConfig.asms.userTrackingAPIAuthorization,
-            },
-            body: JSON.stringify(payload)
-        })
-            .then(async(res)=> {
-                console.log('ASMS User tracker end point api is Successfull: ', res)
-                if(res.status == 200) {
-                } 
-            })
-            .catch((error) => {
-                console.log('ASMS User tracker end point api is not reachable: ' + error)
-                return {
-                    statusCode: error.status,
-                    statusText: error
-                }
-            });
-            
-}*/
 
 
 export default authHandler;

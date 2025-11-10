@@ -1,5 +1,5 @@
-import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
-import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
+import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from "../../controllers/db/admin.users.controller"
+import findOneAdminSettings from '../../controllers/db/admin.settings.controller';
 
 export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)

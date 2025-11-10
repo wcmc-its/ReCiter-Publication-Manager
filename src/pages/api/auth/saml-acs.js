@@ -1,15 +1,6 @@
-// pages/api/auth/saml-acs.js
-
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
-import { getServerSession } from "next-auth/next";
-//import {findOrcreateAdminUser,persistUserLogin} from "./[...nextauth].jsx"; // import NextAuth instance
-import { serialize } from "cookie";
-import axios from "axios";
-import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
-import { findOnePerson } from "../../../../controllers/db/person.controller";
-import { allowedPermissions } from "../../../utils/constants";
 import { encode } from "next-auth/jwt"; 
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
 
@@ -71,7 +62,7 @@ async function handler(req, res) {
             token: sessionPayload,
             secret: process.env.NEXTAUTH_SECRET,
         }); 
-// 3. Manually set the HTTP cookie header
+        // 3. Manually set the HTTP cookie header
         // Crucial: Use the correct cookie name and flags based on your environment
         res.setHeader('Set-Cookie', [
             `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax`,
