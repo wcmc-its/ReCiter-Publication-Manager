@@ -7,13 +7,16 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
     console.log("createdAdminUser*********",createdAdminUser);
     if(createdAdminUser)
     {
+        console.log("coming into createdAdminUser**************",createdAdminUser);
         await grantDefaultRolesToAdminUser(createdAdminUser);
+        console.log("coming into createdAdminUser**************",createdAdminUser);
         await sleep(50);
         let userRoles ='';
          if(samlEmail)
             userRoles = await findUserPermissions(samlEmail, "email")
          else if(cwid)
             userRoles = await findUserPermissions(cwid, "cwid")
+         console.log("userRoles**************",userRoles);
          createdAdminUser.userRoles = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
@@ -30,8 +33,9 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
         createdAdminUser.personIdentifier 
         if(createdAdminUser)
             return createdAdminUser;
+        console.log("createdAdminUser*****************",createdAdminUser);
     }
-    return createAdminUser;
+    return createdAdminUser;
 }
 export const grantDefaultRolesToAdminUser = async(adminUser) => {
     const adminSettings = await findOneAdminSettings('userRoles');
