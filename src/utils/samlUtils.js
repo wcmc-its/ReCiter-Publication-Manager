@@ -1,12 +1,14 @@
 import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from "../../controllers/db/admin.users.controller"
 import findOneAdminSettings from '../../controllers/db/admin.settings.controller';
 
+const sleep = ms => new Promise(res => setTimeout(res, ms));
 export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
+    console.log("createdAdminUser*********",createdAdminUser);
     if(createdAdminUser)
     {
         await grantDefaultRolesToAdminUser(createdAdminUser);
-        //await sleep(50);
+        await sleep(50);
         let userRoles ='';
          if(samlEmail)
             userRoles = await findUserPermissions(samlEmail, "email")

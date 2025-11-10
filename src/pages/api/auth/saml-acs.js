@@ -1,9 +1,17 @@
-import saml2 from "saml2-js";
+import * as saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
-const   encode = require("next-auth/jwt");
+import encode from "next-auth/jwt";
 
+console.log({
+  saml2: typeof saml2,
+  reciterSamlConfig: typeof reciterSamlConfig,
+  reciterConfig: typeof reciterConfig,
+  findOrcreateAdminUser: typeof findOrcreateAdminUser,
+  persistUserLogin: typeof persistUserLogin,
+  encode: typeof encode, // 👈 changed from NextAuthJwt
+});
 
 async function handler(req, res) {
    console.log("coming into this function saml-acs",req.method); 
