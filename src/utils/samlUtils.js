@@ -1,8 +1,10 @@
 import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from "../../controllers/db/admin.users.controller"
-import findOneAdminSettings from '../../controllers/db/admin.settings.controller';
+import {findOneAdminSettings} from '../../controllers/db/admin.settings.controller';
 import { findOnePerson } from "../../controllers/db/person.controller";
 import { findUserPermissions } from '../../controllers/db/userroles.controller';
 import { allowedPermissions } from "./constants";
+import { reciterConfig } from "../../config/local";
+
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
