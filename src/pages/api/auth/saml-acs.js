@@ -109,10 +109,10 @@ export default async function handler(req, res) {
         return res.redirect(302, '/'); */
 
           // Create the secure, one-time token
-        const oneTimeToken = createOneTimeToken(userProfile);
+        const oneTimeToken = createOneTimeToken(samlUser);
 
         // The final NextAuth sign-in URL
-    const callbackUrl = req.query.RelayState || '/'; // Use RelayState or default to home
+    const callbackUrl = req?.query?.RelayState || '/'; // Use RelayState or default to home
 
     // Redirect to the NextAuth Credentials Sign In page, passing the token as a query parameter
     // The provider ID MUST match the `id` in your NextAuth config: 'saml-credentials'
