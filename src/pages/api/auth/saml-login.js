@@ -15,4 +15,6 @@ export default async function handler(req, res) {
     // Redirect user to IdP
     res.redirect(loginUrl);
   });
+
+  
 }

@@ -15,6 +15,7 @@ export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
     let userPermissions =null;
     let personIdentifier = null;
+    console.log("getServerSideProps in Indix.js file****************************");
     if(session && session.data && session.data.userRoles)
     {  
         userPermissions = JSON.parse(session.data?.userRoles);

@@ -117,7 +117,7 @@ export default async function handler(req, res) {
     // Redirect to the NextAuth Credentials Sign In page, passing the token as a query parameter
     // The provider ID MUST match the `id` in your NextAuth config: 'saml-credentials'
     const nextAuthSignInUrl = `/api/auth/signin/saml?token=${oneTimeToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
-    
+    console.log("nextAuthSignInUrl*****************************",nextAuthSignInUrl);
     return res.redirect(302, nextAuthSignInUrl);
     
    });
