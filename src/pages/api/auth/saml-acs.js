@@ -85,7 +85,7 @@ export default async function handler(req, res) {
         ]);
 
         // 4. Redirect the user to the main app page
-        return res.redirect(302, '/search'); 
+        return res.redirect(302, '/'); 
     
    });
     
