@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
-import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
+import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser} from "../../../utils/samlUtils";
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
@@ -20,6 +20,7 @@ const options = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        console.log("credentials************",credentials);
         if (!credentials?.username || !credentials?.password) return null;
 
         const user = await authenticate(credentials);
@@ -53,9 +54,10 @@ const options = {
     },
 
     async jwt({ token, user }) {
+      console.log("user is jwt callback*************",user);
       console.log("jwt callback******************",token,user); 
       if (user) console.log("JWT callback: new login for", user.email);
-       else console.log("JWT callback: existing token", token.email);
+       else console.log("JWT callback: existing token", token);
  
       if (user) {
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;

@@ -62,7 +62,8 @@ export default async function handler(req, res) {
         const sessionPayload = {
             name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
             email: samlUser.email,
-            sub: samlUser.personIdentifier 
+            sub: samlUser.personIdentifier,
+            userRoles: adminUser.userRoles 
         };
         console.log('sessionPayload', sessionPayload);
         console.log('encode', encode);
@@ -74,6 +75,7 @@ export default async function handler(req, res) {
             secret: process.env.NEXTAUTH_SECRET,
             maxAge: 30 * 24 * 60 * 60 // e.g., 30 days
         });
+
         } catch (err) {
         console.error('Error calling encode:', err);
         return res.status(500).send('JWT encoding failed');
