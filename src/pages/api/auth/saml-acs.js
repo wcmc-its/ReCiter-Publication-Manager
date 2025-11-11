@@ -95,10 +95,10 @@ export default async function handler(req, res) {
     if (!cookieHeader) {
       throw new Error("NextAuth did not return a session cookie");
     }
-    const response = NextResponse.redirect(new URL("/", process.env.NEXTAUTH_URL));
-    response.headers.set("Set-Cookie", cookieHeader);
-    console.log("response********************",response);
-    return response;
+    const redirectResponse = NextResponse.redirect(new URL("/", process.env.NEXTAUTH_URL));
+    redirectResponse.headers.set("Set-Cookie", cookieHeader);
+    console.log("redirectResponse********************",redirectResponse);
+    return redirectResponse;
 
         
         /*.setHeader('Set‑Cookie', 
