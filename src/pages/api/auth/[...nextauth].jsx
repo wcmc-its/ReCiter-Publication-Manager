@@ -45,29 +45,40 @@ const options = {
       },
     }),
     CredentialsProvider({
-      id: "saml",
-      name: "SAML",
-      credentials: {},
-      async authorize(credentials, req) {
-        // credentials.samlBody is the SAMLResponse payload
-        console.log("Calling SAML Credentials Provider");
-        const samlBody = credentials?.samlBody;
-        console.log("samlBody********************",samlBody);
-        if (!samlBody) throw new Error("Missing SAML response");
+          id: 'saml',
+          name: 'SAML',
+          credentials: {
+              token: { label: "SAML Token", type: "text" },
+            },
+          async authorize(credentials) {
+            console.log("coming into SAML authorize method");
+            if (!credentials?.token) {
+              return null;
+            }
+            // Verify the temporary token created in the ACS route
+            const userProfile = verifyOneTimeToken(credentials.token);
+            if (userProfile) {
+          // This object is what NextAuth will use to create the session
+          return {
+            id: userProfile?.id,
+            name: userProfile?.name,
+            email: userProfile?.email,
+            // You can add roles or other attributes here
+            // role: userProfile.role, 
+          };
+        }
 
-        const samlData = JSON.parse(decodeURIComponent(samlBody));
-        console.log("samlData******************",samlData);
-
-        if (!user) throw new Error("Invalid SAML assertion");
-        return user;
+        return null;
       },
+          
     }),
+
 
 
   ],
 
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, account, profile, email, credentials  }) {
       console.log('signIn Callback:', user);
       return true;
     },

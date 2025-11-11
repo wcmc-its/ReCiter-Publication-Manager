@@ -4,6 +4,7 @@ import { findOnePerson } from "../../controllers/db/person.controller";
 import { findUserPermissions } from '../../controllers/db/userroles.controller';
 import { allowedPermissions } from "./constants";
 import { reciterConfig } from "../../config/local";
+import jwt from 'jsonwebtoken';
 
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
@@ -142,4 +143,19 @@ export const persistUserLogin =async (cwid)=>{
             });
             
 }
+const JWT_SECRET = process.env.NEXTAUTH_SECRET;
+
+export const createOneTimeToken = (profile) => {
+  return jwt.sign(profile, JWT_SECRET, { expiresIn: '60s' });
+};
+
+// Verifies and decodes the token
+export const verifyOneTimeToken = (token) => {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    // Returns null if verification fails (e.g., expired, modified)
+    return null;
+  }
+};
 

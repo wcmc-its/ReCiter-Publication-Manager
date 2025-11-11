@@ -3,7 +3,7 @@
 import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
-import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
+import {findOrcreateAdminUser,persistUserLogin,createOneTimeToken,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { encode } from "next-auth/jwt";
 
 console.log({
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
         console.error('Error calling encode:', err);
         return res.status(500).send('JWT encoding failed');
         }*/
-        const nextAuthUrl = `${process.env.NEXTAUTH_URL}/api/auth/callback/saml`;
+/*const nextAuthUrl = `${process.env.NEXTAUTH_URL}/api/auth/callback/saml`;
         console.log("nextAuthUrl****************",nextAuthUrl);
         const nextAuthResponse = await fetch(nextAuthUrl, {
       method: "POST",
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
     const redirectResponse = res.redirect(new URL("/", process.env.NEXTAUTH_URL));
     redirectResponse.headers.set("Set-Cookie", cookieHeader);
     console.log("redirectResponse********************",redirectResponse);
-    return redirectResponse;
+    return redirectResponse;*/
 
         
         /*.setHeader('Set‑Cookie', 
@@ -107,6 +107,18 @@ export default async function handler(req, res) {
          console.log("Set‑Cookie header:", `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max‑Age=${30 * 24 * 60 * 60}`); 
         // 4. Redirect the user to the main app page
         return res.redirect(302, '/'); */
+
+          // Create the secure, one-time token
+        const oneTimeToken = createOneTimeToken(userProfile);
+
+        // The final NextAuth sign-in URL
+    const callbackUrl = req.query.RelayState || '/'; // Use RelayState or default to home
+
+    // Redirect to the NextAuth Credentials Sign In page, passing the token as a query parameter
+    // The provider ID MUST match the `id` in your NextAuth config: 'saml-credentials'
+    const nextAuthSignInUrl = `/api/auth/signin/saml?token=${oneTimeToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    
+    return res.redirect(302, nextAuthSignInUrl);
     
    });
     
