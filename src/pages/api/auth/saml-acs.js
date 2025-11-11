@@ -80,9 +80,10 @@ export default async function handler(req, res) {
         console.error('Error calling encode:', err);
         return res.status(500).send('JWT encoding failed');
         }
-        res.setHeader('Set-Cookie', [
-            `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; maxAge: 30 * 24 * 60 * 60,`,
-        ]);
+        
+        res.setHeader('Set‑Cookie', 
+          `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30*24*60*60}`);
+
 
         // 4. Redirect the user to the main app page
         return res.redirect(302, '/'); 

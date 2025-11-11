@@ -64,6 +64,7 @@ export async function getServerSideProps(ctx) {
         };
     }
     //Redirect to search after login
+    console.log("session and its data***********************:",session, session.data);
     if (session && session.data) {
         if (session.data.databaseUser && session.data.databaseUser.status == 0) {
             return {
