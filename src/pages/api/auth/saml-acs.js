@@ -4,7 +4,7 @@ import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin} from "../../../utils/samlUtils";
-//import { encode } from "next-auth/jwt";
+import { encode } from "next-auth/jwt";
 
 console.log({
   saml2: typeof saml2,
@@ -62,35 +62,26 @@ export default async function handler(req, res) {
         const sessionPayload = {
             name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
             email: samlUser.email,
-            sub: samlUser.personIdentifier, // Use personIdentifier as the unique subject ID
-            jti: 'a-unique-jwt-id-' + Date.now(),
-            iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor(Date.now() / 1000) + (1 * 24 * 60 * 60), // 1 days expiry
-            // Include other custom attributes if needed:
-            // roles: ['some-role'], 
+            sub: samlUser.personIdentifier 
         };
         console.log('sessionPayload', sessionPayload);
         console.log('encode', encode);
-        const { encode } = await import("next-auth/jwt");
         // 2. Manually encode the JWT
         let jwt;
         try {
         jwt = await encode({
             token: sessionPayload,
             secret: process.env.NEXTAUTH_SECRET,
+            maxAge: 30 * 24 * 60 * 60 // e.g., 30 days
         });
         } catch (err) {
         console.error('Error calling encode:', err);
         return res.status(500).send('JWT encoding failed');
         }
-        // 3. Manually set the HTTP cookie header
-        // Crucial: Use the correct cookie name and flags based on your environment
         res.setHeader('Set-Cookie', [
-            `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax`,
-            // If running on http://localhost without HTTPS, you might need the non-secure name:
-            // `next-auth.session-token=${jwt}; Path=/; HttpOnly; SameSite=Lax`,
+            `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; maxAge: 30 * 24 * 60 * 60,`,
         ]);
-        
+
         // 4. Redirect the user to the main app page
         return res.redirect(302, '/search'); 
     
