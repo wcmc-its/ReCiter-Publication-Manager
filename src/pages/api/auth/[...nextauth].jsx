@@ -43,7 +43,26 @@ const options = {
         user.userRoles = userRoles;
         return user;
       },
-    })
+    }),
+    CredentialsProvider({
+      id: "saml",
+      name: "SAML",
+      credentials: {},
+      async authorize(credentials, req) {
+        // credentials.samlBody is the SAMLResponse payload
+        console.log("Calling SAML Credentials Provider");
+        const samlBody = credentials?.samlBody;
+        console.log("samlBody********************",samlBody);
+        if (!samlBody) throw new Error("Missing SAML response");
+
+        const samlData = JSON.parse(decodeURIComponent(samlBody));
+        console.log("samlData******************",samlData);
+
+        if (!user) throw new Error("Invalid SAML assertion");
+        return user;
+      },
+    }),
+
 
   ],
 
@@ -73,6 +92,7 @@ const options = {
       console.log("Session callback:", session.user.email);
       session.data = token;
       session.adminSettings = await fetchUpdatedAdminSettings();
+      console.log("session*******************",session);
       return session;
     },
   },

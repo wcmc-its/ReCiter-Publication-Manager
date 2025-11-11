@@ -57,9 +57,9 @@ export default async function handler(req, res) {
             if(samlUser.personIdentifier && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                         && reciterConfig.asms.userTrackingAPIAuthorization)
                 persistUserLogin(samlUser.personIdentifier);	
-           
+             console.log('PersistUserLoginCalled ****************'); 
         }
-        const sessionPayload = {
+        /*const sessionPayload = {
             name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
             email: samlUser.email,
             sub: samlUser.personIdentifier,
@@ -79,14 +79,34 @@ export default async function handler(req, res) {
         } catch (err) {
         console.error('Error calling encode:', err);
         return res.status(500).send('JWT encoding failed');
-        }
+        }*/
+        const nextAuthUrl = `${process.env.NEXTAUTH_URL}/api/auth/callback/saml`;
+        console.log("nextAuthUrl****************",nextAuthUrl);
+        const nextAuthResponse = await fetch(nextAuthUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      redirect: "manual",
+    });
+    console.log("nextAuthResponse****************",nextAuthResponse);
+    // 3️⃣ Get the Set-Cookie header from NextAuth
+    const cookieHeader = nextAuthResponse.headers.get("set-cookie");
+   console.log("CookieHeader********************",cookieHeader);
+    if (!cookieHeader) {
+      throw new Error("NextAuth did not return a session cookie");
+    }
+    const response = NextResponse.redirect(new URL("/", process.env.NEXTAUTH_URL));
+    response.headers.set("Set-Cookie", cookieHeader);
+    console.log("response********************",response);
+    return response;
+
         
-        res.setHeader('Set‑Cookie', 
+        /*.setHeader('Set‑Cookie', 
           `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30*24*60*60}`);
 
-
+         console.log("Set‑Cookie header:", `__Secure-next-auth.session-token=${jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max‑Age=${30 * 24 * 60 * 60}`); 
         // 4. Redirect the user to the main app page
-        return res.redirect(302, '/'); 
+        return res.redirect(302, '/'); */
     
    });
     
