@@ -111,6 +111,10 @@ const options = {
   session: {
     strategy: 'jwt',
   },
+  pages: {
+    // This tells NextAuth to redirect to your custom handler instead of the default sign-in form
+    signIn: '/api/auth/saml-login' 
+  },
 
   secret: process.env.NEXTAUTH_SECRET,
 };
