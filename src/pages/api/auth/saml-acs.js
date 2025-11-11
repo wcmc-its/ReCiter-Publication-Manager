@@ -85,7 +85,7 @@ export default async function handler(req, res) {
         const nextAuthResponse = await fetch(nextAuthUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
+      samlResponse,
       redirect: "manual",
     });
     console.log("nextAuthResponse****************",nextAuthResponse);
@@ -95,7 +95,7 @@ export default async function handler(req, res) {
     if (!cookieHeader) {
       throw new Error("NextAuth did not return a session cookie");
     }
-    const redirectResponse = NextResponse.redirect(new URL("/", process.env.NEXTAUTH_URL));
+    const redirectResponse = res.redirect(new URL("/", process.env.NEXTAUTH_URL));
     redirectResponse.headers.set("Set-Cookie", cookieHeader);
     console.log("redirectResponse********************",redirectResponse);
     return redirectResponse;
