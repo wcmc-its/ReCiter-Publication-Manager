@@ -147,7 +147,7 @@ export const persistUserLogin =async (cwid)=>{
 const JWT_SECRET = process.env.NEXTAUTH_SECRET;
 
 export const createOneTimeToken = (profile) => {
-  return jwt.sign(profile, JWT_SECRET, { expiresIn: '60s' });
+  return jwt.sign(profile, JWT_SECRET, { expiresIn: '300s' });
 };
 
 // Verifies and decodes the token

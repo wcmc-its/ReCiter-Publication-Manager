@@ -53,12 +53,14 @@ const options = {
           id: 'saml',
           name: 'SAML',
           async authorize(credentials) {
-            console.log("coming into SAML authorize method",credentials);
+            console.log("coming into SAML authorize method",credentials,);
+            const samlToken = credentials?.token;
+            console.log("extracted samlToken",samlToken);
             if (!credentials?.token) {
               return null;
             }
             // Verify the temporary token created in the ACS route
-            const userProfile = verifyOneTimeToken(credentials.token);
+            const userProfile = verifyOneTimeToken(samlToken);
             console.log("userProfile*********************",userProfile);
             if (userProfile) {
               // This object is what NextAuth will use to create the session
