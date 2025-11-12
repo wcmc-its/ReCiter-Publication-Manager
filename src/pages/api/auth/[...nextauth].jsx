@@ -37,7 +37,12 @@ const options = {
         const userRoles = await findUserPermissions(credentials.username, 'cwid');
 
         if (process.env.ASMS_API_BASE_URL)
-          persistUserLogin(credentials.username);
+          persistUserLogin(credentials.username)
+          .catch(error => {
+                  // Log the error to a system like Sentry, CloudWatch, etc.
+                  console.error("Failed to write the login information to ASMS:", error);
+                  // The error is now contained and will not crash the process.
+                });	
 
         user.databaseUser = adminUser;
         user.userRoles = userRoles;
@@ -47,24 +52,21 @@ const options = {
     CredentialsProvider({
           id: 'saml',
           name: 'SAML',
-          credentials: {
-              token: { label: "SAML Token", type: "text" },
-            },
           async authorize(credentials) {
-            console.log("coming into SAML authorize method");
+            console.log("coming into SAML authorize method",credentials);
             if (!credentials?.token) {
               return null;
             }
             // Verify the temporary token created in the ACS route
             const userProfile = verifyOneTimeToken(credentials.token);
+            console.log("userProfile*********************",userProfile);
             if (userProfile) {
-          // This object is what NextAuth will use to create the session
-          return {
-            id: userProfile?.id,
-            name: userProfile?.name,
-            email: userProfile?.email,
-            // You can add roles or other attributes here
-            // role: userProfile.role, 
+              // This object is what NextAuth will use to create the session
+              return {
+                personIdentifier: userProfile?.personIdentifier,
+                name: userProfile?.name,
+                email: userProfile?.email,
+                userRoles : userProfile.userRoles 
           };
         }
 

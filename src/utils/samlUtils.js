@@ -120,8 +120,9 @@ export const persistUserLogin =async (cwid)=>{
         "cwid":  cwid,
         "module":  "publication_manager"
     }
-
     let uri = `${reciterConfig.asms.userTrackingAPI}`
+    console.log("PersisstUserLogin*******************",uri,cwid);
+   
     return fetch(uri, {
             method: "POST",
             headers: {

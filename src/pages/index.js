@@ -100,12 +100,14 @@ export async function getServerSideProps(ctx) {
             };
         }
     }
+    if (!session || !session.data) {
     return {
         redirect: {
-            destination: "/api/auth/saml-login?callbackUrl=/search",
+            destination: "/api/saml-login?callbackUrl=/search", // Use your START route
             permanent: false,
         },
     };
+}
 }
 
 export default function Home() {
