@@ -114,7 +114,7 @@ export default async function handler(req, res) {
         return res.redirect(302, '/'); */
 
           // Create the secure, one-time token
-        const oneTimeToken = createOneTimeToken(samlUser);
+        const oneTimeToken = createOneTimeToken(adminUser);
 
         // The final NextAuth sign-in URL
     const callbackUrl = req?.query?.RelayState || '/search'; // Use RelayState or default to home
