@@ -22,7 +22,7 @@ import Profile from "../Profile/Profile";
 const Search = () => {
 
   const { data: session, status } = useSession();
-
+  console.log("session,data,status: ", data, status);
   const router = useRouter()
   const history = useHistory();
   const dispatch = useDispatch()
