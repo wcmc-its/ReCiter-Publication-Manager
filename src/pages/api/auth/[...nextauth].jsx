@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
-import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser} from "../../../utils/samlUtils";
+import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);

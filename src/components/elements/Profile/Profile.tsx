@@ -82,7 +82,6 @@ const Profile = ({
   }, [modalShow])
 
   useEffect(()=>{
-    console.log("session In profile******", session);
     //let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
  let adminSettings = session && JSON.parse(JSON.stringify((session as any)?.adminSettings));
     let exportArticleRTFViewAttr = [];
