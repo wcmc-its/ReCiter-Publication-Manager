@@ -10,7 +10,7 @@ export default function SamlLoginHandler() {
   const { token, callbackUrl = '/' } = router.query;
 
   useEffect(() => {
-    console.log("coming into the saml login handler****************")
+    console.log("coming into the saml login handler****************",router?.isReady, token);
     // Only proceed once the router is ready and we have a token
     if (router.isReady && token) {
       
