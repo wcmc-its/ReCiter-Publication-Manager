@@ -17,7 +17,7 @@ export default function SamlLoginHandler() {
       console.log("Attempting automatic sign-in with SAML token...");
       
       // 1. Call the signIn function
-      signIn('saml-credentials', {
+      signIn('saml', {
         // The callbackUrl must be passed to ensure the user is redirected to the page 
         // they originally requested (which came from Middleware/RelayState).
         callbackUrl: callbackUrl, 
@@ -31,6 +31,7 @@ export default function SamlLoginHandler() {
         token: token,   
       })
       .then((result) => {
+        console.log("result of the saml-login handler***********",result);
         if (result && result.ok) {
           // 2. SUCCESS: The authorize function ran, the session was created.
           console.log("SAML sign-in successful. Redirecting...");
