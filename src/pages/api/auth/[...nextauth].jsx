@@ -80,10 +80,10 @@ const options = {
   ],
 
   callbacks: {
-    async signIn({ user, account, profile, email, credentials  }) {
+    /*async signIn({ user, account, profile, email, credentials  }) {
       console.log('signIn Callback:', user);
       return true;
-    },
+    },*/
 
     async jwt({ token, user }) {
       console.log("user is jwt callback*************",user);
