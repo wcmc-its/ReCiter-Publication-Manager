@@ -156,7 +156,7 @@ export default async function handler(req, res) {
         const nextAuthCallbackUrl = '/api/auth/callback/saml'; 
         // We encode the original POST body to pass to the credentials provider
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
-
+         console.log("encodedSAMLBody******************",encodedSAMLBody);       
         // Return HTML to the browser to auto-submit a POST request 
                 // to the NextAuth callback endpoint. The browser *automatically* 
                 // attaches the `next-auth.csrf-token` HTTP-only cookie.

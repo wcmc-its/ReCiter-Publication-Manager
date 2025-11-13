@@ -9,9 +9,11 @@ const SamlBridgePage = () => {
     // You can pass the callbackUrl through to your server handler if needed
 
     useEffect(() => {
+        console.log("inside useEffect method in SamlBridgePage****");
         const initiateLogin = async () => {
             // 1. CRUCIAL STEP: Fetch the token to ensure the 'next-auth.csrf-token' 
             //    HTTP-only cookie is set in the user's browser.
+            console.log("calling getCsrfToken to setup in browser***");
             await getCsrfToken(); 
 
             // 2. Redirect to your existing server-side SAML login handler
@@ -19,7 +21,7 @@ const SamlBridgePage = () => {
             const loginUrl = callbackUrl 
                 ? `/api/auth/saml-login?callbackUrl=${encodeURIComponent(callbackUrl)}` 
                 : '/api/auth/saml-login';
-                
+            console.log("loginUrl in SAML Bridge***",loginUrl);    
             window.location.href = loginUrl; 
         };
         
