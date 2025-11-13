@@ -66,7 +66,7 @@ export default async function handler(req, res) {
                   // The error is now contained and will not crash the process.
                 });	
              console.log('PersistUserLoginCalled ****************'); 
-        }
+       // }
         /*const sessionPayload = {
             name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
             email: samlUser.email,
@@ -117,10 +117,10 @@ export default async function handler(req, res) {
         return res.redirect(302, '/'); */
 
           // Create the secure, one-time token
-    const oneTimeToken = createOneTimeToken(adminUser);
+    //const oneTimeToken = createOneTimeToken(adminUser);
 
         // The final NextAuth sign-in URL
-    const callbackUrl = req?.query?.RelayState || '/search'; // Use RelayState or default to home
+    //const callbackUrl = req?.query?.RelayState || '/search'; // Use RelayState or default to home
 
     // Redirect to the NextAuth Credentials Sign In page, passing the token as a query parameter
     // The provider ID MUST match the `id` in your NextAuth config: 'saml-credentials'
@@ -130,7 +130,7 @@ export default async function handler(req, res) {
 
       // 2. Perform the server-side sign-in using the 'credentials' provider
     // This calls your 'authorize' function in [...nextauth].js directly.
-    const result = await signIn('saml', {
+   /* const result = await signIn('saml', {
         token: oneTimeToken, 
         redirect: false, // Prevent the default server redirect behavior
     }, {
@@ -149,7 +149,36 @@ export default async function handler(req, res) {
     // 4. Success! The session cookies have been securely set by NextAuth on the server.
     // Now, redirect the user directly to their final destination.
     console.log(`Server-side sign-in successful. Redirecting to: ${callbackUrl}`);
-    return res.redirect(302, callbackUrl);
+    return res.redirect(302, callbackUrl);*/
+
+        // The final NextAuth sign-in URL: Must be '/api/auth/callback/credentials'
+        // This is because we are using a Credentials Provider in the nextauth config.
+        const nextAuthCallbackUrl = '/api/auth/callback/saml'; 
+        // We encode the original POST body to pass to the credentials provider
+        const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
+
+        // Return HTML to the browser to auto-submit a POST request 
+                // to the NextAuth callback endpoint. The browser *automatically* 
+                // attaches the `next-auth.csrf-token` HTTP-only cookie.
+                return res.send(
+                    `<html>
+                  <body>
+                    <form action="${nextAuthCallbackUrl}" method="POST" id="samlForm">
+                      <!-- No CSRF input field needed here -->
+                      <input type="hidden" name="email" value="${samlUser.email}"/>
+                      <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
+                    </form>
+                    <script>
+                      document.forms.submit();
+                    </script>
+                  </body>
+                </html>`
+                );
+                
+            } else {
+                // Handle case where adminUser is null/not found
+                return res.status(401).send("User not authorized or created.");
+            }
     
    });
     
