@@ -9,7 +9,7 @@ const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
 
-const options = {
+export const options = {
 	debug: true,
       providers: [
     CredentialsProvider({
@@ -98,6 +98,9 @@ const options = {
         token.email = user.email || '';
         token.databaseUser = user.databaseUser;
         token.userRoles = user.userRoles || [];
+
+        token.name = token.username;
+        token.picture = user.image || user.databaseUser?.profilePicture;
       }
       return token;
     },
@@ -108,6 +111,11 @@ const options = {
       session.data = token;
       session.adminSettings = await fetchUpdatedAdminSettings();
       console.log("session*******************",session);
+      
+      session.user.username = token.username;
+      session.user.databaseUser = token.databaseUser;
+      session.user.userRoles = token.userRoles;
+      
       return session;
     },
   },
