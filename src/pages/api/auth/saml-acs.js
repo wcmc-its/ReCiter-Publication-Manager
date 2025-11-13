@@ -6,8 +6,8 @@ import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin,createOneTimeToken,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { encode } from "next-auth/jwt";
 import authOptions from "./[...nextauth].jsx";
-import { signIn } from 'next-auth/next';
-import * as NextAuthServer from 'next-auth/next';
+import { signIn } from 'next-auth/core/http';
+
 
 console.log({
   saml2: typeof saml2,
@@ -130,7 +130,7 @@ export default async function handler(req, res) {
 
       // 2. Perform the server-side sign-in using the 'credentials' provider
     // This calls your 'authorize' function in [...nextauth].js directly.
-    const result = await NextAuthServer.signIn('saml', {
+    const result = await signIn('saml', {
         token: oneTimeToken, 
         redirect: false, // Prevent the default server redirect behavior
     }, {
