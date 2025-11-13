@@ -53,6 +53,7 @@ const SamlLoginHandler = () => {
 
   // --- useEffect 2: Wait for the Session Checkpoint ---
   useEffect(() => {
+    console.log("useEffect method in saml-login-handler********",status);
     // 2. Wait until the client-side session status confirms authentication
     //    and we have a valid session object.
     if (status === 'authenticated') {
