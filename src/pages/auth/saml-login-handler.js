@@ -4,75 +4,79 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { signIn } from 'next-auth/react';
 
-export default function SamlLoginHandler() {
+const SamlLoginHandler = () => {
   const router = useRouter();
-  // Extract the token and the original destination URL (callbackUrl) from the query string
+// Destructure query params, assuming 'token' and 'callbackUrl' are in the URL
   const { token, callbackUrl = '/' } = router.query;
 
-  useEffect(() => {
-    console.log("coming into the saml login handler****************",router?.isReady, token);
-    // Only proceed once the router is ready and we have a token
-    if (router.isReady && token) {
+  // 🚨 CRITICAL: Use the session hook to monitor the client-side state
+  const { status } = useSession();
+
+ useEffect(() => {
+    console.log("saml-handler: Initial check.", { isReady: router.isReady, tokenExists: !!token, status });
+
+    // 1. Only proceed if:
+    //    a. Router is ready (query params are available).
+    //    b. We have a token.
+    //    c. We are not already signed in (to prevent loops).
+    if (router.isReady && token && status === 'unauthenticated') {
       
-      console.log("Attempting automatic sign-in with SAML token...");
-      
-      // 1. Call the signIn function
+      console.log("saml-handler: Attempting automatic sign-in...");
+
+      // Call the signIn function
       signIn('saml', {
-        // The callbackUrl must be passed to ensure the user is redirected to the page 
-        // they originally requested (which came from Middleware/RelayState).
         callbackUrl: callbackUrl, 
-        
-        // This is crucial. It tells the function NOT to perform a full browser redirect 
-        // after the server-side authorization is done. We handle navigation manually below.
-        redirect: false,          
-        
-        // Pass the token as a credential field, matching the key defined in your 
-        // NextAuth Credentials Provider.
-        token: token,   
+        redirect: false, // Prevents NextAuth from auto-redirecting
+        token: token,   
       })
       .then((result) => {
-        console.log("result of the saml-login handler***********",result);
-        if (result && result.ok) {
-          // 2. SUCCESS: The authorize function ran, the session was created.
-          console.log("SAML sign-in successful. Redirecting...");
-          // result.url contains the final destination URL determined by NextAuth 
-          // (which should be the passed callbackUrl or the path determined by the signIn callback).
-          router.push(result.url || callbackUrl); 
-        } else if (result && result.error) {
-          // 3. FAILURE: Token expired, authorize returned null, etc.
+        // This 'result' tells you if the *server* successfully created the session cookie.
+        // It does NOT tell you if the *client* has finished reading it yet.
+        console.log("saml-handler: Server sign-in attempt finished.", result);
+        
+        if (result && result.error) {
+          // Failure on the server side (e.g., token validation failed)
           console.error("SAML sign-in failed:", result.error);
-          router.push(`/auth/error?error=${result.error}`);
-        } else {
-          // Handles cases where result is null but the router didn't push (e.g., already signed in)
-          console.warn("Sign-in result was inconclusive. Redirecting to home.");
-          router.push('/');
+          router.replace(`/auth/error?error=${result.error}`);
         }
+        // If result.ok is true, we just wait for useEffect 2 to pick up the session change.
       })
       .catch((err) => {
-        // Handle unexpected network errors during the signIn call
-        console.error("Network error during sign-in:", err);
-        router.push('/auth/error?error=NetworkError');
+        console.error("saml-handler: Network error during sign-in:", err);
+        router.replace('/auth/error?error=NetworkError');
       });
-      
     } else if (router.isReady && !token) {
-      // Handles direct access to this handler without a token
-      router.push('/auth/error?error=MissingToken');
+        // Handle missing token immediately
+        router.replace('/auth/error?error=MissingToken');
     }
-  }, [router, token, callbackUrl]); // Dependencies for useEffect
+  }, [router.isReady, token, callbackUrl, status]); // status is added to prevent re-running if already authenticated
 
-  // Display a minimal loading screen while the sign-in process runs in the background.
-  return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      height: '100vh', 
-      fontFamily: 'sans-serif' 
-    }}>
-      <h1>🔒 Authenticating...</h1>
-      <p>Please wait while we establish your secure session.</p>
-      {/* You can add a spinner or loading animation here */}
-    </div>
-  );
-}
+  // --- useEffect 2: Wait for the Session Checkpoint ---
+  useEffect(() => {
+    // 2. Wait until the client-side session status confirms authentication
+    //    and we have a valid session object.
+    if (status === 'authenticated') {
+      console.log("saml-handler: Session Checkpoint passed. Redirecting to final URL.");
+      
+      // The session is confirmed! Now, we can safely navigate.
+      // Use replace to avoid the user hitting this page with the back button.
+      router.replace(callbackUrl); 
+    }
+  }, [status, callbackUrl, router]); // Only runs when status changes
+
+// Display a loading state while we are waiting for the server response (useEffect 1) 
+  // or the client session to load (useEffect 2).
+  if (status === 'loading' || !router.isReady) {
+    return (
+      <div>
+        <p>Signing you in via SAML... Please wait a moment.</p>
+        
+      </div>
+    );
+  }
+  
+  // Fallback for when the initial sign-in fails but status isn't authenticated
+  return null;
+};
+
+export default SamlLoginHandler;
