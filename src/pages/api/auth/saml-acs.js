@@ -163,13 +163,13 @@ export default async function handler(req, res) {
                 return res.send(
                     `<html>
                   <body>
-                    <form action="${nextAuthCallbackUrl}" method="POST" id="samlForm">
+                    <form action="${nextAuthCallbackUrl}" method="POST">
                       <!-- No CSRF input field needed here -->
                       <input type="hidden" name="email" value="${samlUser.email}"/>
                       <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
                     </form>
                     <script>
-                      document.forms.submit();
+                      document.forms[0].submit();;
                     </script>
                   </body>
                 </html>`
