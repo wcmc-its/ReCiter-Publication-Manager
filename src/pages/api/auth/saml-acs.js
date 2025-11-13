@@ -5,6 +5,7 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin,createOneTimeToken,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { encode } from "next-auth/jwt";
+import authOptions from "./[...nextauth].jsx";
 
 console.log({
   saml2: typeof saml2,
@@ -114,16 +115,39 @@ export default async function handler(req, res) {
         return res.redirect(302, '/'); */
 
           // Create the secure, one-time token
-        const oneTimeToken = createOneTimeToken(adminUser);
+    const oneTimeToken = createOneTimeToken(adminUser);
 
         // The final NextAuth sign-in URL
     const callbackUrl = req?.query?.RelayState || '/search'; // Use RelayState or default to home
 
     // Redirect to the NextAuth Credentials Sign In page, passing the token as a query parameter
     // The provider ID MUST match the `id` in your NextAuth config: 'saml-credentials'
-    const nextAuthSignInUrl = `/auth/saml-login-handler?token=${oneTimeToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
-    console.log("nextAuthSignInUrl*****************************",nextAuthSignInUrl);
-    return res.redirect(302, nextAuthSignInUrl);
+    //const nextAuthSignInUrl = `/auth/saml-login-handler?token=${oneTimeToken}&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    //console.log("nextAuthSignInUrl*****************************",nextAuthSignInUrl);
+    //return res.redirect(302, nextAuthSignInUrl);
+
+      // 2. Perform the server-side sign-in using the 'credentials' provider
+    // This calls your 'authorize' function in [...nextauth].js directly.
+    const result = await signIn('saml', {
+        token: oneTimeToken, 
+        redirect: false, // Prevent the default server redirect behavior
+    }, {
+        req, // Pass the request object
+        res, // Pass the response object
+        authOptions: authOptions, // Pass your NextAuth options
+    });
+
+    // 3. Check the server-side result and perform the final redirect
+    if (result && result.error) {
+        // If your 'authorize' function failed, this catches it
+        console.error("Server-side signIn failed:", result.error);
+        return res.redirect(302, `/auth/error?error=${result.error}`);
+    }
+
+    // 4. Success! The session cookies have been securely set by NextAuth on the server.
+    // Now, redirect the user directly to their final destination.
+    console.log(`Server-side sign-in successful. Redirecting to: ${callbackUrl}`);
+    return res.redirect(302, callbackUrl);
     
    });
     
