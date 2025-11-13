@@ -5,8 +5,8 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin,createOneTimeToken,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { encode } from "next-auth/jwt";
-import authOptions from "./[...nextauth].jsx";
-import { signIn } from 'next-auth/core/http';
+//import authOptions from "./[...nextauth].jsx";
+//import { signIn } from 'next-auth/core/http';
 
 
 console.log({
