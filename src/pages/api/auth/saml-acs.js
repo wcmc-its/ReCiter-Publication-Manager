@@ -158,7 +158,12 @@ export default async function handler(req, res) {
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
          console.log("encodedSAMLBody******************",encodedSAMLBody); 
          
-         const csrfCookie = req.cookies["next-auth.csrf-token"] || req.cookies["_Host-next-auth.csrf-token"];
+         console.log("Incoming cookies header:", req?.headers?.cookie);
+          console.log("Parsed req.cookies:", req?.cookies);
+
+         const csrfCookie = req.cookies["__Host-next-auth.csrf-token"] ||
+                            req.cookies["next-auth.csrf-token"]  ||
+                          req.cookies["_Host-next-auth.csrf-token"];
          console.log("csrfCookie*********************",csrfCookie); 
          const csrfToken = csrfCookie?.split("|")[0] || "";
           console.log("csrfToken*********************",csrfToken);       
