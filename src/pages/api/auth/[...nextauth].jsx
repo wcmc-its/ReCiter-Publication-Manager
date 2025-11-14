@@ -65,12 +65,25 @@ export const options = {
            console.log("userProfile*********************",userProfile);
             if (userProfile) {
               // This object is what NextAuth will use to create the session
-              return {
+              /* {
                 personIdentifier: userProfile?.personIdentifier,
-                name: userProfile?.nameFirst || serProfile?.nameLast,
+                name:`${userProfile?.firstName || ""} ${userProfile?.lastName || ""}`.trim(),
                 email: userProfile?.email,
                 userRoles : userProfile.userRoles 
+          };*/
+          const userSessionData = {
+              personIdentifier: userProfile?.personIdentifier,
+              name: `${userProfile?.firstName || ""} ${userProfile?.lastName || ""}`.trim(),
+              email: userProfile?.email,
+              userRoles: userProfile.userRoles
           };
+
+          // Log it to see the JSON object values
+          console.log("userSessionData*********************", JSON.stringify(userSessionData, null, 2));
+
+          // Return it
+          return userSessionData;
+
         }
 
         return null;
