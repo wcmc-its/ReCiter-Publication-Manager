@@ -52,7 +52,7 @@ export const options = {
     CredentialsProvider({
           id: 'saml',
           name: 'SAML',
-          async authorize(credentials) {
+          async authorize(credentials,req) {
             console.log("coming into SAML authorize method",credentials,);
             const samlToken = credentials?.samlBody;
             console.log("extracted samlToken",samlToken);
