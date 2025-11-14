@@ -156,7 +156,12 @@ export default async function handler(req, res) {
         const nextAuthCallbackUrl = '/api/auth/callback/saml'; 
         // We encode the original POST body to pass to the credentials provider
         const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
-         console.log("encodedSAMLBody******************",encodedSAMLBody);       
+         console.log("encodedSAMLBody******************",encodedSAMLBody); 
+         
+         const csrfCookie = req.cookies["next-auth.csrf-token"] || req.cookies["_Host-next-auth.csrf-token"];
+         console.log("csrfCookie*********************",csrfCookie); 
+         const csrfToken = csrfCookie?.split("|")[0] || "";
+          console.log("csrfToken*********************",csrfToken);       
         // Return HTML to the browser to auto-submit a POST request 
                 // to the NextAuth callback endpoint. The browser *automatically* 
                 // attaches the `next-auth.csrf-token` HTTP-only cookie.
@@ -164,7 +169,7 @@ export default async function handler(req, res) {
                     `<html>
                   <body>
                     <form action="${nextAuthCallbackUrl}" method="POST">
-                      <!-- No CSRF input field needed here -->
+                      <input type="hidden" name="csrfToken" value="${csrfToken}" />
                       <input type="hidden" name="email" value="${samlUser.email}"/>
                       <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
                     </form>
