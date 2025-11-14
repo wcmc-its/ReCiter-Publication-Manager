@@ -54,9 +54,9 @@ export const options = {
           name: 'SAML',
           async authorize(credentials) {
             console.log("coming into SAML authorize method",credentials,);
-            const samlToken = credentials?.token;
+            const samlToken = credentials?.samlBody;
             console.log("extracted samlToken",samlToken);
-            if (!credentials?.token) {
+            if (!credentials?.samlBody) {
               return null;
             }
             // Verify the temporary token created in the ACS route
