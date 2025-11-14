@@ -125,7 +125,7 @@ export const options = {
   },
   pages: {
     // This tells NextAuth to redirect to your custom handler instead of the default sign-in form
-    signIn: '/api/auth/saml-login' 
+    signIn: '/auth/saml-bridge' 
   },
 
   secret: process.env.NEXTAUTH_SECRET,
