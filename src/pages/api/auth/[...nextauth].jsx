@@ -52,7 +52,12 @@ export const options = {
     CredentialsProvider({
           id: 'saml',
           name: 'SAML',
-          async authorize(credentials,req) {
+          credentials: {
+            samlResponse: { label: "SAML Response", type: "text" },
+            email: { label: "Email", type: "text" },
+            csrfToken: { label: "CSRF Token", type: "text" }
+          },
+          async authorize(credentials) {
             console.log("coming into SAML authorize method",credentials,);
             const samlToken = credentials?.samlBody;
             console.log("extracted samlToken",samlToken);
@@ -137,10 +142,10 @@ export const options = {
   session: {
     strategy: 'jwt',
   },
-  pages: {
+ /* pages: {
     // This tells NextAuth to redirect to your custom handler instead of the default sign-in form
     signIn: '/auth/saml-bridge' 
-  },
+  },*/
 
   secret: process.env.NEXTAUTH_SECRET,
 };
