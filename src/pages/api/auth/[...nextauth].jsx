@@ -85,7 +85,7 @@ export const options = {
 
           // Log it to see the JSON object values
           console.log("userSessionData*********************", JSON.stringify(userSessionData, null, 2));
-          console.log("authorize cookies:", req.cookies); 
+          //console.log("authorize cookies:", credentials.cookies); 
           // Return it
           return userSessionData;
 
