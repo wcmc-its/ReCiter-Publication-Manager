@@ -60,8 +60,9 @@ export const options = {
               return null;
             }
             // Verify the temporary token created in the ACS route
-            const userProfile = verifyOneTimeToken(samlToken);
-            console.log("userProfile*********************",userProfile);
+           // const userProfile = verifyOneTimeToken(samlToken);
+           const userProfile = JSON.parse(decodeURIComponent(credentials.samlBody)); 
+           console.log("userProfile*********************",userProfile);
             if (userProfile) {
               // This object is what NextAuth will use to create the session
               return {
