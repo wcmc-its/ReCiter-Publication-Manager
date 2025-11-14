@@ -155,7 +155,7 @@ export default async function handler(req, res) {
         // This is because we are using a Credentials Provider in the nextauth config.
         const nextAuthCallbackUrl = '/api/auth/callback/saml'; 
         // We encode the original POST body to pass to the credentials provider
-        const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
+        const encodedSAMLBody = encodeURIComponent(JSON.stringify(adminUser));
          console.log("encodedSAMLBody******************",encodedSAMLBody); 
          
          console.log("Incoming cookies header:", req?.headers?.cookie);

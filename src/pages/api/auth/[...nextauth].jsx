@@ -67,7 +67,7 @@ export const options = {
               // This object is what NextAuth will use to create the session
               return {
                 personIdentifier: userProfile?.personIdentifier,
-                name: userProfile?.name,
+                name: userProfile?.nameFirst || serProfile?.nameLast,
                 email: userProfile?.email,
                 userRoles : userProfile.userRoles 
           };
