@@ -167,13 +167,15 @@ export default async function handler(req, res) {
          console.log("csrfCookie*********************",csrfCookie); 
          const csrfToken = csrfCookie?.split("|")[0] || "";
           console.log("csrfToken*********************",csrfToken);       
+          console.log("ACS cookies:", req.cookies);
+
         // Return HTML to the browser to auto-submit a POST request 
                 // to the NextAuth callback endpoint. The browser *automatically* 
                 // attaches the `next-auth.csrf-token` HTTP-only cookie.
                 return res.send(
                     `<html>
                   <body>
-                    <form action="${nextAuthCallbackUrl}" method="POST">
+                    <form action="${nextAuthCallbackUrl}" method="POST" enctype="application/x-www-form-urlencoded">
                       <input type="hidden" name="csrfToken" value="${csrfToken}" />
                       <input type="hidden" name="email" value="${samlUser.email}"/>
                       <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
