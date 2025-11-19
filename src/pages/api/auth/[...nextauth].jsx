@@ -59,8 +59,9 @@ export const options = {
           },
           async authorize(credentials,req) {
             
+            console.log("authorize req:", req);
             console.log("Incoming CSRF:", req.body.csrfToken);
-            console.log("Cookie CSRF:", req.cookies["next-auth.csrf-token"]);     
+            //console.log("Cookie CSRF:", req?.cookies["next-auth.csrf-token"]);     
           
 
             console.log("coming into SAML authorize method",credentials,);
