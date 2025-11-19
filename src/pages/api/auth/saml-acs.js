@@ -161,13 +161,13 @@ export default async function handler(req, res) {
          console.log("Incoming cookies header:", req?.headers?.cookie);
           console.log("Parsed req.cookies:", req?.cookies);
 
-         const csrfCookie = req.cookies["__Host-next-auth.csrf-token"] ||
+         const csrfToken = req.cookies["__Host-next-auth.csrf-token"] ||
                             req.cookies["next-auth.csrf-token"]  ||
                           req.cookies["_Host-next-auth.csrf-token"];
          console.log("csrfCookie*********************",csrfCookie); 
-         const csrfToken = csrfCookie?.split("|")[0] || "";
-          console.log("csrfToken*********************",csrfToken);       
-          console.log("ACS cookies:", req.cookies);
+         //const csrfToken = csrfCookie?.split("|")[0] || "";
+          //console.log("csrfToken*********************",csrfToken);       
+          //console.log("ACS cookies:", req.cookies);
 
         // Return HTML to the browser to auto-submit a POST request 
                 // to the NextAuth callback endpoint. The browser *automatically* 
