@@ -68,6 +68,12 @@ export default async function handler(req, res) {
                   // The error is now contained and will not crash the process.
                 });	
              console.log('PersistUserLoginCalled ****************'); 
+
+            await signIn("saml", {
+                          redirect: true,
+                          email: samlUser.email,
+                          name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
+                        }); 
        // }
         /*const sessionPayload = {
             name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
@@ -155,9 +161,9 @@ export default async function handler(req, res) {
 
         // The final NextAuth sign-in URL: Must be '/api/auth/callback/credentials'
         // This is because we are using a Credentials Provider in the nextauth config.
-        const nextAuthCallbackUrl = '/api/auth/callback/saml'; 
+        //const nextAuthCallbackUrl = '/api/auth/callback/saml'; 
         // We encode the original POST body to pass to the credentials provider
-        const encodedSAMLBody = encodeURIComponent(JSON.stringify(adminUser));
+       /* const encodedSAMLBody = encodeURIComponent(JSON.stringify(adminUser));
          console.log("encodedSAMLBody******************",encodedSAMLBody); 
          
          console.log("Incoming cookies header:", req?.headers?.cookie);
@@ -166,7 +172,7 @@ export default async function handler(req, res) {
          const csrfToken = req.cookies["__Host-next-auth.csrf-token"] ||
                             req.cookies["next-auth.csrf-token"]  ||
                           req.cookies["_Host-next-auth.csrf-token"];
-         console.log("csrfToken*********************",csrfToken); 
+         console.log("csrfToken*********************",csrfToken); */
          //const csrfToken = csrfCookie?.split("|")[0] || "";
           //console.log("csrfToken*********************",csrfToken);       
           //console.log("ACS cookies:", req.cookies);
@@ -174,7 +180,7 @@ export default async function handler(req, res) {
         // Return HTML to the browser to auto-submit a POST request 
                 // to the NextAuth callback endpoint. The browser *automatically* 
                 // attaches the `next-auth.csrf-token` HTTP-only cookie.
-                return res.send(
+               /* return res.send(
                     `<html>
                   <body>
                     <form id="saml-form" action="${nextAuthCallbackUrl}" method="POST" enctype="application/x-www-form-urlencoded">
@@ -192,7 +198,7 @@ export default async function handler(req, res) {
                     </script>
                   </body>
                 </html>`
-                );
+                );*/
                 
             } else {
                 // Handle case where adminUser is null/not found
