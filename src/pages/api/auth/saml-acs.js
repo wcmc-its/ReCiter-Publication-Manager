@@ -178,12 +178,17 @@ export default async function handler(req, res) {
                     `<html>
                   <body>
                     <form action="${nextAuthCallbackUrl}" method="POST" enctype="application/x-www-form-urlencoded">
-                      <input type="hidden" name="csrfToken" value="${serverCsrfToken}" />
+                      <input type="hidden" name="csrfToken" id="csrfToken" />
                       <input type="hidden" name="email" value="${samlUser.email}"/>
                       <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
                     </form>
                     <script>
-                      document.forms[0].submit();;
+                      // Fetch CSRF token from NextAuth API
+                      fetch("/api/auth/csrf").then(r => r.json()).then(data => {
+                        console.log('csrftoken**************',data.csrfToken);
+                        document.getElementById("csrfToken").value = data.csrfToken;
+                        document.getElementById("saml-form").submit();
+                      });
                     </script>
                   </body>
                 </html>`
