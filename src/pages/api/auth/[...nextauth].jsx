@@ -128,6 +128,7 @@ export const options = {
         token.name = token.username;
         token.picture = user.image || user.databaseUser?.profilePicture;
       }
+      console.log('returning token**********',token);
       return token;
     },
 
