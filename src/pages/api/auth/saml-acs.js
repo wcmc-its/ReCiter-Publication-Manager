@@ -164,7 +164,7 @@ export default async function handler(req, res) {
          const csrfToken = req.cookies["__Host-next-auth.csrf-token"] ||
                             req.cookies["next-auth.csrf-token"]  ||
                           req.cookies["_Host-next-auth.csrf-token"];
-         console.log("csrfCookie*********************",csrfCookie); 
+         console.log("csrfToken*********************",csrfToken); 
          //const csrfToken = csrfCookie?.split("|")[0] || "";
           //console.log("csrfToken*********************",csrfToken);       
           //console.log("ACS cookies:", req.cookies);
