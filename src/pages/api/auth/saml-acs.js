@@ -5,6 +5,7 @@ import { reciterSamlConfig }  from "../../../../config/saml"
 import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin,createOneTimeToken,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { encode } from "next-auth/jwt";
+import { getCsrfToken } from "next-auth/react";
 //import authOptions from "./[...nextauth].jsx";
 //import { signIn } from 'next-auth/core/http';
 
@@ -24,7 +25,8 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
-
+  const serverCsrfToken = await getCsrfToken({ req });
+  console.log('csrf token generated on the Server side',serverCsrfToken);
   try {
     // Create Service Provider (SP) and Identity Provider (IdP)
     const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
@@ -176,7 +178,7 @@ export default async function handler(req, res) {
                     `<html>
                   <body>
                     <form action="${nextAuthCallbackUrl}" method="POST" enctype="application/x-www-form-urlencoded">
-                      <input type="hidden" name="csrfToken" value="${csrfToken}" />
+                      <input type="hidden" name="csrfToken" value="${serverCsrfToken}" />
                       <input type="hidden" name="email" value="${samlUser.email}"/>
                       <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
                     </form>
