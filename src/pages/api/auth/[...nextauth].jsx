@@ -52,11 +52,11 @@ export const options = {
     CredentialsProvider({
           id: 'saml',
           name: 'SAML',
-          credentials: {
+          /*credentials: {
             samlResponse: { label: "SAML Response", type: "text" },
             email: { label: "Email", type: "text" },
             csrfToken: { label: "CSRF Token", type: "text" }
-          },
+          },*/
           async authorize(credentials,req) {
             
             console.log("authorize req:", req);
