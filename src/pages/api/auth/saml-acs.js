@@ -6,6 +6,7 @@ import { reciterConfig } from "../../../../config/local";
 import {findOrcreateAdminUser,persistUserLogin,createOneTimeToken,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { encode } from "next-auth/jwt";
 import { getCsrfToken } from "next-auth/react";
+import { signIn } from 'next-auth/react';
 //import authOptions from "./[...nextauth].jsx";
 //import { signIn } from 'next-auth/core/http';
 
