@@ -57,7 +57,12 @@ export const options = {
             email: { label: "Email", type: "text" },
             csrfToken: { label: "CSRF Token", type: "text" }
           },
-          async authorize(credentials) {
+          async authorize(credentials,req) {
+            
+            console.log("Incoming CSRF:", req.body.csrfToken);
+            console.log("Cookie CSRF:", req.cookies["next-auth.csrf-token"]);     
+          
+
             console.log("coming into SAML authorize method",credentials,);
             const samlToken = credentials?.samlBody;
             console.log("extracted samlToken",samlToken);
@@ -113,6 +118,7 @@ export const options = {
        else console.log("JWT callback: existing token", token);
  
       if (user) {
+        token.user = user;
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
         token.email = user.email || '';
         token.databaseUser = user.databaseUser;
@@ -134,7 +140,7 @@ export const options = {
       session.user.username = token.username;
       session.user.databaseUser = token.databaseUser;
       session.user.userRoles = token.userRoles;
-      
+      session.user = token.user;      
       return session;
     },
   },
