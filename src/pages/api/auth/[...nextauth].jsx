@@ -57,10 +57,10 @@ export const options = {
             email: { label: "Email", type: "text" },
             csrfToken: { label: "CSRF Token", type: "text" }
           },*/
-          async authorize(credentials,req) {
+          async authorize(credentials) {
             
-            console.log("authorize req:", req);
-            console.log("Incoming CSRF:", req.body.csrfToken);
+           // console.log("authorize req:", req);
+           // console.log("Incoming CSRF:", req.body.csrfToken);
             //console.log("Cookie CSRF:", req?.cookies["next-auth.csrf-token"]);     
           
 
