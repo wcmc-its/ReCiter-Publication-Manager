@@ -70,13 +70,13 @@ export default async function handler(req, res) {
                 });	
              console.log('PersistUserLoginCalled ****************'); 
 
-            await signIn("saml", {
+           /* await signIn("saml", {
                           redirect: true,
                           email: samlUser.email,
                           name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
-                        }); 
+                        });*/
        // }
-        /*const sessionPayload = {
+        const sessionPayload = {
             name: `${samlUser.firstName} ${samlUser.lastName}`.trim(),
             email: samlUser.email,
             sub: samlUser.personIdentifier,
@@ -85,19 +85,40 @@ export default async function handler(req, res) {
         console.log('sessionPayload', sessionPayload);
         console.log('encode', encode);
         // 2. Manually encode the JWT
-        let jwt;
+        let token;
         try {
-        jwt = await encode({
+        token = await encode({
             token: sessionPayload,
             secret: process.env.NEXTAUTH_SECRET,
             maxAge: 30 * 24 * 60 * 60 // e.g., 30 days
         });
+         res.setHeader(
+                        "Set-Cookie",
+                        `next-auth.session-token=${token}; Path=/; HttpOnly; Secure; SameSite=Lax`
+        );
+        // Return HTML that triggers a client-side redirect.
+          res.send(`
+            <html>
+              <body>
+                <script>
+                  // delay ensures cookie is committed first
+                  setTimeout(() => {
+                    window.location.href = "/";
+                  }, 50);
+                </script>
+                <p>Signing you in…</p>
+              </body>
+            </html>
+          `);
+
 
         } catch (err) {
         console.error('Error calling encode:', err);
         return res.status(500).send('JWT encoding failed');
-        }*/
-/*const nextAuthUrl = `${process.env.NEXTAUTH_URL}/api/auth/callback/saml`;
+        }
+      
+      
+        /*const nextAuthUrl = `${process.env.NEXTAUTH_URL}/api/auth/callback/saml`;
         console.log("nextAuthUrl****************",nextAuthUrl);
         const nextAuthResponse = await fetch(nextAuthUrl, {
       method: "POST",
