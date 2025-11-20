@@ -104,7 +104,7 @@ export default async function handler(req, res) {
                   // delay ensures cookie is committed first
                   setTimeout(() => {
                     window.location.href = "/";
-                  }, 50);
+                  }, 300);
                 </script>
                 <p>Signing you in…</p>
               </body>
