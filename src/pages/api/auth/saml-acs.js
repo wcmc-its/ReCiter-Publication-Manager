@@ -94,7 +94,7 @@ export default async function handler(req, res) {
         });
          res.setHeader(
                         "Set-Cookie",
-                        `next-auth.session-token=${token}; Path=/; HttpOnly; Secure; SameSite=Lax`
+                        `__Secure-next-auth.session-token=${token}; Path=/; HttpOnly; Secure; SameSite=Lax`
         );
         // Return HTML that triggers a client-side redirect.
           res.send(`
