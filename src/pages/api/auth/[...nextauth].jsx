@@ -135,14 +135,32 @@ export const options = {
     async session({ session, token }) {
       console.log("Calling session callback*************");  
       console.log("Session callback:", session.user.email);
-      session.data = token;
+
+      /*session.data = token;
       session.adminSettings = await fetchUpdatedAdminSettings();
       console.log("session*******************",session);
       
       session.user.username = token.username;
       session.user.databaseUser = token.databaseUser;
       session.user.userRoles = token.userRoles;
-      session.user = token.user;      
+      session.user = token.user;*/      
+   const adminSettings = await fetchUpdatedAdminSettings();
+   console.log('adminSettings***********',adminSettings);
+      // Don't touch session.user until token is validated
+  if (!token || !token.email) {
+    return session;   // This prevents redirect loops
+  }
+
+  // Construct a clean user object
+  session.user = {
+    username: token.username,
+    adminSettings : adminSettings,
+    databaseUser: token.databaseUser,
+    userRoles: token.userRoles,
+  };
+
+  // Put the whole token in session.data if you need it
+  session.data = token;
       return session;
     },
   },
