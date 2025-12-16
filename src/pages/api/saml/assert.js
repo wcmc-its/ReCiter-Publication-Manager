@@ -2,7 +2,7 @@ import saml2 from "saml2-js"
 import axios from "axios"
 //import type { NextApiRequest, NextApiResponse } from 'next'
 import { reciterSamlConfig }  from "../../../../config/saml"
-// acs
+
 export default async function handler(req, res) {
     if (req.method === "POST") {
         const { data, headers } = await axios.get("/api/auth/csrf", {
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
         </html>`
         );
     }
-//login 
+
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
     const createLoginRequestUrl = (idp, options = {}) =>
         new Promise((resolve, reject) => {
