@@ -1,12 +1,6 @@
-// pages/api/auth/saml-acs.js
 
-import saml2 from "saml2-js";
-import { reciterSamlConfig }  from "../../../../config/saml"
-import { reciterConfig } from "../../../../config/local";
-import {findOrcreateAdminUser,persistUserLogin,createOneTimeToken,verifyOneTimeToken} from "../../../utils/samlUtils";
-import { encode } from "next-auth/jwt";
-import { getCsrfToken } from "next-auth/react";
-import { signIn } from 'next-auth/react';
+import axios from "axios"
+
 
 export default async function handler(req, res) {
     if (req.method === "POST") {
