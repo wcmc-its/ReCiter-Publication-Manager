@@ -262,7 +262,7 @@ const options = {
             session.data = token
             //loading adminsettings after creating users specific data as it does not belongs to specific user.
           //  if(session || !session.adminSettings)
-                session.adminSettings = await fetchUpdatedAdminSettings();
+            session.adminSettings = await fetchUpdatedAdminSettings();
             return session
         },
         async jwt(token, apiResponse) {
@@ -270,7 +270,7 @@ const options = {
               if(apiResponse.statusMessage) {
                 token.username = apiResponse.statusMessage.username
               }
-             
+            
               if(apiResponse.databaseUser || apiResponse.personIdentifier) {
                 token.email = apiResponse.email || ""
                 if(apiResponse.databaseUser.personIdentifier)
