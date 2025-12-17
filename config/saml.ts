@@ -2,7 +2,7 @@ import fs from 'fs'
 
 export const reciterSamlConfig = {
 
-    saml_options: {
+    /*saml_options: {
         entity_id: process.env.ENTITY_ID,
         private_key: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.key").toString(),
         certificate: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
@@ -23,5 +23,21 @@ export const reciterSamlConfig = {
         force_authn: true,
         sign_get_request: true,
         allow_unencrypted_assertion: false
+    }*/
+
+    samlOptions : {
+      assert_endpoint: process.env.ACS_URL, // ACS URL
+      entity_id: process.env.ENTITY_ID, // Your SP entity ID
+      certificate: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
+      private_key: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.key").toString(),
+      sign_get_request: true
+    },
+
+   idpOptions : {
+      sso_login_url: process.env.SSO_LOGIN_URL,
+      sso_logout_url: process.env.SSO_LOGOUT_URL,
+      certificates: [
+                  fs.readFileSync(process.cwd() + "/config/certs/idp.crt").toString()
+              ]
     }
 }
