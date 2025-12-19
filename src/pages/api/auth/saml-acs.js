@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         return res.send(
             `<html>
           <body>
-            <form action="/api/auth/signin/saml" method="POST">
+            <form action="/api/auth/callback/saml" method="POST">
               <input type="hidden" name="csrfToken" value="${csrfToken}"/>
               <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
             </form>
