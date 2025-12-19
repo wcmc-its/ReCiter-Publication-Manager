@@ -159,7 +159,7 @@ const options = {
             name: "SAML",
             authorize: async ({ samlBody }) => {
                 samlBody = JSON.parse(decodeURIComponent(samlBody));
-                const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
+                const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
                 const postAssert = (identityProvider, samlBody) =>
                     new Promise((resolve, reject) => {
                         sp.post_assert(
@@ -178,7 +178,7 @@ const options = {
 
                 try {
                     const idp = new saml2.IdentityProvider(
-                        reciterSamlConfig.saml_idp_options
+                        reciterSamlConfig.idpOptions
                     );
                     const { user } = await postAssert(idp, samlBody);
                     let cwid = null;
