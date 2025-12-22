@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
         //const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
 
-        res.setHeader("set-cookie", headers["set-cookie"] ?? "");
+        //res.setHeader("set-cookie", headers["set-cookie"] ?? "");
         return res.send(
             `<html>
           <body>
