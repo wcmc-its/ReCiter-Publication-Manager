@@ -1,40 +1,30 @@
 
-import { getCsrfToken } from "next-auth/client";
-
-export const config = {
-  api: {
-    bodyParser: true, 
-  },
-};
+import axios from "axios"
 
 export default async function handler(req, res) {
-    if (req.method !== "POST") return res.status(405).end();
+    if (req.method === "POST") {
+        const { data, headers } = await axios.get("/api/auth/csrf", {
+            baseURL: "https://" + req.headers.host,
+        });
+        const { csrfToken } = data;
+        console.log('csrfToken',csrfToken);
 
-    // 1. Next.js bodyParser should give you req.body
-    // If req.body is undefined here, use: const samlResponse = req.body?.SAMLResponse;
-    const samlResponse = req.body.SAMLResponse;
+        const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
+        console.log('encodedSAMLBody',encodedSAMLBody);
 
-    if (!samlResponse) {
-      console.error("Missing SAMLResponse in body");
-      return res.status(400).send("No SAML response received from IdP");
+        res.setHeader("set-cookie", headers["set-cookie"] ?? "");
+        return res.send(
+            `<html>
+          <body>
+            <form action="/api/auth/callback/saml" method="POST">
+              <input type="hidden" name="csrfToken" value="${csrfToken}"/>
+              <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
+            </form>
+            <script>
+              document.forms[0].submit();
+            </script>
+          </body>
+        </html>`
+        );
     }
-
-    // 2. Get NextAuth CSRF Token
-    const csrfToken = await getCsrfToken({ req });
-
-    res.setHeader("Content-Type", "text/html");
-    return res.send(
-              `<html>
-            <body>
-              <form action="/api/auth/callback/saml" method="POST">
-                <input type="hidden" name="csrfToken" value="${csrfToken}"/>
-                <input type="hidden" name="samlBody" value="${samlResponse}"/>
-              </form>
-              <script>
-                document.forms[0].submit();
-              </script>
-            </body>
-          </html>`
-          );
-      }
-    
+  }
