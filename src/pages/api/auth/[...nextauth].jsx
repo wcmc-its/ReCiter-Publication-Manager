@@ -58,21 +58,74 @@ export const options = {
             csrfToken: { label: "CSRF Token", type: "text" }
           },*/
           async authorize(credentials) {
+
+           try
+           { 
+            const cookie = req.cookies['saml_bridge'];
+            if (!cookie) return null;
+
+            const samlUser = JSON.parse(decrypt(cookie));
+            const samlUserEmail = samlUser?.email;
+            // Perform your DB calls/checks here as planned
+            if(samlUserEmail){
+                       // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
+                           const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
+                           console.log('adminUser****************',adminUser);
+                           await sleep(100)
+                          if(adminUser){
+                                if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                            && reciterConfig.asms.userTrackingAPIAuthorization)
+                                    persistUserLogin(cwid);	
+                                if(adminUser)
+                                    return adminUser;
+                         }
+                         else if(cwid)
+                         {
+                               const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
+                               if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                        && reciterConfig.asms.userTrackingAPIAuthorization)
+                                    persistUserLogin(cwid);	
+                               if(adminUser)
+                               {
+                                    console.log('finalAdminUser*****************',adminUser);
+                                    return adminUser;
+                               }
+                         }
+                         
+                    }
+                    else if(cwid){
+                           const adminUser = await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
+                           if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                                    && reciterConfig.asms.userTrackingAPIAuthorization)
+                                persistUserLogin(cwid);	
+                           if(adminUser)
+                           {
+                            console.log('finalAdminUser from CWID else if*****************',adminUser);
+                                    return adminUser;
+                           }
+                    }
+                    return { cwid, has_access: false };
+                } catch (error) {
+                    return null;
+                }
+
+            
+           
             
            // console.log("authorize req:", req);
            // console.log("Incoming CSRF:", req.body.csrfToken);
             //console.log("Cookie CSRF:", req?.cookies["next-auth.csrf-token"]);     
           
 
-            console.log("coming into SAML authorize method",credentials,);
+           /* console.log("coming into SAML authorize method",credentials,);
             const samlToken = credentials?.samlBody;
             console.log("extracted samlToken",samlToken);
             if (!credentials?.samlBody) {
               return null;
-            }
+            }*/
             // Verify the temporary token created in the ACS route
            // const userProfile = verifyOneTimeToken(samlToken);
-           const userProfile = JSON.parse(decodeURIComponent(credentials.samlBody)); 
+          /* const userProfile = JSON.parse(decodeURIComponent(credentials.samlBody)); 
            console.log("userProfile*********************",userProfile);
             if (userProfile) {
               // This object is what NextAuth will use to create the session
@@ -82,7 +135,7 @@ export const options = {
                 email: userProfile?.email,
                 userRoles : userProfile.userRoles 
           };*/
-          const userSessionData = {
+          /*const userSessionData = {
               personIdentifier: userProfile?.personIdentifier,
               name: `${userProfile?.firstName || ""} ${userProfile?.lastName || ""}`.trim(),
               email: userProfile?.email,
@@ -95,7 +148,7 @@ export const options = {
           // Return it
           return userSessionData;
 
-        }
+        }*/
 
         return null;
       },
@@ -119,13 +172,14 @@ export const options = {
        else console.log("JWT callback: existing token", token);
  
       if (user) {
+        token.adminSettings = await fetchUpdatedAdminSettings();
         token.user = user;
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
         token.email = user.email || '';
-        token.databaseUser = user.databaseUser;
+        token.databaseUser = user.databaseUser || null;
         token.userRoles = user.userRoles || [];
 
-        token.name = token.username;
+        token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
         token.picture = user.image || user.databaseUser?.profilePicture;
       }
       console.log('returning token**********',token);
@@ -137,31 +191,32 @@ export const options = {
       console.log("Session callback:", session.user.email);
 
       session.data = token;
-      session.adminSettings = await fetchUpdatedAdminSettings();
+      session.adminSettings = token.adminSettings;
       console.log("session*******************",session);
       
       session.user.username = token.username;
       session.user.databaseUser = token.databaseUser;
       session.user.userRoles = token.userRoles;
       session.user = token.user;      
-      session.adminSettings = await fetchUpdatedAdminSettings();
+      
    console.log('adminSettings***********',session);
       // Don't touch session.user until token is validated
   /*if (!token || !token.email) {
     return session;   // This prevents redirect loops
-  }
+  }*/
 
   // Construct a clean user object
-  session.user = {
-    username: token.username,
-    adminSettings : adminSettings,
-    databaseUser: token.databaseUser,
-    userRoles: token.userRoles,
-  };
-
+  /*session.user = {
+        email: token.email || '',
+        username: token.username || '',
+        name: token.name || token.username,
+        userRoles: token.userRoles || [],
+        databaseUser: token.databaseUser || null,
+  };*/
+  session.adminSettings = token.adminSettings|| null;
   // Put the whole token in session.data if you need it
-  session.data = token;
-      return session;*/
+  //session.data = token;
+      return session;
     },
   },
 

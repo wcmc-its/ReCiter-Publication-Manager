@@ -16,9 +16,20 @@ export const config = {
 };
 
 export async function middleware(request) {
+
+  //const { pathname } = request.nextUrl;
+  const pathName = request.nextUrl.pathname;
+  // 1. SKIP LOGIC: Define paths that should never be blocked or checked for roles
+  const isAuthRoute = pathName.startsWith('/api/auth') || 
+                     pathName.startsWith('/api/saml') || 
+                     pathName.startsWith('/auth/finalize');
+                     
+  if (isAuthRoute) {
+    return NextResponse.next();
+  }
   console.log("in middleware****************");
   const token:any = await getToken({ req: request, secret: process.env.JWT_TOKEN_SECRET });
-  const pathName = request.nextUrl.pathname;
+  
  console.log("pathName and token****************",pathName,token);
   if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
