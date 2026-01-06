@@ -12,12 +12,15 @@ export default async function handler(req, res) {
     try
     {
         // Verify that SAMLResponse exists
+        console.log("request body", req?.body)
         const samlResponse = req.body?.SAMLResponse;
+        console.log('samlResponse*************',samlResponse);
         if (!samlResponse) {
         return res.status(400).send("Missing SAMLResponse");
         }
         
         const samlUser = await validateSAML(req.body.SAMLResponse);
+        console.log('samlUser*************',samlUser);
         if (!samlUser) {
         return res.redirect('/auth/error?error=SAML_Invalid');
         }
