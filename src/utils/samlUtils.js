@@ -23,19 +23,19 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
          else if(cwid)
             userRoles = await findUserPermissions(cwid, "cwid")
          console.log("userRoles**************",userRoles);
-         createdAdminUser.userRoles = userRoles;
+         createdAdminUser[userRoles] = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
             "personIdentifier": createdAdminUser.personIdentifier,
-            "nameFirst": createdAdminUser.firstName,
+            "nameFirst": createdAdminUser.nameFirst,
             "nameMiddle": createdAdminUser.nameMiddle,
-            "nameLast":createdAdminUser.lastName,
-            "email" : createdAdminUser.samlEmail,
+            "nameLast":createdAdminUser.nameLast,
+            "email" : createdAdminUser.email,
             "status":createdAdminUser.status,
             "createTimestamp":createdAdminUser.createTimestamp,
             "modifyTimestamp":createdAdminUser.modifyTimestamp
         }
-        createdAdminUser.databaseUser = databaseUser
+        createdAdminUser['databaseUser'] = databaseUser
         createdAdminUser.personIdentifier 
         if(createdAdminUser)
             return createdAdminUser;

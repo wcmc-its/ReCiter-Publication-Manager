@@ -1,3 +1,6 @@
+import saml2 from "saml2-js";
+import { reciterSamlConfig }  from "../../../../config/saml"
+
 export async function validateSAML(samlResponse) {
   return new Promise((resolve, reject) => {
     const options = {

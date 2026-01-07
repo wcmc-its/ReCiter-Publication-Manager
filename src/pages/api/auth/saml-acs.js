@@ -1,6 +1,6 @@
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { validateSAML } from "../saml/validate";
-
+import { encrypt } from "../saml/crypto";
 
 export default async function handler(req, res) {
   

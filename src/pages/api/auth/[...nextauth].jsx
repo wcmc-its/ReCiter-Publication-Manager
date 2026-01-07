@@ -4,10 +4,14 @@ import { authenticate } from "../../../../controllers/authentication.controller"
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
+import { decrypt } from "../saml/crypto";
+import { reciterConfig } from "../../../../config/local";
 
 const authHandler = async (req, res) => {
     await NextAuth(req, res, options);
 };
+
+const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 export const options = {
 	debug: true,
@@ -27,10 +31,10 @@ export const options = {
         if (user?.statusCode !== 200) return null;
 
         const adminUser = await findOrcreateAdminUser(
-          credentials.username,
-          credentials.email,
-          credentials.firstName,
-          credentials.lastName
+          user.username,
+          user.email,
+          user.firstName,
+          user.lastName
         );
 
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -52,24 +56,33 @@ export const options = {
     CredentialsProvider({
           id: 'saml',
           name: 'SAML',
+          credentials: {},
           /*credentials: {
             samlResponse: { label: "SAML Response", type: "text" },
             email: { label: "Email", type: "text" },
             csrfToken: { label: "CSRF Token", type: "text" }
           },*/
-          async authorize(credentials) {
+          async authorize(credentials,req) {
 
            try
            { 
-            const cookie = req.cookies['saml_bridge'];
-            if (!cookie) return null;
+            const cookieHeader = req.headers?.cookie;
+            if (!cookieHeader) return null;
+           const bridgeCookie = cookieHeader
+                                          .split(';')
+                                          .find(c => c.trim().startsWith('saml_bridge='))
+                                          ?.split('=')[1];
 
-            const samlUser = JSON.parse(decrypt(cookie));
+            const samlUser = JSON.parse(decrypt(decodeURIComponent(bridgeCookie)));                                
             const samlUserEmail = samlUser?.email;
+            const cwid = samlUser?.personIdentifier;
+            const firstName = samlUser?.firstName;
+            const lastName = samlUser?.lastName;
+            
             // Perform your DB calls/checks here as planned
             if(samlUserEmail){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
-                           const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
+                           const adminUser =  await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
                            console.log('adminUser****************',adminUser);
                            await sleep(100)
                           if(adminUser){
@@ -77,31 +90,52 @@ export const options = {
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
                                 if(adminUser)
-                                    return adminUser;
+                                  //  return adminUser;
+                                  return {
+                                            id: adminUser.personIdentifier, // Map your unique identifier to 'id'
+                                            cwid: adminUser.personIdentifier,
+                                            name: `${firstName} ${lastName}`.trim() ,
+                                            email: adminUser.email,
+                                            has_access: true
+                                          };
                          }
                          else if(cwid)
                          {
-                               const adminUser =  await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
+                               const adminUser =  await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                         && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
                                if(adminUser)
                                {
                                     console.log('finalAdminUser*****************',adminUser);
-                                    return adminUser;
+                                    //return adminUser;
+                                     return {
+                                            id: adminUser.personIdentifier, // Map your unique identifier to 'id'
+                                            cwid: adminUser.personIdentifier,
+                                            name: `${firstName} ${lastName}`.trim() ,
+                                            email: adminUser.email,
+                                            has_access: true
+                                          };
                                }
                          }
                          
                     }
                     else if(cwid){
-                           const adminUser = await findOrcreateAdminUser(cwid,smalUserEmail,firstName,lastName)
+                           const adminUser = await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
                            if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                     && reciterConfig.asms.userTrackingAPIAuthorization)
                                 persistUserLogin(cwid);	
                            if(adminUser)
                            {
                             console.log('finalAdminUser from CWID else if*****************',adminUser);
-                                    return adminUser;
+                                  //  return adminUser;
+                                   return {
+                                            id: adminUser.personIdentifier, // Map your unique identifier to 'id'
+                                            cwid: adminUser.personIdentifier,
+                                            name: `${firstName} ${lastName}`.trim() ,
+                                            email: adminUser.email,
+                                            has_access: true
+                                          };
                            }
                     }
                     return { cwid, has_access: false };
