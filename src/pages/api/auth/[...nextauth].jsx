@@ -63,7 +63,7 @@ export const options = {
             csrfToken: { label: "CSRF Token", type: "text" }
           },*/
           async authorize(credentials,req) {
-
+            console.log('coming to authorize method to validate the user****');
            try
            { 
             const cookieHeader = req.headers?.cookie;
@@ -73,7 +73,8 @@ export const options = {
                                           .find(c => c.trim().startsWith('saml_bridge='))
                                           ?.split('=')[1];
 
-            const samlUser = JSON.parse(decrypt(decodeURIComponent(bridgeCookie)));                                
+            const samlUser = JSON.parse(decrypt(decodeURIComponent(bridgeCookie)));
+            console.log("samlUser in authorize method read from cookie", samlUser);                                
             const samlUserEmail = samlUser?.email;
             const cwid = samlUser?.personIdentifier;
             const firstName = samlUser?.firstName;
