@@ -91,14 +91,14 @@ export const options = {
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
                                 if(adminUser)
-                                  //  return adminUser;
-                                  return {
+                                    return adminUser;
+                                 /* return {
                                             id: adminUser.personIdentifier, // Map your unique identifier to 'id'
                                             cwid: adminUser.personIdentifier,
                                             name: `${firstName} ${lastName}`.trim() ,
                                             email: adminUser.email,
-                                            has_access: true
-                                          };
+                                            userRoles: adminUser.
+                                          };*/
                          }
                          else if(cwid)
                          {
@@ -109,14 +109,14 @@ export const options = {
                                if(adminUser)
                                {
                                     console.log('finalAdminUser*****************',adminUser);
-                                    //return adminUser;
-                                     return {
+                                    return adminUser;
+                                    /* return {
                                             id: adminUser.personIdentifier, // Map your unique identifier to 'id'
                                             cwid: adminUser.personIdentifier,
                                             name: `${firstName} ${lastName}`.trim() ,
                                             email: adminUser.email,
                                             has_access: true
-                                          };
+                                          };*/
                                }
                          }
                          
@@ -129,14 +129,14 @@ export const options = {
                            if(adminUser)
                            {
                             console.log('finalAdminUser from CWID else if*****************',adminUser);
-                                  //  return adminUser;
-                                   return {
+                                   return adminUser;
+                                   /*return {
                                             id: adminUser.personIdentifier, // Map your unique identifier to 'id'
                                             cwid: adminUser.personIdentifier,
                                             name: `${firstName} ${lastName}`.trim() ,
                                             email: adminUser.email,
                                             has_access: true
-                                          };
+                                          };*/
                            }
                     }
                     return { cwid, has_access: false };
