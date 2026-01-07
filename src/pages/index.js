@@ -1,9 +1,5 @@
 import { getSession } from "next-auth/react"
-import { useRouter } from 'next/router';
-import { useEffect } from "react";
 import { allowedPermissions } from "../utils/constants";
-import { authOptions } from './api/auth/[...nextauth].jsx'
-import { getServerSession } from "next-auth/next";
 
 // function RedirectTo(to){
 //     const router = useRouter();
@@ -15,14 +11,9 @@ import { getServerSession } from "next-auth/next";
 export async function getServerSideProps(ctx) {
     console.log("context information",ctx);
     const session = await getSession(ctx);
-    const session1 = await getServerSession(
-        ctx.req, 
-        ctx.res, 
-        authOptions // <- This is the key piece of information it needs to decrypt
-    );
     let userPermissions =null;
     let personIdentifier = null;
-    console.log("getServerSideProps in Indix.js file****************************",session,session1);
+    console.log("getServerSideProps in Indix.js file****************************",session);
     if(session && session.data && session.data.userRoles)
     {  
         userPermissions = JSON.parse(session.data?.userRoles);
@@ -119,5 +110,6 @@ export async function getServerSideProps(ctx) {
 
 export default function Home() {
 
+    // @ts-ignore
     return <></>;
 }
