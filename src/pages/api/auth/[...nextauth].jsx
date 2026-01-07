@@ -207,7 +207,7 @@ export const options = {
        else console.log("JWT callback: existing token", token);
  
       if (user) {
-       // token.adminSettings = await fetchUpdatedAdminSettings();
+        token.adminSettings = [{}];//await fetchUpdatedAdminSettings();
         token.user = user;
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
         token.email = user.email || '';
@@ -226,7 +226,7 @@ export const options = {
       console.log("Session callback:", session.user.email);
 
       session.data = token;
-//session.adminSettings = token.adminSettings;
+      session.adminSettings = token.adminSettings;
       console.log("session*******************",session);
       
       session.user.username = token.username;
@@ -248,7 +248,7 @@ export const options = {
         userRoles: token.userRoles || [],
         databaseUser: token.databaseUser || null,
   };*/
- // session.adminSettings = token.adminSettings|| null;
+  //session.adminSettings = token.adminSettings|| null;
   // Put the whole token in session.data if you need it
   //session.data = token;
       return session;
