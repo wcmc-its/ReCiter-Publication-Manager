@@ -23,32 +23,24 @@ export async function middleware(request) {
   const isAuthRoute = pathName.startsWith('/api/auth') || 
                      pathName.startsWith('/api/saml') || 
                      pathName.startsWith('/auth/finalize');
-                     
+
   if (isAuthRoute) {
     return NextResponse.next();
   }
-  console.log("in middleware****************");
   const token:any = await getToken({ req: request, secret: process.env.JWT_TOKEN_SECRET });
   
- console.log("pathName and token****************",pathName,token);
   if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   const userRoles = token.userRoles ? JSON.parse(token.userRoles) : [];
-  console.log("userRoles*********************",userRoles);
 
   const loggedInUserInfo = userRoles[0]?.personIdentifier;
-  console.log("loggedInUserInfo________", loggedInUserInfo)
 
   const isCuratorSelf = userRoles.some(role => role.roleLabel === allowedPermissions.Curator_Self);
-  console.log("isCuratorSelf*****************",isCuratorSelf);
   const isSuperUser = userRoles.some(role => role.roleLabel === allowedPermissions.Superuser);
-  console.log("isSuperUser*****************",isSuperUser);
   const isCuratorAll = userRoles.some(role => role.roleLabel === allowedPermissions.Curator_All);
-  console.log("isCuratorAll*****************",isCuratorAll);
   const isReporterAll = userRoles.some(role => role.roleLabel === allowedPermissions.Reporter_All);
-  console.log("isReporterAll*****************",isReporterAll);
 
   const redirectToLandingPage = (path) => {
     const redirectedUrl = new URL(path, request.url);

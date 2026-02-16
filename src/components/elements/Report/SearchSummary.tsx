@@ -50,9 +50,9 @@ const SearchSummary = ({
   let date = new Date().toISOString().slice(0, 10);
   let authorshipFileName = `AuthorshipReport-ReCiter-${date}`;
   let articleFileName = `ArticleReport-ReCiter-${date}`;
-  const articleLimit = exportArticleLabels && exportArticleLabels.length > 0  && exportArticleLabels.find(obj => obj.maxLimit)
-  const articleLimitForRTF = exportArticlesRTF && exportArticlesRTF.length > 0  && exportArticlesRTF.find(obj => obj.maxLimit)
-  const authorLimit = exportAuthorShipLabels && exportAuthorShipLabels.length > 0  && exportAuthorShipLabels.find(obj => obj.maxLimit)
+  const articleLimit = exportArticleLabels && exportArticleLabels.length > 0  && Array.isArray(exportArticleLabels) && exportArticleLabels.find(obj => obj.maxLimit)
+  const articleLimitForRTF = exportArticlesRTF && exportArticlesRTF.length > 0  && Array.isArray(exportArticlesRTF)  && exportArticlesRTF.find(obj => obj.maxLimit)
+  const authorLimit = exportAuthorShipLabels && exportAuthorShipLabels.length > 0 && Array.isArray(exportAuthorShipLabels)  && exportAuthorShipLabels.find(obj => obj.maxLimit)
 
   useEffect(() => {
 

@@ -47,11 +47,11 @@ const SearchBar = ({
 },[])
 
 useEffect(() => { 
-  if(findPeopleLabels.length > 0){
-  let cwidLabel = findPeopleLabels.find(data => data.labelUserKey === "personIdentifier")
-  let orgLabel = findPeopleLabels.find(data => data.labelUserKey === "organization")
-  let instituteLabel = findPeopleLabels.find(data => data.labelUserKey === "institution")
-  let personTypeLabel = findPeopleLabels.find(data => data.labelUserKey === "personType")
+  if(findPeopleLabels && findPeopleLabels.length > 0){
+  let cwidLabel = findPeopleLabels && Array.isArray(findPeopleLabels) && findPeopleLabels.find(data => data.labelUserKey === "personIdentifier")
+  let orgLabel = findPeopleLabels && Array.isArray(findPeopleLabels) && findPeopleLabels.find(data => data.labelUserKey === "organization")
+  let instituteLabel = findPeopleLabels && Array.isArray(findPeopleLabels) && findPeopleLabels.find(data => data.labelUserKey === "institution")
+  let personTypeLabel = findPeopleLabels && Array.isArray(findPeopleLabels) && findPeopleLabels.find(data => data.labelUserKey === "personType")
   let labelsPrepared = {
     cwidLabel : cwidLabel?.labelUserView,
     orgLabel:  orgLabel?.labelUserView,

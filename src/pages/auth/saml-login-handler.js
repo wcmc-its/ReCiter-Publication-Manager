@@ -13,7 +13,6 @@ const SamlLoginHandler = () => {
   const { status } = useSession();
 
  useEffect(() => {
-    console.log("saml-handler: Initial check.", { isReady: router.isReady, tokenExists: !!token, status });
 
     // 1. Only proceed if:
     //    a. Router is ready (query params are available).
@@ -21,7 +20,6 @@ const SamlLoginHandler = () => {
     //    c. We are not already signed in (to prevent loops).
     if (router.isReady && token && status === 'unauthenticated') {
       
-      console.log("saml-handler: Attempting automatic sign-in...");
 
       // Call the signIn function
       signIn('saml', {

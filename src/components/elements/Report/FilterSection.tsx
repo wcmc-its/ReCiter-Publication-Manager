@@ -33,6 +33,8 @@ const Buttons = ({ clearFilters, searchResults }) => {
 
 const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterClear, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
   let filterType = filter.filterType || undefined;
+  filterName = filterName && filterName.length > 0 && Array.isArray(filterName)? filterName : []
+  selectedFilters = selectedFilters && selectedFilters.length > 0 && Array.isArray(selectedFilters)? selectedFilters: []
   switch (filterType) {
     case ("DateRange"):
       return (

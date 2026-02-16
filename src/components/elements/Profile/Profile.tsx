@@ -82,16 +82,15 @@ const Profile = ({
   }, [modalShow])
 
   useEffect(()=>{
-    //let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
- let adminSettings = session && JSON.parse(JSON.stringify((session as any)?.adminSettings));
     let exportArticleRTFViewAttr = [];
 
-    if (updatedAdminSettings.length > 0) {
-      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let exportRTF = updatedAdminSettings.find((obj:any) => obj.viewName === "reportingArticleRTF")
       exportArticleRTFViewAttr = exportRTF.viewAttributes;
-    }else{
-      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
-      exportArticleRTFViewAttr = JSON.parse(exportRTF.viewAttributes);
+    }else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()){
+        const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings);
+        let exportRTF = parsedSettings?.find((obj:any) => obj.viewName === "reportingArticleRTF")
+        exportArticleRTFViewAttr = exportRTF? JSON.parse(exportRTF.viewAttributes):[];
     }
     setExportArticlesRTF(exportArticleRTFViewAttr)
 

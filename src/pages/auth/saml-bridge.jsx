@@ -2,12 +2,13 @@
 import { useEffect } from 'react';
 import { getCsrfToken } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import { signIn } from 'next-auth/react';
 
 const SamlBridgePage = () => {
     const router = useRouter();
     const { callbackUrl } = router.query;
     // You can pass the callbackUrl through to your server handler if needed
-
+    
     useEffect(() => {
         console.log("inside useEffect method in SamlBridgePage****");
         const initiateLogin = async () => {

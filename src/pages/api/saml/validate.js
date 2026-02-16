@@ -20,7 +20,6 @@ export async function validateSAML(samlResponse) {
       }
       // Extract user attributes from the IdP response
       const attrs = saml_response.user?.attributes || {};
-      console.log("attrs******************",attrs);
       const samlUser = {
         email: attrs["user.email"]?.[0] || attrs["email"]?.[0] || attrs['userPrincipalName']?.[0],
         personIdentifier: attrs["CWID"]?.[0] || attrs["uid"]?.[0],

@@ -2,7 +2,6 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
-import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
@@ -24,17 +23,16 @@ export const options = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log("credentials************",credentials);
         if (!credentials?.username || !credentials?.password) return null;
 
         const user = await authenticate(credentials);
         if (user?.statusCode !== 200) return null;
 
         const adminUser = await findOrcreateAdminUser(
-          user.username,
-          user.email,
-          user.firstName,
-          user.lastName
+          credentials.username,
+          credentials.email,
+          credentials.firstName,
+          credentials.lastName
         );
 
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
@@ -84,7 +82,6 @@ export const options = {
             if(samlUserEmail){
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                            const adminUser =  await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
-                           console.log('adminUser****************',adminUser);
                            await sleep(100)
                           if(adminUser){
                                 if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
@@ -92,14 +89,7 @@ export const options = {
                                     persistUserLogin(cwid);	
                                 if(adminUser)
                                     return adminUser;
-                                 /* return {
-                                            id: adminUser.personIdentifier, // Map your unique identifier to 'id'
-                                            cwid: adminUser.personIdentifier,
-                                            name: `${firstName} ${lastName}`.trim() ,
-                                            email: adminUser.email,
-                                            userRoles: adminUser.
-                                          };*/
-                         }
+                             }
                          else if(cwid)
                          {
                                const adminUser =  await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
@@ -108,15 +98,7 @@ export const options = {
                                     persistUserLogin(cwid);	
                                if(adminUser)
                                {
-                                    console.log('finalAdminUser*****************',adminUser);
                                     return adminUser;
-                                    /* return {
-                                            id: adminUser.personIdentifier, // Map your unique identifier to 'id'
-                                            cwid: adminUser.personIdentifier,
-                                            name: `${firstName} ${lastName}`.trim() ,
-                                            email: adminUser.email,
-                                            has_access: true
-                                          };*/
                                }
                          }
                          
@@ -130,62 +112,14 @@ export const options = {
                            {
                             console.log('finalAdminUser from CWID else if*****************',adminUser);
                                    return adminUser;
-                                   /*return {
-                                            id: adminUser.personIdentifier, // Map your unique identifier to 'id'
-                                            cwid: adminUser.personIdentifier,
-                                            name: `${firstName} ${lastName}`.trim() ,
-                                            email: adminUser.email,
-                                            has_access: true
-                                          };*/
+ 
                            }
                     }
                     return { cwid, has_access: false };
                 } catch (error) {
                     return null;
                 }
-
-            
-           
-            
-           // console.log("authorize req:", req);
-           // console.log("Incoming CSRF:", req.body.csrfToken);
-            //console.log("Cookie CSRF:", req?.cookies["next-auth.csrf-token"]);     
-          
-
-           /* console.log("coming into SAML authorize method",credentials,);
-            const samlToken = credentials?.samlBody;
-            console.log("extracted samlToken",samlToken);
-            if (!credentials?.samlBody) {
-              return null;
-            }*/
-            // Verify the temporary token created in the ACS route
-           // const userProfile = verifyOneTimeToken(samlToken);
-          /* const userProfile = JSON.parse(decodeURIComponent(credentials.samlBody)); 
-           console.log("userProfile*********************",userProfile);
-            if (userProfile) {
-              // This object is what NextAuth will use to create the session
-              /* {
-                personIdentifier: userProfile?.personIdentifier,
-                name:`${userProfile?.firstName || ""} ${userProfile?.lastName || ""}`.trim(),
-                email: userProfile?.email,
-                userRoles : userProfile.userRoles 
-          };*/
-          /*const userSessionData = {
-              personIdentifier: userProfile?.personIdentifier,
-              name: `${userProfile?.firstName || ""} ${userProfile?.lastName || ""}`.trim(),
-              email: userProfile?.email,
-              userRoles: userProfile.userRoles
-          };
-
-          // Log it to see the JSON object values
-          console.log("userSessionData*********************", JSON.stringify(userSessionData, null, 2));
-          //console.log("authorize cookies:", credentials.cookies); 
-          // Return it
-          return userSessionData;
-
-        }*/
-
-        return null;
+       return null;
       },
           
     }),
@@ -195,19 +129,11 @@ export const options = {
   ],
 
   callbacks: {
-    /*async signIn({ user, account, profile, email, credentials  }) {
-      console.log('signIn Callback:', user);
-      return true;
-    },*/
-
     async jwt({ token, user }) {
-      console.log("user is jwt callback*************",user);
-      console.log("jwt callback******************",token,user); 
       if (user) console.log("JWT callback: new login for", user.email);
        else console.log("JWT callback: existing token", token);
  
       if (user) {
-        token.adminSettings = [{}];//await fetchUpdatedAdminSettings();
         token.user = user;
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
         token.email = user.email || '';
@@ -217,40 +143,18 @@ export const options = {
         token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
         token.picture = user.image || user.databaseUser?.profilePicture;
       }
-      console.log('returning token**********',token);
       return token;
     },
 
     async session({ session, token }) {
-      console.log("Calling session callback*************");  
-      console.log("Session callback:", session.user.email);
 
       session.data = token;
-      session.adminSettings = token.adminSettings;
-      console.log("session*******************",session);
       
       session.user.username = token.username;
       session.user.databaseUser = token.databaseUser;
       session.user.userRoles = token.userRoles;
       session.user = token.user;      
       
-   console.log('adminSettings***********',session);
-      // Don't touch session.user until token is validated
-  /*if (!token || !token.email) {
-    return session;   // This prevents redirect loops
-  }*/
-
-  // Construct a clean user object
-  /*session.user = {
-        email: token.email || '',
-        username: token.username || '',
-        name: token.name || token.username,
-        userRoles: token.userRoles || [],
-        databaseUser: token.databaseUser || null,
-  };*/
-  //session.adminSettings = token.adminSettings|| null;
-  // Put the whole token in session.data if you need it
-  //session.data = token;
       return session;
     },
   },
@@ -258,16 +162,9 @@ export const options = {
   session: {
     strategy: 'jwt',
   },
- /* pages: {
-    // This tells NextAuth to redirect to your custom handler instead of the default sign-in form
-    signIn: '/auth/saml-bridge' 
-  },*/
-
+ 
   secret: process.env.NEXTAUTH_SECRET,
 };
-
-
-
 
 export default authHandler;
 

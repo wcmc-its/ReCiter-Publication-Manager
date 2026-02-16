@@ -20,6 +20,7 @@ import { Container } from "react-bootstrap";
 import { ReportResults } from "./ReportResults";
 import { countPersons } from "../../../../controllers/db/person.controller";
 import { useSession } from 'next-auth/react';
+//import { updateAdminSettings } from "../../../../controllers/db/admin.settings.controller";
 
 const Report = () => {
   const dispatch = useDispatch()
@@ -43,21 +44,29 @@ const Report = () => {
   const reportsPaginatedResultsLoading = useSelector((state: RootStateOrAny) => state.reportsPaginatedResultsLoading)
 
   // list of options for filters
-  const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
-  const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
-  const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
-  const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
-  const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
-  const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
-  const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
-  const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
-
+  //const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
+  const articleTypeFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.articleTypeFilterData)? state.articleTypeFilterData: []);
+  //const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
+  const authorFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.authorFilterData)? state.authorFilterData: []);
+  //const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
+  const dateFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.dateFilterData)? state.dateFilterData: []);
+  const journalFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalFilterData)? state.journalFilterData: []);
+  //const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
+  //const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
+  const journalRankFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalRankFilterData)? state.journalRankFilterData: []);
+  const orgUnitsData = useSelector((state: RootStateOrAny) => Array.isArray(state.orgUnitsData)? state.orgUnitsData: []);
+  //const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
+ // const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
+  const institutionsData = useSelector((state: RootStateOrAny) => Array.isArray(state.institutionsData)? state.institutionsData: []);
+  //const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
+  const personTypesData = useSelector((state: RootStateOrAny) => Array.isArray(state.personTypesData)? state.personTypesData: []);
   // selected filter options
-  const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
+  const pubSearchFilter = useSelector((state: RootStateOrAny) => Array.isArray(state.pubSearchFilter)? state.pubSearchFilter : []);
   // search results
-  const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
-  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
-  const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
+  const reportsSearchResults = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsSearchResults)? state.reportsSearchResults :[]);
+  
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => Array.isArray(state.updatedAdminSettings)? state.updatedAdminSettings :[]);
+  const reportsResultsIds = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsResultsIds) ? state.reportsResultsIds :[]);
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
   const [reset, setReset] = useState<boolean>(false);
@@ -84,8 +93,8 @@ const Report = () => {
   // fetch filters on mount
   useEffect(() => {
     // let parsedAdminSettings:adminSettings["adminSettings"]  = 
-    const adminSettingsStr = (session as any).adminSettings;
-    let adminSettings = JSON.parse(JSON.stringify(adminSettingsStr));
+    //const adminSettingsStr = (session as any).adminSettings;
+    let adminSettings = JSON.parse(JSON.stringify(updatedAdminSettings));
     var viewAttributes = [];
     var profileViewAttributes = [];
     var sortLabelViewAttributes = [];
@@ -117,16 +126,18 @@ const Report = () => {
       reportingWeb = reportingWebDisplay.viewAttributes;
       exportArticleRTF = exportRTF.viewAttributes;
 
-    } else {
+    } else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()){
+        const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings) 
+
       // regular settings from session
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingFilters")
-      let viewProfileUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "viewProfile")
-      let sortLabelsUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebViewSort")
-      let headShotData =JSON.parse(adminSettings).find(obj => obj.viewName === "headshot")
-      let exportAuthors = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingAuthorshipCSV")
-      let exportArticle = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleCSV")
-      let reportingWebDisplay = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebDisplay")
-      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
+      let data = parsedSettings.find(obj => obj.viewName === "reportingFilters")
+      let viewProfileUpdatedData = parsedSettings.find(obj => obj.viewName === "viewProfile")
+      let sortLabelsUpdatedData = parsedSettings.find(obj => obj.viewName === "reportingWebViewSort")
+      let headShotData = parsedSettings.find(obj => obj.viewName === "headshot")
+      let exportAuthors = parsedSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
+      let exportArticle = parsedSettings.find(obj => obj.viewName === "reportingArticleCSV")
+      let reportingWebDisplay = parsedSettings.find(obj => obj.viewName === "reportingWebDisplay")
+      let exportRTF = parsedSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
 
       sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
@@ -153,9 +164,9 @@ const Report = () => {
 
     SetIsFirstLoad(true);
     dispatch(showEvidenceByDefault(null));
-    const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter.filters;
+    const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter?.filters || {};
 
-    if(personIdentifers.length > 0 || personTypes.length > 0 || institutions.length > 0 || orgUnits.length > 0){
+    if(personIdentifers?.length > 0 || personTypes?.length > 0 || institutions?.length > 0 || orgUnits?.length > 0){
 
       if(personIdentifers.length > 0) updateAuthorFilterData(personIdentifers, 10, "fromSearchPage")
 

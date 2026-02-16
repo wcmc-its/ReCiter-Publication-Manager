@@ -10,19 +10,15 @@ import jwt from 'jsonwebtoken';
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) => {
     const createdAdminUser = await findOrCreateAdminUsers(cwid,samlEmail,samlFirstName,samlLastName)
-    console.log("createdAdminUser*********",createdAdminUser);
     if(createdAdminUser)
     {
-        console.log("coming into createdAdminUser**************",createdAdminUser);
         await grantDefaultRolesToAdminUser(createdAdminUser);
-        console.log("coming into createdAdminUser**************",createdAdminUser);
         await sleep(50);
         let userRoles ='';
          if(samlEmail)
             userRoles = await findUserPermissions(samlEmail, "email")
          else if(cwid)
             userRoles = await findUserPermissions(cwid, "cwid")
-         console.log("userRoles**************",userRoles);
          createdAdminUser['userRoles'] = userRoles;
           let databaseUser = {
             "userID" : createdAdminUser.userID,
@@ -37,7 +33,6 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
         }
         createdAdminUser['databaseUser'] = databaseUser
         createdAdminUser.personIdentifier 
-        console.log("createdAdminUser*****************",createdAdminUser);
         if(createdAdminUser)
             return createdAdminUser;
         
@@ -122,7 +117,6 @@ export const persistUserLogin =async (cwid)=>{
         "module":  "publication_manager"
     }
     let uri = `${reciterConfig.asms.userTrackingAPI}`
-    console.log("PersisstUserLogin*******************",uri,cwid);
    
     return fetch(uri, {
             method: "POST",

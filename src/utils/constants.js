@@ -34,27 +34,27 @@ export const numberFormation = (number)=> {
 }
 
 export const setReportFilterKeyNames = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.labelUserKey || ""
 }
 
 export const setReportFilterLabels = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.labelUserView || ""
 }
 
 export const setReportFilterDisplayRank = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.displayRank || ""
 }
 
 export const setHelptextInfo = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.helpTextUserView || ""
 }
 
 export const setIsVisible = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.isVisible || false; 
 }
 

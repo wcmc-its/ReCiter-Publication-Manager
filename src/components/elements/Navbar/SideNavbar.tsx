@@ -261,17 +261,19 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   };
   
 
+  
   React.useEffect(()=>{
- let adminSettings = session && JSON.parse(JSON.stringify((session as any)?.adminSettings));
+
     var manageNotifications = [];
-    if (updatedAdminSettings.length > 0) {
-      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
-      manageNotifications = updatedData.viewAttributes;
-    }else {
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
-      manageNotifications = JSON.parse(data.viewAttributes);
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let updatedData = updatedAdminSettings.find((obj:any) => obj.viewName === "EmailNotifications")
+      manageNotifications = updatedData.viewAttributes?? [];
+    }else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()) {
+        const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings);
+        let data = parsedSettings?.find((obj:any) => obj.viewName === "EmailNotifications")
+        manageNotifications = data? JSON.parse(data.viewAttributes):[];
     }
-    let settingsObj = manageNotifications.find(data=> data.isVisible)
+    let settingsObj = manageNotifications && Array.isArray(manageNotifications) && manageNotifications.find(data=> data.isVisible)
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)
   },[])
 

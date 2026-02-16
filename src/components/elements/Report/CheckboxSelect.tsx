@@ -47,7 +47,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     
     let filteredData = updatedSelectedList?.filter(item => item !== undefined) 
 
-    if (filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
+    if (filteredData && Array.isArray(filteredData) && filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
       const uniqueIds = selectedList;
       let isPersonIdentifier = false;
       let isJournalTitleVerbose = false;

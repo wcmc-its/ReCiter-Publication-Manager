@@ -49,31 +49,32 @@ const ManageUsers = () => {
   }, [])
 
   const adminConfigurations = ()=>{
-   // let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
-   let adminSettings = JSON.parse(JSON.stringify((session as any)?.adminSettings));
     var viewAttributes = [];
     var emailNotifications = [];
 
-    if (updatedAdminSettings.length > 0) {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
       let notificationsData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
 
       viewAttributes = updatedData.viewAttributes;
       emailNotifications = notificationsData.viewAttributes;
-      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      let cwidLabel = viewAttributes && Array.isArray(viewAttributes) && viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel.labelUserView)
-    } else {
+    } else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()){
       // regular settings from session
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "findPeople")
+      const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings);
+      let data = parsedSettings?.find((obj:any) => obj.viewName === "findPeople")
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      let notificationsData = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
+      let notificationsData = JSON.parse(updatedAdminSettings).find(obj => obj.viewName === "EmailNotifications")
+
+      
 
       viewAttributes = JSON.parse(data.viewAttributes)
       emailNotifications = JSON.parse(notificationsData.viewAttributes);
       cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
     }
-    let settingsObj = emailNotifications && emailNotifications.find(data=> data.isVisible)
+    let settingsObj = emailNotifications && Array.isArray(emailNotifications) && emailNotifications.find(data=> data.isVisible)
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)
   }
 
@@ -151,15 +152,12 @@ const ManageUsers = () => {
   }
 
   const fetchPaginatedData = (newCount) => {
-    // dispatch(identityFetchPaginatedData(page, newCount ? newCount : count))
     fetchAllAdminUsers(page, newCount ? newCount : count)
   }
 
 
   const handlePaginationUpdate = (page) => {
     setPage(page)
-    // if(searchText.trim().length >= 3) fetchAllAdminUsers(page, count, searchText)
-    // else 
      fetchAllAdminUsers(page, count)
   }
 
@@ -253,7 +251,6 @@ const ManageUsers = () => {
           <Button className="my-1 floatRight" onClick={() => router.push("/manageusers/add")}>Add User</Button>
         </Col>
       </Row>
-      {/* <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button> */}
       {pageLoading ?
         <div className="d-flex justify-content-center align-items"><Loader /> </div>
         :

@@ -13,7 +13,6 @@ export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
     let userPermissions =null;
     let personIdentifier = null;
-    console.log("getServerSideProps in Indix.js file****************************",session);
     if(session && session.data && session.data.userRoles)
     {  
         userPermissions = JSON.parse(session.data?.userRoles);
@@ -63,7 +62,6 @@ export async function getServerSideProps(ctx) {
         };
     }
     //Redirect to search after login
-    console.log("session and its data***********************:",session, session?.data);
     if (session && session.data) {
         if (session.data.databaseUser && session.data.databaseUser.status == 0) {
             return {
