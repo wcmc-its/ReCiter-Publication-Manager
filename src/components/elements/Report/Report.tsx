@@ -131,18 +131,9 @@ const Report = () => {
         exportAuthorShipCSVLabels = JSON.parse(exportAuthors.viewAttributes);
         reportingWeb = JSON.parse(reportingWebDisplay.viewAttributes);
         exportArticleRTF = JSON.parse(exportRTF.viewAttributes);
-      } else {
-        sortLabelViewAttributes = sortLabelsUpdatedData?.viewAttributes || [];
-        profileViewAttributes = viewProfileUpdatedData?.viewAttributes || [];
-        viewAttributes = updatedData?.viewAttributes || [];
-        headShotLabels = headShotData?.viewAttributes || [];
-        exportArticleCSVLabels = exportArticle?.viewAttributes || [];
-        exportAuthorShipCSVLabels = exportAuthors?.viewAttributes || [];
-        reportingWeb = reportingWebDisplay?.viewAttributes || [];
-        exportArticleRTF = exportRTF?.viewAttributes || [];
       }
+    } else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()) {
 
-    } else {
         const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings) 
 
       // regular settings from session
