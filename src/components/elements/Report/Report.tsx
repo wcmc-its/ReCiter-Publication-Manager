@@ -7,7 +7,6 @@ import { FilterSection } from './FilterSection';
 import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
 import { useEffect } from 'react';
 import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults, getReportsResultsInitial, fetchReportsResultsIds, showEvidenceByDefault } from '../../../redux/actions/actions';
-import { ReportsResultPane } from "./ReportsResultPane";
 import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
 import { getOffset } from "../../../utils/pagination";
@@ -44,29 +43,34 @@ const Report = () => {
   const reportsPaginatedResultsLoading = useSelector((state: RootStateOrAny) => state.reportsPaginatedResultsLoading)
 
   // list of options for filters
-  //const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
-  const articleTypeFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.articleTypeFilterData)? state.articleTypeFilterData: []);
-  //const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
-  const authorFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.authorFilterData)? state.authorFilterData: []);
-  //const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
-  const dateFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.dateFilterData)? state.dateFilterData: []);
-  const journalFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalFilterData)? state.journalFilterData: []);
-  //const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
-  //const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
-  const journalRankFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalRankFilterData)? state.journalRankFilterData: []);
-  const orgUnitsData = useSelector((state: RootStateOrAny) => Array.isArray(state.orgUnitsData)? state.orgUnitsData: []);
-  //const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
- // const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
-  const institutionsData = useSelector((state: RootStateOrAny) => Array.isArray(state.institutionsData)? state.institutionsData: []);
-  //const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
-  const personTypesData = useSelector((state: RootStateOrAny) => Array.isArray(state.personTypesData)? state.personTypesData: []);
+  const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
+  //const articleTypeFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.articleTypeFilterData)? state.articleTypeFilterData: []);
+  const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
+ // const authorFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.authorFilterData)? state.authorFilterData: []);
+  const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
+  //const dateFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.dateFilterData)? state.dateFilterData: []);
+  //const journalFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalFilterData)? state.journalFilterData: []);
+  const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
+  const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
+  //const journalRankFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalRankFilterData)? state.journalRankFilterData: []);
+  //const orgUnitsData = useSelector((state: RootStateOrAny) => Array.isArray(state.orgUnitsData)? state.orgUnitsData: []);
+  const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
+  const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
+ // const institutionsData = useSelector((state: RootStateOrAny) => Array.isArray(state.institutionsData)? state.institutionsData: []);
+  const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
+  //const personTypesData = useSelector((state: RootStateOrAny) => Array.isArray(state.personTypesData)? state.personTypesData: []);
   // selected filter options
-  const pubSearchFilter = useSelector((state: RootStateOrAny) => Array.isArray(state.pubSearchFilter)? state.pubSearchFilter : []);
+  const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
+  //const pubSearchFilter = useSelector((state: RootStateOrAny) => Array.isArray(state.pubSearchFilter)? state.pubSearchFilter : []);
   // search results
-  const reportsSearchResults = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsSearchResults)? state.reportsSearchResults :[]);
+   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
+  //const reportsSearchResults = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsSearchResults)? state.reportsSearchResults :[]);
   
-  const updatedAdminSettings = useSelector((state: RootStateOrAny) => Array.isArray(state.updatedAdminSettings)? state.updatedAdminSettings :[]);
-  const reportsResultsIds = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsResultsIds) ? state.reportsResultsIds :[]);
+  //const updatedAdminSettings = useSelector((state: RootStateOrAny) => Array.isArray(state.updatedAdminSettings)? state.updatedAdminSettings :[]);
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
+
+  //const reportsResultsIds = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsResultsIds) ? state.reportsResultsIds :[]);
+  const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
   const [reset, setReset] = useState<boolean>(false);
@@ -116,17 +120,29 @@ const Report = () => {
       let reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
       let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
+    
+      // Check if viewAttributes is a string that needs parsing or already an array
+      if (updatedData && typeof updatedData.viewAttributes === 'string') {
+        sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
+        profileViewAttributes = JSON.parse(viewProfileUpdatedData.viewAttributes);
+        viewAttributes = JSON.parse(updatedData.viewAttributes);
+        headShotLabels = JSON.parse(headShotData.viewAttributes);
+        exportArticleCSVLabels = JSON.parse(exportArticle.viewAttributes);
+        exportAuthorShipCSVLabels = JSON.parse(exportAuthors.viewAttributes);
+        reportingWeb = JSON.parse(reportingWebDisplay.viewAttributes);
+        exportArticleRTF = JSON.parse(exportRTF.viewAttributes);
+      } else {
+        sortLabelViewAttributes = sortLabelsUpdatedData?.viewAttributes || [];
+        profileViewAttributes = viewProfileUpdatedData?.viewAttributes || [];
+        viewAttributes = updatedData?.viewAttributes || [];
+        headShotLabels = headShotData?.viewAttributes || [];
+        exportArticleCSVLabels = exportArticle?.viewAttributes || [];
+        exportAuthorShipCSVLabels = exportAuthors?.viewAttributes || [];
+        reportingWeb = reportingWebDisplay?.viewAttributes || [];
+        exportArticleRTF = exportRTF?.viewAttributes || [];
+      }
 
-      sortLabelViewAttributes = sortLabelsUpdatedData.viewAttributes;
-      profileViewAttributes = viewProfileUpdatedData.viewAttributes;
-      viewAttributes = updatedData.viewAttributes;
-      headShotLabels = headShotData.viewAttributes;
-      exportArticleCSVLabels = exportArticle.viewAttributes;
-      exportAuthorShipCSVLabels = exportAuthors.viewAttributes;
-      reportingWeb = reportingWebDisplay.viewAttributes;
-      exportArticleRTF = exportRTF.viewAttributes;
-
-    } else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()){
+    } else {
         const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings) 
 
       // regular settings from session
