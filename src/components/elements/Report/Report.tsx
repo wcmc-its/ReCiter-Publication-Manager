@@ -44,32 +44,17 @@ const Report = () => {
 
   // list of options for filters
   const articleTypeFilterData = useSelector((state: RootStateOrAny) => state.articleTypeFilterData)
-  //const articleTypeFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.articleTypeFilterData)? state.articleTypeFilterData: []);
   const authorFilterData = useSelector((state: RootStateOrAny) => state.authorFilterData)
- // const authorFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.authorFilterData)? state.authorFilterData: []);
   const dateFilterData = useSelector((state: RootStateOrAny) => state.dateFilterData)
-  //const dateFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.dateFilterData)? state.dateFilterData: []);
-  //const journalFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalFilterData)? state.journalFilterData: []);
   const journalFilterData = useSelector((state: RootStateOrAny) => state.journalFilterData)
   const journalRankFilterData = useSelector((state: RootStateOrAny) => state.journalRankFilterData)
-  //const journalRankFilterData = useSelector((state: RootStateOrAny) => Array.isArray(state.journalRankFilterData)? state.journalRankFilterData: []);
-  //const orgUnitsData = useSelector((state: RootStateOrAny) => Array.isArray(state.orgUnitsData)? state.orgUnitsData: []);
   const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData)
   const institutionsData = useSelector((state: RootStateOrAny) => state.institutionsData)
- // const institutionsData = useSelector((state: RootStateOrAny) => Array.isArray(state.institutionsData)? state.institutionsData: []);
   const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData)
-  //const personTypesData = useSelector((state: RootStateOrAny) => Array.isArray(state.personTypesData)? state.personTypesData: []);
-  // selected filter options
   const pubSearchFilter = useSelector((state: RootStateOrAny) => state.pubSearchFilter)
-  //const pubSearchFilter = useSelector((state: RootStateOrAny) => Array.isArray(state.pubSearchFilter)? state.pubSearchFilter : []);
-  // search results
-   const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
-  //const reportsSearchResults = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsSearchResults)? state.reportsSearchResults :[]);
-  
-  //const updatedAdminSettings = useSelector((state: RootStateOrAny) => Array.isArray(state.updatedAdminSettings)? state.updatedAdminSettings :[]);
+  const reportsSearchResults = useSelector((state: RootStateOrAny) => state.reportsSearchResults)
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
 
-  //const reportsResultsIds = useSelector((state: RootStateOrAny) => Array.isArray(state.reportsResultsIds) ? state.reportsResultsIds :[]);
   const reportsResultsIds = useSelector((state: RootStateOrAny) => state.reportsResultsIds)
   const [authorInput, setAuthorInput] = useState<string>('');
   const [journalInput, setJournalInput] = useState<string>('');
@@ -85,8 +70,6 @@ const Report = () => {
   const [isOnlyAuthorFilters, setIsOnlyAuthorFilters] = useState<boolean>(false)
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
 
-
-
   /* Custom Hooks */
   // pagination
   const [count, page, handlePaginationUpdate, handleCountUpdate] = usePagination(0);
@@ -96,8 +79,6 @@ const Report = () => {
 
   // fetch filters on mount
   useEffect(() => {
-    // let parsedAdminSettings:adminSettings["adminSettings"]  = 
-    //const adminSettingsStr = (session as any).adminSettings;
     let adminSettings = JSON.parse(JSON.stringify(updatedAdminSettings));
     var viewAttributes = [];
     var profileViewAttributes = [];
@@ -107,7 +88,6 @@ const Report = () => {
     var exportArticleCSVLabels = [];
     var reportingWeb = [];
     var exportArticleRTF = [];
-
 
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
@@ -120,8 +100,6 @@ const Report = () => {
       let reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
       let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
-    
-      // Check if viewAttributes is a string that needs parsing or already an array
       if (updatedData && typeof updatedData.viewAttributes === 'string') {
         sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
         profileViewAttributes = JSON.parse(viewProfileUpdatedData.viewAttributes);
@@ -134,8 +112,7 @@ const Report = () => {
       }
     } else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()) {
 
-        const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings) 
-
+      const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings) 
       // regular settings from session
       let data = parsedSettings.find(obj => obj.viewName === "reportingFilters")
       let viewProfileUpdatedData = parsedSettings.find(obj => obj.viewName === "viewProfile")
@@ -146,7 +123,6 @@ const Report = () => {
       let reportingWebDisplay = parsedSettings.find(obj => obj.viewName === "reportingWebDisplay")
       let exportRTF = parsedSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
-
       sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
       profileViewAttributes = JSON.parse(viewProfileUpdatedData.viewAttributes);
       viewAttributes = JSON.parse(data.viewAttributes);
@@ -155,9 +131,7 @@ const Report = () => {
       exportAuthorShipCSVLabels = JSON.parse(exportAuthors.viewAttributes);
       reportingWeb = JSON.parse(reportingWebDisplay.viewAttributes);
       exportArticleRTF = JSON.parse(exportRTF.viewAttributes);
-
     }
-
     // view attributes data from session or updated settings
     setReportFiltersLabes(viewAttributes);
     setViewProfileLabels(profileViewAttributes);
@@ -167,8 +141,6 @@ const Report = () => {
     setExportArticleLabels(exportArticleCSVLabels)
     setReportingWebDisplay(reportingWeb)
     setExportArticlesRTF(exportArticleRTF)
-
-
     SetIsFirstLoad(true);
     dispatch(showEvidenceByDefault(null));
     const {personIdentifers,personTypes,institutions,orgUnits } = pubSearchFilter?.filters || {};
@@ -185,7 +157,6 @@ const Report = () => {
        dispatch(updateAuthorFilter());
        dispatch(getReportsResultsInitial());
       }
-
 
   }, [])
 
