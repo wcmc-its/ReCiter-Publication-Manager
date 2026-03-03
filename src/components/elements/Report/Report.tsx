@@ -265,9 +265,9 @@ const Report = () => {
   const onSetSearchFilters = (filter, value) => {
     // update the filter object
     let updatedSearchFilter = { 
-      ...pubSearchFilter, 
+      ...(pubSearchFilter ?? {}), 
       filters: {
-        ...pubSearchFilter.filters,
+        ...(pubSearchFilter?.filters ?? {}),
         [filter]: value
       }
     };
@@ -280,9 +280,9 @@ const Report = () => {
   
     // update the filter object
     let updatedSearchFilter = { 
-      ...pubSearchFilter, 
+      ...(pubSearchFilter ?? {}), 
       filters: {
-        ...pubSearchFilter.filters,
+        ...(pubSearchFilter?.filters ?? {}),
         [filterLower]: lowerBound == null ? "" : lowerBound ,
         [filterUpper]: upperBound == null ? "" : upperBound
       }
@@ -390,7 +390,7 @@ const Report = () => {
           filterUpdateOptions={filterUpdateOptions}
           onSetSearchFilters={onSetSearchFilters}
           onSetRangeFilters={onSetRangeFilters}
-          selectedFilters={pubSearchFilter.filters}
+          selectedFilters={pubSearchFilter?.filters ?? {}}
           clearFilters={clearFilters}
           searchResults={searchResults}
           isFilterClear={isFilterClear}

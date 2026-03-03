@@ -33,8 +33,9 @@ const Buttons = ({ clearFilters, searchResults }) => {
 
 const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterClear, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
   let filterType = filter.filterType || undefined;
-  filterName = filterName && filterName.length > 0 && Array.isArray(filterName)? filterName : []
-  selectedFilters = selectedFilters && selectedFilters.length > 0 && Array.isArray(selectedFilters)? selectedFilters: []
+  // Don't modify filterName - it should be a string or array as passed from filterNameToState
+  selectedFilters = selectedFilters || {}
+  
   switch (filterType) {
     case ("DateRange"):
       return (
@@ -84,7 +85,7 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           optionValue={filter.value}
           filterName={filterName}
           onUpdateFilter={onSetSearchFilters}
-          selectedOptions={selectedFilters[filterName]}
+          selectedOptions={selectedFilters[filterName] || []}
           authorsFilteredData = {filterOptions.authorFilterData}
           isFilterClear={isFilterClear}
           onLoadMore = {onLoadMore}
@@ -98,7 +99,7 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           options={filter.options}
           onUpdateFilter={onSetSearchFilters}
           filterName={filterName}
-          selectedOptions={selectedFilters[filterName]}
+          selectedOptions={selectedFilters[filterName] || []}
           reportFiltersLabes={reportFiltersLabes}
           isFilterClear={isFilterClear}
         />

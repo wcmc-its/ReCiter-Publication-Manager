@@ -19,22 +19,22 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
   const onInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     let inputBySearch = e.target.value;
     await setUserInput(inputBySearch);
-     if(inputBySearch.length >= 3) {
+    if(inputBySearch.length >= 3) {
       if(!isHideSeeMoreLink) setHideSeeMoreLink(!isHideSeeMoreLink)
       dataPreparation(inputBySearch)
-     }
+    }
   }
   useEffect(() => {
     if(userInput) setUserInput("");
     if(isHideSeeMoreLink) setHideSeeMoreLink( false );
     if(totalCount > 10) setTotalCount(10);
-    if(selectedList) setSelectedList([]);
+    setSelectedList([]);
   }, [isFilterClear ])
 
   // fetch data on input change
   useEffect(() => {
     dataPreparation();
-  }, [  selectedOptions,authorFilterDataFromSearch])
+  }, [selectedOptions,authorFilterDataFromSearch])
 
   const dataPreparation = (inputBySearch? : any)=>{
     if (isDynamicFetch) {
@@ -47,8 +47,8 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     
     let filteredData = updatedSelectedList?.filter(item => item !== undefined) 
 
-    if (filteredData && Array.isArray(filteredData) && filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
-      const uniqueIds = selectedList;
+    if (filteredData && filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
+      const uniqueIds = [...selectedList];
       let isPersonIdentifier = false;
       let isJournalTitleVerbose = false;
       filteredData.filter(element => {
@@ -84,7 +84,10 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
       }
       if(isPersonIdentifier || isJournalTitleVerbose)  setSelectedList(filtered);
       else setSelectedList(filteredData)
-  }
+    } else {
+      // If no valid filtered data, clear the selected list
+      setSelectedList([]);
+    }
   }
 
   const filteredOptions = (options, isDynamicFetch) => {
@@ -107,7 +110,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     let updatedSelected = [];
 
     if (checked) {
-      updatedSelected = [...selectedOptions, value]
+      updatedSelected = [...(selectedOptions || []), value]
 
       // find the option
       let optionObj = options.find(option => option[optionValue] == value);
@@ -117,7 +120,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
         setSelectedList(updatedList);
       }
     } else {
-      updatedSelected = selectedOptions && selectedOptions.filter(option => option != value)
+      updatedSelected = (selectedOptions || []).filter(option => option != value)
 
       // remove from the selected list state
       let updatedList = selectedList.filter(item => item[optionValue] != value);
@@ -133,7 +136,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     let updatedList = selectedList.filter(item => item[optionValue] !== value)
     setSelectedList(updatedList);
     // update filters state
-    let updatedSelected = selectedOptions && selectedOptions.filter(option => option != value);
+    let updatedSelected = (selectedOptions || []).filter(option => option != value);
     onUpdateFilter(filterName, updatedSelected);
   }
 
@@ -144,7 +147,7 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
   }
 
   return (
-    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && Array.isArray(selectedOptions) && selectedOptions.length > 0 ? "primary" : "white"}>
       <div className={styles.dropdownContainer}>
       <InputGroup className="mb-3">         
        <FormControl
