@@ -7,6 +7,7 @@ import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
 
 const authHandler = async (req, res) => {
+    console.log('NextAuth handler called - Method:', req.method, 'URL:', req.url);
     await NextAuth(req, res, options);
 };
 
@@ -23,9 +24,11 @@ export const options = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        console.log('Direct login authorize called with username:', credentials?.username);
         if (!credentials?.username || !credentials?.password) return null;
 
         const user = await authenticate(credentials);
+        console.log('Direct login authenticate result:', user?.statusCode);
         if (user?.statusCode !== 200) return null;
 
         const adminUser = await findOrcreateAdminUser(
@@ -61,15 +64,18 @@ export const options = {
             csrfToken: { label: "CSRF Token", type: "text" }
           },*/
           async authorize(credentials,req) {
+            console.log('SAML authorize called - headers cookie exists:', !!req.headers?.cookie);
             console.log('coming to authorize method to validate the user****');
            try
            { 
             const cookieHeader = req.headers?.cookie;
+            console.log('SAML cookieHeader length:', cookieHeader?.length);
             if (!cookieHeader) return null;
            const bridgeCookie = cookieHeader
                                           .split(';')
                                           .find(c => c.trim().startsWith('saml_bridge='))
                                           ?.split('=')[1];
+            console.log('SAML bridgeCookie found:', !!bridgeCookie);
 
             const samlUser = JSON.parse(decrypt(decodeURIComponent(bridgeCookie)));
             console.log("samlUser in authorize method read from cookie", samlUser);                                
@@ -77,13 +83,17 @@ export const options = {
             const cwid = samlUser?.personIdentifier;
             const firstName = samlUser?.firstName;
             const lastName = samlUser?.lastName;
+            console.log('SAML extracted data - email:', !!samlUserEmail, 'cwid:', !!cwid, 'firstName:', !!firstName, 'lastName:', !!lastName);
             
             // Perform your DB calls/checks here as planned
             if(samlUserEmail){
+                       console.log('SAML processing with email path');
                        // find an adminUser with email and if exists then assign default role(REPORTER_ALL) and selected roles from configuration  
                            const adminUser =  await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
+                           console.log('SAML adminUser created (email path):', !!adminUser);
                            await sleep(100)
                           if(adminUser){
+                                console.log('SAML adminUser exists, returning user');
                                 if(cwid && reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                             && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
@@ -92,7 +102,9 @@ export const options = {
                              }
                          else if(cwid)
                          {
+                               console.log('SAML processing with cwid fallback');
                                const adminUser =  await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
+                               console.log('SAML adminUser created (cwid fallback):', !!adminUser);
                                if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                         && reciterConfig.asms.userTrackingAPIAuthorization)
                                     persistUserLogin(cwid);	
@@ -104,7 +116,9 @@ export const options = {
                          
                     }
                     else if(cwid){
+                           console.log('SAML processing with cwid only path');
                            const adminUser = await findOrcreateAdminUser(cwid,samlUserEmail,firstName,lastName)
+                           console.log('SAML adminUser created (cwid only):', !!adminUser);
                            if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
                                     && reciterConfig.asms.userTrackingAPIAuthorization)
                                 persistUserLogin(cwid);	
@@ -115,8 +129,10 @@ export const options = {
  
                            }
                     }
+                    console.log('SAML returning access denied object');
                     return { cwid, has_access: false };
                 } catch (error) {
+                    console.log('SAML authorize error:', error.message);
                     return null;
                 }
        return null;
@@ -130,6 +146,7 @@ export const options = {
 
   callbacks: {
     async jwt({ token, user }) {
+      console.log('JWT callback - user exists:', !!user, 'token exists:', !!token);
       if (user) console.log("JWT callback: new login for", user.email);
        else console.log("JWT callback: existing token", token);
  
@@ -142,11 +159,13 @@ export const options = {
 
         token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
         token.picture = user.image || user.databaseUser?.profilePicture;
+        console.log('JWT callback - final token created with username:', token.username);
       }
       return token;
     },
 
     async session({ session, token }) {
+      console.log('Session callback - token username:', token?.username, 'userRoles length:', token?.userRoles?.length);
 
       session.data = token;
       
@@ -154,6 +173,7 @@ export const options = {
       session.user.databaseUser = token.databaseUser;
       session.user.userRoles = token.userRoles;
       session.user = token.user;      
+      console.log('Session callback - final session created for user:', session.user?.username);
       
       return session;
     },
