@@ -7,7 +7,8 @@ import { getSession } from "next-auth/react"
     const session = await getSession(ctx);
     console.log('Search page - session exists:', !!session);
     console.log('Search page - session.data exists:', !!session?.data);
-    
+    const userPermissions = JSON.parse(session.data.userRoles);
+     console.log('Search page - parsed userPermissions length:', userPermissions.length);
     if (!session || !session.data) {
         console.log('Search page - No session or session.data, redirecting to login');
         return {
@@ -19,9 +20,7 @@ import { getSession } from "next-auth/react"
     }
 
     console.log('Search page - session.data.userRoles:', session.data.userRoles);
-    const userPermissions = JSON.parse(session.data.userRoles);
-    console.log('Search page - parsed userPermissions length:', userPermissions.length);
-
+   
     if(userPermissions.length === 0) {
         console.log('Search page - No user permissions, redirecting to noaccess');
         return {
