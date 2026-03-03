@@ -18,8 +18,13 @@ export default function Finalize() {
         if (result?.error) {
         console.error("Sign in failed with error:", result.error);
         } else if (result?.ok) {
+        console.log("Finalize - Sign in successful, redirecting to:", result.url);
         window.location.href = result.url;
+        } else {
+        console.warn("Finalize - Unexpected result:", result);
         }
+        
+        console.log("=== FINALIZE.JS END ===");
     };
 
     performSignIn();
