@@ -13,7 +13,7 @@ export const CheckList = ({ reportFiltersLabes,title, options, onUpdateFilter, f
     let updatedSelected = [];
 
     if (checked) {
-      updatedSelected = [...selectedOptions, value]
+      updatedSelected = [...(selectedOptions || []), value]
 
       // find the option
       let optionObj = options.find(option => option.key == value);
@@ -23,7 +23,7 @@ export const CheckList = ({ reportFiltersLabes,title, options, onUpdateFilter, f
         setSelectedList(updatedList);
       }
     } else {
-      updatedSelected = selectedOptions.filter(option => option != value)
+      updatedSelected = (selectedOptions || []).filter(option => option != value)
 
       // remove from the selected list state
       let updatedList = selectedList.filter(item => item.key != value);
@@ -39,7 +39,7 @@ export const CheckList = ({ reportFiltersLabes,title, options, onUpdateFilter, f
   }, [isFilterClear ])
 
   return (
-    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && Array.isArray(selectedOptions) && selectedOptions.length > 0 ? "primary" : "white"}>
       <div>
         {
           options.map((option) => {
