@@ -77,7 +77,7 @@ const AdminSettings = () => {
       });
   }
 
-  const handleValueChange = (viewLabelIndex?: number, viewAttrIndex?: number, name? : string, e?:any , labelName? : string) => {
+  const handleValueChange = (viewLabelIndex?: number, viewAttrIndex?: number, name? : string, e?:any , labelName? : string | number) => {
     if(name === "personIdentifier" || name === "emailOverride") setIsSendTestEmail(false);
 
     setSettings(settings.map((obj, index1) => {
