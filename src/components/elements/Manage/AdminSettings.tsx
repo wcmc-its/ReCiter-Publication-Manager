@@ -204,8 +204,12 @@ const AdminSettings = () => {
       body: JSON.stringify(request),
     }).then(response => response.json())
       .then(data => {
-        dispatch(updatedAdminSettings(data))
-        setSettings(data);
+        const parsed = (data || []).map(obj => ({
+          ...obj,
+          viewAttributes: typeof obj.viewAttributes === 'string' ? JSON.parse(obj.viewAttributes) : obj.viewAttributes
+        }));
+        dispatch(updatedAdminSettings(parsed))
+        setSettings(parsed);
         setIsSendTestEmail(false);
         setLoading(false);
       })

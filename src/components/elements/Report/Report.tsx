@@ -85,8 +85,6 @@ const Report = () => {
 
   // fetch filters on mount
   useEffect(() => {
-    // let parsedAdminSettings:adminSettings["adminSettings"]  = 
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
     var viewAttributes = [];
     var profileViewAttributes = [];
     var sortLabelViewAttributes = [];
@@ -118,16 +116,17 @@ const Report = () => {
       reportingWeb = reportingWebDisplay.viewAttributes;
       exportArticleRTF = exportRTF.viewAttributes;
 
-    } else {
+    } else if (session?.adminSettings) {
       // regular settings from session
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingFilters")
-      let viewProfileUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "viewProfile")
-      let sortLabelsUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebViewSort")
-      let headShotData =JSON.parse(adminSettings).find(obj => obj.viewName === "headshot")
-      let exportAuthors = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingAuthorshipCSV")
-      let exportArticle = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleCSV")
-      let reportingWebDisplay = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebDisplay")
-      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
+      let adminSettings = JSON.parse(session.adminSettings);
+      let data = adminSettings.find(obj => obj.viewName === "reportingFilters")
+      let viewProfileUpdatedData = adminSettings.find(obj => obj.viewName === "viewProfile")
+      let sortLabelsUpdatedData = adminSettings.find(obj => obj.viewName === "reportingWebViewSort")
+      let headShotData = adminSettings.find(obj => obj.viewName === "headshot")
+      let exportAuthors = adminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
+      let exportArticle = adminSettings.find(obj => obj.viewName === "reportingArticleCSV")
+      let reportingWebDisplay = adminSettings.find(obj => obj.viewName === "reportingWebDisplay")
+      let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
 
       sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);

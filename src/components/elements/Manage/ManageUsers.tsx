@@ -46,7 +46,6 @@ const ManageUsers = () => {
   }, [])
 
   const adminConfigurations = () => {
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
     var viewAttributes = [];
     var emailNotifications = [];
 
@@ -57,11 +56,12 @@ const ManageUsers = () => {
       emailNotifications = notificationsData.viewAttributes;
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel.labelUserView)
-    } else {
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "findPeople")
-      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      let notificationsData = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
+    } else if (session?.adminSettings) {
+      let adminSettings = JSON.parse(session.adminSettings);
+      let data = adminSettings.find(obj => obj.viewName === "findPeople")
       viewAttributes = JSON.parse(data.viewAttributes)
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      let notificationsData = adminSettings.find(obj => obj.viewName === "EmailNotifications")
       emailNotifications = JSON.parse(notificationsData.viewAttributes);
       cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
     }

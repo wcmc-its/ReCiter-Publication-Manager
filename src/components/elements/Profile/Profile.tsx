@@ -91,13 +91,13 @@ const Profile = ({
 
   // RTF export settings
   useEffect(() => {
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
     let exportArticleRTFViewAttr = [];
     if (updatedAdminSettings.length > 0) {
       let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
       exportArticleRTFViewAttr = exportRTF.viewAttributes;
-    } else {
-      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
+    } else if (session?.adminSettings) {
+      let adminSettings = JSON.parse(session.adminSettings);
+      let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
       exportArticleRTFViewAttr = JSON.parse(exportRTF.viewAttributes);
     }
     setExportArticlesRTF(exportArticleRTFViewAttr)

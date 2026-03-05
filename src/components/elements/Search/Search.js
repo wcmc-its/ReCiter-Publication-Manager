@@ -76,7 +76,6 @@ const Search = () => {
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
     dispatch(clearFilters())
-    let adminSettings = JSON.parse(session.adminSettings);
     var viewAttributes = [];
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
@@ -85,8 +84,9 @@ const Search = () => {
 
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel)
-    } else {
+    } else if (session?.adminSettings) {
       // regular settings from session
+      let adminSettings = JSON.parse(session.adminSettings);
       let data = adminSettings.find(obj => obj.viewName === "findPeople")
       viewAttributes = JSON.parse(data.viewAttributes)
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
