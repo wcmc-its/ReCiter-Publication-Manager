@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
-import { PageHeader } from '../Common/PageHeader';
 import Loader from '../Common/Loader';
 import { reciterConfig } from '../../../../config/local';
 import UsersTable from "./UsersTable";
 import { useRouter } from 'next/router'
-import { Button, Card, Row, Col,InputGroup,Form } from 'react-bootstrap';
 import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, getAdminRoles, sendNotification } from "../../../redux/actions/actions";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { toast } from "react-toastify"
-import Pagination from '../Pagination/Pagination';
-import Filter from "../Filter/Filter";
+import { reportError } from "../../../utils/reportError";
 import { useSession } from 'next-auth/react';
 
 
@@ -22,25 +20,24 @@ const ManageUsers = () => {
   const createORupdateUserID = useSelector((state: RootStateOrAny) => state.createORupdateUserID);
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
 
-  const { data: session, status } = useSession();
+  const { data: session, status } = useSession(); const loading = status === "loading";
 
   const [users, setUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [searchText, setSearchText] = useState("")
+  const [filterText, setFilterText] = useState("")
   const [pageLoading, setpageLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
-  const [isVisibleNotification, setVisibleNotification] =useState(true)
-
-
+  const [isVisibleNotification, setVisibleNotification] = useState(true)
 
   const router = useRouter()
   const dispatch = useDispatch();
 
   const [page, setPage] = useState(1)
-  const [count, setCount] = useState(50)
+  const [count, setCount] = useState(100)
 
- 
+
   useEffect(() => {
         dispatch(getAdminDepartments());
         dispatch(getAdminRoles());
@@ -48,40 +45,34 @@ const ManageUsers = () => {
         adminConfigurations();
   }, [])
 
-  const adminConfigurations = ()=>{
+  const adminConfigurations = () => {
+    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
     var viewAttributes = [];
     var emailNotifications = [];
 
-    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
-      // updated settings from manage settings page
+    if (updatedAdminSettings.length > 0) {
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
       let notificationsData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
-
       viewAttributes = updatedData.viewAttributes;
       emailNotifications = notificationsData.viewAttributes;
-      let cwidLabel = viewAttributes && Array.isArray(viewAttributes) && viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      setNameOrcwidLabel(cwidLabel.labelUserView)
-    } else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()){
-      // regular settings from session
-      const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings);
-      let data = parsedSettings?.find((obj:any) => obj.viewName === "findPeople")
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      let notificationsData = JSON.parse(updatedAdminSettings).find(obj => obj.viewName === "EmailNotifications")
-
-      
-
+      setNameOrcwidLabel(cwidLabel.labelUserView)
+    } else {
+      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "findPeople")
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      let notificationsData = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
       viewAttributes = JSON.parse(data.viewAttributes)
       emailNotifications = JSON.parse(notificationsData.viewAttributes);
       cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
     }
-    let settingsObj = emailNotifications && Array.isArray(emailNotifications) && emailNotifications.find(data=> data.isVisible)
+    let settingsObj = emailNotifications && emailNotifications.find(data => data.isVisible)
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)
   }
 
-  const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string)=>{
+  const fetchAllAdminUsers = (page?: number, limit?: number, searchTextInput?: string) => {
     setpageLoading(true);
     const offset = (page - 1) * limit;
-    const request = { limit, offset , searchTextInput};
+    const request = { limit, offset, searchTextInput };
     fetch(`/api/db/admin/users`, {
       credentials: "same-origin",
       method: 'POST',
@@ -94,7 +85,7 @@ const ManageUsers = () => {
     }).then(response => response.json())
       .then(data => {
         prepareTabelData(data.usersData)
-        setTotalCount( data.totalUsersCount)
+        setTotalCount(data.totalUsersCount)
         dispatch(adminUsersListAction(data))
         setpageLoading(false);
         if (createORupdateUserID) toast.success(createORupdateUserID + " successfully", {
@@ -105,166 +96,189 @@ const ManageUsers = () => {
         dispatch(createORupdateUserIDAction(""))
       })
       .catch(error => {
-        console.log(error)
+        console.error("[ERR-5010]", error);
+        reportError("ERR-5010", "Unable to load user list", error);
         setpageLoading(false);
+        toast.error("Unable to load user list. Please try again. (ERR-5010)", {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
       });
   }
 
   const prepareTabelData = (usersData) => {
     let tableData = [];
     usersData.map((data) => {
-      const {nameFirst, nameLast, userID,personIdentifier,email, department,person} = data;
-     if(data.AdminUserDept?.length > 0){
-       data.AdminUserDept && data.AdminUserDept.map((deptData => {
+      const { nameFirst, nameLast, userID, personIdentifier, email, department, person } = data;
+      if (data.AdminUserDept?.length > 0) {
+        data.AdminUserDept && data.AdminUserDept.map((deptData => {
+          let obj = {
+            email: email,
+            personIdentifier: personIdentifier,
+            userID: userID,
+            nameFirst: nameFirst,
+            nameLast: nameLast,
+            department: deptData.departmentLabel,
+            primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
+          }
+          tableData.push(obj);
+        }))
+      } else {
         let obj = {
-          email : email,
-          personIdentifier : personIdentifier,
+          email: email,
+          personIdentifier: personIdentifier,
           userID: userID,
           nameFirst: nameFirst,
-          nameLast : nameLast,
-          department : deptData.departmentLabel,
+          nameLast: nameLast,
+          department: "",
           primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
         }
         tableData.push(obj);
-      }))
-    }else{
-      let obj = {
-          email : email,
-          personIdentifier : personIdentifier,
-          userID: userID,
-          nameFirst: nameFirst,
-          nameLast : nameLast,
-          department : "",
-          primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
       }
-      tableData.push(obj);
-    }
     })
     setUsers(tableData);
     setAllUsers(tableData)
   }
 
-  const onReset = ()=>{
+  const onReset = () => {
     setPage(1);
-    setCount(50);
+    setCount(100);
     setSearchText("");
-    fetchAllAdminUsers(1,50);
+    setFilterText("");
+    fetchAllAdminUsers(1, 100);
   }
 
-  const fetchPaginatedData = (newCount) => {
-    fetchAllAdminUsers(page, newCount ? newCount : count)
+  const handlePaginationUpdate = (newPage) => {
+    setPage(newPage)
+    fetchAllAdminUsers(newPage, count)
   }
 
-
-  const handlePaginationUpdate = (page) => {
-    setPage(page)
-     fetchAllAdminUsers(page, count)
-  }
-
-  const handleFilterUpdate= (searchText)=>{
-    filter(searchText ? searchText.trim() : "");
-  }
-
-  const filter = (search) => {
-    let filteredUsers = []
-    if (allUsers && allUsers.length > 0) {
-      allUsers.forEach((user) => {
-        if (search) {
-          var addUser = true;
-          if (search) {
-            addUser = false;
-            //nameFirst
-            if (user.nameFirst && user.nameFirst.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //nameLast
-            if (user.nameLast && user.nameLast.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //personIdentifier
-            if (user.personIdentifier && user.personIdentifier.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //departmentLabel
-            if (user.department && user.department.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //primaryOrganizationalUnit
-            if (user.primaryOrganizationalUnit && user.primaryOrganizationalUnit.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-          }
-          if (addUser) {
-            filteredUsers.push(user);
-          }
-        }else{
-          filteredUsers.push(user)
-        }
-      })
-    }
-    setUsers(filteredUsers)
-  }
-
-  
-  const handleCountUpdate = (count) => {
-    if (count) {
-      setPage(page);
-      setCount(parseInt(count));
-      fetchPaginatedData(parseInt(count))
+  const handleCountUpdate = (newCount) => {
+    if (newCount) {
+      setPage(1);
+      setCount(parseInt(newCount));
+      fetchAllAdminUsers(1, parseInt(newCount))
     }
   }
 
-  const handleSearchUpdate = async (e) => {
-    let inputBySearch = e.target.value;
-    await setSearchText(inputBySearch);
-    }
+  const handleSearchUpdate = (e) => {
+    setSearchText(e.target.value);
+  }
 
-    const onSendNotifications = ()=>{
-     sendNotification()
-    }
-
-    const onSearch = ()=>{
-     if(searchText.trim().length >= 3) {
+  const onSearch = () => {
+    if (searchText.trim().length >= 3) {
       fetchAllAdminUsers(page, count, searchText)
-     }}
+    }
+  }
+
+  const handleFilterUpdate = (e) => {
+    const text = e.target.value;
+    setFilterText(text);
+    if (!text) {
+      setUsers(allUsers);
+      return;
+    }
+    const term = text.toLowerCase();
+    const filtered = allUsers.filter((user) => {
+      return (
+        (user.nameFirst && user.nameFirst.toLowerCase().includes(term)) ||
+        (user.nameLast && user.nameLast.toLowerCase().includes(term)) ||
+        (user.personIdentifier && user.personIdentifier.toLowerCase().includes(term)) ||
+        (user.department && user.department.toLowerCase().includes(term)) ||
+        (user.email && user.email.toLowerCase().includes(term)) ||
+        (user.primaryOrganizationalUnit && user.primaryOrganizationalUnit.toLowerCase().includes(term))
+      );
+    });
+    setUsers(filtered);
+  }
+
+  const onSendNotifications = () => {
+    sendNotification()
+  }
+
+  const totalPages = Math.ceil(totalCount / count);
 
   return (
     <div className={appStyles.mainContainer}>
-      <PageHeader label="Manage Users" />
-      <Row className={styles.globalfilter}>
-        <Col md={6} className={styles.pt5}>
-          <InputGroup className="mb-3">
-            <Form.Control
-              type="text"
-              className={`form-control ${styles.searchInput}`}
-              placeholder="Search users"
-              value={searchText}
-              onChange={handleSearchUpdate}
-            />
-            <InputGroup.Text id="basic-addon2" onClick={onSearch}>search</InputGroup.Text>
-          </InputGroup>
-        </Col>
-        <Col md={1}>
-        <div className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</div>
-        </Col>
-        <Col md={5}>
-          <Button className="my-1 floatRight" onClick={() => router.push("/manageusers/add")}>Add User</Button>
-        </Col>
-      </Row>
-      {pageLoading ?
-        <div className="d-flex justify-content-center align-items"><Loader /> </div>
-        :
-        <>
-          <Pagination total={totalCount} page={page} count={count} onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
-          <div className={`row ${styles.filterSecbgColor}`}>
-          <div className="col-md-5"></div>
-            <div className="col-md-7">
-              <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
+      {/* Page header */}
+      <div className={styles.pageHeader}>
+        <div>
+          <h1 className={styles.pageTitle}>Manage Users</h1>
+          <p className={styles.pageSubtitle}>Administer user access and notification settings</p>
+        </div>
+        <button className={styles.btnAdd} onClick={() => router.push("/manageusers/add")}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M8 3v10M3 8h10"/></svg>
+          Add User
+        </button>
+      </div>
+
+      {/* Search row */}
+      <div className={styles.searchRow}>
+        <div className={styles.searchInputWrap}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l2.5 2.5"/></svg>
+          <input
+            className={styles.searchInput}
+            type="text"
+            placeholder="Search by name, CWID, or email..."
+            value={searchText}
+            onChange={handleSearchUpdate}
+            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+          />
+        </div>
+        <button className={styles.btnSearch} onClick={onSearch}>Search</button>
+        <button className={styles.btnReset} onClick={onReset}>Reset</button>
+      </div>
+
+      {pageLoading ? (
+        <div className="d-flex justify-content-center align-items"><Loader /></div>
+      ) : (
+        <div className={styles.tableCard}>
+          {/* Controls bar */}
+          <div className={styles.tableControls}>
+            <div className={styles.controlsLeft}>
+              <span className={styles.ctrlLabel}>Show</span>
+              <select className={styles.ctrlSelect} value={count} onChange={(e) => handleCountUpdate(e.target.value)}>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+              <span className={styles.ctrlLabel}>per page</span>
             </div>
+
+            <div className={styles.filterWrap}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l2.5 2.5"/></svg>
+              <input
+                className={styles.filterInput}
+                type="text"
+                placeholder="Filter this page..."
+                value={filterText}
+                onChange={handleFilterUpdate}
+              />
+            </div>
+
+            {totalCount > 0 && (
+              <div className={styles.pageNav}>
+                <button className={styles.pageBtn} onClick={() => handlePaginationUpdate(page - 1)} disabled={page === 1}>&#8249;</button>
+                <span className={styles.pageInfo}>
+                  Page <strong>{page.toLocaleString()}</strong> of {totalPages.toLocaleString()}
+                </span>
+                <button className={styles.pageBtn} onClick={() => handlePaginationUpdate(page + 1)} disabled={page >= totalPages}>&#8250;</button>
+              </div>
+            )}
           </div>
-            <UsersTable isVisibleNotification ={isVisibleNotification} data={users} onSendNotifications = {onSendNotifications} nameOrcwidLabel={nameOrcwidLabel}/>
-          <Pagination total={totalCount} page={page} count={count}  onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
-        </>}
+
+          {/* Table */}
+          <UsersTable
+            isVisibleNotification={isVisibleNotification}
+            data={users}
+            onSendNotifications={onSendNotifications}
+            nameOrcwidLabel={nameOrcwidLabel}
+          />
+        </div>
+      )}
       <ToastContainerWrapper />
     </div>
   )

@@ -6,24 +6,33 @@ import { AiOutlineCheck } from "react-icons/ai";
 import styles from "./SearchSummary.module.css";
 import { reciterConfig } from "../../../../config/local";
 import { metrics, labels } from "../../../../config/report";
-import { useSelector, RootStateOrAny } from "react-redux";
+import { useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { PublicationSearchFilter, ReporstResultId } from "../../../../types/publication.report.search";
 import Excel from 'exceljs';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import { ArrowLeft, ArrowRight } from "@mui/icons-material";
 import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible, setReportFilterKeyNames } from "../../../utils/constants";
+import { toast } from "react-toastify";
+import { reportError } from "../../../utils/reportError";
 
 
-const SearchSummary = ({ 
+const SearchSummary = ({
   reportLabelsForSort,
-  articlesCount, 
+  articlesCount,
   onClick,
   selected,
   onGetReportsDatabyPubFilters,
   exportAuthorShipLabels,
   exportArticleLabels,
   exportArticlesRTF,
-}: {exportArticlesRTF:any, exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,articlesCount: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void}) => {
+  count,
+  total,
+  page,
+  onPaginationUpdate,
+  onCountUpdate,
+}: {exportArticlesRTF:any, exportArticleLabels :any, exportAuthorShipLabels:any, reportLabelsForSort? : any,articlesCount: number, onClick: (sort: string, order: string) => void, selected: any, onGetReportsDatabyPubFilters :()=>void, count?: number, total?: number, page?: number, onPaginationUpdate?: (page: number) => void, onCountUpdate?: (count: string) => void}) => {
   const [openCSV, setOpenCSV] = useState(false);
   const [openRTF, setOpenRTF] = useState(false);
   const [exportError, setExportError] = useState(false);
@@ -122,9 +131,15 @@ const SearchSummary = ({
       setExportArticleLoading(false);
     })
     .catch(error => {
-      console.log(error)
+      console.error("[ERR-8001]", error);
+      reportError("ERR-8001", "Unable to export article report", error);
       setExportError(true);
       setExportArticleLoading(false);
+      toast.error("Unable to export article report. Please try again. (ERR-8001)", {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
     })
   }
 
@@ -162,9 +177,15 @@ const SearchSummary = ({
       setExportArticlePplLoading(false);
     })
     .catch(error => {
-      console.log(error)
+      console.error("[ERR-8002]", error);
+      reportError("ERR-8002", "Unable to export article report", error);
       setExportError(true);
       setExportArticlePplLoading(false);
+      toast.error("Unable to export article report. Please try again. (ERR-8002)", {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
     })
   }
 
@@ -196,7 +217,13 @@ const SearchSummary = ({
       setExportAuthorshipCsvLoading(false);
     }).catch(error => {
       setExportAuthorshipCsvLoading(false);
-      console.log(error);
+      console.error("[ERR-8003]", error);
+      reportError("ERR-8003", "Unable to export authorship report", error);
+      toast.error("Unable to export authorship report. Please try again. (ERR-8003)", {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
     })
   }
 
@@ -306,7 +333,13 @@ const SearchSummary = ({
       setExportArticleCsvLoading(false);
     }).catch(error => {
       setExportArticleCsvLoading(false);
-      console.log(error);
+      console.error("[ERR-8004]", error);
+      reportError("ERR-8004", "Unable to export article CSV", error);
+      toast.error("Unable to export article CSV. Please try again. (ERR-8004)", {
+        position: "top-right",
+        autoClose: 2000,
+        theme: 'colored'
+      });
     })
   }
 
@@ -379,38 +412,59 @@ const SearchSummary = ({
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center pt-5">
-        <p className="mb-0"><b>{articlesCount && articlesCount > 0? formatter.format(articlesCount) : 0} articles</b></p>
-        <div className="search-summary-buttons">
-        <DropdownButton className={`d-inline-block mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(value) => handleSelect(value)}>
+      <div className={`d-flex justify-content-between align-items-center pt-5 ${styles.controlsRow}`}>
+        <p className="mb-0"><span className={styles.articlesCount}>{articlesCount && articlesCount > 0? formatter.format(articlesCount) : 0}</span> articles</p>
+        <div className="d-flex align-items-center gap-2">
+          {total > 0 && count && page && (
+            <div className={`d-flex align-items-center ${styles.inlinePagination}`}>
+              <label className={styles.showLabel}>Show</label>
+              <DropdownButton className={styles.countDropdown} id="count-dropdown" title={count} onSelect={(eventKey) => onCountUpdate(eventKey)}>
+                <Dropdown.Item eventKey={10} className={`${styles.showItem} ${count == 10 ? styles.showItemActive : ''}`}>
+                  <span>10 per page</span>{count == 10 ? <span className={styles.showCheck}>✓</span> : <span className={styles.showHint}>faster</span>}
+                </Dropdown.Item>
+                <Dropdown.Item eventKey={20} className={`${styles.showItem} ${count == 20 ? styles.showItemActive : ''}`}>
+                  <span>20 per page</span>{count == 20 && <span className={styles.showCheck}>✓</span>}
+                </Dropdown.Item>
+                <Dropdown.Item eventKey={50} className={`${styles.showItem} ${count == 50 ? styles.showItemActive : ''}`}>
+                  <span>50 per page</span>{count == 50 && <span className={styles.showCheck}>✓</span>}
+                </Dropdown.Item>
+                <Dropdown.Item eventKey={100} className={`${styles.showItem} ${count == 100 ? styles.showItemActive : ''}`}>
+                  <span>100 per page</span>{count == 100 && <span className={styles.showCheck}>✓</span>}
+                </Dropdown.Item>
+                <Dropdown.Item eventKey={200} className={`${styles.showItem} ${count == 200 ? styles.showItemActive : ''}`}>
+                  <span>200 per page</span>{count == 200 ? <span className={styles.showCheck}>✓</span> : <span className={styles.showHint}>slower</span>}
+                </Dropdown.Item>
+              </DropdownButton>
+              <ArrowLeft className={page === 1 ? "disabled" : ""} color="primary" style={{ cursor: 'pointer', fontSize: 20 }} onClick={() => page > 1 && onPaginationUpdate(page - 1)} />
+              <span className={styles.pageInfo}>{page.toLocaleString()} / {Math.ceil(total / count).toLocaleString()}</span>
+              <ArrowRight className={page === Math.ceil(total / count) ? "disabled" : ""} color="primary" style={{ cursor: 'pointer', fontSize: 20 }} onClick={() => page < Math.ceil(total / count) && onPaginationUpdate(page + 1)} />
+            </div>
+          )}
+          <DropdownButton className={`d-inline-block`} title="Sort by" id="dropdown-basic-button" autoClose="outside">
           {
             formattedSortOptions.map((sortOption, index) => {
               const {labelName, keyName} = sortOption || {};
+              const isActive = selected.type === keyName;
               return (
-                <div key={index}>
-                  <Dropdown.Item eventKey={`${keyName}_DESC`} key={`${keyName}_DESC`} className={`dropdown-item ${selected.type === keyName && selected.order === 'DESC' ? styles.selected : styles.dropdownItem}`}>
-                    {selected.type === keyName && selected.order === 'DESC' && <AiOutlineCheck />} 
-                    {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
-                    {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
-                    {labelName}
-
-                    {<ArrowDownwardIcon />}
-                  </Dropdown.Item>
-                  <Dropdown.Item eventKey={`${keyName}_ASC`} key={`${keyName}_ASC`} className={`dropdown-item ${selected.type === keyName && selected.order === 'ASC' ? styles.selected : styles.dropdownItem}`}>
-                    {selected.type === keyName && selected.order === 'ASC' && <AiOutlineCheck />} 
-                    {/* {labels.article[sortOption] || labels.articleInfo[sortOption]} */}
-                    {/* {setReportFilterLabels(reportLabelsForSort, labels.article[sortOption] || labels.articleInfo[sortOption])} */}
-                    {labelName}
-
-                    {<ArrowUpwardIcon />}
-                  </Dropdown.Item>
+                <div key={index} className={`${styles.sortItem} ${isActive ? styles.sortItemActive : ''}`}>
+                  <span className={styles.sortLabel}>{labelName}</span>
+                  <div className={styles.sortToggle}>
+                    <button
+                      className={`${styles.sortToggleBtn} ${isActive && selected.order === 'DESC' ? styles.sortToggleBtnActive : ''}`}
+                      onClick={() => onClick(keyName, 'DESC')}
+                    >↓ High</button>
+                    <button
+                      className={`${styles.sortToggleBtn} ${isActive && selected.order === 'ASC' ? styles.sortToggleBtnActive : ''}`}
+                      onClick={() => onClick(keyName, 'ASC')}
+                    >↑ Low</button>
+                  </div>
                 </div>
               )
             })
           }
         </DropdownButton>
-          <Button variant="warning" className="m-2" disabled={articlesCount ? false : true  } onClick={() =>  getReportsDatabyPubFilters("CSV")}>Export to CSV</Button>
-          <Button variant="warning" className="m-2" disabled={articlesCount ? false : true} onClick={() =>  getReportsDatabyPubFilters("RTF")}>Export to RTF</Button>
+          <Button className={`transparent-btn btn btn-primary ${styles.exportBtn}`} size="sm" disabled={articlesCount ? false : true} onClick={() => getReportsDatabyPubFilters("CSV")}>CSV</Button>
+          <Button className={`transparent-btn btn btn-primary ${styles.exportBtn}`} size="sm" disabled={articlesCount ? false : true} onClick={() => getReportsDatabyPubFilters("RTF")}>RTF</Button>
         </div>
       </div>
       <ExportModal
@@ -425,8 +479,8 @@ const SearchSummary = ({
         countInfo={ `${formatter.format(reportsResultsIds?.authorshipsCount || 0)} known authorships and ${articlesCount ? formatter.format(articlesCount) : 0} articles`}
         buttonsList={
           [
-            {title: 'Export authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
-            {title: 'Export article report', loading: exportArticleCsvLoading, onClick: exportArticleCSV}
+            {title: 'Authorship report', loading: exportAuthorshipCsvLoading, onClick: exportAuthorshipCSV},
+            {title: 'Article report', loading: exportArticleCsvLoading, onClick: exportArticleCSV}
           ]
         }
         exportAuthorshipCsvLoading = {exportAuthorshipCsvLoading}

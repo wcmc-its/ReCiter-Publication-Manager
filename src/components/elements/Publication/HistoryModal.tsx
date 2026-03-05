@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal } from "react-bootstrap";
-import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { fetchFeedbacklog } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import Loader from "../Common/Loader";
@@ -83,7 +84,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
     <Modal show={props.showModal} onHide={props.onClose} size="lg">
       <Modal.Header closeButton>Feedback History</Modal.Header>
       <Modal.Body>
-       {feedbacklogFetching ? <Loader/> : isError? <p>Something went wrong. Please try again later.</p> : <ModalContent />}
+       {feedbacklogFetching ? <Loader/> : isError? <p>Unable to load feedback history. Please try again.</p> : <ModalContent />}
       </Modal.Body>
     </Modal>
   )
