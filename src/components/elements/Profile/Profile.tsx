@@ -12,6 +12,7 @@ import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
 import { useSession } from 'next-auth/react';
 import { allowedPermissions, setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
+import { reportError } from '../../../utils/reportError';
 
 
 
@@ -135,6 +136,7 @@ const Profile = ({
       })
       .catch(error => {
         console.log(error)
+        reportError('ERR-1020', 'Profile data fetch failed', error);
         setIsError(true);
       })
   }
@@ -164,6 +166,7 @@ const Profile = ({
     })
     .catch(error => {
       console.log(error)
+      reportError('ERR-8010', 'Profile publications fetch failed', error);
       setIsError(true);
     })
   }
@@ -190,6 +193,7 @@ const Profile = ({
       })
       .catch(error => {
         console.log(error)
+        reportError('ERR-8011', 'Profile report fetch failed', error);
         setIsError(true);
         setIsLoading(false);
       })
@@ -394,6 +398,7 @@ const Profile = ({
     }).catch(error => {
       setExportArticleCsvLoading(false);
       console.log(error);
+      reportError('ERR-8012', 'Profile export failed', error);
     })
   }
 

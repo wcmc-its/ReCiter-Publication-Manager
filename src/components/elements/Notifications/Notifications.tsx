@@ -13,6 +13,7 @@ import { allowedPermissions } from "../../../utils/constants";
 import { toast } from "react-toastify";
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
+import { reportError } from '../../../utils/reportError';
 
 
 const Notifications = () => {
@@ -132,6 +133,7 @@ const Notifications = () => {
       })
       .catch(error => {
         console.log(error)
+        reportError('ERR-6010', 'Notifications fetch failed', error);
       });
   }
 

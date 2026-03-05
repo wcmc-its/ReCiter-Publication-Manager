@@ -3,6 +3,7 @@ import fetchWithTimeout from '../../utils/fetchWithTimeout';
 import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
 import { initialStatePubSearchFilter } from "../reducers/reducers";
+import { reportError } from '../../utils/reportError';
 
 
 export const addError = (message) =>
@@ -79,6 +80,7 @@ export const identityFetchData = uid => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-1001", "Identity API failed", error);
 
             toast.error("Identity Api failed for " + uid + " - " + error.title, {
                 position: "top-right",
@@ -145,6 +147,7 @@ export const identityFetchAllData = (request) => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-1002", "Identity All API failed", error);
             toast.error("Identity All Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -207,6 +210,7 @@ export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-1003", "Identity Paginated API failed", error);
             toast.error("Identity Fetch PaginatedData Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -275,6 +279,7 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
                 autoClose: 2000,
                 theme: 'colored'
             });
+            reportError("ERR-1004", "Feature generator API failed", error);
 
             dispatch(
                 addIdentityORFeatureGenError("Feature-Generator-Error")
@@ -436,7 +441,7 @@ export const pubmedFetchData = query => dispatch => {
                 autoClose: 2000,
                 theme: 'colored'
             });
-            
+            reportError("ERR-2001", "PubMed query failed", error);
 
             dispatch({
                 type: methods.PUBMED_CHANGE_DATA,
@@ -548,6 +553,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
         .catch(error => {
 
             console.log(error)
+            reportError("ERR-3001", "Update GoldStandard API failed", error);
             toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
                 position: "top-right",
                 autoClose: 2000,
@@ -607,6 +613,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
             .catch(error => {
 
                 console.log(error)
+                reportError("ERR-3002", "DB feedback log API failed", error);
                 toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
                     position: "top-right",
                     autoClose: 2000,
@@ -716,6 +723,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
         .catch(error => {
 
             console.log(error)
+            reportError("ERR-3003", "Update GoldStandard Group API failed", error);
             toast.error("Update GoldStandard Api Error" + error.title + " for " + uid, {
                 position: "top-right",
                 autoClose: 2000,
@@ -772,6 +780,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
             .catch(error => {
 
                 console.log(error)
+                reportError("ERR-3004", "DB feedback log Group API failed", error);
                 toast.error("Db feedback log Api Error" + error.title + " for " + uid, {
                     position: "top-right",
                     autoClose: 2000,
@@ -830,6 +839,7 @@ export const authUser = auth => dispatch => {
             }
         })
         .catch(err => {
+            reportError("ERR-4001", "Auth API failed", err);
             return dispatch(
                 addError(err)
             )
@@ -855,6 +865,7 @@ export const getSession = sid => dispatch => {
         })
         .catch(err => {
             console.log(err)
+            reportError("ERR-4002", "Get session failed", err);
             return dispatch(
                 addError(err)
             )
@@ -898,6 +909,7 @@ export const orgUnitsFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-5001", "Org Units API failed", error);
             toast.error("Organizational Units Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -951,6 +963,7 @@ export const institutionsFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-5002", "Institutions API failed", error);
             toast.error("Institutional Units Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1004,6 +1017,7 @@ export const personTypesFetchAllData = () => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-5003", "Person Types API failed", error);
             toast.error("Person Types Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1185,6 +1199,7 @@ export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-2002", "Feature generator group API failed", error);
             toast.error("Feature generator by group Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1245,6 +1260,7 @@ export const fetchFeedbacklog = (id) => dispatch => {
 
     }).catch(error => {
         console.log(error)
+        reportError("ERR-2003", "Feedback log API failed", error);
         toast.error("Feedback log Api failed for " + id + " - " + error.title, {
             position: "top-right",
             autoClose: 2000,
@@ -1290,6 +1306,7 @@ export const fetchGroupFeedbacklog = (ids) => dispatch => {
             }
         }).catch(error => {
             console.log(error);
+            reportError("ERR-2004", "Group feedback log API failed", error);
 
             dispatch({
                 type: methods.FEEDBACKLOG_CANCEL_FETCHING_GROUP
@@ -1329,6 +1346,7 @@ const getAuthorsFilter = (authorInput) => async (dispatch) => {
         })
     }).catch(error => {
         console.log(error);
+        reportError("ERR-6001", "Author Filter API failed", error);
         toast.error("Author Filter Api failed - " + error.title, {
             position: "top-right",
             autoClose: 2000,
@@ -1360,6 +1378,7 @@ const getDateFilter = () => async (dispatch) => {
         })
     }).catch(error => {
         console.log(error);
+        reportError("ERR-6002", "Date Filter API failed", error);
         toast.error("Date Filter Api failed - " + error.title, {
             position: "top-right",
             autoClose: 2000,
@@ -1402,6 +1421,7 @@ const getArticleTypeFilter = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6003", "Article Type Filter API failed", error);
             toast.error("Article Type Filter Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1444,6 +1464,7 @@ const getJournalFilter = (journalInput) => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6004", "Journal Filter API failed", error);
             toast.error("Journal Filter Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1455,7 +1476,7 @@ const getJournalFilter = (journalInput) => async (dispatch) => {
         })
 }
 
-// Journal Rank Filter 
+// Journal Rank Filter
 const getJournalRank = () => async (dispatch) => {
     return fetch('/api/db/reports/filter/journalrank', {
         credentials: "same-origin",
@@ -1486,6 +1507,7 @@ const getJournalRank = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6005", "Journal Rank Filter API failed", error);
             toast.error("Journal Rank Filter Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1528,6 +1550,7 @@ export const getOrgUnits = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6006", "Org Units Filter API failed", error);
             toast.error("Organizational Units Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1570,6 +1593,7 @@ export const getInstitutions = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6007", "Institutions Filter API failed", error);
             toast.error("Institutional Units Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1612,6 +1636,7 @@ export const getAdminDepartments = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6008", "Admin Departments API failed", error);
             toast.error("List All Admin DEPATMENTS Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1653,6 +1678,7 @@ export const getAdminRoles = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6009", "Admin Roles API failed", error);
             toast.error("List All Admin DEPATMENTS Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1695,6 +1721,7 @@ export const getPersonTypes = () => async (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6010", "Person Types Filter API failed", error);
             toast.error("Person Types Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -1737,6 +1764,7 @@ export const updateAuthorFilter = (authorInput, count,isFrom) => (dispatch) => {
         }
     }).catch(error => {
         console.log(error);
+        reportError("ERR-6011", "Author Filter update API failed", error);
         toast.error("Author Filter Api failed - " + error.title, {
             position: "top-right",
             autoClose: 2000,
@@ -1779,6 +1807,7 @@ export const updateJournalFilter = (journalInput, count) => (dispatch) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-6012", "Journal Filter update API failed", error);
             toast.error("Journal Filter Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -2015,6 +2044,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-7001", "Reports Search API failed", error);
             toast.error("Reports Search Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -2120,6 +2150,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-7002", "Reports Search Initial API failed", error);
             toast.error("Reports Search Api failed - " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -2164,6 +2195,7 @@ export const getReportsAuthors = (pmids) => {
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-7003", "Reports Authors API failed", error);
         })
 }
 
@@ -2198,6 +2230,7 @@ export const createAdminUser = (userData) =>{
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-7004", "Create Admin User API failed", error);
             toast.error("create api " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -2232,6 +2265,7 @@ export const fetchUserInfoByID = (userID) =>{
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-7005", "Fetch User Info API failed", error);
             toast.error("create api " + error.title, {
                 position: "top-right",
                 autoClose: 2000,
@@ -2275,6 +2309,7 @@ export const fetchReportsResultsIds = (requestBody) => dispatch => {
         })
     }).catch(error => {
         console.log(error)
+        reportError("ERR-7006", "Reports Results IDs API failed", error);
         toast.error("Reports Search Pmids Api failed - " + error.title, {
             position: "top-right",
             autoClose: 2000,
@@ -2332,6 +2367,7 @@ export const saveNotification = (payload) => dispatch => {
            })
       }).catch(error => {
         console.log(error)
+        reportError("ERR-7007", "Save Notification API failed", error);
         toast.error("Save notification Api failed - " + error.title, {
           position: "top-right",
           autoClose: 2000,
@@ -2365,6 +2401,7 @@ export const  sendNotification = (payload) =>{
         })
         .catch(error => {
             console.log(error)
+            reportError("ERR-7008", "Send Notification API failed", error);
         })
 }
 
@@ -2394,6 +2431,7 @@ export const disableNotificationbyID = (payload) => dispatch => {
       
     }).catch(error => {
       console.log(error)
+      reportError("ERR-7009", "Disable Notification API failed", error);
       toast.error("Save notification Api failed - " + error.title, {
         position: "top-right",
         autoClose: 2000,
@@ -2447,6 +2485,6 @@ export const sendEmailData = (requestBody) => dispatch => {
             autoClose: 2000,
             theme: 'colored'
         });
-        
+        reportError("ERR-7010", "Send Email API failed", error);
     })
 }

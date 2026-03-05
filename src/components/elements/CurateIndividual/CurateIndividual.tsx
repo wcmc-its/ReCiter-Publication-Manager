@@ -16,6 +16,7 @@ import { useSession } from "next-auth/react";
 import { allowedPermissions, toastMessage } from "../../../utils/constants";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
+import { reportError } from '../../../utils/reportError';
 
 
 
@@ -102,6 +103,7 @@ const CurateIndividual = () => {
         setHeadShot(headShotViewAttributes)
       })
       .catch(error => {
+        reportError('ERR-9010', 'Curate individual error', error);
         // setLoading(false);
       });
   }

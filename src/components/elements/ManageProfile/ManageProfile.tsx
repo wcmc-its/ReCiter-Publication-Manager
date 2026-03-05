@@ -14,6 +14,7 @@ import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { allowedPermissions } from "../../../utils/constants";
 import Loader from "../Common/Loader";
+import { reportError } from '../../../utils/reportError';
 
 
 const ManageProfle = () => {
@@ -87,7 +88,7 @@ const ManageProfle = () => {
         }).then(data => {
 
         }).catch(error => {
-
+            reportError('ERR-1010', 'Profile fetch failed', error);
         })
     }
 
@@ -116,6 +117,7 @@ const ManageProfle = () => {
             })
             .catch(error => {
                 console.log(error);
+                reportError('ERR-1011', 'Profile update failed', error);
             });
     }
 
@@ -155,6 +157,7 @@ const ManageProfle = () => {
             .catch(error => {
                 setLoadProfileData(false)
                 console.log(error);
+                reportError('ERR-1012', 'Profile image upload failed', error);
             });
     }
 

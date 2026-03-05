@@ -12,6 +12,7 @@ import Excel from 'exceljs';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible, setReportFilterKeyNames } from "../../../utils/constants";
+import { reportError } from '../../../utils/reportError';
 
 
 const SearchSummary = ({ 
@@ -123,6 +124,7 @@ const SearchSummary = ({
     })
     .catch(error => {
       console.log(error)
+      reportError('ERR-8001', 'Search summary fetch failed', error);
       setExportError(true);
       setExportArticleLoading(false);
     })
@@ -163,6 +165,7 @@ const SearchSummary = ({
     })
     .catch(error => {
       console.log(error)
+      reportError('ERR-8002', 'Search summary export failed', error);
       setExportError(true);
       setExportArticlePplLoading(false);
     })
@@ -197,6 +200,7 @@ const SearchSummary = ({
     }).catch(error => {
       setExportAuthorshipCsvLoading(false);
       console.log(error);
+      reportError('ERR-8003', 'Search summary CSV failed', error);
     })
   }
 
@@ -307,6 +311,7 @@ const SearchSummary = ({
     }).catch(error => {
       setExportArticleCsvLoading(false);
       console.log(error);
+      reportError('ERR-8004', 'Search summary RTF failed', error);
     })
   }
 

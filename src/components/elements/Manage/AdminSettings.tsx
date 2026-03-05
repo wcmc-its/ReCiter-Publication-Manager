@@ -12,6 +12,7 @@ import { toast } from "react-toastify";
 import { resolveSrv } from "dns";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import moment from 'moment-timezone';
+import { reportError } from '../../../utils/reportError';
 
 
 const AdminSettings = () => {
@@ -73,6 +74,7 @@ const AdminSettings = () => {
       })
       .catch(error => {
         console.log(error);
+        reportError('ERR-9001', 'Admin settings fetch failed', error);
         setLoading(false);
       });
   }
@@ -154,6 +156,7 @@ const AdminSettings = () => {
       })
       .catch(error => {
         console.log(error)
+        reportError('ERR-9002', 'Admin settings save failed', error);
         setLoading(false);
       });
   }
@@ -233,6 +236,7 @@ const AdminSettings = () => {
           });
         }
       }).catch(error => {
+      reportError('ERR-9003', 'Admin settings update failed', error);
       setSendTestEmailLoading(false);
         toast.error("Send Test Email failed - " + error.title, {
           position: "top-right",

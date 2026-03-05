@@ -14,6 +14,7 @@ import { toast } from "react-toastify"
 import Pagination from '../Pagination/Pagination';
 import Filter from "../Filter/Filter";
 import { useSession } from 'next-auth/react';
+import { reportError } from '../../../utils/reportError';
 
 
 
@@ -106,6 +107,7 @@ const ManageUsers = () => {
       })
       .catch(error => {
         console.log(error)
+        reportError('ERR-5010', 'Manage users fetch failed', error);
         setpageLoading(false);
       });
   }
