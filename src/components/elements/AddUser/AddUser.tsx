@@ -1,7 +1,8 @@
 import React, { useState, FunctionComponent, useEffect } from "react"
 import { Form, Row, Col, Button, Container } from 'react-bootstrap';
 import Autocomplete from '@mui/material/Autocomplete';
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { styled } from '@mui/material/styles';
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';

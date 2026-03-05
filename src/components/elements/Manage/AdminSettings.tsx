@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { reciterConfig } from '../../../../config/local';
 import { useRouter } from 'next/router'
 import { adminSettingsListAction, updatedAdminSettings ,sendEmailData} from "../../../redux/actions/actions";

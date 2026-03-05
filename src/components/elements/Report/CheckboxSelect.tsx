@@ -3,7 +3,8 @@ import { DropdownWrapper } from "../Common/DropdownWrapper";
 import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
 import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
-import { useSelector,RootStateOrAny } from "react-redux";
+import { useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { setReportFilterLabels } from "../../../utils/constants";
 
 export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,isFilterClear, title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {

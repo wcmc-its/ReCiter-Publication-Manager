@@ -7,7 +7,8 @@ import sortPublications from "../../../utils/sortPublications";
 import Pagination from '../Pagination/Pagination';
 import { useSession } from "next-auth/react";
 import { curateSearchtextAction, reciterUpdatePublication } from "../../../redux/actions/actions";
-import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 
 
 interface TabContentProps {

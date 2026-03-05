@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';

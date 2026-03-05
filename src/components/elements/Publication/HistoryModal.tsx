@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal } from "react-bootstrap";
-import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { fetchFeedbacklog } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import Loader from "../Common/Loader";

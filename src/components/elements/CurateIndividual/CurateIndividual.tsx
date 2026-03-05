@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
-import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";

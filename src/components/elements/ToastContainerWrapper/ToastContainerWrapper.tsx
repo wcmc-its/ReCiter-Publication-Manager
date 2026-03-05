@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ToastContainer } from 'react-toastify';
-import { useSelector, useDispatch,RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from 'next-auth/react';
 
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, MouseEvent } from "react";
-import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { identityFetchData } from "../../../redux/actions/actions";
 import { Modal, Container, Row, Button, Col,Popover, OverlayTrigger } from "react-bootstrap";
 import Image from 'next/image'

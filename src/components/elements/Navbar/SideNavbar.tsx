@@ -20,7 +20,8 @@ import facultyIconActive from '../../../../public/images/icon-side-faculty_index
 import settingsIconActive from '../../../../public/images/icon-side-faculty_admin-active.png';
 import chartIconActive from '../../../../public/images/icon-side-faculty_report-active.png';
 import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
-import { useSelector, RootStateOrAny } from "react-redux";
+import { useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from 'next-auth/react';
 
 

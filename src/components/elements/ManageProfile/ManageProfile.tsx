@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import appStyles from '../App/App.module.css';
 import styles from './ManageProfile.module.css';
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { Form, Button, Spinner, Carousel, InputGroup } from "react-bootstrap";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";

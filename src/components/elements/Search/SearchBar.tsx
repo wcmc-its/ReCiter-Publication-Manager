@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Form, Row, Col, Container , Dropdown, InputGroup } from "react-bootstrap";
 import { orgUnitsFetchAllData, institutionsFetchAllData, personTypesFetchAllData } from '../../../redux/actions/actions';
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import styles from './Search.module.css'
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';

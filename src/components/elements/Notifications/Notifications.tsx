@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import styles from './Notifications.module.css';
 import appStyles from '../App/App.module.css';
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import Loader from "../Common/Loader";
 import { Form, Button, Spinner,Carousel } from "react-bootstrap";
 import { saveNotification, sendNotification, sendEmailData, disableNotificationbyID } from "../../../redux/actions/actions";

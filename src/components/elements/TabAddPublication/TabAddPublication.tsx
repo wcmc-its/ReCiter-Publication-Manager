@@ -4,7 +4,8 @@ import styles from './TabAddPublication.module.css';
 import appStyles from '../App/App.module.css';
 import AddPublication from '../AddPublication/AddPublication';
 import { reciterUpdatePublication, pubmedFetchData, UpdatePubMadeData, reCalcPubMedPubCount, clearPubMedData, addPubMedFetchMoreData, clearPubMedFetchMoreData } from '../../../redux/actions/actions'
-import { RootStateOrAny, useSelector, useDispatch } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
 import DatePicker from 'react-datepicker';
