@@ -1,42 +1,41 @@
 import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
-import { getSession } from "next-auth/react"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "../api/auth/[...nextauth]"
 
  export async function getServerSideProps(ctx) {
-    console.log('Search page getServerSideProps called');
-    const session = await getSession(ctx);
-    console.log('Search page - session exists:', !!session);
-    console.log('Search page - session.data exists:', !!session?.data);
-    const userPermissions = JSON.parse(session.data.userRoles);
-     console.log('Search page - parsed userPermissions length:', userPermissions.length);
-    if (!session || !session.data) {
-        console.log('Search page - No session or session.data, redirecting to login');
+    try {
+        const session = await getServerSession(ctx.req, ctx.res, authOptions);
+
+        if (!session || !session.data) {
+            return {
+                redirect: {
+                    destination: "/login",
+                    permanent: false,
+                },
+            };
+        }
+
+        const userPermissions = session.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+
+        if(userPermissions.length === 0) {
+            return {
+                redirect: {
+                    destination: "/noaccess",
+                    permanent: false,
+                },
+            };
+        }
+
         return {
-            redirect: {
-                destination: "/login",
-                permanent: false,
+            props: {
+                session: session,
             },
         };
+    } catch (error) {
+        console.error("[SEARCH:getServerSideProps]", error);
+        return { redirect: { destination: "/login", permanent: false } };
     }
-
-    console.log('Search page - session.data.userRoles:', session.data.userRoles);
-   
-    if(userPermissions.length === 0) {
-        console.log('Search page - No user permissions, redirecting to noaccess');
-        return {
-            redirect: {
-                destination: "/noaccess",
-                permanent: false,
-            },
-        };
-    }
-
-    console.log('Search page - Returning session props successfully');
-    return {
-        props: {
-            session: session,
-        },
-    };
 }
 
 const SearchPage = () => {
