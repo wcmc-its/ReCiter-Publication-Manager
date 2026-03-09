@@ -7,8 +7,6 @@ import { getSession } from "next-auth/react"
     console.log('--- Debugging Headers ---');
     console.log('Host:', ctx.req.headers.host);
     console.log('Cookie Header:', ctx.req.headers.cookie); // IS THIS LOGGING ANYTHING?
-    const serversession = await getServerSession(ctx.req, ctx.res, authOptions);
-    console.log('Search Server Session page - session exists:', serversession);
     const session = await getSession(ctx);
     const userPermissions = JSON.parse(session.data?.userRoles);
     console.log('Search page - session exists:', !!session);
