@@ -1,7 +1,7 @@
 import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
 import { getSession } from "next-auth/react"
-import { authOptions } from "./api/auth/[...nextauth]";
+import { authOptions } from "../api/auth/[...nextauth]";
 import { getServerSession } from "next-auth/next";
 
  export async function getServerSideProps(ctx) {
