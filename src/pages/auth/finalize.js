@@ -21,7 +21,6 @@ export default function Finalize() {
         console.error("Sign in failed with error:", result.error);
         } else if (result?.ok) {
         console.log("Finalize - Sign in successful, redirecting to:", result.url);
-        router.refresh();
         router.push(result.url || '/search');
         //window.location.href = result.url;
         } else {
