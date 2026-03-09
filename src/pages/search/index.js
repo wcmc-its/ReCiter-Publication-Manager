@@ -10,7 +10,7 @@ import { getServerSession } from "next-auth/next";
     console.log('Host:', ctx.req.headers.host);
     console.log('Cookie Header:', ctx.req.headers.cookie); // IS THIS LOGGING ANYTHING?
     const session = await getServerSession(ctx.req, ctx.res, authOptions);
-    const userPermissions = session.userRoles ? JSON.parse(session.userRoles) : JSON.parse(session?.data?.userRoles);
+    const userPermissions = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : JSON.parse(session?.userRoles);
     console.log('Search page - session exists:', !!session);
     console.log('Search page - parsed userPermissions length:', userPermissions.length);
     if (!session || !session.data) {
