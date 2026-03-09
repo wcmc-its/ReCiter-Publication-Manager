@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/router'; // Use this for Pages Router
 
 export default function Finalize() {
+    const router = useRouter();
     useEffect(() => {
     const performSignIn = async () => {
         console.log("Attempting to trigger signIn...");
@@ -19,7 +21,9 @@ export default function Finalize() {
         console.error("Sign in failed with error:", result.error);
         } else if (result?.ok) {
         console.log("Finalize - Sign in successful, redirecting to:", result.url);
-        window.location.href = result.url;
+        router.refresh();
+        router.push(result.url || '/search');
+        //window.location.href = result.url;
         } else {
         console.warn("Finalize - Unexpected result:", result);
         }
@@ -28,5 +32,5 @@ export default function Finalize() {
     };
 
     performSignIn();
-    }, []);
+    }, [router]);
 }

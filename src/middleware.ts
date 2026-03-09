@@ -31,7 +31,7 @@ export async function middleware(request) {
     return NextResponse.next();
   }
   console.log('Middleware - Getting token with JWT_TOKEN_SECRET');
-  const token:any = await getToken({ req: request, secret: process.env.JWT_TOKEN_SECRET });
+  const token:any = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   console.log('Middleware - Token exists:', !!token);
   
   if (!token) {
