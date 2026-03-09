@@ -1,14 +1,16 @@
 import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
 import { getSession } from "next-auth/react"
+import { authOptions } from "./api/auth/[...nextauth]";
+import { getServerSession } from "next-auth/next";
 
  export async function getServerSideProps(ctx) {
     console.log('Search page getServerSideProps called');
     console.log('--- Debugging Headers ---');
     console.log('Host:', ctx.req.headers.host);
     console.log('Cookie Header:', ctx.req.headers.cookie); // IS THIS LOGGING ANYTHING?
-    const session = await getSession(ctx);
-    const userPermissions = JSON.parse(session.data?.userRoles);
+    const session = await getServerSession(ctx.req, ctx.res, authOptions);
+    const userPermissions = session.userRoles ? JSON.parse(session.userRoles) : JSON.parse(session?.data?.userRoles);
     console.log('Search page - session exists:', !!session);
     console.log('Search page - parsed userPermissions length:', userPermissions.length);
     if (!session || !session.data) {
@@ -36,7 +38,7 @@ import { getSession } from "next-auth/react"
     console.log('Search page - Returning session props successfully');
     return {
         props: {
-            session: session,
+            session: JSON.parse(JSON.stringify(session)),
         },
     };
 }

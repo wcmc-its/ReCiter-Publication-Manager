@@ -13,7 +13,7 @@ const authHandler = async (req, res) => {
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-export const options = {
+export const authOptions = {
 	debug: true,
       providers: [
     CredentialsProvider({
@@ -186,5 +186,6 @@ export const options = {
   secret: process.env.NEXTAUTH_SECRET,
 };
 
-export default authHandler;
+export default NextAuth(authOptions);
+//export default authHandler;
 
