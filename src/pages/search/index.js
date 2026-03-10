@@ -13,7 +13,7 @@ import { authOptions } from "../api/auth/[...nextauth]"; // MUST import this
     console.log("DEBUG - Secret used:", process.env.NEXTAUTH_SECRET ? "Exists" : "MISSING");
     console.log("DEBUG - Node Env:", process.env.NODE_ENV);
 
-    const session = await getSServerSession(ctx.req,ctx.res, authOptions);
+    const session = await getServerSession(ctx.req,ctx.res, authOptions);
     console.log('Search page - session exists:', session);
     const userPermissions = JSON.parse(session?.data?.userRoles);
     //console.log('Search page - session exists:', !!session);

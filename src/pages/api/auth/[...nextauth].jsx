@@ -71,12 +71,17 @@ export const authOptions = {
             const cookieHeader = req.headers?.cookie;
             console.log('SAML cookieHeader length:', cookieHeader?.length);
             if (!cookieHeader) return null;
-           const bridgeCookie = cookieHeader
+          /* const bridgeCookie = cookieHeader
                                           .split(';')
                                           .find(c => c.trim().startsWith('saml_bridge='))
-                                          ?.split('=')[1];
-            console.log('SAML bridgeCookie found:', !!bridgeCookie);
+                                          ?.split('=')[1];*/
 
+            const bridgeCookie = cookieHeader
+                                          .split('; ')
+                                          .find(row => row.startsWith('saml_bridge='))
+                                          ?.replace('saml_bridge=', '');                              
+            console.log('SAML bridgeCookie found:', !!bridgeCookie);
+            if (!bridgeCookie) return null;
             const samlUser = JSON.parse(decrypt(decodeURIComponent(bridgeCookie)));
             console.log("samlUser in authorize method read from cookie", samlUser);                                
             const samlUserEmail = samlUser?.email;
