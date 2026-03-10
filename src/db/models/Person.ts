@@ -127,6 +127,7 @@ export class Person extends Model<PersonAttributes, PersonCreationAttributes> im
   }, {
     sequelize,
     tableName: 'person',
+    modelName: 'Person',
     timestamps: false,
     indexes: [
       {

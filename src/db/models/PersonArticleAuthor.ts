@@ -72,6 +72,7 @@ export class PersonArticleAuthor extends Model<PersonArticleAuthorAttributes, Pe
   }, {
     sequelize,
     tableName: 'person_article_author',
+    modelName: 'PersonArticleAuthor',
     timestamps: false,
     indexes: [
       {
