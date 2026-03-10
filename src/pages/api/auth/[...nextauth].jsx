@@ -6,14 +6,14 @@ import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,veri
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
 
-const authHandler = async (req, res) => {
+/*const authHandler = async (req, res) => {
     console.log('NextAuth handler called - Method:', req.method, 'URL:', req.url);
     await NextAuth(req, res, options);
-};
+};*/
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-export const options = {
+export const authOptions = {
 	debug: true,
       providers: [
     CredentialsProvider({
@@ -185,6 +185,6 @@ export const options = {
  
   secret: process.env.NEXTAUTH_SECRET,
 };
-
-export default authHandler;
+export default NextAuth(authOptions);
+//export default authHandler;
 
