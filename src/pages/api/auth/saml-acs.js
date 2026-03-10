@@ -30,6 +30,7 @@ export default async function handler(req, res) {
         res.redirect(302, '/auth/finalize');
     }
     catch (err) {
-    res.redirect('/auth/error?error=Callback_Error');
+      console.error("[SAML-ACS]", err)
+      res.redirect('/auth/error?error=Callback_Error');
   }
 }
