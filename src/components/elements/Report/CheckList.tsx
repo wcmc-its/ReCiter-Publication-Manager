@@ -1,86 +1,57 @@
-import React, { useState,useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { DropdownWrapper } from "../Common/DropdownWrapper";
-import { Form } from "react-bootstrap";
 import styles from "./ChecboxSelect.module.css";
 import { setReportFilterLabels } from "../../../utils/constants";
 
-export const CheckList = ({ reportFiltersLabes,title, options, onUpdateFilter, filterName, selectedOptions,isFilterClear }) => {
+const positionDescriptions: Record<string, string> = {
+  first: "Article's first listed author",
+  last: "Corresponding / senior author",
+};
+
+export const CheckList = ({ reportFiltersLabes, title, options, onUpdateFilter, filterName, selectedOptions, isFilterClear }) => {
   const [selectedList, setSelectedList] = useState<any>([]);
 
-  const onSelect = (event) => {
-    let value = event.target.value;
-    let checked = event.target.checked;
+  const onSelect = (key: string) => {
+    const isChecked = selectedOptions && selectedOptions.includes(key);
     let updatedSelected = [];
 
-    if (checked) {
-      updatedSelected = [...(selectedOptions || []), value]
-
-      // find the option
-      let optionObj = options.find(option => option.key == value);
-      // add to the selected list state to display at the bottom of the options
+    if (!isChecked) {
+      updatedSelected = [...selectedOptions, key];
+      let optionObj = options.find(option => option.key === key);
       if (optionObj) {
-        let updatedList = [...selectedList, optionObj];
-        setSelectedList(updatedList);
+        setSelectedList([...selectedList, optionObj]);
       }
     } else {
-      updatedSelected = (selectedOptions || []).filter(option => option != value)
-
-      // remove from the selected list state
-      let updatedList = selectedList.filter(item => item.key != value);
-      setSelectedList(updatedList);
+      updatedSelected = selectedOptions.filter(option => option !== key);
+      setSelectedList(selectedList.filter(item => item.key !== key));
     }
     onUpdateFilter(filterName, updatedSelected);
   }
 
   useEffect(() => {
-
-    if(selectedList) setSelectedList([]);
-
-  }, [isFilterClear ])
+    if (selectedList) setSelectedList([]);
+  }, [isFilterClear])
 
   return (
-    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && Array.isArray(selectedOptions) && selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
       <div>
-        {
-          options.map((option) => {
-            if (selectedOptions && selectedOptions.includes(option.key)) {
-              return null;
-            } else {
-              return (
-                <Form.Check
-                  type="checkbox"
-                  id={option.key}
-                  key={option.key}
-                  label={option.label}
-                  value={option.key}
-                  checked={selectedOptions && selectedOptions.includes(option.label)}
-                  onChange={(e) => onSelect(e)}
-                  />
-              )
-            }
-          })
-        }
-        {
-          selectedList.length > 0 && 
-          <div className={styles.selectFiltersContainer}>
-            <div className={styles.divider}></div>
-              {
-                selectedList.map((item, index) => {
-                  return (
-                    <Form.Check
-                    type="checkbox"
-                    id={item.key}
-                    key={item.key}
-                    label={item.label}
-                    value={item.key}
-                    checked={selectedOptions && selectedOptions.includes(item.key)}
-                    onChange={(e) => onSelect(e)}
-                    />
-                  )
-                })
-              }
-          </div>
-        }
+        {options.map((option) => {
+          const isChecked = selectedOptions && selectedOptions.includes(option.key);
+          const desc = positionDescriptions[option.key];
+          return (
+            <div
+              key={option.key}
+              className={styles.posItem}
+              onClick={() => onSelect(option.key)}
+            >
+              <div className={isChecked ? styles.cbOn : styles.cb} />
+              <div>
+                <div className={styles.posLabel}>{option.label} author</div>
+                {desc && <div className={styles.posDesc}>{desc}</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </DropdownWrapper>
   )

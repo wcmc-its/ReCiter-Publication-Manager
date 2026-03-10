@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useHistory } from 'react-router-dom';
 import appStyles from './App.module.css';
 import { useSelector, useDispatch } from "react-redux";
 import { identityFetchData, reciterFetchData } from '../../../redux/actions/actions'
@@ -10,12 +9,11 @@ import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import {useSession } from "next-auth/react"
+import {getSession } from "next-auth/react"
 
 const App = (props) => {
 
     const dispatch = useDispatch()
-    const history = useHistory()
 
     const reciterFetching = useSelector((state) => state.reciterFetching)
     const reciterData = useSelector((state) => state.reciterData)
@@ -26,7 +24,7 @@ const App = (props) => {
 
     const [tabActive, setTabActive] = useState("Suggested")
     const [identityData, setIdentityData] = useState({})
-    const session = useSession();
+    const session = getSession();
 
     useEffect(() => {
         // Call only if user has curator_self role. otherwise, we should not call these APIs.

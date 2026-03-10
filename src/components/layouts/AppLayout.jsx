@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { Row, Col } from "react-bootstrap";
 import SideNavbar from "../elements/Navbar/SideNavbar";
 import { Footer } from "../elements/Footer/Footer";
 import Header from "../elements/Header/Header";
@@ -18,7 +17,7 @@ export const AppLayout = ({ children }) => {
   const router = useRouter();
   const dispatch = useDispatch();
 
-  const { data: session, status } = useSession();  // Updated for NextAuth v4
+  const { data: session, status } = useSession();
   const errors = useSelector((state) => state.errors);
 
   useEffect(() => {
@@ -60,19 +59,16 @@ export const AppLayout = ({ children }) => {
 
   return session?.data?.databaseUser?.status === 1 ? (
     <>
-      <Row>
-        <Col lg={expandedNav ? 2 : 1}>
-          <ExpandNavContext.Provider value={{ expand: expandedNav, updateExpand: toggleExpand }}>
-            <SideNavbar />
-          </ExpandNavContext.Provider>
-        </Col>
-        <Col lg={expandedNav ? 10 : 11}>
-          <div className={expandedNav ? styles.expandedSideBarContent : styles.nonExpandedSideBarContent}>
-            {children}
-          </div>
-          {reciterConfig?.showToasts ? <ToastContainerWrapper /> : null}
-        </Col>
-      </Row>
+      <ExpandNavContext.Provider
+          value={{ expand: expandedNav, updateExpand: toggleExpand }}
+        >
+          <SideNavbar />
+        </ExpandNavContext.Provider>
+      <div className={expandedNav ? styles.expandedSideBarContent : styles.nonExpandedSideBarContent}>
+        {children}
+        <Footer />
+        {reciterConfig?.showToasts ? <ToastContainerWrapper /> : null}
+      </div>
     </>
   ) : (
     <NoAccess />

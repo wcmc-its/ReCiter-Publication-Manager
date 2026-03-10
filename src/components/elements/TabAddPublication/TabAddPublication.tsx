@@ -4,7 +4,8 @@ import styles from './TabAddPublication.module.css';
 import appStyles from '../App/App.module.css';
 import AddPublication from '../AddPublication/AddPublication';
 import { reciterUpdatePublication, pubmedFetchData, UpdatePubMadeData, reCalcPubMedPubCount, clearPubMedData, addPubMedFetchMoreData, clearPubMedFetchMoreData } from '../../../redux/actions/actions'
-import { RootStateOrAny, useSelector, useDispatch } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
 import DatePicker from 'react-datepicker';
@@ -12,7 +13,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { useSession } from "next-auth/react";
 // import { VrpanoSharp, ClearIcon } from "@mui/icons-material";
 import ClearIcon from '@mui/icons-material/Clear';
-import { Form, Button } from "react-bootstrap"
 import { toast } from "react-toastify"
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import { publicationsPreviousDataFetching } from "../../../redux/reducers/reducers";
@@ -28,10 +28,6 @@ interface FuncProps {
 }
 
 const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
-
-
-
-
 
     const dispatch = useDispatch()
 
@@ -423,152 +419,118 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         dispatch(clearPubMedFetchMoreData())
     }
 
+    const getCurationStatus = (pmid: number): 'ACCEPTED' | 'REJECTED' | null => {
+        const allArticles = reciterData?.reciter?.reCiterArticleFeatures || [];
+        const found = allArticles.find((a: any) => a.pmid === pmid);
+        if (found?.userAssertion === 'ACCEPTED') return 'ACCEPTED';
+        if (found?.userAssertion === 'REJECTED') return 'REJECTED';
+        return null;
+    };
+
     const currentYear = new Date().getFullYear();
     //read only input for year picker
     const ReadOnlyInput = React.forwardRef((props, ref) => (
         <input {...props} ref={ref} readOnly />
     ));
-ReadOnlyInput.displayName = 'ReadOnlyInput';
+    ReadOnlyInput.displayName = 'ReadOnlyInput';
+
     return (
         <div>
-            <div className={styles.addPublicationSearchContainer}>
-                <div className="row">
-                    <Form onSubmit={searchFunction} style={{ display: "flex" }}>
-                        <div className="col-md-5">
-                            <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Search..."
-                                onChange={(e) => { setPubmedSearch(e.target.value) }}
-                                // defaultValue={(pubmedSearch !== undefined)?pubmedSearch:''}
-                                value={pubmedSearch}
-                            />
-                        </div>
-                        <div className={`col-md-2 ${styles.adjustColPostion}`}>
-                            <label className={styles.yearLabel}>Earliest</label>
-                            <div className="show-rows">
-                                <DatePicker
-                                    placeholderText="Years"
-                                    selected={(earliestYear !== undefined) ? earliestYear : (earliestYear !== undefined) ? earliestYear : ''}
-                                    onChange={(year: string) => {
-                                        setEarliestYear(year);
-                                    }}
-                                    showYearPicker
-                                    dateFormat="yyyy"
-                                    className={styles.yeardropdownborder}
-                                    id={'year'}
-                                    name={'year'}
-                                    optionClasses={'option classes'}
-                                    minDate={new Date(currentYear - 20, 0)}
-                                    // minDate={earliestYear ? new Date(Number(earliestYear), 0, 1) : new Date(currentYear - 20, 0, 1)} 
-                                    maxDate={new Date(currentYear, 11, 31)}
-                                    customInput={<ReadOnlyInput />}
-                                />
-                            </div>
-                        </div>
-                        <div className={`col-md-2 ${styles.adjustColPostion}`} >
-                            <label className={styles.yearLabel}>Latest</label>
-                            <div className="show-rows">
-                                <DatePicker
-                                    selected={(latestYear !== undefined) ? latestYear : (latestYear !== undefined) ? latestYear : ''}
-                                    onChange={(year: string) => {
-                                        setLatestYear(year);
-                                    }}
-                                    showYearPicker
-                                    dateFormat="yyyy"
-                                    placeholderText="Years"
-                                    className={styles.yeardropdownborder}
-                                    id={'year'}
-                                    name={'year'}
-                                    optionClasses={'option classes'}
-                                    minDate={new Date(currentYear - 20, 0)}
-                                    // maxDate={latestYear ? new Date(Number(latestYear), 5, 31) : new Date(currentYear, 5, 31)} 
-                                    maxDate={new Date(currentYear, 11, 31)}
-                                    showYearDropdown
-                                    dropdownMode="select"
-                                    customInput={<ReadOnlyInput />}
-                                />
-
-                            </div>
-                        </div>
-
-                        <div className={`col-md-2 ${styles.adjustColPostion}`}>
-                            <Button
-                                className={styles.searchButtonCss}
-                                onClick={searchFunction}
-                                type="submit"
-                            >Search</Button>
-                            <a className={styles.resetButtonCss} onClick={clearFilters}>Reset</a>
-                        </div>
-                    </Form>
-
-                </div>
-                <div className={`row ${styles.filterSecbgColor}`}>
-                    <div className="col-md-4">
-                        {
-                            showFiltersCount ? <>
-                                <p className={styles.totalresult}><b>{allPubs}</b></p>
-                                <p className={styles.totalresult}>{acceptRejecteMsg}</p></> : ""
-                        }
+            {/* Search panel */}
+            <div className={styles.searchPanel}>
+                <form className={styles.searchForm} onSubmit={searchFunction}>
+                    <div className={styles.searchInputWrapper}>
+                        <svg className={styles.searchIcon} width="14" height="14" viewBox="0 0 24 24" fill="#9ca3af"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        <input
+                            type="text"
+                            className={styles.searchInput}
+                            placeholder="Search PubMed..."
+                            onChange={(e) => { setPubmedSearch(e.target.value) }}
+                            value={pubmedSearch}
+                        />
                     </div>
-                    <div className="col-md-8" style={{ float: "right" }}>
-                        <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed" />
-                    </div>
-                </div>
-
+                    <label className={styles.yearSelectLabel}>From</label>
+                    <DatePicker
+                        placeholderText="Year"
+                        selected={(earliestYear !== undefined && earliestYear !== '') ? earliestYear : null}
+                        onChange={(year: string) => setEarliestYear(year)}
+                        showYearPicker
+                        dateFormat="yyyy"
+                        className={styles.yearSelect}
+                        id={'earliestYear'}
+                        name={'earliestYear'}
+                        minDate={new Date(currentYear - 20, 0)}
+                        maxDate={new Date(currentYear, 11, 31)}
+                        customInput={<ReadOnlyInput />}
+                    />
+                    <label className={styles.yearSelectLabel}>To</label>
+                    <DatePicker
+                        placeholderText="Year"
+                        selected={(latestYear !== undefined && latestYear !== '') ? latestYear : null}
+                        onChange={(year: string) => setLatestYear(year)}
+                        showYearPicker
+                        dateFormat="yyyy"
+                        className={styles.yearSelect}
+                        id={'latestYear'}
+                        name={'latestYear'}
+                        minDate={new Date(currentYear - 20, 0)}
+                        maxDate={new Date(currentYear, 11, 31)}
+                        customInput={<ReadOnlyInput />}
+                    />
+                    <button type="submit" className={styles.searchBtn}>Search PubMed</button>
+                    <button type="button" className={styles.resetBtn} onClick={clearFilters}>Reset</button>
+                </form>
             </div>
 
-            {
+            {/* Results bar */}
+            {showFiltersCount && (
+                <div className={styles.resultsBar}>
+                    <span className={styles.resultsText}>{allPubs}</span>
+                    {acceptedCountState > 0 && (
+                        <span className={styles.pillAccepted}>{'\u2713'} {acceptedCountState} already accepted</span>
+                    )}
+                    {rejectedCountState > 0 && (
+                        <span className={styles.pillRejected}>{'\u2717'} {rejectedCountState} already rejected</span>
+                    )}
+                    <span className={styles.resultsFilterSpacer} />
+                    <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed" />
+                </div>
+            )}
 
-                (!pubmedFetchingMore && !pubmedFetchingMore.message) ?
-
-                    (pubmedFetching) ? <div className={appStyles.appLoader}></div> :
-                        <div>
-                            {(publications?.paginatedPublications?.length > 0) ?
-                                <div>
-                                    {/* <div className={`row ${styles.filterSecbgColor}`}>
-                                        <div className="col-md-4">
-                                            <p className={styles.totalresult}><strong>{allPubs}</strong></p>
-                                            <p className={styles.totalresult}><span><strong>{acceptedCountState}</strong> already accepted, <strong>{rejectedCountState}</strong> already rejected</span></p>
-                                        </div>
-                                        <div className="col-md-8" style={{ float: "right" }}>
-                                            <Filter onChange={handleFilterUpdate} showSort={false} />
-                                        </div>
-                                    </div> */}
-
-                                    {
-
-                                        <React.Fragment>
-                                            {/* <Pagination total={pubmedData.length} page={page}
-                                                    count={count}
-                                                    onChange={handlePaginationUpdate}/> */}
-                                            <div className="table-responsive">
-                                                <table className=" table table-striped">
-                                                    <tbody>
-                                                        {
-                                                            publications?.paginatedPublications?.map(function (item: any, index: number) {
-                                                                return <AddPublication item={item} key={index}
-                                                                    onAccept={acceptPublication}
-                                                                    onReject={rejectPublication} />;
-                                                            })
-                                                        }
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                            {/*  <Pagination total={publications.filteredPublications.length}
-                                                    page={page} count={count}
-                                                    onChange={handlePaginationUpdate}/> */}
-                                        </React.Fragment>
-
-                                    }
-
-                                </div>
-                                : ""
-                            }
+            {/* Results */}
+            {(!pubmedFetchingMore && !pubmedFetchingMore.message) ? (
+                pubmedFetching ? (
+                    <div style={{ padding: '12px 24px' }}>
+                        <div className={styles.loadingRow}>
+                            <div className={styles.spinner} />
+                            <span>Searching PubMed…</span>
                         </div>
-                    :
-                    <div style={{ display: "flex" }} className={`${styles.noDataFoundTxet}`}><ClearIcon style={{ color: "#ffffff", backgroundColor: "red", borderRadius: "50%", fontSize: "15px", margin: "5px" }} color="danger" /><p>{pubmedFetchingMore.message}</p></div>
-            }
+                        <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
+                        <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '65%' }} /><div className={styles.skAuthors} style={{ width: '48%' }} /><div className={styles.skMeta} style={{ width: '33%' }} /></div>
+                        <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '80%' }} /><div className={styles.skAuthors} style={{ width: '58%' }} /><div className={styles.skMeta} style={{ width: '42%' }} /></div>
+                    </div>
+                ) :
+                <div>
+                    {publications?.paginatedPublications?.length > 0 && (
+                        <div className={styles.pubCardList}>
+                            {publications.paginatedPublications.map((item: any, index: number) => (
+                                <AddPublication
+                                    item={item}
+                                    key={index}
+                                    onAccept={acceptPublication}
+                                    onReject={rejectPublication}
+                                    curationStatus={getCurationStatus(item.pmid)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div style={{ display: "flex" }} className={styles.noDataFoundTxet}>
+                    <ClearIcon style={{ color: "#ffffff", backgroundColor: "red", borderRadius: "50%", fontSize: "15px", margin: "5px" }} color="danger" />
+                    <p>{pubmedFetchingMore.message}</p>
+                </div>
+            )}
             <ToastContainerWrapper />
         </div>
     );

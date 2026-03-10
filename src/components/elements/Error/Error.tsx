@@ -13,7 +13,7 @@ const Error: React.FC = () => {
             <Row>
                 <span className={styles.errorText}>
                     {
-                        "Something went wrong. Please try again later."
+                        "We encountered an unexpected error. Please refresh the page or try again later."
                     }
                 </span>
             </Row>

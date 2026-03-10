@@ -1091,10 +1091,14 @@ export const fetchAdminSettingsAction = () => (dispatch) => {
         return response.json();
     })
     .then(data => {
-        // 2. Success: Update Redux store
+        // 2. Success: Parse viewAttributes and update Redux store
+        const parsed = (data || []).map(obj => ({
+            ...obj,
+            viewAttributes: typeof obj.viewAttributes === 'string' ? JSON.parse(obj.viewAttributes) : obj.viewAttributes
+        }));
         dispatch({
             type: methods.ADMIN_SETTINGS_UPDATED_LIST,
-            payload: data
+            payload: parsed
         });
     })
     .catch(error => {
