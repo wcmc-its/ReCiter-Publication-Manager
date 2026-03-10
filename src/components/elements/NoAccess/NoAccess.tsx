@@ -6,8 +6,7 @@ import { useSession } from 'next-auth/react';
 
 
 const NoAccess: React.FC = () => {
-//   const [session, loading] = useSession();
-const { data: session, status } = useSession();
+  const { data: session, status } = useSession(); const loading = status === "loading";
   const [noUserRoles, setNoUserRoles] = useState(false)
 
     useEffect(()=>{

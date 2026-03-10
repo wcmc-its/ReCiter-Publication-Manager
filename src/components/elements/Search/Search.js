@@ -8,23 +8,24 @@ import appStyles from '../App/App.module.css';
 import publicationStyles from '../Publication/Publication.module.css';
 import { useSession } from 'next-auth/react';
 import SearchBar from "./SearchBar";
-import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
+import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import { styled } from '@mui/material/styles';
 import { Table,Button} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
-import { useHistory } from "react-router-dom";
 import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 import Profile from "../Profile/Profile";
 
 const Search = () => {
 
-  const { data: session, status } = useSession();
-  console.log("session,data,status: ", session, status);
+  const { data: session, status } = useSession(); const loading = status === "loading";
+
   const router = useRouter()
-  const history = useHistory();
   const dispatch = useDispatch()
 
   const identityAllData = useSelector((state) => state.identityAllData)
@@ -47,7 +48,7 @@ const Search = () => {
   const [isUserRole, setIsuserRole] = useState([])
 
   const [page, setPage] = useState(1)
-  const [count, setCount] = useState(20)
+  const [count, setCount] = useState(100)
   const [filterByPending, setFilterByPending] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [countAllData, setCountAllData] = useState(0);
@@ -67,29 +68,28 @@ const Search = () => {
   const [showProfileID, setShowprofileID] = useState("");
   const [headShot, setHeadShot] = useState([]);
   const [viewProfileLabels, setViewProfileLabels] = useState([])
+  const [selectedAction, setSelectedAction] = useState("Curate Publications")
   
   //ref
   const searchValue = useRef()
-  
+
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
     dispatch(clearFilters())
-    let adminSettings =[];
-    if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim())  
-       adminSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings);
-    let viewAttributes = [];
+    var viewAttributes = [];
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
       viewAttributes = updatedData.viewAttributes;
 
-      let cwidLabel = viewAttributes && Array.isArray(viewAttributes) && viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel)
-    } else {
+    } else if (session?.adminSettings) {
       // regular settings from session
-      let data = adminSettings && Array.isArray(adminSettings) && adminSettings.find(obj => obj.viewName === "findPeople")
-      viewAttributes = data && JSON.parse(data.viewAttributes)
-      let cwidLabel = viewAttributes && viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+      let adminSettings = JSON.parse(session.adminSettings);
+      let data = adminSettings.find(obj => obj.viewName === "findPeople")
+      viewAttributes = JSON.parse(data.viewAttributes)
+      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel)
     }
 
@@ -401,10 +401,47 @@ const Search = () => {
   const handleClose = () => setShowprofile(false);
   const handleShow = () => setShowprofile(false);
 
+  const handleGoAction = () => {
+    dispatch(updatePubFiltersFromSearch());
+    if (selectedAction === "Curate Publications") {
+      dispatch(curateIdsFromSearch(identities.paginatedIdentities))
+      router.push({ pathname: '/curate' })
+    } else if (selectedAction === "Create Reports") {
+      router.push('/report');
+    }
+  }
+
+  const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
+    marginLeft: '8px',
+    borderRadius: '5px',
+    overflow: 'hidden',
+    border: '1px solid #ddd7ce',
+    '& .MuiToggleButtonGroup-grouped': {
+      textTransform: 'none',
+      border: 'none',
+      borderRadius: '0 !important',
+      fontSize: '12px',
+      fontWeight: 600,
+      fontFamily: '"DM Sans", sans-serif',
+      padding: '5px 12px',
+      minHeight: 'auto',
+      lineHeight: 'normal',
+      color: '#8a94a6',
+      backgroundColor: '#eeeae4',
+    },
+    '& .MuiToggleButton-root.MuiButtonBase-root.Mui-selected': {
+      color: '#fff',
+      backgroundColor: '#1a2133',
+      '&:hover': {
+        backgroundColor: '#252d42',
+      }
+    }
+  }));
+
   const resetData = () => {
     dispatch(clearFilters())
     setPage(1)
-    setCount(20)
+    setCount(100)
     fetchPaginatedData('reset')
     fetchCount()
   }
@@ -533,15 +570,18 @@ const Search = () => {
           <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)}></Name>
         }
         </td>
-        <td key={`${identityIndex}__orgUnit`} width="20%">
+        <td key={`${identityIndex}__orgUnit`} width="20%" className={styles.colOrg}>
           {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
         </td>
-        <td key={`${identityIndex}__institution`} width="20%">
+        <td key={`${identityIndex}__institution`} width="20%" className={styles.colInst}>
           {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
         </td>
-        {isCuratorAll || isSuperUser  ? 
-        <td key={`${identityIndex}__pending`} width="10%">
-          {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
+        {isCuratorAll || isSuperUser  ?
+        <td key={`${identityIndex}__pending`} width="10%" className={styles.colPending}>
+          {identity.countPendingArticles ?
+            <span className={styles.pendingBadgeHas}>{identity.countPendingArticles}</span> :
+            <span className={styles.pendingBadgeNone}>0</span>
+          }
         </td>
          : ""}
         <td key={`${identityIndex}__dropdown`} width="20%">
@@ -568,26 +608,60 @@ const Search = () => {
     <div className={appStyles.mainContainer}>
       <div className={styles.searchContentContainer}>
         <div className={styles.searchBar}>
-          <h1>Find People</h1>
+          <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Find People</h1>
           <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
           {(isDisplayLoader()) ?
             (
               <Loader />
             ) : (
               <div>
-                <br />
-                {!filtersOn &&
-                  <div className="row">
-                    <div className="col-md-4">
-                      <h3><strong>{ numberFormation(totalCountUpdated)}</strong> people</h3>
+                <div className={styles.resultsBar}>
+                  <div className={styles.resultsCount}>
+                    <span className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</span>
+                    <span className={styles.resultsCountLabel}>{filtersOn ? 'people found using filters' : 'people'}</span>
+                  </div>
+                  {filtersOn && (
+                    <div className={styles.resultsRight}>
+                      {(isCuratorAll || isSuperUser) && (
+                        <div className={styles.pendingFilter}>
+                          <span className={styles.pendingFilterLabel}>Show only pending</span>
+                          <StyledToggleButtonGroup
+                            color="primary"
+                            value={filterByPending}
+                            exclusive
+                            onChange={(e, val) => { handlePendingFilterUpdate(val); }}
+                          >
+                            <ToggleButton value={false}>No</ToggleButton>
+                            <ToggleButton value={true}>Yes</ToggleButton>
+                          </StyledToggleButtonGroup>
+                        </div>
+                      )}
+                      <span className={styles.actionLabel}>Go to</span>
+                      <div className={styles.actionSelectWrap}>
+                        <select
+                          className={styles.actionSelect}
+                          value={selectedAction}
+                          onChange={(e) => setSelectedAction(e.target.value)}
+                        >
+                          <option value="Curate Publications">Curate Publications</option>
+                          {dropdownMenuItems.filter(i => i.title).map(item => (
+                            <option key={item.title} value={item.title}>{item.title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button className={styles.btnGo} onClick={handleGoAction}>
+                        Go
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+                      </button>
                     </div>
-                  </div>}
-                {filtersOn && <FilterReview count={totalCountUpdated}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} showPendingToggle = {isCuratorAll || isSuperUser} />}
+                  )}
+                </div>
                 <React.Fragment>
                   <Pagination total={totalCountUpdated} page={page}
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
+                    merged
                   />
                   {isDisplayLoaderTable() ? <Loader /> :
                     <div className="table-responsive">
@@ -632,35 +706,25 @@ const Search = () => {
 }
 
 function Name(props) {
-  let nameArray = []
-  let imageUrl = ''
-  if (props.identity.identityImageEndpoint !== undefined) {
-    if (props.identity.identityImageEndpoint.length > 0)
-      imageUrl = props.identity.identityImageEndpoint
-    else
-      imageUrl = '../../../images/generic-headshot.png'
-  }
   let firstName = props.identity.firstName ?? ''
   let middleName = props.identity.middleName ?? ''
   let lastName = props.identity.lastName ?? ''
-  
 
-  if (props.identity.firstName !== undefined ) {
-    const nameString = `${firstName}  ${middleName} ${lastName}`
-    nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onClickProfile}>
-      <b>{nameString}</b>
-    </button>
-      <br />
-      {props.identity.title && <>{props.identity.title}<br /></>}
-      {props.nameOrcwidLabel}: {props.identity.personIdentifier}</p>)
-
+  if (props.identity.firstName !== undefined) {
+    const nameString = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, ' ').trim()
+    return (
+      <div>
+        <button className={styles.btnLink} onClick={props.onClickProfile}>
+          {nameString}
+        </button>
+        {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
+        <div className={styles.personCwid}>
+          <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}
+        </div>
+      </div>
+    )
   }
-  if (props.title) {
-    nameArray.push(<p key="1"><span>{props.title}</span></p>)
-  }
-  return (
-    nameArray
-  )
+  return null
 }
 
 export default Search

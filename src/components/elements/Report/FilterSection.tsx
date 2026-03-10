@@ -25,8 +25,8 @@ const filterNameToState = {
 const Buttons = ({ clearFilters, searchResults }) => {
   return (
     <div className="d-flex align-items-center">
-      <Button variant="warning" onClick={searchResults}>Search</Button>
-      <Button className="m-3 text-button transparent-button" onClick={clearFilters}>Reset</Button>
+      <Button variant="danger" onClick={searchResults}>Search</Button>
+      <Button variant="outline-secondary" size="sm" className="ms-3" onClick={clearFilters}>Reset</Button>
     </div>
   )
 }

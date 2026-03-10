@@ -3,8 +3,21 @@ import { styled, useTheme } from '@mui/material/styles';
 import MuiDrawer from '@mui/material/Drawer';
 import List from '@mui/material/List';
 import Divider from '@mui/material/Divider';
+import Typography from '@mui/material/Typography';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+// Custom inline SVG icons matching the design mockup
+const NavIcon = ({ children }: { children: React.ReactNode }) => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ flexShrink: 0 }}>
+    {children}
+  </svg>
+);
+const IconSearch = () => <NavIcon><circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l2.5 2.5"/></NavIcon>;
+const IconCurate = () => <NavIcon><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M5 5.5h6M5 10.5h4"/></NavIcon>;
+const IconReports = () => <NavIcon><path d="M2 12V4l5-2 5 2v8"/><path d="M7 14V9h2v5"/></NavIcon>;
+const IconPerson = () => <NavIcon><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></NavIcon>;
+const IconManageUsers = () => <NavIcon><path d="M8 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM3 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/><path d="M8 6v2M5.5 11H3.5M10.5 11h2"/></NavIcon>;
+const IconConfig = () => <NavIcon><circle cx="8" cy="8" r="2"/><path d="M8 2v1M8 13v1M2 8h1M13 8h1M3.5 3.5l.7.7M11.8 11.8l.7.7M11.8 4.2l-.7.7M4.2 11.8l-.7.7"/></NavIcon>;
 import SettingsIconGare from '../../../../public/images/settingsIconGare.png';
 import SettingsGareIconActive from '../../../../public/images/settingsWhite.png';
 import NestedListItem from './NestedListItem';
@@ -20,7 +33,8 @@ import facultyIconActive from '../../../../public/images/icon-side-faculty_index
 import settingsIconActive from '../../../../public/images/icon-side-faculty_admin-active.png';
 import chartIconActive from '../../../../public/images/icon-side-faculty_report-active.png';
 import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
-import { useSelector, RootStateOrAny } from "react-redux";
+import { useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from 'next-auth/react';
 
 
@@ -33,20 +47,31 @@ type drawer = {
     open: any
 }
 
-const drawerWidth = 240;
+const drawerWidth = 220;
 
 const openedMixin = (theme: any) => ({
-  top: 60,
+  top: 0,
   width: drawerWidth,
+  height: '100vh',
+  paddingTop: '52px',
+  zIndex: 999,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.enteringScreen,
   }),
-  backgroundColor: '#f5f5f5',
+  paddingBottom: '16px',
+  backgroundColor: '#1a2133',
+  borderRight: 'none',
+  boxShadow: 'none',
+  display: 'flex',
+  flexDirection: 'column' as const,
 });
 
 const closedMixin = (theme: any) => ({
-  top: 60,
+  top: 0,
+  height: '100vh',
+  paddingTop: '52px',
+  zIndex: 999,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
@@ -63,7 +88,12 @@ const closedMixin = (theme: any) => ({
   '& .MuiListItemText-root': {
     display: 'none'
   },
-  backgroundColor: '#f5f5f5',
+  paddingBottom: '16px',
+  backgroundColor: '#1a2133',
+  borderRight: '1px solid #2a3350',
+  boxShadow: 'none',
+  display: 'flex',
+  flexDirection: 'column' as const,
 });
 
 const DrawerHeader = styled('div')(({ theme }) => ({
@@ -78,16 +108,16 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 
 const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' })(
   ({ theme, open }: drawer) => ({
-    width: drawerWidth,
-    flexShrink: 0,
-    whiteSpace: 'nowrap',
-    boxSizing: 'border-box',
+    // Root element: invisible, takes no space in layout
+    width: 0,
+    height: 0,
+    overflow: 'visible',
+    position: 'fixed' as const,
+    // Paper element: the actual visible sidebar
     ...(open && {
-      ...openedMixin(theme),
       '& .MuiDrawer-paper': openedMixin(theme),
     }),
     ...(!open && {
-      ...closedMixin(theme),
       '& .MuiDrawer-paper': closedMixin(theme),
     }),
   }),
@@ -95,43 +125,61 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 
 const StyledList = styled(List)({
   paddingTop: '0px',
-  // selected and (selected + hover) states
+  backgroundColor: '#1a2133',
+  // Link wrappers: fill background to prevent subpixel seams
+  '& > a': {
+    display: 'block',
+    backgroundColor: '#1a2133',
+  },
+  // selected: active bg, white text, red left accent
   '&& .Mui-selected': {
-    backgroundColor: '#e87722',
-    '&, & .MuiListItemIcon-root': {
-      color: 'white',
-    },
+    backgroundColor: '#2d3a52',
+    borderLeft: '2px solid #e05a5a',
+    color: '#ffffff',
+    fontWeight: 500,
+    '& .MuiListItemIcon-root': { color: '#ffffff' },
+    '& .MuiListItemIcon-root svg': { opacity: 1 },
   },
   '&& .Mui-selected:hover': {
-    backgroundColor: '#bd5d16',
-    '&, & .MuiListItemIcon-root': {
-      color: 'white',
-    },
+    backgroundColor: '#2d3a52',
+    color: '#ffffff',
+    '& .MuiListItemIcon-root': { color: '#ffffff' },
   },
-  '& .MuiButtonBase-root:hover': {
-    backgroundColor: '#eee',
-    '&, & .MuiListItemIcon-root': {
-      color: '#222',
-    },
-  },
-  '& .MuiButtonBase-root': {
-    borderBottom: '1px solid #ccc',
-      '&, & .MuiListItemIcon-root': {
-        minWidth: '30px',
-    },
+  // hover: lighter bg, text goes white
+  '& .MuiListItem-root:hover': {
+    backgroundColor: '#242e44',
+    color: '#ffffff',
+    '& .MuiListItemText-primary': { color: '#ffffff' },
+    '& .MuiListItemIcon-root': { color: '#ffffff' },
+    '& .MuiListItemIcon-root svg': { opacity: 1 },
   },
   '& .MuiListItem-root': {
-    fontSize: '14px',
-    borderBottom: '1px solid #ccc',
-      '&, & .MuiListItemIcon-root': {
-        minWidth: '30px',
+    color: '#a8b4cc',
+    cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s',
+    padding: '9px 20px',
+    backgroundColor: '#1a2133',
+    borderTop: 'none',
+    borderRight: 'none',
+    borderBottom: 'none',
+    borderLeft: '2px solid transparent',
+    '& .MuiListItemIcon-root': {
+      minWidth: '16px',
+      color: '#a8b4cc',
+      marginRight: '10px',
+    },
+    '& .MuiListItemIcon-root svg': {
+      opacity: 0.7,
     },
   },
+  '& .MuiListItemText-root': {
+    margin: 0,
+    padding: 0,
+  },
   '& .MuiListItemText-primary': {
-    fontSize: '14px',
-    marginTop: '0px',
-    marginBottom: '0px',
-    fontFamily: 'Helvetica Neue',
+    fontSize: '13px',
+    lineHeight: 'normal',
+    fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
   '& .MuiBox-root': {
     '.MuiListItem-root': {
@@ -145,12 +193,15 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const [open, setOpen] = React.useState(true);
   const filters = useSelector((state: RootStateOrAny) => state.filters)
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
-   
+
   const [isCurateSelf, setIsCurateSelf] = React.useState(false);
   const [isVisibleNotification, setVisibleNotification] = React.useState(true);
 
 
-  const { data: session, status } = useSession(); 
+  const { data: session, status } = useSession(); const loading = status === "loading";
+
+  const userPermissions = JSON.parse(session.data.userRoles);
+  const isSuperuser = userPermissions.some((role: any) => role.roleLabel === "Superuser");
 
   const menuItems: Array<MenuItem> = [
     {
@@ -158,6 +209,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       to: '/search',
       imgUrl: facultyIcon,
       imgUrlActive: facultyIconActive,
+      muiIcon: <IconSearch />,
       disabled: false,
       allowedRoleNames: ["Superuser", "Curator_All","Reporter_All"],
       isRequired:true
@@ -167,7 +219,8 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       to: '/curate',
       imgUrl: SettingsIconTools,
       imgUrlActive: settingsIconActive,
-      disabled: (Object.keys(filters).length === 0),
+      muiIcon: <IconCurate />,
+      disabled: isSuperuser ? false : (Object.keys(filters).length === 0),
       allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
       isRequired:true
     },
@@ -176,6 +229,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       to: '/report',
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
+      muiIcon: <IconReports />,
       disabled: false,
       allowedRoleNames: ["Superuser","Reporter_All" ],
       isRequired:true
@@ -185,31 +239,35 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       to: `/notifications/${session.data.username}`,
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
+      muiIcon: <IconCurate />,
       disabled: false,
       allowedRoleNames: ["Department_user","Curator_Self","Superuser", "Curator_All"],
-      isRequired: isVisibleNotification && session.data.email ? true : false
+      isRequired: isSuperuser ? true : (isVisibleNotification && session.data.email ? true : false)
     },
     {
       title: 'Manage Profile',
       to: `/manageprofile/${session.data.username}`,
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
+      muiIcon: <IconPerson />,
       disabled: false,
       allowedRoleNames: ["Department_user","Curator_Self","Superuser", "Curator_All"],
       isRequired: true
     },
-    {title: 'Manage Users', 
-      to: '/manageusers', 
-      imgUrl: facultyIcon, 
-      imgUrlActive: facultyIconActive, 
+    {title: 'Manage Users',
+      to: '/manageusers',
+      imgUrl: facultyIcon,
+      imgUrlActive: facultyIconActive,
+      muiIcon: <IconManageUsers />,
       disabled: false,
       allowedRoleNames: ["Superuser"],
       isRequired:true
     },
-    {title: 'Configuration', 
-    to: '/configuration', 
-    imgUrl: SettingsIconGare, 
-    imgUrlActive: SettingsGareIconActive, 
+    {title: 'Configuration',
+    to: '/configuration',
+    imgUrl: SettingsIconGare,
+    imgUrlActive: SettingsGareIconActive,
+    muiIcon: <IconConfig />,
     disabled: false,
     allowedRoleNames: ["Superuser"],
     isRequired:true
@@ -261,39 +319,34 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   };
   
 
-  
   React.useEffect(()=>{
-
     var manageNotifications = [];
-    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
-      let updatedData = updatedAdminSettings.find((obj:any) => obj.viewName === "EmailNotifications")
-      manageNotifications = updatedData.viewAttributes?? [];
-    }else if(typeof updatedAdminSettings === 'string' && updatedAdminSettings.trim()) {
-        const parsedSettings = updatedAdminSettings && JSON.parse(updatedAdminSettings);
-        let data = parsedSettings?.find((obj:any) => obj.viewName === "EmailNotifications")
-        manageNotifications = data? JSON.parse(data.viewAttributes):[];
+    if (updatedAdminSettings.length > 0) {
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
+      manageNotifications = updatedData?.viewAttributes || [];
+    } else if (session?.adminSettings) {
+      let adminSettings = JSON.parse(JSON.stringify(session.adminSettings));
+      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
+      manageNotifications = data ? JSON.parse(data.viewAttributes) : [];
     }
-    let settingsObj = manageNotifications && Array.isArray(manageNotifications) && manageNotifications.find(data=> data.isVisible)
+    let settingsObj = manageNotifications.find(data=> data.isVisible)
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)
   },[])
 
   return (
     <Drawer variant="permanent" className='drawer-container' open={open} theme={theme}>
-      <DrawerHeader className={styles.drawerHeader}>
-        <div onClick={handleDrawerToggle} className={styles.sidebarControl}>
-          {open ? <span className={styles.hideSidebar}>compact mode</span> : ''}
-          {open ? <ChevronLeftIcon /> : <ChevronRightIcon /> }
-        </div>
-      </DrawerHeader>
-      <Divider />
-      <StyledList>
+      <StyledList sx={{ flexGrow: 1, paddingTop: '16px' }}>
+          {open && (
+            <Typography sx={{ padding: '12px 20px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(168,180,204,0.4)' }}>
+              Navigation
+            </Typography>
+          )}
           {
-            menuItems.map((item: MenuItem, index: number) => {
-              let userPermissions = JSON.parse(session.data.userRoles);
+            menuItems.slice(0, 5).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
-              return item.nestedMenu ? 
-                <NestedListItem 
+              return item.nestedMenu ?
+                <NestedListItem
                   header={item.title}
                   menuItems={item.nestedMenu}
                   key={index}
@@ -307,12 +360,47 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                   to={item.to}
                   imgUrl={item.imgUrl}
                   imgUrlActive={item.imgUrlActive}
+                  muiIcon={item.muiIcon}
+                  disabled={item.disabled}
+                />
+              }
+            })
+          }
+          {open && (
+            <Typography sx={{ padding: '12px 20px 6px', marginTop: '8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(168,180,204,0.4)' }}>
+              Admin
+            </Typography>
+          )}
+          {
+            menuItems.slice(5).map((item: MenuItem, index: number) => {
+              const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
+              if(matchedRoles.length >= 1 && item.isRequired){
+              return item.nestedMenu ?
+                <NestedListItem
+                  header={item.title}
+                  menuItems={item.nestedMenu}
+                  key={index + 5}
+                  imgUrl={item.imgUrl}
+                />
+                :
+                <MenuListItem
+                  title={item.title}
+                  key={index + 5}
+                  id={index + 5}
+                  to={item.to}
+                  imgUrl={item.imgUrl}
+                  imgUrlActive={item.imgUrlActive}
+                  muiIcon={item.muiIcon}
                   disabled={item.disabled}
                 />
               }
             })
           }
       </StyledList>
+      <div className={styles.compactToggle} onClick={handleDrawerToggle} style={{ marginTop: 'auto', borderTop: '1px solid #2a3350' }}>
+        {open && <span>Compact mode</span>}
+        {open ? <ChevronLeftIcon sx={{ fontSize: 16, color: '#4a5568' }} /> : <ChevronRightIcon sx={{ fontSize: 16, color: '#4a5568' }} />}
+      </div>
     </Drawer>
   )
 }

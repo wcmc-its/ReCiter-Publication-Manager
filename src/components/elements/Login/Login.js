@@ -5,7 +5,7 @@ import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import Router from "next/router"
 import Header from "../Header/Header"
-import { signIn,useSession, getSession } from "next-auth/react"
+import { signIn,getSession } from "next-auth/react"
 import { toast } from "react-toastify"
 import { allowedPermissions } from "../../../utils/constants";
 import { useRouter } from 'next/router'
@@ -16,22 +16,15 @@ const Login = () => {
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [isShowButton, setIsShowButton] = useState(true)
-    const session = useSession();
+    const session = getSession();
     const router = useRouter()
 
-    const validateForm = () => {
-        if(username === ''){
-            setIsShowButton(true)
-        } else if(password === '') {
-            setIsShowButton(true)
-        } else {
-            setIsShowButton(false)
-        }
-    }
+    useEffect(() => {
+        setIsShowButton(username === '' || password === '')
+    }, [username, password])
 
     const handleUserNameInput = e => {
         setUsername(e.target.value)
-        validateForm()
     }
 
     const handleSubmit = async(e) => {
@@ -49,7 +42,7 @@ const Login = () => {
                 theme: "colored"
             });
             //if(session && session.data && session.data.userRoles)
-            getSession().then((session) => {
+             getSession().then((session) => {
                 if (session) {
                     let userPermissions = session.data.userRoles && session.data.userRoles !="" && JSON.parse(session.data.userRoles);
                     let userName = session.data.username;
@@ -66,19 +59,17 @@ const Login = () => {
             });
             
         } else {
-            console.log("wrong credintials")
+            setInvalidCredentialsFlag(true)
             toast.error("Invalid credentials", {
                 position: "top-right",
                 autoClose: 2000,
                 theme: "colored"
             });
-            setInvalidCredentialsFlag(true)
         }
     }
 
     const handlePasswordInput = e => {
         setPassword(e.target.value)
-        validateForm()
     }
 
     return (
