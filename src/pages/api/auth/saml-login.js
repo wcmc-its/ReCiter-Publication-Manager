@@ -1,5 +1,6 @@
 import { ServiceProvider } from 'saml2-js';
 import { reciterSamlConfig }  from "../../../../config/saml";
+import zlib from "zlib";
 
 export default async function handler(req, res) {
   const sp = new ServiceProvider(reciterSamlConfig.samlOptions);
@@ -15,10 +16,23 @@ export default async function handler(req, res) {
   const samlRequest = new URL(loginUrl).searchParams.get("SAMLRequest");
   console.log("Raw SAMLRequest (base64):", samlRequest);
 
-  // Decode the Base64-encoded SAMLRequest
-    const decodedSAMLRequest = Buffer.from(samlRequest, "base64").toString("utf8");
-    console.log("Decoded AuthnRequest XML:", decodedSAMLRequest);
+ try {
 
+  const compressed = Buffer.from(samlRequest, "base64");
+
+  zlib.inflateRaw(compressed, (err, decoded) => {
+
+    if (err) {
+      console.error("Error inflating SAMLRequest:", err);
+    } else {
+      console.log("Decoded AuthnRequest XML:\n", decoded.toString());
+    }
+
+  });
+
+} catch (e) {
+  console.error("Failed decoding SAMLRequest", e);
+}
   const form = `
   <html>
     <body onload="document.forms[0].submit()">
