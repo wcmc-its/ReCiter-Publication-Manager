@@ -1,7 +1,9 @@
 import { getSession } from "next-auth/react"
 													   
 import { allowedPermissions } from "../utils/constants";
-import { authOptions } from "./api/auth/[...nextauth]";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./api/auth/[...nextauth]"; 
+
 
 export async function getServerSideProps(ctx) {
    try
