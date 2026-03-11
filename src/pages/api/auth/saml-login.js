@@ -10,8 +10,14 @@ export default async function handler(req, res) {
   if (err) {
     return res.status(500).send(err.message);
   }
+  console.log("Full login URL:", loginUrl);
 
   const samlRequest = new URL(loginUrl).searchParams.get("SAMLRequest");
+  console.log("Raw SAMLRequest (base64):", samlRequest);
+
+  // Decode the Base64-encoded SAMLRequest
+    const decodedSAMLRequest = Buffer.from(samlRequest, "base64").toString("utf8");
+    console.log("Decoded AuthnRequest XML:", decodedSAMLRequest);
 
   const form = `
   <html>
