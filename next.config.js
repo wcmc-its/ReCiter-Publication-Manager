@@ -1,8 +1,10 @@
-/** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,
   images: {
-    domains: ['directory.weill.cornell.edu'],
-  },
+    remotePatterns: [{ 
+        protocol: 'https',
+        hostname: 'directory.weill.cornell.edu',
+        pathname: '/**', // allows all paths on this host],
+  }],
   swcMinify: true,
 }
