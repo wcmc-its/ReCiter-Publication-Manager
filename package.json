@@ -50,7 +50,7 @@
     "redux-devtools-extension": "^2.13.9",
     "redux-thunk": "^2.3.0",
     "reflect-metadata": "^0.1.13",
-    "saml2-js": "^4.0.4",
+    "saml2-js": "^3.0.1",
     "sequelize": "^6.37.0",
     "slick-carousel": "^1.8.1",
     "slick-slider": "^1.8.2"
