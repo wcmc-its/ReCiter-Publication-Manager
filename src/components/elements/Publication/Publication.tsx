@@ -669,8 +669,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
 
                     </div>
-                    : <div>
-                        <span></span>
+                    : <div className={styles.publicationEvidenceBar}>
+                        <p className="text-muted fst-italic mt-2 mb-2" style={{fontSize: '14px'}}>
+                          Evidence data is not available for this article.
+                        </p>
                     </div>
             }
             <div className="clear-both"></div>
