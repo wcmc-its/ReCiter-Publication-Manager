@@ -1,4 +1,5 @@
 import React, { useState, FunctionComponent } from "react"
+import { Badge, Popover, OverlayTrigger } from "react-bootstrap"
 import styles from './AddPublication.module.css'
 import publicationStyles from '../Publication/Publication.module.css'
 
@@ -23,6 +24,13 @@ const AddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const { item } = props;
 
+    // Badge color based on score (1-10 scale: green >= 8, amber >= 4, red < 4)
+    const getBadgeClass = (score: number): string => {
+        if (score >= 8) return styles.pendingBadgeGreen;
+        if (score >= 4) return styles.pendingBadgeAmber;
+        return styles.pendingBadgeRed;
+    };
+
     return <tr className={`${styles.tableRows}`}>
         <td key="0" className={publicationStyles.publicationButtons}>
             <div>
@@ -42,6 +50,27 @@ const AddPublication: FunctionComponent<FuncProps> = (props) => {
         <td key="1" className={publicationStyles.publicationContent}>
             <p className={publicationStyles.publicationField}>
                 <strong>{item.title}</strong>
+                {item.isPending && (
+                    <OverlayTrigger
+                        trigger={["focus", "hover"]}
+                        overlay={
+                            <Popover id={`pending-badge-${item.pmid}`}>
+                                <Popover.Body>
+                                    Already in Suggested tab / Evidence score: {Math.round(item.pendingScore * 10)}
+                                </Popover.Body>
+                            </Popover>
+                        }
+                        placement="right"
+                    >
+                        <Badge
+                            pill
+                            bg=""
+                            className={getBadgeClass(item.pendingScore)}
+                        >
+                            Pending &middot; {Math.round(item.pendingScore * 10)}
+                        </Badge>
+                    </OverlayTrigger>
+                )}
                 {/* <span>{item.title}</span> */}
             </p>
             <p className={publicationStyles.publicationField}>
