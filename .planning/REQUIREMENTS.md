@@ -51,19 +51,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEDUP-01 | — | Pending |
-| DEDUP-02 | — | Pending |
-| DEDUP-03 | — | Pending |
-| FILT-01 | — | Pending |
-| FILT-02 | — | Pending |
-| MATCH-01 | — | Pending |
-| MATCH-02 | — | Pending |
+| DEDUP-01 | Phase 1 | Pending |
+| DEDUP-02 | Phase 1 | Pending |
+| DEDUP-03 | Phase 1 | Pending |
+| FILT-01 | Phase 1 | Pending |
+| FILT-02 | Phase 1 | Pending |
+| MATCH-01 | Phase 2 | Pending |
+| MATCH-02 | Phase 2 | Pending |
 
 **Coverage:**
 - v1 requirements: 7 total
-- Mapped to phases: 0
-- Unmapped: 7 (awaiting roadmap)
+- Mapped to phases: 7
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-15 after roadmap creation*
