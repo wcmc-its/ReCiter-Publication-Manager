@@ -26,11 +26,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A curator searching PubMed from a curation page does not see articles they have already rejected for that person
   3. Pending (suggested) articles appear in PubMed search results with a visible "Pending" badge and their evidence score
   4. After accepting or rejecting an article while a filter is active, the filter remains applied and the results update without resetting
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Client-side dedup, pending badge, filter persistence, and visual verification
 
 ### Phase 2: Author Identification
 **Goal**: Curators can visually identify the curated person in PubMed search result author lists and inspect their affiliations
@@ -51,5 +50,5 @@ Phases execute in numeric order: 1 -> 2
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Search Result Filtering | 0/? | Not started | - |
+| 1. Search Result Filtering | 0/1 | Not started | - |
 | 2. Author Identification | 0/? | Not started | - |
