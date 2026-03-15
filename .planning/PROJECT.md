@@ -27,16 +27,16 @@ PubMed search results should only show articles the curator hasn't already acted
 
 - [ ] Hide articles from PubMed search results that are already accepted for the curated person
 - [ ] Hide articles from PubMed search results that are already rejected for the curated person
-- [ ] Hide articles from PubMed search results that are pending (suggested) for the curated person
+- [ ] Show pending (suggested) articles in PubMed search results with inline "Pending" badge and evidence score
 - [ ] Preserve active filter state after accepting or rejecting an article in filtered PubMed search results
 - [ ] Highlight the curated person's name (and variants) in PubMed search result author lists
-- [ ] Show PubMed affiliation on hover for highlighted author names
+- [ ] Show stacked list of all PubMed affiliations on hover for highlighted author names
 
 ### Out of Scope
 
 - Matching against all ReCiter identities (not just the curated person) — complexity not justified for v1
 - Using ReCiter identity affiliations for hover — PubMed article data is sufficient
-- Showing accepted/rejected/pending articles with status badges — user prefers hiding entirely
+- Showing accepted/rejected articles with status badges — user prefers hiding entirely (pending articles get badge treatment)
 - Changes to the Suggested/Accepted/Rejected tabs — this work is only about PubMed search
 - PubMed search outside of the curation page context
 
@@ -60,7 +60,7 @@ PubMed search results should only show articles the curator hasn't already acted
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Hide duplicates rather than badge them | User preference — cleaner results, less cognitive load | — Pending |
+| Hide accepted/rejected, badge pending | Accepted/rejected = no action needed; pending = show with score for context | — Pending |
 | Use PubMed affiliations for hover (not ReCiter) | Already in API response, no extra call needed | — Pending |
 | Client-side duplicate filtering | Cannot modify ReCiter PubMed proxy API | — Pending |
 
