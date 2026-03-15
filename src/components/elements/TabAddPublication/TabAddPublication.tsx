@@ -127,7 +127,17 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         dispatch(reciterUpdatePublication(identityData.uid, request))
         dispatch(UpdatePubMadeData(updatedpubs))
 
-        props.updatePublicationAssertion( (pubmedPublications.length > 0 ? pubmedPublications[0] : ""), userAssertion = "ACCEPTED", props.tabType);
+        // Detect if article is pending (in Suggested tab) to update correct tab count
+        const acceptFeatureMap = new Map();
+        if (reciterData?.reciter?.reCiterArticleFeatures) {
+            reciterData.reciter.reCiterArticleFeatures.forEach((article) => {
+                acceptFeatureMap.set(article.pmid, { userAssertion: article.userAssertion });
+            });
+        }
+        const acceptFeatureData = acceptFeatureMap.get(id);
+        const isPendingArticle = acceptFeatureData && (acceptFeatureData.userAssertion === 'NULL' || acceptFeatureData.userAssertion === null || acceptFeatureData.userAssertion === undefined);
+
+        props.updatePublicationAssertion( (pubmedPublications.length > 0 ? pubmedPublications[0] : ""), "ACCEPTED", isPendingArticle ? "NULL" : props.tabType);
     }
 
     const rejectPublication = (id: number, userAssertion: string) => {
@@ -164,7 +174,18 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         }
         dispatch(reciterUpdatePublication(identityData.uid, request))
         dispatch(UpdatePubMadeData(updatedpubs))
-        props.updatePublicationAssertion((pubmedPublications.length > 0 ? pubmedPublications[0] : ""), userAssertion = "REJECTED", props.tabType);
+
+        // Detect if article is pending (in Suggested tab) to update correct tab count
+        const rejectFeatureMap = new Map();
+        if (reciterData?.reciter?.reCiterArticleFeatures) {
+            reciterData.reciter.reCiterArticleFeatures.forEach((article) => {
+                rejectFeatureMap.set(article.pmid, { userAssertion: article.userAssertion });
+            });
+        }
+        const rejectFeatureData = rejectFeatureMap.get(id);
+        const isPendingArticle = rejectFeatureData && (rejectFeatureData.userAssertion === 'NULL' || rejectFeatureData.userAssertion === null || rejectFeatureData.userAssertion === undefined);
+
+        props.updatePublicationAssertion((pubmedPublications.length > 0 ? pubmedPublications[0] : ""), "REJECTED", isPendingArticle ? "NULL" : props.tabType);
     }
 
 
@@ -176,7 +197,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             setEarliestYear(pubMedEarliestYear);
             setShowFiltersCount(pubMedshowFiltersCount);
         }
-        filter()
+        filter(search)
     }, [])
 
      useEffect(() => {
@@ -187,7 +208,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             setEarliestYear(pubMedEarliestYear);
             setShowFiltersCount(pubMedshowFiltersCount);
         }
-        filter()
+        filter(search)
     }, [pubmedData])
     
     var totalPubs = 0;
@@ -222,13 +243,22 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
           if(key.acceptedPubMedCount) {setAcceptCount(key.acceptedPubMedCount); acceptPubs = key.acceptedPubMedCount}
           else  { setRejectedCount(key.rejectedPubMedCount); rejectPubs = key.rejectedPubMedCount}
         })
-        //setAcceptCount(searchAcceptedCountTemp);
-        //setRejectedCount(searchRejectedCountTemp);
-        acceptRejecteMsg = <span><strong>{acceptPubs }</strong>{" already accepted "}<strong>{rejectPubs}</strong>{' already rejected'}</span>;
-        // acceptRejecteMsg = <b>{"text"}</b>
 
-        setAcceptRejecteMsg(acceptRejecteMsg)
-        
+        // Build featureMap from reCiterArticleFeatures for O(1) PMID lookups (dedup + pending annotation)
+        const featureMap = new Map();
+        if (reciterData?.reciter?.reCiterArticleFeatures) {
+            reciterData.reciter.reCiterArticleFeatures.forEach((article) => {
+                featureMap.set(article.pmid, {
+                    userAssertion: article.userAssertion,
+                    score: article.totalArticleScoreStandardized,
+                });
+            });
+        }
+
+        // Build set of pending feedback PMIDs (accepted/rejected via UI but not yet saved)
+        const pendingFeedbackPmids = new Set(reciterData?.reciterPending || []);
+
+        let pendingCount = 0;
 
         // Filter
         var filteredPublications: Array<any> = [];
@@ -237,6 +267,25 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
             pubmedData.forEach((publication: any) => {
                // if (!pubmedIds.includes(publication.pmid)) {
                 if (publication && publication.pmid) {
+                    // Client-side dedup: skip articles already acted on
+                    const featureData = featureMap.get(publication.pmid);
+                    if (featureData) {
+                        if (featureData.userAssertion === 'ACCEPTED' || featureData.userAssertion === 'REJECTED') {
+                            return; // Skip -- already acted on
+                        }
+                    }
+                    // Also skip if in pending feedback (accepted/rejected via UI but not yet saved to gold standard)
+                    if (pendingFeedbackPmids.has(publication.pmid)) {
+                        return;
+                    }
+
+                    // Annotate pending (suggested) articles with badge data
+                    if (featureData && (featureData.userAssertion === 'NULL' || featureData.userAssertion === null || featureData.userAssertion === undefined)) {
+                        publication.isPending = true;
+                        publication.pendingScore = featureData.score;
+                        pendingCount++;
+                    }
+
                     if (search !== "" && search !== undefined) {
                         if (/^[0-9 ]*$/.test(search)) {
                             var pmids = search.split(" ");
@@ -328,8 +377,12 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                 }
             })
 
-            
+
         }
+
+        // Build banner message after the loop so pendingCount is available
+        acceptRejecteMsg = <span><strong>{acceptPubs}</strong>{" already accepted "}<strong>{rejectPubs}</strong>{" already rejected"}{pendingCount > 0 && <>{", "}<strong>{pendingCount}</strong>{" pending"}</>}</span>;
+        setAcceptRejecteMsg(acceptRejecteMsg)
 
         var from = (page - 1) * count
         var to = from + count - 1
