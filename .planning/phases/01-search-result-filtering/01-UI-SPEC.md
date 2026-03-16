@@ -36,15 +36,17 @@ Declared values (must be multiples of 4). Derived from existing codebase pattern
 | xs | 4px | Inline gaps (e.g., badge margin from text) |
 | sm | 8px | Compact element spacing, skeleton line gaps |
 | md | 16px | Default element spacing, skeleton block gaps |
-| lg | 20px | Section padding (existing: main content uses 20px 40px) |
-| xl | 32px | Layout gaps, page horizontal padding matches existing 40px where contextual |
+| lg | 24px | Section padding, layout vertical gaps |
+| xl | 32px | Layout gaps, page horizontal padding |
 | 2xl | 48px | Major section breaks |
 | 3xl | 64px | Page-level spacing (not used in this phase) |
 
 Exceptions:
-- Main content area uses `padding: 20px 40px` (AppLayout.module.css) -- 40px horizontal is the established pattern, not a strict multiple of 4 but a multiple of 8. Preserve as-is.
-- Existing filter sections use `padding: 15px` and `padding: 10px 30px` -- preserve these existing values, do not refactor spacing in existing components.
+- Main content area uses `padding: 20px 40px` (AppLayout.module.css) -- this is a frozen legacy value. 40px is a multiple of 8 but 20px is not in the standard token scale. Preserve as-is in AppLayout; do not reference these values in new code.
+- Existing filter sections use `padding: 15px` and `padding: 10px 30px` -- these are frozen legacy values outside the token scale (15px and 30px are not multiples of 4). Do not change existing filter padding. Do not reference these values in new code written for this phase.
 - Skeleton components use the same padding/margin as the content they replace (matched to target component dimensions).
+
+**Rule:** New code in this phase must only use values from the token scale above. Legacy non-conforming values (15px, 20px, 30px, 40px) exist in the codebase but are not part of the design contract and must not be introduced in new components.
 
 ---
 
@@ -56,8 +58,12 @@ All values derived from existing `globals.css` and component CSS modules. No new
 |------|------|--------|-------------|-------------|
 | Body | 14px | 400 (regular) | 1.5 | Bootstrap 5 default (system stack) |
 | Label | 12px | 600 (semibold) | 1.2 | Bootstrap 5 default |
-| Page heading (h1) | 20px | 200 (light) | 1.3 | Open Sans, sans-serif, Arial |
-| Section heading | 28px | 500 (medium) | 40px (1.43) | Open Sans, sans-serif, Arial |
+| Page heading (h1) | 20px | 400 (regular) | 1.3 | Open Sans, sans-serif, Arial |
+| Section heading | 28px | 600 (semibold) | 40px (1.43) | Open Sans, sans-serif, Arial |
+
+**Declared weights for this phase: 400 (regular) and 600 (semibold) only.**
+
+Weights 200 and 500 exist in legacy CSS (`globals.css` h1 uses 200, `CuratePublications.module.css` section heading uses 500) -- do not introduce them in new code written for this phase. Existing instances are frozen; they will be addressed in Phase 2 (UI/UX Audit) if needed.
 
 Source: `globals.css` lines 86-92 (h1), `CuratePublications.module.css` line 10-15 (section heading), `Publication.module.css` line 32 (body/evidence table at 14px), `Publication.module.css` lines 68-76 (label at 12px/600).
 
@@ -274,7 +280,7 @@ This phase uses zero registry blocks. All components are hand-built using react-
 | react-bootstrap as component library, CSS modules as styling approach | RESEARCH.md -- Standard Stack |
 | No new dependencies required | RESEARCH.md -- Standard Stack |
 | Existing color palette (#cf4520, #337ab7, etc.) | Codebase scan -- globals.css, Header.module.css |
-| Existing typography (Open Sans 20px/200, body 14px) | Codebase scan -- globals.css, Publication.module.css |
+| Existing typography (Open Sans 20px, body 14px) | Codebase scan -- globals.css, Publication.module.css |
 | Existing spacing (20px/40px layout padding) | Codebase scan -- AppLayout.module.css |
 | Existing Loader component (Spinner variant="danger" 5rem) | Codebase scan -- Common/Loader.tsx |
 | Existing skeleton reference pattern | CONTEXT.md -- Create Reports page has existing skeleton preloading |
