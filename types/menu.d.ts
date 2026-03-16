@@ -7,4 +7,5 @@ export type MenuItem = {
   imgUrlActive?: string | StaticImport
   disabled?: boolean
   allowedRoleNames?:Array
+  capabilityKey?: string
 }

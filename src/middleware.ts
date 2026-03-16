@@ -1,122 +1,108 @@
-import {NextRequest, NextResponse } from 'next/server'
-import { allowedPermissions } from './utils/constants'
+import { NextRequest, NextResponse } from 'next/server'
+import { getCapabilities, getLandingPage } from './utils/constants'
 import * as jose from "jose";
 
-
-//middleware should run for these router paths
+// Middleware runs for these router paths
 export const config = {
-  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*'],
+  matcher: ['/manageusers/:path*', '/curate/:path*', '/report', '/search', '/configuration', '/notifications/:path*'],
 }
 
 export async function middleware(request: NextRequest) {
   const res = NextResponse.next();
   const pathName = request.nextUrl.pathname;
-  
-    if(request && request.cookies && request.cookies.has('next-auth.session-token')) 
-    {
-      console.log('validating logged in person authorization roles****************************');
-      let decodedTokenJson = jose.decodeJwt(request.cookies.get('next-auth.session-token'));
-      let allUserRoles ='';
-      if(decodedTokenJson )//&& decodedTokenJson.userRoles)
-          allUserRoles = JSON.stringify(decodedTokenJson);//.userRoles;
-          console.log('All roles****************************',allUserRoles);
-      if (allUserRoles && allUserRoles.length > 0) {
-          let userRoles = allUserRoles && allUserRoles?.length > 0 && JSON.parse(allUserRoles)
-          userRoles = JSON.parse(userRoles.userRoles);
-          console.log('user roles****************************',userRoles);
-          if (userRoles && userRoles.length > 0) {
-            
-            let loggedInUserInfo = userRoles[0].personIdentifier; //should be reverted after testing
-            let isCuratorSelf = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_Self)
-            let isSuperUser = userRoles.some((role) => role.roleLabel === allowedPermissions.Superuser)
-            let isCuratorAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_All)
-            let isReporterAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Reporter_All)
 
-            console.log('roles assigned****************************',loggedInUserInfo,isCuratorSelf,isSuperUser,isCuratorAll,isReporterAll);
-            if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser) 
-            {
-                if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {
-                  return redirectToLandingPage(request,'/search');
-                }
-                else if (userRoles.length == 1  && (pathName !==  '/curate/'+loggedInUserInfo || pathName.endsWith('curate'))&& isCuratorSelf && !isReporterAll ) {
-                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                }
-                else if (userRoles.length == 2 && (pathName !==  '/curate/'+loggedInUserInfo || pathName.endsWith('curate')) && isCuratorSelf && isReporterAll ) {
-                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                }
-               
-            }
-            else if (pathName && pathName.startsWith('/search') && !isReporterAll && !isSuperUser && !isCuratorAll) 
-            {
-              if (userRoles.length == 1 && isCuratorSelf )  
-                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-            }
-            else if (pathName && pathName.startsWith('/report')  && !isReporterAll && !isSuperUser) 
-            {
-                if (userRoles.length == 1 && isCuratorSelf  && !isCuratorAll)  
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                else if (userRoles.length == 1 && !isCuratorSelf  && isCuratorAll)  
-                      return redirectToLandingPage(request,'/search');
-                else if (userRoles.length == 2 && isCuratorSelf  && isCuratorAll) 
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-            }
-            else if (pathName && pathName.startsWith('/notifications')) 
-            {
-              //correct role restrictions will be implemented once notification functionality is ready. It is just a placeholder for now.
-              
-              if(isCuratorSelf)
-                return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-              else if (isReporterAll || isCuratorAll || isSuperUser)  
-                return redirectToLandingPage(request,'/search');     
-            }
-            else if (pathName && pathName.startsWith('/manageusers')  && !isSuperUser)  
-            {
-                if (userRoles.length == 1 && (isReporterAll || isCuratorAll) &&  !isCuratorSelf) 
-                       return redirectToLandingPage(request,'/search');
-                else if (userRoles.length == 1 &&  isCuratorSelf && !isReporterAll && !isCuratorAll) 
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                else if (userRoles.length == 2 && isCuratorSelf && isReporterAll && !isCuratorAll) 
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                else if (userRoles.length == 2 && isCuratorSelf && !isReporterAll && isCuratorAll) 
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                else if (userRoles.length == 2 && !isCuratorSelf && isReporterAll && isCuratorAll) 
-                      return redirectToLandingPage(request,'/search');
-                else if (userRoles.length == 3 && isCuratorSelf && isReporterAll && isCuratorAll) 
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);                  
-                     
-            }
-            else if (pathName && pathName.startsWith('/configuration')  && !isSuperUser)
-            {
-              if (userRoles.length == 1 && (isReporterAll || isCuratorAll) &&  !isCuratorSelf) 
-                    return redirectToLandingPage(request,'/search');
-              else if (userRoles.length == 1 &&  isCuratorSelf && !isReporterAll  && !isCuratorAll) 
-                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-              else if (userRoles.length == 2 && isCuratorSelf && isReporterAll  && !isCuratorAll)  
-                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-              else if (userRoles.length == 2 && !isCuratorSelf && isReporterAll && isCuratorAll) 
-                  return redirectToLandingPage(request,'/search');
-              else if (userRoles.length == 2 && isCuratorSelf && !isReporterAll && isCuratorAll) 
-              return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);    
-              else if (userRoles.length == 3 && isCuratorSelf && isReporterAll && isCuratorAll)  
-                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-            }       
+  if (request && request.cookies && request.cookies.has('next-auth.session-token')) {
+    let decodedTokenJson = jose.decodeJwt(request.cookies.get('next-auth.session-token'));
+    let userRoles = [];
+
+    try {
+      if (decodedTokenJson && decodedTokenJson.userRoles) {
+        const rolesString = typeof decodedTokenJson.userRoles === 'string'
+          ? decodedTokenJson.userRoles
+          : JSON.stringify(decodedTokenJson.userRoles);
+        userRoles = JSON.parse(rolesString);
+      }
+    } catch (e) {
+      console.log('[AUTH] ERROR: Failed to parse userRoles from JWT');
+      return redirectToLandingPage(request, '/error');
     }
+
+    // Derive capabilities from roles (AUTH-02: capability-based checks)
+    const caps = getCapabilities(userRoles);
+    const personIdentifier = caps.canCurate.personIdentifier;
+
+    // Route-level access checks
+    if (pathName.startsWith('/curate')) {
+      if (caps.canCurate.all) {
+        // Curator_All or Superuser -- allow access to any curate page
+        return res;
+      }
+      if (caps.canCurate.self) {
+        // Curator_Self -- only allow own curate page
+        const expectedPath = '/curate/' + personIdentifier;
+        if (pathName === expectedPath) {
+          return res;
+        }
+        // Trying to curate someone else or bare /curate -- redirect to own page
+        console.log('[AUTH] REDIRECT: Curator_Self', personIdentifier, 'tried', pathName, '-> redirecting to', expectedPath);
+        return redirectToLandingPage(request, expectedPath);
+      }
+      // No curate capability -- redirect to landing page
+      const landing = getLandingPage(caps);
+      console.log('[AUTH] REDIRECT: No curate capability, redirecting from', pathName, 'to', landing);
+      return redirectToLandingPage(request, landing);
     }
-    else // redirects to error page when no roles found in access token
-    {
-      redirectToLandingPage(request,'/error');
+
+    if (pathName.startsWith('/search')) {
+      if (caps.canSearch) {
+        return res;
+      }
+      const landing = getLandingPage(caps);
+      console.log('[AUTH] REDIRECT: No search capability, redirecting to', landing);
+      return redirectToLandingPage(request, landing);
     }
+
+    if (pathName.startsWith('/report')) {
+      if (caps.canReport) {
+        return res;
+      }
+      const landing = getLandingPage(caps);
+      console.log('[AUTH] REDIRECT: No report capability, redirecting to', landing);
+      return redirectToLandingPage(request, landing);
+    }
+
+    if (pathName.startsWith('/manageusers')) {
+      if (caps.canManageUsers) {
+        return res;
+      }
+      const landing = getLandingPage(caps);
+      console.log('[AUTH] REDIRECT: No manageUsers capability, redirecting to', landing);
+      return redirectToLandingPage(request, landing);
+    }
+
+    if (pathName.startsWith('/configuration')) {
+      if (caps.canConfigure) {
+        return res;
+      }
+      const landing = getLandingPage(caps);
+      console.log('[AUTH] REDIRECT: No configure capability, redirecting to', landing);
+      return redirectToLandingPage(request, landing);
+    }
+
+    if (pathName.startsWith('/notifications')) {
+      // Notifications: allow for all authenticated users (placeholder -- CONTEXT.md says
+      // "correct role restrictions will be implemented once notification functionality is ready")
+      return res;
+    }
+
+    return res;
   }
+  // No session token -- let Next.js handle redirect to login
   return res;
 }
-function decodeJwt(token:any) {
-  //let base64Payload = token.split(".")[1];
-  //let payloadBuffer = Buffer.from(base64Payload, "base64");
-  //return JSON.parse(payloadBuffer.toString());
-  //return jwt_decode(token);
-}
-function redirectToLandingPage(request:NextRequest,pathName:any){
-  const redirectedUrl = request.nextUrl.clone()
-  redirectedUrl.pathname =pathName;
+
+function redirectToLandingPage(request: NextRequest, pathName: string) {
+  const redirectedUrl = request.nextUrl.clone();
+  redirectedUrl.pathname = pathName;
   return NextResponse.redirect(redirectedUrl);
 }

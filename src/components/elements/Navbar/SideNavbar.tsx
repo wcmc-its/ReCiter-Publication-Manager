@@ -22,6 +22,7 @@ import chartIconActive from '../../../../public/images/icon-side-faculty_report-
 import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
 import { useSelector, RootStateOrAny } from "react-redux";
 import { useSession } from 'next-auth/client';
+import { getCapabilities } from '../../../utils/constants';
 
 
 type SideNavBarProps = {
@@ -155,7 +156,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrl: facultyIcon,
       imgUrlActive: facultyIconActive,
       disabled: false,
-      allowedRoleNames: ["Superuser", "Curator_All","Reporter_All"],
+      capabilityKey: 'canSearch',
     },
     {
       title: 'Curate Publications',
@@ -163,7 +164,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrl: SettingsIconTools,
       imgUrlActive: settingsIconActive,
       disabled: (Object.keys(filters).length === 0),
-      allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
+      capabilityKey: 'canCurate',
     },
     {
       title: 'Create Reports',
@@ -171,7 +172,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
       disabled: false,
-      allowedRoleNames: ["Superuser","Reporter_All" ],
+      capabilityKey: 'canReport',
     },
     {
       title: 'Manage Notifications',
@@ -179,59 +180,24 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrl: chartIcon,
       imgUrlActive: chartIconActive,
       disabled: false,
-      allowedRoleNames: ["Department_user"],
+      capabilityKey: 'canNotifications',  // Not yet implemented -- hidden for now
     },
-    {title: 'Manage Users', 
-      to: '/manageusers', 
-      imgUrl: facultyIcon, 
-      imgUrlActive: facultyIconActive, 
+    {
+      title: 'Manage Users',
+      to: '/manageusers',
+      imgUrl: facultyIcon,
+      imgUrlActive: facultyIconActive,
       disabled: false,
-      allowedRoleNames: ["Superuser"],
+      capabilityKey: 'canManageUsers',
     },
-    {title: 'Configuration', 
-    to: '/configuration', 
-    imgUrl: SettingsIconGare, 
-    imgUrlActive: SettingsGareIconActive, 
-    disabled: false,
-    allowedRoleNames: ["Superuser"],
-  },
-    // {
-    //   title: 'Manage Users',
-    //   to: '/manageUsers',
-    //   imgUrl: chartIcon,
-    //   imgUrlActive: chartIconActive,
-    //   disabled: false,
-    //   allowedRoleNames: ["Superuser","" ],
-    // },
-    // {
-    //   title: 'Perform Analysis',
-    //   to: '/login',
-    //   imgUrl: checkMarkIcon,
-    //   imgUrlActive: checkMarkIconActive,
-    //   disabled: false,
-    //   allowedRoleNames: ["Superuser","Reporter_All" ],
-    // },
-  //   {
-  //     title: 'Manage Module',
-  //     imgUrl: SettingsIconTools,
-  //     imgUrlActive: settingsIconActive,
-  //     nestedMenu: [{title: 'Manage Users', 
-  //     to: '/admin/manage/users', 
-  //     imgUrl: facultyIcon, 
-  //     imgUrlActive: facultyIconActive, 
-  //     disabled: false,
-  //     allowedRoleNames: ["Superuser"],
-  //   },
-  //   {title: 'Settings', 
-  //   to: '/admin/manage/settings', 
-  //   imgUrl: SettingsIconGare, 
-  //   imgUrlActive: SettingsGareIconActive, 
-  //   disabled: false,
-  //   allowedRoleNames: ["Superuser"],
-  // }],
-  //     allowedRoleNames: ["Superuser"],
-
-  //   }
+    {
+      title: 'Configuration',
+      to: '/configuration',
+      imgUrl: SettingsIconGare,
+      imgUrlActive: SettingsGareIconActive,
+      disabled: false,
+      capabilityKey: 'canConfigure',
+    },
   ]
 
   const expandNavCotext = React.useContext(ExpandNavContext);
@@ -252,29 +218,43 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       <Divider />
       <StyledList>
           {
-            menuItems.map((item: MenuItem, index: number) => {
-              let userPermissions = JSON.parse(session.data.userRoles);
-              const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
-              if(matchedRoles.length >= 1){
-              return item.nestedMenu ? 
-                <NestedListItem 
-                  header={item.title}
-                  menuItems={item.nestedMenu}
-                  key={index}
-                  imgUrl={item.imgUrl}
-                />
-                :
-                <MenuListItem
-                  title={item.title}
-                  key={index}
-                  id={index}
-                  to={item.to}
-                  imgUrl={item.imgUrl}
-                  imgUrlActive={item.imgUrlActive}
-                  disabled={item.disabled}
-                />
-              }
-            })
+            (() => {
+              const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+              const caps = getCapabilities(userRoles);
+
+              return menuItems.map((item: MenuItem, index: number) => {
+                const capKey = item.capabilityKey;
+                let hasAccess = false;
+                if (capKey === 'canCurate') {
+                  hasAccess = caps.canCurate.all || caps.canCurate.self;
+                } else if (capKey === 'canNotifications') {
+                  hasAccess = false; // Notifications not yet implemented
+                } else if (capKey && caps[capKey]) {
+                  hasAccess = true;
+                }
+
+                if (hasAccess) {
+                  return item.nestedMenu ?
+                    <NestedListItem
+                      header={item.title}
+                      menuItems={item.nestedMenu}
+                      key={index}
+                      imgUrl={item.imgUrl}
+                    />
+                    :
+                    <MenuListItem
+                      title={item.title}
+                      key={index}
+                      id={index}
+                      to={item.to}
+                      imgUrl={item.imgUrl}
+                      imgUrlActive={item.imgUrlActive}
+                      disabled={item.disabled}
+                    />
+                }
+                return null;
+              })
+            })()
           }
       </StyledList>
     </Drawer>
