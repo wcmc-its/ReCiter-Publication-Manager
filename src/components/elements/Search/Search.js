@@ -11,7 +11,7 @@ import SearchBar from "./SearchBar";
 import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { Table,Button} from "react-bootstrap";
-import Loader from "../Common/Loader";
+import SkeletonTable from "../Common/SkeletonTable";
 import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
 import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation, getCapabilities } from "../../../utils/constants"
@@ -392,7 +392,7 @@ const Search = () => {
           <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
           {(isDisplayLoader()) ?
             (
-              <Loader />
+              <SkeletonTable />
             ) : (
               <div>
                 <br />
@@ -409,7 +409,7 @@ const Search = () => {
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
                   />
-                  {isDisplayLoaderTable() ? <Loader /> :
+                  {isDisplayLoaderTable() ? <SkeletonTable /> :
                     <div className="table-responsive">
                       <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
                         <thead>

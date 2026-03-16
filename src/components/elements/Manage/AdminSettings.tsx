@@ -7,7 +7,7 @@ import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
 import { Accordion, Button, Form, InputGroup, Card } from "react-bootstrap"
-import Loader from "../Common/Loader";
+import SkeletonForm from "../Common/SkeletonForm";
 
 const AdminSettings = () => {
 
@@ -130,7 +130,7 @@ const AdminSettings = () => {
       <PageHeader label="Settings" />
       <p>Changes will apply to all users and will be reflected with next login</p>
       {
-        loading ? <div className="d-flex justify-content-center align-items"><Loader /> </div>
+        loading ? <SkeletonForm />
         :
         <>
       <Accordion defaultActiveKey="0">

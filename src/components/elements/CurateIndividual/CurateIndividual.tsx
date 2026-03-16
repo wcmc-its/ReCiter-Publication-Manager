@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { identityFetchData, reciterFetchData,reCalcPubMedPubCount, fetchFeedbacklog } from "../../../redux/actions/actions";
-import Loader from "../Common/Loader";
+import SkeletonProfile from "../Common/SkeletonProfile";
+import SkeletonCard from "../Common/SkeletonCard";
 import fullName from "../../../utils/fullName";
 import { Container, Button, Row,Toast } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
@@ -114,7 +115,7 @@ const CurateIndividual = () => {
 
   if (identityFetching || reciterFetching) {
     return (
-      <Loader />
+      <><SkeletonProfile /><SkeletonCard /></>
     )
   }
 

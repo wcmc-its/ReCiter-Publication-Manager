@@ -3,7 +3,7 @@ import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
-import Loader from '../Common/Loader';
+import SkeletonTable from '../Common/SkeletonTable';
 import { reciterConfig } from '../../../../config/local';
 import UsersTable from "./UsersTable";
 import { useRouter } from 'next/router'
@@ -173,7 +173,7 @@ const ManageUsers = () => {
       </Row>
       {/* <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button> */}
       {loading ?
-        <div className="d-flex justify-content-center align-items"><Loader /> </div>
+        <SkeletonTable />
         :
         <>
           <Pagination total={totalCount} page={page} count={count} onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
