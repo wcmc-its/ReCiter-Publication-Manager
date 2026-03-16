@@ -1,4 +1,4 @@
-# RPM Bug Fixes, UI/UX Audit, and Scoped Curation Roles
+# RPM Bug Fixes, UI/UX Audit, Scoped Curation Roles, and Proxy Curation
 
 ## What This Is
 
@@ -35,6 +35,9 @@ Curators and administrators can reliably log in, navigate without encountering b
 - [ ] New feature: Scoped curation roles by organizational unit
 - [ ] Flexible scoping: assign person type only, org unit only, or both combined
 - [ ] Manage scoped curation roles from the existing Manage Users page
+- [ ] New feature: Many-to-many curation proxy assignments (User A curates on behalf of User B)
+- [ ] Proxied users show with [PROXY] badge and filter checkbox on Find People search
+- [ ] Superuser assigns proxies via Manage Users; curators with privileges grant from curation page
 
 ### Out of Scope
 
@@ -70,6 +73,8 @@ Curators and administrators can reliably log in, navigate without encountering b
 | Scoped roles use flexible combination (type + org) | Maximum flexibility without overcomplicating assignments | — Pending |
 | Manage scoped roles in existing Manage Users page | Avoids a separate admin page; keeps user management centralized | — Pending |
 | Full UI/UX audit scope (all views) | Group Curation and other views may have accumulated UX debt | — Pending |
+| Curation proxy uses search page with badge/filter | Leverages existing search UX; avoids new navigation surface | — Pending |
+| Proxy assignment from both Manage Users and curation page | Superusers centralize; curators grant contextually | — Pending |
 
 ---
-*Last updated: 2026-03-16 after initialization*
+*Last updated: 2026-03-16 after adding curation proxy (Phase 4)*

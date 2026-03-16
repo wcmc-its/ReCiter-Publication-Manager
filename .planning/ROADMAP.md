@@ -2,7 +2,7 @@
 
 ## Overview
 
-Three phases deliver a stable, audited, and scope-aware curation platform. Phase 1 fixes the authentication blocker and known UI bugs so the application is reliably usable. Phase 2 conducts a systematic UI/UX audit to surface issues and establish patterns before new UI is built. Phase 3 delivers the scoped curation role system, giving administrators fine-grained control over who curates publications for which groups of people.
+Four phases deliver a stable, audited, and scope-aware curation platform with proxy support. Phase 1 fixes the authentication blocker and known UI bugs so the application is reliably usable. Phase 2 conducts a systematic UI/UX audit to surface issues and establish patterns before new UI is built. Phase 3 delivers the scoped curation role system, giving administrators fine-grained control over who curates publications for which groups of people. Phase 4 adds curation proxy assignments, allowing designated users to curate publications on behalf of others.
 
 ## Phases
 
@@ -15,6 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Auth Fix and Bug Remediation** - Fix the /noaccess redirect blocker, refactor middleware to capability-based checks, unify SAML/local session structures, and fix known UI bugs
 - [ ] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented
 - [ ] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit
+- [ ] **Phase 4: Curation Proxy** - Many-to-many proxy assignments, [PROXY] badge on search results, proxy filter checkbox, and proxy curation navigation
 
 ## Phase Details
 
@@ -64,13 +65,30 @@ Plans:
 - [ ] 03-02: TBD
 - [ ] 03-03: TBD
 
+### Phase 4: Curation Proxy
+**Goal**: Any user with appropriate privileges can be assigned as a curation proxy for one or more other users, and can discover and curate publications on their behalf through the existing search interface
+**Depends on**: Phase 1, Phase 3
+**Requirements**: PROXY-01, PROXY-02, PROXY-03, PROXY-04, PROXY-05, PROXY-06
+**Success Criteria** (what must be TRUE):
+  1. A Superuser can assign User A as a curation proxy for User B from the Manage Users page, and the relationship persists in the database
+  2. A curator with existing privileges can grant proxy access from the individual curation page
+  3. When User A searches on Find People, proxied users display with a [PROXY] badge
+  4. User A can check "Show only my proxied users" to filter search results to just their proxied users
+  5. User A can click through to curate publications for any of their proxied users, and the feedback is logged with User A's userID in admin_feedbacklog
+**Plans**: TBD
+
+Plans:
+- [ ] 04-01: TBD
+- [ ] 04-02: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth Fix and Bug Remediation | 0/? | Not started | - |
 | 2. UI/UX Audit | 0/? | Not started | - |
 | 3. Scoped Curation Roles | 0/? | Not started | - |
+| 4. Curation Proxy | 0/? | Not started | - |
