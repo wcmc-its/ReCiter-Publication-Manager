@@ -11,7 +11,7 @@ import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
 import { useSession } from 'next-auth/client';
-import { allowedPermissions, setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
+import { allowedPermissions, setHelptextInfo, setReportFilterLabels, getCapabilities } from "../../../utils/constants";
 
 
 
@@ -58,6 +58,8 @@ const Profile = ({
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const [session, loading] = useSession();
   const userPermissions = JSON.parse(session.data.userRoles);
+  const caps = getCapabilities(userPermissions);
+  const canViewPII = caps.canCurate.all || caps.canCurate.self;
   const [displayImage, setDisplayImage] = useState<boolean>(true);
 
 
@@ -281,14 +283,11 @@ const Profile = ({
       }
     }
 
-    if (list.emails) {
-      let roleAccess = userPermissions.some(role => role.roleLabel === (allowedPermissions.Curator_All || allowedPermissions.Curator_Self  ) )
-      if (list.emails.length > 0 && userPermissions.length >= 0 && roleAccess) {
-        let formattedEmails = list.emails.map((email) => {
-          return {name: email}
-        })
-        rows.push({ title: 'Emails', values: formattedEmails})
-      }
+    if (list.emails && list.emails.length > 0 && canViewPII) {
+      let formattedEmails = list.emails.map((email) => {
+        return {name: email}
+      })
+      rows.push({ title: 'Emails', values: formattedEmails})
     }
 
     let formattedRelationships = [];
@@ -333,7 +332,7 @@ const Profile = ({
           })
         } 
         {
-          list.knownRelationships && list.knownRelationships.length > 0 &&
+          canViewPII && list.knownRelationships && list.knownRelationships.length > 0 &&
           <tr key={rows.length}>
             <td align="right" width="20%">
               <div className="m-3">
@@ -500,7 +499,11 @@ const Profile = ({
         isLoading ? 
         <Modal.Body><Loader /></Modal.Body> : 
         isError ? 
-        <Modal.Body><p>Something went wrong. Please try again later.</p></Modal.Body> :
+        <Modal.Body>
+          <p style={{ color: '#dc3545', fontSize: '14px', textAlign: 'center', padding: '24px' }}>
+            Unable to load profile data. The person record may be incomplete or temporarily unavailable. Try again or contact your administrator.
+          </p>
+        </Modal.Body> :
         <>
         <Modal.Header closeButton className={styles.modalHeader}>
           <Container>
