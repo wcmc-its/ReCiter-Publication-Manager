@@ -9,10 +9,10 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Authentication
 
-- [ ] **AUTH-01**: User with valid roles in admin_users and admin_users_roles can log in and reach the correct landing page regardless of role combination
-- [ ] **AUTH-02**: Middleware uses capability-based permission checks instead of role-count comparisons
-- [ ] **AUTH-03**: SAML and local auth providers produce identical session structures with consistent role data
-- [ ] **AUTH-04**: Auth flow logs role resolution and routing decisions for troubleshooting
+- [x] **AUTH-01**: User with valid roles in admin_users and admin_users_roles can log in and reach the correct landing page regardless of role combination
+- [x] **AUTH-02**: Middleware uses capability-based permission checks instead of role-count comparisons
+- [x] **AUTH-03**: SAML and local auth providers produce identical session structures with consistent role data
+- [x] **AUTH-04**: Auth flow logs role resolution and routing decisions for troubleshooting
 
 ### UI Bug Fixes
 
@@ -79,10 +79,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| AUTH-04 | Phase 1 | Pending |
+| AUTH-01 | Phase 1 | Complete |
+| AUTH-02 | Phase 1 | Complete |
+| AUTH-03 | Phase 1 | Complete |
+| AUTH-04 | Phase 1 | Complete |
 | UIBUG-01 | Phase 1 | Pending |
 | UIBUG-02 | Phase 1 | Pending |
 | UIBUG-03 | Phase 1 | Pending |
