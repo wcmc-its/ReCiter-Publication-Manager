@@ -12,7 +12,7 @@ Four phases deliver a stable, audited, and scope-aware curation platform with pr
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Auth Fix and Bug Remediation** - Fix the /noaccess redirect blocker, refactor middleware to capability-based checks, unify SAML/local session structures, and fix known UI bugs
+- [x] **Phase 1: Auth Fix and Bug Remediation** - Fix the /noaccess redirect blocker, refactor middleware to capability-based checks, unify SAML/local session structures, and fix known UI bugs (completed 2026-03-16)
 - [ ] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented
 - [ ] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit
 - [ ] **Phase 4: Curation Proxy** - Many-to-many proxy assignments, [PROXY] badge on search results, proxy filter checkbox, and proxy curation navigation
@@ -88,7 +88,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Auth Fix and Bug Remediation | 0/? | Not started | - |
+| 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
 | 2. UI/UX Audit | 0/? | Not started | - |
 | 3. Scoped Curation Roles | 0/? | Not started | - |
 | 4. Curation Proxy | 0/? | Not started | - |

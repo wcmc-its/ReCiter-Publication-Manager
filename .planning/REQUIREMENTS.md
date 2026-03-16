@@ -16,9 +16,9 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### UI Bug Fixes
 
-- [ ] **UIBUG-01**: "Curate publications" action is not available on the Find People (search) page
-- [ ] **UIBUG-02**: "View Profile" click loads and displays the profile modal without error
-- [ ] **UIBUG-03**: All loading animations use the current React Bootstrap Spinner design (no legacy red circle GIF)
+- [x] **UIBUG-01**: "Curate publications" action is not available on the Find People (search) page
+- [x] **UIBUG-02**: "View Profile" click loads and displays the profile modal without error
+- [x] **UIBUG-03**: All loading animations use the current React Bootstrap Spinner design (no legacy red circle GIF)
 
 ### Scoped Curation Roles
 
@@ -83,9 +83,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
 | AUTH-04 | Phase 1 | Complete |
-| UIBUG-01 | Phase 1 | Pending |
-| UIBUG-02 | Phase 1 | Pending |
-| UIBUG-03 | Phase 1 | Pending |
+| UIBUG-01 | Phase 1 | Complete |
+| UIBUG-02 | Phase 1 | Complete |
+| UIBUG-03 | Phase 1 | Complete |
 | SCOPE-01 | Phase 3 | Pending |
 | SCOPE-02 | Phase 3 | Pending |
 | SCOPE-03 | Phase 3 | Pending |
