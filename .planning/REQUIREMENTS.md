@@ -9,14 +9,14 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Duplicate Filtering
 
-- [ ] **DEDUP-01**: PubMed search results exclude articles already accepted for the curated person
-- [ ] **DEDUP-02**: PubMed search results exclude articles already rejected for the curated person
-- [ ] **DEDUP-03**: PubMed search results show pending (suggested) articles with an inline "Pending" badge and evidence score
+- [x] **DEDUP-01**: PubMed search results exclude articles already accepted for the curated person
+- [x] **DEDUP-02**: PubMed search results exclude articles already rejected for the curated person
+- [x] **DEDUP-03**: PubMed search results show pending (suggested) articles with an inline "Pending" badge and evidence score
 
 ### Filter Persistence
 
-- [ ] **FILT-01**: Active filter remains applied after accepting an article in filtered PubMed search results
-- [ ] **FILT-02**: Active filter remains applied after rejecting an article in filtered PubMed search results
+- [x] **FILT-01**: Active filter remains applied after accepting an article in filtered PubMed search results
+- [x] **FILT-02**: Active filter remains applied after rejecting an article in filtered PubMed search results
 
 ### Author Matching
 
@@ -51,13 +51,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEDUP-01 | Phase 1 | Pending |
-| DEDUP-02 | Phase 1 | Pending |
-| DEDUP-03 | Phase 1 | Pending |
-| FILT-01 | Phase 1 | Pending |
-| FILT-02 | Phase 1 | Pending |
-| MATCH-01 | Phase 2 | Pending |
-| MATCH-02 | Phase 2 | Pending |
+| DEDUP-01 | Phase 1 | Complete |
+| DEDUP-02 | Phase 1 | Complete |
+| DEDUP-03 | Phase 1 | Complete |
+| FILT-01 | Phase 1 | Complete |
+| FILT-02 | Phase 1 | Complete |
+| MATCH-01 | Phase 2 | Deferred |
+| MATCH-02 | Phase 2 | Deferred |
 
 **Coverage:**
 - v1 requirements: 7 total
@@ -66,4 +66,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after roadmap creation*
+*Last updated: 2026-03-16 after milestone completion (Phase 1 complete, Phase 2 deferred)*

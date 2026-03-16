@@ -12,8 +12,8 @@ Two phases deliver the complete PubMed search improvement. Phase 1 fixes the cor
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Search Result Filtering** - Hide acted-on articles, badge pending ones, and preserve filter state after curation actions
-- [ ] **Phase 2: Author Identification** - Highlight the curated person's name in search results and show PubMed affiliations on hover
+- [x] **Phase 1: Search Result Filtering** - Hide acted-on articles, badge pending ones, and preserve filter state after curation actions
+- [ ] ~~**Phase 2: Author Identification**~~ - Deferred to future milestone
 
 ## Phase Details
 
@@ -50,5 +50,5 @@ Phases execute in numeric order: 1 -> 2
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Search Result Filtering | 0/1 | Not started | - |
-| 2. Author Identification | 0/? | Not started | - |
+| 1. Search Result Filtering | 1/1 | Complete | 2026-03-15 |
+| 2. Author Identification | - | Deferred | - |
