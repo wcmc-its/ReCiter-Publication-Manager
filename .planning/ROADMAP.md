@@ -1,8 +1,8 @@
-# Roadmap: PubMed Search Improvements
+# Roadmap: RPM Bug Fixes, UI/UX Audit, and Scoped Curation Roles
 
 ## Overview
 
-Two phases deliver the complete PubMed search improvement. Phase 1 fixes the core curation loop: hiding already-acted-on articles, badging pending ones, and preserving filter state across accept/reject actions. Phase 2 layers on author identification by highlighting the curated person's name variants and exposing PubMed affiliations on hover. Together they transform PubMed search from a raw results list into a curation-aware, identity-aware tool.
+Three phases deliver a stable, audited, and scope-aware curation platform. Phase 1 fixes the authentication blocker and known UI bugs so the application is reliably usable. Phase 2 conducts a systematic UI/UX audit to surface issues and establish patterns before new UI is built. Phase 3 delivers the scoped curation role system, giving administrators fine-grained control over who curates publications for which groups of people.
 
 ## Phases
 
@@ -12,43 +12,65 @@ Two phases deliver the complete PubMed search improvement. Phase 1 fixes the cor
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Search Result Filtering** - Hide acted-on articles, badge pending ones, and preserve filter state after curation actions
-- [ ] ~~**Phase 2: Author Identification**~~ - Deferred to future milestone
+- [ ] **Phase 1: Auth Fix and Bug Remediation** - Fix the /noaccess redirect blocker, refactor middleware to capability-based checks, unify SAML/local session structures, and fix known UI bugs
+- [ ] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented
+- [ ] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit
 
 ## Phase Details
 
-### Phase 1: Search Result Filtering
-**Goal**: Curators see only actionable PubMed search results, with pending articles clearly marked and filters stable across accept/reject actions
+### Phase 1: Auth Fix and Bug Remediation
+**Goal**: Every user with valid roles can log in and navigate the application without encountering broken features
 **Depends on**: Nothing (first phase)
-**Requirements**: DEDUP-01, DEDUP-02, DEDUP-03, FILT-01, FILT-02
+**Requirements**: AUTH-01, AUTH-02, AUTH-03, AUTH-04, UIBUG-01, UIBUG-02, UIBUG-03
 **Success Criteria** (what must be TRUE):
-  1. A curator searching PubMed from a curation page does not see articles they have already accepted for that person
-  2. A curator searching PubMed from a curation page does not see articles they have already rejected for that person
-  3. Pending (suggested) articles appear in PubMed search results with a visible "Pending" badge and their evidence score
-  4. After accepting or rejecting an article while a filter is active, the filter remains applied and the results update without resetting
-**Plans:** 1 plan
+  1. User paa2013 (and any user with valid roles in admin_users/admin_users_roles) can log in and reach the correct landing page, regardless of how many roles they hold
+  2. A user on the Find People (search) page does not see "Curate publications" as an available action
+  3. Clicking "View Profile" on any person loads and displays the profile modal with biographical and bibliometric data
+  4. All loading animations across the application use the React Bootstrap Spinner design; no legacy red circle GIF appears anywhere
+  5. Auth flow decisions (role resolution, routing) are logged for troubleshooting
+**Plans**: TBD
 
 Plans:
-- [ ] 01-01-PLAN.md — Client-side dedup, pending badge, filter persistence, and visual verification
+- [ ] 01-01: TBD
+- [ ] 01-02: TBD
 
-### Phase 2: Author Identification
-**Goal**: Curators can visually identify the curated person in PubMed search result author lists and inspect their affiliations
+### Phase 2: UI/UX Audit
+**Goal**: All application views have been systematically evaluated, critical issues are fixed, and patterns are documented for new UI work
 **Depends on**: Phase 1
-**Requirements**: MATCH-01, MATCH-02
+**Requirements**: UIUX-01, UIUX-02, UIUX-03
 **Success Criteria** (what must be TRUE):
-  1. The curated person's name (including known name variants from ReCiter identity) is visually highlighted in every PubMed search result's author list
-  2. Hovering over a highlighted author name displays a stacked list of all PubMed affiliations for that author
+  1. Every view in the application (Search, Curate, Report, Manage Users, Configuration, Notifications, Group Curation) has been evaluated with findings categorized by severity
+  2. The Group Curation view has specific issues documented with actionable recommendations
+  3. eslint-plugin-jsx-a11y is integrated and critical accessibility violations are fixed
 **Plans**: TBD
 
 Plans:
 - [ ] 02-01: TBD
 
+### Phase 3: Scoped Curation Roles
+**Goal**: Administrators can assign curators to specific person types and/or organizational units, and those curators can only see and curate people within their assigned scope
+**Depends on**: Phase 1, Phase 2
+**Requirements**: SCOPE-01, SCOPE-02, SCOPE-03, SCOPE-04, SCOPE-05, SCOPE-06
+**Success Criteria** (what must be TRUE):
+  1. A Superuser can assign a scoped curation role to a user from the Manage Users page, specifying person type only, org unit only, or both
+  2. A scoped curator searching on Find People sees only people matching their assigned scope (person type and/or org unit)
+  3. A scoped curator attempting to curate a person outside their scope is denied at both the page level and API level
+  4. Scoped role assignments persist across sessions (stored in database, embedded in JWT at login)
+  5. Existing Curator_All and Curator_Self roles continue to work exactly as before
+**Plans**: TBD
+
+Plans:
+- [ ] 03-01: TBD
+- [ ] 03-02: TBD
+- [ ] 03-03: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2
+Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Search Result Filtering | 1/1 | Complete | 2026-03-15 |
-| 2. Author Identification | - | Deferred | - |
+| 1. Auth Fix and Bug Remediation | 0/? | Not started | - |
+| 2. UI/UX Audit | 0/? | Not started | - |
+| 3. Scoped Curation Roles | 0/? | Not started | - |

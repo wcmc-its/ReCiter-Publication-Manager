@@ -70,28 +70,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| AUTH-03 | TBD | Pending |
-| AUTH-04 | TBD | Pending |
-| UIBUG-01 | TBD | Pending |
-| UIBUG-02 | TBD | Pending |
-| UIBUG-03 | TBD | Pending |
-| SCOPE-01 | TBD | Pending |
-| SCOPE-02 | TBD | Pending |
-| SCOPE-03 | TBD | Pending |
-| SCOPE-04 | TBD | Pending |
-| SCOPE-05 | TBD | Pending |
-| SCOPE-06 | TBD | Pending |
-| UIUX-01 | TBD | Pending |
-| UIUX-02 | TBD | Pending |
-| UIUX-03 | TBD | Pending |
+| AUTH-01 | Phase 1 | Pending |
+| AUTH-02 | Phase 1 | Pending |
+| AUTH-03 | Phase 1 | Pending |
+| AUTH-04 | Phase 1 | Pending |
+| UIBUG-01 | Phase 1 | Pending |
+| UIBUG-02 | Phase 1 | Pending |
+| UIBUG-03 | Phase 1 | Pending |
+| SCOPE-01 | Phase 3 | Pending |
+| SCOPE-02 | Phase 3 | Pending |
+| SCOPE-03 | Phase 3 | Pending |
+| SCOPE-04 | Phase 3 | Pending |
+| SCOPE-05 | Phase 3 | Pending |
+| SCOPE-06 | Phase 3 | Pending |
+| UIUX-01 | Phase 2 | Pending |
+| UIUX-02 | Phase 2 | Pending |
+| UIUX-03 | Phase 2 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-16*
-*Last updated: 2026-03-16 after initial definition*
+*Last updated: 2026-03-16 after roadmap creation*
