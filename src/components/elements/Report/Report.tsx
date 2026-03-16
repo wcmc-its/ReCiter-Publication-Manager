@@ -399,12 +399,11 @@ const Report = () => {
           onLoadMore = {onLoadMore}
           reportFiltersLabes = {reportFiltersLabes}
           />
-        {reportsSearchResultsLoading && 
+        {reportsSearchResultsLoading ? 
           <Container fluid className="h-100 p-5">
             <Loader />
           </Container>
-        }
-        {!reportsSearchResultsLoading && 
+          :
         <div className="search-results-container">
           {reportsSearchResults && 
           <SearchSummary
