@@ -29,6 +29,52 @@ export const findOrCreateAdminUsers = async (uid: string) => {
     }
 };
 
+export const findOrCreateSamlUser = async (cwid: string, email: string) => {
+    try {
+        // Attempt to find a matching person record for personIdentifier
+        let personIdentifier = cwid || null;
+        let matchedPerson = null;
+
+        if (cwid) {
+            // Try matching by CWID in person table
+            matchedPerson = await findOnePerson(cwid);
+            if (matchedPerson && matchedPerson.personIdentifier) {
+                personIdentifier = matchedPerson.personIdentifier;
+            }
+        }
+
+        const identifier = personIdentifier || cwid || email;
+        if (!identifier) {
+            console.log('[AUTH] ERROR: Cannot create user -- no cwid or email available');
+            return null;
+        }
+
+        const [user, created] = await models.AdminUser.findOrCreate({
+            where: {
+                personIdentifier: identifier,
+            },
+            defaults: {
+                personIdentifier: identifier,
+                email: email || null,
+                nameFirst: (matchedPerson && matchedPerson.firstName) ? matchedPerson.firstName : null,
+                nameMiddle: (matchedPerson && matchedPerson.middleName) ? matchedPerson.middleName : null,
+                nameLast: (matchedPerson && matchedPerson.lastName) ? matchedPerson.lastName : null,
+                createTimestamp: new Date(),
+                status: 1  // Active -- baseline access (canReport + canSearch) via capability model
+            }
+        });
+
+        if (created) {
+            console.log('[AUTH] WARN AUTO-CREATE: admin_users record created for', identifier);
+        }
+
+        return user;
+    } catch (e) {
+        console.log('[AUTH] ERROR: findOrCreateSamlUser failed:', e);
+        return null;
+    }
+};
+
 export const findAdminUser = async (attrValue: string, attrType:string) => {
     
     if (attrType === "email"){
