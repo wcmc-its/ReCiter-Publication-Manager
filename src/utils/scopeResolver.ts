@@ -52,3 +52,18 @@ export function isPersonInScope(
 
   return true;
 }
+
+/**
+ * Check if a user is a proxy for a given person.
+ *
+ * @param proxyPersonIds - Array of person identifiers the user is a proxy for (from JWT)
+ * @param personIdentifier - The person identifier to check against
+ * @returns true if the user is a proxy for the given person
+ */
+export function isProxyFor(
+  proxyPersonIds: string[] | null,
+  personIdentifier: string
+): boolean {
+  if (!proxyPersonIds || proxyPersonIds.length === 0) return false;
+  return proxyPersonIds.includes(personIdentifier);
+}
