@@ -9,7 +9,7 @@ interface PaginationProps {
   total: number,
   page: number,
   onChange: (page: number) => void,
-  onCountChange?: (count: string) => void, 
+  onCountChange?: (count: string) => void,
 }
 
 const Pagination: React.FC<PaginationProps> = (props) => {
@@ -70,8 +70,8 @@ const Pagination: React.FC<PaginationProps> = (props) => {
       <div className={`row g-0 ${styles.paginationContainer} justify-content-between`}>
         <div className="col-lg-3 col-md-4 col-sm-4 col">
           <div className={styles.showRows}>
-            <label>Show records</label>
-            <DropdownButton className={styles.basicDropdown} id="dropdown-basic-button" title={propsCount} onSelect={(eventKey) => props.onCountChange(eventKey)}>
+            <label htmlFor="show-records-dropdown">Show records</label>
+            <DropdownButton className={styles.basicDropdown} id="show-records-dropdown" title={propsCount} onSelect={(eventKey) => props.onCountChange(eventKey)}>
               <Dropdown.Item eventKey={10}>10</Dropdown.Item>
               <Dropdown.Item eventKey={20}>20</Dropdown.Item>
               <Dropdown.Item eventKey={50}>50</Dropdown.Item>
@@ -80,9 +80,25 @@ const Pagination: React.FC<PaginationProps> = (props) => {
           </div>
         </div>
         <div className="col-md-auto">
-          <ArrowLeft className={`${propsPage === 1 ? "disabled" : ""}`} color="primary" onClick={() => onClickPrev()}></ArrowLeft>
+          <button
+            type="button"
+            className={`btn btn-link p-1 ${propsPage === 1 ? "disabled" : ""}`}
+            onClick={() => onClickPrev()}
+            disabled={propsPage === 1}
+            aria-label="Previous page"
+          >
+            <ArrowLeft color="primary" />
+          </button>
           Page <span>{propsPage}</span> of {totalPages}
-          <ArrowRight className={`${propsPage === totalPages ? "disabled" : ""}`} color="primary" onClick={() => onClickNext()}></ArrowRight>
+          <button
+            type="button"
+            className={`btn btn-link p-1 ${propsPage === totalPages ? "disabled" : ""}`}
+            onClick={() => onClickNext()}
+            disabled={propsPage === totalPages}
+            aria-label="Next page"
+          >
+            <ArrowRight color="primary" />
+          </button>
         </div>
       </div>
     );

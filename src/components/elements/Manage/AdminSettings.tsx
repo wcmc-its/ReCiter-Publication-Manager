@@ -150,10 +150,11 @@ const AdminSettings = () => {
                           <Card.Text>
                           { labelUserView &&
                             <div className="d-flex">
-                              <p className={styles.labels}>Label Override</p>
+                              <Form.Label htmlFor={`labelOverride-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Label Override</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="labelOverRide"
+                                id={`labelOverride-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`labelUserView-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Label override"
                                 value={labelUserView}
@@ -163,10 +164,11 @@ const AdminSettings = () => {
                             }
                             { helpTextUserView &&
                             <div className="d-flex mt-2 mb-2">
-                              <p className={styles.labels}>Help Text</p>
+                              <Form.Label htmlFor={`helpText-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Help Text</Form.Label>
                               <Form.Control
                                 type="textarea"
                                 as="textarea"
+                                id={`helpText-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput} ml-5`}
                                 placeholder="Help text"
                                 value={helpTextUserView}
@@ -175,39 +177,36 @@ const AdminSettings = () => {
                             </div>
                             }
                             {
-                              syntax && 
+                              syntax &&
                               <div className="d-flex">
-                              <p className={styles.labels}>Image Path</p>
+                              <Form.Label htmlFor={`syntax-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Image Path</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="labelOverRide"
+                                id={`syntax-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`syntax-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
-                                placeholder="Label override"
+                                placeholder="Image path"
                                 value={syntax || ""}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "syntax", e)}
                               />
                             </div>
-                            } 
-                          {isVisible &&
+                            }
                             <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Is visible</p>
-                              <div>
-                                <Form.Check
-                                  type="checkbox"
-                                  id=""
-                                  checked={isVisible}
-                                // value={isChecked}
+                              <Form.Check
+                                type="checkbox"
+                                id={`visibility-${viewLabelIndex}-${viewAttrIndex}`}
+                                label="Is visible"
+                                checked={!!isVisible}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isVisible", e)}
-                                />
-                              </div> 
+                              />
                             </div>
-                           }
                            { (innerObj && innerObj.hasOwnProperty('displayRank')) &&
                             <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Display Rank</p>
+                              <Form.Label htmlFor={`displayRank-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labelForCheckBox}>Display Rank</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="displayRank"
+                                id={`displayRank-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`displayRank-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Display Rank"
                                 value={displayRank}
@@ -217,10 +216,11 @@ const AdminSettings = () => {
                            }
                            { maxLimit && maxLimit >= 0 && <>
                            <div className="d-flex">
-                              <p className={styles.labels}>Max Limit</p>
+                              <Form.Label htmlFor={`maxLimit-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Max Limit</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="maxLimit"
+                                id={`maxLimit-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`maxLimit-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Max Limit"
                                 defaultValue="30000"

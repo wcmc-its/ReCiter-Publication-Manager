@@ -206,7 +206,7 @@ const Profile = ({
         <p>
           {defaultList}
           {" "}
-          {relationships.length > defaultNumber ? <span className={styles.textButton} onClick={() => setDisplayAll(true)}>Show more</span> : ''}
+          {relationships.length > defaultNumber ? <button type="button" className={`btn btn-link p-0 ${styles.textButton}`} onClick={() => setDisplayAll(true)}>Show more</button> : ''}
         </p>
       )
     }
@@ -512,7 +512,7 @@ const Profile = ({
               {
                 displayImage && identity.identityImageEndpoint && headShotLabelData && headShotLabelData.length > 0 && headShotLabelData[0].isVisible &&
               <Image
-                alt='Profile Image'
+                alt={identity?.primaryName ? `${identity.primaryName.firstName || ''} ${identity.primaryName.lastName || ''}`.trim() : ''}
                 width={144}
                 height={217}
                 src={headShotLabelData.length > 0 && headShotLabelData[0]?.syntax?.replace("{personIdentifier}", identity.uid)}

@@ -84,13 +84,15 @@ const Login = () => {
             <h3>Sign in to your account</h3>
             <p>Please enter your CWID and password to log in.</p>
             <FormGroup controlId="username" style={{marginBottom: '10px'}}>
+                <Form.Label className="visually-hidden">CWID</Form.Label>
                 <FormControl
-                autoFocus
-                type="username"
+                type="text"
+                autoComplete="username"
                 value={username}
                 onChange={handleUserNameInput}
                 placeholder="Username"
-                style={{ 
+                aria-label="CWID"
+                style={{
                         background: `url("../../../images/icon-login-user.png")`,
                         backgroundSize: '15px 15px',
                         backgroundRepeat: 'no-repeat',
@@ -101,14 +103,16 @@ const Login = () => {
                 />
             </FormGroup>
             <FormGroup controlId="password" style={{marginBottom: '10px'}}>
+                <Form.Label className="visually-hidden">Password</Form.Label>
                 <FormControl
                 value={password}
                 onChange={handlePasswordInput}
                 type="password"
                 placeholder="Password"
+                aria-label="Password"
                 style={{
                         background: `url("../../../images/icon-login-pass.png")`,
-                        backgroundSize: '15px 15px', 
+                        backgroundSize: '15px 15px',
                         backgroundRepeat: 'no-repeat',
                         backgroundPosition: 'left 10px center',
                         paddingLeft: '32px'

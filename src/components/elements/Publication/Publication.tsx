@@ -631,22 +631,21 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
           {reciterArticle.doi ?
             <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span> : ""}
-          {Object.keys(feedbacklog).length > 0 ? <span className={styles.midDot} onClick={onOpenModal}> <div className={`text-decoration-underline d-inline ${styles.cursorPointer}`}>Show History</div> </span> : ""}
+          {Object.keys(feedbacklog).length > 0 ? <span className={styles.midDot}> <button type="button" className={`btn btn-link p-0 text-decoration-underline d-inline ${styles.cursorPointer}`} onClick={onOpenModal}>Show History</button> </span> : ""}
         </div>
         {
           (reciterArticle.evidence !== undefined) ?
             <div className={styles.publicationEvidenceBar}>
-               {/* <p onClick={()=>updatedToggleEvidence(props.index)}>  */}
-                <p onClick={()=>toogleEvidence(props.index)}> 
+                <button type="button" className={`btn btn-link p-0 ${styles.publicationShowEvidenceLink}`} onClick={()=>toogleEvidence(props.index)}>
                 {
                    (props.index === props.showEvidenceDefault) || showEvidence?
                     <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Hide evidence behind this suggestion</span>
+                      className={styles.publicationEvidenceShow}>Hide evidence behind this suggestion</span>
                     :
                     <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Show evidence behind this suggestion</span>
+                      className={styles.publicationEvidenceHide}>Show evidence behind this suggestion</span>
                 }
-              </p>
+              </button>
 
 
                         <div

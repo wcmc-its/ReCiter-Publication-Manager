@@ -47,12 +47,12 @@ useEffect(()=>{
  return (
   <div className={appStyles.mainContainer}>
    <h1 className={styles.header}>Manage Notifications</h1>
-   <Form.Group className="mb-3" controlId="formBasicCheckbox">
-    <Form.Check type="checkbox" label="Disable all notifications"  onChange={()=>handleStatus()}/>
+   <Form.Group className="mb-3" controlId="disableNotifications">
+    <Form.Check type="checkbox" label="Disable all notifications"  onChange={()=>handleStatus()}/>
    </Form.Group>
 
    <Form.Label className="fw-bold">Frequency</Form.Label>
-   <Form.Select aria-label="Default select example" value={frequency} defaultValue={1} onChange={(e)=>handleValueChange("frequency",e.target.value)} className={styles.selectFrequecy}>
+   <Form.Select aria-label="Notification frequency" value={frequency} defaultValue={1} onChange={(e)=>handleValueChange("frequency",e.target.value)} className={styles.selectFrequecy}>
     <option value = "1">Daily</option>
     <option value="7">Every 7 days</option>
     <option value="14">Every 14 days</option>
@@ -61,17 +61,17 @@ useEffect(()=>{
 
    <div className="mt-5">
     <p className="fw-bold">Reasons for sending a notification</p>
-    <Form.Group className="mb-3" controlId="formBasicCheckbox">
+    <Form.Group className="mb-3" controlId="acceptedPubs">
      <Form.Check type="checkbox" label="A new publication has been accepted on your behalf" onChange={()=>handleAccept()}/>
     </Form.Group>
-    <Form.Group className="mb-3" controlId="formBasicCheckbox">
+    <Form.Group className="mb-3" controlId="suggestedPubs">
      <Form.Check type="checkbox" label="A new publication has been suggested" />
     </Form.Group>
     <div className={styles.nestedMenu}>
-     <Form.Group className="mb-3" controlId="formBasicCheckbox">
+     <Form.Group className="mb-3" controlId="minEvidenceScore">
       <Form.Check type="checkbox" label="Minimum evidence score for triggering a notification(higher scores indicate greater confidence)" onChange={()=>handleEvidence()}/>
      </Form.Group>
-     <Form.Select aria-label="Default select example" value={minimumThreshold} disabled={evidence} onChange={(e)=>handleValueChange("minimumThreshold",e.target.value)} className={styles.selectCount}>
+     <Form.Select aria-label="Minimum evidence score threshold" value={minimumThreshold} disabled={evidence} onChange={(e)=>handleValueChange("minimumThreshold",e.target.value)} className={styles.selectCount}>
       {/* <option>7</option> */}
       <option value="10">10</option>
       <option value="9">9</option>

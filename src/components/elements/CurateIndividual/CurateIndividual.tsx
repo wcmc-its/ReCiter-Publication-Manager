@@ -132,7 +132,7 @@ const CurateIndividual = () => {
                 <div className={styles.profileImgWrapper}>
                   <Image
                     src={headShot.length > 0 && headShot[0]?.syntax?.replace("{personIdentifier}", identityData.uid)}
-                    alt="Profile photo"
+                    alt={fullName(identityData.primaryName)}
                     width={144}
                     height={217}
                     onError={() => setDisplayImage(false)}

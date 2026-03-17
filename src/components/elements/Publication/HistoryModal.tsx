@@ -73,7 +73,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
             )
           })
         }
-        {feedbacklog[props.id].length > defaultLogsSize && !showAll && <div className="text-btn text-center" onClick={() => setShowAll(true)}>Show More</div>}
+        {feedbacklog[props.id].length > defaultLogsSize && !showAll && <button type="button" className="btn btn-link text-center d-block w-100" onClick={() => setShowAll(true)}>Show More</button>}
         </>
       )
     }

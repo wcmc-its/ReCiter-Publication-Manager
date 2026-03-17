@@ -29,8 +29,9 @@ const Identity = (props) => {
             else
                 imageUrl = '../../../../public/images/profile-pic.jpg'
         }
+        const personName = identityData.primaryName.firstName + ' ' + identityData.primaryName.lastName;
         const image = (
-            <img src={`${imageUrl}`} width="144" className={styles.imgProps}/>
+            <img src={`${imageUrl}`} width="144" className={styles.imgProps} alt={personName}/>
         );
         const userData = {
             primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined)? ' ' + identityData.primaryName.middleName + ' ':' ') + identityData.primaryName.lastName,

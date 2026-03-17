@@ -158,14 +158,16 @@ const ManageUsers = () => {
               type="text"
               className={`form-control ${styles.searchInput}`}
               placeholder="Search users"
+              aria-label="Search users"
               value={searchText}
               onChange={handleSearchUpdate}
+              onKeyDown={(e) => { if (e.key === 'Enter') onSearch(); }}
             />
-            <InputGroup.Text id="basic-addon2" onClick={onSearch}>search</InputGroup.Text>
+            <Button variant="outline-secondary" onClick={onSearch}>Search</Button>
           </InputGroup>
         </Col>
         <Col md={1}>
-        <div className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</div>
+        <Button variant="link" className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</Button>
         </Col>
         <Col md={5}>
           <Button className="my-1 floatRight" onClick={() => router.push("/manageusers/add")}>Add User</Button>

@@ -11,7 +11,8 @@ import { ReportsResultPane } from "./ReportsResultPane";
 import { usePagination } from "../../../hooks/usePagination";
 import Pagination from "../Pagination/Pagination";
 import { getOffset } from "../../../utils/pagination";
-import Loader from "../Common/Loader";
+import SkeletonForm from "../Common/SkeletonForm";
+import SkeletonTable from "../Common/SkeletonTable";
 import { Author } from "../../../../types/Author";
 import { PublicationSearchFilter } from "../../../../types/publication.report.search";
 import Profile from "../Profile/Profile";
@@ -380,7 +381,7 @@ const Report = () => {
   if (reportingFiltersLoading) {
     return (
       <Container fluid className="h-100 justify-content-center align-items-center">
-        <Loader />
+        <SkeletonForm />
       </Container>
     )
   } else return (
@@ -399,9 +400,9 @@ const Report = () => {
           onLoadMore = {onLoadMore}
           reportFiltersLabes = {reportFiltersLabes}
           />
-        {reportsSearchResultsLoading && 
+        {reportsSearchResultsLoading &&
           <Container fluid className="h-100 p-5">
-            <Loader />
+            <SkeletonTable />
           </Container>
         }
         {!reportsSearchResultsLoading && 

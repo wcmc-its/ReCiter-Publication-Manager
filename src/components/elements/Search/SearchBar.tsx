@@ -172,7 +172,7 @@ useEffect(() => {
             <Col sm={2}>
               <Button className="primary w-100" type="submit">Search</Button>
             </Col>
-            <div className={`m-3 ${styles.textButton}`} onClick={clearFilters}>Reset</div>
+            <Button variant="link" className={`m-3 ${styles.textButton}`} onClick={clearFilters}>Reset</Button>
           </div>
         </Form.Group>
       </Form>

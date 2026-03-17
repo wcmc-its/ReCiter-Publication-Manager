@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSelector } from "react-redux";
+import { Nav } from 'react-bootstrap';
 import styles from './Tabs.module.css';
 
 const Tabs = (props) => {
@@ -26,37 +27,32 @@ const Tabs = (props) => {
     })
 
     return (
-
-        <ul className={`nav nav-tabs tabs-headers`} role="tablist">
-            <li className={(props.tabActive === "Accepted")?"active":""}>
-                <a
+        <Nav variant="tabs" activeKey={props.tabActive} onSelect={(selectedKey) => props.tabClickHandler(selectedKey)} className="tabs-headers">
+            <Nav.Item>
+                <Nav.Link
+                    eventKey="Accepted"
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
-                    onClick={() => { props.tabClickHandler("Accepted"); } }
-                >Accepted <span className={(props.tabActive === "Accepted")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{accepted}</span></a>
-            </li>
-            <li className={(props.tabActive === "Suggested")?"active":""}>
-                <a
+                >Accepted <span className={styles.publicationsTabLinkActive}>{accepted}</span></Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+                <Nav.Link
+                    eventKey="Suggested"
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
-                    onClick={() => { props.tabClickHandler("Suggested"); } }
-                >Suggested <span className={(props.tabActive === "Suggested")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{suggested}</span></a>
-            </li>
-            <li className={(props.tabActive === "Rejected")?"active":""}>
-                <a
+                >Suggested <span className={styles.publicationsTabLinkActive}>{suggested}</span></Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+                <Nav.Link
+                    eventKey="Rejected"
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
-                    onClick={() => { props.tabClickHandler("Rejected"); } }
-                >Rejected <span className={(props.tabActive === "Rejected")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{rejected}</span></a>
-            </li>
-            <li className={(props.tabActive === "Add Publication")?"active":""}>
-                <a
+                >Rejected <span className={styles.publicationsTabLinkActive}>{rejected}</span></Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+                <Nav.Link
+                    eventKey="Add Publication"
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
-                    onClick={() => { props.tabClickHandler("Add Publication"); } }
-                >Add Publication</a>
-            </li>
-        </ul>
+                >Add Publication</Nav.Link>
+            </Nav.Item>
+        </Nav>
     );
 }
 

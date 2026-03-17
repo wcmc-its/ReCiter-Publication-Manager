@@ -5,7 +5,7 @@ import FilterSection from "../Filter/FilterSection";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import  PublicationsPane from "../Publication/PublicationsPane";
 import { publicationsFetchGroupData, fetchGroupFeedbacklog } from '../../../redux/actions/actions';
-import Loader from "../Common/Loader";
+import SkeletonCard from "../Common/SkeletonCard";
 import { Button, Spinner } from "react-bootstrap";
 import { reciterConfig } from "../../../../config/local";
 import fullName  from "../../../utils/fullName";
@@ -105,7 +105,7 @@ const CuratePublications = () => {
         buttonTitle="Update Search..."
         buttonUrl="/search"
         ></FilterSection>
-      { (publicationsGroupDataFetching) ? <Loader /> : 
+      { (publicationsGroupDataFetching) ? <><SkeletonCard /><SkeletonCard /><SkeletonCard /></> :
         <>
             {publicationsGroupData.reciter ? 
           <div className="d-flex justify-content-between">
