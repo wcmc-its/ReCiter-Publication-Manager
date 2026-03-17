@@ -29,11 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Clicking "View Profile" on any person loads and displays the profile modal with biographical and bibliometric data
   4. All loading animations across the application use the React Bootstrap Spinner design; no legacy red circle GIF appears anywhere
   5. Auth flow decisions (role resolution, routing) are logged for troubleshooting
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [x] 01-01-PLAN.md -- Capability-based auth model (getCapabilities, SAML auto-create, middleware rewrite)
+- [x] 01-02-PLAN.md -- UI bug fixes (dropdown, profile PII, skeleton loading)
 
 ### Phase 2: UI/UX Audit
 **Goal**: All application views have been systematically evaluated, critical issues are fixed, and patterns are documented for new UI work
@@ -43,10 +43,12 @@ Plans:
   1. Every view in the application (Search, Curate, Report, Manage Users, Configuration, Notifications, Group Curation) has been evaluated with findings categorized by severity
   2. The Group Curation view has specific issues documented with actionable recommendations
   3. eslint-plugin-jsx-a11y is integrated and critical accessibility violations are fixed
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md -- ESLint a11y setup + audit high-traffic views (Search, Curate, Report, Group Curation)
+- [ ] 02-02-PLAN.md -- Audit remaining views (Manage Users, Configuration, Notifications, Login/NoAccess) + PATTERNS.md + user review checkpoint
+- [ ] 02-03-PLAN.md -- Critical a11y fixes + Jest test infrastructure + smoke tests + Lighthouse before/after comparison
 
 ### Phase 3: Scoped Curation Roles
 **Goal**: Administrators can assign curators to specific person types and/or organizational units, and those curators can only see and curate people within their assigned scope
@@ -89,6 +91,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
-| 2. UI/UX Audit | 0/? | Not started | - |
+| 2. UI/UX Audit | 0/3 | Not started | - |
 | 3. Scoped Curation Roles | 0/? | Not started | - |
 | 4. Curation Proxy | 0/? | Not started | - |
