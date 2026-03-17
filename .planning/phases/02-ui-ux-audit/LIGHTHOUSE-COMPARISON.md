@@ -9,7 +9,7 @@ Lighthouse scores were not captured during the audit phase (audits were code-bas
 
 Instead of Lighthouse scores, this comparison uses **ESLint jsx-a11y violation counts** as the primary quantitative metric, supplemented by code-analysis-based accessibility estimates.
 
-## Scores
+## After Fixes
 
 | View | Route | A11y Before (est.) | A11y After (est.) | Delta | Violations Before | Violations After | Delta |
 |------|-------|---------------------|---------------------|-------|-------------------|------------------|-------|

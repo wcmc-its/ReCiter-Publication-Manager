@@ -92,9 +92,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCOPE-04 | Phase 3 | Pending |
 | SCOPE-05 | Phase 3 | Pending |
 | SCOPE-06 | Phase 3 | Pending |
-| UIUX-01 | Phase 2 | In Progress (4/8 views audited) |
-| UIUX-02 | Phase 2 | In Progress (audit + gap analysis done, fixes pending) |
-| UIUX-03 | Phase 2 | In Progress (eslint-plugin-jsx-a11y installed, 64 violations identified, fixes pending) |
+| UIUX-01 | Phase 2 | Complete -- All 8 views audited with severity-tagged findings (8 AUDIT-*.md files) |
+| UIUX-02 | Phase 2 | Complete -- Group Curation audited, redesign gap analysis documented, UI-SPEC.md produced |
+| UIUX-03 | Phase 2 | Complete -- eslint-plugin-jsx-a11y strict mode, 33/64 violations fixed, Jest infrastructure + smoke tests |
 | PROXY-01 | Phase 4 | Pending |
 | PROXY-02 | Phase 4 | Pending |
 | PROXY-03 | Phase 4 | Pending |
@@ -109,4 +109,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-16*
-*Last updated: 2026-03-16 after adding curation proxy requirements*
+*Last updated: 2026-03-17 after Phase 2 completion*
