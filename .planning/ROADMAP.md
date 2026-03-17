@@ -43,12 +43,13 @@ Plans:
   1. Every view in the application (Search, Curate, Report, Manage Users, Configuration, Notifications, Group Curation) has been evaluated with findings categorized by severity
   2. The Group Curation view has specific issues documented with actionable recommendations
   3. eslint-plugin-jsx-a11y is integrated and critical accessibility violations are fixed
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [x] 02-01-PLAN.md -- ESLint a11y setup + audit high-traffic views (Search, Curate, Report, Group Curation)
 - [x] 02-02-PLAN.md -- Audit remaining views (Manage Users, Configuration, Notifications, Login/NoAccess) + PATTERNS.md + user review checkpoint
-- [ ] 02-03-PLAN.md -- Critical a11y fixes + Jest test infrastructure + smoke tests + Lighthouse before/after comparison
+- [x] 02-03-PLAN.md -- Critical a11y fixes + Jest test infrastructure + smoke tests + Lighthouse before/after comparison
+- [ ] 02-04-PLAN.md -- Gap closure: missing smoke tests (Search, Publication), LIGHTHOUSE doc fix, REQUIREMENTS traceability update
 
 ### Phase 3: Scoped Curation Roles
 **Goal**: Administrators can assign curators to specific person types and/or organizational units, and those curators can only see and curate people within their assigned scope
@@ -91,6 +92,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
-| 2. UI/UX Audit | 2/3 | In Progress|  |
+| 2. UI/UX Audit | 3/4 | In Progress|  |
 | 3. Scoped Curation Roles | 0/? | Not started | - |
 | 4. Curation Proxy | 0/? | Not started | - |
