@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-17T21:41:45.829Z"
-last_activity: 2026-03-17 -- Completed Plan 03-05 (manage profile port + scope enforcement) -- Phase 3 complete
+status: in_progress
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-17T22:47:22Z"
+last_activity: 2026-03-17 -- Completed Plan 04-01 (proxy foundation) -- proxy model, auth pipeline, CRUD API
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_plans: 15
+  completed_plans: 12
+  percent: 80
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 3 complete -- Scoped Curation Roles. All 5 plans delivered. Ready for Phase 4 (Curation Proxy).
+**Current focus:** Phase 4 in progress -- Curation Proxy. Plan 04-01 complete (proxy foundation). 3 plans remaining.
 
 ## Current Position
 
-Phase: 3 of 4 (Scoped Curation Roles) -- COMPLETE
-Plan: 5 of 5 in current phase (03-05 complete, phase done)
-Status: Phase 3 complete, ready for Phase 4
-Last activity: 2026-03-17 -- Completed Plan 03-05 (manage profile port + scope enforcement) -- Phase 3 complete
+Phase: 4 of 4 (Curation Proxy)
+Plan: 1 of 4 in current phase (04-01 complete)
+Status: Phase 4 in progress
+Last activity: 2026-03-17 -- Completed Plan 04-01 (proxy foundation) -- proxy model, auth pipeline, CRUD API
 
-Progress: [██████████] 100%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
+- Total plans completed: 12
 - Average duration: 8min
-- Total execution time: ~1.4 hours
+- Total execution time: ~1.5 hours
 
 **By Phase:**
 
@@ -46,6 +46,7 @@ Progress: [██████████] 100%
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
 | 03 | 5 | 44min | 9min |
+| 04 | 1 | 6min | 6min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -60,10 +61,11 @@ Progress: [██████████] 100%
 | Phase 03 P03 | 14min | 2 tasks | 7 files |
 | Phase 03 P04 | 12min | 2 tasks | 11 files |
 | Phase 03 P05 | 8min | 2 tasks (1 checkpoint) | 5 files |
+| Phase 04 P01 | 6min | 3 tasks | 12 files |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 6min, 14min, 12min, 8min
-- Trend: Foundation/data-model plans fastest; UI+controller plans moderate; port+scope plans efficient
+- Last 5 plans: 14min, 12min, 8min, 6min, 6min
+- Trend: Foundation/data-model plans fastest; proxy foundation efficient at 6min
 
 *Updated after each plan completion*
 
@@ -118,6 +120,9 @@ Recent decisions affecting current work:
 - [03-04]: Curate icon uses MUI EditOutlined with Tooltip for accessibility per UI-SPEC
 - [03-05]: Manage Profile scope enforcement reuses curate page pattern (client-side fetch + isPersonInScope + redirect + toast)
 - [03-05]: 5 files ported from master commit 544c0f2 with dev_v2 convention adaptations
+- [04-01]: Proxy data retrieval triggers for any curation role (Curator_All, Curator_Scoped, Curator_Self), not just Curator_Scoped
+- [04-01]: userID lookup consolidated into single query shared by both scope and proxy data retrieval
+- [04-01]: proxyPersonIds stored as JSON string in JWT token (same pattern as scopeData)
 
 ### Pending Todos
 
@@ -131,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T21:41:45.826Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-curation-proxy/04-CONTEXT.md
+Last session: 2026-03-17T22:47:22Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: .planning/phases/04-curation-proxy/04-02-PLAN.md
