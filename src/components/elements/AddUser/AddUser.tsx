@@ -6,12 +6,14 @@ import { styled } from '@mui/material/styles';
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
-import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID} from "../../../redux/actions/actions";
+import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminRoles, getAdminDepartments} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { PageHeader } from "../Common/PageHeader";
 import CurationScopeSection from './CurationScopeSection';
+import ProxyAssignmentsSection from './ProxyAssignmentsSection';
 import { reciterConfig } from '../../../../config/local';
+import { toast } from 'react-toastify';
 
 
 interface FuncProps {
@@ -47,15 +49,24 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const [selectedPersonTypes, setSelectedPersonTypes] = useState<string[]>([]);
     const [personTypeOptions, setPersonTypeOptions] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
+    const [selectedProxies, setSelectedProxies] = useState<any[]>([]);
 
     const router = useRouter()
     const isEdit = router.query.userId ? true : false;
 
     const dispatch = useDispatch();
 
+    // Ensure roles and departments are loaded (needed when navigating directly to /manageusers/add)
+    useEffect(() => {
+        if (!allAdminRoles || allAdminRoles.length === 0) dispatch(getAdminRoles());
+        if (!adminDepartments || adminDepartments.length === 0) dispatch(getAdminDepartments());
+    }, []);
 
     const hasScopedRole = selectedRoles.includes('Curator_Scoped');
     const hasCuratorAll = selectedRoles.includes('Curator_All');
+    const hasCurationRole = selectedRoles.some(
+        (r: any) => ['Curator_All', 'Curator_Scoped', 'Curator_Self'].includes(typeof r === 'string' ? r : (r.roleLabel || r.label || ''))
+    );
 
     const handleValueChangeTargetValue = (field, value) => {
         if(value != '') formErrorsInst[field] = ''; 
@@ -112,6 +123,23 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0] === 1) {
+                    // Save proxy assignments
+                    try {
+                        await fetch('/api/db/admin/proxy', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': reciterConfig?.backendApiKey || '',
+                            },
+                            body: JSON.stringify({
+                                userID: isEditUserId,
+                                personIdentifiers: selectedProxies.map(p => p.personIdentifier),
+                            }),
+                        });
+                        toast.success('Proxy assignments saved. Changes take effect on the user\'s next login.');
+                    } catch (err) {
+                        console.log('Error saving proxy assignments:', err);
+                    }
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
                     router.push("/admin/manage/users")
                 }
@@ -119,6 +147,23 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             else {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0].userID) {
+                    // Save proxy assignments for newly created user
+                    try {
+                        await fetch('/api/db/admin/proxy', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': reciterConfig?.backendApiKey || '',
+                            },
+                            body: JSON.stringify({
+                                userID: resp[0].userID,
+                                personIdentifiers: selectedProxies.map(p => p.personIdentifier),
+                            }),
+                        });
+                        toast.success('Proxy assignments saved. Changes take effect on the user\'s next login.');
+                    } catch (err) {
+                        console.log('Error saving proxy assignments:', err);
+                    }
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
                     router.push("/admin/manage/users")
                 }
@@ -154,31 +199,39 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         })
                     })
                     setSelectedRoles(roleNames ? roleNames : [])
+
+                    // Load person type scope data for edit
+                    if (roleNames.includes('Curator_Scoped')) {
+                        fetch(`/api/db/admin/users/persontypes?userId=${isEditUserId}`, {
+                            headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
+                        })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (Array.isArray(data)) setSelectedPersonTypes(data.map(d => d.personType));
+                            })
+                            .catch(err => console.log('Error fetching user person types:', err));
+                    }
                 }
 
                 if (adminUsersDepartments) {
                     let departmentNames = [];
-
                     adminDepartments.map((department) => {
                         adminUsersDepartments.map((editIds) => {
                             if (editIds.departmentID == department.departmentID) departmentNames.push(department.departmentLabel)
-                        }
-                        )
+                        })
                     })
                     setSelectedDepartments(departmentNames ? departmentNames : [])
                 }
 
-                // Load person type scope data for edit
-                if (roleNames.includes('Curator_Scoped')) {
-                    fetch(`/api/db/admin/users/persontypes?userId=${isEditUserId}`, {
-                        headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
+                // Load existing proxy assignments
+                fetch(`/api/db/admin/proxy?userID=${isEditUserId}`, {
+                    headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (Array.isArray(data)) setSelectedProxies(data);
                     })
-                        .then(r => r.json())
-                        .then(data => {
-                            if (Array.isArray(data)) setSelectedPersonTypes(data.map(d => d.personType));
-                        })
-                        .catch(err => console.log('Error fetching user person types:', err));
-                }
+                    .catch(err => console.log('Error fetching proxy assignments:', err));
 
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
                 setLoading(false)
@@ -348,6 +401,16 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     personTypeOptions={personTypeOptions}
                                     departmentOptions={adminDepartments.map(d => d.departmentLabel)}
                                     error={formErrorsInst.scopeRequired || null}
+                                    CssTextField={CssTextField}
+                                />
+                            </div>
+                        </Collapse>
+
+                        <Collapse in={hasCurationRole}>
+                            <div>
+                                <ProxyAssignmentsSection
+                                    selectedProxies={selectedProxies}
+                                    onProxiesChange={setSelectedProxies}
                                     CssTextField={CssTextField}
                                 />
                             </div>
