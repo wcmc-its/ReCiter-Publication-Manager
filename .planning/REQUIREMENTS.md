@@ -40,8 +40,8 @@ Requirements for this release. Each maps to roadmap phases.
 - [x] **PROXY-01**: Superuser can assign one user as a curation proxy for another user from the Manage Users page
 - [x] **PROXY-02**: Curators with existing curation privileges can grant proxy access from the individual curation page
 - [x] **PROXY-03**: Proxy relationships are many-to-many (a user can proxy for multiple people, a person can have multiple proxies)
-- [ ] **PROXY-04**: Proxied users display with a [PROXY] badge in Find People search results for the proxy user
-- [ ] **PROXY-05**: Proxy user can filter search results to show only their proxied users via a checkbox filter
+- [x] **PROXY-04**: Proxied users display with a [PROXY] badge in Find People search results for the proxy user
+- [x] **PROXY-05**: Proxy user can filter search results to show only their proxied users via a checkbox filter
 - [x] **PROXY-06**: Proxy user can navigate to and curate publications on behalf of their proxied users
 
 ## v2 Requirements
@@ -98,8 +98,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROXY-01 | Phase 4 | Complete |
 | PROXY-02 | Phase 4 | Complete |
 | PROXY-03 | Phase 4 | Complete |
-| PROXY-04 | Phase 4 | Pending |
-| PROXY-05 | Phase 4 | Pending |
+| PROXY-04 | Phase 4 | Complete |
+| PROXY-05 | Phase 4 | Complete |
 | PROXY-06 | Phase 4 | Complete |
 
 **Coverage:**
