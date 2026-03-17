@@ -30,6 +30,7 @@ const ManageUsers = () => {
 
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(50)
+  const [roleFilter, setRoleFilter] = useState('')
 
  
   useEffect(() => {
@@ -38,10 +39,10 @@ const ManageUsers = () => {
         fetchAllAdminUsers(page, count)
   }, [])
 
-  const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string)=>{
+  const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string, roleFilterParam? :string)=>{
     setLoading(true);
     const offset = (page - 1) * limit;
-    const request = { limit, offset , searchTextInput};
+    const request = { limit, offset , searchTextInput, roleFilter: roleFilterParam !== undefined ? roleFilterParam : roleFilter };
     fetch(`/api/db/admin/users`, {
       credentials: "same-origin",
       method: 'POST',
@@ -75,7 +76,8 @@ const ManageUsers = () => {
     setPage(1);
     setCount(50);
     setSearchText("");
-    fetchAllAdminUsers(1,50);
+    setRoleFilter("");
+    fetchAllAdminUsers(1,50,'','');
   }
 
   const fetchPaginatedData = (newCount) => {
@@ -152,7 +154,7 @@ const ManageUsers = () => {
     <div className={appStyles.mainContainer}>
       <PageHeader label="Manage Users" />
       <Row className={styles.globalfilter}>
-        <Col md={6} className={styles.pt5}>
+        <Col md={4} className={styles.pt5}>
           <InputGroup className="mb-3">
             <Form.Control
               type="text"
@@ -166,10 +168,30 @@ const ManageUsers = () => {
             <Button variant="outline-secondary" onClick={onSearch}>Search</Button>
           </InputGroup>
         </Col>
+        <Col md={3} className={styles.pt5}>
+          <Form.Group controlId="roleFilter">
+            <Form.Label htmlFor="roleFilter">Filter by role</Form.Label>
+            <Form.Select
+              id="roleFilter"
+              value={roleFilter}
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                fetchAllAdminUsers(1, count, searchText, e.target.value);
+              }}
+            >
+              <option value="">All Roles</option>
+              <option value="Superuser">Superuser</option>
+              <option value="Curator_All">Curator_All</option>
+              <option value="Curator_Scoped">Curator_Scoped</option>
+              <option value="Curator_Self">Curator_Self</option>
+              <option value="Reporter_All">Reporter_All</option>
+            </Form.Select>
+          </Form.Group>
+        </Col>
         <Col md={1}>
         <Button variant="link" className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</Button>
         </Col>
-        <Col md={5}>
+        <Col md={4}>
           <Button className="my-1 floatRight" onClick={() => router.push("/manageusers/add")}>Add User</Button>
         </Col>
       </Row>

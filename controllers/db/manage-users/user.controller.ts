@@ -14,13 +14,15 @@ export const listAllUsers = async (
     const {
       limit,
       offset,
-      searchTextInput
+      searchTextInput,
+      roleFilter
     } = req.body;
     if (req.body.limit != undefined && req.body.offset != undefined) {
+      const where = {};
+
       if (searchTextInput) {
-        const where = {}
-        where[Op.and] = []
-         where[Op.and].push({
+        where[Op.and] = where[Op.and] || [];
+        where[Op.and].push({
           [Op.or]: [{
             '$nameFirst$': {
               [Op.like]: `%${searchTextInput}%`
@@ -34,28 +36,62 @@ export const listAllUsers = async (
               [Op.like]: `%${searchTextInput}%`
             }
           }]
-        }) 
-        const {
-          count,
-          rows
-        } = await models.AdminUser.findAndCountAll({
-          offset: offset,
-          // limit: limit,
-          where: where
         });
-        users['usersData'] = rows;
-        users['totalUsersCount'] = count;
-      } else {
-        const {
-          count,
-          rows
-        } = await models.AdminUser.findAndCountAll({
-          offset: req.body.offset,
-          limit: req.body.limit,
-        });
-        users['usersData'] = rows;
-        users['totalUsersCount'] = count;
       }
+
+      // Build includes with role, department, and person type data
+      const roleInclude: any = {
+        model: models.AdminUsersRole,
+        as: 'adminUsersRoles',
+        required: !!roleFilter,
+        attributes: ['roleID'],
+        include: [{
+          model: models.AdminRole,
+          as: 'role',
+          attributes: ['roleLabel'],
+          where: roleFilter ? { roleLabel: roleFilter } : undefined,
+        }],
+      };
+
+      const includes = [
+        roleInclude,
+        {
+          model: models.AdminUsersDepartment,
+          as: 'adminUsersDepartments',
+          required: false,
+          attributes: ['departmentID'],
+          include: [{
+            model: models.AdminDepartment,
+            as: 'department',
+            attributes: ['departmentLabel'],
+          }],
+        },
+        {
+          model: models.AdminUsersPersonType,
+          as: 'adminUsersPersonTypes',
+          required: false,
+          attributes: ['personType'],
+        },
+      ];
+
+      const queryOptions: any = {
+        offset: offset,
+        include: includes,
+        distinct: true,
+      };
+
+      if (Object.keys(where).length > 0) {
+        queryOptions.where = where;
+      }
+
+      // Only apply limit when no search text (preserves existing behavior)
+      if (!searchTextInput) {
+        queryOptions.limit = limit;
+      }
+
+      const { count, rows } = await models.AdminUser.findAndCountAll(queryOptions);
+      users['usersData'] = rows;
+      users['totalUsersCount'] = count;
     }
     res.send(users);
   } catch (e) {
