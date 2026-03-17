@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-03-17T22:56:20.557Z"
-last_activity: 2026-03-17 -- Completed Plan 04-02 (manage users proxy UI) -- ProxyAssignmentsSection, UsersTable proxy column
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-03-17T22:55:18Z"
+last_activity: 2026-03-17 -- Completed Plan 04-03 (search proxy badge and scope filter) -- ProxyBadge, scope+proxy OR logic, ScopeLabel proxy count
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 15
-  completed_plans: 14
-  percent: 87
+  completed_plans: 15
+  percent: 93
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 4 in progress -- Curation Proxy. Plan 04-02 complete (manage users proxy UI). 2 plans remaining.
+**Current focus:** Phase 4 in progress -- Curation Proxy. Plan 04-03 complete (search proxy badge and scope filter). 1 plan remaining.
 
 ## Current Position
 
 Phase: 4 of 4 (Curation Proxy)
-Plan: 2 of 4 in current phase (04-02 complete)
+Plan: 3 of 4 in current phase (04-03 complete)
 Status: Phase 4 in progress
-Last activity: 2026-03-17 -- Completed Plan 04-02 (manage users proxy UI) -- ProxyAssignmentsSection, UsersTable proxy column
+Last activity: 2026-03-17 -- Completed Plan 04-03 (search proxy badge and scope filter) -- ProxyBadge, scope+proxy OR logic, ScopeLabel proxy count
 
-Progress: [████████▓░] 87%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 14
 - Average duration: 8min
-- Total execution time: ~1.6 hours
+- Total execution time: ~1.7 hours
 
 **By Phase:**
 
@@ -46,7 +46,7 @@ Progress: [████████▓░] 87%
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
 | 03 | 5 | 44min | 9min |
-| 04 | 2 | 10min | 5min |
+| 04 | 3 | 14min | 5min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -63,12 +63,14 @@ Progress: [████████▓░] 87%
 | Phase 03 P05 | 8min | 2 tasks (1 checkpoint) | 5 files |
 | Phase 04 P01 | 6min | 3 tasks | 12 files |
 | Phase 04 P02 | 4min | 2 tasks | 5 files |
+| Phase 04 P03 | 4min | 2 tasks | 7 files |
 
 **Recent Trend:**
-- Last 5 plans: 12min, 8min, 6min, 6min, 4min
-- Trend: Proxy plans executing efficiently; UI component tasks fastest
+- Last 5 plans: 8min, 6min, 6min, 4min, 4min
+- Trend: Proxy plans executing efficiently; consistent 4-6min for UI component tasks
 
 *Updated after each plan completion*
+| Phase 04 P04 | 5min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -127,6 +129,11 @@ Recent decisions affecting current work:
 - [04-02]: hasCurationRole checks all three curator roles (All, Scoped, Self) for proxy section visibility
 - [04-02]: Proxy save executes as separate fetch after user create/update with toast notification
 - [04-02]: UsersTable Proxies column uses em dash/1 person/N people formatting per UI-SPEC
+- [Phase 04]: [04-03]: ProxyBadge rendered via isProxy prop on Name component for clean separation of concerns
+- [Phase 04]: [04-03]: Proxy OR logic wraps existing scope AND conditions with Op.or at controller level
+- [Phase 04]: [04-03]: ScopeLabel handles proxy-only, scope-only, and combined scope+proxy display with + separator
+- [Phase 04]: Proxy access check short-circuits before scope API call (avoids unnecessary network request for proxied persons)
+- [Phase 04]: canCurateThisPerson uses OR logic: all || scoped || isProxied for Grant Proxy button visibility
 
 ### Pending Todos
 
@@ -140,6 +147,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T22:54:45Z
-Stopped at: Completed 04-02-PLAN.md
-Resume file: .planning/phases/04-curation-proxy/04-03-PLAN.md
+Last session: 2026-03-17T22:57:37.086Z
+Stopped at: Completed 04-04-PLAN.md (checkpoint:human-verify pending)
+Resume file: None
