@@ -34,7 +34,7 @@ Declared values (must be multiples of 4):
 | Token | Value | Usage |
 |-------|-------|-------|
 | xs | 4px | Icon gaps, badge internal padding, chip margins |
-| sm | 8px | Compact element spacing, inline button margins, proxy chip gaps |
+| sm | 8px | Compact element spacing, inline button margins, proxy chip gaps, ProxyBadge left margin |
 | md | 16px | Default element spacing, form section internal padding, modal body padding |
 | lg | 24px | Section padding between ProxyAssignmentsSection and CurationScopeSection |
 | xl | 32px | Layout gaps between major form sections |
@@ -56,8 +56,10 @@ Exceptions: none
 | Heading | 20px | 400 (regular) | 1.3 |
 | Display | 28px | 600 (semibold) | 1.2 |
 
+Badge exception: ProxyBadge renders at 10px (below Label minimum) to match the existing project badge scale used across the application. This is a one-time exception for this phase, not a new typographic role.
+
 **Phase-specific usage:**
-- ProxyBadge text: Label role (12px, weight 600, but rendered at 10px to match existing badge scale -- see Component Inventory)
+- ProxyBadge text: 10px, weight 600 (exception noted above)
 - ProxyAssignmentsSection legend: Heading role (20px, weight 400, line-height 1.3)
 - ProxyAssignmentsSection helper text: Body role at 14px, weight 400, color #777777
 - Proxy count column in UsersTable: Body role (14px, weight 400)
@@ -132,7 +134,7 @@ Visual spec:
   - Font size: 10px
   - Font weight: 600
   - Pill shape: border-radius fully rounded (Badge pill prop)
-  - Margin: 6px left of person name
+  - Margin: 8px left of person name
   - Vertical alignment: middle (aligned with name text baseline)
   - Min touch target: inherits from parent row (not independently clickable)
 
@@ -191,8 +193,8 @@ Visual spec:
   - Autocomplete placeholder: "Search users..."
   - Display format: "Smith, John (jhs2001)" (admin user format, no org unit)
   - Existing proxies: displayed as chips above autocomplete
-  - Footer: "Cancel" (variant="secondary") + "Save" (variant="primary")
-  - Cancel button: text "Cancel", no confirmation needed
+  - Footer: "Discard Changes" (variant="secondary") + "Save Proxy Assignments" (variant="primary")
+  - Discard Changes button: closes modal without persisting any changes
   - Save button: text "Save Proxy Assignments"
   - Close button: X in modal header (react-bootstrap default)
 
@@ -273,7 +275,7 @@ Tooltip: full scope text + "plus N proxied people" when truncated
 | Grant Proxy modal title | "Grant Proxy Access" |
 | Grant Proxy modal subtitle | "Select users who can curate publications for [Person Name]" |
 | Grant Proxy modal save | "Save Proxy Assignments" |
-| Grant Proxy modal cancel | "Cancel" |
+| Grant Proxy modal dismiss | "Discard Changes" |
 | Empty state: no proxies assigned (AddUser) | No explicit empty state needed -- autocomplete with placeholder is sufficient |
 | Empty state: no proxy users found (modal search) | "No users found matching your search." (rendered inside MUI Autocomplete noOptionsText) |
 | Proxy badge text | "PROXY" |
@@ -301,7 +303,7 @@ Tooltip: full scope text + "plus N proxied people" when truncated
 | User selects a person from dropdown | Person added as chip in autocomplete |
 | User clicks X on a proxy chip | Chip removed immediately (no confirmation -- matches roles/departments pattern) |
 | User saves AddUser form | Proxy assignments persisted alongside other user data. Toast: "Proxy assignments saved. Changes take effect on the user's next login." |
-| No search results | MUI Autocomplete shows "No results found" (noOptionsText) |
+| No search results | MUI Autocomplete shows "No people found matching your search." (noOptionsText) |
 | Search in progress | MUI Autocomplete shows loading spinner (loading prop) |
 
 ### GrantProxyModal Interactions
@@ -313,7 +315,7 @@ Tooltip: full scope text + "plus N proxied people" when truncated
 | User selects a user from dropdown | User added as chip |
 | User removes a chip | Chip removed (no confirmation) |
 | "Save Proxy Assignments" clicked | POST to proxy API, close modal, show success toast |
-| "Cancel" clicked | Modal closes, no changes persisted |
+| "Discard Changes" clicked | Modal closes, no changes persisted |
 | Escape key | Modal closes, no changes persisted |
 | Save fails | Modal stays open, error toast: "Unable to save proxy assignments. Please try again." |
 
@@ -365,7 +367,7 @@ All new components MUST meet WCAG 2.1 AA per PATTERNS.md.
 | ProxyAssignmentsSection form labels | Form.Label "Proxy People" + Autocomplete aria-label="Proxy People" |
 | GrantProxyModal focus trap | react-bootstrap Modal provides native focus trap |
 | GrantProxyModal aria-labelledby | Points to modal title element |
-| GrantProxyModal close | Escape key (native), close button in header, Cancel button in footer |
+| GrantProxyModal close | Escape key (native), close button in header, "Discard Changes" button in footer |
 | "Grant Proxy Access" button | Semantic button element, min 44px touch target |
 | UsersTable proxy count | Standard table cell, no special ARIA needed |
 | ScopeLabel proxy text | aria-label updated to include proxy count: "Curation scope: [scope items] plus N proxied people" |
