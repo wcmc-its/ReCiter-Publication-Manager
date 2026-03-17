@@ -26,7 +26,6 @@
     "exceljs": "^4.3.0",
     "fs": "0.0.1-security",
     "jose": "^4.14.4",
-    
     "moment": "^2.29.4",
     "mysql2": "^2.3.3-rc.0",
     "next": "^12.2.5",
@@ -68,13 +67,14 @@
     "@types/validator": "^13.6.6",
     "eslint": "7.32.0",
     "eslint-config-next": "11.1.2",
+    "eslint-plugin-jsx-a11y": "6.10.2",
     "http-build-query": "^0.7.0",
     "jsonwebtoken": "^8.5.1",
     "sequelize-auto": "^0.8.5",
     "typescript": "4.4.3"
   },
   "resolutions": {
-    "@types/react": "^17.0.38",
-    "@types/react-dom": "^17"
+    "@types/react": "17.0.91",
+    "@types/react-dom": "17.0.25"
   }
 }
