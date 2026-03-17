@@ -14,8 +14,11 @@ import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/client";
-import { allowedPermissions, toastMessage } from "../../../utils/constants";
+import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
+import { isProxyFor } from "../../../utils/scopeResolver";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import GrantProxyModal from './GrantProxyModal';
+import ProxyBadge from '../Search/ProxyBadge';
 import { reciterConfig } from "../../../../config/local";
 
 
@@ -44,6 +47,17 @@ const CurateIndividual = () => {
   const [viewProfileLabels, setViewProfileLabels] = useState([])
   const [isLoading, setLoading] = useState(false);
   const [headShot, setHeadShot] = useState<any>([])
+  const [showGrantProxy, setShowGrantProxy] = useState(false);
+
+  // Proxy state
+  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  const caps = getCapabilities(userRoles);
+  const proxyPersonIds = session?.data?.proxyPersonIds
+    ? JSON.parse(session.data.proxyPersonIds)
+    : [];
+  const personIdentifier = (id as string) || '';
+  const isProxied = isProxyFor(proxyPersonIds, personIdentifier);
+  const canCurateThisPerson = caps.canCurate.all || caps.canCurate.scoped || isProxied;
 
 
   useEffect(() => {
@@ -140,9 +154,12 @@ const CurateIndividual = () => {
                 </div>
               }
               <div className="flex-grow-1">
-                <DisplayName
-                  name={identityData.primaryName}
-                />
+                <div className="d-flex align-items-center mb-1">
+                  <DisplayName
+                    name={identityData.primaryName}
+                  />
+                  {isProxied && <ProxyBadge />}
+                </div>
                 <b>{identityData.title}</b>
                 <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
                 {reciterData && reciterData.reciter &&
@@ -150,7 +167,18 @@ const CurateIndividual = () => {
                     reciter={reciterData.reciter}
                   />
                 }
-                <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+                <div className="d-flex align-items-center" style={{ gap: '8px' }}>
+                  <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+                  {canCurateThisPerson && (
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => setShowGrantProxy(true)}
+                      style={{ minHeight: '44px' }}
+                    >
+                      Grant Proxy Access
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </Container>
@@ -175,6 +203,13 @@ const CurateIndividual = () => {
         handleClose={handleClose}
         viewProfileLabels={viewProfileLabels}
         headShotLabelData = {headShot}
+      />
+      <GrantProxyModal
+        show={showGrantProxy}
+        onHide={() => setShowGrantProxy(false)}
+        personIdentifier={personIdentifier}
+        personName={`${identityData?.primaryName?.firstName || ''} ${identityData?.primaryName?.lastName || ''}`}
+        onSave={() => { /* optional refresh */ }}
       />
     </div>
   )

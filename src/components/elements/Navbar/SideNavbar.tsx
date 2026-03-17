@@ -221,11 +221,14 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
         const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
         const caps = getCapabilities(userRoles);
         const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
+        const proxyPersonIds = session?.data?.proxyPersonIds
+          ? JSON.parse(session.data.proxyPersonIds)
+          : [];
 
         return (
           <>
             {open && caps.canCurate.scoped && !caps.canCurate.all && (
-              <ScopeLabel scopeData={scopeData} />
+              <ScopeLabel scopeData={scopeData} proxyCount={proxyPersonIds.length} />
             )}
             <StyledList>
               {menuItems.map((item: MenuItem, index: number) => {
