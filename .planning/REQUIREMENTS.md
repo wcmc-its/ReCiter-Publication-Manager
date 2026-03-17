@@ -33,7 +33,7 @@ Requirements for this release. Each maps to roadmap phases.
 
 - [x] **UIUX-01**: Full visual audit of all views completed using systematic evaluation methodology
 - [x] **UIUX-02**: Group Curation view reviewed and issues documented with recommendations
-- [ ] **UIUX-03**: Critical accessibility issues identified and fixed (eslint-plugin-jsx-a11y integrated)
+- [x] **UIUX-03**: Critical accessibility issues identified and fixed (eslint-plugin-jsx-a11y integrated)
 
 ### Curation Proxy
 

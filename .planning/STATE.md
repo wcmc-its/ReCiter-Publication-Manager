@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-16T00:00:00.000Z"
-last_activity: 2026-03-16 — Completed Plan 02-02 (remaining view audits + PATTERNS.md + user review checkpoint)
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-03-17T03:06:00.000Z"
+last_activity: 2026-03-17 -- Completed Plan 02-03 (critical a11y fixes + Jest infrastructure + smoke tests)
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
-  percent: 70
+  completed_plans: 5
+  percent: 80
 ---
 
 # Project State
@@ -21,30 +21,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 2 in progress -- UI/UX Audit. Plan 1 complete, 2 remaining.
+**Current focus:** Phase 2 complete -- UI/UX Audit. All 3 plans complete. Ready for Phase 3.
 
 ## Current Position
 
-Phase: 2 of 4 (UI/UX Audit)
-Plan: 2 of 3 in current phase (02-02 complete)
-Status: Phase 2 In Progress
-Last activity: 2026-03-16 — Completed Plan 02-02 (remaining view audits + PATTERNS.md + user review checkpoint)
+Phase: 2 of 4 (UI/UX Audit) -- COMPLETE
+Plan: 3 of 3 in current phase (02-03 complete)
+Status: Phase 2 Complete
+Last activity: 2026-03-17 -- Completed Plan 02-03 (critical a11y fixes + Jest infrastructure + smoke tests)
 
-Progress: [███████---] 70%
+Progress: [████████--] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 9min
-- Total execution time: ~0.6 hours
+- Total plans completed: 5
+- Average duration: 10min
+- Total execution time: ~0.8 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 2 | 10min | 5min |
-| 02 | 2 | 26min | 13min |
+| 02 | 3 | 40min | 13min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -52,10 +52,11 @@ Progress: [███████---] 70%
 | Phase 01 P02 | 6min | 3 tasks | 12 files |
 | Phase 02 P01 | 13min | 2 tasks | 8 files |
 | Phase 02 P02 | multi-session | 3 tasks (1 checkpoint) | 5 files |
+| Phase 02 P03 | 14min | 3 tasks | 20 files |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 6min, 13min, multi-session
-- Trend: Audit + checkpoint plans span multiple sessions
+- Last 5 plans: 4min, 6min, 13min, multi-session, 14min
+- Trend: Fix plans faster than audit plans
 
 *Updated after each plan completion*
 
@@ -85,6 +86,10 @@ Recent decisions affecting current work:
 - [02-02]: Notifications view audited despite being currently hidden -- findings apply when feature is enabled
 - [02-02]: PATTERNS.md is authoritative design reference for all future UI work (Phase 3+)
 - [02-02]: react-bootstrap for layout/forms/interaction; @mui/icons-material for icons only; CSS Modules for component-specific styling
+- [02-03]: Jest 27.5.1 + @testing-library/react 12.1.5 for React 16 compatibility; next/jest for SWC transforms
+- [02-03]: --legacy-peer-deps required for test dep install (React 16 + MUI 5 peer conflict)
+- [02-03]: AdminSettings isVisible checkbox rendered unconditionally (was hidden when false, preventing toggle-on)
+- [02-03]: Semantic <button> preferred over role="button"+tabIndex for onClick handlers (cleaner, less error-prone)
 
 ### Pending Todos
 
@@ -98,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T00:00:00.000Z
-Stopped at: Completed 02-02-PLAN.md
-Resume file: .planning/phases/02-ui-ux-audit/02-02-SUMMARY.md
+Last session: 2026-03-17T03:06:00.000Z
+Stopped at: Completed 02-03-PLAN.md (Phase 2 complete)
+Resume file: .planning/phases/02-ui-ux-audit/02-03-SUMMARY.md
