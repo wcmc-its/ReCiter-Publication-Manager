@@ -5,7 +5,8 @@ export const allowedPermissions = Object.freeze({
 	Superuser: "Superuser",
 	Curator_All: "Curator_All",
 	Reporter_All: "Reporter_All",
-	Curator_Self: "Curator_Self"
+	Curator_Self: "Curator_Self",
+	Curator_Scoped: "Curator_Scoped"
 })
 
 export const toastMessage = (type, message) => {
@@ -96,6 +97,13 @@ export const ROLE_CAPABILITIES = Object.freeze({
     canManageUsers: false,
     canConfigure: false,
   },
+  [allowedPermissions.Curator_Scoped]: {
+    canCurate: { scoped: true },
+    canReport: false,
+    canSearch: true,
+    canManageUsers: false,
+    canConfigure: false,
+  },
 })
 
 /**
@@ -105,7 +113,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
  * @param {Array} roles - Array of role objects with { roleLabel, personIdentifier }
  * @returns {Object} capabilities - { canCurate, canReport, canSearch, canManageUsers, canConfigure, personIdentifier }
  *
- * canCurate is an object: { all: boolean, self: boolean, personIdentifier: string|null }
+ * canCurate is an object: { all: boolean, self: boolean, scoped: boolean, personIdentifier: string|null, scopeData: object|null }
  * All other capabilities are booleans.
  *
  * Baseline: any authenticated user gets canReport + canSearch even with no roles.
@@ -114,7 +122,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
 export function getCapabilities(roles) {
   // Baseline: every authenticated user gets canReport + canSearch
   const caps = {
-    canCurate: { all: false, self: false, personIdentifier: null },
+    canCurate: { all: false, self: false, scoped: false, personIdentifier: null, scopeData: null },
     canReport: true,
     canSearch: true,
     canManageUsers: false,
@@ -137,6 +145,7 @@ export function getCapabilities(roles) {
     if (roleCaps.canCurate) {
       if (roleCaps.canCurate.all) caps.canCurate.all = true
       if (roleCaps.canCurate.self) caps.canCurate.self = true
+      if (roleCaps.canCurate.scoped) caps.canCurate.scoped = true
     }
     if (roleCaps.canReport) caps.canReport = true
     if (roleCaps.canSearch) caps.canSearch = true
@@ -153,12 +162,12 @@ export function getCapabilities(roles) {
  * @returns {string} path - The landing page path
  */
 export function getLandingPage(caps) {
-  // Self-only curators (not all curators) land on their own curate page
-  if (caps.canCurate.self && !caps.canCurate.all) {
+  // Self-only curators (not all or scoped curators) land on their own curate page
+  if (caps.canCurate.self && !caps.canCurate.all && !caps.canCurate.scoped) {
     return '/curate/' + caps.canCurate.personIdentifier
   }
-  // Broader roles land on search
-  if (caps.canCurate.all || caps.canReport || caps.canSearch) {
+  // Broader roles (including scoped curators) land on search
+  if (caps.canCurate.all || caps.canCurate.scoped || caps.canReport || caps.canSearch) {
     return '/search'
   }
   // Fallback -- should not happen with baseline, but safety net

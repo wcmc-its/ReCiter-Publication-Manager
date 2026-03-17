@@ -15,6 +15,8 @@ import { AdminUser } from "./AdminUser";
 import type { AdminUserAttributes, AdminUserCreationAttributes } from "./AdminUser";
 import { AdminUsersDepartment } from "./AdminUsersDepartment";
 import type { AdminUsersDepartmentAttributes, AdminUsersDepartmentCreationAttributes } from "./AdminUsersDepartment";
+import { AdminUsersPersonType } from "./AdminUsersPersonType";
+import type { AdminUsersPersonTypeAttributes, AdminUsersPersonTypeCreationAttributes } from "./AdminUsersPersonType";
 import { AdminUsersRole } from "./AdminUsersRole";
 import type { AdminUsersRoleAttributes, AdminUsersRoleCreationAttributes } from "./AdminUsersRole";
 import { Altmetric } from "./Altmetric";
@@ -88,6 +90,7 @@ export {
   AdminRole,
   AdminUser,
   AdminUsersDepartment,
+  AdminUsersPersonType,
   AdminUsersRole,
   Altmetric,
   AnalysisOverrideAuthorPosition,
@@ -138,6 +141,8 @@ export type {
   AdminUserCreationAttributes,
   AdminUsersDepartmentAttributes,
   AdminUsersDepartmentCreationAttributes,
+  AdminUsersPersonTypeAttributes,
+  AdminUsersPersonTypeCreationAttributes,
   AdminUsersRoleAttributes,
   AdminUsersRoleCreationAttributes,
   AltmetricAttributes,
@@ -211,6 +216,7 @@ export function initModels(sequelize: Sequelize) {
   AdminRole.initModel(sequelize);
   AdminUser.initModel(sequelize);
   AdminUsersDepartment.initModel(sequelize);
+  AdminUsersPersonType.initModel(sequelize);
   AdminUsersRole.initModel(sequelize);
   Altmetric.initModel(sequelize);
   AnalysisOverrideAuthorPosition.initModel(sequelize);
@@ -256,6 +262,8 @@ export function initModels(sequelize: Sequelize) {
   AdminUser.hasMany(AdminNotificationPreference, { as: "adminNotificationPreferences", foreignKey: "userID"});
   AdminUsersDepartment.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
   AdminUser.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "userID"});
+  AdminUsersPersonType.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
+  AdminUser.hasMany(AdminUsersPersonType, { as: "adminUsersPersonTypes", foreignKey: "userID"});
   AdminUsersRole.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
   AdminUser.hasMany(AdminUsersRole, { as: "adminUsersRoles", foreignKey: "userID"});
 
@@ -268,6 +276,7 @@ export function initModels(sequelize: Sequelize) {
     AdminRole: AdminRole,
     AdminUser: AdminUser,
     AdminUsersDepartment: AdminUsersDepartment,
+    AdminUsersPersonType: AdminUsersPersonType,
     AdminUsersRole: AdminUsersRole,
     Altmetric: Altmetric,
     AnalysisOverrideAuthorPosition: AnalysisOverrideAuthorPosition,
