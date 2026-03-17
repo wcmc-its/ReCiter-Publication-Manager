@@ -127,3 +127,74 @@ describe('Search', () => {
     expect(heading.textContent).toMatch(/Find People/)
   })
 })
+
+describe('ProxyBadge in search results', () => {
+  it('should render ProxyBadge for proxied person', () => {
+    // Override useSession to include proxyPersonIds
+    const nextAuth = require('next-auth/client')
+    const originalUseSession = nextAuth.useSession
+    nextAuth.useSession = () => [{
+      data: {
+        username: 'test',
+        userRoles: '["Curator_Scoped"]',
+        scopeData: JSON.stringify({ personTypes: ['faculty-academic'], orgUnits: null }),
+        proxyPersonIds: JSON.stringify(['proxy001']),
+      },
+      adminSettings: JSON.stringify([
+        {
+          viewName: 'findPeople',
+          viewAttributes: JSON.stringify([
+            { labelUserKey: 'personIdentifier', labelUserView: 'CWID' },
+            { labelUserKey: 'organization', labelUserView: 'Organization' },
+            { labelUserKey: 'institution', labelUserView: 'Institution' },
+            { labelUserKey: 'personType', labelUserView: 'Person Type' },
+          ]),
+        },
+      ]),
+    }, false]
+
+    const mockReducerWithProxyPerson = (
+      state = {
+        identityAllData: [],
+        identityAllFetching: false,
+        identityPaginatedData: {
+          persons: [
+            {
+              personIdentifier: 'proxy001',
+              firstName: 'Jane',
+              middleName: '',
+              lastName: 'Doe',
+              primaryOrganizationalUnit: 'Surgery',
+              primaryInstitution: 'Weill Cornell',
+              title: 'Professor',
+            },
+          ],
+          totalPersonsCount: [{ count: 1 }],
+        },
+        identityPaginatedFetching: false,
+        filters: {},
+        updatedAdminSettings: [],
+        errors: [],
+        reciterData: { reciter: [] },
+        filteredIdentities: [],
+        orgUnitsData: [],
+        institutionsData: [],
+        personTypesData: [],
+        showOnlyScopeFiltered: false,
+      },
+      action
+    ) => state
+
+    const store = createStore(mockReducerWithProxyPerson, applyMiddleware(thunk))
+    render(
+      <Provider store={store}>
+        <Search />
+      </Provider>
+    )
+
+    expect(screen.getByText('PROXY')).toBeInTheDocument()
+
+    // Restore original useSession
+    nextAuth.useSession = originalUseSession
+  })
+})

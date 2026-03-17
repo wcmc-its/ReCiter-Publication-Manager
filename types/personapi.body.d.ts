@@ -4,7 +4,8 @@ export type PersonApiBody = {
         orgUnits?: Array<string>,
         institutions?: Array<string>,
         personTypes?: Array<string>,
-        showOnlyPending: boolean
+        showOnlyPending: boolean,
+        proxyPersonIds?: Array<string>
     },
     limit?: number,
     offset?: number,

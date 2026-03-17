@@ -41,7 +41,29 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 if(apiBody.filters.showOnlyPending) {
                     where[Op.and].push({'$Person.countPendingArticles$': { [Op.gt]: 0 }})
                 }
-                
+
+            }
+
+            // When proxyPersonIds are provided, combine scope+proxy with OR logic
+            if (apiBody.filters?.proxyPersonIds && apiBody.filters.proxyPersonIds.length > 0) {
+                // Collect any existing scope conditions that were applied
+                const existingConditions = where[Op.and] ? [...where[Op.and]] : [];
+
+                if (existingConditions.length > 0) {
+                    // Replace the AND conditions with: (scope AND conditions) OR (personIdentifier IN proxyPersonIds)
+                    where[Op.and] = [{
+                        [Op.or]: [
+                            { [Op.and]: existingConditions },
+                            { personIdentifier: { [Op.in]: apiBody.filters.proxyPersonIds } }
+                        ]
+                    }];
+                } else {
+                    // No scope conditions -- just filter to proxy persons
+                    where[Op.and] = where[Op.and] || [];
+                    where[Op.and].push({
+                        personIdentifier: { [Op.in]: apiBody.filters.proxyPersonIds }
+                    });
+                }
             }
         }
         let joinWhere = {}

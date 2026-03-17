@@ -16,7 +16,8 @@ import SkeletonTable from "../Common/SkeletonTable";
 import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
 import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation, getCapabilities } from "../../../utils/constants"
-import { isPersonInScope } from '../../../utils/scopeResolver';
+import { isPersonInScope, isProxyFor } from '../../../utils/scopeResolver';
+import ProxyBadge from './ProxyBadge';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import Tooltip from '@mui/material/Tooltip';
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
@@ -72,6 +73,9 @@ const Search = () => {
   const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
   const caps = getCapabilities(userRoles);
   const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
+  const proxyPersonIds = session?.data?.proxyPersonIds
+    ? JSON.parse(session.data.proxyPersonIds)
+    : [];
   const showScopeCheckbox = caps.canCurate.scoped && !caps.canCurate.all;
 
   //ref
@@ -142,6 +146,10 @@ const Search = () => {
       }
       if (scopeData.orgUnits) {
         scopeFilters = { ...scopeFilters, orgUnits: scopeData.orgUnits };
+      }
+      // Include proxy matches via OR logic
+      if (proxyPersonIds.length > 0) {
+        scopeFilters = { ...scopeFilters, proxyPersonIds: proxyPersonIds };
       }
       let updatedFilters = { ...filters, ...scopeFilters };
       let request = {
@@ -280,6 +288,10 @@ const Search = () => {
       if (scopeData.orgUnits) {
         updatedFilters = { ...updatedFilters, orgUnits: scopeData.orgUnits };
       }
+      // Include proxy matches via OR logic
+      if (proxyPersonIds.length > 0) {
+        updatedFilters = { ...updatedFilters, proxyPersonIds: proxyPersonIds };
+      }
     }
 
     let request = {
@@ -407,7 +419,7 @@ const Search = () => {
         scopeData,
         identity.primaryOrganizationalUnit,
         identity.PersonPersonTypes?.map(pt => pt.personType) || []
-      ));
+      )) || isProxyFor(proxyPersonIds, identity.personIdentifier);
 
       // Name click handler: in-scope goes to curate, out-of-scope goes to report
       const handleNameClick = () => {
@@ -422,7 +434,7 @@ const Search = () => {
 
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={handleNameClick}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={handleNameClick} isProxy={isProxyFor(proxyPersonIds, identity.personIdentifier)}></Name>
         </td>
         <td key={`${identityIndex}__orgUnit`} width="20%">
           {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
@@ -547,6 +559,7 @@ function Name(props) {
     nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onClickProfile}>
       <b>{nameString}</b>
     </button>
+      {props.isProxy && <ProxyBadge />}
       <br />
       {props.identity.title && <>{props.identity.title}<br /></>}
       {props.nameOrcwidLabel}: {props.identity.personIdentifier}</p>)
