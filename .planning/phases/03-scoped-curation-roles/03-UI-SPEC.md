@@ -41,7 +41,7 @@ Declared values (must be multiples of 4):
 | 2xl | 48px | Page-level vertical spacing |
 | 3xl | 64px | Not used in this phase |
 
-Exceptions: Touch target minimum 44px height and width for all interactive elements (WCAG 2.5.5). The scope filter checkbox row in Search must meet this minimum.
+Exceptions: All interactive elements (buttons, checkboxes, links, icon actions) must have a minimum rendered height and width of 44px to meet the WCAG 2.5.5 touch target requirement. This 44px value refers to the final computed size of the interactive element (including its padding and border), NOT to spacing/margin/gap tokens between elements. The scope filter checkbox row in Search and the curate icon action in search results must both meet this minimum.
 
 **Source:** PATTERNS.md spacing scale.
 
@@ -80,6 +80,19 @@ Exceptions: Touch target minimum 44px height and width for all interactive eleme
 Accent reserved for: Header bar only. All interactive elements use `#337ab7` (primary interactive). Destructive `#dc3545` reserved for validation errors and denial feedback only.
 
 **Source:** PATTERNS.md color palette.
+
+---
+
+## Visual Focal Points
+
+Each key screen affected by Phase 3 declares a primary visual anchor -- the element the user's eye should land on first when viewing the screen or the novel interaction center of the phase.
+
+| Screen | Focal Point | Rationale |
+|--------|-------------|-----------|
+| AddUser (with Curator_Scoped selected) | **Curation Scope section** -- the `#f5f5f5` background panel containing Person Types and Organizational Units multi-selects | This is the novel interaction center of Phase 3. The contrasting background, border, and `<fieldset>/<legend>` grouping draw the eye below the Roles field. |
+| Search results | **Curate icon (EditOutlined)** in `#337ab7` aligned right in the actions area of each in-scope person row | The presence/absence of this icon is the primary visual signal distinguishing in-scope from out-of-scope people. |
+| Manage Users table | **Roles column** with inline scope summary (e.g., "Curator_Scoped (Faculty, Surgery)") | The scope parenthetical in 12px/600 semibold at `#777777` is the new information added to this screen. |
+| Sidebar navbar | **ScopeLabel** ("Curating: Faculty, Surgery") below the user name | The 12px/600 semibold label in `#777777` is the persistent scope reminder visible on all pages. |
 
 ---
 
@@ -130,7 +143,7 @@ Accent reserved for: Header bar only. All interactive elements use `#337ab7` (pr
 
 **Loading state:** SkeletonForm while role/department/person-type data loads.
 
-**Success state:** Toast "User saved successfully" (existing pattern, green, top-right, 2000ms auto-close).
+**Success state:** Toast "User created successfully" (new user) or "User updated successfully" (edit user) -- green, top-right, 2000ms auto-close.
 
 ### 2. Scope Filter Checkbox (Search Page)
 
@@ -153,6 +166,8 @@ Accent reserved for: Header bar only. All interactive elements use `#337ab7` (pr
 
 **In-scope people:**
 - Show curate icon (EditOutlined from @mui/icons-material) in `#337ab7` at 20px, aligned right in the actions area.
+- The icon has a visible tooltip on hover/focus: "Curate publications". Implemented via the MUI `<Tooltip title="Curate publications">` wrapper. The tooltip appears after the default 200ms delay. On keyboard focus, the same tooltip is displayed.
+- Additionally, `titleAccess="Curate publications"` is set on the icon itself for screen reader accessibility (see Accessibility Requirements).
 - Clicking person's name navigates to `/curate/:id`.
 - "Curate" action available in the actions area.
 
@@ -225,7 +240,7 @@ Accent reserved for: Header bar only. All interactive elements use `#337ab7` (pr
 
 | Element | Copy |
 |---------|------|
-| Primary CTA (AddUser) | "Submit" (new user) / "Update" (edit user) -- existing, unchanged |
+| Primary CTA (AddUser) | "Add User" (new user) / "Update User" (edit user) |
 | Scope section heading | "Curation Scope" |
 | Scope section helper | "Define which people this curator can manage. At least one field is required." |
 | Person Types label | "Person Types" |
@@ -241,7 +256,9 @@ Accent reserved for: Header bar only. All interactive elements use `#337ab7` (pr
 | Navbar scope truncation | "+{N} more" |
 | Role filter label | "Filter by role" |
 | Role filter default | "All Roles" |
-| Manage Users save success | "{Created/Updated} successfully" (existing pattern) |
+| Save success (new user) | "User created successfully" |
+| Save success (edit user) | "User updated successfully" |
+| Curate icon tooltip | "Curate publications" |
 | Empty state -- no users matching filter | "No users found matching the selected role." |
 
 ---
@@ -296,7 +313,7 @@ All new and modified components MUST meet WCAG 2.1 AA.
 | Person Types multi-select | MUI Autocomplete with `aria-label="Person Types"` on input |
 | Org Units multi-select | MUI Autocomplete with `aria-label="Organizational Units"` on input |
 | Role filter dropdown | `<Form.Select>` with `<Form.Label htmlFor="roleFilter">` |
-| Curate icon | `<EditOutlined titleAccess="Curate publications" />` for screen reader |
+| Curate icon | `<Tooltip title="Curate publications"><EditOutlined titleAccess="Curate publications" /></Tooltip>` -- visible tooltip on hover/focus for sighted users, `titleAccess` for screen readers |
 | Scope denial toast | Toast container has `role="alert"` (react-toastify default) |
 | Curation Scope section | `<fieldset>` with `<legend>Curation Scope</legend>` for grouping |
 | Scope label in navbar | `aria-label="Curation scope: {full list}"` on the containing element |
