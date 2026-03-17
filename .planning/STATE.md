@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-17T16:03:00Z"
-last_activity: "2026-03-17 -- Completed Plan 03-02 (auth pipeline & API scope enforcement)"
+status: executing
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-03-17T16:22:09.487Z"
+last_activity: 2026-03-17 -- Completed Plan 03-03 (admin scope assignment UI)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 11
-  completed_plans: 8
-  percent: 73
+  completed_plans: 10
+  percent: 82
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 02 complete (auth pipeline & API scope enforcement).
+**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 03 complete (admin scope assignment UI).
 
 ## Current Position
 
 Phase: 3 of 4 (Scoped Curation Roles) -- IN PROGRESS
-Plan: 2 of 5 in current phase (03-02 complete)
+Plan: 3 of 5 in current phase (03-03 complete)
 Status: Executing Phase 3
-Last activity: 2026-03-17 -- Completed Plan 03-02 (auth pipeline & API scope enforcement)
+Last activity: 2026-03-17 -- Completed Plan 03-03 (admin scope assignment UI)
 
-Progress: [███████░░░] 73%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
@@ -57,10 +57,11 @@ Progress: [███████░░░] 73%
 | Phase 02 P04 | 5min | 2 tasks | 4 files |
 | Phase 03 P01 | 4min | 2 tasks | 6 files |
 | Phase 03 P02 | 6min | 2 tasks | 8 files |
+| Phase 03 P03 | 14min | 2 tasks | 7 files |
 
 **Recent Trend:**
-- Last 5 plans: multi-session, 14min, 5min, 4min, 6min
-- Trend: Foundation/data-model plans fastest; audit plans slowest
+- Last 5 plans: 14min, 5min, 4min, 6min, 14min
+- Trend: Foundation/data-model plans fastest; UI+controller plans moderate
 
 *Updated after each plan completion*
 
@@ -105,6 +106,10 @@ Recent decisions affecting current work:
 - [03-02]: Scope data stored as JSON string in JWT token (token.scopeData) alongside existing token.userRoles
 - [03-02]: Middleware defers person-level scope check to API layer for /curate/* routes (route allows, API enforces)
 - [03-02]: getPersonWithTypes uses Sequelize models rather than raw SQL for consistency with person.controller patterns
+- [Phase 03]: [03-03]: Departments field relocated inside CurationScopeSection when Curator_Scoped selected, stays in original position otherwise
+- [Phase 03]: [03-03]: Server-side mutual exclusion resolves role IDs to labels via AdminRole.findByPk before comparison
+- [Phase 03]: [03-03]: listAllUsers uses distinct: true in findAndCountAll for correct count with association JOINs
+- [Phase 03]: [03-03]: Role filter is server-side (required: true on include) rather than client-side for correct pagination
 
 ### Pending Todos
 
@@ -118,6 +123,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T16:03:00Z
-Stopped at: Completed 03-02-PLAN.md
-Resume file: .planning/phases/03-scoped-curation-roles/03-03-PLAN.md
+Last session: 2026-03-17T16:22:09.485Z
+Stopped at: Completed 03-03-PLAN.md
+Resume file: None
