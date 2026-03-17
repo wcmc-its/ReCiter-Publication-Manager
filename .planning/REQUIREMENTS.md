@@ -92,9 +92,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCOPE-04 | Phase 3 | Pending |
 | SCOPE-05 | Phase 3 | Pending |
 | SCOPE-06 | Phase 3 | Pending |
-| UIUX-01 | Phase 2 | Pending |
-| UIUX-02 | Phase 2 | Pending |
-| UIUX-03 | Phase 2 | Pending |
+| UIUX-01 | Phase 2 | In Progress (4/8 views audited) |
+| UIUX-02 | Phase 2 | In Progress (audit + gap analysis done, fixes pending) |
+| UIUX-03 | Phase 2 | In Progress (eslint-plugin-jsx-a11y installed, 64 violations identified, fixes pending) |
 | PROXY-01 | Phase 4 | Pending |
 | PROXY-02 | Phase 4 | Pending |
 | PROXY-03 | Phase 4 | Pending |

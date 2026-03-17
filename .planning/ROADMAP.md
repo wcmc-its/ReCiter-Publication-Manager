@@ -46,7 +46,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- ESLint a11y setup + audit high-traffic views (Search, Curate, Report, Group Curation)
+- [x] 02-01-PLAN.md -- ESLint a11y setup + audit high-traffic views (Search, Curate, Report, Group Curation)
 - [ ] 02-02-PLAN.md -- Audit remaining views (Manage Users, Configuration, Notifications, Login/NoAccess) + PATTERNS.md + user review checkpoint
 - [ ] 02-03-PLAN.md -- Critical a11y fixes + Jest test infrastructure + smoke tests + Lighthouse before/after comparison
 
@@ -91,6 +91,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
-| 2. UI/UX Audit | 0/3 | Not started | - |
+| 2. UI/UX Audit | 1/3 | In progress | - |
 | 3. Scoped Curation Roles | 0/? | Not started | - |
 | 4. Curation Proxy | 0/? | Not started | - |
