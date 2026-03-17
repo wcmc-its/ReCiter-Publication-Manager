@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-17T13:47:58.371Z"
-last_activity: "2026-03-17 -- Completed Plan 02-04 (gap closure: smoke tests + doc fixes)"
+status: in-progress
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-17T15:09:03Z"
+last_activity: "2026-03-17 -- Completed Plan 03-01 (data model + scope resolution)"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_plans: 11
+  completed_plans: 7
+  percent: 64
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 2 complete -- UI/UX Audit. All 4 plans complete (including gap closure). Ready for Phase 3.
+**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 01 complete (data model + scope resolution).
 
 ## Current Position
 
-Phase: 2 of 4 (UI/UX Audit) -- COMPLETE
-Plan: 4 of 4 in current phase (02-04 complete, gap closure)
-Status: Phase 2 Complete
-Last activity: 2026-03-17 -- Completed Plan 02-04 (gap closure: smoke tests + doc fixes)
+Phase: 3 of 4 (Scoped Curation Roles) -- IN PROGRESS
+Plan: 1 of 5 in current phase (03-01 complete)
+Status: Executing Phase 3
+Last activity: 2026-03-17 -- Completed Plan 03-01 (data model + scope resolution)
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 64%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 9min
-- Total execution time: ~0.9 hours
+- Total plans completed: 7
+- Average duration: 8min
+- Total execution time: ~1.0 hours
 
 **By Phase:**
 
@@ -45,6 +45,7 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
+| 03 | 1 | 4min | 4min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -54,10 +55,11 @@ Progress: [██████████] 100%
 | Phase 02 P02 | multi-session | 3 tasks (1 checkpoint) | 5 files |
 | Phase 02 P03 | 14min | 3 tasks | 20 files |
 | Phase 02 P04 | 5min | 2 tasks | 4 files |
+| Phase 03 P01 | 4min | 2 tasks | 6 files |
 
 **Recent Trend:**
-- Last 5 plans: 6min, 13min, multi-session, 14min, 5min
-- Trend: Gap closure plans fastest; audit plans slowest
+- Last 5 plans: 13min, multi-session, 14min, 5min, 4min
+- Trend: Foundation/data-model plans fastest; audit plans slowest
 
 *Updated after each plan completion*
 
@@ -95,6 +97,9 @@ Recent decisions affecting current work:
 - [02-04]: Mock config/local path is ../../config/local from __tests__/components/ (not ../../../config/local)
 - [Phase 02]: Search.test.tsx requires applyMiddleware(thunk) due to thunk-based Redux actions dispatched on mount
 - [Phase 02]: Mock config/local path is ../../config/local from __tests__/components/ (not ../../../config/local)
+- [03-01]: scopeResolver.ts is a pure function (no DB access) usable in Edge middleware, Node API, and React
+- [03-01]: Null dimension means no restriction on that axis (not empty array)
+- [03-01]: AdminUsersPersonType uses STRING(128) for personType to match existing person_person_type patterns
 
 ### Pending Todos
 
@@ -108,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T13:47:58.368Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-scoped-curation-roles/03-CONTEXT.md
+Last session: 2026-03-17T15:09:03Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: .planning/phases/03-scoped-curation-roles/03-02-PLAN.md

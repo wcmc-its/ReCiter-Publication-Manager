@@ -22,12 +22,12 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Scoped Curation Roles
 
-- [ ] **SCOPE-01**: Database schema supports scoped curation roles with nullable person type and org unit columns
+- [x] **SCOPE-01**: Database schema supports scoped curation roles with nullable person type and org unit columns
 - [ ] **SCOPE-02**: Scoped curators only see people matching their assigned scope on the Find People page
 - [ ] **SCOPE-03**: Scoped curators can only curate publications for people within their assigned scope
 - [ ] **SCOPE-04**: Superusers can assign person type scopes to users from the Manage Users page
 - [ ] **SCOPE-05**: Superusers can assign org unit scopes to users from the Manage Users page
-- [ ] **SCOPE-06**: Scoped roles support flexible combination: person type only, org unit only, or both
+- [x] **SCOPE-06**: Scoped roles support flexible combination: person type only, org unit only, or both
 
 ### UI/UX Audit
 
@@ -86,12 +86,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UIBUG-01 | Phase 1 | Complete |
 | UIBUG-02 | Phase 1 | Complete |
 | UIBUG-03 | Phase 1 | Complete |
-| SCOPE-01 | Phase 3 | Pending |
+| SCOPE-01 | Phase 3 | Complete |
 | SCOPE-02 | Phase 3 | Pending |
 | SCOPE-03 | Phase 3 | Pending |
 | SCOPE-04 | Phase 3 | Pending |
 | SCOPE-05 | Phase 3 | Pending |
-| SCOPE-06 | Phase 3 | Pending |
+| SCOPE-06 | Phase 3 | Complete |
 | UIUX-01 | Phase 2 | Complete -- All 8 views audited with severity-tagged findings (8 AUDIT-*.md files) |
 | UIUX-02 | Phase 2 | Complete -- Group Curation audited, redesign gap analysis documented, UI-SPEC.md produced |
 | UIUX-03 | Phase 2 | Complete -- eslint-plugin-jsx-a11y strict mode, 33/64 violations fixed, Jest infrastructure + smoke tests |
