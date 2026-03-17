@@ -23,6 +23,7 @@ import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-
 import { useSelector, RootStateOrAny } from "react-redux";
 import { useSession } from 'next-auth/client';
 import { getCapabilities } from '../../../utils/constants';
+import ScopeLabel from './ScopeLabel';
 
 
 type SideNavBarProps = {
@@ -216,17 +217,22 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
         </div>
       </DrawerHeader>
       <Divider />
-      <StyledList>
-          {
-            (() => {
-              const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
-              const caps = getCapabilities(userRoles);
+      {(() => {
+        const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+        const caps = getCapabilities(userRoles);
+        const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
 
-              return menuItems.map((item: MenuItem, index: number) => {
+        return (
+          <>
+            {open && caps.canCurate.scoped && !caps.canCurate.all && (
+              <ScopeLabel scopeData={scopeData} />
+            )}
+            <StyledList>
+              {menuItems.map((item: MenuItem, index: number) => {
                 const capKey = item.capabilityKey;
                 let hasAccess = false;
                 if (capKey === 'canCurate') {
-                  hasAccess = caps.canCurate.all || caps.canCurate.self;
+                  hasAccess = caps.canCurate.all || caps.canCurate.self || caps.canCurate.scoped;
                 } else if (capKey === 'canNotifications') {
                   hasAccess = false; // Notifications not yet implemented
                 } else if (capKey && caps[capKey]) {
@@ -234,6 +240,11 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                 }
 
                 if (hasAccess) {
+                  // For scoped curators, route "Curate Publications" to /search?scopeFilter=true
+                  const itemTo = (capKey === 'canCurate' && caps.canCurate.scoped && !caps.canCurate.all)
+                    ? '/search?scopeFilter=true'
+                    : item.to;
+
                   return item.nestedMenu ?
                     <NestedListItem
                       header={item.title}
@@ -246,17 +257,18 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                       title={item.title}
                       key={index}
                       id={index}
-                      to={item.to}
+                      to={itemTo}
                       imgUrl={item.imgUrl}
                       imgUrlActive={item.imgUrlActive}
                       disabled={item.disabled}
                     />
                 }
                 return null;
-              })
-            })()
-          }
-      </StyledList>
+              })}
+            </StyledList>
+          </>
+        );
+      })()}
     </Drawer>
   )
 }
