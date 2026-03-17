@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Auth Fix and Bug Remediation** - Fix the /noaccess redirect blocker, refactor middleware to capability-based checks, unify SAML/local session structures, and fix known UI bugs (completed 2026-03-16)
 - [x] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented (completed 2026-03-17)
-- [ ] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit
+- [x] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit (completed 2026-03-17)
 - [ ] **Phase 4: Curation Proxy** - Many-to-many proxy assignments, [PROXY] badge on search results, proxy filter checkbox, and proxy curation navigation
 
 ## Phase Details
@@ -64,11 +64,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- Foundation: AdminUsersPersonType model, scopeResolver utility, getCapabilities extension with Curator_Scoped
-- [ ] 03-02-PLAN.md -- Auth pipeline: scope data in findUserPermissions/JWT, middleware for Curator_Scoped, API-level 403 enforcement
-- [ ] 03-03-PLAN.md -- Admin UI: CurationScopeSection in AddUser, roles column in UsersTable, role filter in ManageUsers
-- [ ] 03-04-PLAN.md -- Search + navbar: ScopeFilterCheckbox, curate icon for in-scope people, ScopeLabel in sidebar, curate page scope check
-- [ ] 03-05-PLAN.md -- Manage Profile port from master + scope enforcement + end-to-end verification checkpoint
+- [x] 03-01-PLAN.md -- Foundation: AdminUsersPersonType model, scopeResolver utility, getCapabilities extension with Curator_Scoped
+- [x] 03-02-PLAN.md -- Auth pipeline: scope data in findUserPermissions/JWT, middleware for Curator_Scoped, API-level 403 enforcement
+- [x] 03-03-PLAN.md -- Admin UI: CurationScopeSection in AddUser, roles column in UsersTable, role filter in ManageUsers
+- [x] 03-04-PLAN.md -- Search + navbar: ScopeFilterCheckbox, curate icon for in-scope people, ScopeLabel in sidebar, curate page scope check
+- [x] 03-05-PLAN.md -- Manage Profile port from master + scope enforcement + end-to-end verification checkpoint
 
 ### Phase 4: Curation Proxy
 **Goal**: Any user with appropriate privileges can be assigned as a curation proxy for one or more other users, and can discover and curate publications on their behalf through the existing search interface
@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
 | 2. UI/UX Audit | 4/4 | Complete | 2026-03-17 |
-| 3. Scoped Curation Roles | 4/5 | In Progress|  |
+| 3. Scoped Curation Roles | 5/5 | Complete   | 2026-03-17 |
 | 4. Curation Proxy | 0/? | Not started | - |

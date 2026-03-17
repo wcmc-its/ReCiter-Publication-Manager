@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-03-17T16:20:38Z"
-last_activity: 2026-03-17 -- Completed Plan 03-04 (scope-aware UI: search, curate, navbar)
+stopped_at: Completed 03-05-PLAN.md (Phase 3 complete)
+last_updated: "2026-03-17T18:45:17Z"
+last_activity: "2026-03-17 -- Completed Plan 03-05 (manage profile port + scope enforcement) -- Phase 3 complete"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 11
-  completed_plans: 10
-  percent: 91
+  completed_plans: 11
+  percent: 100
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 04 complete (scope-aware UI: search, curate, navbar).
+**Current focus:** Phase 3 complete -- Scoped Curation Roles. All 5 plans delivered. Ready for Phase 4 (Curation Proxy).
 
 ## Current Position
 
-Phase: 3 of 4 (Scoped Curation Roles) -- IN PROGRESS
-Plan: 4 of 5 in current phase (03-04 complete)
-Status: Executing Phase 3
-Last activity: 2026-03-17 -- Completed Plan 03-04 (scope-aware UI: search, curate, navbar)
+Phase: 3 of 4 (Scoped Curation Roles) -- COMPLETE
+Plan: 5 of 5 in current phase (03-05 complete, phase done)
+Status: Phase 3 complete, ready for Phase 4
+Last activity: 2026-03-17 -- Completed Plan 03-05 (manage profile port + scope enforcement) -- Phase 3 complete
 
-Progress: [█████████░] 91%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: 8min
-- Total execution time: ~1.3 hours
+- Total execution time: ~1.4 hours
 
 **By Phase:**
 
@@ -45,7 +45,7 @@ Progress: [█████████░] 91%
 |-------|-------|-------|----------|
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
-| 03 | 4 | 36min | 9min |
+| 03 | 5 | 44min | 9min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -59,10 +59,11 @@ Progress: [█████████░] 91%
 | Phase 03 P02 | 6min | 2 tasks | 8 files |
 | Phase 03 P03 | 14min | 2 tasks | 7 files |
 | Phase 03 P04 | 12min | 2 tasks | 11 files |
+| Phase 03 P05 | 8min | 2 tasks (1 checkpoint) | 5 files |
 
 **Recent Trend:**
-- Last 5 plans: 5min, 4min, 6min, 14min, 12min
-- Trend: Foundation/data-model plans fastest; UI+controller plans moderate
+- Last 5 plans: 4min, 6min, 14min, 12min, 8min
+- Trend: Foundation/data-model plans fastest; UI+controller plans moderate; port+scope plans efficient
 
 *Updated after each plan completion*
 
@@ -115,6 +116,8 @@ Recent decisions affecting current work:
 - [03-04]: includeScopeData flag on person API returns PersonPersonTypes for client-side scope matching
 - [03-04]: Curate page scope check is client-side with API fetch, complementing middleware route-level enforcement
 - [03-04]: Curate icon uses MUI EditOutlined with Tooltip for accessibility per UI-SPEC
+- [03-05]: Manage Profile scope enforcement reuses curate page pattern (client-side fetch + isPersonInScope + redirect + toast)
+- [03-05]: 5 files ported from master commit 544c0f2 with dev_v2 convention adaptations
 
 ### Pending Todos
 
@@ -128,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T16:20:38Z
-Stopped at: Completed 03-04-PLAN.md
-Resume file: .planning/phases/03-scoped-curation-roles/03-05-PLAN.md
+Last session: 2026-03-17T18:45:17Z
+Stopped at: Completed 03-05-PLAN.md (Phase 3 complete)
+Resume file: Phase 4 planning (04-curation-proxy)
