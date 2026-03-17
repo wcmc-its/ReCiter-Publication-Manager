@@ -1,6 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { saveUserFeedback } from "../../../../../../controllers/userfeedback.controller"
 import { reciterConfig } from '../../../../../../config/local'
+import { getToken } from 'next-auth/jwt'
+import { getCapabilities } from '../../../../../utils/constants'
+import { isPersonInScope } from '../../../../../utils/scopeResolver'
+import { getPersonWithTypes } from '../../../../../../controllers/db/person.controller'
 
 type Error = {
     statusCode: number,
@@ -19,6 +23,29 @@ export default async function handler(
     if(req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
         const { uid } = req.query;
+
+        // Scope enforcement for Curator_Scoped
+        const token = await getToken({ req, secret: reciterConfig.tokenSecret });
+        if (token && token.userRoles) {
+            const roles = JSON.parse(token.userRoles as string);
+            const caps = getCapabilities(roles);
+
+            if (caps.canCurate.scoped && !caps.canCurate.all) {
+                const scopeData = token.scopeData ? JSON.parse(token.scopeData as string) : null;
+                if (scopeData) {
+                    const personData = await getPersonWithTypes(uid as string);
+                    if (!personData) {
+                        console.log('[AUTH] DENY: Person not found for scope check:', uid);
+                        return res.status(404).json({ statusCode: 404, message: 'Person not found' });
+                    }
+                    const inScope = isPersonInScope(scopeData, personData.primaryOrganizationalUnit, personData.personTypes);
+                    if (!inScope) {
+                        console.log('[AUTH] DENY: Scoped curator', token.username, 'tried to save feedback for', uid, '-- not in scope');
+                        return res.status(403).json({ statusCode: 403, message: 'Person not in curation scope' });
+                    }
+                }
+            }
+        }
 
         const apiResponse = await saveUserFeedback(req, uid);
         if(apiResponse.statusCode === 200) {

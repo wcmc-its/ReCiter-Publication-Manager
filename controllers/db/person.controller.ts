@@ -187,6 +187,34 @@ export const findAllInstitutions = async (req: NextApiRequest, res: NextApiRespo
 };
 
 
+/**
+ * Get a person's org unit and person types for scope checking.
+ * Lightweight query used by API-level scope enforcement.
+ */
+export const getPersonWithTypes = async (uid: string) => {
+    try {
+        const person = await models.Person.findOne({
+            where: { personIdentifier: uid },
+            attributes: ["personIdentifier", "primaryOrganizationalUnit"],
+        });
+        if (!person) return null;
+
+        const personTypes = await models.PersonPersonType.findAll({
+            where: { personIdentifier: uid },
+            attributes: ["personType"],
+        });
+
+        return {
+            personIdentifier: person.personIdentifier,
+            primaryOrganizationalUnit: person.primaryOrganizationalUnit,
+            personTypes: personTypes.map((pt: any) => pt.personType),
+        };
+    } catch (e) {
+        console.log('[AUTH] ERROR: getPersonWithTypes failed for', uid, e);
+        return null;
+    }
+};
+
 export const findOnePerson = async (uid: string) => {
     
     try {
