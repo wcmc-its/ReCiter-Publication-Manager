@@ -159,9 +159,9 @@ export const identityClearAllData = () => dispatch => {
     })
 }
 
-export const identityFetchPaginatedData = (page, limit) => dispatch => {
+export const identityFetchPaginatedData = (page, limit, filters, options) => dispatch => {
     const offset = (page - 1) * limit;
-    const request = { limit, offset };
+    const request = { limit, offset, ...(options || {}) };
     dispatch({
         type: methods.IDENTITY_FETCH_PAGINATED_DATA
     })
@@ -1041,6 +1041,13 @@ export const updateFilteredIds = (ids) => dispatch => {
     dispatch({
         type: methods.FILTERED_IDS_CHANGE,
         payload: ids
+    })
+}
+
+export const updateScopeFilter = (showOnlyScopeFiltered) => dispatch => {
+    dispatch({
+        type: methods.UPDATE_SCOPE_FILTER,
+        payload: showOnlyScopeFiltered
     })
 }
 

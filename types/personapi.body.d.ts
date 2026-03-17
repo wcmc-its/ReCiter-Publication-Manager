@@ -7,5 +7,6 @@ export type PersonApiBody = {
         showOnlyPending: boolean
     },
     limit?: number,
-    offset?: number
+    offset?: number,
+    includeScopeData?: boolean
 }

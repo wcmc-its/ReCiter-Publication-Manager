@@ -204,6 +204,15 @@ export const updatedAdminSettings = (state= [], action) => {
   }
 }
 
+export const showOnlyScopeFiltered = (state = false, action) => {
+  switch(action.type) {
+      case methods.UPDATE_SCOPE_FILTER :
+          return action.payload
+      default :
+          return state
+  }
+}
+
 
 
 export const pubMedCount = (state= 0, action) => {
@@ -861,6 +870,7 @@ export default combineReducers({
     createORupdateUserID,
     authorFilterDataFromSearch,
     showEvidenceDefault,
-    updatedAdminSettings
+    updatedAdminSettings,
+    showOnlyScopeFiltered
 
 })

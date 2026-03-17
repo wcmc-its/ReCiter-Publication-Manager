@@ -85,6 +85,32 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
             users['persons'] = rows;
             users['totalPersonsCount'] = count;
             
+        } else if (apiBody.includeScopeData) {
+            // Include PersonPersonTypes for scope checking on client side
+            const { count,rows } =  await models.Person.findAndCountAll({
+                attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
+                'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
+                include: [
+                    {
+                        model: models.PersonPersonType,
+                        as: 'PersonPersonTypes',
+                        required: false,
+                        on: {
+                            col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
+                        },
+                        attributes: ['personType']
+                    },
+                ],
+                where: where,
+                group: ["personIdentifier"],
+                order: [["personIdentifier", "ASC"],["countPendingArticles", "DESC"]],
+                offset: apiBody.offset,
+                limit: apiBody.limit,
+                subQuery: false
+            });
+            users['persons'] = rows;
+            users['totalPersonsCount'] = count;
+
         } else {
             let { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
