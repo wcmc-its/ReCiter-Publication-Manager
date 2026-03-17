@@ -72,6 +72,12 @@ export const listAllUsers = async (
           required: false,
           attributes: ['personType'],
         },
+        {
+          model: models.AdminUsersProxy,
+          as: 'adminUsersProxies',
+          required: false,
+          attributes: ['personIdentifier'],
+        },
       ];
 
       const queryOptions: any = {

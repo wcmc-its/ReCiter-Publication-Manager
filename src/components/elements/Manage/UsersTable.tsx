@@ -20,6 +20,7 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
           <th scope="col" className={styles.tableHeadCell}>Department</th>
           <th scope="col" className={styles.tableHeadCell}>Roles</th>
           <th scope="col" className={styles.tableHeadCell}>Email</th>
+          <th scope="col" className={styles.tableHeadCell} style={{ minWidth: '80px' }}>Proxies</th>
           <th scope="col" className={styles.tableHeadCell}>Actions</th>
         </tr>
       </thead>
@@ -59,11 +60,19 @@ const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
                   </span>
                 </td>
                 <td>{email}</td>
+                <td>
+                  {(() => {
+                    const count = user.adminUsersProxies?.length || 0;
+                    if (count === 0) return '\u2014';
+                    if (count === 1) return '1 person';
+                    return `${count} people`;
+                  })()}
+                </td>
                 <td> <div> <Button   variant="outline-dark" className='fw-bold' href={`/manageusers/${userID}`} size="sm">Manage User</Button> <Button size="sm" variant="outline-dark"  className='d-none text-light'>Manage Notifications</Button></div>
                 </td>
               </tr>
             )
-          }) : <tr><td colSpan={5}><p className={styles.noRecordsFound}>No Records Found</p></td></tr>
+          }) : <tr><td colSpan={6}><p className={styles.noRecordsFound}>No Records Found</p></td></tr>
         }
       </tbody>
     </Table>
