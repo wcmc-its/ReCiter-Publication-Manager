@@ -1,5 +1,5 @@
 import React, { useState, FunctionComponent, useEffect } from "react"
-import { Form, Row, Col, Button, Container } from 'react-bootstrap';
+import { Form, Row, Col, Button, Container, Collapse } from 'react-bootstrap';
 import Autocomplete from '@mui/material/Autocomplete';
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import { styled } from '@mui/material/styles';
@@ -10,6 +10,8 @@ import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID} from ".
 import { useRouter } from "next/router";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { PageHeader } from "../Common/PageHeader";
+import CurationScopeSection from './CurationScopeSection';
+import { reciterConfig } from '../../../../config/local';
 
 
 interface FuncProps {
@@ -42,6 +44,8 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
 
     const [selectedDepartments, setSelectedDepartments] = useState([]);
+    const [selectedPersonTypes, setSelectedPersonTypes] = useState<string[]>([]);
+    const [personTypeOptions, setPersonTypeOptions] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
     const router = useRouter()
@@ -49,6 +53,9 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
     const dispatch = useDispatch();
 
+
+    const hasScopedRole = selectedRoles.includes('Curator_Scoped');
+    const hasCuratorAll = selectedRoles.includes('Curator_All');
 
     const handleValueChangeTargetValue = (field, value) => {
         if(value != '') formErrorsInst[field] = ''; 
@@ -75,6 +82,15 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
           // roles errors
           if ( !selectedRoles || selectedRoles.length === 0  ) formErrInst.selectedRole = 'Please select atleast one role!'
 
+          // Mutual exclusion: Curator_All + Curator_Scoped
+          if (hasScopedRole && hasCuratorAll) {
+            formErrInst.mutualExclusion = 'Curator All and Curator Scoped cannot be combined. Remove one.';
+          }
+          // Scope required: at least one person type or org unit
+          if (hasScopedRole && selectedPersonTypes.length === 0 && selectedDepartments.length === 0) {
+            formErrInst.scopeRequired = 'At least one person type or organizational unit is required';
+          }
+
         setformErrInst(formErrInst)
 
         return formErrInst
@@ -90,7 +106,8 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             let selectedRoleIds = [];
             let departmentIds = [];
             let isEditUserId = router.query.userId;
-            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
+            let personTypeLabels = hasScopedRole ? selectedPersonTypes : [];
+            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, personTypeLabels }
 
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
@@ -108,6 +125,19 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             }
         }
     };
+
+    useEffect(() => {
+        fetch('/api/db/users/persontypes', {
+            headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setPersonTypeOptions(data.map(d => d.personType));
+                }
+            })
+            .catch(err => console.log('Error fetching person types:', err));
+    }, []);
 
     useEffect(() => {
         let isEditUserId = router.query.userId;
@@ -136,6 +166,18 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         )
                     })
                     setSelectedDepartments(departmentNames ? departmentNames : [])
+                }
+
+                // Load person type scope data for edit
+                if (roleNames.includes('Curator_Scoped')) {
+                    fetch(`/api/db/admin/users/persontypes?userId=${isEditUserId}`, {
+                        headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (Array.isArray(data)) setSelectedPersonTypes(data.map(d => d.personType));
+                        })
+                        .catch(err => console.log('Error fetching user person types:', err));
                 }
 
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
@@ -240,6 +282,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                 </Form.Control.Feedback>
                             </Form.Group>
                         </Row>
+                        {!hasScopedRole && (
                         <Row className="mb-3">
                             <Form.Group as={Col} sm={12} lg={12} controlId="formGridDepartment">
                                 <Form.Label>Organizational unit(s) user can manage</Form.Label>
@@ -264,6 +307,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                 />
                             </Form.Group>
                         </Row>
+                        )}
 
                         <Row className="mb-3">
                             <Form.Group as={Col} sm={12} lg={12} controlId="formGridRole">
@@ -288,11 +332,29 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     )}
                                 />
                                  { formErrorsInst.selectedRole ? <p className="text-danger">{formErrorsInst.selectedRole}</p>:""}
+                                 { formErrorsInst.mutualExclusion && (
+                                    <p role="alert" className="text-danger">{formErrorsInst.mutualExclusion}</p>
+                                 )}
                             </Form.Group>
                         </Row>
+
+                        <Collapse in={hasScopedRole}>
+                            <div>
+                                <CurationScopeSection
+                                    selectedPersonTypes={selectedPersonTypes}
+                                    onPersonTypesChange={setSelectedPersonTypes}
+                                    selectedDepartments={selectedDepartments}
+                                    onDepartmentsChange={setSelectedDepartments}
+                                    personTypeOptions={personTypeOptions}
+                                    departmentOptions={adminDepartments.map(d => d.departmentLabel)}
+                                    error={formErrorsInst.scopeRequired || null}
+                                    CssTextField={CssTextField}
+                                />
+                            </div>
+                        </Collapse>
                         <Row className="justify-content-center">
                             <Col md={4} sm={12} lg={2}>
-                                <Button variant="primary" type="submit" className="primary mb-4 " disabled={cwid.trim().length === 0 && !validateEmail(email)}>
+                                <Button variant="primary" type="submit" className="primary mb-4 " disabled={(cwid.trim().length === 0 && !validateEmail(email)) || !!formErrorsInst.mutualExclusion}>
                                     {isEdit ? "Update" : "Submit"}
                                 </Button>
                             </Col>

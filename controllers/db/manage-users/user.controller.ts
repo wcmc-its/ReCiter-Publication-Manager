@@ -95,9 +95,19 @@ export const createOrUpdateAdminUser = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
-  const { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId } = req.body;
+  const { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, personTypeLabels } = req.body;
 
   try {
+    // Server-side validation: Curator_All + Curator_Scoped mutual exclusion
+    if (selectedRoleIds && selectedRoleIds.length > 0) {
+      const roleRecords = await Promise.all(selectedRoleIds.map(async (id: number) => {
+        const role = await models.AdminRole.findByPk(id);
+        return role?.roleLabel;
+      }));
+      if (roleRecords.includes('Curator_All') && roleRecords.includes('Curator_Scoped')) {
+        return res.status(400).json({ error: 'Curator All and Curator Scoped cannot be combined' });
+      }
+    }
     if (isEditUserId) {
       //Update admin user Payload
       let updateUserPayload = {
@@ -154,7 +164,23 @@ export const createOrUpdateAdminUser = async (
 
               const isRoleAssigned = await models.AdminUsersRole.bulkCreate(rolesData,{ transaction: t });
 
-              // Update AdminUser 
+              // Delete existing person type scope
+              await models.AdminUsersPersonType.destroy({
+                where: { userID: isEditUserId },
+                transaction: t,
+              });
+
+              // Save new person type scope (only if Curator_Scoped)
+              if (personTypeLabels && personTypeLabels.length > 0) {
+                const personTypeData = personTypeLabels.map((pt: string) => ({
+                  userID: isEditUserId,
+                  personType: pt,
+                  createTimestamp: new Date(),
+                }));
+                await models.AdminUsersPersonType.bulkCreate(personTypeData, { transaction: t });
+              }
+
+              // Update AdminUser
               const adminUserUpdatedResp = await models.AdminUser.update(updateUserPayload,
                 {
                   where: { userID: isEditUserId },
@@ -208,6 +234,17 @@ export const createOrUpdateAdminUser = async (
                     const departmentsAssigned = await models.AdminUsersDepartment.bulkCreate(departmentData,{ transaction: t });
 
                     const isRoleAssigned = await models.AdminUsersRole.bulkCreate(rolesData,{ transaction: t });
+
+                    // Save person type scope (only if Curator_Scoped)
+                    if (personTypeLabels && personTypeLabels.length > 0) {
+                      const personTypeData = personTypeLabels.map((pt: string) => ({
+                        userID: isAdminUserCreated.userID,
+                        personType: pt,
+                        createTimestamp: new Date(),
+                      }));
+                      await models.AdminUsersPersonType.bulkCreate(personTypeData, { transaction: t });
+                    }
+
                     res.send(isRoleAssigned)
                 }
             });
@@ -243,5 +280,22 @@ export const fetchUserDetailsByUserId = async (
     res.send(UserDetails)
   } catch (e) {
     console.log(e)
+  }
+}
+
+export const fetchUserPersonTypes = async (
+  req: NextApiRequest,
+  res: NextApiResponse
+) => {
+  try {
+    const userId = req.query.userId as string;
+    const personTypes = await models.AdminUsersPersonType.findAll({
+      where: { userID: userId },
+      attributes: ['personType'],
+    });
+    res.send(personTypes);
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(e);
   }
 }
