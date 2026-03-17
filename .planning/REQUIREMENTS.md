@@ -24,7 +24,7 @@ Requirements for this release. Each maps to roadmap phases.
 
 - [x] **SCOPE-01**: Database schema supports scoped curation roles with nullable person type and org unit columns
 - [ ] **SCOPE-02**: Scoped curators only see people matching their assigned scope on the Find People page
-- [ ] **SCOPE-03**: Scoped curators can only curate publications for people within their assigned scope
+- [x] **SCOPE-03**: Scoped curators can only curate publications for people within their assigned scope
 - [ ] **SCOPE-04**: Superusers can assign person type scopes to users from the Manage Users page
 - [ ] **SCOPE-05**: Superusers can assign org unit scopes to users from the Manage Users page
 - [x] **SCOPE-06**: Scoped roles support flexible combination: person type only, org unit only, or both
@@ -88,7 +88,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UIBUG-03 | Phase 1 | Complete |
 | SCOPE-01 | Phase 3 | Complete |
 | SCOPE-02 | Phase 3 | Pending |
-| SCOPE-03 | Phase 3 | Pending |
+| SCOPE-03 | Phase 3 | Complete |
 | SCOPE-04 | Phase 3 | Pending |
 | SCOPE-05 | Phase 3 | Pending |
 | SCOPE-06 | Phase 3 | Complete |

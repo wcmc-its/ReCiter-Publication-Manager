@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-17T15:09:03Z"
-last_activity: "2026-03-17 -- Completed Plan 03-01 (data model + scope resolution)"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-17T16:03:00Z"
+last_activity: "2026-03-17 -- Completed Plan 03-02 (auth pipeline & API scope enforcement)"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 11
-  completed_plans: 7
-  percent: 64
+  completed_plans: 8
+  percent: 73
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 01 complete (data model + scope resolution).
+**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 02 complete (auth pipeline & API scope enforcement).
 
 ## Current Position
 
 Phase: 3 of 4 (Scoped Curation Roles) -- IN PROGRESS
-Plan: 1 of 5 in current phase (03-01 complete)
+Plan: 2 of 5 in current phase (03-02 complete)
 Status: Executing Phase 3
-Last activity: 2026-03-17 -- Completed Plan 03-01 (data model + scope resolution)
+Last activity: 2026-03-17 -- Completed Plan 03-02 (auth pipeline & API scope enforcement)
 
-Progress: [██████░░░░] 64%
+Progress: [███████░░░] 73%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 8min
-- Total execution time: ~1.0 hours
+- Total plans completed: 8
+- Average duration: 7min
+- Total execution time: ~1.1 hours
 
 **By Phase:**
 
@@ -45,7 +45,7 @@ Progress: [██████░░░░] 64%
 |-------|-------|-------|----------|
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
-| 03 | 1 | 4min | 4min |
+| 03 | 2 | 10min | 5min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -56,9 +56,10 @@ Progress: [██████░░░░] 64%
 | Phase 02 P03 | 14min | 3 tasks | 20 files |
 | Phase 02 P04 | 5min | 2 tasks | 4 files |
 | Phase 03 P01 | 4min | 2 tasks | 6 files |
+| Phase 03 P02 | 6min | 2 tasks | 8 files |
 
 **Recent Trend:**
-- Last 5 plans: 13min, multi-session, 14min, 5min, 4min
+- Last 5 plans: multi-session, 14min, 5min, 4min, 6min
 - Trend: Foundation/data-model plans fastest; audit plans slowest
 
 *Updated after each plan completion*
@@ -100,6 +101,10 @@ Recent decisions affecting current work:
 - [03-01]: scopeResolver.ts is a pure function (no DB access) usable in Edge middleware, Node API, and React
 - [03-01]: Null dimension means no restriction on that axis (not empty array)
 - [03-01]: AdminUsersPersonType uses STRING(128) for personType to match existing person_person_type patterns
+- [03-02]: findUserPermissions returns { roles, scopeData } instead of flat roles array -- JWT callback handles with fallback parsing
+- [03-02]: Scope data stored as JSON string in JWT token (token.scopeData) alongside existing token.userRoles
+- [03-02]: Middleware defers person-level scope check to API layer for /curate/* routes (route allows, API enforces)
+- [03-02]: getPersonWithTypes uses Sequelize models rather than raw SQL for consistency with person.controller patterns
 
 ### Pending Todos
 
@@ -113,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T15:09:03Z
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-scoped-curation-roles/03-02-PLAN.md
+Last session: 2026-03-17T16:03:00Z
+Stopped at: Completed 03-02-PLAN.md
+Resume file: .planning/phases/03-scoped-curation-roles/03-03-PLAN.md
