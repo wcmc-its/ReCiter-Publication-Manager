@@ -5,7 +5,7 @@ import { getSession, useSession } from "next-auth/client"
 import { useRouter } from "next/router"
 import { toast } from "react-toastify"
 import { getCapabilities } from "../../utils/constants"
-import { isPersonInScope } from "../../utils/scopeResolver"
+import { isPersonInScope, isProxyFor } from "../../utils/scopeResolver"
 import { reciterConfig } from "../../../config/local"
 
 /* export async function getServerSideProps(ctx) {
@@ -39,11 +39,19 @@ const AppPage = () => {
 
         // Only check scope for Curator_Scoped (not Curator_All or Superuser)
         if (caps.canCurate.scoped && !caps.canCurate.all) {
+            const personId = router.query.id;
+            if (!personId) return;
+
+            // Proxy override -- skip scope check if user has proxy access
+            const proxyPersonIds = session?.data?.proxyPersonIds
+                ? JSON.parse(session.data.proxyPersonIds)
+                : [];
+            if (isProxyFor(proxyPersonIds, personId)) {
+                return; // Proxy access grants curation rights
+            }
+
             const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
             if (scopeData) {
-                const personId = router.query.id;
-                if (!personId) return;
-
                 fetch(`/api/db/person/scopecheck?uid=${personId}`, {
                     headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
                 })
