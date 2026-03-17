@@ -145,9 +145,25 @@ const options = {
                     token.username = apiResponse.statusMessage.username;
                 }
                 if (apiResponse.userRoles) {
-                    token.userRoles = apiResponse.userRoles;
+                    // userRoles is now JSON string of { roles: [...], scopeData: {...} | null }
+                    try {
+                        const parsed = JSON.parse(apiResponse.userRoles);
+                        if (parsed.roles) {
+                            // New format: { roles, scopeData }
+                            token.userRoles = JSON.stringify(parsed.roles);
+                            if (parsed.scopeData) {
+                                token.scopeData = JSON.stringify(parsed.scopeData);
+                            }
+                        } else {
+                            // Legacy format or empty array: store as-is
+                            token.userRoles = apiResponse.userRoles;
+                        }
+                    } catch (e) {
+                        // If not valid JSON, store as-is (fallback)
+                        token.userRoles = apiResponse.userRoles;
+                    }
                 }
-                console.log('[AUTH] JWT created: personIdentifier=' + token.username + ', hasRoles=' + !!apiResponse.userRoles);
+                console.log('[AUTH] JWT created: personIdentifier=' + token.username + ', hasRoles=' + !!apiResponse.userRoles + ', hasScope=' + !!token.scopeData);
             }
             return token;
         },
