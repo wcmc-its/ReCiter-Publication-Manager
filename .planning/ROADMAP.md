@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
 | 2. UI/UX Audit | 4/4 | Complete | 2026-03-17 |
-| 3. Scoped Curation Roles | 0/5 | Not started | - |
+| 3. Scoped Curation Roles | 4/5 | In Progress|  |
 | 4. Curation Proxy | 0/? | Not started | - |

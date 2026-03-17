@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-17T16:22:09.487Z"
-last_activity: 2026-03-17 -- Completed Plan 03-03 (admin scope assignment UI)
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-03-17T16:20:38Z"
+last_activity: 2026-03-17 -- Completed Plan 03-04 (scope-aware UI: search, curate, navbar)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 11
   completed_plans: 10
-  percent: 82
+  percent: 91
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 03 complete (admin scope assignment UI).
+**Current focus:** Phase 3 in progress -- Scoped Curation Roles. Plan 04 complete (scope-aware UI: search, curate, navbar).
 
 ## Current Position
 
 Phase: 3 of 4 (Scoped Curation Roles) -- IN PROGRESS
-Plan: 3 of 5 in current phase (03-03 complete)
+Plan: 4 of 5 in current phase (03-04 complete)
 Status: Executing Phase 3
-Last activity: 2026-03-17 -- Completed Plan 03-03 (admin scope assignment UI)
+Last activity: 2026-03-17 -- Completed Plan 03-04 (scope-aware UI: search, curate, navbar)
 
-Progress: [████████░░] 82%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 7min
-- Total execution time: ~1.1 hours
+- Total plans completed: 10
+- Average duration: 8min
+- Total execution time: ~1.3 hours
 
 **By Phase:**
 
@@ -45,7 +45,7 @@ Progress: [████████░░] 82%
 |-------|-------|-------|----------|
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
-| 03 | 2 | 10min | 5min |
+| 03 | 4 | 36min | 9min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -58,9 +58,10 @@ Progress: [████████░░] 82%
 | Phase 03 P01 | 4min | 2 tasks | 6 files |
 | Phase 03 P02 | 6min | 2 tasks | 8 files |
 | Phase 03 P03 | 14min | 2 tasks | 7 files |
+| Phase 03 P04 | 12min | 2 tasks | 11 files |
 
 **Recent Trend:**
-- Last 5 plans: 14min, 5min, 4min, 6min, 14min
+- Last 5 plans: 5min, 4min, 6min, 14min, 12min
 - Trend: Foundation/data-model plans fastest; UI+controller plans moderate
 
 *Updated after each plan completion*
@@ -110,6 +111,10 @@ Recent decisions affecting current work:
 - [Phase 03]: [03-03]: Server-side mutual exclusion resolves role IDs to labels via AdminRole.findByPk before comparison
 - [Phase 03]: [03-03]: listAllUsers uses distinct: true in findAndCountAll for correct count with association JOINs
 - [Phase 03]: [03-03]: Role filter is server-side (required: true on include) rather than client-side for correct pagination
+- [03-04]: Scope filter uses existing personTypes/orgUnits API filters rather than new endpoint
+- [03-04]: includeScopeData flag on person API returns PersonPersonTypes for client-side scope matching
+- [03-04]: Curate page scope check is client-side with API fetch, complementing middleware route-level enforcement
+- [03-04]: Curate icon uses MUI EditOutlined with Tooltip for accessibility per UI-SPEC
 
 ### Pending Todos
 
@@ -123,6 +128,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T16:22:09.485Z
-Stopped at: Completed 03-03-PLAN.md
-Resume file: None
+Last session: 2026-03-17T16:20:38Z
+Stopped at: Completed 03-04-PLAN.md
+Resume file: .planning/phases/03-scoped-curation-roles/03-05-PLAN.md
