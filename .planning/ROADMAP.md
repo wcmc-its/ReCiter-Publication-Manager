@@ -13,7 +13,7 @@ Four phases deliver a stable, audited, and scope-aware curation platform with pr
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Auth Fix and Bug Remediation** - Fix the /noaccess redirect blocker, refactor middleware to capability-based checks, unify SAML/local session structures, and fix known UI bugs (completed 2026-03-16)
-- [ ] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented
+- [x] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented (completed 2026-03-17)
 - [ ] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit
 - [ ] **Phase 4: Curation Proxy** - Many-to-many proxy assignments, [PROXY] badge on search results, proxy filter checkbox, and proxy curation navigation
 
@@ -49,7 +49,7 @@ Plans:
 - [x] 02-01-PLAN.md -- ESLint a11y setup + audit high-traffic views (Search, Curate, Report, Group Curation)
 - [x] 02-02-PLAN.md -- Audit remaining views (Manage Users, Configuration, Notifications, Login/NoAccess) + PATTERNS.md + user review checkpoint
 - [x] 02-03-PLAN.md -- Critical a11y fixes + Jest test infrastructure + smoke tests + Lighthouse before/after comparison
-- [ ] 02-04-PLAN.md -- Gap closure: missing smoke tests (Search, Publication), LIGHTHOUSE doc fix, REQUIREMENTS traceability update
+- [x] 02-04-PLAN.md -- Gap closure: missing smoke tests (Search, Publication), LIGHTHOUSE doc fix, REQUIREMENTS traceability update
 
 ### Phase 3: Scoped Curation Roles
 **Goal**: Administrators can assign curators to specific person types and/or organizational units, and those curators can only see and curate people within their assigned scope
@@ -61,12 +61,14 @@ Plans:
   3. A scoped curator attempting to curate a person outside their scope is denied at both the page level and API level
   4. Scoped role assignments persist across sessions (stored in database, embedded in JWT at login)
   5. Existing Curator_All and Curator_Self roles continue to work exactly as before
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md -- Foundation: AdminUsersPersonType model, scopeResolver utility, getCapabilities extension with Curator_Scoped
+- [ ] 03-02-PLAN.md -- Auth pipeline: scope data in findUserPermissions/JWT, middleware for Curator_Scoped, API-level 403 enforcement
+- [ ] 03-03-PLAN.md -- Admin UI: CurationScopeSection in AddUser, roles column in UsersTable, role filter in ManageUsers
+- [ ] 03-04-PLAN.md -- Search + navbar: ScopeFilterCheckbox, curate icon for in-scope people, ScopeLabel in sidebar, curate page scope check
+- [ ] 03-05-PLAN.md -- Manage Profile port from master + scope enforcement + end-to-end verification checkpoint
 
 ### Phase 4: Curation Proxy
 **Goal**: Any user with appropriate privileges can be assigned as a curation proxy for one or more other users, and can discover and curate publications on their behalf through the existing search interface
@@ -92,6 +94,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
-| 2. UI/UX Audit | 3/4 | In Progress|  |
-| 3. Scoped Curation Roles | 0/? | Not started | - |
+| 2. UI/UX Audit | 4/4 | Complete | 2026-03-17 |
+| 3. Scoped Curation Roles | 0/5 | Not started | - |
 | 4. Curation Proxy | 0/? | Not started | - |
