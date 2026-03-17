@@ -59,13 +59,15 @@ Exceptions:
 | Body | 14px | 400 (regular) | 1.5 | Article metadata, evidence text, filter labels |
 | Label | 12px | 600 (semibold) | 1.4 | Badges, status tags, button text, small captions |
 | Heading | 20px | 400 (regular) | 1.3 | Page titles (h1), section headers |
-| Display | 28px | 500 (medium) | 1.2 | Score display, person count summary |
+| Display | 28px | 600 (semibold) | 1.2 | Score display, person count summary |
+
+**Allowed weights:** 400 (regular) and 600 (semibold) only. No other weights permitted in new or redesigned components.
 
 **Font stack:** `"Open Sans", sans-serif, Arial` for all text. Bootstrap default (`system-ui, -apple-system, "Segoe UI", Roboto, ...`) as fallback.
 
 **Current state observations:**
 - h1 is globally styled at 20px weight 200 (`globals.css` line 87-92) -- audit will evaluate whether weight 200 is too light
-- CuratePublications sectionHeader uses 28px weight 500 (`CuratePublications.module.css` line 10)
+- CuratePublications sectionHeader uses 28px weight 500 (`CuratePublications.module.css` line 10) -- audit will flag for migration to 600 per this contract
 - Publication evidence table uses 14px (`Publication.module.css` line 32)
 - Publication buttons use 12px weight 600 (`Publication.module.css` line 67-76)
 - Font weights used across codebase: 200, 300, 400, 500, 600, 700, 800 -- audit will flag and recommend consolidating to 400 + 600
