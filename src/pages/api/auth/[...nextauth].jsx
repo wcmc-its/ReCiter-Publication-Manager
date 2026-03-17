@@ -130,6 +130,10 @@ const options = {
         },
         async session(session, token,apiResponse) {
             session.data = token
+            // Pass proxyPersonIds from JWT token to session
+            if (token.proxyPersonIds) {
+                session.data.proxyPersonIds = token.proxyPersonIds;
+            }
             //loading adminsettings after creating users specific data as it does not belogs to specific user.
           //  if(session || !session.adminSettings)
                 session.adminSettings = await fetchUpdatedAdminSettings();
@@ -149,10 +153,13 @@ const options = {
                     try {
                         const parsed = JSON.parse(apiResponse.userRoles);
                         if (parsed.roles) {
-                            // New format: { roles, scopeData }
+                            // New format: { roles, scopeData, proxyPersonIds }
                             token.userRoles = JSON.stringify(parsed.roles);
                             if (parsed.scopeData) {
                                 token.scopeData = JSON.stringify(parsed.scopeData);
+                            }
+                            if (parsed.proxyPersonIds && parsed.proxyPersonIds.length > 0) {
+                                token.proxyPersonIds = JSON.stringify(parsed.proxyPersonIds);
                             }
                         } else {
                             // Legacy format or empty array: store as-is

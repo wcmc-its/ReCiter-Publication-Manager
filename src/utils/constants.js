@@ -122,7 +122,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
 export function getCapabilities(roles) {
   // Baseline: every authenticated user gets canReport + canSearch
   const caps = {
-    canCurate: { all: false, self: false, scoped: false, personIdentifier: null, scopeData: null },
+    canCurate: { all: false, self: false, scoped: false, personIdentifier: null, scopeData: null, proxyPersonIds: [] },
     canReport: true,
     canSearch: true,
     canManageUsers: false,

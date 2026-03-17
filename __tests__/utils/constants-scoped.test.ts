@@ -78,6 +78,16 @@ describe('getCapabilities with Curator_Scoped', () => {
     const caps = getCapabilities([])
     expect(caps.canCurate.scopeData).toBeNull()
   })
+
+  it('should initialize proxyPersonIds as empty array in canCurate', () => {
+    const caps = getCapabilities([])
+    expect(caps.canCurate.proxyPersonIds).toEqual([])
+  })
+
+  it('should initialize proxyPersonIds as empty array for Curator_Scoped', () => {
+    const caps = getCapabilities([{ roleLabel: 'Curator_Scoped' }])
+    expect(caps.canCurate.proxyPersonIds).toEqual([])
+  })
 })
 
 describe('getLandingPage with Curator_Scoped', () => {

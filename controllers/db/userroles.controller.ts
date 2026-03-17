@@ -28,6 +28,21 @@ async function getScopeDataForUser(userID: number) {
 }
 
 
+/**
+ * Helper to retrieve proxy person IDs for a given userID.
+ * Returns an array of personIdentifier strings that the user is a proxy for.
+ */
+async function getProxyDataForUser(userID: number) {
+    const result: any = await sequelize.query(
+        "SELECT personIdentifier FROM admin_users_proxy WHERE userID = :userID",
+        { replacements: { userID }, raw: true }
+    );
+    return result[0]?.length > 0
+        ? result[0].map((r: any) => r.personIdentifier)
+        : [];
+}
+
+
 export const findUserPermissions = async (attrValue: string, attrType: string) => {
 
     let userRolesList = [];
@@ -54,12 +69,18 @@ export const findUserPermissions = async (attrValue: string, attrType: string) =
             );
         }
 
-        // Check if user has Curator_Scoped role and retrieve scope data
+        // Retrieve userID once for scope and proxy lookups
         const hasScoped = userRolesList.some((r: any) => r.roleLabel === 'Curator_Scoped');
-        let scopeData = null;
+        const hasCurationRole = userRolesList.some((r: any) =>
+            ['Curator_Scoped', 'Curator_All', 'Curator_Self'].includes(r.roleLabel)
+        );
 
-        if (hasScoped) {
-            // Get user's userID for scope lookups
+        let scopeData = null;
+        let proxyPersonIds: string[] = [];
+        let userID: number | undefined;
+
+        if (hasScoped || hasCurationRole) {
+            // Get user's userID for scope and proxy lookups
             const userIdQuery = attrType === "email"
                 ? "SELECT userID FROM admin_users WHERE email = :value"
                 : "SELECT userID FROM admin_users WHERE personIdentifier = :value";
@@ -68,14 +89,19 @@ export const findUserPermissions = async (attrValue: string, attrType: string) =
                 replacements: { value: attrValue },
                 raw: true,
             });
-            const userID = userIdResult[0]?.[0]?.userID;
-
-            if (userID) {
-                scopeData = await getScopeDataForUser(userID);
-            }
+            userID = userIdResult[0]?.[0]?.userID;
         }
 
-        return JSON.stringify({ roles: userRolesList, scopeData });
+        if (hasScoped && userID) {
+            scopeData = await getScopeDataForUser(userID);
+        }
+
+        // Get proxy data for any user with a curation role
+        if (hasCurationRole && userID) {
+            proxyPersonIds = await getProxyDataForUser(userID);
+        }
+
+        return JSON.stringify({ roles: userRolesList, scopeData, proxyPersonIds });
     } catch (e) {
         console.log(e)
     }
