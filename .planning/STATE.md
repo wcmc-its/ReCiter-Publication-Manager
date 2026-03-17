@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-17T22:47:22Z"
-last_activity: 2026-03-17 -- Completed Plan 04-01 (proxy foundation) -- proxy model, auth pipeline, CRUD API
+status: executing
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-17T22:56:20.557Z"
+last_activity: 2026-03-17 -- Completed Plan 04-02 (manage users proxy UI) -- ProxyAssignmentsSection, UsersTable proxy column
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 15
-  completed_plans: 12
-  percent: 80
+  completed_plans: 14
+  percent: 87
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 4 in progress -- Curation Proxy. Plan 04-01 complete (proxy foundation). 3 plans remaining.
+**Current focus:** Phase 4 in progress -- Curation Proxy. Plan 04-02 complete (manage users proxy UI). 2 plans remaining.
 
 ## Current Position
 
 Phase: 4 of 4 (Curation Proxy)
-Plan: 1 of 4 in current phase (04-01 complete)
+Plan: 2 of 4 in current phase (04-02 complete)
 Status: Phase 4 in progress
-Last activity: 2026-03-17 -- Completed Plan 04-01 (proxy foundation) -- proxy model, auth pipeline, CRUD API
+Last activity: 2026-03-17 -- Completed Plan 04-02 (manage users proxy UI) -- ProxyAssignmentsSection, UsersTable proxy column
 
-Progress: [████████░░] 80%
+Progress: [████████▓░] 87%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: 8min
-- Total execution time: ~1.5 hours
+- Total execution time: ~1.6 hours
 
 **By Phase:**
 
@@ -46,7 +46,7 @@ Progress: [████████░░] 80%
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
 | 03 | 5 | 44min | 9min |
-| 04 | 1 | 6min | 6min |
+| 04 | 2 | 10min | 5min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -62,10 +62,11 @@ Progress: [████████░░] 80%
 | Phase 03 P04 | 12min | 2 tasks | 11 files |
 | Phase 03 P05 | 8min | 2 tasks (1 checkpoint) | 5 files |
 | Phase 04 P01 | 6min | 3 tasks | 12 files |
+| Phase 04 P02 | 4min | 2 tasks | 5 files |
 
 **Recent Trend:**
-- Last 5 plans: 14min, 12min, 8min, 6min, 6min
-- Trend: Foundation/data-model plans fastest; proxy foundation efficient at 6min
+- Last 5 plans: 12min, 8min, 6min, 6min, 4min
+- Trend: Proxy plans executing efficiently; UI component tasks fastest
 
 *Updated after each plan completion*
 
@@ -123,6 +124,9 @@ Recent decisions affecting current work:
 - [04-01]: Proxy data retrieval triggers for any curation role (Curator_All, Curator_Scoped, Curator_Self), not just Curator_Scoped
 - [04-01]: userID lookup consolidated into single query shared by both scope and proxy data retrieval
 - [04-01]: proxyPersonIds stored as JSON string in JWT token (same pattern as scopeData)
+- [04-02]: hasCurationRole checks all three curator roles (All, Scoped, Self) for proxy section visibility
+- [04-02]: Proxy save executes as separate fetch after user create/update with toast notification
+- [04-02]: UsersTable Proxies column uses em dash/1 person/N people formatting per UI-SPEC
 
 ### Pending Todos
 
@@ -136,6 +140,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T22:47:22Z
-Stopped at: Completed 04-01-PLAN.md
-Resume file: .planning/phases/04-curation-proxy/04-02-PLAN.md
+Last session: 2026-03-17T22:54:45Z
+Stopped at: Completed 04-02-PLAN.md
+Resume file: .planning/phases/04-curation-proxy/04-03-PLAN.md
