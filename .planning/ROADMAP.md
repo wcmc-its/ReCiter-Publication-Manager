@@ -99,7 +99,10 @@ Plans:
   1. Each SCOPE requirement has been independently verified against the actual codebase (not just SUMMARY claims)
   2. VERIFICATION.md exists in Phase 3 directory with pass/fail per requirement
   3. Any requirements that fail verification are documented with specific findings
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 05-01-PLAN.md -- Source verification of 36 truths + 14 key links + 6 SCOPE requirements, produce 03-VERIFICATION.md, update REQUIREMENTS.md traceability
 
 ### Phase 6: Proxy API Scope Enforcement
 **Goal**: Proxy users can save accept/reject decisions for out-of-scope proxied persons without getting 403 errors
@@ -115,7 +118,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -123,5 +126,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 2. UI/UX Audit | 4/4 | Complete | 2026-03-17 |
 | 3. Scoped Curation Roles | 5/5 | Complete   | 2026-03-17 |
 | 4. Curation Proxy | 4/4 | Complete | 2026-03-17 |
-| 5. Phase 3 Independent Verification | 0/? | Planned | — |
-| 6. Proxy API Scope Enforcement | 0/? | Planned | — |
+| 5. Phase 3 Independent Verification | 0/1 | Planned | -- |
+| 6. Proxy API Scope Enforcement | 0/? | Planned | -- |
