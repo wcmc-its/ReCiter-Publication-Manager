@@ -9,13 +9,13 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Foundation
 
-- [ ] **PORT-01**: Sequelize models (AdminUsersPersonType, AdminUsersProxy) ported with SWC-safe modelName property
+- [ ] **PORT-01**: AdminUser Sequelize model extended with three JSON columns (scope_person_types, scope_org_units, proxy_person_ids) on existing admin_users table, with SWC-safe modelName property preserved
 - [ ] **PORT-02**: scopeResolver.ts (isPersonInScope, isProxyFor) available on NextJS14 branch
 - [ ] **PORT-03**: getCapabilities, ROLE_CAPABILITIES, getLandingPage, Curator_Scoped added to constants
 
 ### Database
 
-- [ ] **DB-01**: DDL for admin_users_person_types and admin_users_proxy tables added to ReCiterDB repo schema and applied to both dev and prod reciterDB databases
+- [ ] **DB-01**: ALTER TABLE admin_users adding scope_person_types, scope_org_units, and proxy_person_ids JSON columns -- DDL committed to ReCiterDB repo schema and applied to both dev and prod reciterDB databases
 
 ### Auth Pipeline
 
@@ -117,4 +117,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 — traceability populated after roadmap creation*
+*Last updated: 2026-03-18 -- PORT-01 and DB-01 updated to reflect JSON column approach per Phase 7 context decisions*
