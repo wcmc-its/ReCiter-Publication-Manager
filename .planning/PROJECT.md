@@ -2,7 +2,19 @@
 
 ## What This Is
 
-A maintenance and feature release for ReCiter-Publication-Manager that fixed authentication blockers, audited and improved UI/UX across all views, and added fine-grained curation controls. Curators can now be scoped to specific person types and organizational units, and curation proxy assignments allow designated users to curate on behalf of others. The app runs on the EKS dev cluster (`reciter-dev`) using SAML authentication against the `dev_v2` branch.
+ReCiter-Publication-Manager is an institutional web application for managing, curating, and reporting on scholarly publications. Faculty and librarians use it to accept/reject article suggestions, generate bibliometric reports, and export publication data. The app runs on the EKS dev cluster (`reciter-dev`).
+
+## Current Milestone: v1.1 Feature Port to Next.js 14
+
+**Goal:** Port all v1.0 features (capability auth, scoped curation roles, curation proxy) to the Next.js 14 / React 18 codebase running on reciter-dev.
+
+**Target features:**
+- Capability-based auth model adapted for next-auth v4
+- Scoped curation roles (AdminUsersPersonType, scopeResolver, admin UI, enforcement)
+- Curation proxy system (AdminUsersProxy, proxy CRUD APIs, badge/filter/grant UI)
+- Proxy API scope enforcement on userfeedback and goldstandard endpoints
+- Skeleton loading components adapted for React 18
+- Jest test infrastructure for React 18 / Next.js 14
 
 ## Core Value
 
@@ -27,13 +39,13 @@ Curators and administrators can reliably log in, navigate without encountering b
 
 ### Active
 
-(None — start next milestone with `/gsd:new-milestone`)
+(Defined in REQUIREMENTS.md for v1.1)
 
 ### Out of Scope
 
 - Phase 2 of PubMed search improvements (author name highlighting, affiliation hover) — deferred from v1.0
 - Mobile app or responsive redesign — web-first
-- Migration to Next.js 13+ or React 18 — separate effort, different risk profile
+- ~~Migration to Next.js 13+ or React 18~~ — now in scope for v1.1 (porting to NextJS14 branch)
 - Notification system overhaul — partially implemented, separate scope
 - Per-article permission assignments — excessive granularity
 - Custom role creation UI — roles are relatively stable
@@ -41,23 +53,25 @@ Curators and administrators can reliably log in, navigate without encountering b
 
 ## Context
 
-- Shipped v1.0 with 28,631 LOC (JS/TS/JSX/TSX) across 77 modified files (+4,137/-668 lines)
-- Tech stack: Next.js 12, React 16, Node 14, MySQL via Sequelize, Redux + thunk
-- The `dev_v2` branch is the active development branch
-- Authentication uses capability-based model (getCapabilities) with SAML auto-create
-- Jest test infrastructure established with React 16 compatible stack (27.5.1 + @testing-library/react 12.1.5)
-- eslint-plugin-jsx-a11y strict mode integrated; 33/64 a11y violations fixed, 31 deferred
-- PATTERNS.md established as authoritative design reference for future UI work
-- 5 new Sequelize models added: AdminUsersPersonType, AdminUsersProxy, plus scope/proxy utilities
-- Nyquist validation exists in draft for all 4 core phases (not fully compliant)
+- v1.0 shipped on `dev_v2` (Next.js 12, React 16, Node 14) — 22/22 requirements fulfilled
+- Target branch `dev_Upd_NextJS14SNode18` runs on reciter-dev with Next.js 14, React 18, Node 18, next-auth v4
+- New working branch to be created from `origin/dev_Upd_NextJS14SNode18` for port work
+- The NextJS14 branch has 813 unique commits diverging from dev_v2 (UI redesign, SAML v4, dependency updates)
+- Key API changes: next-auth v3 → v4 (breaking), React 16 → 18 (hooks), Next.js 12 → 14 (middleware)
+- Both branches use Pages Router (no app router migration needed)
+- NextJS14 branch has NO v1.0 features: no capability model, no scoped roles, no proxy system
+- Sequelize models (AdminUsersPersonType, AdminUsersProxy) and pure utilities (scopeResolver.ts) should port cleanly
+- UI components need React 18 adaptation but logic is preserved
+- PATTERNS.md from v1.0 audit may need updating for NextJS14 UI redesign styles
 
 ## Constraints
 
-- **Tech stack**: Next.js 12, React 16, Node 14 — no framework upgrades in this milestone
-- **Auth**: SAML on EKS; local auth for local dev — capability model works in both modes
-- **Database**: MySQL via Sequelize — scoped role and proxy tables follow existing model patterns
-- **Existing patterns**: Redux + thunk async pattern for state management
+- **Tech stack**: Next.js 14, React 18, Node 18 — must work on the NextJS14 branch
+- **Auth**: next-auth v4 with SAML on EKS; local auth for local dev
+- **Database**: MySQL via Sequelize — same models, same connection patterns
+- **Existing patterns**: Adapt v1.0 patterns to NextJS14 conventions where they differ
 - **Deployment**: EKS dev cluster via CodeBuild pipeline
+- **Source of truth**: v1.0 code on dev_v2 is the reference implementation; port logic, adapt APIs
 
 ## Key Decisions
 
@@ -76,5 +90,8 @@ Curators and administrators can reliably log in, navigate without encountering b
 | Jest 27.5.1 + @testing-library/react 12.1.5 | React 16 compatibility requires older test libraries | ✓ Good — --legacy-peer-deps needed but tests work |
 | isProxyFor check wraps scope block (not early return) | Preserves existing code structure in API endpoints | ✓ Good — minimal diff, easy to understand |
 
+| Port to new branch from NextJS14 | v1.0 features need to run on reciter-dev's modern stack | — Pending |
+| next-auth v3 → v4 adaptation | Breaking API changes require rewrite, not copy-paste | — Pending |
+
 ---
-*Last updated: 2026-03-18 after v1.0 milestone*
+*Last updated: 2026-03-18 after starting v1.1 milestone*
