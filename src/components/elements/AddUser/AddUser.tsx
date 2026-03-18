@@ -113,9 +113,21 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         const newErrors = checkFormValidations()
 
           if ( Object.keys(newErrors).length === 0 ) {
-   
-            let selectedRoleIds = [];
-            let departmentIds = [];
+
+            let roleIds = [];
+            let departMentIds = [];
+            selectedRoles && selectedRoles.length > 0 && allAdminRoles.map(role => {
+                selectedRoles.map((editRole) => {
+                    if (editRole === role.roleLabel) roleIds.push(role.roleID)
+                })
+            })
+            selectedDepartments && selectedDepartments.length > 0 && adminDepartments.map(department => {
+                selectedDepartments.map((selectedDep) => {
+                    if (selectedDep === department.departmentLabel) departMentIds.push(department.departmentID)
+                })
+            })
+            let selectedRoleIds = roleIds || [];
+            let departmentIds = departMentIds || [];
             let isEditUserId = router.query.userId;
             let personTypeLabels = hasScopedRole ? selectedPersonTypes : [];
             let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, personTypeLabels }
@@ -187,7 +199,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     useEffect(() => {
         let isEditUserId = router.query.userId;
 
-        if (isEditUserId) {
+        if (isEditUserId && allAdminRoles.length > 0) {
             setLoading(true)
             let userDetails = fetchUserInfoByID(isEditUserId).then(result => {
                 const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier } = result && result[0];
@@ -238,7 +250,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             })
         }
 
-    }, [router.query.userId])
+    }, [router.query.userId, allAdminRoles])
 
     const CssTextField = styled(TextField)({
         '& .MuiOutlinedInput-root': {

@@ -97,12 +97,20 @@ export const findUserPermissions = async (attrValue: string, attrType: string) =
         }
 
         // Get proxy data for any user with a curation role
+        // Wrapped in try-catch: admin_users_proxy table may not exist yet
         if (hasCurationRole && userID) {
-            proxyPersonIds = await getProxyDataForUser(userID);
+            try {
+                proxyPersonIds = await getProxyDataForUser(userID);
+            } catch (proxyErr) {
+                console.log('[AUTH] Proxy lookup failed (table may not exist):', (proxyErr as any)?.message);
+                proxyPersonIds = [];
+            }
         }
 
         return JSON.stringify({ roles: userRolesList, scopeData, proxyPersonIds });
     } catch (e) {
-        console.log(e)
+        console.log('[AUTH] findUserPermissions error:', e);
+        // Return safe fallback so login still works even if role/proxy queries fail
+        return JSON.stringify({ roles: [], scopeData: null, proxyPersonIds: [] });
     }
 };

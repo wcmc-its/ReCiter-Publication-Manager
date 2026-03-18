@@ -51,7 +51,7 @@ export class AdminUsersProxy extends Model<AdminUsersProxyAttributes, AdminUsers
     createTimestamp: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: "0000-00-00 00:00:00"
+      defaultValue: Sequelize.Sequelize.fn('current_timestamp')
     },
     modifyTimestamp: {
       type: DataTypes.DATE,
