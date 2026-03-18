@@ -87,34 +87,34 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PORT-01 | — | Pending |
-| PORT-02 | — | Pending |
-| PORT-03 | — | Pending |
-| DB-01 | — | Pending |
-| PORT-04 | — | Pending |
-| PORT-05 | — | Pending |
-| PORT-06 | — | Pending |
-| PORT-07 | — | Pending |
-| PORT-08 | — | Pending |
-| PORT-09 | — | Pending |
-| PORT-10 | — | Pending |
-| PORT-11 | — | Pending |
-| PORT-12 | — | Pending |
-| PORT-13 | — | Pending |
-| PORT-14 | — | Pending |
-| PORT-15 | — | Pending |
-| PORT-16 | — | Pending |
-| PORT-17 | — | Pending |
-| PORT-18 | — | Pending |
-| A11Y-01 | — | Pending |
-| PORT-19 | — | Pending |
-| PORT-20 | — | Pending |
+| PORT-01 | Phase 7 | Pending |
+| PORT-02 | Phase 7 | Pending |
+| PORT-03 | Phase 7 | Pending |
+| DB-01 | Phase 7 | Pending |
+| PORT-04 | Phase 8 | Pending |
+| PORT-05 | Phase 8 | Pending |
+| PORT-06 | Phase 8 | Pending |
+| PORT-07 | Phase 8 | Pending |
+| PORT-08 | Phase 9 | Pending |
+| PORT-09 | Phase 9 | Pending |
+| PORT-10 | Phase 9 | Pending |
+| PORT-11 | Phase 9 | Pending |
+| PORT-12 | Phase 9 | Pending |
+| PORT-13 | Phase 9 | Pending |
+| PORT-14 | Phase 9 | Pending |
+| PORT-15 | Phase 9 | Pending |
+| PORT-16 | Phase 10 | Pending |
+| PORT-17 | Phase 10 | Pending |
+| PORT-18 | Phase 11 | Pending |
+| A11Y-01 | Phase 11 | Pending |
+| PORT-19 | Phase 11 | Pending |
+| PORT-20 | Phase 11 | Pending |
 
 **Coverage:**
-- v1.1 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21
+- v1.1 requirements: 22 total
+- Mapped to phases: 22
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after initial definition*
+*Last updated: 2026-03-18 — traceability populated after roadmap creation*
