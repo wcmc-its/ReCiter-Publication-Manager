@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 6 context gathered
+stopped_at: Completed 06-01-PLAN.md -- all phases complete
 last_updated: "2026-03-18T11:10:12.390Z"
-last_activity: 2026-03-18 -- Completed Plan 05-01 (Phase 3 independent verification) -- 33/36 truths verified, 14/14 links wired, 6/6 SCOPE requirements SATISFIED
+last_activity: 2026-03-18 -- Completed Plan 06-01 (Proxy API enforcement) -- PROXY-06 fulfilled, all 22/22 v1 requirements complete, milestone v1.0 finished
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 16
-  completed_plans: 16
-  percent: 94
+  completed_plans: 17
+  percent: 100
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 5 verification complete. 21/22 requirements fulfilled. Phase 6 (PROXY-06) remaining.
+**Current focus:** All 22/22 requirements fulfilled. Milestone v1.0 complete.
 
 ## Current Position
 
-Phase: 5 of 6 (Phase 3 Independent Verification) -- COMPLETE
-Plan: 1 of 1 in current phase (05-01 complete)
-Status: Phase 5 complete, Phase 6 remaining
-Last activity: 2026-03-18 -- Completed Plan 05-01 (Phase 3 independent verification) -- 33/36 truths verified, 14/14 links wired, 6/6 SCOPE requirements SATISFIED
+Phase: 6 of 6 (Proxy API Enforcement) -- COMPLETE
+Plan: 1 of 1 in current phase (06-01 complete)
+Status: All phases complete. Milestone v1.0 finished.
+Last activity: 2026-03-18 -- Completed Plan 06-01 (Proxy API enforcement) -- isProxyFor added to userfeedback save + goldstandard update, PROXY-06 fulfilled
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
+- Total plans completed: 17
 - Average duration: 8min
-- Total execution time: ~2 hours
+- Total execution time: ~2 hours 5min
 
 **By Phase:**
 
@@ -48,6 +48,7 @@ Progress: [█████████░] 94%
 | 03 | 5 | 44min | 9min |
 | 04 | 4 | 19min | 5min |
 | 05 | 1 | 10min | 10min |
+| 06 | 1 | 5min | 5min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -68,13 +69,13 @@ Progress: [█████████░] 94%
 
 | Phase 04 P04 | 5min | 3 tasks (1 checkpoint) | 5 files |
 | Phase 05 P01 | 10min | 2 tasks | 1 file |
+| Phase 06 P01 | 5min | 2 tasks | 4 files |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 4min, 5min, 10min
-- Trend: Verification plan took longer due to 36 truths + 14 links to trace through 22 source files
+- Last 5 plans: 4min, 5min, 10min, 5min
+- Trend: Final plan completed quickly -- focused scope (2 files, additive logic only)
 
 *Updated after each plan completion*
-| Phase 05 P01 | 10min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,9 @@ Recent decisions affecting current work:
 - [Phase 05]: Test coverage gap identified: 27 existing unit tests (scopeResolver + constants), but 0/7 planned Wave 0 test stubs created -- no component/API/integration tests
 - [Phase 05]: Phase 4 modifications to shared files confirmed additive -- Phase 3 scope enforcement intact after proxy feature additions
 - [Phase 05]: All 6 SCOPE requirements independently verified SATISFIED with source-code evidence across 22 files
+- [06-01]: Proxy check uses negated isProxyFor wrapping scope block (not early return) to preserve existing code structure
+- [06-01]: node-mocks-http installed for API route testing -- first API-level tests in project
+- [06-01]: PROXY-06 fulfilled -- all 22/22 v1 requirements complete
 
 ### Pending Todos
 
@@ -156,6 +160,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T11:10:12.387Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-proxy-api-enforcement/06-CONTEXT.md
+Last session: 2026-03-18T11:24:48Z
+Stopped at: Completed 06-01-PLAN.md -- all phases and plans complete, milestone v1.0 finished
+Resume file: .planning/phases/06-proxy-api-enforcement/06-01-SUMMARY.md
