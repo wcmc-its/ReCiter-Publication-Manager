@@ -83,11 +83,11 @@ The verification follows a three-layer evidence model:
 
 ```
 Layer 1: Observable Truths (from plan must_haves.truths)
-    Plans 01-05 define 30 total truths across their must_haves blocks
+    Plans 01-05 define 36 total truths across their must_haves blocks
     Each truth verified by reading actual source code
 
 Layer 2: Key Links (from plan must_haves.key_links)
-    Plans 01-05 define 12 total key links
+    Plans 01-05 define 14 total key links
     Each link verified by confirming import/export/call chain
 
 Layer 3: Requirements Coverage (SCOPE-01 through SCOPE-06)
@@ -108,7 +108,7 @@ This is the CLAIMED mapping -- verification must confirm each independently:
 | SCOPE-05 | 03 | CurationScopeSection org units field, departments reuse as org unit scope |
 | SCOPE-06 | 01, 03 | scopeResolver null handling (person type only, org unit only, both), capability model flexibility |
 
-### Observable Truths Inventory (30 total across 5 plans)
+### Observable Truths Inventory (36 total across 5 plans)
 
 **Plan 01 (6 truths):**
 1. getCapabilities() recognizes Curator_Scoped role and returns canCurate.scoped = true
@@ -156,7 +156,7 @@ This is the CLAIMED mapping -- verification must confirm each independently:
 35. Curator_All can access Manage Profile for any person
 36. 5 files ported from master commit 544c0f2
 
-### Key Links Inventory (12 total across 5 plans)
+### Key Links Inventory (14 total across 5 plans)
 
 **Plan 01 (2 links):**
 1. constants.js -> ROLE_CAPABILITIES (Curator_Scoped entry)
@@ -230,7 +230,7 @@ All files confirmed to exist on disk:
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
 | Verification format | Custom format | Phase 4 VERIFICATION.md template | Established format, planner/auditor expect it |
-| Evidence gathering | Manual file reads | Systematic must_haves.truths checklist from plan frontmatter | 30 truths already defined, no guesswork |
+| Evidence gathering | Manual file reads | Systematic must_haves.truths checklist from plan frontmatter | 36 truths already defined, no guesswork |
 | Test execution | Manual code inspection | `npx jest` with existing test files | 27 automated tests already exist as evidence |
 
 ## Common Pitfalls
@@ -361,7 +361,7 @@ Test coverage assessment will be documented in VERIFICATION.md as evidence of wh
 ## Sources
 
 ### Primary (HIGH confidence)
-- Phase 3 PLAN files (03-01 through 03-05): must_haves.truths and must_haves.key_links (total: 30 truths, 14 key links)
+- Phase 3 PLAN files (03-01 through 03-05): must_haves.truths and must_haves.key_links (total: 36 truths, 14 key links)
 - Phase 3 SUMMARY files (03-01 through 03-05): Claims to verify against
 - Phase 4 VERIFICATION.md: Established format template
 - Phase 5 CONTEXT.md: User decisions on methodology and output format
@@ -377,7 +377,7 @@ Test coverage assessment will be documented in VERIFICATION.md as evidence of wh
 **Confidence breakdown:**
 - Verification methodology: HIGH -- Phase 4 provides proven template; CONTEXT.md locks decisions
 - File inventory: HIGH -- all files verified present on disk with sizes
-- Truth inventory: HIGH -- extracted directly from plan frontmatter (30 truths, 14 links)
+- Truth inventory: HIGH -- extracted directly from plan frontmatter (36 truths, 14 links)
 - Test coverage: HIGH -- tests run and pass (27/27)
 
 **Research date:** 2026-03-18
