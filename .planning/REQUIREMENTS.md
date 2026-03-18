@@ -22,12 +22,12 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Scoped Curation Roles
 
-- [ ] **SCOPE-01**: Database schema supports scoped curation roles with nullable person type and org unit columns
-- [ ] **SCOPE-02**: Scoped curators only see people matching their assigned scope on the Find People page
-- [ ] **SCOPE-03**: Scoped curators can only curate publications for people within their assigned scope
-- [ ] **SCOPE-04**: Superusers can assign person type scopes to users from the Manage Users page
-- [ ] **SCOPE-05**: Superusers can assign org unit scopes to users from the Manage Users page
-- [ ] **SCOPE-06**: Scoped roles support flexible combination: person type only, org unit only, or both
+- [x] **SCOPE-01**: Database schema supports scoped curation roles with nullable person type and org unit columns
+- [x] **SCOPE-02**: Scoped curators only see people matching their assigned scope on the Find People page
+- [x] **SCOPE-03**: Scoped curators can only curate publications for people within their assigned scope
+- [x] **SCOPE-04**: Superusers can assign person type scopes to users from the Manage Users page
+- [x] **SCOPE-05**: Superusers can assign org unit scopes to users from the Manage Users page
+- [x] **SCOPE-06**: Scoped roles support flexible combination: person type only, org unit only, or both
 
 ### UI/UX Audit
 
@@ -86,12 +86,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UIBUG-01 | Phase 1 | Complete |
 | UIBUG-02 | Phase 1 | Complete |
 | UIBUG-03 | Phase 1 | Complete |
-| SCOPE-01 | Phase 5 | Pending |
-| SCOPE-02 | Phase 5 | Pending |
-| SCOPE-03 | Phase 5 | Pending |
-| SCOPE-04 | Phase 5 | Pending |
-| SCOPE-05 | Phase 5 | Pending |
-| SCOPE-06 | Phase 5 | Pending |
+| SCOPE-01 | Phase 5 | Complete -- AdminUsersPersonType model, init-models registration, bulkCreate in user.controller, null=unrestricted in scopeResolver |
+| SCOPE-02 | Phase 5 | Complete -- ScopeFilterCheckbox, EditOutlined curate icon, ScopeLabel in sidebar, out-of-scope to /report |
+| SCOPE-03 | Phase 5 | Complete -- Middleware route-level, API 403 (userfeedback+goldstandard), page redirect+toast (curate+manageprofile) |
+| SCOPE-04 | Phase 5 | Complete -- CurationScopeSection Person Types multi-select, pre-populate on edit, server persist via bulkCreate |
+| SCOPE-05 | Phase 5 | Complete -- Org Units multi-select in CurationScopeSection, departments relocated when Curator_Scoped selected |
+| SCOPE-06 | Phase 5 | Complete -- scopeResolver handles all combos (null dims=unrestricted), 13 unit tests confirm AND/OR logic |
 | UIUX-01 | Phase 2 | Complete -- All 8 views audited with severity-tagged findings (8 AUDIT-*.md files) |
 | UIUX-02 | Phase 2 | Complete -- Group Curation audited, redesign gap analysis documented, UI-SPEC.md produced |
 | UIUX-03 | Phase 2 | Complete -- eslint-plugin-jsx-a11y strict mode, 33/64 violations fixed, Jest infrastructure + smoke tests |
@@ -105,10 +105,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 **Coverage:**
 - v1 requirements: 22 total
 - Mapped to phases: 22
-- Complete: 15
-- Pending (gap closure): 7 (SCOPE-01–06 → Phase 5, PROXY-06 → Phase 6)
+- Complete: 21
+- Pending (gap closure): 1 (PROXY-06 → Phase 6)
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-16*
-*Last updated: 2026-03-18 after gap closure phase creation (Phases 5-6)*
+*Last updated: 2026-03-18 after Phase 5 verification (SCOPE-01 through SCOPE-06 complete)*

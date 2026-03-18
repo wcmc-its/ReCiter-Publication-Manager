@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-18T04:53:07.710Z"
-last_activity: 2026-03-17 -- Completed Plan 04-04 (curation page proxy features) -- GrantProxyModal, proxy access override, end-to-end verified
+status: in-progress
+stopped_at: Phase 5 Plan 01 complete
+last_updated: "2026-03-18T05:30:00Z"
+last_activity: 2026-03-18 -- Completed Plan 05-01 (Phase 3 independent verification) -- 33/36 truths verified, 14/14 links wired, 6/6 SCOPE requirements SATISFIED
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
+  completed_phases: 5
+  total_plans: 16
+  completed_plans: 16
   percent: 100
 ---
 
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** All phases complete. v1.0 milestone delivered -- 22/22 requirements fulfilled across 4 phases, 15 plans.
+**Current focus:** Phase 5 verification complete. 21/22 requirements fulfilled. Phase 6 (PROXY-06) remaining.
 
 ## Current Position
 
-Phase: 4 of 4 (Curation Proxy) -- COMPLETE
-Plan: 4 of 4 in current phase (04-04 complete)
-Status: All phases complete
-Last activity: 2026-03-17 -- Completed Plan 04-04 (curation page proxy features) -- GrantProxyModal, proxy access override, end-to-end verified
+Phase: 5 of 6 (Phase 3 Independent Verification) -- COMPLETE
+Plan: 1 of 1 in current phase (05-01 complete)
+Status: Phase 5 complete, Phase 6 remaining
+Last activity: 2026-03-18 -- Completed Plan 05-01 (Phase 3 independent verification) -- 33/36 truths verified, 14/14 links wired, 6/6 SCOPE requirements SATISFIED
 
-Progress: [██████████] 100%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15
+- Total plans completed: 16
 - Average duration: 8min
-- Total execution time: ~1.8 hours
+- Total execution time: ~2 hours
 
 **By Phase:**
 
@@ -47,6 +47,7 @@ Progress: [██████████] 100%
 | 02 | 4 | 45min | 11min |
 | 03 | 5 | 44min | 9min |
 | 04 | 4 | 19min | 5min |
+| 05 | 1 | 10min | 10min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -66,10 +67,11 @@ Progress: [██████████] 100%
 | Phase 04 P03 | 4min | 2 tasks | 7 files |
 
 | Phase 04 P04 | 5min | 3 tasks (1 checkpoint) | 5 files |
+| Phase 05 P01 | 10min | 2 tasks | 1 file |
 
 **Recent Trend:**
-- Last 5 plans: 6min, 6min, 4min, 4min, 5min
-- Trend: All v1 plans complete; consistent 4-6min for proxy phase tasks
+- Last 5 plans: 4min, 4min, 5min, 10min
+- Trend: Verification plan took longer due to 36 truths + 14 links to trace through 22 source files
 
 *Updated after each plan completion*
 
@@ -136,6 +138,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Proxy access check short-circuits before scope API call (avoids unnecessary network request for proxied persons)
 - [Phase 04]: canCurateThisPerson uses OR logic: all || scoped || isProxied for Grant Proxy button visibility
 - [Phase 04-04]: GrantProxyModal loads existing proxy users on open and uses replace-all pattern for save (consistent with Plan 01 grant API)
+- [Phase 05]: Phase 3 SCOPE requirements independently verified: 33/36 truths VERIFIED, 2 WARN (naming + pagination edge case), 14/14 links WIRED, 6/6 requirements SATISFIED
+- [Phase 05]: Test coverage gap identified: 27 existing unit tests (scopeResolver + constants), but 0/7 planned Wave 0 test stubs created -- no component/API/integration tests
+- [Phase 05]: Phase 4 modifications to shared files confirmed additive -- Phase 3 scope enforcement intact after proxy feature additions
 
 ### Pending Todos
 
@@ -149,6 +154,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T04:53:07.707Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-phase3-verification/05-CONTEXT.md
+Last session: 2026-03-18T05:30:00Z
+Stopped at: Phase 5 Plan 01 complete
+Resume file: .planning/phases/06-proxy-api-scope-enforcement/
