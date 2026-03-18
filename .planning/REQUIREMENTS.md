@@ -22,12 +22,12 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Scoped Curation Roles
 
-- [x] **SCOPE-01**: Database schema supports scoped curation roles with nullable person type and org unit columns
-- [x] **SCOPE-02**: Scoped curators only see people matching their assigned scope on the Find People page
-- [x] **SCOPE-03**: Scoped curators can only curate publications for people within their assigned scope
-- [x] **SCOPE-04**: Superusers can assign person type scopes to users from the Manage Users page
-- [x] **SCOPE-05**: Superusers can assign org unit scopes to users from the Manage Users page
-- [x] **SCOPE-06**: Scoped roles support flexible combination: person type only, org unit only, or both
+- [ ] **SCOPE-01**: Database schema supports scoped curation roles with nullable person type and org unit columns
+- [ ] **SCOPE-02**: Scoped curators only see people matching their assigned scope on the Find People page
+- [ ] **SCOPE-03**: Scoped curators can only curate publications for people within their assigned scope
+- [ ] **SCOPE-04**: Superusers can assign person type scopes to users from the Manage Users page
+- [ ] **SCOPE-05**: Superusers can assign org unit scopes to users from the Manage Users page
+- [ ] **SCOPE-06**: Scoped roles support flexible combination: person type only, org unit only, or both
 
 ### UI/UX Audit
 
@@ -42,7 +42,7 @@ Requirements for this release. Each maps to roadmap phases.
 - [x] **PROXY-03**: Proxy relationships are many-to-many (a user can proxy for multiple people, a person can have multiple proxies)
 - [x] **PROXY-04**: Proxied users display with a [PROXY] badge in Find People search results for the proxy user
 - [x] **PROXY-05**: Proxy user can filter search results to show only their proxied users via a checkbox filter
-- [x] **PROXY-06**: Proxy user can navigate to and curate publications on behalf of their proxied users
+- [ ] **PROXY-06**: Proxy user can navigate to and curate publications on behalf of their proxied users
 
 ## v2 Requirements
 
@@ -86,12 +86,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UIBUG-01 | Phase 1 | Complete |
 | UIBUG-02 | Phase 1 | Complete |
 | UIBUG-03 | Phase 1 | Complete |
-| SCOPE-01 | Phase 3 | Complete |
-| SCOPE-02 | Phase 3 | Complete |
-| SCOPE-03 | Phase 3 | Complete |
-| SCOPE-04 | Phase 3 | Complete |
-| SCOPE-05 | Phase 3 | Complete |
-| SCOPE-06 | Phase 3 | Complete |
+| SCOPE-01 | Phase 5 | Pending |
+| SCOPE-02 | Phase 5 | Pending |
+| SCOPE-03 | Phase 5 | Pending |
+| SCOPE-04 | Phase 5 | Pending |
+| SCOPE-05 | Phase 5 | Pending |
+| SCOPE-06 | Phase 5 | Pending |
 | UIUX-01 | Phase 2 | Complete -- All 8 views audited with severity-tagged findings (8 AUDIT-*.md files) |
 | UIUX-02 | Phase 2 | Complete -- Group Curation audited, redesign gap analysis documented, UI-SPEC.md produced |
 | UIUX-03 | Phase 2 | Complete -- eslint-plugin-jsx-a11y strict mode, 33/64 violations fixed, Jest infrastructure + smoke tests |
@@ -100,13 +100,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROXY-03 | Phase 4 | Complete |
 | PROXY-04 | Phase 4 | Complete |
 | PROXY-05 | Phase 4 | Complete |
-| PROXY-06 | Phase 4 | Complete |
+| PROXY-06 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 22 total
 - Mapped to phases: 22
+- Complete: 15
+- Pending (gap closure): 7 (SCOPE-01–06 → Phase 5, PROXY-06 → Phase 6)
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-16*
-*Last updated: 2026-03-17 after Phase 2 completion*
+*Last updated: 2026-03-18 after gap closure phase creation (Phases 5-6)*

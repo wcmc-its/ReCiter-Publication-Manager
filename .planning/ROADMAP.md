@@ -16,6 +16,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented (completed 2026-03-17)
 - [x] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit (completed 2026-03-17)
 - [x] **Phase 4: Curation Proxy** - Many-to-many proxy assignments, [PROXY] badge on search results, proxy filter checkbox, and proxy curation navigation (completed 2026-03-17)
+- [ ] **Phase 5: Phase 3 Independent Verification** - Independent verification of all 6 SCOPE requirements that lack VERIFICATION.md; produce Phase 3 VERIFICATION.md
+- [ ] **Phase 6: Proxy API Scope Enforcement** - Add isProxyFor check to userfeedback save and goldstandard update APIs so proxy users can save curation decisions for out-of-scope proxied persons
 
 ## Phase Details
 
@@ -88,6 +90,28 @@ Plans:
 - [x] 04-03-PLAN.md -- Search + navbar: ProxyBadge component, [PROXY] badge in search results, expanded scope filter with proxy OR logic, ScopeLabel proxy count
 - [x] 04-04-PLAN.md -- Curation page: GrantProxyModal, "Grant Proxy Access" button, proxy access checks on curate + manageprofile pages, end-to-end verification
 
+### Phase 5: Phase 3 Independent Verification
+**Goal**: All 6 SCOPE requirements are independently verified against the codebase, producing a VERIFICATION.md that confirms or flags each requirement
+**Depends on**: Phase 3
+**Requirements**: SCOPE-01, SCOPE-02, SCOPE-03, SCOPE-04, SCOPE-05, SCOPE-06
+**Gap Closure:** Closes verification gaps from audit — Phase 3 has no VERIFICATION.md despite 5/5 plans complete
+**Success Criteria** (what must be TRUE):
+  1. Each SCOPE requirement has been independently verified against the actual codebase (not just SUMMARY claims)
+  2. VERIFICATION.md exists in Phase 3 directory with pass/fail per requirement
+  3. Any requirements that fail verification are documented with specific findings
+**Plans**: TBD
+
+### Phase 6: Proxy API Scope Enforcement
+**Goal**: Proxy users can save accept/reject decisions for out-of-scope proxied persons without getting 403 errors
+**Depends on**: Phase 4
+**Requirements**: PROXY-06
+**Gap Closure:** Closes integration gaps (isProxyFor not checked in 2 API files) and flow gap (proxy override for out-of-scope person)
+**Success Criteria** (what must be TRUE):
+  1. `/api/reciter/save/userfeedback/[uid].ts` checks `isProxyFor` before `isPersonInScope` and allows proxy users through
+  2. `/api/reciter/update/goldstandard.ts` checks `isProxyFor` before `isPersonInScope` and allows proxy users through
+  3. E2E flow: scoped curator with proxy navigates to out-of-scope proxied person's curation page and successfully accepts/rejects an article
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
@@ -99,3 +123,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 2. UI/UX Audit | 4/4 | Complete | 2026-03-17 |
 | 3. Scoped Curation Roles | 5/5 | Complete   | 2026-03-17 |
 | 4. Curation Proxy | 4/4 | Complete | 2026-03-17 |
+| 5. Phase 3 Independent Verification | 0/? | Planned | — |
+| 6. Proxy API Scope Enforcement | 0/? | Planned | — |
