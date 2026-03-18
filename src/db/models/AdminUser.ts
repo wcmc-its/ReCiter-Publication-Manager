@@ -16,11 +16,14 @@ export interface AdminUserAttributes {
   status?: number;
   createTimestamp: Date;
   modifyTimestamp: Date;
+  scope_person_types?: string[] | null;
+  scope_org_units?: string[] | null;
+  proxy_person_ids?: string[] | null;
 }
 
 export type AdminUserPk = "userID";
 export type AdminUserId = AdminUser[AdminUserPk];
-export type AdminUserOptionalAttributes = "userID" | "personIdentifier" | "nameFirst" | "nameMiddle" | "nameLast" | "email" | "status" | "createTimestamp" | "modifyTimestamp";
+export type AdminUserOptionalAttributes = "userID" | "personIdentifier" | "nameFirst" | "nameMiddle" | "nameLast" | "email" | "status" | "createTimestamp" | "modifyTimestamp" | "scope_person_types" | "scope_org_units" | "proxy_person_ids";
 export type AdminUserCreationAttributes = Optional<AdminUserAttributes, AdminUserOptionalAttributes>;
 
 export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttributes> implements AdminUserAttributes {
@@ -33,6 +36,9 @@ export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttri
   status?: number;
   createTimestamp!: Date;
   modifyTimestamp!: Date;
+  scope_person_types?: string[] | null;
+  scope_org_units?: string[] | null;
+  proxy_person_ids?: string[] | null;
 
   // AdminUser hasMany AdminFeedbackLog via userID
   adminFeedbackLogs!: AdminFeedbackLog[];
@@ -137,6 +143,21 @@ export class AdminUser extends Model<AdminUserAttributes, AdminUserCreationAttri
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: Sequelize.Sequelize.fn('current_timestamp')
+    },
+    scope_person_types: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: null
+    },
+    scope_org_units: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: null
+    },
+    proxy_person_ids: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: null
     }
   }, {
     sequelize,
