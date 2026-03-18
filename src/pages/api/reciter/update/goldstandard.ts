@@ -3,7 +3,7 @@ import { updateGoldStandard } from "../../../../../controllers/goldstandard.cont
 import { reciterConfig } from '../../../../../config/local'
 import { getToken } from 'next-auth/jwt'
 import { getCapabilities } from '../../../../utils/constants'
-import { isPersonInScope } from '../../../../utils/scopeResolver'
+import { isPersonInScope, isProxyFor } from '../../../../utils/scopeResolver'
 import { getPersonWithTypes } from '../../../../../controllers/db/person.controller'
 
 type Error = {
@@ -30,18 +30,24 @@ export default async function handler(
             const caps = getCapabilities(roles);
 
             if (caps.canCurate.scoped && !caps.canCurate.all) {
-                const scopeData = token.scopeData ? JSON.parse(token.scopeData as string) : null;
                 const targetUid = req.body?.uid || req.body?.personIdentifier;
-                if (scopeData && targetUid) {
-                    const personData = await getPersonWithTypes(targetUid);
-                    if (personData) {
-                        const inScope = isPersonInScope(scopeData, personData.primaryOrganizationalUnit, personData.personTypes);
-                        if (!inScope) {
-                            console.log('[AUTH] DENY: Scoped curator', token.username, 'tried to update gold standard for', targetUid, '-- not in scope');
-                            return res.status(403).json({ statusCode: 403, message: 'Person not in curation scope' });
+                // Proxy override -- skip scope check if user has proxy access
+                const proxyPersonIds = token.proxyPersonIds ? JSON.parse(token.proxyPersonIds as string) : [];
+                if (targetUid && !isProxyFor(proxyPersonIds, targetUid)) {
+                    // Not a proxy -- enforce scope check
+                    const scopeData = token.scopeData ? JSON.parse(token.scopeData as string) : null;
+                    if (scopeData) {
+                        const personData = await getPersonWithTypes(targetUid);
+                        if (personData) {
+                            const inScope = isPersonInScope(scopeData, personData.primaryOrganizationalUnit, personData.personTypes);
+                            if (!inScope) {
+                                console.log('[AUTH] DENY: Scoped curator', token.username, 'tried to update gold standard for', targetUid, '-- not in scope');
+                                return res.status(403).json({ statusCode: 403, message: 'Person not in curation scope' });
+                            }
                         }
                     }
                 }
+                // If isProxyFor returned true, we skip scope check entirely (proxy access grants curation rights)
             }
         }
 
