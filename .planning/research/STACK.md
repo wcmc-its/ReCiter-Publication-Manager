@@ -1,249 +1,492 @@
-# Technology Stack
+# Technology Stack: v1.1 Feature Port Migration
 
-**Project:** RPM Bug Fixes, UI/UX Audit, and Scoped Curation Roles
-**Researched:** 2026-03-16
+**Project:** RPM v1.1 -- Port v1.0 features to Next.js 14 / React 18 codebase
+**Researched:** 2026-03-18
+**Mode:** Migration adaptation (not greenfield selection)
 
-## Existing Stack (Locked, No Upgrades)
+## Branch Version Comparison
 
-These are constraints from PROJECT.md. This milestone does NOT upgrade them.
+The port moves v1.0 code from `dev_v2` to a new branch based on `origin/dev_Upd_NextJS14SNode18`. Here are the exact version differences that affect porting.
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Next.js | 12.2.5 | Framework |
-| React | 16.14.0 | UI library |
-| Node.js | 14.16.0 | Runtime |
-| next-auth | 3.29.10 | Authentication (SAML + local) |
-| Sequelize | 6.9.0 | ORM (MySQL) |
-| Redux + redux-thunk | 4.1.1 / 2.3.0 | State management |
-| saml2-js | 3.0.1 | SAML assertion handling |
-| jose | 4.14.4 | JWT decode in edge middleware |
-| MUI | 5.0.6 | Component library |
-| Bootstrap | 5.1.3 | CSS framework |
+| Technology | dev_v2 (source) | NextJS14 (target) | Breaking? |
+|------------|----------------|-------------------|-----------|
+| Next.js | 12.2.5 | 14.2.35 | Middleware API: minor (both use Pages Router) |
+| React | 16.14.0 | 18.2.0 | YES: useSession return type, StrictMode double-mount |
+| Node.js | 14.16.0 | 18.x | No (Sequelize, controllers unaffected) |
+| next-auth | 3.29.10 | 4.24.13 | **YES: Major** -- imports, callbacks, session, middleware |
+| Sequelize | 6.9.0 | 6.37.0 | No (backward compatible minor/patch) |
+| Redux | 4.1.1 | 4.1.1 | No |
+| react-bootstrap | 2.0.3 | 2.10.10 | No (same major) |
+| Bootstrap | 5.1.3 | 5.1.3 | No |
+| MUI | 5.0.6 | 5.16.0 | No (same major) |
+| jose | 4.14.4 | **not installed** | Replaced by next-auth/jwt getToken |
+| axios | installed | **not installed** | Uses fetch directly |
+| TypeScript | 4.9.5 | 4.9.5 | No |
 
-## Recommended Additions
+## Breaking Change #1: next-auth v3 to v4 (CRITICAL)
 
-### 1. Scoped Role Authorization: CASL
+This is the most impactful change. Every file that imports from next-auth needs adaptation.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| @casl/ability | ^6.8.0 | Define and check scoped permissions | Isomorphic (server + client), battle-tested, works with any data model. Lets you define abilities like `can('curate', 'Person', { personType: 'affiliate' })` which maps directly to the scoped curation requirement. |
-| @casl/react | 4.0.0 | React `<Can>` component for conditional rendering | **Must use v4.0.0, not v5.** v5 requires React 17+. v4 supports React ^16.0.0 and @casl/ability ^6.0.0. Provides `<Can>` and `createContextualCan` for hiding/showing UI based on abilities. |
-
-**Confidence:** HIGH. Verified via npm that @casl/react@4.0.0 has `peerDependencies: { react: '^16.0.0 || ^17.0.0 || ^18.0.0', '@casl/ability': '^3.0.0 || ^4.0.0 || ^5.1.0 || ^6.0.0' }`. This combination is confirmed compatible.
-
-**Why CASL over alternatives:**
-
-| Approach | Verdict | Reason |
-|----------|---------|--------|
-| CASL | **Use this** | Isomorphic, mature (6+ years), handles scoped/attribute-based permissions natively. No external service needed. Works server-side in API routes AND client-side in React components. |
-| Hand-rolled if/else | Avoid | The current middleware.ts is 120 lines of deeply nested role-checking that is already fragile. Adding scoped roles (personType + orgUnit combinations) would make it unmaintainable. |
-| Permit.io / OpenFGA | Overkill | External authorization services. Great for multi-tenant SaaS, but RPM is a single-institution app. Adding an external dependency and network hop for authorization is unnecessary complexity. |
-| Oso | Overkill | Policy engine with its own language (Polar). Learning curve too steep for what amounts to "can this curator see people of type X in org Y." |
-| accesscontrol npm | Abandoned | Last publish 6+ years ago. Not maintained. |
-
-**How CASL maps to RPM's scoped role requirements:**
+### 1.1 Import Path Changes
 
 ```typescript
-// Define abilities based on user's scoped role assignments
-import { AbilityBuilder, createMongoAbility } from '@casl/ability';
+// v3 (dev_v2) -- all files use this
+import { useSession, getSession, signIn, signOut } from "next-auth/client"
+import { Provider } from "next-auth/client"
 
-function defineAbilitiesFor(user) {
-  const { can, cannot, build } = new AbilityBuilder(createMongoAbility);
+// v4 (NextJS14 branch) -- must use this
+import { useSession, getSession, signIn, signOut } from "next-auth/react"
+import { SessionProvider } from "next-auth/react"
+import { getToken } from "next-auth/jwt"        // for middleware
+import { getServerSession } from "next-auth/next" // for getServerSideProps
+```
 
-  if (user.roles.includes('Superuser')) {
-    can('manage', 'all');  // full access
-  }
-  if (user.roles.includes('Curator_All')) {
-    can('curate', 'Person');  // curate anyone
-  }
-  if (user.roles.includes('Curator_Self')) {
-    can('curate', 'Person', { personIdentifier: user.personIdentifier });
-  }
-  // NEW: Scoped curation roles from admin_users_scoped_roles table
-  for (const scope of user.scopedRoles) {
-    const conditions = {};
-    if (scope.personType) conditions.personType = scope.personType;
-    if (scope.orgUnit) conditions.primaryOrganizationalUnit = scope.orgUnit;
-    can('curate', 'Person', conditions);
-  }
+**Files affected on dev_v2 (all need import change when porting):**
+- `src/pages/_app.tsx` -- `Provider` to `SessionProvider`
+- `src/pages/index.js` -- `getSession` import path
+- `src/pages/curate/[id].js` -- `getSession`, `useSession`
+- `src/pages/search/index.js` -- `getSession`
+- `src/pages/report/index.js` -- `getSession`
+- `src/pages/manageusers/index.tsx` -- `getSession`
+- `src/pages/configuration/index.tsx` -- `getSession`
+- `src/components/elements/CurateIndividual/CurateIndividual.tsx` -- `useSession`
+- `src/components/elements/CurateIndividual/ReciterTabs.tsx` -- `useSession`
+- `src/components/elements/CurateIndividual/ReciterTabContent.tsx` -- `useSession`
+- `src/components/elements/Search/Search.js` -- `useSession`
+- `src/components/elements/Search/FilterReview.tsx` -- `useSession`
+- `src/components/elements/Profile/Profile.tsx` -- `useSession`
+- `src/components/elements/Navbar/SideNavbar.tsx` -- `useSession`
+- `src/components/elements/Navbar/NestedListItem.tsx` -- `useSession`
+- `src/components/elements/Report/Report.tsx` -- `useSession`
+- `src/components/elements/Header/Header.tsx` -- `signOut`, `useSession`
+- `src/components/elements/Login/Login.js` -- `signIn`, `getSession`
+- `src/components/layouts/AppLayout.jsx` -- `useSession`
+- Plus 8+ additional files
 
-  return build();
+**Confidence:** HIGH. Verified by examining actual imports on both branches.
+
+### 1.2 useSession Return Type Change
+
+This is the most pervasive breaking change. Every component using `useSession` must be adapted.
+
+```typescript
+// v3 (dev_v2) -- array destructuring
+const [session, loading] = useSession();
+
+// v4 (NextJS14 branch) -- object destructuring
+const { data: session, status } = useSession();
+const loading = status === "loading";
+```
+
+The NextJS14 branch already has this pattern applied to all existing components. When porting v1.0 components that use `useSession`, use the v4 pattern.
+
+**Session data access is UNCHANGED.** Both branches access session data the same way:
+```typescript
+// Same on both branches:
+session.data.userRoles      // JSON string of roles array
+session.data.username        // personIdentifier
+session.data.databaseUser    // admin_users record
+session.data.proxyPersonIds  // JSON string of proxy person IDs (v1.0 addition)
+```
+
+The `session.data` nesting is a custom structure from the JWT/session callbacks. It is NOT the standard next-auth session shape -- it is RPM-specific and survives the migration because both branches store the same custom fields in the JWT token.
+
+**Confidence:** HIGH. Verified by grep across both branches -- `session.data.userRoles` appears identically on both.
+
+### 1.3 Callback Signature Changes (JWT and Session)
+
+The [...nextauth] configuration has already been rewritten on the NextJS14 branch. The v1.0 port must adapt its JWT callback additions to the v4 signature.
+
+```typescript
+// v3 (dev_v2) -- positional arguments
+callbacks: {
+    async jwt(token, apiResponse) {
+        if (apiResponse) {
+            token.userRoles = apiResponse.userRoles;
+            // v1.0 additions: parse { roles, scopeData, proxyPersonIds }
+            const parsed = JSON.parse(apiResponse.userRoles);
+            if (parsed.roles) {
+                token.userRoles = JSON.stringify(parsed.roles);
+                token.scopeData = JSON.stringify(parsed.scopeData);
+                token.proxyPersonIds = JSON.stringify(parsed.proxyPersonIds);
+            }
+        }
+        return token;
+    },
+    async session(session, token) {
+        session.data = token;
+        if (token.proxyPersonIds) {
+            session.data.proxyPersonIds = token.proxyPersonIds;
+        }
+        session.adminSettings = await fetchUpdatedAdminSettings();
+        return session;
+    },
+}
+
+// v4 (NextJS14 branch) -- named parameter objects
+callbacks: {
+    async jwt({ token, user }) {
+        if (user) {
+            token.userRoles = user.userRoles || [];
+            // PORT: Add scopeData + proxyPersonIds parsing here
+        }
+        return token;
+    },
+    async session({ session, token }) {
+        session.data = token;
+        session.user = token.user;
+        // PORT: Add proxyPersonIds passthrough here
+        return session;
+    },
 }
 ```
 
-This is exactly the kind of attribute-based scoping RPM needs: "user X can curate people where personType = 'affiliate' AND orgUnit = 'Medicine'."
+**Key adaptation:** In v3, the second argument to `jwt()` is `apiResponse` (the full return from `authorize()`). In v4, the second property is `user` (same data, but accessed as `{ token, user }` destructured). The v1.0 `userRoles` parsing logic must be placed inside `if (user)` block, using `user.userRoles` instead of `apiResponse.userRoles`.
 
-### 2. SAML Auth Debugging: No New Libraries Needed
+**Confidence:** HIGH. Both callback implementations examined in full.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| saml-encoder-decoder-js | 1.0.2 | Dev-only: decode/encode SAML responses for debugging | Lightweight utility to decode base64 SAML responses without external tools. Useful for debugging the paa2013 /noaccess issue. |
+### 1.4 Session Strategy Configuration
 
-**Confidence:** MEDIUM. The primary auth bugs (paa2013 redirect to /noaccess) are likely logic bugs in the nextauth callback chain, not library issues. Debugging approach is more about logging and code analysis than new tooling.
+```typescript
+// v3 (dev_v2)
+session: {
+    jwt: true,
+    maxAge: 7200,
+}
 
-**Auth debugging strategy (no new dependencies for most):**
-- The `findUserPermissions` controller returns `JSON.stringify(userRolesList)`, and the JWT callback stores it as `token.userRoles = apiResponse.userRoles`. The middleware then does `JSON.parse(allUserRoles)` followed by `JSON.parse(userRoles.userRoles)` (double-parse). This double-serialization is a known fragile pattern that likely causes the /noaccess redirect when the JSON structure is slightly different between SAML and local auth paths.
-- The SAML path calls `findAdminUser` then `findUserPermissions`, but the direct login path calls `findOrCreateAdminUsers` then `findUserPermissions`. The SAML path does NOT auto-create users (deliberate), but its error handling silently returns `{ cwid, has_access: false }` on failure rather than surfacing the actual error.
-- saml2-js 3.0.1 (installed) is the latest 3.x. v4.0.4 exists but is a different fork (AG-Teammate/saml2-js vs Clever/saml2). Staying on 3.x is fine for this milestone.
-
-### 3. UI/UX Audit Tooling
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| eslint-plugin-jsx-a11y | ^6.10.2 | Lint-time accessibility checks | Catches missing alt text, invalid ARIA, missing labels at build time. Peer dep is eslint ^3-^9; the project has eslint 7.32.0, which is compatible. Zero runtime cost, integrates with existing lint setup. |
-| axe-core | ^4.11.1 | Runtime accessibility engine (dev only) | Industry standard (3B+ downloads). Can be run against rendered pages via browser devtools or scripts. WCAG 2.0/2.1/2.2 coverage at A/AA/AAA. |
-| @axe-core/react | ^4.11.1 | Dev-only: log accessibility violations in browser console | Wraps axe-core for React apps. Runs in development mode only, logs violations to console as you navigate. Helps find issues during manual UI/UX audit. |
-
-**Confidence:** HIGH for eslint-plugin-jsx-a11y (verified peer deps). MEDIUM for @axe-core/react (could not verify React 16 compat via npm; the package has no listed peerDependencies, so it may work, but test before committing to it).
-
-**Why NOT these alternatives:**
-
-| Tool | Verdict | Reason |
-|------|---------|--------|
-| Storybook | Do not add | RPM has no component stories today. Setting up Storybook for a one-time UI/UX audit of an existing app is too much overhead. Use browser-based tools instead. |
-| Chromatic | Do not add | Requires Storybook. Cloud service. Overkill for a maintenance milestone. |
-| Lighthouse CI | Optional, not required | Good for performance regression tracking in CI, but the UI/UX audit described in PROJECT.md is a manual heuristic evaluation, not an automated performance check. If desired later, `@lhci/cli` v0.15.1 can be added. |
-| pa11y | Reasonable alternative | CLI accessibility tester. Would work, but eslint-plugin-jsx-a11y + axe-core covers the same ground with better React integration. |
-
-### 4. Database Migrations for Scoped Roles
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| sequelize-cli | ^6.6.2 | Run database migrations | RPM currently has no migration infrastructure. New tables for scoped roles (`admin_users_scoped_roles`, `admin_org_units`) need repeatable migrations, not manual SQL. sequelize-cli integrates with the existing Sequelize 6.x setup. |
-
-**Confidence:** HIGH. sequelize-cli 6.x is the standard companion to Sequelize 6.x. The project already uses sequelize-auto for model generation; migrations are the natural next step.
-
-**Why migrations matter for scoped roles:**
-- The new `admin_users_scoped_roles` table must be created identically on dev, staging, and prod.
-- Schema changes need to be version-controlled alongside the code that uses them.
-- Rolling back a bad deploy requires rollback SQL; migrations provide this.
-
-## New Database Tables (Schema Design)
-
-These are not library choices but are critical stack decisions that feed the architecture.
-
-### admin_users_scoped_roles
-
-```sql
-CREATE TABLE admin_users_scoped_roles (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  userID INT NOT NULL,
-  personType VARCHAR(128) NULL,        -- nullable: scope by org unit only
-  orgUnit VARCHAR(200) NULL,           -- nullable: scope by person type only
-  createTimestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-  modifyTimestamp DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (userID) REFERENCES admin_users(userID),
-  INDEX idx_userID (userID),
-  INDEX idx_personType (personType),
-  INDEX idx_orgUnit (orgUnit),
-  CONSTRAINT chk_at_least_one CHECK (personType IS NOT NULL OR orgUnit IS NOT NULL)
-);
+// v4 (NextJS14 branch)
+session: {
+    strategy: 'jwt',
+    // maxAge not set on NextJS14 branch -- default is 30 days
+}
 ```
 
-**Design rationale:**
-- Both `personType` and `orgUnit` are nullable, but at least one must be set (CHECK constraint). This enables the three flexible scoping modes: personType only, orgUnit only, or both combined.
-- References `admin_users(userID)` following the existing FK pattern in `admin_users_roles` and `admin_users_departments`.
-- `personType` values match `person_person_type.personType` (e.g., "affiliate", "alumni", "md-phd").
-- `orgUnit` values match `person.primaryOrganizationalUnit`.
-- One row per scope assignment. A user with two scoped roles gets two rows.
+When porting, the `maxAge: 7200` (2 hours) from v1.0 should be carried forward if desired.
 
-### admin_org_units (reference table, optional)
+### 1.5 SessionProvider Changes
 
-```sql
-CREATE TABLE admin_org_units (
-  orgUnitID INT AUTO_INCREMENT PRIMARY KEY,
-  orgUnitLabel VARCHAR(200) NOT NULL UNIQUE,
-  createTimestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-);
--- Populated from: SELECT DISTINCT primaryOrganizationalUnit FROM person WHERE primaryOrganizationalUnit IS NOT NULL
+```typescript
+// v3 (dev_v2) _app.tsx
+import { Provider } from "next-auth/client"
+<Provider session={pageProps.session}>
+
+// v4 (NextJS14 branch) _app.tsx
+import { SessionProvider } from "next-auth/react"
+<SessionProvider session={session}>
 ```
 
-**Rationale:** Provides a controlled list for the Manage Users dropdown rather than free-text org unit entry. This mirrors how `admin_departments` provides a controlled list for department assignment. Optional because the `person` table already has `primaryOrganizationalUnit` values that could be queried directly with `SELECT DISTINCT`.
+The NextJS14 branch already wraps with `SessionProvider`. No action needed -- just ensure new v1.0 components do not import from `next-auth/client`.
 
-## Recommended Stack Summary
+### 1.6 SAML Flow Architecture Change
 
-### Install (production dependencies)
+The SAML authentication flow is **architecturally different** between branches. This affects how the `findUserPermissions` enrichment (with scopeData and proxyPersonIds) must be wired.
+
+**v3 (dev_v2):** SAML response is passed directly to the `authorize()` callback. The callback processes the SAML assertion inline using `saml2-js` `post_assert()`, resolves the user, and returns with roles.
+
+**v4 (NextJS14 branch):** Uses a **cookie-bridge pattern**:
+1. `/api/auth/saml-acs.js` -- receives SAML POST, validates via `saml2-js`, encrypts user data, sets `saml_bridge` cookie
+2. `/auth/finalize.js` -- client-side page calls `signIn('saml')` which triggers the `authorize()` callback
+3. `authorize()` reads the encrypted `saml_bridge` cookie, decrypts it, and returns the user
+4. Uses `findOrcreateAdminUser()` from `src/utils/samlUtils.ts` (which calls `grantDefaultRolesToAdminUser()` and `findUserPermissions()`)
+
+**Port implication:** The v1.0 enriched `findUserPermissions` (which returns `{ roles, scopeData, proxyPersonIds }`) must be integrated into the NextJS14 branch's `samlUtils.ts` flow, not the old inline SAML assertion flow. The `samlUtils.ts` on the NextJS14 branch already calls `findUserPermissions()` -- the v1.0 version's enhanced return structure just needs to replace the simple one.
+
+**Confidence:** HIGH. Both SAML flows examined in full.
+
+### 1.7 Middleware: jose vs getToken
+
+```typescript
+// v3 (dev_v2) middleware.ts -- manual JWT decode
+import * as jose from "jose";
+let decodedTokenJson = jose.decodeJwt(request.cookies.get('next-auth.session-token'));
+// Parses userRoles, scopeData from decoded JWT
+// Uses getCapabilities() for route-level checks
+
+// v4 (NextJS14 branch) middleware.ts -- next-auth getToken
+import { getToken } from "next-auth/jwt";
+let decodedTokenJson = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+// Parses userRoles from token
+// Uses role-count based checks (no capability model)
+```
+
+**Port implication:** The v1.0 capability-based middleware must be adapted to use `getToken` instead of `jose.decodeJwt`. The token shape is the same (both are JWT payloads with `userRoles`, `scopeData`, `proxyPersonIds`), so the `getCapabilities()` logic ports directly. The only change is how the token is obtained.
+
+**Also note:** The NextJS14 branch checks for TWO cookie names (`next-auth.session-token` OR `__Secure-next-auth.session-token`), because next-auth v4 uses the `__Secure-` prefix in production. The `getToken()` helper handles this automatically, so the ported middleware does not need to check both manually.
+
+```typescript
+// Ported middleware pattern for NextJS14 branch:
+import { getToken } from "next-auth/jwt";
+import { getCapabilities, getLandingPage } from './utils/constants';
+
+export async function middleware(request: NextRequest) {
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) return NextResponse.redirect(new URL('/login', request.url));
+
+  const userRoles = typeof token.userRoles === 'string'
+    ? JSON.parse(token.userRoles)
+    : (token.userRoles || []);
+
+  const caps = getCapabilities(userRoles);
+  // ... rest of capability-based routing (unchanged from v1.0)
+}
+```
+
+**Confidence:** HIGH. Both middleware implementations examined. `getToken` from next-auth/jwt is the standard v4 approach.
+
+### 1.8 Secret Configuration
+
+```typescript
+// v3 (dev_v2) -- uses tokenSecret from config
+tokenSecret: process.env.NEXT_PUBLIC_RECITER_TOKEN_SECRET
+
+// v4 (NextJS14 branch) -- uses NEXTAUTH_SECRET env var
+secret: process.env.NEXTAUTH_SECRET
+```
+
+The NextJS14 branch already uses `NEXTAUTH_SECRET`. The v1.0 code that references `reciterConfig.tokenSecret` (e.g., for JWT verification) should use `process.env.NEXTAUTH_SECRET` instead.
+
+## Breaking Change #2: React 16 to 18
+
+### 2.1 StrictMode Double-Mount in Development
+
+React 18 with `reactStrictMode: true` (set in both branches' `next.config.js`) will mount, unmount, and remount every component in development. This affects:
+
+- **useEffect cleanup:** Any v1.0 useEffect that does not return a cleanup function will not cause bugs, but effects that set up subscriptions or timers without cleanup will fire twice in dev.
+- **Fetch-on-mount patterns:** Components like `CurateIndividual` that fetch data in useEffect will make duplicate requests in dev mode. This is cosmetic (production is unaffected) but can cause confusion during testing.
+
+**Port implication:** Review v1.0 useEffect hooks in ported components. If any set up intervals, subscriptions, or one-time side effects, ensure proper cleanup is returned. This is a best practice anyway, not strictly a bug.
+
+### 2.2 Automatic Batching
+
+React 18 batches state updates inside Promises, setTimeout, and native event handlers (React 16 only batched inside React event handlers). This is almost always beneficial. The only risk is code that relies on a re-render between two sequential `setState` calls -- which is an anti-pattern anyway.
+
+**Port implication:** No action needed. If anything, this improves performance.
+
+### 2.3 Testing Library Compatibility
+
+The dev_v2 branch uses:
+- `jest@27.5.1`
+- `@testing-library/react@12.1.5` (React 16 compatible)
+
+Neither branch currently has test infrastructure configured (no jest.config, no test files in tree). The v1.0 Jest setup from dev_v2 will NOT work on NextJS14 because `@testing-library/react@12.x` does not support React 18.
+
+For React 18 + Next.js 14, use:
+- `jest@29.7.0`
+- `@testing-library/react@16.0.0`
+- `@testing-library/jest-dom@6.4.5`
+- `jest-environment-jsdom@29.7.0`
+
+**Confidence:** HIGH. Verified via npm compatibility matrix and Next.js docs.
+
+## What Ports Unchanged (No Adaptation Needed)
+
+These v1.0 artifacts port directly with zero or trivial changes:
+
+| Component | Why It Ports Clean |
+|-----------|-------------------|
+| Sequelize models (AdminUsersPersonType, AdminUsersProxy) | Pure Sequelize -- no React, no next-auth. Same Sequelize version range. |
+| `src/utils/scopeResolver.ts` | Pure TypeScript logic. No framework imports. |
+| `src/utils/constants.js` (ROLE_CAPABILITIES, getCapabilities, getLandingPage) | Pure JavaScript objects and functions. No framework imports. |
+| Database migration SQL | SQL is SQL. Same MySQL instance. |
+| Controller functions (goldstandard, userfeedback) | Server-side fetch calls to ReCiter API. No React or next-auth dependencies. |
+| `config/local.js` additions | Endpoint URLs. Note: NextJS14 branch uses `RECITER_API_BASE_URL` concatenation instead of individual env vars -- adapt accordingly. |
+| `init-models.ts` registration of new models | Just adding `AdminUsersPersonType` and `AdminUsersProxy` to the init function. |
+
+## What Needs Adaptation (Partial Rewrite)
+
+### Middleware (src/middleware.ts)
+
+**Source:** v1.0's capability-based middleware (150 lines, uses `jose.decodeJwt` + `getCapabilities`)
+**Target adaptation:**
+1. Replace `jose.decodeJwt` with `getToken` from `next-auth/jwt`
+2. Add try-catch error handling pattern from NextJS14 branch (redirects to `/error` with error code)
+3. Keep the `getCapabilities()` + `getLandingPage()` logic unchanged
+4. Remove direct cookie name check (getToken handles `__Secure-` prefix)
+
+### [...nextauth] configuration
+
+**Source:** v1.0's enhanced JWT callback with `{ roles, scopeData, proxyPersonIds }` parsing
+**Target adaptation:**
+1. Use v4 callback signatures: `async jwt({ token, user })` and `async session({ session, token })`
+2. The `authorize()` functions are completely different between branches (SAML cookie-bridge vs inline assertion). Port the enrichment logic, not the authorize function.
+3. The NextJS14 branch loads adminSettings via Redux in `_app.tsx` (`AdminSettingsDataLoader` component) instead of in the session callback. Do NOT add `fetchUpdatedAdminSettings()` back to the session callback.
+
+### Session callback difference
+
+**v1.0 (dev_v2):** Loads `adminSettings` in the session callback (server-side, on every session refresh). This was a known performance concern.
+**NextJS14 branch:** Loads `adminSettings` via Redux dispatch in `_app.tsx` `AdminSettingsDataLoader` component (client-side, once per mount). This is the better pattern -- keep it.
+
+### Page-level components with useSession
+
+Every v1.0 component using `useSession` needs the destructuring change:
+```typescript
+// v1.0 pattern
+const [session, loading] = useSession();
+
+// NextJS14 pattern (already used everywhere on target branch)
+const { data: session, status } = useSession();
+const loading = status === "loading";
+```
+
+### curate/[id].js scope and proxy checks
+
+The v1.0 curate page adds client-side scope validation:
+```typescript
+// v1.0 -- uses useSession + useRouter for scope checking
+const [session] = useSession();  // CHANGE to v4 pattern
+const caps = getCapabilities(userRoles);
+const proxyPersonIds = session?.data?.proxyPersonIds
+    ? JSON.parse(session.data.proxyPersonIds) : [];
+if (isProxyFor(proxyPersonIds, personId)) return;
+```
+
+The `getCapabilities` and `isProxyFor` logic is pure JS and ports unchanged. Only the `useSession` call and import need updating.
+
+### API route auth checks
+
+API routes on v1.0 use `reciterConfig.backendApiKey` for authorization header checks. The NextJS14 branch uses the same pattern. The v1.0 additions to API routes (scope enforcement via `scopeResolver`, proxy bypass via `isProxyFor`) port directly -- they are server-side Node.js code that does not touch next-auth or React.
+
+## Config/Environment Differences
+
+### API Endpoint Configuration
+
+The NextJS14 branch consolidated API endpoints to use a single `RECITER_API_BASE_URL` env var with path concatenation, rather than individual endpoint env vars.
+
+```javascript
+// dev_v2 config/local.js
+identityByUid: process.env.RECITER_IDENITY_BY_UID,
+featureGeneratorEndpoint: process.env.RECITER_FEATURE_GENERATOR_ENDPOINT,
+
+// NextJS14 config/local.js
+identityByUid: process.env.RECITER_API_BASE_URL + '/reciter/find/identity/by/uid',
+featureGeneratorEndpoint: process.env.RECITER_API_BASE_URL + '/reciter/feature-generator/by/uid',
+```
+
+**Port implication:** If v1.0 code references `reciterConfig.reciter.xxx`, the config keys are the same -- just the values come from different env vars. No code change needed in controllers; only ensure the K8s deployment has `RECITER_API_BASE_URL` set.
+
+### Score Threshold Difference
+
+```javascript
+// dev_v2: totalStandardizedArticleScore: 3
+// NextJS14: totalStandardizedArticleScore: 30
+```
+
+This is a business logic difference, not a migration issue. The NextJS14 branch was configured for a different scoring scale. Document but do not change during port.
+
+### Analysis Refresh Flag
+
+```javascript
+// dev_v2: analysisRefreshFlag: "false"
+// NextJS14: analysisRefreshFlag: "TRUE"
+```
+
+Same -- business logic difference. Keep NextJS14 branch's value.
+
+### ASMS Integration
+
+The NextJS14 branch adds ASMS (user tracking) configuration:
+```javascript
+asms: {
+    asmsApiBaseUrl: process.env.ASMS_API_BASE_URL,
+    userTrackingAPI: process.env.ASMS_API_BASE_URL + '/api/v2/track/module',
+    userTrackingAPIAuthorization: process.env.ASMS_USER_TRACKING_API_AUTHORIZATON
+}
+```
+
+The v1.0 code does not use ASMS. No conflict.
+
+## Next.js 14 Specific Changes
+
+### next.config.js
+
+```javascript
+// dev_v2
+images: { domains: ['directory.weill.cornell.edu'] }
+
+// NextJS14
+images: {
+    remotePatterns: [
+        { protocol: 'https', hostname: 'directory.weill.cornell.edu', pathname: '/**' }
+    ]
+}
+```
+
+The `domains` config was deprecated in Next.js 14 in favor of `remotePatterns`. The NextJS14 branch already uses the new syntax. No action needed when porting -- just don't copy the old `domains` config.
+
+### Middleware Matcher
+
+Both branches use the same matcher pattern. The NextJS14 branch adds `/manageprofile/:path*` which was also added in v1.0. No conflict.
+
+## Recommended New Dependencies for v1.1
+
+### CASL (from v1.0 research) -- React Version Update
 
 ```bash
-npm install @casl/ability@^6.8.0 @casl/react@4.0.0
+# v1.0 used @casl/react@4.0.0 (React 16 compatible)
+# v1.1 should use @casl/react@5.x (React 18 compatible)
+npm install @casl/ability@^6.8.0 @casl/react@^5.0.0
 ```
 
-### Install (dev dependencies)
+On v1.0, `@casl/react@4.0.0` was required because it supported React 16. On the NextJS14 branch with React 18, `@casl/react@5.x` is the correct choice (it requires React 17+).
+
+**Confidence:** MEDIUM. The v1.0 research verified CASL compatibility with React 16. For React 18, v5 is the natural choice but should be verified at install time.
+
+### Testing Infrastructure
 
 ```bash
-npm install -D eslint-plugin-jsx-a11y@^6.10.2 axe-core@^4.11.1 sequelize-cli@^6.6.2 saml-encoder-decoder-js@^1.0.2
+npm install -D jest@29.7.0 @testing-library/react@16.0.0 @testing-library/jest-dom@6.4.5 jest-environment-jsdom@29.7.0 @types/jest ts-node
 ```
 
-### Conditional install (test before committing)
+**Confidence:** HIGH. These versions are documented for Next.js 14 + React 18.
+
+### Database Migrations
 
 ```bash
-# Test React 16 compat first; if peer dep errors, skip this and use axe-core directly
-npm install -D @axe-core/react@^4.11.1
+npm install -D sequelize-cli@^6.6.2
 ```
 
-## Alternatives Considered
+Same as v1.0 -- Sequelize version unchanged.
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Authorization | @casl/ability + @casl/react | Hand-rolled middleware logic | Current middleware is 120 lines of nested if/else for 4 roles. Adding scoped roles would double or triple this. CASL centralizes permission logic. |
-| Authorization | @casl/ability | Permit.io, OpenFGA, Oso | External services/policy engines are overkill for a single-institution internal tool. |
-| Auth debugging | Console logging + saml-encoder-decoder-js | BoxyHQ SAML, Osso | These replace the SAML provider entirely. The goal is to debug the existing saml2-js flow, not replace it. |
-| A11y linting | eslint-plugin-jsx-a11y | eslint-plugin-react-a11y | Does not exist as a real package; jsx-a11y is the standard. |
-| A11y runtime | axe-core + @axe-core/react | pa11y | pa11y is CLI-only. @axe-core/react gives in-browser console feedback during development, which is better for a manual UI/UX audit workflow. |
-| Migrations | sequelize-cli | Manual SQL scripts | Not repeatable, not version-controlled, error-prone across environments. |
-| Migrations | sequelize-cli | Prisma Migrate | Would require replacing Sequelize with Prisma ORM. Way out of scope. |
-| Visual regression | None (skip for now) | Storybook + Chromatic | No existing stories. Adding Storybook infrastructure for a maintenance milestone is not justified. |
+## Migration Checklist Summary
 
-## What NOT to Use
+### Must Change (will not compile/run if skipped)
 
-| Technology | Why Not |
-|------------|---------|
-| next-auth v4 or v5 (Auth.js) | Requires Next.js 13+ and React 17+. Out of scope per constraints. |
-| NextAuth `CredentialsProvider` (new import path) | v3 uses `Providers.Credentials`, not `CredentialsProvider`. Do not mix v3 and v4 patterns. |
-| @casl/react v5 | Requires React ^17.0.0. RPM is on React 16.14.0. **Use v4.0.0.** |
-| Storybook | No existing component stories. Setup cost not justified for this milestone. |
-| Prisma | Would replace Sequelize. Not in scope. |
-| TypeORM | Would replace Sequelize. Not in scope. |
-| Zustand, Jotai, Recoil | Would replace Redux. Not in scope. |
-| accesscontrol npm | Abandoned, last published 6+ years ago. |
-| node-saml / @node-saml/node-saml | Would replace saml2-js. Different API. Not needed when the issue is likely a logic bug, not a library deficiency. |
+| Pattern | From (v3/React 16) | To (v4/React 18) | Files |
+|---------|---------------------|-------------------|-------|
+| Import path | `next-auth/client` | `next-auth/react` | ~30 files |
+| useSession | `const [session, loading] = useSession()` | `const { data: session, status } = useSession()` | ~20 components |
+| SessionProvider | `Provider` from `next-auth/client` | `SessionProvider` from `next-auth/react` | `_app.tsx` |
+| JWT callback | `async jwt(token, user)` | `async jwt({ token, user })` | `[...nextauth]` |
+| Session callback | `async session(session, token)` | `async session({ session, token })` | `[...nextauth]` |
+| Session config | `jwt: true` | `strategy: 'jwt'` | `[...nextauth]` |
+| Middleware JWT | `jose.decodeJwt(cookie)` | `getToken({ req, secret })` | `middleware.ts` |
+| Secret | `reciterConfig.tokenSecret` | `process.env.NEXTAUTH_SECRET` | Any JWT verification |
 
-## Version Compatibility Matrix
+### Should Change (works without but is wrong)
 
-| New Package | Node 14 | React 16 | Next.js 12 | Sequelize 6 | eslint 7 |
-|-------------|---------|----------|------------|-------------|----------|
-| @casl/ability@6.8.0 | Yes (no engine constraint) | N/A (pure JS) | N/A | N/A | N/A |
-| @casl/react@4.0.0 | Yes | **Yes** (^16.0.0) | Yes | N/A | N/A |
-| eslint-plugin-jsx-a11y@6.10.2 | Yes | N/A | N/A | N/A | **Yes** (^3-^9) |
-| axe-core@4.11.1 | Yes | N/A | N/A | N/A | N/A |
-| sequelize-cli@6.6.2 | Yes | N/A | N/A | **Yes** (6.x) | N/A |
-| saml-encoder-decoder-js@1.0.2 | Yes | N/A | N/A | N/A | N/A |
+| Pattern | Issue | Fix |
+|---------|-------|-----|
+| useEffect without cleanup | Double-fires in React 18 StrictMode dev | Add cleanup functions |
+| `@casl/react@4.0.0` | Works on React 18 but v5 is designed for it | Use `@casl/react@^5.0.0` |
+| Jest 27 + @testing-library/react 12 | Incompatible with React 18 | Upgrade to Jest 29 + RTL 16 |
 
-## SAML Debugging Best Practices
+### Do Not Change (ports as-is)
 
-No new production libraries needed. The approach for debugging the paa2013 /noaccess issue:
-
-1. **Add structured logging to the nextauth callback chain.** The current `[...nextauth].jsx` has minimal error handling. The SAML authorize function catches errors and returns `null`, swallowing diagnostics. Add `console.error` with the actual error before returning null.
-
-2. **Verify the double JSON.parse pattern.** In middleware.ts, the JWT token's `userRoles` field is stringified JSON inside stringified JSON. Line 21 does `JSON.stringify(decodedTokenJson)` and line 25 does `JSON.parse(userRoles.userRoles)`. If `userRoles` is already an array (from the direct login path) rather than a JSON string (from the SAML path), this double-parse will fail silently and the user gets redirected to /error.
-
-3. **Use saml-encoder-decoder-js (dev only)** to decode SAML responses when debugging certificate or assertion issues. The tool decodes base64 SAML responses into readable XML.
-
-4. **Check `admin_users.status` field.** The `findOrCreateAdminUsers` function sets `status: 0` for new users by default (line 17 of admin.users.controller.ts). If paa2013's record was auto-created, status would be 0 (inactive). However, PROJECT.md says status=1, so this is likely not the issue for this specific user.
-
-5. **Verify certificate freshness.** saml2-js uses `allow_unencrypted_assertion: false` and `sign_get_request: true`. If the IdP certificate (`idp.crt`) has been rotated without updating the EKS secret, all SAML logins would fail with "SAML Assertion signature check failed."
+| Component | Reason |
+|-----------|--------|
+| Sequelize models | No framework coupling |
+| scopeResolver.ts | Pure TypeScript |
+| getCapabilities() / getLandingPage() | Pure JavaScript |
+| API controllers | Server-side fetch, no next-auth |
+| Redux actions/reducers | Framework-agnostic |
+| config/local.js structure | Same keys, different env var sourcing |
+| SQL migration scripts | Database-level |
 
 ## Sources
 
-- npm registry: @casl/ability@6.8.0, @casl/react@4.0.0, @casl/react@5.0.1 (peer dependency verification)
-- [CASL official docs](https://casl.js.org/v6/en/guide/install/)
-- [CASL React integration](https://casl.js.org/v6/en/package/casl-react/)
-- [next-auth v3 callbacks documentation](https://next-auth.js.org/configuration/callbacks)
-- [saml2-js GitHub (Clever/saml2)](https://github.com/Clever/saml2)
-- [axe-core by Deque](https://www.deque.com/axe/axe-core/)
-- [eslint-plugin-jsx-a11y npm](https://www.npmjs.com/package/eslint-plugin-jsx-a11y)
-- [Auth.js RBAC guide](https://authjs.dev/guides/role-based-access-control)
-- [Permit.io: Frontend authorization with CASL](https://www.permit.io/blog/frontend-authorization-with-nextjs-and-casl-tutorial)
-- [RBAC vs ABAC](https://www.osohq.com/learn/rbac-vs-abac)
-- [Common SAML authentication issues](https://help.anthology.com/blackboard/administrator/en/authentication/implement-authentication/saml-authentication-provider-type/common-issues-with-saml-authentication.html)
-- [Troubleshoot SAML configurations (Auth0)](https://auth0.com/docs/troubleshoot/authentication-issues/troubleshoot-saml-configurations)
+- [NextAuth.js v3 to v4 Upgrade Guide](https://next-auth.js.org/getting-started/upgrade-v4)
+- [React 18 Upgrade Guide](https://react.dev/blog/2022/03/08/react-18-upgrade-guide)
+- [Next.js Middleware Upgrade Guide](https://nextjs.org/docs/messages/middleware-upgrade-guide)
+- [Next.js Testing with Jest](https://nextjs.org/docs/pages/guides/testing/jest)
+- [Migrating from React 16 to React 18 Challenges](https://paulserban.eu/blog/post/migrating-from-react-16-to-react-18-challenges-and-solutions/)
+- Codebase examination: `origin/dev_v2` and `origin/dev_Upd_NextJS14SNode18` branches compared directly via `git show` and `git grep`

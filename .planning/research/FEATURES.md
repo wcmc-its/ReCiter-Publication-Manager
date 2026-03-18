@@ -1,239 +1,644 @@
-# Feature Research
+# Feature Porting Assessment: v1.0 to Next.js 14 / React 18
 
-**Domain:** Scholarly publication management, scoped curation roles, admin user management
-**Researched:** 2026-03-16
-**Confidence:** MEDIUM-HIGH
+**Domain:** Porting 7 v1.0 feature areas from dev_v2 (Next.js 12, React 16, next-auth v3) to dev_Upd_NextJS14SNode18 (Next.js 14, React 18, next-auth v4)
+**Researched:** 2026-03-18
+**Confidence:** HIGH -- based on direct code comparison of both branches
 
-## Feature Landscape
+## Context
 
-### Table Stakes (Users Expect These)
+This is NOT a feature discovery exercise. All features are defined and validated in v1.0 (dev_v2). This document maps what needs porting, what changes, and why, for each of the 7 feature systems.
 
-Features users assume exist. Missing these = product feels incomplete.
+## Porting Verdicts Summary
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Working authentication for all valid users | Users with correct roles in the database must not be redirected to /noaccess. This is the #1 blocker. | MEDIUM | Current bug: paa2013 with all 4 roles gets /noaccess. Root cause likely in next-auth callback or JWT encoding of userRoles array. Must work in both SAML (EKS) and local auth modes. |
-| Consistent loading indicators | Red circle legacy loader is jarring and inconsistent. Users expect a single, polished loading pattern across all views. | LOW | Grep the codebase for all Loader references and the legacy red circle; replace with the current design component. |
-| Profile modal that loads | "View Profile" click currently shows "unable to load profile" error. Profile viewing is a core workflow for curators evaluating a person. | MEDIUM | Likely an API endpoint issue or missing data for certain person records. |
-| Role display in user table | The Manage Users table currently shows Name, Department (always empty), Email, Actions. Users managing other users need to see at a glance what roles someone has. | LOW | The department column is rendered as empty string `{""}`. Roles are not shown at all. Fetch roles eagerly with the user list query or display them in a summary column. |
-| Search-driven user management | ManageUsers has both server-side search (3+ chars) and a client-side filter. The client-side filter only operates on the current page of results. Admins expect search to work across all users. | LOW | Remove the confusing dual-search pattern. Server-side search is correct; client-side filtering on paginated data is misleading. |
-| Disable/deactivate user accounts | The admin_users table has a `status` field but the UI has no toggle for it. Admins need to deactivate users without deleting them. | LOW | Add a status toggle (active/inactive) to the user edit form. The data model already supports it. |
-| Scoped curation role: by person type | Curators responsible for specific populations (e.g., "affiliate," "alumni," "md-phd") need to see only those people in their curation queue. This is the primary requested feature. | HIGH | Requires new DB table (e.g., `admin_users_scopes`), middleware changes to filter curation targets, and API query changes to filter person results by person type when a scoped curator is logged in. |
-| Scoped curation role: by organizational unit | Curators responsible for specific departments (e.g., "Medicine," "Psychiatry") need curation scoped to those org units. | HIGH | Uses `person.primaryOrganizationalUnit`. Can share the same scoping infrastructure as person type scoping. Org units already exist as a filter dimension in Search and Reports. |
-| Combined person type + org unit scoping | A curator may be responsible for "affiliates in Radiology." Both scope dimensions must be composable. | HIGH | The combination should be AND logic: curator sees people matching the person type AND belonging to the org unit. If only one dimension is specified, only that filter applies. |
-| Manage scoped roles from Manage Users page | Centralized user management is a clear expectation. Adding a separate admin page for scoped roles creates confusion. | MEDIUM | Extend the existing AddUser form. When a scoped curation role is selected, show conditional fields for person type(s) and org unit(s). Use the existing MUI Autocomplete multi-select pattern already in the form. |
+| # | Feature Area | Verdict | Effort | Blocking Dependencies |
+|---|-------------|---------|--------|----------------------|
+| 1 | Capability-based auth model | **ADAPT** | MEDIUM | next-auth v4 API changes |
+| 2 | SAML auto-create | **REWRITE** | MEDIUM | NextJS14 has entirely different SAML flow |
+| 3 | Skeleton loading components | **COPY** | LOW | None |
+| 4 | Scoped curation roles | **ADAPT** | MEDIUM | Feature 1 (capability model), Feature 2 (SAML auto-create) |
+| 5 | Curation proxy | **ADAPT** | MEDIUM | Feature 1 (capability model), Feature 4 (scope) |
+| 6 | Proxy API enforcement | **ADAPT** | LOW | Feature 1 (capability model), Feature 5 (proxy model) |
+| 7 | Jest test infrastructure | **REWRITE** | MEDIUM | Versions change for React 18 compat |
 
-### Differentiators (Competitive Advantage)
+---
 
-Features that set the product apart. Not expected, but valued.
+## Feature 1: Capability-Based Auth Model
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Scoped curation queue auto-filtering | When a scoped curator navigates to Search or Group Curation, automatically pre-filter results to their scope. No manual filter selection needed. | MEDIUM | This is the UX payoff of scoped roles. Pure and Symplectic Elements both do this: scoped users see only their assigned population. Requires middleware/API layer to inject scope filters automatically. |
-| Scope summary badge on user list | In the Manage Users table, show a compact summary of each user's scope (e.g., "Cardiology, Psychiatry" or "Alumni, Affiliate"). At-a-glance understanding of who manages what. | LOW | Fetch scope data with the user list query. Render as small badges or a comma-separated tag list in the table row. |
-| Auth debugging panel (Superuser) | A diagnostic view showing: current JWT contents, decoded roles, session state, SAML assertion details, and a "test as user" simulation mode. Invaluable for debugging the /noaccess redirect class of bugs. | MEDIUM | Not available in comparable tools, but extremely valuable for this team given recurring auth issues. Show decoded JWT claims, role resolution logic, and the middleware's routing decision for any given user. Read-only, Superuser-only. |
-| Scope inheritance via org hierarchy | If a curator is assigned to "Department of Medicine," they automatically get access to subdivisions (e.g., "Cardiology," "Gastroenterology"). | HIGH | Requires an org hierarchy table or recursive lookup. The current `primaryOrganizationalUnit` field is a flat string, not a hierarchical structure. Worth considering for v2 but not v1 of scoped roles. |
-| Delegation/proxy curation | Allow a curator to temporarily delegate their curation responsibilities to another user (as in Symplectic Elements' delegate feature). Useful for vacations, sabbaticals. | MEDIUM | Requires a delegation table mapping delegator to delegate with optional expiration date. The delegate acts with the delegator's scope. |
-| Audit trail for role changes | Log who changed which user's roles and when. Critical for compliance in academic settings. | LOW | The `admin_users_roles` table has `createTimestamp` and `modifyTimestamp` but no audit of who made the change. Add a simple `admin_audit_log` table. |
-| Bulk user import/update | Upload a CSV of users with their roles, scopes, and departments. Useful for annual onboarding of new curators. | MEDIUM | Common in enterprise admin tools. Elsevier Digital Commons supports batch user management. |
-| Effective permissions preview | When editing a user, show a live preview of "this user will be able to curate publications for 347 people in 3 departments." Helps admins understand the impact of scope assignments. | MEDIUM | Query the person table with the selected scope filters and show the count. Prevents assignment errors. |
+**Verdict: ADAPT -- logic ports, but 5 integration points need v4 API changes**
 
-### Anti-Features (Commonly Requested, Often Problematic)
+### What It Is (on dev_v2)
 
-Features that seem good but create problems.
+A centralized authorization system that replaces the brittle role-count middleware. Key files:
+- `src/utils/constants.js` -- `ROLE_CAPABILITIES` map, `getCapabilities()`, `getLandingPage()`
+- `src/middleware.ts` -- Edge middleware using capability checks instead of role-count if/else
+- `src/pages/index.js` -- Landing page redirect using `getCapabilities()`
+- `src/components/elements/Navbar/SideNavbar.tsx` -- Menu filtering via capabilities
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Per-article permission assignments | "Let curators be assigned to individual people, not groups." | Explodes administrative complexity. With thousands of people and dozens of curators, managing individual assignments becomes unmanageable. It also doesn't scale: new people wouldn't auto-assign to anyone. | Use person type and org unit scoping. These are group-based and self-maintaining: when a new person of type "affiliate" arrives in the system, they automatically fall into the affiliate curator's scope. |
-| Negative permissions / deny rules | "Allow curator to see everyone EXCEPT certain org units." | Deny rules create confusing permission interactions. Pure's documentation notes that overlapping allow/deny permissions are a common source of admin errors. | Use positive-only permissions. Assign the specific person types and org units the curator should manage. If they need "almost everything," give them Curator_All. |
-| Custom role creation UI | "Let admins define new role types with arbitrary permission sets." | Role proliferation leads to unmaintainable systems. The RBAC best practice (Oso 2025) is to use a small number of well-defined roles with scoping, not unlimited custom roles. RPM has 4 roles; adding scoping to the Curator role is the right granularity. | Keep the 4 existing roles. Add scoping dimensions (person type, org unit) as modifiers on the Curator role, not as new roles. |
-| Real-time collaborative curation | "Multiple curators working on the same person simultaneously with live updates." | Requires WebSocket infrastructure, conflict resolution, and a fundamentally different state management approach. The accept/reject workflow is inherently sequential per-article. | The current model (one curator works on a person's articles at a time) is fine. If two scoped curators overlap on a person, last-write-wins is acceptable for this domain. |
-| Complex approval workflows for curation | "Require supervisor approval before a curator's accept/reject decisions are finalized." | Adds friction to a workflow that needs to be fast. Curators are trusted domain experts. Multi-step approval slows throughput without proportional quality gain. | Trust curators within their scope. Use the audit trail to review decisions after the fact if needed. |
-| Cascading org unit permissions without explicit hierarchy | "Automatically infer department hierarchies from naming conventions (e.g., 'Medicine - Cardiology' implies Cardiology is under Medicine)." | String parsing is fragile and institution-specific. Org unit naming conventions vary wildly. | If hierarchy is needed, build an explicit parent-child relationship table for org units. Do not try to parse it from strings. |
+### What Can Copy As-Is
+
+**`getCapabilities()` and `getLandingPage()` functions** -- These are pure JavaScript functions with no framework dependencies. They take a roles array and return a capabilities object. Zero changes needed.
+
+**`ROLE_CAPABILITIES` map** -- Pure data structure. Copy verbatim, including the `Curator_Scoped` entry.
+
+**`allowedPermissions` enum** -- Needs one addition (`Curator_Scoped`) to the NextJS14 branch version, which currently has only the original 4 roles.
+
+### What Needs Adaptation
+
+**1. Middleware JWT access (BREAKING CHANGE)**
+
+v1.0 (dev_v2) uses `jose.decodeJwt()` with raw cookie parsing:
+```typescript
+// v1.0: jose-based, reads raw cookie
+import * as jose from "jose";
+let decodedTokenJson = jose.decodeJwt(request.cookies.get('next-auth.session-token'));
+```
+
+NextJS14 branch uses `getToken()` from next-auth/jwt:
+```typescript
+// NextJS14: next-auth v4 getToken
+import { getToken } from "next-auth/jwt";
+let decodedTokenJson = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+```
+
+**Impact:** The v1.0 middleware is ~60 lines of clean capability-based routing. The NextJS14 middleware is ~100 lines of nested role-count if/else (the exact pattern v1.0 replaced). The capability routing logic ports cleanly but must use `getToken()` instead of `jose.decodeJwt()`. The good news: NextJS14 middleware already uses `getToken()`, so the pattern is established.
+
+**Adaptation:** Replace the entire NextJS14 middleware body with v1.0's capability-based routing, keeping the `getToken()` call.
+
+**2. Session data shape in JWT**
+
+v1.0 JWT callbacks store roles and scope as separate stringified fields:
+```typescript
+// v1.0 jwt callback (next-auth v3 signature)
+async jwt(token, apiResponse) {
+    token.userRoles = JSON.stringify(parsed.roles);
+    token.scopeData = JSON.stringify(parsed.scopeData);
+    token.proxyPersonIds = JSON.stringify(parsed.proxyPersonIds);
+}
+```
+
+NextJS14 JWT callback has v4 destructured signature:
+```typescript
+// NextJS14 jwt callback (next-auth v4 signature)
+async jwt({ token, user }) {
+    token.userRoles = user.userRoles || [];  // stored as array, not stringified
+}
+```
+
+**Impact:** The v1.0 JWT callback stores `userRoles` as a JSON string, while NextJS14 stores it as a direct value. All downstream consumers (middleware, API routes, components) that parse these values must match the storage format.
+
+**Adaptation:** Merge v1.0's JWT callback logic (scopeData, proxyPersonIds extraction) into NextJS14's `async jwt({ token, user })` signature. Store `scopeData` and `proxyPersonIds` alongside existing fields. Decide on stringify vs. direct storage and be consistent throughout.
+
+**3. Session callback signature**
+
+v1.0 (next-auth v3): `async session(session, token, apiResponse)`
+NextJS14 (next-auth v4): `async session({ session, token })`
+
+**Impact:** v1.0 passes proxyPersonIds from token to session. Must adapt to v4 destructured signature. Also, v1.0 calls `fetchUpdatedAdminSettings()` in the session callback -- NextJS14 moved this to Redux in `_app.tsx` (better pattern, do NOT port the session callback approach).
+
+**4. Client-side session access**
+
+v1.0: `import { useSession } from 'next-auth/client'` -- returns `[session, loading]`
+NextJS14: `import { useSession } from 'next-auth/react'` -- returns `{ data: session, status }`
+
+**Impact:** Every v1.0 component that reads session data (SideNavbar for scope display, search page for scope filtering) uses the v3 array destructuring pattern. The NextJS14 branch already uses the v4 object pattern throughout, so this is about adapting the v1.0 additions (scope display, proxy data access) to the v4 pattern, not changing existing code.
+
+**5. Server-side session access**
+
+v1.0: `import { getSession } from 'next-auth/client'` in `getServerSideProps`
+NextJS14: `import { getServerSession } from 'next-auth/next'` with `authOptions`
+
+**Impact:** v1.0's `index.js` uses `getSession(ctx)` + `getCapabilities()`. NextJS14's `index.js` uses `getServerSession(ctx.req, ctx.res, authOptions)` + manual role checks. Port means replacing the manual role checks with `getCapabilities()` inside the existing `getServerSession` pattern.
+
+### Porting Order
+
+This is the **foundation** for all other features. Port first.
+
+### Estimated Work
+
+- Copy `getCapabilities()`, `getLandingPage()`, `ROLE_CAPABILITIES` to constants.js -- trivial
+- Rewrite NextJS14 middleware from role-count to capability-based -- medium (test thoroughly)
+- Adapt JWT callback to include scopeData/proxyPersonIds -- low
+- Adapt session callback for proxyPersonIds pass-through -- low
+- Update index.js to use getCapabilities with getServerSession -- low
+- Update SideNavbar to use capabilities instead of role name checks -- medium
+
+**Total: 1-2 days**
+
+---
+
+## Feature 2: SAML Auto-Create for New Users
+
+**Verdict: REWRITE -- NextJS14 has a fundamentally different SAML architecture**
+
+### What It Is (on dev_v2)
+
+When a user authenticates via SAML but has no `admin_users` record, the system auto-creates one with `status: 1` (active) and baseline access (canReport + canSearch via capability model). Key file: `controllers/db/admin.users.controller.ts` (`findOrCreateSamlUser`).
+
+### Why Rewrite (Not Adapt)
+
+The two branches have **completely different SAML flows**:
+
+| Aspect | v1.0 (dev_v2) | NextJS14 |
+|--------|---------------|----------|
+| SAML library | saml2-js (Clever/saml2) | Custom cookie-based bridge |
+| SAML assertion | `sp.post_assert()` inline in authorize | Separate `/api/auth/saml-acs.js` endpoint |
+| User matching | Email-first, then CWID fallback, then auto-create | Uses `findOrcreateAdminUser()` from samlUtils.js (always creates) |
+| Auto-create | `findOrCreateSamlUser()` with `status: 1` | `findOrcreateAdminUser()` creates with whatever status is set |
+| Role assignment | No auto-role (baseline via capabilities) | `grantDefaultRolesToAdminUser()` assigns roles from admin_settings config |
+| Session bridge | Direct -- authorize returns user object | Encrypted cookie bridge (`saml_bridge` cookie) |
+
+**Critical difference:** NextJS14 already auto-creates users via `findOrcreateAdminUser()` in `samlUtils.js`, AND grants default roles from admin_settings configuration. The v1.0 auto-create (`findOrCreateSamlUser`) creates with `status: 1` and NO roles (relying on capability model's baseline). These are different approaches that serve the same goal.
+
+### What Needs to Happen
+
+The NextJS14 SAML flow already handles auto-creation. The porting task is verification, not code copying:
+
+1. **Ensure `status: 1` on auto-create** -- Verify that `findOrCreateAdminUsers()` on NextJS14 sets `status: 1` for new SAML users. The v1.0 `findOrCreateAdminUsers` (local auth) sets `status: 0`; the v1.0 `findOrCreateSamlUser` sets `status: 1`. The NextJS14 function must be verified.
+
+2. **Ensure baseline access without roles** -- v1.0's capability model grants canReport + canSearch to any authenticated user, even with zero roles. This depends on Feature 1 (capability model) being ported first. Once capabilities are ported, baseline access works automatically.
+
+3. **Do NOT port the saml2-js flow** -- NextJS14 has replaced saml2-js with a custom SAML bridge architecture. The v1.0 SAML authorize function cannot be copied.
+
+4. **Verify `findUserPermissions` return format** -- The NextJS14 `findUserPermissions` returns `JSON.stringify(userRolesList)` (flat array). After Feature 1 port, it must return the enriched `{ roles, scopeData, proxyPersonIds }` format. The v1.0 version of this function is a superset -- port it wholesale.
+
+### Files to Check/Modify (NextJS14 branch)
+
+- `controllers/db/admin.users.controller.ts` -- Check status default on auto-create
+- `src/utils/samlUtils.js` -- Check `findOrcreateAdminUser()` and `grantDefaultRolesToAdminUser()`
+- `src/pages/api/auth/[...nextauth].jsx` -- Ensure JWT callback stores roles in capability-compatible format
+
+### Porting Order
+
+After Feature 1 (capability model). Baseline access depends on capabilities.
+
+### Estimated Work
+
+- Audit existing NextJS14 auto-create flow -- low
+- Ensure status=1 default and baseline access -- low
+- Port enriched `findUserPermissions` (overlaps with Feature 1) -- low
+- Test SAML login for new users -- medium (requires SAML IdP access on EKS)
+
+**Total: 0.5-1 day (mostly testing, little code)**
+
+---
+
+## Feature 3: Skeleton Loading Components
+
+**Verdict: COPY -- pure CSS + React, no framework dependencies**
+
+### What It Is (on dev_v2)
+
+Four skeleton placeholder components that replace the legacy red circle Loader:
+- `SkeletonTable.tsx` -- shimmer table rows
+- `SkeletonCard.tsx` -- shimmer article cards
+- `SkeletonProfile.tsx` -- shimmer person profile
+- `SkeletonForm.tsx` -- shimmer form fields
+- `Skeleton.module.css` -- CSS-only shimmer animations
+
+### Why Copy As-Is
+
+These components use:
+- CSS Modules (both branches support this)
+- Basic React functional components with no hooks
+- No external library dependencies
+- No next-auth, no session data, no Redux
+
+The NextJS14 branch currently uses a Bootstrap Spinner Loader (`<Spinner animation="border" variant="danger" style={{ height: '5rem', width: '5rem'}}/>`) -- the exact "red circle" pattern that v1.0 replaced.
+
+### What to Copy
+
+1. Copy all 5 files from `src/components/elements/Common/Skeleton*` to the same path on NextJS14
+2. Find all `<Loader />` references on NextJS14 and replace with the appropriate skeleton variant
+
+### React 18 Compatibility
+
+These are stateless functional components. No lifecycle methods, no class components, no deprecated patterns. They work on React 16, 17, and 18 without changes. No Suspense integration needed -- they are direct render replacements, not Suspense fallbacks.
+
+### Porting Order
+
+Independent of all other features. Can be done first, last, or in parallel.
+
+### Estimated Work
+
+- Copy 5 files -- trivial
+- Find and replace Loader usage on NextJS14 -- low (grep for `<Loader` and `from.*Loader`)
+
+**Total: 0.5 day**
+
+---
+
+## Feature 4: Scoped Curation Roles
+
+**Verdict: ADAPT -- models copy, auth pipeline needs v4 adaptation**
+
+### What It Is (on dev_v2)
+
+Curator_Scoped role that restricts curation to specific person types and/or organizational units. Components:
+
+**Backend (mostly portable):**
+- `src/db/models/AdminUsersPersonType.ts` -- Sequelize model for person type scope
+- `src/db/models/init-models.ts` -- Model registration with associations
+- `controllers/db/userroles.controller.ts` -- `getScopeDataForUser()`, enriched `findUserPermissions()`
+- `controllers/db/manage-users/user.controller.ts` -- User list includes personType data
+- `src/utils/scopeResolver.ts` -- Pure utility: `isPersonInScope()`, `isProxyFor()`
+- `src/pages/api/db/admin/users/persontypes/index.ts` -- API for distinct person types
+- `controllers/db/person.controller.ts` -- `getPersonWithTypes()` for scope enforcement
+
+**Frontend (needs React 18 / next-auth v4 adaptation):**
+- `src/components/elements/AddUser/CurationScopeSection.tsx` -- Scope assignment UI in Manage Users
+- `src/components/elements/AddUser/CurationScopeSection.module.css`
+- `src/components/elements/Search/ScopeFilterCheckbox.tsx` -- "Show only my scope" filter
+- `src/components/elements/Navbar/ScopeLabel.tsx` -- Scope display in sidebar
+
+### What Can Copy As-Is
+
+| File | Why Portable |
+|------|-------------|
+| `AdminUsersPersonType.ts` (model) | Pure Sequelize 6.x. No framework deps. |
+| `scopeResolver.ts` | Pure TypeScript utility. No imports except its own types. |
+| `CurationScopeSection.tsx` | Uses `react-bootstrap` Form + MUI Autocomplete. Both available on NextJS14. No session access. |
+| `CurationScopeSection.module.css` | Pure CSS Module. |
+| `ScopeFilterCheckbox.tsx` | Uses `react-bootstrap` Form.Check. No session access. |
+| `ScopeLabel.tsx` | Uses MUI Tooltip only. Props-driven, no session access. |
+| `persontypes/index.ts` (API route) | Standard API route with reciterConfig auth check. |
+
+### What Needs Adaptation
+
+**1. `init-models.ts` -- Add AdminUsersPersonType registration**
+
+The NextJS14 branch's init-models.ts does not have AdminUsersPersonType. Need to add:
+- Import statement
+- `initModel()` call
+- `belongsTo`/`hasMany` association declarations
+- Export in the models object
+
+This is mechanical -- follow the existing pattern for AdminUsersRole/AdminUsersDepartment.
+
+**2. `userroles.controller.ts` -- Merge scope query into NextJS14's simpler version**
+
+v1.0 version adds `getScopeDataForUser()` and restructures `findUserPermissions()` to return `{ roles, scopeData, proxyPersonIds }` instead of a flat roles array.
+
+NextJS14 version returns a flat `JSON.stringify(userRolesList)`.
+
+**Adaptation:** Port the v1.0 version wholesale. The v1.0 version is a superset of the NextJS14 version -- same core queries plus scope/proxy additions. The only change: ensure the downstream JWT callback (Feature 1) correctly handles the new return format.
+
+**3. `user.controller.ts` -- Merge scope includes into user list query**
+
+v1.0's `listAllUsers` includes `AdminUsersPersonType` and `AdminUsersProxy` in the Sequelize query via eager loading. NextJS14's version does not have these includes. Add them following the v1.0 pattern.
+
+**4. JWT token -- scopeData storage**
+
+v1.0 stores `token.scopeData = JSON.stringify(parsed.scopeData)` in the JWT callback. This must be added to the NextJS14 JWT callback (handled as part of Feature 1 adaptation).
+
+**5. Middleware -- Curator_Scoped routing**
+
+v1.0 middleware has a special case: scoped curators can access `/curate/*` but person-level scope enforcement happens in the API layer. This routing logic is part of the capability-based middleware (Feature 1).
+
+**6. Client-side scopeData access in SideNavbar**
+
+v1.0 reads `session?.data?.scopeData` using the v3 `[session, loading]` pattern. NextJS14 SideNavbar already uses the v4 `{ data: session, status }` pattern. The v1.0 additions to SideNavbar (capability-based menu filtering, ScopeLabel display) must use the v4 destructuring.
+
+### Database Migration Required
+
+The `admin_users_person_types` table must exist on the NextJS14 database. Recommended: SQL migration script run alongside deployment, not Sequelize sync.
+
+### Porting Order
+
+After Feature 1 (capability model) and Feature 2 (SAML auto-create). Depends on the capability model for Curator_Scoped routing and JWT structure.
+
+### Estimated Work
+
+- Copy model, scopeResolver, UI components -- low
+- Adapt init-models.ts -- low
+- Port userroles.controller.ts -- medium (merge carefully)
+- Port user.controller.ts includes -- low
+- Adapt JWT/session for scopeData -- low (part of Feature 1)
+- Database migration -- low
+- Test scope enforcement end-to-end -- medium
+
+**Total: 1.5-2 days**
+
+---
+
+## Feature 5: Curation Proxy
+
+**Verdict: ADAPT -- models copy, 4 new API routes need minor adaptation**
+
+### What It Is (on dev_v2)
+
+Allows assigning specific users as proxies for specific people, bypassing scope restrictions. Components:
+
+**Backend:**
+- `src/db/models/AdminUsersProxy.ts` -- Sequelize model
+- 4 API routes under `src/pages/api/db/admin/proxy/`:
+  - `grant.ts` -- Replace all proxy assignments for a given person (transactional)
+  - `index.ts` -- List proxies by personIdentifier (GET) or by userID (POST)
+  - `search-persons.ts` -- Search person table for proxy assignment
+  - `search-users.ts` -- Search admin_users for proxy assignment
+- `controllers/db/userroles.controller.ts` -- `getProxyDataForUser()` returning proxy person IDs
+
+**Frontend:**
+- `src/components/elements/AddUser/ProxyAssignmentsSection.tsx` -- Proxy management in user edit form
+- `src/components/elements/AddUser/ProxyAssignmentsSection.module.css`
+- `src/components/elements/CurateIndividual/GrantProxyModal.tsx` -- In-context proxy grant modal
+- `src/components/elements/Search/ProxyBadge.tsx` -- PROXY badge on search results
+
+### What Can Copy As-Is
+
+| File | Why Portable |
+|------|-------------|
+| `AdminUsersProxy.ts` (model) | Pure Sequelize 6.x. No framework deps. |
+| `ProxyBadge.tsx` | Uses react-bootstrap Badge only. Trivial stateless component. |
+| All 4 proxy API routes | Standard API routes using Sequelize models + reciterConfig auth. No next-auth dependency. |
+| `ProxyAssignmentsSection.tsx` | Uses MUI Autocomplete + CircularProgress. Props-driven, no session access. |
+| `ProxyAssignmentsSection.module.css` | Pure CSS Module. |
+
+### What Needs Adaptation
+
+**1. `init-models.ts` -- Add AdminUsersProxy registration**
+
+Same mechanical addition as Feature 4. Import, initModel, associations, export.
+
+**2. `GrantProxyModal.tsx` -- react-bootstrap v2 check**
+
+v1.0 uses react-bootstrap v1 (Modal, Button, Spinner). NextJS14 uses react-bootstrap v2. The core API for Modal, Button, and Spinner is compatible between v1 and v2. Likely no changes needed, but test to confirm.
+
+**3. `GrantProxyModal.tsx` -- Loader import**
+
+v1.0's GrantProxyModal imports `Loader` from `../Common/Loader`. If Feature 3 (skeletons) replaces Loader, update this import -- or keep the existing Spinner inline (the modal uses it for the saving state, not page-level loading).
+
+**4. Person controller proxyPersonIds in search query**
+
+v1.0's `person.controller.ts` has logic to merge proxy person IDs into search results with OR logic: `(scope conditions) OR (personIdentifier IN proxyPersonIds)`. This controller logic needs to be ported to the NextJS14 person controller, which has a different query structure for the search endpoint.
+
+**5. JWT token -- proxyPersonIds storage**
+
+v1.0 stores `token.proxyPersonIds = JSON.stringify(parsed.proxyPersonIds)`. Handled as part of Feature 1 JWT callback adaptation.
+
+**6. Client-side proxyPersonIds access**
+
+Components that check proxy status read `session?.data?.proxyPersonIds`. Must adapt to NextJS14 session structure (v4 pattern).
+
+### Database Migration Required
+
+The `admin_users_proxy` table must exist. Same approach as Feature 4: SQL migration script.
+
+### Porting Order
+
+After Feature 1 (capability model) and Feature 4 (scoped roles). The proxy system extends the scope system -- `isProxyFor()` check wraps the scope check.
+
+### Estimated Work
+
+- Copy model, API routes, UI components -- low
+- Adapt init-models.ts -- low
+- Test react-bootstrap v2 compatibility of GrantProxyModal -- low
+- Port person controller proxy query logic -- medium
+- Adapt JWT/session for proxyPersonIds -- low (part of Feature 1)
+- Database migration -- low
+
+**Total: 1-1.5 days**
+
+---
+
+## Feature 6: Proxy API Enforcement
+
+**Verdict: ADAPT -- small diffs on 2 API routes**
+
+### What It Is (on dev_v2)
+
+The `save/userfeedback/[uid].ts` and `update/goldstandard.ts` API routes check whether a Curator_Scoped user is allowed to curate a given person. The check flow is:
+
+1. Parse JWT to get roles, scopeData, proxyPersonIds
+2. If `canCurate.scoped && !canCurate.all`:
+   a. Check `isProxyFor(proxyPersonIds, targetUid)` -- if true, skip scope check
+   b. If not proxy, check `isPersonInScope(scopeData, personOrgUnit, personTypes)`
+   c. If not in scope, return 403
+
+### What the Diff Looks Like
+
+The v1.0 endpoints add ~25 lines of enforcement code at the top of each handler, between the auth check and the actual API call. The NextJS14 endpoints are the "plain" versions without this enforcement.
+
+### What Needs Adaptation
+
+**1. `getToken()` secret reference**
+
+v1.0 uses: `const token = await getToken({ req, secret: reciterConfig.tokenSecret })`
+NextJS14 should use: `const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })`
+
+One-line change per endpoint.
+
+**2. Token field parsing**
+
+v1.0 parses stringified values: `JSON.parse(token.userRoles as string)`, `JSON.parse(token.proxyPersonIds as string)`, `JSON.parse(token.scopeData as string)`
+
+If the JWT callback stores these as direct objects (not strings) in the NextJS14 adaptation, the parsing calls should handle the format consistently. Use a helper that handles both cases or standardize on one format.
+
+**3. Imports**
+
+v1.0 adds these imports to each endpoint:
+```typescript
+import { getToken } from 'next-auth/jwt'
+import { getCapabilities } from '../../../../../utils/constants'
+import { isPersonInScope, isProxyFor } from '../../../../../utils/scopeResolver'
+import { getPersonWithTypes } from '../../../../../../controllers/db/person.controller'
+```
+
+These imports work on NextJS14 once Features 1, 4, and 5 are ported.
+
+### Porting Order
+
+Last among the auth-related features. Requires Features 1, 4, and 5 to be ported first.
+
+### Estimated Work
+
+- Add enforcement blocks to 2 API routes -- low
+- Adjust getToken secret reference -- trivial
+- Adjust token field parsing for v4 format -- low
+- Test with scoped user, proxy user, and Curator_All -- medium
+
+**Total: 0.5 day**
+
+---
+
+## Feature 7: Jest Test Infrastructure
+
+**Verdict: REWRITE -- version changes required for React 18 compatibility**
+
+### What It Is (on dev_v2)
+
+Test infrastructure with 9 test files:
+- `jest.config.js` -- Uses `next/jest` to create Jest config
+- `jest.setup.js` -- Imports `@testing-library/jest-dom`
+- `__tests__/utils/constants-scoped.test.ts` -- Capability model tests (13 test cases)
+- `__tests__/utils/scopeResolver.test.ts` -- Scope resolver tests
+- `__tests__/utils/proxy.test.ts` -- Proxy tests (5 test cases)
+- `__tests__/api/reciter/save/userfeedback/uid.test.ts` -- API endpoint proxy enforcement tests (3 test cases)
+- `__tests__/api/reciter/update/goldstandard.test.ts` -- API endpoint tests
+- `__tests__/components/*.test.tsx` -- Component tests (Pagination, Publication, Search, Tabs)
+
+v1.0 versions (chosen for React 16):
+- `jest: 27.5.1`
+- `jest-environment-jsdom: 27.5.1`
+- `@testing-library/react: 12.1.5`
+- `@testing-library/jest-dom: 5.17.0`
+
+### Why Rewrite
+
+**React 18 requires newer test library versions.** The v1.0 versions were specifically constrained by React 16:
+
+| Library | v1.0 (React 16) | Needed for React 18 | Breaking Changes |
+|---------|-----------------|---------------------|------------------|
+| `@testing-library/react` | 12.1.5 | 14.x or 15.x | v14+ uses `createRoot` (React 18). v12 uses deprecated `ReactDOM.render()` which logs warnings. |
+| `jest` | 27.5.1 | 29.x | Next.js 14's `next/jest` expects jest 29. Timer APIs changed. |
+| `jest-environment-jsdom` | 27.5.1 | 29.x | Must match jest major version. |
+| `@testing-library/jest-dom` | 5.17.0 | 6.x | v6 changes import path; auto-extends expect differently. |
+
+**NextJS14 branch has NO test infrastructure.** No jest.config.js, no test files, no test dependencies. Everything must be set up fresh.
+
+### What Can Copy As-Is
+
+**Pure utility tests** -- These test files have NO React rendering:
+- `constants-scoped.test.ts` -- Tests `getCapabilities()` and `getLandingPage()`, pure functions
+- `scopeResolver.test.ts` -- Tests `isPersonInScope()`, pure function
+- `proxy.test.ts` -- Tests `isProxyFor()`, pure function
+
+These 3 files can copy verbatim. The only mock needed is `react-toastify` (because constants.js imports it), which works identically.
+
+### What Needs Adaptation
+
+**API endpoint tests** -- The mock structure is the same but details change:
+- Mock `next-auth/jwt` (`getToken`) -- same mock pattern, different `secret` parameter
+- Mock paths for controllers/config may differ (verify import paths)
+- `node-mocks-http` for creating mock req/res -- works the same
+
+**Component tests** -- `@testing-library/react` v14+ has breaking changes:
+- `render()` no longer returns `wrapper` option
+- `cleanup` is automatic in v14+
+- `act()` usage may change with React 18 concurrent features
+- Snapshot assertions may differ between React 16 and 18 HTML output
+
+### Setup Required
+
+```bash
+# Install test deps for NextJS14 / React 18
+npm install -D jest@29 jest-environment-jsdom@29 @testing-library/react@15 @testing-library/jest-dom@6 @testing-library/user-event@14 node-mocks-http
+```
+
+`jest.config.js` can be copied from v1.0 -- `next/jest` from Next.js 14 creates a compatible config:
+```javascript
+const nextJest = require('next/jest')
+const createJestConfig = nextJest({ dir: './' })
+const customJestConfig = {
+  setupFilesAfterSetup: ['<rootDir>/jest.setup.js'],
+  testEnvironment: 'jest-environment-jsdom',
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'],
+  moduleDirectories: ['node_modules', '<rootDir>/'],
+}
+module.exports = createJestConfig(customJestConfig)
+```
+
+### Porting Order
+
+After all other features are ported. Tests validate the ported code.
+
+### Estimated Work
+
+- Set up jest.config.js, jest.setup.js, install deps -- low
+- Copy 3 pure utility test files -- trivial
+- Adapt 2 API endpoint test files -- low
+- Adapt 4 component test files for RTL v14+ -- medium
+- Verify all tests pass -- medium
+
+**Total: 1-1.5 days**
+
+---
 
 ## Feature Dependencies
 
 ```
-[Auth fix: /noaccess redirect]
-    (no dependencies, fix first)
-
-[Scoped curation role: person type]
-    └──requires──> [New DB table: admin_users_scopes]
-                       └──requires──> [API: distinct person types query]
-                       └──requires──> [API: filter persons by scope]
-
-[Scoped curation role: org unit]
-    └──requires──> [New DB table: admin_users_scopes]
-                       └──requires──> [API: distinct org units query]
-                       └──requires──> [API: filter persons by scope]
-
-[Combined scoping (type + org)]
-    └──requires──> [Scoped curation role: person type]
-    └──requires──> [Scoped curation role: org unit]
-
-[Manage scoped roles in Manage Users]
-    └──requires──> [New DB table: admin_users_scopes]
-    └──requires──> [API: CRUD for scope assignments]
-
-[Scoped curation queue auto-filtering]
-    └──requires──> [Combined scoping (type + org)]
-    └──requires──> [Middleware: inject scope into API queries]
-
-[Scope summary badge on user list]
-    └──requires──> [New DB table: admin_users_scopes]
-
-[Auth debugging panel]
-    (independent, but should come after auth fix)
-
-[Effective permissions preview]
-    └──requires──> [Combined scoping (type + org)]
-
-[UI/UX audit]
-    └──requires──> [Auth fix] (can't audit what you can't log into)
-    └──enhances──> [All UI features]
-
-[Audit trail for role changes]
-    └──enhances──> [Manage scoped roles in Manage Users]
+[1. Capability Auth Model]
+    (foundation -- port first)
+        |
+        +---> [2. SAML Auto-Create]
+        |         (baseline access depends on capabilities)
+        |
+        +---> [3. Skeleton Components]
+        |         (independent -- can be done in parallel with anything)
+        |
+        +---> [4. Scoped Curation Roles]
+        |         (depends on capability model for Curator_Scoped)
+        |         (depends on SAML auto-create for new user baseline)
+        |              |
+        |              +---> [5. Curation Proxy]
+        |                        (extends scope system)
+        |                             |
+        |                             +---> [6. Proxy API Enforcement]
+        |                                       (depends on 1, 4, 5)
+        |
+        +---> [7. Jest Test Infrastructure]
+                  (validates all features -- port last)
 ```
 
-### Dependency Notes
+## Recommended Porting Order
 
-- **Auth fix has no dependencies and blocks everything else:** Until valid users can log in, no other feature can be tested or used. Fix first.
-- **The DB scope table is the foundation:** Both person type and org unit scoping share the same table structure. Design this table to handle both dimensions from day one.
-- **UI/UX audit enhances all features:** Running the audit after the auth fix but before building new scoped role UI ensures the new UI follows the corrected patterns.
-- **Auto-filtering is the UX payoff:** Without auto-filtering, scoped curators still have to manually select their scope filters every time. This is where the feature delivers real value.
+| Phase | Features | Rationale | Est. Days |
+|-------|----------|-----------|-----------|
+| **Phase 1** | 1 (Capability Auth) + 3 (Skeletons) | Foundation + quick win. Capability model unblocks everything. Skeletons are independent, visually verifiable. | 1.5-2.5 |
+| **Phase 2** | 2 (SAML Auto-Create) + 4 (Scoped Roles) | Extend auth pipeline. SAML is mostly verification. Scoped roles are the core new feature. | 2-3 |
+| **Phase 3** | 5 (Proxy) + 6 (Proxy Enforcement) | Build on scope system. Proxy extends scope with bypass mechanism. | 1.5-2 |
+| **Phase 4** | 7 (Test Infrastructure) | Validate everything works. Write tests against the ported code. | 1-1.5 |
 
-## MVP Definition
+**Total estimated effort: 6-9 days** (including testing)
 
-### Launch With (v1)
+## Breaking Changes Checklist
 
-Minimum viable product for the scoped curation milestone.
+| Change | Affected Features | Mitigation |
+|--------|-------------------|------------|
+| `next-auth/client` -> `next-auth/react` | 1, 4, 5 (components reading session) | Search-and-replace import path in new code |
+| `useSession()` returns `{ data, status }` not `[session, loading]` | 1 (SideNavbar), 4 (ScopeFilterCheckbox display) | Destructure correctly in each component |
+| `getSession(ctx)` -> `getServerSession(ctx.req, ctx.res, authOptions)` | 1 (index.js) | Use NextJS14's existing pattern |
+| JWT callback `(token, user)` -> `({ token, user })` | 1, 4, 5 (JWT callback with scope/proxy data) | Use v4 destructured signature |
+| Session callback `(session, token)` -> `({ session, token })` | 1 (proxy pass-through) | Use v4 destructured signature |
+| `jose.decodeJwt()` -> `getToken()` in middleware | 1 (middleware) | NextJS14 already uses getToken |
+| `session: { jwt: true }` -> `session: { strategy: 'jwt' }` | 1 (nextauth config) | Already done on NextJS14 |
+| `reciterConfig.tokenSecret` -> `process.env.NEXTAUTH_SECRET` | 6 (API route getToken calls) | Use NextJS14's existing env var pattern |
+| react-bootstrap v1 -> v2 | 5 (GrantProxyModal) | Test; likely no API changes for Modal/Button/Spinner |
+| `@testing-library/react` 12 -> 15 | 7 (component tests) | Rewrite render patterns |
+| `jest` 27 -> 29 | 7 (all tests) | Update config, check timer APIs |
+| Admin settings in session vs Redux | All features | NextJS14 loads adminSettings via Redux in _app.tsx; do NOT port the v1.0 session callback approach |
+| `findUserPermissions` return format | 1, 4, 5 | Port v1.0's enriched format `{ roles, scopeData, proxyPersonIds }` to replace NextJS14's flat array |
 
-- [ ] **Auth fix: /noaccess redirect** -- Users with valid roles must be able to log in. This is a blocker for all testing and adoption.
-- [ ] **Fix profile modal loading error** -- Core curator workflow depends on viewing person profiles.
-- [ ] **Fix "Curate publications" on Search page** -- The action should only appear on the curation page, not the search page.
-- [ ] **Replace legacy red circle loader** -- Low effort, high visual consistency improvement.
-- [ ] **Scoped curation role: person type** -- The primary new feature. Curators can be assigned to specific person types.
-- [ ] **Scoped curation role: org unit** -- The secondary scope dimension. Curators can be assigned to specific departments.
-- [ ] **Combined scoping** -- Both dimensions composable with AND logic.
-- [ ] **Manage scoped roles from Manage Users** -- Extend existing form with conditional scope fields.
-- [ ] **Role display in user table** -- Show roles (and scope summary) in the Manage Users list.
-- [ ] **User status toggle** -- Activate/deactivate users from the edit form.
+## What NOT to Port (Anti-Features)
 
-### Add After Validation (v1.x)
+| Item | Why Not |
+|------|---------|
+| `@casl/ability` / `@casl/react` | v1.0 STACK.md recommended CASL but it was never implemented. `getCapabilities()` + `isPersonInScope()` works well. Do not add new complexity during a port. |
+| `eslint-plugin-jsx-a11y` strict mode setup | v1.0-specific audit tooling. Reassess for NextJS14 separately. |
+| `sequelize-cli` migrations | v1.0 research recommended this but it was never implemented. Use SQL scripts for the 2 new tables. |
+| `@axe-core/react` | v1.0-specific audit tooling. Not relevant to porting. |
+| v1.0 SAML flow (saml2-js inline) | NextJS14 has architecturally different SAML (cookie bridge). Do not regress. |
+| v1.0 `fetchUpdatedAdminSettings()` in session callback | NextJS14 loads via Redux in _app.tsx. Better pattern. |
+| v1.0 `findOrCreateAdminUsers(uid)` single-arg version | NextJS14 has `findOrCreateAdminUsers(uid, email, firstName, lastName)`. More complete. |
+| v1.0 double-stringify JWT pattern | When porting, use cleaner approach (direct storage in JWT) rather than re-introducing `JSON.stringify` -> `JSON.parse` chains. |
 
-Features to add once core scoping is working and validated by curators.
+## Complexity Summary
 
-- [ ] **Scoped curation queue auto-filtering** -- Pre-filter Search/Group Curation for scoped curators. Add after v1 scope assignment is working and curators confirm the scope definitions are correct.
-- [ ] **Effective permissions preview** -- Show count of people in a curator's scope during role editing. Add after curators start asking "who does this scope include?"
-- [ ] **Auth debugging panel** -- Build after the /noaccess bug is fixed, but include as a diagnostic tool for future auth issues.
-- [ ] **Audit trail for role changes** -- Add when the team starts managing more than a handful of scoped curators and needs accountability.
+| Complexity | Count | Examples |
+|------------|-------|---------|
+| TRIVIAL (copy as-is) | 10 | Sequelize models, scopeResolver, ROLE_CAPABILITIES, getCapabilities, ProxyBadge, ScopeLabel, skeleton components, pure utility tests |
+| LOW (minor adaptation) | 8 | init-models registration, API route scope checks, proxy CRUD APIs, persontypes API, CSS modules |
+| MEDIUM (pattern adaptation) | 8 | Middleware rewrite, JWT callbacks, SideNavbar capability integration, person controller proxy query, component test updates |
+| HIGH (significant rewrite) | 2 | SAML auto-create verification/integration, Jest version upgrade |
 
-### Future Consideration (v2+)
-
-Features to defer until the scoped role system is proven and adoption is established.
-
-- [ ] **Scope inheritance via org hierarchy** -- Defer until flat org unit scoping proves insufficient. Requires significant data modeling work.
-- [ ] **Delegation/proxy curation** -- Defer until curators request it. The existing Curator_All role can serve as a temporary workaround.
-- [ ] **Bulk user import/update** -- Defer until the user base grows large enough that manual management becomes painful (likely 50+ curators).
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Auth fix: /noaccess redirect | HIGH | MEDIUM | P1 |
-| Fix profile modal | HIGH | LOW-MEDIUM | P1 |
-| Fix "Curate publications" on Search | MEDIUM | LOW | P1 |
-| Replace legacy red circle loader | LOW | LOW | P1 |
-| Scoped role: person type | HIGH | HIGH | P1 |
-| Scoped role: org unit | HIGH | HIGH | P1 |
-| Combined scoping (type + org) | HIGH | MEDIUM | P1 |
-| Manage scoped roles in Manage Users | HIGH | MEDIUM | P1 |
-| Role display in user table | MEDIUM | LOW | P1 |
-| User status toggle | MEDIUM | LOW | P1 |
-| Full UI/UX audit | MEDIUM | MEDIUM | P1 |
-| Scoped queue auto-filtering | HIGH | MEDIUM | P2 |
-| Effective permissions preview | MEDIUM | MEDIUM | P2 |
-| Auth debugging panel | MEDIUM | MEDIUM | P2 |
-| Audit trail for role changes | LOW | LOW | P2 |
-| Scope inheritance (org hierarchy) | LOW | HIGH | P3 |
-| Delegation/proxy curation | LOW | MEDIUM | P3 |
-| Bulk user import | LOW | MEDIUM | P3 |
-
-**Priority key:**
-- P1: Must have for this milestone
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
-
-## Competitor Feature Analysis
-
-| Feature | Elsevier Pure | Symplectic Elements | Digital Commons | RPM (Our Approach) |
-|---------|---------------|--------------------|-----------------|--------------------|
-| Scoped roles by org unit | Yes. "Local roles" are scoped to specific organizations. Global roles operate system-wide. | Yes. Statistician role scoped to department/school/campus. | Yes. Publication-level permissions scoped to specific collections/journals. | Implement via `admin_users_scopes` table linking users to org units. Follows Pure's local/global pattern. |
-| Scoped roles by person type | Indirect. Academic vs. Non-academic staff type classification determines license counting. Not a curation scope. | Not directly. Delegate model is person-to-person, not type-based. | Not applicable (repository, not person-centric). | Direct support. Unique to RPM's person-centric curation model. Competitive advantage. |
-| Role hierarchy | 6+ distinct roles (Administrator, Editor, Validator, Claim Admin, Deduplicator, Personal User) with graded permissions. | Reviewer, Viewer, Statistician, and Delegate roles with varying access. | Site Admin and Publication Admin with cascading permissions. | 4 roles + scoping. Simpler than Pure, which is appropriate for RPM's focused use case. |
-| Delegate/proxy | Not prominent in docs. | Yes. Users can delegate record editing to assistants via Account Settings. | Not documented. | Defer to v2. |
-| Permission inheritance | Yes. Roles cascade through org hierarchy. | Yes. Campus > School > Department scoping. | Yes. Site-level permissions cascade to publications. | Flat scoping in v1. Hierarchy in v2 if needed. |
-| Admin audit trail | Yes. Built-in audit module. | Yes. Change tracking on records. | Yes. Activity logs for admin actions. | Add simple audit log table in v1.x. |
-| Auth debugging | Not user-facing. Backend diagnostics only. | Not user-facing. | Not documented. | Auth debugging panel is a differentiator for RPM. Addresses a real pain point (recurring /noaccess bugs). |
-
-## Data Model Implications
-
-The existing RPM data model already has the building blocks:
-
-- `person.primaryOrganizationalUnit` -- flat string, already used as a search filter
-- `person_person_type.personType` -- already used as a search filter
-- `admin_users` -- has status field (unused in UI)
-- `admin_users_roles` -- maps users to roles
-- `admin_users_departments` -- maps users to departments (conceptually similar to scoped org units, but currently used for the user's own department, not their curation scope)
-
-**New table needed:** `admin_users_scopes`
-
-```
-admin_users_scopes
-├── id (PK, auto-increment)
-├── userID (FK -> admin_users.userID)
-├── scopeType (ENUM: 'personType', 'orgUnit')
-├── scopeValue (VARCHAR -- the person type string or org unit string)
-├── createTimestamp
-└── modifyTimestamp
-```
-
-This design:
-- Supports both person type and org unit scoping in one table
-- Allows multiple scope values per user per dimension
-- Uses the same string values already in `person_person_type.personType` and `person.primaryOrganizationalUnit`
-- Follows the existing Sequelize model patterns in the codebase
-
-## UI/UX Audit Scope
-
-Based on the PROJECT.md, a full UI/UX audit covers all views. Key areas likely to surface issues:
-
-| View | Expected Issues | Audit Focus |
-|------|-----------------|-------------|
-| Search / Find People | "Curate publications" action showing when it shouldn't; filter state persistence; pagination behavior | Action availability by role; filter UX consistency |
-| Curate Individual | Profile modal errors; loading states; accept/reject workflow clarity | Error handling; loading indicators; confirmation patterns |
-| Report | Filter complexity; export functionality; empty states | Filter discoverability; export UX; zero-results messaging |
-| Manage Users | Empty department column; missing role display; search confusion (dual search) | Table columns; search UX; form validation |
-| Configuration | Accordion UX; JSON-based viewAttributes complexity | Admin comprehension; setting discoverability |
-| Notifications | Partially implemented; placeholder routing logic | Completeness; disabled state communication |
-| Group Curation | "Not actively used"; may have significant UX debt | Basic functionality; loading states; empty states |
+**Effort split:** ~35% ports unchanged, ~50% needs pattern adaptation (mostly mechanical v3-to-v4 changes), ~15% needs architectural understanding (auth callback structure, SAML flow differences).
 
 ## Sources
 
-- [Elsevier Pure: Reporting Roles](https://helpcenter.pure.elsevier.com/en_US/reporting/reporting-roles)
-- [Pure API: Users and Roles](https://helpcenter.pure.elsevier.com/en_US/pure-api/pure-api-users-and-roles)
-- [Pure: Open Access Roles and Rights](https://helpcenter.pure.elsevier.com/open-access/open-access-roles-and-rights-overview)
-- [Digital Commons: Managing Administrator Permissions](https://digitalcommons.elsevier.com/managing-administrator-permissions)
-- [Symplectic Elements: User Guide](https://manualzz.com/doc/4174490/symplectic-v4-elements-user-guide)
-- [Symplectic Elements: Oxford FAQ](https://researchsupport.admin.ox.ac.uk/reporting/symplectic/help/faqs)
-- [Oso: 10 RBAC Best Practices for 2025](https://www.osohq.com/learn/rbac-best-practices)
-- [Oso: RBAC Implementation in 5 Steps](https://www.osohq.com/learn/rbac-role-based-access-control-implementation)
-- [Perpetual: How to Design Effective SaaS Roles and Permissions](https://www.perpetualny.com/blog/how-to-design-effective-saas-roles-and-permissions)
-- [UX Collective: Designing Permissions for SaaS](https://uxdesign.cc/design-permissions-for-a-saas-app-db6c1825f20e)
-- [Auth.js: Role-Based Access Control](https://authjs.dev/guides/role-based-access-control)
-- [Admin Dashboard UI/UX: Best Practices for 2025](https://medium.com/@CarlosSmith24/admin-dashboard-ui-ux-best-practices-for-2025-8bdc6090c57d)
+- Direct code comparison of `dev_v2` and `origin/dev_Upd_NextJS14SNode18` branches
+- [NextAuth.js v3 to v4 Upgrade Guide](https://next-auth.js.org/getting-started/upgrade-v4)
+- [React Testing Library releases](https://github.com/testing-library/react-testing-library/releases)
+- npm registry -- package version peer dependency verification
 
 ---
-*Feature research for: Scoped curation roles, auth debugging, and UI/UX audit in scholarly publication management*
-*Researched: 2026-03-16*
+*Feature porting assessment for: ReCiter-Publication-Manager v1.0 -> Next.js 14*
+*Researched: 2026-03-18*
