@@ -3,7 +3,7 @@ import { saveUserFeedback } from "../../../../../../controllers/userfeedback.con
 import { reciterConfig } from '../../../../../../config/local'
 import { getToken } from 'next-auth/jwt'
 import { getCapabilities } from '../../../../../utils/constants'
-import { isPersonInScope } from '../../../../../utils/scopeResolver'
+import { isPersonInScope, isProxyFor } from '../../../../../utils/scopeResolver'
 import { getPersonWithTypes } from '../../../../../../controllers/db/person.controller'
 
 type Error = {
@@ -31,19 +31,25 @@ export default async function handler(
             const caps = getCapabilities(roles);
 
             if (caps.canCurate.scoped && !caps.canCurate.all) {
-                const scopeData = token.scopeData ? JSON.parse(token.scopeData as string) : null;
-                if (scopeData) {
-                    const personData = await getPersonWithTypes(uid as string);
-                    if (!personData) {
-                        console.log('[AUTH] DENY: Person not found for scope check:', uid);
-                        return res.status(404).json({ statusCode: 404, message: 'Person not found' });
-                    }
-                    const inScope = isPersonInScope(scopeData, personData.primaryOrganizationalUnit, personData.personTypes);
-                    if (!inScope) {
-                        console.log('[AUTH] DENY: Scoped curator', token.username, 'tried to save feedback for', uid, '-- not in scope');
-                        return res.status(403).json({ statusCode: 403, message: 'Person not in curation scope' });
+                // Proxy override -- skip scope check if user has proxy access
+                const proxyPersonIds = token.proxyPersonIds ? JSON.parse(token.proxyPersonIds as string) : [];
+                if (!isProxyFor(proxyPersonIds, uid as string)) {
+                    // Not a proxy -- enforce scope check
+                    const scopeData = token.scopeData ? JSON.parse(token.scopeData as string) : null;
+                    if (scopeData) {
+                        const personData = await getPersonWithTypes(uid as string);
+                        if (!personData) {
+                            console.log('[AUTH] DENY: Person not found for scope check:', uid);
+                            return res.status(404).json({ statusCode: 404, message: 'Person not found' });
+                        }
+                        const inScope = isPersonInScope(scopeData, personData.primaryOrganizationalUnit, personData.personTypes);
+                        if (!inScope) {
+                            console.log('[AUTH] DENY: Scoped curator', token.username, 'tried to save feedback for', uid, '-- not in scope');
+                            return res.status(403).json({ statusCode: 403, message: 'Person not in curation scope' });
+                        }
                     }
                 }
+                // If isProxyFor returned true, we skip scope check entirely (proxy access grants curation rights)
             }
         }
 
