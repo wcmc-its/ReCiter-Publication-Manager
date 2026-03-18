@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-03-17T22:58:06.096Z"
-last_activity: 2026-03-17 -- Completed Plan 04-03 (search proxy badge and scope filter) -- ProxyBadge, scope+proxy OR logic, ScopeLabel proxy count
+status: completed
+stopped_at: Completed 04-04-PLAN.md -- all phases complete
+last_updated: "2026-03-18T01:32:56.164Z"
+last_activity: 2026-03-17 -- Completed Plan 04-04 (curation page proxy features) -- GrantProxyModal, proxy access override, end-to-end verified
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 15
   completed_plans: 15
-  percent: 93
+  percent: 100
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 4 in progress -- Curation Proxy. Plan 04-03 complete (search proxy badge and scope filter). 1 plan remaining.
+**Current focus:** All phases complete. v1.0 milestone delivered -- 22/22 requirements fulfilled across 4 phases, 15 plans.
 
 ## Current Position
 
-Phase: 4 of 4 (Curation Proxy)
-Plan: 3 of 4 in current phase (04-03 complete)
-Status: Phase 4 in progress
-Last activity: 2026-03-17 -- Completed Plan 04-03 (search proxy badge and scope filter) -- ProxyBadge, scope+proxy OR logic, ScopeLabel proxy count
+Phase: 4 of 4 (Curation Proxy) -- COMPLETE
+Plan: 4 of 4 in current phase (04-04 complete)
+Status: All phases complete
+Last activity: 2026-03-17 -- Completed Plan 04-04 (curation page proxy features) -- GrantProxyModal, proxy access override, end-to-end verified
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: 8min
-- Total execution time: ~1.7 hours
+- Total execution time: ~1.8 hours
 
 **By Phase:**
 
@@ -46,7 +46,7 @@ Progress: [█████████░] 93%
 | 01 | 2 | 10min | 5min |
 | 02 | 4 | 45min | 11min |
 | 03 | 5 | 44min | 9min |
-| 04 | 3 | 14min | 5min |
+| 04 | 4 | 19min | 5min |
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -65,13 +65,13 @@ Progress: [█████████░] 93%
 | Phase 04 P02 | 4min | 2 tasks | 5 files |
 | Phase 04 P03 | 4min | 2 tasks | 7 files |
 
+| Phase 04 P04 | 5min | 3 tasks (1 checkpoint) | 5 files |
+
 **Recent Trend:**
-- Last 5 plans: 8min, 6min, 6min, 4min, 4min
-- Trend: Proxy plans executing efficiently; consistent 4-6min for UI component tasks
+- Last 5 plans: 6min, 6min, 4min, 4min, 5min
+- Trend: All v1 plans complete; consistent 4-6min for proxy phase tasks
 
 *Updated after each plan completion*
-| Phase 04 P04 | 5min | 2 tasks | 5 files |
-| Phase 04 P03 | 4min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -135,6 +135,7 @@ Recent decisions affecting current work:
 - [Phase 04]: [04-03]: ScopeLabel handles proxy-only, scope-only, and combined scope+proxy display with + separator
 - [Phase 04]: Proxy access check short-circuits before scope API call (avoids unnecessary network request for proxied persons)
 - [Phase 04]: canCurateThisPerson uses OR logic: all || scoped || isProxied for Grant Proxy button visibility
+- [Phase 04-04]: GrantProxyModal loads existing proxy users on open and uses replace-all pattern for save (consistent with Plan 01 grant API)
 
 ### Pending Todos
 
@@ -148,6 +149,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T22:58:01.477Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-03-18T01:32:56.162Z
+Stopped at: Completed 04-04-PLAN.md -- all phases complete
 Resume file: None

@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Auth Fix and Bug Remediation** - Fix the /noaccess redirect blocker, refactor middleware to capability-based checks, unify SAML/local session structures, and fix known UI bugs (completed 2026-03-16)
 - [x] **Phase 2: UI/UX Audit** - Systematic visual and accessibility audit of all views, with critical fixes applied and architectural issues documented (completed 2026-03-17)
 - [x] **Phase 3: Scoped Curation Roles** - Database schema, scope resolver, JWT extension, search filtering, curation enforcement, and admin UI for assigning scoped roles by person type and org unit (completed 2026-03-17)
-- [ ] **Phase 4: Curation Proxy** - Many-to-many proxy assignments, [PROXY] badge on search results, proxy filter checkbox, and proxy curation navigation
+- [x] **Phase 4: Curation Proxy** - Many-to-many proxy assignments, [PROXY] badge on search results, proxy filter checkbox, and proxy curation navigation (completed 2026-03-17)
 
 ## Phase Details
 
@@ -83,10 +83,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Foundation: AdminUsersProxy model, isProxyFor utility, auth pipeline (JWT + getCapabilities), proxy CRUD API endpoints
-- [ ] 04-02-PLAN.md -- Admin UI: ProxyAssignmentsSection in AddUser form, proxy count column in UsersTable
-- [ ] 04-03-PLAN.md -- Search + navbar: ProxyBadge component, [PROXY] badge in search results, expanded scope filter with proxy OR logic, ScopeLabel proxy count
-- [ ] 04-04-PLAN.md -- Curation page: GrantProxyModal, "Grant Proxy Access" button, proxy access checks on curate + manageprofile pages, end-to-end verification
+- [x] 04-01-PLAN.md -- Foundation: AdminUsersProxy model, isProxyFor utility, auth pipeline (JWT + getCapabilities), proxy CRUD API endpoints
+- [x] 04-02-PLAN.md -- Admin UI: ProxyAssignmentsSection in AddUser form, proxy count column in UsersTable
+- [x] 04-03-PLAN.md -- Search + navbar: ProxyBadge component, [PROXY] badge in search results, expanded scope filter with proxy OR logic, ScopeLabel proxy count
+- [x] 04-04-PLAN.md -- Curation page: GrantProxyModal, "Grant Proxy Access" button, proxy access checks on curate + manageprofile pages, end-to-end verification
 
 ## Progress
 
@@ -98,4 +98,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Auth Fix and Bug Remediation | 2/2 | Complete   | 2026-03-16 |
 | 2. UI/UX Audit | 4/4 | Complete | 2026-03-17 |
 | 3. Scoped Curation Roles | 5/5 | Complete   | 2026-03-17 |
-| 4. Curation Proxy | 0/4 | Not started | - |
+| 4. Curation Proxy | 4/4 | Complete | 2026-03-17 |
