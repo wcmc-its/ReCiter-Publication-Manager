@@ -113,7 +113,10 @@ Plans:
   1. `/api/reciter/save/userfeedback/[uid].ts` checks `isProxyFor` before `isPersonInScope` and allows proxy users through
   2. `/api/reciter/update/goldstandard.ts` checks `isProxyFor` before `isPersonInScope` and allows proxy users through
   3. E2E flow: scoped curator with proxy navigates to out-of-scope proxied person's curation page and successfully accepts/rejects an article
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 06-01-PLAN.md -- Add isProxyFor proxy-before-scope check to userfeedback save and goldstandard update API endpoints
 
 ## Progress
 
@@ -127,4 +130,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Scoped Curation Roles | 5/5 | Complete   | 2026-03-17 |
 | 4. Curation Proxy | 4/4 | Complete | 2026-03-17 |
 | 5. Phase 3 Independent Verification | 0/1 | Planned | -- |
-| 6. Proxy API Scope Enforcement | 0/? | Planned | -- |
+| 6. Proxy API Scope Enforcement | 0/1 | Planned | -- |
