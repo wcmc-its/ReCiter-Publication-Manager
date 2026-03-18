@@ -51,6 +51,7 @@
     "redux-thunk": "^2.3.0",
     "reflect-metadata": "^0.1.13",
     "sequelize": "^6.37.0",
+    "saml2-js": "^4.0.4",
     "slick-carousel": "^1.8.1",
     "slick-slider": "^1.8.2"
   },
@@ -61,12 +62,11 @@
     "@types/react": "18.2.0",
     "@types/react-date-range": "1.4.10",
     "@types/react-redux": "^7.1.34",
-    "@types/saml2-js": "^3.0.0",
+    "@types/saml2-js": "^3.0.1",
     "@types/styled-components": "^5.1.15",
     "@types/validator": "^13.6.6",
     "eslint": "8.57.0",
     "eslint-config-next": "14.2.35",
-    "saml2-js": "^4.0.4",
     "sequelize-auto": "^0.8.5",
     "typescript": "^4.9.5"
   },
