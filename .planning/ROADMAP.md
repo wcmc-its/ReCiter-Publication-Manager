@@ -38,11 +38,15 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Depends on**: Nothing (first v1.1 phase; working branch created from origin/dev_Upd_NextJS14SNode18)
 **Requirements**: PORT-01, PORT-02, PORT-03, DB-01
 **Success Criteria** (what must be TRUE):
-  1. AdminUsersPersonType and AdminUsersProxy Sequelize models are importable without SWC compilation errors
+  1. AdminUser Sequelize model has scope_person_types, scope_org_units, and proxy_person_ids JSON columns and compiles without SWC errors
   2. isPersonInScope and isProxyFor can be imported from scopeResolver.ts and return correct boolean results for sample inputs
   3. getCapabilities, ROLE_CAPABILITIES, getLandingPage, and the Curator_Scoped constant are exported from constants and return correct values for known role combinations
-  4. admin_users_person_types and admin_users_proxy tables exist in both dev and prod reciterDB databases with correct DDL, and the DDL is committed to the ReCiterDB repo
-**Plans**: TBD
+  4. ALTER TABLE migration script for admin_users JSON columns exists and is committed to the ReCiterDB repo
+**Plans:** 2 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Branch creation, AdminUser model extension, scopeResolver copy
+- [ ] 07-02-PLAN.md — Constants capability model merge, DDL migration, build validation
 
 ### Phase 8: Auth Pipeline
 **Goal**: A user who logs in (SAML or local) receives a JWT that includes scopeData and proxyPersonIds, and the middleware routes them correctly based on derived capabilities
@@ -98,7 +102,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 4. Curation Proxy | v1.0 | 4/4 | Complete | 2026-03-17 |
 | 5. Phase 3 Independent Verification | v1.0 | 1/1 | Complete | 2026-03-18 |
 | 6. Proxy API Scope Enforcement | v1.0 | 1/1 | Complete | 2026-03-18 |
-| 7. Foundation | v1.1 | 0/TBD | Not started | - |
+| 7. Foundation | v1.1 | 0/2 | Planning complete | - |
 | 8. Auth Pipeline | v1.1 | 0/TBD | Not started | - |
 | 9. Scoped Roles and Proxy UI | v1.1 | 0/TBD | Not started | - |
 | 10. API Scope Enforcement | v1.1 | 0/TBD | Not started | - |
