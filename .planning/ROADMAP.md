@@ -25,7 +25,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** All v1.0 features (capability auth, scoped curation roles, curation proxy, skeleton loading) work on the Next.js 14 / React 18 codebase running on reciter-dev.
 
-- [ ] **Phase 7: Foundation** - Sequelize models, scopeResolver, constants, and database DDL ported to NextJS14 branch
+- [x] **Phase 7: Foundation** - Sequelize models, scopeResolver, constants, and database DDL ported to NextJS14 branch (completed 2026-03-19)
 - [ ] **Phase 8: Auth Pipeline** - findUserPermissions enriched, JWT/session callbacks updated, capability middleware live, SAML auto-create wired in
 - [ ] **Phase 9: Scoped Roles and Proxy UI** - All eight admin UI and curation UI components for scoped roles and proxy delegation ported and rendering correctly
 - [ ] **Phase 10: API Scope Enforcement** - userfeedback and goldstandard endpoints enforce scope with proxy bypass on NextJS14 branch
@@ -42,7 +42,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   2. isPersonInScope and isProxyFor can be imported from scopeResolver.ts and return correct boolean results for sample inputs
   3. getCapabilities, ROLE_CAPABILITIES, getLandingPage, and the Curator_Scoped constant are exported from constants and return correct values for known role combinations
   4. ALTER TABLE migration script for admin_users JSON columns exists and is committed to the ReCiterDB repo
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 07-01-PLAN.md — Branch creation, AdminUser model extension, scopeResolver copy
@@ -102,7 +102,7 @@ Plans:
 | 4. Curation Proxy | v1.0 | 4/4 | Complete | 2026-03-17 |
 | 5. Phase 3 Independent Verification | v1.0 | 1/1 | Complete | 2026-03-18 |
 | 6. Proxy API Scope Enforcement | v1.0 | 1/1 | Complete | 2026-03-18 |
-| 7. Foundation | v1.1 | 0/2 | Planning complete | - |
+| 7. Foundation | 2/2 | Complete   | 2026-03-19 | - |
 | 8. Auth Pipeline | v1.1 | 0/TBD | Not started | - |
 | 9. Scoped Roles and Proxy UI | v1.1 | 0/TBD | Not started | - |
 | 10. API Scope Enforcement | v1.1 | 0/TBD | Not started | - |
