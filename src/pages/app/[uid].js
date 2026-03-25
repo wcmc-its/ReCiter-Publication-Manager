@@ -1,6 +1,6 @@
 import App from '../../components/elements/App/App'
 import { AppLayout } from "../../components/layouts/AppLayout"
-import { getSession } from "next-auth/client"
+import { getSession } from "next-auth/react"
 import { useRouter } from 'next/router'
 
 /* export async function getServerSideProps(ctx) {

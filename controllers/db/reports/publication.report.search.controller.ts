@@ -8,10 +8,10 @@ import {
   PublicationAuthorSearchFilter,
   PublicationSearchFilter
 } from "../../../types/publication.report.search";
-import getConfig from 'next/config';
-import path from 'path';
-import fsPromises from 'fs/promises';
-import {getSession} from 'next-auth/client'									   
+//import getConfig from 'next/config';
+//import path from 'path';
+//import fsPromises from 'fs/promises';
+//import {useSession} from 'next-auth/react'									   
 import sequelize from "../../../src/db/db";
 import { QueryConstants } from "../../../src/utils/namedQueryConstants";
 
@@ -28,7 +28,7 @@ models.AnalysisSummaryArticle.hasOne(models.AnalysisSummaryAuthor, {
 });
 //models.AnalysisSummaryAuthor.belongsTo(models.AnalysisSummaryArticle);
 
-const fs = require("fs")
+//const fs = require("fs")
 
 export const publicationSearchWithFilter = async (
   req: NextApiRequest,

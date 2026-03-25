@@ -51,6 +51,7 @@ export class AnalysisRcrYear extends Model<AnalysisRcrYearAttributes, AnalysisRc
   }, {
     sequelize,
     tableName: 'analysis_rcr_year',
+    modelName: 'AnalysisRcrYear',
     timestamps: false,
     indexes: [
       {

@@ -1,30 +1,36 @@
-
-import axios from "axios"
+import { reciterSamlConfig }  from "../../../../config/saml"
+import { validateSAML } from "../saml/validate";
+import { encrypt } from "../saml/crypto";
 
 export default async function handler(req, res) {
-    if (req.method === "POST") {
-        const { data, headers } = await axios.get("/api/auth/csrf", {
-            baseURL: "https://" + req.headers.host,
-        });
-        const { csrfToken } = data;
-        console.log('csrfToken',csrfToken);
-
-        const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
-        console.log('encodedSAMLBody',encodedSAMLBody);
-
-        res.setHeader("set-cookie", headers["set-cookie"] ?? "");
-        return res.send(
-            `<html>
-          <body>
-            <form action="/api/auth/callback/saml" method="POST">
-              <input type="hidden" name="csrfToken" value="${csrfToken}"/>
-              <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
-            </form>
-            <script>
-              document.forms[0].submit();
-            </script>
-          </body>
-        </html>`
-        );
-    }
+  
+    if (req.method !== 'POST') {
+    return res.status(405).json({ error: "Method Not Allowed" });
   }
+
+    
+    try
+    {
+        // Verify that SAMLResponse exists
+        const samlResponse = req.body?.SAMLResponse;
+        if (!samlResponse) {
+        return res.status(400).send("Missing SAMLResponse");
+        }
+        
+        const samlUser = await validateSAML(req.body.SAMLResponse);
+        if (!samlUser) {
+        return res.redirect('/auth/error?error=SAML_Invalid');
+        }
+        // Encrypt the payload so the user cannot modify their roles in the browser
+        const encryptedBridgeData = encrypt(JSON.stringify(samlUser));
+
+        // Set a short-lived temporary cookie
+        res.setHeader('Set-Cookie', `saml_bridge=${encryptedBridgeData}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=60`);
+        // 3. Redirect to the bridge page
+        res.redirect(302, '/auth/finalize');
+    }
+    catch (err) {
+      console.error("[SAML-ACS]", err)
+      res.redirect('/auth/error?error=Callback_Error');
+  }
+}

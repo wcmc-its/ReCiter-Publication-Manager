@@ -1,30 +1,16 @@
-import saml2 from "saml2-js"
-import axios from "axios"
-//import type { NextApiRequest, NextApiResponse } from 'next'
-import { reciterSamlConfig }  from "../../../../config/saml"
-
-
+import { ServiceProvider } from 'saml2-js';
+import { reciterSamlConfig }  from "../../../../config/saml";
 
 export default async function handler(req, res) {
- const sp = new saml2.ServiceProvider(reciterSamlConfig.samlOptions);
-    const createLoginRequestUrl = (idp, options = {}) =>
-        new Promise((resolve, reject) => {
-            sp.create_login_request_url(idp, options, (error, loginUrl) => {
-                if (error) {
-                    reject(error);
-                }
-                resolve(loginUrl);
-            });
-        });
+  const sp = new ServiceProvider(reciterSamlConfig.samlOptions);
+  const idp = reciterSamlConfig.idpOptions;
 
-    try {
-        const idp = new saml2.IdentityProvider(reciterSamlConfig.idpOptions);
-        const loginUrl = await createLoginRequestUrl(idp);
-        return res.redirect(loginUrl);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send(error);
-    }
+  sp.create_login_request_url(idp, {}, (err, loginUrl, requestId) => {
+    if (err) return res.status(500).send(err.message);
+    const samlRequest = new URL(loginUrl).searchParams.get("SAMLRequest");
+    // Redirect user to IdP
+    res.redirect(loginUrl);
+  });
 
   
 }

@@ -1075,6 +1075,48 @@ export const updatedAdminSettings = (settingsData) => dispatch => {
     })
 }
 
+export const fetchAdminSettingsAction = () => (dispatch) => {
+    // 1. Perform the fetch
+    return fetchWithTimeout('/api/db/admin/settings', {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            "Authorization": reciterConfig.backendApiKey 
+        }
+    },)
+    .then(response => {
+        if (!response.ok) throw new Error("Failed to load settings");
+        return response.json();
+    })
+    .then(data => {
+        // 2. Success: Parse viewAttributes and update Redux store
+        const parsed = (data || []).map(obj => ({
+            ...obj,
+            viewAttributes: typeof obj.viewAttributes === 'string' ? JSON.parse(obj.viewAttributes) : obj.viewAttributes
+        }));
+        dispatch({
+            type: methods.ADMIN_SETTINGS_UPDATED_LIST,
+            payload: parsed
+        });
+    })
+    .catch(error => {
+        // 3. Failure: Show toast and log error
+        console.error("Admin Settings API failed:", error);
+        toast.error("Failed to load Admin Settings", {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+        });
+        
+        // Optional: Dispatch an error to your global error handler
+        if (typeof addError === 'function') {
+            dispatch(addError(error));
+        }
+    });
+};
+
 export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
     const fetchGroupDataLoading = {
         'refresh': () => dispatch({ type: methods.PUBLICATIONS_FETCH_GROUP_DATA }),
