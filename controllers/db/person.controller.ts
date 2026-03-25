@@ -186,36 +186,37 @@ export const findAllInstitutions = async (req: NextApiRequest, res: NextApiRespo
 };
 
 
-export const findOnePerson = async (attrName: string,attrValue: string) => {
+export const findOnePerson = async (attrTypes: string[], attrValues: string[]  ) => {
     
-    try {
-         if(attrName && attrName =='personIdentifier')
-
-           { 
-            const person = await models.Person.findOne({
-                where: {
-                        personIdentifier : attrValue,
-                    },
-                    attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]  
-                })
-                return person;
-
-           }            
-           else if(attrName && attrName == 'email')
-            {
-                const person = await models.Person.findOne({
-                where:           
-                    {
-                        primaryEmail : attrValue
-                    },
-                    attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]
-                });
-                return person;
-            }
-
-    } catch (e) {
-        console.log(e)
-    }
+    if (!Array.isArray(attrTypes) || !Array.isArray(attrValues)) {
+        throw new Error('Both attrTypes and attrValues must be arrays');
+      }
+    
+      if (attrTypes.length !== attrValues.length) {
+        throw new Error('attrTypes and attrValues must be the same length');
+      }
+    
+      const allowedFields = ['personIdentifier', 'primaryEmail'];
+      const whereConditions: any[] = [];
+    
+      attrTypes.forEach((field, i) => {
+        if (!allowedFields.includes(field)) return;
+    
+        const value = attrValues[i];
+        if (value != null) {
+          whereConditions.push({ [field]: value });
+        }
+      });
+    
+      if (whereConditions.length === 0) return null;
+    
+      const person = await models.Person.findOne({
+        where: {
+          [Op.or]: whereConditions,
+        },
+        attributes: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title'],
+      });
+      return person ; 
     
 };
 

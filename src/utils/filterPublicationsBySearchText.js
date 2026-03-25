@@ -50,7 +50,7 @@ const filterPublicationsBySearchText = (reciterData, search) => {
                       addPublication = true
                   }
                   // title
-                  if (publication.articleTitle.toLowerCase().includes(search.toLowerCase())) {
+                  if (publication.articleTitle && publication.articleTitle.toLowerCase().includes(search.toLowerCase())) {
                       addPublication = true;
                   }
                   //issn
