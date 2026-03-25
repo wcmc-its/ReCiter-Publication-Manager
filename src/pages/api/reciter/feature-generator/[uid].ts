@@ -17,6 +17,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data | Error>
 ) {
+    console.log(`[API] feature-generator/${req.query.uid} - auth: ${req.headers.authorization === reciterConfig.backendApiKey ? 'OK' : 'FAIL'} (got: ${req.headers.authorization}, expect: ${reciterConfig.backendApiKey})`);
     if(req.method === "GET") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
         const { uid } = req.query;
