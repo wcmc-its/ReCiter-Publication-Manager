@@ -23,6 +23,7 @@ export default async function handler(
         const { uid } = req.query;
 
         const apiResponse = await getPublications(uid, req);
+        console.log(`[API] feature-generator/${uid} - ReCiter responded: statusCode=${apiResponse.statusCode}, hasData=${!!apiResponse.statusText?.reciterData}, type=${typeof apiResponse.statusText}`);
         if(apiResponse.statusCode === 200) {
             res.status(apiResponse.statusCode).send({
                 statusCode: apiResponse.statusCode,
@@ -30,8 +31,9 @@ export default async function handler(
                 reciterPending: apiResponse.statusText.reciterPendingData
             })
         } else {
-            res.status(apiResponse.statusCode).send({
-                statusCode: apiResponse.statusCode,
+            console.log(`[API] feature-generator/${uid} - ERROR: ${JSON.stringify(apiResponse.statusText).substring(0, 200)}`);
+            res.status(apiResponse.statusCode || 502).send({
+                statusCode: apiResponse.statusCode || 502,
                 message: apiResponse.statusText
             })
         }
