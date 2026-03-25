@@ -42,14 +42,14 @@ export const identityFetchData = uid => dispatch => {
     dispatch({
         type: methods.IDENTITY_FETCH_DATA
     })
-    fetchWithTimeout('/api/reciter/getidentity/' + uid, {
+    fetch('/api/reciter/getidentity/' + uid, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
             'Authorization': reciterConfig.backendApiKey
         }
-    }, 300000)
+    })
         .then(response => {
             if (response.status === 200) {
                 toast.success("Identity Api successfully fetched for " + uid, {
@@ -233,14 +233,14 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
     if (refresh) {
         url += '?analysisRefreshFlag=true&retrievalRefreshFlag=ONLY_NEWLY_ADDED_PUBLICATIONS'
     }
-    fetchWithTimeout(url, {
+    fetch(url, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
             'Authorization': reciterConfig.backendApiKey
         }
-    }, 300000)
+    })
         .then(response => {
             if (response.status === 200) {
                 toast.success("Feature generator Api successfully fetched for " + uid, {
