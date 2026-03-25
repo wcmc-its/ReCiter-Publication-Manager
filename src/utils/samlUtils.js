@@ -18,7 +18,13 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
         await sleep(50);
         
         let userRoles ='';
-         if(samlEmail) {
+         // Always use the DB record's personIdentifier for roles lookup.
+         // SAML-provided email may not match the DB email (e.g., IdP returns
+         // a different address than what's stored in admin_users).
+         const dbPersonId = createdAdminUser.personIdentifier;
+         if(dbPersonId) {
+            userRoles = await findUserPermissions(dbPersonId, "cwid")
+         } else if(samlEmail) {
             userRoles = await findUserPermissions(samlEmail, "email")
          } else if(cwid) {
             userRoles = await findUserPermissions(cwid, "cwid")
