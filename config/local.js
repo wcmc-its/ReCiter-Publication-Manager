@@ -54,7 +54,7 @@ export const reciterConfig = {
                  * This flag specifies if reciter will re-compute suggestions. Use if you want to re-compute. This will take more time and resources.
                  * Type: Boolean
                  */
-                analysisRefreshFlag: "TRUE",
+                analysisRefreshFlag: "FALSE",
                 /**
                  * This flag specifies if reciter will re-retrieve all publication from upstream sources. Specify to refresh all retrieval.
                  * Type: String
