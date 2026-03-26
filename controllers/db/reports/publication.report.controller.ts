@@ -29,7 +29,7 @@ export const generatePubsRtf = async (
   res: NextApiResponse
 ) => {
   try {
-    let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
+    let apiBody: GeneratePubsApiBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     let generatePubsRtfOutput: any = [];
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
@@ -67,7 +67,7 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      let apiBody: GeneratePubsPeopleOnlyApiBody = JSON.parse(req.body);
+      let apiBody: GeneratePubsPeopleOnlyApiBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
         "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
         {
