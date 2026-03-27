@@ -48,7 +48,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Depends on**: Phase 7
 **Requirements**: PORT-04, PORT-05, PORT-06, PORT-07
 **Plans:** 2 plans
-- [ ] 08-01-PLAN.md — findUserPermissions enrichment, samlUtils composite format fix, JWT/session callback grafting
+- [x] 08-01-PLAN.md — findUserPermissions enrichment, samlUtils composite format fix, JWT/session callback grafting
 - [ ] 08-02-PLAN.md — Capability-based middleware replacement, index page redirect cleanup, test SQL script
 
 #### Phase 9: Scoped Roles and Proxy UI
