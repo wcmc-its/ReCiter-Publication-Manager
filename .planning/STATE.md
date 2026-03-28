@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Feature Port to Next.js 14
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-03-28T04:56:23Z"
-last_activity: 2026-03-28 -- Phase 09 Plan 01 complete (API layer)
+stopped_at: Completed 09-04-PLAN.md
+last_updated: "2026-03-28T05:07:05.751Z"
+last_activity: 2026-03-28
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 5
+  completed_phases: 0
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 09 (scoped-roles-and-proxy-ui) — EXECUTING
-Plan: 2 of 4
-Status: Executing Phase 09 (Plan 01 complete)
-Last activity: 2026-03-28 -- Phase 09 Plan 01 complete (API layer)
+Plan: 3 of 4
+Status: Ready to execute
+Last activity: 2026-03-28
 
 ## Accumulated Context
 
@@ -44,6 +44,7 @@ Last activity: 2026-03-28 -- Phase 09 Plan 01 complete (API layer)
 - [Phase 09]: parseJsonColumn helper for robust MySQL/MariaDB JSON column parsing (typeof check before JSON.parse)
 - [Phase 09]: scopePersonTypes uses left JOIN when proxyPersonIds present so proxy persons bypass person type filter
 - [Phase 09]: listAllUsers uses unique alias (listRoles/listRole) for role label JOIN to avoid Sequelize association conflicts
+- [Phase 09]: Reused viewProfileBtn CSS class for Grant Proxy button, derived canGrantProxy from caps.canCurate.all || caps.canManageUsers (D-07)
 
 ### Blockers/Concerns
 
@@ -51,6 +52,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-28T04:56:23Z
-Stopped at: Completed 09-01-PLAN.md
-Resume file: .planning/phases/09-scoped-roles-and-proxy-ui/09-02-PLAN.md
+Last session: 2026-03-28T05:07:05.749Z
+Stopped at: Completed 09-04-PLAN.md
+Resume file: None
