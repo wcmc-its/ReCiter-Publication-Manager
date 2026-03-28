@@ -17,13 +17,23 @@ import { Table,Button} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
-import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation } from "../../../utils/constants"
+import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation, getCapabilities } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 import Profile from "../Profile/Profile";
+import ProxyBadge from './ProxyBadge';
+import ScopeFilterCheckbox from './ScopeFilterCheckbox';
+import { isProxyFor } from '../../../utils/scopeResolver';
 
 const Search = () => {
 
   const { data: session, status } = useSession(); const loading = status === "loading";
+
+  // Phase 9: Parse scope/proxy data and derive capabilities
+  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
+  const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
+  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  const caps = getCapabilities(userRoles);
+  const showScopeFilter = caps.canCurate.scoped && !caps.canCurate.all;
 
   const router = useRouter()
   const dispatch = useDispatch()
@@ -69,7 +79,8 @@ const Search = () => {
   const [headShot, setHeadShot] = useState([]);
   const [viewProfileLabels, setViewProfileLabels] = useState([])
   const [selectedAction, setSelectedAction] = useState("Curate Publications")
-  
+  const [scopeFilterChecked, setScopeFilterChecked] = useState(true); // Default checked for scoped curators (D-14)
+
   //ref
   const searchValue = useRef()
 
@@ -184,14 +195,22 @@ const Search = () => {
       setIsReporterAll(true)
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     } 
-    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self )
     && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
     setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsCuratorAll(true)
-      } 
+      }
+    // Phase 9: Curator_Scoped handling -- same dropdown behavior as Curator_All
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Scoped)) {
+      setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorAll(true); // Scoped curators get same dropdown actions as Curator_All
+      setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
+    }
     else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
@@ -206,6 +225,38 @@ const Search = () => {
     // }
     fetchAllAdminSettings()
   }, [])
+
+  // Phase 9: Re-trigger search when scope filter checkbox is toggled
+  const scopeFilterInitRef = useRef(true);
+  useEffect(() => {
+    // Skip the initial render (the main useEffect handles initial load)
+    if (scopeFilterInitRef.current) {
+      scopeFilterInitRef.current = false;
+      return;
+    }
+    // Build scope-aware filters and re-search
+    let updatedFilters = { ...filters };
+    if (showScopeFilter && scopeFilterChecked && scopeData) {
+      updatedFilters = {
+        ...updatedFilters,
+        scopeOrgUnits: scopeData.orgUnits || [],
+        scopePersonTypes: scopeData.personTypes || [],
+        proxyPersonIds: proxyPersonIds,
+      };
+    } else {
+      // Remove scope filters when unchecked
+      const { scopeOrgUnits, scopePersonTypes, proxyPersonIds: _p, ...rest } = updatedFilters;
+      updatedFilters = rest;
+    }
+    let request = {
+      filters: { ...updatedFilters },
+      limit: count,
+      offset: 0
+    };
+    dispatch(updateFilters(updatedFilters));
+    dispatch(identityFetchAllData(request));
+    setPage(1);
+  }, [scopeFilterChecked])
 
   const fetchAllAdminSettings = () => {
     const request = {};
@@ -361,10 +412,20 @@ const Search = () => {
       updatedFilters = { ...updatedFilters, personTypes: [...personTypes] };
     }
 
+    // Phase 9: Add scope filter parameters when scope filter is active
+    if (showScopeFilter && scopeFilterChecked && scopeData) {
+      updatedFilters = {
+        ...updatedFilters,
+        scopeOrgUnits: scopeData.orgUnits || [],
+        scopePersonTypes: scopeData.personTypes || [],
+        proxyPersonIds: proxyPersonIds,
+      };
+    }
+
     let request = {
       filters: { ...updatedFilters },
       limit:count,
-      offset: page - 1 
+      offset: page - 1
     }
 
     dispatch(updateFilters(updatedFilters));
@@ -562,12 +623,12 @@ const Search = () => {
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
-        { 
-          
+        {
+
           isCuratorSelf ?
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
           :
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
         }
         </td>
         <td key={`${identityIndex}__orgUnit`} width="20%" className={styles.colOrg}>
@@ -596,7 +657,9 @@ const Search = () => {
       <tr>
         <td colSpan="5">
           <p className={styles.noitemsList}>
-            No records found
+            {showScopeFilter && scopeFilterChecked
+              ? 'No people found matching your scope. Try unchecking the scope filter to see all results.'
+              : 'No records found'}
           </p>
         </td>
       </tr>
@@ -610,6 +673,14 @@ const Search = () => {
         <div className={styles.searchBar}>
           <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Find People</h1>
           <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
+          {showScopeFilter && (
+            <ScopeFilterCheckbox
+              checked={scopeFilterChecked}
+              onChange={(checked) => {
+                setScopeFilterChecked(checked);
+              }}
+            />
+          )}
           {(isDisplayLoader()) ?
             (
               <Loader />
@@ -717,6 +788,7 @@ function Name(props) {
         <button className={styles.btnLink} onClick={props.onClickProfile}>
           {nameString}
         </button>
+        {isProxyFor(props.proxyPersonIds, props.identity.personIdentifier) && <ProxyBadge />}
         {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
         <div className={styles.personCwid}>
           <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}
