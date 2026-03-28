@@ -7,6 +7,9 @@ import sequelize from "../../../src/db/db";
 models.AdminUser.hasMany(models.AdminUsersDepartment, {as:'AdminUserDept', constraints: false,foreignKey:"userID" });
 models.AdminUser.hasOne(models.Person, {as:'person', constraints: false,foreignKey:"personIdentifier" });
 models.AdminUser.hasMany(models.AdminDepartment, {as:'AdminDepartment', constraints: false,foreignKey:"departmentID" });
+// Phase 9: Association for role labels in user list display (D-16, D-17, D-18)
+models.AdminUser.hasMany(models.AdminUsersRole, { as: 'listRoles', constraints: false, foreignKey: 'userID' });
+models.AdminUsersRole.belongsTo(models.AdminRole, { as: 'listRole', constraints: false, foreignKey: 'roleID' });
 
 export const listAllUsers = async (
   req: NextApiRequest,
@@ -74,8 +77,8 @@ export const listAllUsers = async (
           rows
         } = await models.AdminUser.findAndCountAll({
 
-          // new code 
-          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", ],
+          // new code
+          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", "scope_person_types", "scope_org_units", "proxy_person_ids"],
           include: [
             {
               model: models.Person,
@@ -106,6 +109,21 @@ export const listAllUsers = async (
               where: where,
               attributes: ["departmentLabel"]
             },
+            {
+              model: models.AdminUsersRole,
+              as: "listRoles",
+              required: false,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUser.userID'), "=", Sequelize.col('listRoles.userID'))
+              },
+              attributes: ['roleID'],
+              include: [{
+                model: models.AdminRole,
+                as: 'listRole',
+                required: false,
+                attributes: ['roleLabel'],
+              }]
+            },
           ],
           where: where,
           group: ['AdminUser.userID'],
@@ -122,7 +140,7 @@ export const listAllUsers = async (
           count,
           rows
         } = await models.AdminUser.findAndCountAll({
-          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", ],
+          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", "scope_person_types", "scope_org_units", "proxy_person_ids"],
           include: [
             {
               model: models.Person,
@@ -150,6 +168,21 @@ export const listAllUsers = async (
                 col: Sequelize.where(Sequelize.col('AdminUserDept.departmentID'), "=", Sequelize.col('AdminDepartment.departmentID'))
               },
               attributes: ["departmentLabel"]
+            },
+            {
+              model: models.AdminUsersRole,
+              as: "listRoles",
+              required: false,
+              on: {
+                col: Sequelize.where(Sequelize.col('AdminUser.userID'), "=", Sequelize.col('listRoles.userID'))
+              },
+              attributes: ['roleID'],
+              include: [{
+                model: models.AdminRole,
+                as: 'listRole',
+                required: false,
+                attributes: ['roleLabel'],
+              }]
             },
           ],
           group: ['AdminUser.userID'],
@@ -209,7 +242,10 @@ export const createOrUpdateAdminUser = async (
         'nameFirst': firstName,
         'nameMiddle': middleName,
         'nameLast': lastName,
-        'modifyTimestamp': new Date()
+        'modifyTimestamp': new Date(),
+        // Phase 9: Scope fields for Curator_Scoped role
+        'scope_person_types': req.body.scopePersonTypes || null,
+        'scope_org_units': req.body.scopeOrgUnits || null,
       }
       
 
@@ -283,7 +319,10 @@ export const createOrUpdateAdminUser = async (
         'nameLast': lastName,
         'email': email,
         'status': 1,  // Hardcoded 1 to make user active bydefault
-        'createTimestamp': new Date()
+        'createTimestamp': new Date(),
+        // Phase 9: Scope fields for Curator_Scoped role
+        'scope_person_types': req.body.scopePersonTypes || null,
+        'scope_org_units': req.body.scopeOrgUnits || null,
       }
 
       
@@ -330,7 +369,7 @@ export const fetchUserDetailsByUserId = async (
   try {
     const UserDetails = await models.AdminUser.findAll({
       where: { userID: req.body },
-      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status"],
+      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status", "scope_person_types", "scope_org_units", "proxy_person_ids"],
       include: [{
         model: models.AdminUsersDepartment,
         attributes: ["id", "userID", "departmentID"],
