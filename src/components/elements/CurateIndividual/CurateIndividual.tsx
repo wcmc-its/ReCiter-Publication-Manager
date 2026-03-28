@@ -14,11 +14,12 @@ import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/react";
-import { allowedPermissions, toastMessage } from "../../../utils/constants";
+import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
+import GrantProxyModal from './GrantProxyModal';
 
 
 
@@ -50,6 +51,19 @@ const CurateIndividual = () => {
   const [headShot, setHeadShot] = useState<any>([]);
   const [showNoPermitError, setShowNoPermitError] = useState(false)
   const [headShotLoaded, setHeadShotLoaded] = useState(false)
+  const [showGrantProxy, setShowGrantProxy] = useState(false)
+
+  // Derive capabilities from session roles
+  const userRoles = (() => {
+    try {
+      if (session?.data?.userRoles) {
+        return JSON.parse(session.data.userRoles as string);
+      }
+    } catch (e) { /* ignore parse errors */ }
+    return [];
+  })();
+  const caps = getCapabilities(userRoles);
+  const canGrantProxy = caps.canCurate.all || caps.canManageUsers;
 
   useEffect(() => {
 
@@ -206,6 +220,21 @@ const CurateIndividual = () => {
               </div>
               <div className={styles.personActions}>
                 <button className={styles.viewProfileBtn} onClick={handleShow}>View Profile</button>
+                {canGrantProxy && (
+                  <button
+                    type="button"
+                    className={styles.viewProfileBtn}
+                    onClick={() => setShowGrantProxy(true)}
+                    style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <circle cx="6" cy="6" r="4" />
+                      <path d="M10.5 10.5L14 14" />
+                      <path d="M12 8v4M10 10h4" />
+                    </svg>
+                    Grant Proxy
+                  </button>
+                )}
               </div>
             </div>
           }
@@ -224,6 +253,17 @@ const CurateIndividual = () => {
             headShotLabelData={headShot}
             reciterData={reciterData}
           />
+          {canGrantProxy && (
+            <GrantProxyModal
+              show={showGrantProxy}
+              onHide={() => setShowGrantProxy(false)}
+              personIdentifier={id as string}
+              personName={personFullName}
+              onSave={() => {
+                // Proxy changes saved; no additional refresh needed on curate page
+              }}
+            />
+          )}
         </>
       }
     </div>
