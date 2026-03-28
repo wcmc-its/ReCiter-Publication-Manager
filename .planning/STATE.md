@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Feature Port to Next.js 14
-status: verifying
-stopped_at: Phase 9 context gathered
-last_updated: "2026-03-28T02:28:59.124Z"
-last_activity: 2026-03-27
+status: executing
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-28T04:56:23Z"
+last_activity: 2026-03-28 -- Phase 09 Plan 01 complete (API layer)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 8
+  completed_plans: 5
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 08 — auth-pipeline
+**Current focus:** Phase 09 — scoped-roles-and-proxy-ui
 
 ## Current Position
 
-Phase: 9
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-27
+Phase: 09 (scoped-roles-and-proxy-ui) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 09 (Plan 01 complete)
+Last activity: 2026-03-28 -- Phase 09 Plan 01 complete (API layer)
 
 ## Accumulated Context
 
@@ -41,12 +41,16 @@ Last activity: 2026-03-27
 - [Phase 08]: Use getToken() from next-auth/jwt for verified JWT in Edge middleware instead of jose.decodeJwt (D-09)
 - [Phase 08]: Curator_Scoped gets NextResponse.next() on /curate; person-level scope enforcement deferred to API layer (Phase 10)
 
+- [Phase 09]: parseJsonColumn helper for robust MySQL/MariaDB JSON column parsing (typeof check before JSON.parse)
+- [Phase 09]: scopePersonTypes uses left JOIN when proxyPersonIds present so proxy persons bypass person type filter
+- [Phase 09]: listAllUsers uses unique alias (listRoles/listRole) for role label JOIN to avoid Sequelize association conflicts
+
 ### Blockers/Concerns
 
 None.
 
 ## Session Continuity
 
-Last session: 2026-03-28T02:28:59.121Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-scoped-roles-and-proxy-ui/09-CONTEXT.md
+Last session: 2026-03-28T04:56:23Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: .planning/phases/09-scoped-roles-and-proxy-ui/09-02-PLAN.md

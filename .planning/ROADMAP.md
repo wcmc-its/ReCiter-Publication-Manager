@@ -55,7 +55,13 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Goal**: Superusers can assign scoped curation roles and proxy relationships via the admin UI, and scoped curators see their scope reflected in the search page sidebar and curation enforcement
 **Depends on**: Phase 8
 **Requirements**: PORT-08, PORT-09, PORT-10, PORT-11, PORT-12, PORT-13, PORT-14, PORT-15
-**Plans**: TBD
+**Plans:** 4 plans
+
+Plans:
+- [x] 09-01-PLAN.md — Proxy API endpoints, controller modifications, person scope filtering
+- [ ] 09-02-PLAN.md — CurationScopeSection, ProxyAssignmentsSection, AddUser integration, UsersTable update
+- [ ] 09-03-PLAN.md — ScopeLabel, ProxyBadge, ScopeFilterCheckbox, SideNavbar and Search page integration
+- [ ] 09-04-PLAN.md — GrantProxyModal creation and CurateIndividual page integration
 
 #### Phase 10: API Scope Enforcement
 **Goal**: The userfeedback and goldstandard API endpoints on the NextJS14 branch reject out-of-scope curation attempts at the server side, while proxy holders are allowed through
@@ -92,8 +98,8 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 5. Phase 3 Independent Verification | v1.0 | 1/1 | Complete | 2026-03-18 |
 | 6. Proxy API Scope Enforcement | v1.0 | 1/1 | Complete | 2026-03-18 |
 | 7. Foundation | v1.1 | 2/2 | Complete | 2026-03-19 |
-| 8. Auth Pipeline | v1.1 | 0/2 | Planned | - |
-| 9. Scoped Roles and Proxy UI | v1.1 | 0/TBD | Paused | - |
+| 8. Auth Pipeline | v1.1 | 2/2 | Complete | 2026-03-27 |
+| 9. Scoped Roles and Proxy UI | v1.1 | 1/4 | Executing | - |
 | 10. API Scope Enforcement | v1.1 | 0/TBD | Paused | - |
 | 11. Polish and Testing | v1.1 | 0/TBD | Paused | - |
 | 12. Fix SP and Sync Code | v1.2 | 2/2 | Complete | 2026-03-26 |
