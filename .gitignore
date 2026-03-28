@@ -39,3 +39,4 @@ node_modules
 /config/certs
 .planning/
 .superpowers/
+tsconfig.tsbuildinfo
