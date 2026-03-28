@@ -1,7 +1,8 @@
 .header {
-  font-weight: 200;
-  color: #666363;
-  font-size: 20px;
-  font-family: Open Sans, sans-serif, Arial;
+  font-weight: 600;
+  color: var(--gray-900);
+  font-size: var(--font-size-2xl);
+  font-family: var(--font-sans);
   padding-bottom: 10px;
+  letter-spacing: -0.025em;
 }

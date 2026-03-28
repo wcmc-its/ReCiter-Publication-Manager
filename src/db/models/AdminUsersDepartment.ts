@@ -71,6 +71,7 @@ export class AdminUsersDepartment extends Model<AdminUsersDepartmentAttributes, 
   }, {
     sequelize,
     tableName: 'admin_users_departments',
+    modelName: 'AdminUsersDepartment',
     timestamps: false,
     indexes: [
       {

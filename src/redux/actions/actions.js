@@ -42,14 +42,14 @@ export const identityFetchData = uid => dispatch => {
     dispatch({
         type: methods.IDENTITY_FETCH_DATA
     })
-    fetchWithTimeout('/api/reciter/getidentity/' + uid, {
+    fetch('/api/reciter/getidentity/' + uid, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
             'Authorization': reciterConfig.backendApiKey
         }
-    }, 300000)
+    })
         .then(response => {
             if (response.status === 200) {
                 toast.success("Identity Api successfully fetched for " + uid, {
@@ -233,14 +233,14 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
     if (refresh) {
         url += '?analysisRefreshFlag=true&retrievalRefreshFlag=ONLY_NEWLY_ADDED_PUBLICATIONS'
     }
-    fetchWithTimeout(url, {
+    fetch(url, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
             'Authorization': reciterConfig.backendApiKey
         }
-    }, 300000)
+    })
         .then(response => {
             if (response.status === 200) {
                 toast.success("Feature generator Api successfully fetched for " + uid, {
@@ -1074,6 +1074,48 @@ export const updatedAdminSettings = (settingsData) => dispatch => {
         payload: settingsData
     })
 }
+
+export const fetchAdminSettingsAction = () => (dispatch) => {
+    // 1. Perform the fetch
+    return fetchWithTimeout('/api/db/admin/settings', {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            "Authorization": reciterConfig.backendApiKey 
+        }
+    },)
+    .then(response => {
+        if (!response.ok) throw new Error("Failed to load settings");
+        return response.json();
+    })
+    .then(data => {
+        // 2. Success: Parse viewAttributes and update Redux store
+        const parsed = (data || []).map(obj => ({
+            ...obj,
+            viewAttributes: typeof obj.viewAttributes === 'string' ? JSON.parse(obj.viewAttributes) : obj.viewAttributes
+        }));
+        dispatch({
+            type: methods.ADMIN_SETTINGS_UPDATED_LIST,
+            payload: parsed
+        });
+    })
+    .catch(error => {
+        // 3. Failure: Show toast and log error
+        console.error("Admin Settings API failed:", error);
+        toast.error("Failed to load Admin Settings", {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+        });
+        
+        // Optional: Dispatch an error to your global error handler
+        if (typeof addError === 'function') {
+            dispatch(addError(error));
+        }
+    });
+};
 
 export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
     const fetchGroupDataLoading = {

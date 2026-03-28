@@ -14,7 +14,7 @@ export const DropdownWrapper: React.FC<DropdownWrapperProps> = ({ title, childre
           {title}
         </Dropdown.Toggle>
   
-        <Dropdown.Menu className="px-4">
+        <Dropdown.Menu style={{ padding: 0, minWidth: 260 }}>
           {children}
         </Dropdown.Menu>
       </Dropdown>
