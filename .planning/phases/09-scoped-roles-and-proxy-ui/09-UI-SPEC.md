@@ -27,13 +27,19 @@ created: 2026-03-27
 
 ---
 
+## Focal Point
+
+The primary screen for this phase is the **AddUser form** (`/manageusers` add/edit). The user's eye should land on the role selector first, then flow downward to the conditionally revealed CurationScopeSection and ProxyAssignmentsSection. The dark-navy "Create User" / "Update User" CTA in the form footer anchors the bottom of the visual hierarchy.
+
+---
+
 ## Spacing Scale
 
 Declared values (must be multiples of 4):
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Icon gaps, inline label padding, tag close-button dimensions |
+| xs | 4px | Icon gaps, inline label padding, tag close-button dimensions, micro-gaps (keyword tags, field label-to-input gap) |
 | sm | 8px | Compact element spacing, fieldGrid gap, filter row gaps |
 | md | 16px | Default element spacing, table cell padding, section inner gaps |
 | lg | 24px | Section padding (formSection: 24px 28px), search container padding, page margins |
@@ -44,7 +50,6 @@ Declared values (must be multiples of 4):
 Exceptions:
 - 28px horizontal padding on formSection and searchFormContainer (established AddUser/Search pattern -- not a pure 8pt multiple but locked in existing CSS modules, do not change)
 - 20px padding on personHeader, SideNavbar menu items (established CurateIndividual/SideNavbar pattern)
-- 5px micro-gap for keyword tags, field label-to-input gap (established pattern)
 - MUI Autocomplete internal spacing uses 4px/8px base via `baseSx` padding: `4px 8px`
 
 **Source:** AddUser.module.css, Search.module.css, CurateIndividual.module.css, Navbar.module.css.
@@ -53,25 +58,35 @@ Exceptions:
 
 ## Typography
 
+Phase 9 declares 4 canonical sizes and 2 canonical weights. All Phase 9 code must use one of these four sizes and two weights.
+
 | Role | Size | Weight | Line Height | Font Family |
 |------|------|--------|-------------|-------------|
 | Body | 13px | 400 | 1.6 | DM Sans (`var(--font-sans)`) |
-| Label | 11.5px | 600 | 1.4 | DM Sans (`var(--font-sans)`) |
-| Section Title | 11px | 700 | 1.0 | DM Sans, uppercase, letter-spacing: 0.1em |
-| Heading | 26px | 500 | 1.2 | Space Grotesk (`var(--font-serif)`) |
+| Label | 11px | 600 | 1.4 | DM Sans (`var(--font-sans)`) |
+| Section Title | 11px | 600 | 1.0 | DM Sans, uppercase, letter-spacing: 0.1em |
+| Heading | 26px | 400 | 1.2 | Space Grotesk (`var(--font-serif)`) |
 
-Additional type styles used in this phase:
+### Size alias map (how existing non-canonical sizes map to the 4-size scale)
 
-| Context | Size | Weight | Notes |
-|---------|------|--------|-------|
-| Table header | 10.5px | 700 | Uppercase, letter-spacing 0.08em, color #8a94a6 |
-| Tag/token text | 12.5px | 500 | Inside Autocomplete tokens (roles, departments, scope values) |
-| Field input text | 13px | 400 | Matches `.fieldInput` in AddUser.module.css |
-| Badge text | 11px | 600 | ProxyBadge, scope count badges |
-| Hint text | 11px | 400 | Below form fields, color #8a94a6 |
-| Navbar item text | 13px | 400/500 | 400 default, 500 when selected |
-| ScopeLabel text | 11px | 400 | Matches Navbar `compactToggle` sizing |
-| Monospace ID | 11.5px | 400 | DM Mono for CWIDs/personIdentifiers |
+| Existing size | Canonical alias | Notes |
+|---------------|-----------------|-------|
+| 10.5px (table headers) | 11px (Label) | Inherited from UsersTable.module.css. Phase 9 does not introduce new 10.5px uses; new table headers use 11px. |
+| 11.5px (field labels, monospace IDs) | 11px (Label) | Phase 9 uses 11px for field labels and monospace IDs. Existing 11.5px in AddUser.module.css is inherited, not changed. |
+| 12.5px (tag/token text) | 13px (Body) | Phase 9 tokens use 13px. Existing 12.5px in AddUser.tsx renderTags is inherited, not changed. |
+
+### Weight policy
+
+Phase 9 introduces only two weights:
+
+| Weight | Role | Usage |
+|--------|------|-------|
+| 400 | Default | Body text, inputs, hints, labels (non-emphasis), heading text |
+| 600 | Emphasis | Field labels, section titles, badge text, button text, CTA labels |
+
+Inherited weight exceptions (existing code only -- Phase 9 does not introduce these):
+- **500**: Navbar selected item text, Heading weight in SideNavbar. Existing code only.
+- **700**: UsersTable `.th` headers (10.5px/700/uppercase). Existing code only. New Phase 9 table headers use 11px/600/uppercase instead.
 
 **Source:** globals.css `--font-size-*` tokens, AddUser.module.css, UsersTable.module.css, Search.module.css, SideNavbar.tsx `StyledList`.
 
@@ -83,22 +98,29 @@ Additional type styles used in this phase:
 |------|-------|-------|
 | Dominant (60%) | `#f5f2ee` (warm bg) / `#ffffff` (surface) | Page background, card surfaces, form backgrounds, table body |
 | Secondary (30%) | `#1a2133` (chrome) / `#eeeae4` (warm muted) / `#faf8f5` (warm subtle) | Sidebar, header, table header bg, form footer, inactive tokens |
-| Accent (10%) | `#2563a8` (action blue) | Links, focus rings, selected-state borders, "Grant Proxy" button text, ProxyBadge (cyan variant) |
+| Accent (10%) | `#2563a8` (action blue) | Links, focus rings, selected-state borders, "Grant Proxy" button text, ProxyBadge |
 | Destructive | `#c0392b` | Error text, required asterisks, pending count badges, remove-from-scope confirmation |
+
+### `#1a2133` usage note (structural chrome vs CTA)
+
+`#1a2133` serves two roles in the existing design system. Phase 9 inherits both but does not conflate them:
+- **Structural chrome:** Sidebar background, table header background, dark token fills for role pills. These are secondary-surface uses (30% bucket).
+- **CTA buttons:** "Create User", "Update User", "Save Changes" button backgrounds. These are high-emphasis actions that use the dark-navy as a primary button color. This is an established pattern, not accent.
+
+Phase 9 does not introduce new CTA colors. All new primary buttons use `#1a2133` bg with white text, matching the existing pattern.
 
 ### Accent reserved for (explicit list):
 1. `#2563a8` -- Hyperlinks (person names in search results, breadcrumb links)
 2. `#2563a8` -- Input focus ring (`box-shadow: 0 0 0 3px rgba(37,99,168,0.1)`)
 3. `#2563a8` -- Selected role left-border indicator in role picker dropdown
 4. `#2563a8` -- "Grant Proxy" action link/button in curate page person header
-5. `#0dcaf0` (Bootstrap `info`/cyan) -- ProxyBadge background color (matches v1.0 pattern)
-6. `#1a2133` (dark navy) -- Primary action buttons (Save User, Create User, submit CTAs)
-7. `#e05a5a` (red accent) -- Active menu item left-border indicator in SideNavbar
+5. `#2563a8` -- ProxyBadge background color (consolidated from Bootstrap cyan to match accent hue)
+6. `#e05a5a` (red accent) -- Active menu item left-border indicator in SideNavbar (inherited, not Phase 9)
 
 ### Semantic colors from globals.css used in this phase:
 - `--color-warm-border: #e8e2d9` -- Card borders, section dividers, table borders
 - `--color-warm-bg: #f5f2ee` -- Page background
-- `--color-chrome: #1a2133` -- Sidebar background, dark tokens (role pills)
+- `--color-chrome: #1a2133` -- Sidebar background, dark tokens (role pills), CTA button backgrounds
 - `--color-chrome-hover: #252d42` -- Sidebar hover state
 - `--color-chrome-border: #2a3350` -- Sidebar internal borders
 - `--color-chrome-text: #a0aec0` / `rgba(168,180,204,0.4)` -- Sidebar section labels, muted nav text
@@ -117,11 +139,11 @@ Additional type styles used in this phase:
 - **Visibility:** Conditional -- only when `Curator_Scoped` is in `selectedRoles`
 - **Layout:** Single column within formSection, two stacked Autocomplete fields
 - **Elements:**
-  - Section title: "Curation Scope" (11px, 700, uppercase, `#8a94a6`, with trailing horizontal rule -- matches `.formSectionTitle`)
+  - Section title: "Curation Scope" (11px, 600, uppercase, `#8a94a6`, with trailing horizontal rule -- matches `.formSectionTitle`)
   - Autocomplete for person types: multi-select, light tokens (same `renderOrgTags` pattern from AddUser -- `#eeeae4` bg, `#5a6478` text, pill shape)
   - Autocomplete for org units: multi-select, light tokens (same pattern)
   - Both use `baseSx` styling from parent AddUser (white background input, `#ddd7ce` border, `#2563a8` focus ring)
-  - Field labels: "Person type(s)" and "Organizational unit(s)" at 11.5px/600/`#5a6478`
+  - Field labels: "Person type(s)" and "Organizational unit(s)" at 11px/600/`#5a6478`
   - Field hints below each: 11px/400/`#8a94a6`
 - **States:** Empty (placeholder text), populated (light tokens), error (red text below field)
 - **Data source:** `GET /api/db/users/persontypes/`, `GET /api/db/users/orgunits/`
@@ -135,9 +157,9 @@ Additional type styles used in this phase:
   - Section title: "Proxy Assignments" (same formSectionTitle pattern)
   - MUI Autocomplete with async search: typed input triggers `GET /api/db/admin/proxy/search-persons?q=` after 300ms debounce
   - Selected proxies shown as light tokens displaying: "{firstName} {lastName} ({personIdentifier})"
-  - Token shape: pill, `#eeeae4` bg, `#5a6478` text, `#ddd7ce` border, 12.5px font
+  - Token shape: pill, `#eeeae4` bg, `#5a6478` text, `#ddd7ce` border, 13px font
   - Dropdown results show: name, personIdentifier (monospace), primaryOrganizationalUnit
-  - Field label: "People this user can curate on behalf of" at 11.5px/600/`#5a6478`
+  - Field label: "People this user can curate on behalf of" at 11px/600/`#5a6478`
   - Field hint: "Search by name or CWID. Proxy assignments allow this user to curate publications for the selected people." at 11px/400/`#8a94a6`
 - **States:** Empty (placeholder: "Search people to add as proxies..."), loading (MUI loading indicator in dropdown), populated (tokens), no results ("No matching people found")
 - **Data source:** `GET /api/db/admin/proxy/search-persons?q=` (async), `GET /api/db/admin/proxy?userID=N` (edit mode preload)
@@ -163,8 +185,8 @@ Additional type styles used in this phase:
 - **Visibility:** Next to person name in search results when `isProxyFor(proxyPersonIds, person.personIdentifier)` returns true
 - **Layout:** Inline badge after person name
 - **Elements:**
-  - react-bootstrap `<Badge>` with `bg="info"` (Bootstrap cyan `#0dcaf0`)
-  - Text: "Proxy" at 10px/600, white text
+  - react-bootstrap `<Badge>` with custom inline style: `background: #2563a8` (accent blue, consolidated from Bootstrap cyan to unify accent hue)
+  - Text: "Proxy" at 11px/600, white text
   - Dimensions: auto-width, height ~18px, pill border-radius
 - **States:** Visible (person is in proxy list), hidden (person is not in proxy list)
 
@@ -176,7 +198,7 @@ Additional type styles used in this phase:
 - **Layout:** Inline flex with checkbox and label
 - **Elements:**
   - react-bootstrap `<Form.Check>` with `type="switch"` or `type="checkbox"`
-  - Label: "Show only people in my scope" at 12px/500/`#5a6478`
+  - Label: "Show only people in my scope" at 13px/400/`#5a6478`
   - Hint below: "Filters results to your assigned person types and organizational units" at 11px/400/`#8a94a6`
   - Checked state: triggers scope filter params to be sent with search API call
 - **States:** Unchecked (default -- all results shown, proxied persons decorated with ProxyBadge), checked (scope-filtered results, proxied persons still visible via OR condition)
@@ -188,13 +210,13 @@ Additional type styles used in this phase:
 - **Visibility:** Triggered by "Grant Proxy" button in curate page person header, visible to Superuser and Curator_All only
 - **Layout:** react-bootstrap `<Modal>` centered, size "lg" (max-width 600px)
 - **Elements:**
-  - Modal header: "Manage Proxy Access" at 16px/600/`#1a2133`, with close button
+  - Modal header: "Manage Proxy Access" at 13px/600/`#1a2133`, with close button
   - Subheading: "for {personName}" at 13px/400/`#5a6478`
   - Current proxy users list: Each user shown as a row with name, CWID, and remove button (x icon)
   - Search field: MUI Autocomplete for searching admin users with curation roles, 300ms debounce
   - Search results dropdown: user name + role label, matching AddUser role picker visual pattern
   - Selected users shown as dark tokens (`#1a2133` bg, white text, pill shape -- matching `renderRoleTags` pattern)
-  - Modal footer: "Save Changes" button (dark navy `#1a2133`, 13px/600, white text), "Cancel" button (transparent bg, `#8a94a6` text, `#ddd7ce` border)
+  - Modal footer: "Save Changes" button (dark navy `#1a2133`, 13px/600, white text), "Discard Changes" button (transparent bg, `#8a94a6` text, `#ddd7ce` border)
   - Toast notification on save: "Proxy access updated. Changes take effect on the user's next login." (standard toast via react-toastify)
 - **States:**
   - Loading: Loader component centered in modal body while fetching existing proxies
@@ -217,11 +239,11 @@ Additional type styles used in this phase:
 
 #### 2. UsersTable.tsx -- Scope Display and Proxy Count
 - Add "Role" column between Name and Email columns
-- Role cell format for scoped roles: "Curator -- Scoped (Faculty, Surgery)" at 12px/500/`#5a6478`
-- Role cell format for non-scoped roles: "Superuser", "Curator -- All", etc. at 12px/500/`#5a6478`
+- Role cell format for scoped roles: "Curator -- Scoped (Faculty, Surgery)" at 13px/400/`#5a6478`
+- Role cell format for non-scoped roles: "Superuser", "Curator -- All", etc. at 13px/400/`#5a6478`
 - Multiple roles: comma-separated or stacked, one per line
 - Add proxy count after roles: "3 proxies" / "1 proxy" / "--" at 11px/400/`#8a94a6`
-- Table header for new column: "Role" (matching existing th pattern: 10.5px/700/uppercase)
+- Table header for new column: "Role" (matching existing th pattern: 11px/600/uppercase)
 
 #### 3. Search.js -- Scope Filtering and Proxy Badges
 - Parse `session.data.scopeData` and `session.data.proxyPersonIds` using established Pattern 1
@@ -239,7 +261,7 @@ Additional type styles used in this phase:
 #### 5. CurateIndividual.tsx -- GrantProxyModal Trigger
 - Import `<GrantProxyModal>`
 - Add "Grant Proxy" button in `.personActions` area (next to "View Profile" button)
-- Button style: matches `.viewProfileBtn` pattern (12.5px/600, `#5a6478` text, `#eeeae4` bg, `#ddd7ce` border, 6px radius, 7px 16px padding)
+- Button style: matches `.viewProfileBtn` pattern (13px/600, `#5a6478` text, `#eeeae4` bg, `#ddd7ce` border, 6px radius, 7px 16px padding)
 - Button icon: 14px inline SVG (link/chain icon or user-plus icon)
 - Visible only to Superuser and Curator_All (check via capabilities or role array)
 - On click: set `showGrantProxy = true`, render `<GrantProxyModal show={showGrantProxy} onHide={() => setShowGrantProxy(false)} personIdentifier={id} personName={fullName(identityData)} />`
@@ -252,6 +274,7 @@ Additional type styles used in this phase:
 |---------|------|
 | Primary CTA (AddUser) | "Create User" (new) / "Update User" (edit) -- unchanged, existing |
 | Primary CTA (GrantProxyModal) | "Save Changes" |
+| Secondary action (GrantProxyModal) | "Discard Changes" |
 | Empty state: ProxyAssignmentsSection | Placeholder: "Search people to add as proxies..." |
 | Empty state: CurationScopeSection person types | Placeholder: "Select person types..." |
 | Empty state: CurationScopeSection org units | Placeholder: "Select organizational units..." |
@@ -335,7 +358,7 @@ const baseSx = {
 | Dark token | `#1a2133` | `#fff` | none | Role pills, selected users in GrantProxyModal |
 | Light token | `#eeeae4` | `#5a6478` | `1px solid #ddd7ce` | Department pills, scope value pills, proxy person pills |
 
-Both types: pill border-radius (20px), 12.5px/500 text, 4px 8px 4px 12px padding, 16px close button with circular hover background.
+Both types: pill border-radius (20px), 13px/400 text, 4px 8px 4px 12px padding, 16px close button with circular hover background.
 
 ---
 

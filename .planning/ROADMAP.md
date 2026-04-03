@@ -59,8 +59,8 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 Plans:
 - [x] 09-01-PLAN.md — Proxy API endpoints, controller modifications, person scope filtering
-- [ ] 09-02-PLAN.md — CurationScopeSection, ProxyAssignmentsSection, AddUser integration, UsersTable update
-- [x] 09-03-PLAN.md — ScopeLabel, ProxyBadge, ScopeFilterCheckbox, SideNavbar and Search page integration
+- [x] 09-02-PLAN.md — CurationScopeSection, ProxyAssignmentsSection, AddUser integration, UsersTable update
+- [ ] 09-03-PLAN.md — ScopeLabel, ProxyBadge, ScopeFilterCheckbox, SideNavbar and Search page integration
 - [ ] 09-04-PLAN.md — GrantProxyModal creation and CurateIndividual page integration
 
 #### Phase 10: API Scope Enforcement
