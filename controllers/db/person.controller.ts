@@ -14,13 +14,14 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         let apiBody:PersonApiBody =  req.body
         const where = {}
         if(apiBody.filters) {
-            if(apiBody.filters.personTypes || apiBody.filters.institutions || apiBody.filters.orgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
+            if(apiBody.filters.personTypes || apiBody.filters.institutions || apiBody.filters.orgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending
+                || apiBody.filters.scopeOrgUnits || apiBody.filters.scopePersonTypes) {
                 where[Op.and] = []
                 if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > reciterConstants.nameCWIDSpaceCountThreshold) {
                     where[Op.and].push({[Op.or]:[
                         {'$Person.personIdentifier$': { [Op.in]: apiBody.filters.nameOrUids }},
                     ]})
-                
+
                 }
                 else if(where[Op.and] && apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length <= reciterConstants.nameCWIDSpaceCountThreshold) {
                     apiBody.filters.nameOrUids.forEach((name: string) => {
@@ -40,30 +41,63 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 if(apiBody.filters.showOnlyPending) {
                     where[Op.and].push({'$Person.countPendingArticles$': { [Op.gt]: 0 }})
                 }
-                
+
+                // Phase 9: Scope filtering (D-11 through D-14)
+                // When scope filters are present, restrict to persons matching scope OR in proxy list
+                if (apiBody.filters.scopeOrgUnits && apiBody.filters.scopeOrgUnits.length > 0) {
+                    const scopeConditions: any[] = [
+                        { '$Person.primaryOrganizationalUnit$': { [Op.in]: apiBody.filters.scopeOrgUnits } }
+                    ];
+                    // D-13: Proxy persons always visible even with scope filter
+                    if (apiBody.filters.proxyPersonIds && apiBody.filters.proxyPersonIds.length > 0) {
+                        scopeConditions.push(
+                            { '$Person.personIdentifier$': { [Op.in]: apiBody.filters.proxyPersonIds } }
+                        );
+                    }
+                    where[Op.and].push({ [Op.or]: scopeConditions });
+                }
+
             }
         }
         let joinWhere = {}
+        // Flag to track whether we need the PersonPersonType JOIN
+        let needsPersonTypeJoin = false;
         if(apiBody.filters && apiBody.filters.personTypes) {
             joinWhere = {
                 personType: {
                     [Op.in]: apiBody.filters.personTypes
                 }
             }
+            needsPersonTypeJoin = true;
+        }
+        // Phase 9: scopePersonTypes filter -- uses PersonPersonType join when not already filtering by personTypes
+        // When proxyPersonIds are present, the JOIN becomes a left join so proxy persons are not excluded
+        let scopePersonTypeJoinRequired = true;
+        if (apiBody.filters && apiBody.filters.scopePersonTypes && apiBody.filters.scopePersonTypes.length > 0 && !apiBody.filters.personTypes) {
+            joinWhere = {
+                personType: {
+                    [Op.in]: apiBody.filters.scopePersonTypes
+                }
+            }
+            needsPersonTypeJoin = true;
+            // When proxy persons are present, use left join so they are not excluded by person type filter
+            if (apiBody.filters.proxyPersonIds && apiBody.filters.proxyPersonIds.length > 0) {
+                scopePersonTypeJoinRequired = false;
+            }
         }
 
         var users= {};
 
 
-        if(apiBody.filters?.personTypes) {
+        if(needsPersonTypeJoin) {
             const { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
                 'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
                 include: [
                     {
-                        model: models.PersonPersonType, 
+                        model: models.PersonPersonType,
                         as: 'PersonPersonTypes',
-                        required: true,
+                        required: scopePersonTypeJoinRequired,
                         on: {
                             col: Sequelize.where(Sequelize.col('Person.personIdentifier'), "=", Sequelize.col('PersonPersonTypes.personIdentifier'))
                             },
@@ -71,7 +105,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                         attributes: [
 
                         ]
-                        
+
                     },
                 ],
                 where: where,
@@ -186,36 +220,37 @@ export const findAllInstitutions = async (req: NextApiRequest, res: NextApiRespo
 };
 
 
-export const findOnePerson = async (attrName: string,attrValue: string) => {
+export const findOnePerson = async (attrTypes: string[], attrValues: string[]  ) => {
     
-    try {
-         if(attrName && attrName =='personIdentifier')
-
-           { 
-            const person = await models.Person.findOne({
-                where: {
-                        personIdentifier : attrValue,
-                    },
-                    attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]  
-                })
-                return person;
-
-           }            
-           else if(attrName && attrName == 'email')
-            {
-                const person = await models.Person.findOne({
-                where:           
-                    {
-                        primaryEmail : attrValue
-                    },
-                    attributes: ["id", "personIdentifier", "firstName", "middleName", "lastName", "title"]
-                });
-                return person;
-            }
-
-    } catch (e) {
-        console.log(e)
-    }
+    if (!Array.isArray(attrTypes) || !Array.isArray(attrValues)) {
+        throw new Error('Both attrTypes and attrValues must be arrays');
+      }
+    
+      if (attrTypes.length !== attrValues.length) {
+        throw new Error('attrTypes and attrValues must be the same length');
+      }
+    
+      const allowedFields = ['personIdentifier', 'primaryEmail'];
+      const whereConditions: any[] = [];
+    
+      attrTypes.forEach((field, i) => {
+        if (!allowedFields.includes(field)) return;
+    
+        const value = attrValues[i];
+        if (value != null) {
+          whereConditions.push({ [field]: value });
+        }
+      });
+    
+      if (whereConditions.length === 0) return null;
+    
+      const person = await models.Person.findOne({
+        where: {
+          [Op.or]: whereConditions,
+        },
+        attributes: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title'],
+      });
+      return person ; 
     
 };
 

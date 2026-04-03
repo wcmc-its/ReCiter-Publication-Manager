@@ -151,35 +151,54 @@ export const authOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
-      console.log('JWT callback - user exists:', !!user, 'token exists:', !!token);
-      if (user) console.log("JWT callback: new login for", user.email);
-       else console.log("JWT callback: existing token", token);
- 
       if (user) {
         token.user = user;
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
         token.email = user.email || '';
         token.databaseUser = user.databaseUser || null;
-        token.userRoles = user.userRoles || [];
-
-        token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
+        token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;
         token.picture = user.image || user.databaseUser?.profilePicture;
-        console.log('JWT callback - final token created with username:', token.username);
+
+        // PORT: Parse composite findUserPermissions response (D-01)
+        if (user.userRoles) {
+            try {
+                const parsed = JSON.parse(user.userRoles);
+                if (parsed.roles) {
+                    // New composite format: { roles, scopeData, proxyPersonIds }
+                    token.userRoles = JSON.stringify(parsed.roles);
+                    token.scopeData = parsed.scopeData ? JSON.stringify(parsed.scopeData) : null;
+                    token.proxyPersonIds = (parsed.proxyPersonIds && parsed.proxyPersonIds.length > 0)
+                        ? JSON.stringify(parsed.proxyPersonIds) : null;
+                } else {
+                    // Legacy format (flat roles array) -- store as-is
+                    token.userRoles = user.userRoles;
+                    token.scopeData = null;
+                    token.proxyPersonIds = null;
+                }
+            } catch (e) {
+                // If not valid JSON, store as-is (fallback)
+                token.userRoles = user.userRoles;
+                token.scopeData = null;
+                token.proxyPersonIds = null;
+            }
+        } else {
+            token.userRoles = '[]';
+            token.scopeData = null;
+            token.proxyPersonIds = null;
+        }
       }
       return token;
     },
 
     async session({ session, token }) {
-      console.log('Session callback - token username:', token?.username, 'userRoles length:', token?.userRoles?.length);
-
+      // D-02: session.data = token passes all claims including scopeData, proxyPersonIds
       session.data = token;
-      
+
       session.user.username = token.username;
       session.user.databaseUser = token.databaseUser;
       session.user.userRoles = token.userRoles;
-      session.user = token.user;      
-      console.log('Session callback - final session created for user:', session.user?.username);
-      
+      session.user = token.user;
+
       return session;
     },
   },

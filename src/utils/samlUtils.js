@@ -89,7 +89,8 @@ export const grantDefaultRolesToAdminUser = async(adminUser) => {
     {
         personAPIResponse = await findOnePerson("personIdentifier",adminUser.personIdentifier);
         
-        existingAdminUserRoles = JSON.parse(await findUserPermissions(adminUser.personIdentifier, "cwid"))
+        const permissionsResult = JSON.parse(await findUserPermissions(adminUser.personIdentifier, "cwid"));
+        existingAdminUserRoles = permissionsResult.roles || permissionsResult;
     } 
     if(assignRolesPayload && assignRolesPayload.length >= 2)
     {

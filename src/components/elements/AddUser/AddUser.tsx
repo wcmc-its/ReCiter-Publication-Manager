@@ -11,12 +11,17 @@ import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdmi
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
+import CurationScopeSection from './CurationScopeSection';
+import ProxyAssignmentsSection from './ProxyAssignmentsSection';
+import { reciterConfig } from '../../../../config/local';
+import { toast } from 'react-toastify';
 
 /* ── Role label formatting ── */
 const ROLE_LABELS: Record<string, string> = {
     'Superuser': 'Superuser',
     'Curator_All': 'Curator \u2014 All',
     'Curator_Self': 'Curator \u2014 Self',
+    'Curator_Scoped': 'Curator \u2014 Scoped',
     'Curator_Department': 'Curator \u2014 Department',
     'Curator_Department_Delegate': 'Curator \u2014 Department Delegate',
     'Reporter_All': 'Reporter \u2014 All',
@@ -25,6 +30,7 @@ const ROLE_DESCS: Record<string, string> = {
     'Superuser': 'Full access to all features and admin functions.',
     'Curator_All': 'Can curate publications for any person in the system.',
     'Curator_Self': 'Can only curate their own publications.',
+    'Curator_Scoped': 'Can curate publications only for people matching specific person types or organizational units.',
     'Curator_Department': 'Can curate publications for their managed org units.',
     'Curator_Department_Delegate': 'Delegated curation access for specific departments.',
     'Reporter_All': 'Can generate and export reports for all users.',
@@ -58,6 +64,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const [selectedRoles, setSelectedRoles] = useState([]);
     const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
     const [selectedDepartments, setSelectedDepartments] = useState([]);
+    const [selectedPersonTypes, setSelectedPersonTypes] = useState<string[]>([]);
+    const [selectedOrgUnits, setSelectedOrgUnits] = useState<string[]>([]);
+    const [selectedProxies, setSelectedProxies] = useState<any[]>([]);
+    const [personTypeOptions, setPersonTypeOptions] = useState<string[]>([]);
+    const [orgUnitOptions, setOrgUnitOptions] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
     const router = useRouter()
@@ -104,11 +115,34 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             let selectedRoleIds = roleIds || [];
             let departmentIds = departMentIds || [];
             let isEditUserId = router.query.userId;
-            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
+            const hasScopedRole = selectedRoles.includes('Curator_Scoped');
+            let createOrUpdatePayload = {
+                cwid, email, firstName, lastName, middleName, division, title,
+                selectedRoleIds, departmentIds, isEditUserId,
+                scopePersonTypes: hasScopedRole ? (selectedPersonTypes.length > 0 ? selectedPersonTypes : null) : null,
+                scopeOrgUnits: hasScopedRole ? (selectedOrgUnits.length > 0 ? selectedOrgUnits : null) : null,
+            }
+
+            const hasCurationRole = selectedRoles.some(r => ['Curator_Scoped', 'Curator_All', 'Curator_Self'].includes(r));
 
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0] === 1) {
+                    // Save proxies via separate endpoint
+                    if (hasCurationRole) {
+                        try {
+                            await fetch('/api/db/admin/proxy', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', Authorization: reciterConfig?.backendApiKey || '' },
+                                body: JSON.stringify({
+                                    userID: isEditUserId,
+                                    personIdentifiers: selectedProxies.map(p => p.personIdentifier)
+                                })
+                            });
+                        } catch (err) {
+                            console.log('Error saving proxies:', err);
+                        }
+                    }
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
                     router.push("/admin/manage/users")
                 }
@@ -116,6 +150,21 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             else {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0].userID) {
+                    // Save proxies via separate endpoint
+                    if (hasCurationRole) {
+                        try {
+                            await fetch('/api/db/admin/proxy', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', Authorization: reciterConfig?.backendApiKey || '' },
+                                body: JSON.stringify({
+                                    userID: resp[0].userID,
+                                    personIdentifiers: selectedProxies.map(p => p.personIdentifier)
+                                })
+                            });
+                        } catch (err) {
+                            console.log('Error saving proxies:', err);
+                        }
+                    }
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
                     router.push("/admin/manage/users")
                 }
@@ -126,6 +175,19 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     useEffect(() => {
         dispatch(getAdminRoles());
         dispatch(getAdminDepartments());
+
+        // Fetch scope options
+        fetch('/api/db/users/persontypes/', {
+            headers: { Authorization: reciterConfig?.backendApiKey || '' }
+        }).then(r => r.json()).then(data => {
+            setPersonTypeOptions(data.map((d: any) => d.personType).filter(Boolean));
+        }).catch(() => toast.error('Unable to load scope options. Please refresh the page.'));
+
+        fetch('/api/db/users/orgunits/', {
+            headers: { Authorization: reciterConfig?.backendApiKey || '' }
+        }).then(r => r.json()).then(data => {
+            setOrgUnitOptions(data.map((d: any) => d.primaryOrganizationalUnit).filter(Boolean));
+        }).catch(() => toast.error('Unable to load scope options. Please refresh the page.'));
     },[])
 
     useEffect(() => {
@@ -155,11 +217,41 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                     setSelectedDepartments(departmentNames ? departmentNames : [])
                 }
 
+                // Preload scope data
+                if (result[0].scope_person_types) {
+                    const spt = typeof result[0].scope_person_types === 'string'
+                        ? JSON.parse(result[0].scope_person_types)
+                        : result[0].scope_person_types;
+                    setSelectedPersonTypes(spt || []);
+                }
+                if (result[0].scope_org_units) {
+                    const sou = typeof result[0].scope_org_units === 'string'
+                        ? JSON.parse(result[0].scope_org_units)
+                        : result[0].scope_org_units;
+                    setSelectedOrgUnits(sou || []);
+                }
+
+                // Preload proxy data from separate endpoint
+                if (result[0].proxy_person_ids) {
+                    fetch(`/api/db/admin/proxy?userID=${isEditUserId}`, {
+                        headers: { Authorization: reciterConfig?.backendApiKey || '' }
+                    }).then(r => r.json()).then(data => setSelectedProxies(data || []))
+                    .catch(err => console.log('Error loading proxies:', err));
+                }
+
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
                 setLoading(false)
             })
         }
     }, [router.query.userId])
+
+    // Clear scope data when Curator_Scoped is deselected
+    useEffect(() => {
+        if (!selectedRoles.includes('Curator_Scoped')) {
+            setSelectedPersonTypes([]);
+            setSelectedOrgUnits([]);
+        }
+    }, [selectedRoles]);
 
     /* Base input styling shared by both Autocompletes */
     const baseSx = {
@@ -497,6 +589,34 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* ── Curation Scope section (conditional) ── */}
+                        {selectedRoles.includes('Curator_Scoped') && (
+                            <div className={styles.formSection}>
+                                <CurationScopeSection
+                                    selectedPersonTypes={selectedPersonTypes}
+                                    onPersonTypesChange={setSelectedPersonTypes}
+                                    selectedOrgUnits={selectedOrgUnits}
+                                    onOrgUnitsChange={setSelectedOrgUnits}
+                                    personTypeOptions={personTypeOptions}
+                                    orgUnitOptions={orgUnitOptions}
+                                    error={null}
+                                    baseSx={baseSx}
+                                    renderOrgTags={renderOrgTags}
+                                />
+                            </div>
+                        )}
+
+                        {/* ── Proxy Assignments section (conditional) ── */}
+                        {selectedRoles.some(r => ['Curator_Scoped', 'Curator_All', 'Curator_Self'].includes(r)) && (
+                            <div className={styles.formSection}>
+                                <ProxyAssignmentsSection
+                                    selectedProxies={selectedProxies}
+                                    onProxiesChange={setSelectedProxies}
+                                    baseSx={baseSx}
+                                />
+                            </div>
+                        )}
 
                         {/* ── Footer ── */}
                         <div className={styles.formFooter}>

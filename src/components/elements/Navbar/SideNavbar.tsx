@@ -36,6 +36,8 @@ import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-
 import { useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from 'next-auth/react';
+import ScopeLabel from './ScopeLabel';
+import { getCapabilities } from '../../../utils/constants';
 
 
 type SideNavBarProps = {
@@ -203,6 +205,12 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const userPermissions = JSON.parse(session.data.userRoles);
   const isSuperuser = userPermissions.some((role: any) => role.roleLabel === "Superuser");
 
+  // Phase 9: Parse scope/proxy data and derive capabilities
+  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
+  const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
+  const caps = getCapabilities(userPermissions);
+  const isScopedCurator = caps.canCurate.scoped && !caps.canCurate.all;
+
   const menuItems: Array<MenuItem> = [
     {
       title: 'Find People',
@@ -211,7 +219,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: facultyIconActive,
       muiIcon: <IconSearch />,
       disabled: false,
-      allowedRoleNames: ["Superuser", "Curator_All","Reporter_All"],
+      allowedRoleNames: ["Superuser", "Curator_All","Reporter_All","Curator_Scoped"],
       isRequired:true
     },
     {
@@ -221,7 +229,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: settingsIconActive,
       muiIcon: <IconCurate />,
       disabled: isSuperuser ? false : (Object.keys(filters).length === 0),
-      allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
+      allowedRoleNames: ["Superuser", "Curator_All","Curator_Self","Curator_Scoped"],
       isRequired:true
     },
     {
@@ -340,6 +348,12 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             <Typography sx={{ padding: '12px 20px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(168,180,204,0.4)' }}>
               Navigation
             </Typography>
+          )}
+          {isScopedCurator && open && (
+            <ScopeLabel
+              scopeData={scopeData}
+              proxyCount={proxyPersonIds.length}
+            />
           )}
           {
             menuItems.slice(0, 5).map((item: MenuItem, index: number) => {

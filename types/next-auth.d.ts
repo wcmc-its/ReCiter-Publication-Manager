@@ -19,8 +19,12 @@ declare module "next-auth" {
         status: number,
         nameFirst: string,
       }
-      userRoles : Array,
-      adminSettings : Array
+      userRoles : any,
+      adminSettings : any,
+      /** Phase 9: JSON-serialized scope data for Curator_Scoped users */
+      scopeData?: string,
+      /** Phase 9: JSON-serialized array of proxy person identifiers */
+      proxyPersonIds?: string,
 
     },
     adminSettings?: string

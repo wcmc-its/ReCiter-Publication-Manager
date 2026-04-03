@@ -73,6 +73,24 @@
   color: #5a6478;
 }
 
+/* ── Role cell ── */
+.roleLabel {
+  font-size: 13px;
+  color: #5a6478;
+  line-height: 1.5;
+}
+
+.roleMuted {
+  font-size: 11px;
+  color: #8a94a6;
+}
+
+.proxyCount {
+  font-size: 11px;
+  color: #8a94a6;
+  margin-top: 2px;
+}
+
 /* ── No records ── */
 .noRecordsFound {
   padding: 24px 16px;
