@@ -225,7 +225,7 @@ const CurateIndividual = () => {
                     type="button"
                     className={styles.viewProfileBtn}
                     onClick={() => setShowGrantProxy(true)}
-                    style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
                       <circle cx="6" cy="6" r="4" />
