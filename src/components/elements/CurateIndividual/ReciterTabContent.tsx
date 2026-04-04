@@ -5,7 +5,7 @@ import filterPublicationsBySearchText from "../../../utils/filterPublicationsByS
 import sortPublications from "../../../utils/sortPublications";
 import Pagination from '../Pagination/Pagination';
 import { useSession } from "next-auth/react";
-import { curateSearchtextAction, reciterUpdatePublication } from "../../../redux/actions/actions";
+import { curateSearchtextAction, reciterUpdatePublication, reciterFetchData } from "../../../redux/actions/actions";
 import { useDispatch, useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import styles from "./CurateIndividual.module.css";
@@ -277,7 +277,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
           <div className={styles.emptyTitle}>All caught up</div>
           <div className={styles.emptyBody}>There are no new suggested publications to review. ReCiter will surface new suggestions the next time the system runs.</div>
           <div className={styles.emptyActions}>
-            <button className={styles.emptyActionPrimary}>
+            <button className={styles.emptyActionPrimary} onClick={() => dispatch(reciterFetchData(props.personIdentifier, true))}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3"/></svg>
               Run ReCiter now
             </button>

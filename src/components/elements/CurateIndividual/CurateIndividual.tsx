@@ -225,13 +225,7 @@ const CurateIndividual = () => {
                     type="button"
                     className={styles.viewProfileBtn}
                     onClick={() => setShowGrantProxy(true)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
-                      <circle cx="6" cy="6" r="4" />
-                      <path d="M10.5 10.5L14 14" />
-                      <path d="M12 8v4M10 10h4" />
-                    </svg>
                     Grant Proxy
                   </button>
                 )}

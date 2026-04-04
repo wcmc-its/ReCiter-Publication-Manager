@@ -17,7 +17,7 @@
 
 .expandedSideBarContent{
   margin-left: 220px;
-  padding: 32px 36px !important;
+  padding: 32px 16px !important;
   min-height: calc(100vh - 52px);
 }
 .nonExpandedSideBarContent{

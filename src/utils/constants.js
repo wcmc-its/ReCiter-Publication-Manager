@@ -6,7 +6,9 @@ export const allowedPermissions = Object.freeze({
 	Curator_All: "Curator_All",
 	Reporter_All: "Reporter_All",
 	Curator_Self: "Curator_Self",
-	Curator_Scoped: "Curator_Scoped"
+	Curator_Scoped: "Curator_Scoped",
+	Curator_Department: "Curator_Department",
+	Curator_Department_Delegate: "Curator_Department_Delegate",
 })
 
 export const toastMessage = (type, message) => {
@@ -108,6 +110,20 @@ export const ROLE_CAPABILITIES = Object.freeze({
     canConfigure: false,
   },
   [allowedPermissions.Curator_Scoped]: {
+    canCurate: { scoped: true },
+    canReport: false,
+    canSearch: true,
+    canManageUsers: false,
+    canConfigure: false,
+  },
+  [allowedPermissions.Curator_Department]: {
+    canCurate: { scoped: true },
+    canReport: false,
+    canSearch: true,
+    canManageUsers: false,
+    canConfigure: false,
+  },
+  [allowedPermissions.Curator_Department_Delegate]: {
     canCurate: { scoped: true },
     canReport: false,
     canSearch: true,
