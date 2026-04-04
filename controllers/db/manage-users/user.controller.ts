@@ -128,14 +128,13 @@ export const listAllUsers = async (
           where: where,
           order: [["nameFirst","ASC"],["nameLast","ASC"]],
           subQuery: false,
-          distinct: true,
-          col: 'AdminUser.userID',
+          group: ['AdminUser.userID'],
           offset: req.body.offset,
           limit: req.body.limit,
 
         });
         users['usersData'] = rows;
-        users['totalUsersCount'] = count;
+        users['totalUsersCount'] = count.length;
       } else {
         const {
           count,
@@ -187,14 +186,13 @@ export const listAllUsers = async (
             },
           ],
           subQuery: false,
-          distinct: true,
-          col: 'AdminUser.userID',
+          group: ['AdminUser.userID'],
           order: [["nameFirst","ASC"],["nameLast","ASC"]],
           offset: req.body.offset,
           limit: req.body.limit,
         });
         users['usersData'] = rows;
-        users['totalUsersCount'] = count;
+        users['totalUsersCount'] = count.length;
       }
     }
     res.send(users);
