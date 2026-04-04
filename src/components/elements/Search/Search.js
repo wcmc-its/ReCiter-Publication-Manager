@@ -226,6 +226,19 @@ const Search = () => {
     fetchAllAdminSettings()
   }, [])
 
+  // Re-derive labels when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
+      if (updatedData) {
+        let viewAttributes = updatedData.viewAttributes;
+        let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+        setNameOrcwidLabel(cwidLabel)
+        setFindPeopleLabels(viewAttributes)
+      }
+    }
+  }, [updatedAdminSettings])
+
   // Phase 9: Re-trigger search when scope filter checkbox is toggled
   const scopeFilterInitRef = useRef(true);
   useEffect(() => {
