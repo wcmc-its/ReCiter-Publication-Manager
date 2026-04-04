@@ -103,6 +103,16 @@ const Profile = ({
     setExportArticlesRTF(exportArticleRTFViewAttr)
   }, [])
 
+  // Re-derive RTF export settings when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+      if (exportRTF) {
+        setExportArticlesRTF(exportRTF.viewAttributes)
+      }
+    }
+  }, [updatedAdminSettings])
+
   // Body scroll lock + Escape key
   useEffect(() => {
     if (!modalShow) return;

@@ -69,6 +69,24 @@ const ManageUsers = () => {
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)
   }
 
+  // Re-derive findPeople and notification settings when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
+      if (updatedData) {
+        let viewAttributes = updatedData.viewAttributes;
+        let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+        if (cwidLabel) setNameOrcwidLabel(cwidLabel.labelUserView)
+      }
+      let notificationsData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
+      if (notificationsData) {
+        let emailNotifications = notificationsData.viewAttributes;
+        let settingsObj = emailNotifications && emailNotifications.find(data => data.isVisible)
+        setVisibleNotification(settingsObj && settingsObj.isVisible || false)
+      }
+    }
+  }, [updatedAdminSettings])
+
   const fetchAllAdminUsers = (page?: number, limit?: number, searchTextInput?: string) => {
     setpageLoading(true);
     const offset = (page - 1) * limit;

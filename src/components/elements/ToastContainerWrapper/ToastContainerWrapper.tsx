@@ -25,7 +25,17 @@ const ToastContainerWrapper = () => {
     let getVisibleKey =  displayToastMessages && displayToastMessages.find(obj => obj.isVisible)
     setIsToastVisible(getVisibleKey && getVisibleKey.isVisible || false );
   },[])
-    
+
+  // Re-derive toast visibility when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let displayMessages = updatedAdminSettings.find(obj => obj.viewName === "displayMessages")
+      let displayToastMessages = displayMessages?.viewAttributes || [];
+      let getVisibleKey = displayToastMessages.find(obj => obj.isVisible)
+      setIsToastVisible(getVisibleKey && getVisibleKey.isVisible || false)
+    }
+  }, [updatedAdminSettings])
+
     return isToastVisible && <ToastContainer />
 }
 
