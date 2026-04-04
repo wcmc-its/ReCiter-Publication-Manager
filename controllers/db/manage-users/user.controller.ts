@@ -194,7 +194,7 @@ export const listAllUsers = async (
           limit: req.body.limit,
         });
         users['usersData'] = rows;
-        users['totalUsersCount'] = count.length;
+        users['totalUsersCount'] = count;
       }
     }
     res.send(users);
