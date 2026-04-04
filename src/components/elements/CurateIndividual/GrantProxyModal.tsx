@@ -192,6 +192,7 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
                     <>
                         <Autocomplete
                             multiple
+                            disablePortal
                             options={filteredResults}
                             getOptionLabel={formatUserLabel}
                             filterOptions={(x) => x}
