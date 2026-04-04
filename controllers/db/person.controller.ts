@@ -220,11 +220,11 @@ export const findAllInstitutions = async (req: NextApiRequest, res: NextApiRespo
 };
 
 
-export const findOnePerson = async (attrTypes: string[], attrValues: string[]  ) => {
-    
-    if (!Array.isArray(attrTypes) || !Array.isArray(attrValues)) {
-        throw new Error('Both attrTypes and attrValues must be arrays');
-      }
+export const findOnePerson = async (attrTypes: string | string[], attrValues: string | string[]  ) => {
+
+    // Support legacy (string, string) call signature from samlUtils.js
+    if (typeof attrTypes === 'string') attrTypes = [attrTypes];
+    if (typeof attrValues === 'string') attrValues = [attrValues];
     
       if (attrTypes.length !== attrValues.length) {
         throw new Error('attrTypes and attrValues must be the same length');
