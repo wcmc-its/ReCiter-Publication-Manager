@@ -194,6 +194,7 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
                             multiple
                             options={filteredResults}
                             getOptionLabel={formatUserLabel}
+                            filterOptions={(x) => x}
                             value={selectedUsers}
                             loading={searchLoading}
                             noOptionsText="No users found matching your search."
