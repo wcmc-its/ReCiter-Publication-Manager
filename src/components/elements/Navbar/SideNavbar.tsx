@@ -341,6 +341,16 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)
   },[])
 
+  // Re-derive notification visibility when admin settings arrive in Redux (async)
+  React.useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
+      let manageNotifications = updatedData?.viewAttributes || [];
+      let settingsObj = manageNotifications.find(data => data.isVisible)
+      setVisibleNotification(settingsObj && settingsObj.isVisible || false)
+    }
+  }, [updatedAdminSettings])
+
   return (
     <Drawer variant="permanent" className='drawer-container' open={open} theme={theme}>
       <StyledList sx={{ flexGrow: 1, paddingTop: '16px' }}>

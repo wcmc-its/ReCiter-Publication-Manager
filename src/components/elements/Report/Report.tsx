@@ -171,6 +171,29 @@ const Report = () => {
 
   }, [])
 
+  // Re-derive labels when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      const updatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingFilters")
+      const viewProfileUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "viewProfile")
+      const sortLabelsUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingWebViewSort")
+      const headShotData = updatedAdminSettings.find(obj => obj.viewName === "headshot")
+      const exportAuthors = updatedAdminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
+      const exportArticle = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleCSV")
+      const reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
+      const exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+
+      if (updatedData) setReportFiltersLabes(updatedData.viewAttributes)
+      if (viewProfileUpdatedData) setViewProfileLabels(viewProfileUpdatedData.viewAttributes)
+      if (sortLabelsUpdatedData) setReportLabelsForSort(sortLabelsUpdatedData.viewAttributes)
+      if (headShotData) setHeadShotLabelData(headShotData.viewAttributes)
+      if (exportAuthors) setExportAuthorShipLabels(exportAuthors.viewAttributes)
+      if (exportArticle) setExportArticleLabels(exportArticle.viewAttributes)
+      if (reportingWebDisplay) setReportingWebDisplay(reportingWebDisplay.viewAttributes)
+      if (exportRTF) setExportArticlesRTF(exportRTF.viewAttributes)
+    }
+  }, [updatedAdminSettings])
+
 
   // fetch new data on page and count update
   useEffect(() => {
