@@ -126,9 +126,10 @@ export const listAllUsers = async (
             },
           ],
           where: where,
-          group: ['AdminUser.userID'],
           order: [["nameFirst","ASC"],["nameLast","ASC"]],
           subQuery: false,
+          distinct: true,
+          col: 'AdminUser.userID',
           offset: req.body.offset,
           limit: req.body.limit,
 
@@ -185,8 +186,9 @@ export const listAllUsers = async (
               }]
             },
           ],
-          group: ['AdminUser.userID'],
           subQuery: false,
+          distinct: true,
+          col: 'AdminUser.userID',
           order: [["nameFirst","ASC"],["nameLast","ASC"]],
           offset: req.body.offset,
           limit: req.body.limit,
