@@ -78,10 +78,16 @@ Publication Manager is part of the ReCiter suite of applications. In addition to
 
 ## Technological stack
 
-- **Next.js** - an open-source web development framework created by Vercel enabling React-based web applications with server-side rendering and generating static websites.
-- **ReactJS** - a front-end JavaScript library for building user interfaces based on components
-- **NodeJS** - a cross-platform, open-source server environment
-- **Sequelize** - a modern TypeScript and Node.js object relational mapping (ORM) for MySQL and MariaDB
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Framework | Next.js | 14.2.x |
+| UI | React | 18.x |
+| Runtime | Node.js | 18.x |
+| Auth | next-auth + SAML2-js | v4 |
+| Database | MySQL via Sequelize ORM | 6.x |
+| Styling | Bootstrap 5, Material-UI (MUI 5), CSS Modules | |
+| State | Redux + redux-thunk | |
+| Email | nodemailer (SMTP) | |
 
 
 
@@ -117,12 +123,34 @@ sudo docker stop <container ID>
 ```
 
 4. **Environment variables setup:**
-Configure the environment variables using the values in the [environmental variables wiki](https://github.com/wcmc-its/ReCiter-Publication-Manager/wiki/Environmental-variables). Use "env.local" for local setups and AWS Secrets Manager for AWS ECS setups.
+Configure environment variables in `.env.local` for local development or via Kubernetes secrets for EKS. Key variables:
+
   ```
-  NEXT_PUBLIC_RECITER_API_KEY=<<value>>
-  RECITER_API_BASE_URL=<<value>>
-  etc.
+  # Database
+  RECITER_DB_HOST=<<hostname>>
+  RECITER_DB_NAME=<<database>>
+  RECITER_DB_USERNAME=<<user>>
+  RECITER_DB_PASSWORD=<<password>>
+
+  # Auth
+  LOGIN_PROVIDER=LOCAL              # or SAML
+  NEXTAUTH_URL=http://localhost:3000
+  NEXTAUTH_URL_INTERNAL=http://localhost:3000
+  NEXT_PUBLIC_RECITER_TOKEN_SECRET=<<secret>>
+  NEXT_PUBLIC_RECITER_BACKEND_API_KEY=<<key>>
+  NEXT_PUBLIC_RECITER_API_KEY=<<key>>
+
+  # ReCiter API — all endpoints are built from this base URL
+  RECITER_API_BASE_URL=http://localhost:8081
   ```
+
+  For local development with port-forwarding to the dev EKS cluster:
+  ```
+  kubectl -n reciter port-forward svc/reciter-dev 9081:80
+  ```
+  Then set `RECITER_API_BASE_URL=http://localhost:9081`.
+
+  See the [environmental variables wiki](https://github.com/wcmc-its/ReCiter-Publication-Manager/wiki/Environmental-variables) for a complete list.
 
 5. **Run the Docker container:**
 Start the Docker container, mapping the desired port (e.g., 5001 to 3000):
@@ -191,7 +219,47 @@ npm run dev
 yarn dev
 ```
 
-Access the app at `http://localhost:5001` and start editing. API routes can be explored and modified as described.
+Access the app at `http://localhost:3000` and start editing. API routes can be explored and modified as described.
+
+
+## Branches and deployment
+
+| Branch | Environment | Purpose |
+|--------|------------|---------|
+| `master` | Production | Stable releases |
+| `dev_Upd_NextJS14SNode18` | reciter-dev (EKS) | Active development — Next.js 14 + Node 18 migration |
+| `dev_v2` | None (archived) | Legacy dev branch, 641 commits behind active dev |
+
+### Deployment pipeline
+
+The `dev_Upd_NextJS14SNode18` branch deploys to the `reciter-pm-dev` EKS deployment via AWS CodePipeline:
+
+```
+Git push → CodePipeline (ReCiter-Publication-Manager-Dev-V2)
+         → Source (polls GitHub)
+         → ManualApproval (requires approval in AWS Console or CLI)
+         → Build (CodeBuild: Docker build → ECR push → EKS update)
+```
+
+**To approve a pending deployment:**
+```bash
+# Get the approval token
+aws codepipeline get-pipeline-state --name ReCiter-Publication-Manager-Dev-V2 \
+  --query 'stageStates[?stageName==`ManualApproval`].actionStates[0].latestExecution.token' --output text
+
+# Approve (note: action name has a typo — "ManualAproval" with one 'p')
+aws codepipeline put-approval-result \
+  --pipeline-name ReCiter-Publication-Manager-Dev-V2 \
+  --stage-name ManualApproval \
+  --action-name ManualAproval \
+  --result '{"summary":"Deploying latest changes","status":"Approved"}' \
+  --token <<TOKEN>>
+```
+
+**To verify what's deployed:**
+```bash
+kubectl -n reciter get deployment reciter-pm-dev -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -oP ':\K.*'
+```
 
 
 
@@ -231,17 +299,19 @@ ReCiter Publication Manager supports two options for authentication:
 
 ### Access roles
 
-To utilize the Publication Manager, users must have specific access roles assigned to them. The access roles available and their corresponding privileges are as follows:
+To utilize the Publication Manager, users must have specific access roles assigned to them. Roles are managed via the Manage Users page (superuser only) and stored in the `admin_users_roles` table.
 
-| Role | Privileges | Relevant to | How assigned |
-| --- | --- | --- | --- |
-| **Curator (Individual)** | Update publication lists for oneself | Faculty and individual authors | Automatically assigned |
-| **Curator (Department)** | Update publication lists for everyone in an organization unit | Departmental administrators and staff | Manually assigned by superuser |
-| **Curator (All)** | Update publication lists for everyone | Librarians | Manually assigned by superuser |
-| **Reporter** | Generate reports about everyone | Departmental administrators and staff | Manually assigned by superuser |
-| **Superuser** | Do all of the above and update roles of others | System administrators | Manually assigned by superuser |
+| Role | DB roleLabel | Privileges | Relevant to | How assigned |
+| --- | --- | --- | --- | --- |
+| **Superuser** | `Superuser` | Full access: curate, report, search, manage users, configure settings | System administrators | Manually assigned by superuser |
+| **Curator (All)** | `Curator_All` | Curate publications for any person; search | Librarians | Manually assigned by superuser |
+| **Curator (Self)** | `Curator_Self` | Curate only own publications | Faculty and individual authors | Automatically assigned |
+| **Curator (Scoped)** | `Curator_Scoped` | Curate publications for people matching assigned person types or org units; search | Departmental curators with specific scope restrictions | Manually assigned by superuser |
+| **Curator (Department)** | `Curator_Department` | Curate publications for managed org units; search | Departmental administrators and staff | Manually assigned by superuser |
+| **Curator (Dept Delegate)** | `Curator_Department_Delegate` | Delegated curation access for specific departments; search | Staff delegated by department curators | Manually assigned by superuser |
+| **Reporter (All)** | `Reporter_All` | Generate reports for all users; search | Departmental administrators and staff | Manually assigned by superuser |
 
-Role assignments are stored in the `admin_users_roles` table.
+Capabilities are derived from roles using the `getCapabilities()` function in `src/utils/constants.js`. A user with multiple roles receives the union of all capabilities (OR logic). Every authenticated user receives baseline `canReport` and `canSearch` access regardless of role.
 
 
 
