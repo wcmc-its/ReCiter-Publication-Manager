@@ -128,7 +128,7 @@ const ManageUsers = () => {
   const prepareTabelData = (usersData) => {
     let tableData = [];
     usersData.map((data) => {
-      const { nameFirst, nameLast, userID, personIdentifier, email, department, person } = data;
+      const { nameFirst, nameLast, userID, personIdentifier, email, department, person, listRoles, scope_person_types, scope_org_units, proxy_person_ids } = data;
       if (data.AdminUserDept?.length > 0) {
         data.AdminUserDept && data.AdminUserDept.map((deptData => {
           let obj = {
@@ -138,7 +138,11 @@ const ManageUsers = () => {
             nameFirst: nameFirst,
             nameLast: nameLast,
             department: deptData.departmentLabel,
-            primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
+            primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || "",
+            listRoles: listRoles || [],
+            scope_person_types: scope_person_types || null,
+            scope_org_units: scope_org_units || null,
+            proxy_person_ids: proxy_person_ids || null,
           }
           tableData.push(obj);
         }))
@@ -150,7 +154,11 @@ const ManageUsers = () => {
           nameFirst: nameFirst,
           nameLast: nameLast,
           department: "",
-          primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
+          primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || "",
+          listRoles: listRoles || [],
+          scope_person_types: scope_person_types || null,
+          scope_org_units: scope_org_units || null,
+          proxy_person_ids: proxy_person_ids || null,
         }
         tableData.push(obj);
       }
