@@ -14,12 +14,14 @@
 --   8. Inactive user (status=0)
 --   9. User with no roles (should get /error)
 --
--- Role IDs reference:
+-- Role IDs reference (verified against dev DB 2026-04-04):
 --   1 = Superuser
 --   2 = Curator_All
 --   3 = Reporter_All
 --   4 = Curator_Self
---   5 = Curator_Scoped
+--   5 = Curator_Department   (legacy -- NOT handled by current code)
+--   6 = Curator_Department_Delegate (legacy -- NOT handled by current code)
+--   7 = Curator_Scoped
 -- ============================================================================
 
 -- Cleanup existing test users (idempotent)
@@ -83,7 +85,7 @@ INSERT INTO admin_users (personIdentifier, email, nameFirst, nameLast, status, c
 VALUES ('test_p8_scoped', 'test_p8_scoped@test.local', 'Test', 'ScopedCurator', 1, NOW(), NOW(),
   '["academic-faculty", "academic-counselor"]', '["Anesthesiology"]');
 SET @uid6 = LAST_INSERT_ID();
-INSERT INTO admin_users_roles (userID, roleID, createTimestamp) VALUES (@uid6, 5, NOW());
+INSERT INTO admin_users_roles (userID, roleID, createTimestamp) VALUES (@uid6, 7, NOW());
 
 -- ============================================================================
 -- Test User 7: Curator_Scoped with proxy data
@@ -95,7 +97,7 @@ INSERT INTO admin_users (personIdentifier, email, nameFirst, nameLast, status, c
 VALUES ('test_p8_scoped_proxy', 'test_p8_scoped_proxy@test.local', 'Test', 'ScopedProxy', 1, NOW(), NOW(),
   '["academic-faculty"]', '["test_p8_curself", "test_p8_reporter"]');
 SET @uid7 = LAST_INSERT_ID();
-INSERT INTO admin_users_roles (userID, roleID, createTimestamp) VALUES (@uid7, 5, NOW());
+INSERT INTO admin_users_roles (userID, roleID, createTimestamp) VALUES (@uid7, 7, NOW());
 
 -- ============================================================================
 -- Test User 8: Inactive user (status=0)
