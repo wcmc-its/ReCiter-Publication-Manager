@@ -113,10 +113,8 @@ export const listAllUsers = async (
               model: models.AdminUsersRole,
               as: "listRoles",
               required: false,
-              on: {
-                col: Sequelize.where(Sequelize.col('AdminUser.userID'), "=", Sequelize.col('listRoles.userID'))
-              },
-              attributes: ['roleID'],
+              separate: true,
+              attributes: ['userID', 'roleID'],
               include: [{
                 model: models.AdminRole,
                 as: 'listRole',
@@ -173,10 +171,8 @@ export const listAllUsers = async (
               model: models.AdminUsersRole,
               as: "listRoles",
               required: false,
-              on: {
-                col: Sequelize.where(Sequelize.col('AdminUser.userID'), "=", Sequelize.col('listRoles.userID'))
-              },
-              attributes: ['roleID'],
+              separate: true,
+              attributes: ['userID', 'roleID'],
               include: [{
                 model: models.AdminRole,
                 as: 'listRole',
