@@ -36,6 +36,15 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+.loginNote {
+    font-size: 12px;
+    color: #8a94a6;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #f8f6f3;
+    border-radius: 5px;
+    border-left: 3px solid #ddd7ce;
+}
 .btnDiscard {
     background: transparent;
     color: #8a94a6;

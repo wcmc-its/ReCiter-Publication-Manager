@@ -246,31 +246,8 @@ export const searchUsersWithCurationRoles = async (req: NextApiRequest, res: Nex
 
         const users = await models.AdminUser.findAll({
             attributes: ['userID', 'personIdentifier', 'nameFirst', 'nameMiddle', 'nameLast'],
-            include: [{
-                model: models.AdminUsersRole,
-                as: 'proxySearchRoles',
-                required: true,
-                on: {
-                    col: Sequelize.where(
-                        Sequelize.col('AdminUser.userID'),
-                        '=',
-                        Sequelize.col('proxySearchRoles.userID')
-                    )
-                },
-                attributes: [],
-                include: [{
-                    model: models.AdminRole,
-                    as: 'proxySearchRole',
-                    required: true,
-                    where: {
-                        roleLabel: {
-                            [Op.in]: ['Curator_All', 'Curator_Scoped', 'Curator_Self', 'Superuser']
-                        }
-                    },
-                    attributes: []
-                }]
-            }],
             where: {
+                status: 1,
                 [Op.or]: [
                     { nameFirst: { [Op.like]: `%${q}%` } },
                     { nameLast: { [Op.like]: `%${q}%` } },
@@ -278,8 +255,6 @@ export const searchUsersWithCurationRoles = async (req: NextApiRequest, res: Nex
                 ]
             },
             limit: 20,
-            subQuery: false,
-            group: ['AdminUser.userID'],
             raw: true
         });
 

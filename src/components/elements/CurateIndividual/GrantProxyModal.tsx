@@ -274,6 +274,9 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
                                 No users currently have proxy access for this person.
                             </div>
                         )}
+                        <div className={styles.loginNote}>
+                            Any user who has logged in can be assigned as a proxy. Access takes effect on their next login.
+                        </div>
                     </>
                 )}
             </Modal.Body>
