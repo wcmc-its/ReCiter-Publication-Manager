@@ -11,44 +11,29 @@ export const getManageProfileByID = async (
 ) => {
     const { personIdentifier } = req.query;
     try {
-        let profileInfo: any = [];
-        let adminUserData = await models.AdminUser.findOne({
+        const adminUserData = await models.AdminUser.findOne({
             where: { "personIdentifier": personIdentifier }
         })
 
-        if (adminUserData) {
-            profileInfo = await sequelize.query(
-                QueryConstants.getManageProfileForOCIDData,
-                {
-                type: QueryTypes.SELECT,    
-                replacements: {personIdentifier: personIdentifier} ,
-                   raw : true,
-                //    benchmark:true
-                },
-                
-            );
-            if (profileInfo) {
-                let result = {
-                    "email": adminUserData.email,
-                    "data": profileInfo
-                }
-                res.send(result);
-            }
-            else {
-                let result = {
-                    "message": "No data found",
-                    "email": adminUserData.email,
-                    "userID": adminUserData.userID
-                }
-                res.send(result);
-            }
-        } else {
-            let noData = {
-                "message": "User does not exist",
-                "email": ''
+        const profileInfo = await sequelize.query(
+            QueryConstants.getManageProfileForOCIDData,
+            {
+                type: QueryTypes.SELECT,
+                replacements: { personIdentifier: personIdentifier },
+                raw: true,
+            },
+        );
 
-            }
-            res.send(noData)
+        if (profileInfo && profileInfo.length > 0) {
+            res.send({
+                "email": adminUserData?.email || '',
+                "data": profileInfo
+            });
+        } else {
+            res.send({
+                "message": "No data found",
+                "email": adminUserData?.email || '',
+            });
         }
     } catch (e) {
         console.log(e);

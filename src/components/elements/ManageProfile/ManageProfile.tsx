@@ -26,6 +26,7 @@ const ManageProfle = () => {
     const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
     const [serverValue, setServerValue] = useState('');
+    const [identityOrcid, setIdentityOrcid] = useState<string | null>(null);
 
     useEffect(() => {
         let userPermissions = JSON.parse(session.data.userRoles);
@@ -52,14 +53,34 @@ const ManageProfle = () => {
         else
             userId = router.query.userId ? router.query.userId : session.data.username
         getManageProfileData(userId)
+        fetchIdentityOrcid(userId)
     }, [router.query.userId])
 
+    const fetchIdentityOrcid = (personIdentifier) => {
+        fetch(`/api/reciter/getidentity/${personIdentifier}`, {
+            credentials: "same-origin",
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Authorization': reciterConfig.backendApiKey
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.statusCode === 200 && data.identity) {
+                    setIdentityOrcid(data.identity.orcid || null)
+                }
+            })
+            .catch(error => {
+                console.log('Failed to fetch Identity ORCID:', error)
+            })
+    }
+
     const onSave = () => {
-        let payload = {
-            'personIdentifier': router.query.userId,
-            'orcid': manualORCID || selectedOrcidValue,
-        }
-        fetch(`/api/db/admin/manageProfile/saveProfileByORCID`, {
+        const orcidValue = manualORCID || selectedOrcidValue;
+        const uid = router.query.userId as string;
+        // Save to DynamoDB via Identity API
+        fetch(`/api/reciter/saveIdentityOrcid`, {
             credentials: "same-origin",
             method: 'POST',
             headers: {
@@ -67,17 +88,20 @@ const ManageProfle = () => {
                 "Content-Type": "application/json",
                 'Authorization': reciterConfig.backendApiKey
             },
-            body: JSON.stringify(payload)
-        }).then(response => {
-            if (response.status === 200) {
+            body: JSON.stringify({ personIdentifier: uid, orcid: orcidValue })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
                 toast.success("ORCID Saved Successfully", {
                     position: "top-right",
                     autoClose: 2000,
                     theme: 'colored'
                 });
-                getManageProfileData(router.query.userId ? router.query.userId : "")
+                setIdentityOrcid(orcidValue);
+                getManageProfileData(uid);
+            } else {
+                throw new Error(data.error || 'Save failed');
             }
-        }).then(data => {
         }).catch(error => {
             console.error("[ERR-1010]", error);
             reportError("ERR-1010", "Unable to save ORCID", error);
@@ -90,25 +114,31 @@ const ManageProfle = () => {
     }
 
     const onReset = () => {
-        let url = `/api/db/admin/manageProfile/resetProfileORCID?personIdentifier=${router.query.userId}`;
-        fetch(url, {
+        const uid = router.query.userId as string;
+        fetch(`/api/reciter/saveIdentityOrcid`, {
             credentials: "same-origin",
-            method: 'DELETE',
+            method: 'POST',
             headers: {
                 Accept: 'application/json',
                 "Content-Type": "application/json",
                 'Authorization': reciterConfig.backendApiKey
             },
+            body: JSON.stringify({ personIdentifier: uid, orcid: '' })
         })
             .then(res => res.json())
-            .then(res => {
-                toast.success("ORCID has been deleted successfully", {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
-                setManualORCID("");
-                setSelectOrcid("");
+            .then(data => {
+                if (data.success) {
+                    toast.success("ORCID has been deleted successfully", {
+                        position: "top-right",
+                        autoClose: 2000,
+                        theme: 'colored'
+                    });
+                    setManualORCID("");
+                    setSelectOrcid("");
+                    setIdentityOrcid(null);
+                } else {
+                    throw new Error(data.error || 'Remove failed');
+                }
             })
             .catch(error => {
                 console.error("[ERR-1011]", error);
@@ -194,12 +224,8 @@ const ManageProfle = () => {
         setSelectOrcid(orcid);
         setManualORCID('');
         setErrorMessage('');
-        // Directly save
-        let payload = {
-            'personIdentifier': router.query.userId,
-            'orcid': orcid,
-        }
-        fetch(`/api/db/admin/manageProfile/saveProfileByORCID`, {
+        const uid = router.query.userId as string;
+        fetch(`/api/reciter/saveIdentityOrcid`, {
             credentials: "same-origin",
             method: 'POST',
             headers: {
@@ -207,15 +233,19 @@ const ManageProfle = () => {
                 "Content-Type": "application/json",
                 'Authorization': reciterConfig.backendApiKey
             },
-            body: JSON.stringify(payload)
-        }).then(response => {
-            if (response.status === 200) {
+            body: JSON.stringify({ personIdentifier: uid, orcid })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
                 toast.success("ORCID Saved Successfully", {
                     position: "top-right",
                     autoClose: 2000,
                     theme: 'colored'
                 });
-                getManageProfileData(router.query.userId ? router.query.userId : "")
+                setIdentityOrcid(orcid);
+                getManageProfileData(uid);
+            } else {
+                throw new Error(data.error || 'Save failed');
             }
         }).catch(error => {
             console.error("[ERR-1013]", error);
@@ -235,8 +265,8 @@ const ManageProfle = () => {
         return formattedValue;
     };
 
-    /* Current saved ORCID (from selected radio or manual input that was saved) */
-    const currentOrcid = profileData.length > 0 ? profileData[0].recently_selected_orcid : '';
+    /* Current confirmed ORCID from ReCiter Identity (DynamoDB) */
+    const currentOrcid = identityOrcid || '';
 
     return (
         <>
