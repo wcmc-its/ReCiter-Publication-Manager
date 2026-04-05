@@ -89,9 +89,30 @@ async function getIdentity(uid) {
   }
 }
 
+// ReCiter API requires certain array fields to be non-null
+const REQUIRED_ARRAY_FIELDS = [
+  'alternateNames', 'emails', 'knownRelationships', 'organizationalUnits',
+  'institutions', 'personTypes', 'grants',
+];
+
 async function saveIdentity(identity) {
   try {
-    const res = await fetch(`${API_BASE}/reciter/save/identity`, {
+    // Coerce null array fields to [] to avoid 500 validation errors
+    for (const field of REQUIRED_ARRAY_FIELDS) {
+      if (identity[field] === null || identity[field] === undefined) {
+        identity[field] = [];
+      }
+    }
+    // alternateNames must have at least one entry — synthesize from primaryName if empty
+    if (identity.alternateNames.length === 0 && identity.primaryName) {
+      const pn = identity.primaryName;
+      identity.alternateNames = [{ firstName: pn.firstName || '', firstInitial: pn.firstInitial || '', lastName: pn.lastName || '' }];
+    }
+    // degreeYear must be an object
+    if (!identity.degreeYear) {
+      identity.degreeYear = { bachelorYear: 0, doctoralYear: 0 };
+    }
+    const res = await fetch(`${API_BASE}/reciter/identity/`, {
       method: 'POST',
       headers: {
         'api-key': API_KEY,

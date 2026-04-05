@@ -52,7 +52,7 @@ export async function saveIdentityOrcid(uid: string, orcid: string): Promise<{ s
 
         // POST updated identity back
         const saveRes = await fetch(
-            `${reciterConfig.reciter.reciterApiBaseUrl}/reciter/save/identity`,
+            `${reciterConfig.reciter.reciterApiBaseUrl}/reciter/identity/`,
             {
                 method: 'POST',
                 headers: {
