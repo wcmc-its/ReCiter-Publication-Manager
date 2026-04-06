@@ -12,7 +12,7 @@ export async function getPublications(uid: string | string[], req: NextApiReques
       } = req;
 
     if(analysisRefreshFlag && retrievalRefreshFlag) {
-        uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}`+ '?uid=' + uid + '&analysisRefreshFlag=' + analysisRefreshFlag + '&retrievalRefreshFlag=' + retrievalRefreshFlag
+        uri = `${reciterConfig.reciter.featureGenerator.featureGeneratorEndpoint}`+ '?uid=' + uid + '&useGoldStandard=AS_EVIDENCE&analysisRefreshFlag=' + analysisRefreshFlag + '&retrievalRefreshFlag=' + retrievalRefreshFlag
             clearPendingFeedback(uid)
     }
     
