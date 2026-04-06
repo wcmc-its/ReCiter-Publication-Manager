@@ -60,45 +60,31 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   }, [])
 
   const updatePublicationAssertion = (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => {
-    let updatedFilteredData = [...filteredData];
-
-    updatedFilteredData.forEach((tabData) => {
-      // If Tab matches the updated user assertion, add the article in the tab
-      if (tabData.value == userAssertion) {
-        tabData.data.push(reciterArticle);
-        tabData.count = tabData.count + 1;
-      } else if (tabData.value == prevUserAssertion) {
-        // If Tab matches the previous user assertion, remove from that tab
-        let index = tabData.data.findIndex(i => i.pmid === reciterArticle.pmid);
-        if (index > -1) { tabData.data.splice(index, 1) }
-        if (tabData.count > 0) { tabData.count = tabData.count - 1; }
+    setFilteredData(prev => prev.map((tabData: any) => {
+      if (tabData.value === userAssertion) {
+        return { ...tabData, data: [...tabData.data, reciterArticle], count: tabData.count + 1 };
       }
-    })
-
-    setFilteredData(updatedFilteredData);
-    // setKey(prevUserAssertion)
+      if (tabData.value === prevUserAssertion) {
+        const newData = tabData.data.filter((i: any) => i.pmid !== reciterArticle.pmid);
+        return { ...tabData, data: newData, count: Math.max(0, tabData.count - 1) };
+      }
+      return tabData;
+    }));
   }
 
   const updatePublicationAssertionBulk = (reciterArticles: any, userAssertion: string, prevUserAssertion: string) => {
-    let updatedFilteredData = [...filteredData];
-    updatedFilteredData.forEach((tabData) => {
-      // If Tab matches the updated user assertion, add the article in the tab
-      if (tabData.value == userAssertion) {
-        tabData.data.push(...reciterArticles);
-        tabData.count = tabData.count + reciterArticles.length;
-      } else if (tabData.value == prevUserAssertion) {
-        // If Tab matches the previous user assertion, remove from that tab
-        let count = tabData.count;
-        reciterArticles.forEach((reciterArticle) => {
-          let index = tabData.data.findIndex(i => i.pmid === reciterArticle.pmid);
-          if (index > -1) { tabData.data.splice(index, 1) }
-          if (count > 0) { count--; }
-        })
-        tabData.count = count;
+    const pmids = new Set(reciterArticles.map((a: any) => a.pmid));
+    setFilteredData(prev => prev.map((tabData: any) => {
+      if (tabData.value === userAssertion) {
+        return { ...tabData, data: [...tabData.data, ...reciterArticles], count: tabData.count + reciterArticles.length };
       }
-    })
-    setFilteredData(updatedFilteredData);
-    // setKey(userAssertion)
+      if (tabData.value === prevUserAssertion) {
+        const newData = tabData.data.filter((i: any) => !pmids.has(i.pmid));
+        const removed = tabData.data.length - newData.length;
+        return { ...tabData, data: newData, count: Math.max(0, tabData.count - removed) };
+      }
+      return tabData;
+    }));
   }
   const handleUpdateSearchFilters = (pubFilters : any)=>{
     setPubSearchFilters(pubFilters);

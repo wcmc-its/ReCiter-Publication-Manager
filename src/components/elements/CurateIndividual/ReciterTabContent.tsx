@@ -55,6 +55,18 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     setPublications(sortedPublications);
   }
 
+  // Re-sync local publications whenever the parent's filtered list changes (e.g. after an
+  // assertion propagates up through ReciterTabs.updatePublicationAssertion).  The parent now
+  // produces a new array reference on every update (immutable), so this effect reliably fires.
+  // We re-apply any active text filter so the displayed subset stays consistent.
+  useEffect(() => {
+    const filtered = searchtextCarier
+      ? filterPublicationsBySearchText(props.publications, searchtextCarier)
+      : props.publications;
+    setPublications(filtered);
+    setTotalCount(filtered.length);
+  }, [props.publications]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Update the page
   const handlePaginationUpdate = (page) => {
     setPage(page)
