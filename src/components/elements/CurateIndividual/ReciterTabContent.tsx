@@ -127,14 +127,11 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       };
     }
 
-    // Suggested tab: keep card in place with actioned visual state, but still update parent
-    if (isSuggested) {
-      setPublications(prev => prev.map((p: any) =>
-        p.pmid === pmid ? { ...p, userAssertion } : p
-      ));
-      if (userAssertion !== 'NULL') {
-        lastActioned.current = { pmid, prevState: 'NULL' };
-      }
+    // Suggested tab: immediately remove actioned card and track for undo
+    if (isSuggested && userAssertion !== 'NULL') {
+      const article = publications.find((p: any) => p.pmid === pmid);
+      setPublications(prev => prev.filter((p: any) => p.pmid !== pmid));
+      lastActioned.current = { pmid, prevState: 'NULL', article };
     }
 
     // Update parent filteredData so clearing a filter reflects the change
@@ -182,7 +179,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const isSuggested = props.tabType === 'NULL';
   const isArticleTab = props.tabType === 'NULL' || props.tabType === 'ACCEPTED' || props.tabType === 'REJECTED';
   const [focusedIndex, setFocusedIndex] = useState<number>(isArticleTab ? 0 : -1);
-  const lastActioned = useRef<{ pmid: number; prevState: string } | null>(null);
+  const lastActioned = useRef<{ pmid: number; prevState: string; article?: any } | null>(null);
 
   // Find next pending card index from a given start
   const findNextPending = useCallback((startIdx: number, data: any[]) => {
@@ -225,9 +222,15 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         }
       } else if (key === 'u' && lastActioned.current) {
         e.preventDefault();
-        handleUpdatePublication(props.personIdentifier, lastActioned.current.pmid, lastActioned.current.prevState);
-        const undoneIdx = publicationsPaginatedData.findIndex((p: any) => p.pmid === lastActioned.current.pmid);
-        if (undoneIdx >= 0) setFocusedIndex(undoneIdx);
+        const { pmid: undoPmid, prevState, article } = lastActioned.current;
+        if (isSuggested && article) {
+          setPublications(prev =>
+            prev.some((p: any) => p.pmid === undoPmid)
+              ? prev
+              : [...prev, { ...article, userAssertion: prevState }]
+          );
+        }
+        handleUpdatePublication(props.personIdentifier, undoPmid, prevState);
         lastActioned.current = null;
       } else if (key === 'e' && focusedPub) {
         e.preventDefault();
