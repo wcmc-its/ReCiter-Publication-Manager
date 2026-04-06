@@ -99,18 +99,6 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
 
   const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
-    // Suggested tab: keep card in place with actioned visual state
-    if (isSuggested) {
-      setPublications(prev => prev.map((p: any) =>
-        p.pmid === pmid ? { ...p, userAssertion } : p
-      ));
-      if (userAssertion !== 'NULL') {
-        lastActioned.current = { pmid, prevState: 'NULL' };
-      }
-      props.onAssertionChange?.(pmid, userAssertion);
-      return;
-    }
-
     const userId = session?.data?.databaseUser?.userID;
     const request = {
       publications: [pmid],
@@ -119,7 +107,6 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       userID: userId,
       personIdentifier: uid,
     }
-    // TODO: send request
 
     let SearchInfo = {
       searchedText:searchtextCarier,
@@ -127,6 +114,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     }
     dispatch(curateSearchtextAction(SearchInfo));
 
+    // Always call the API
     dispatch(reciterUpdatePublication(uid, request));
 
     // update user assertion of the publication
@@ -139,19 +127,22 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       };
     }
 
-    // move updated data to the right Tab
+    // Suggested tab: keep card in place with actioned visual state, but still update parent
+    if (isSuggested) {
+      setPublications(prev => prev.map((p: any) =>
+        p.pmid === pmid ? { ...p, userAssertion } : p
+      ));
+      if (userAssertion !== 'NULL') {
+        lastActioned.current = { pmid, prevState: 'NULL' };
+      }
+    }
+
+    // Update parent filteredData so clearing a filter reflects the change
     props.updatePublicationAssertion(updatedPublication, userAssertion, props.tabType);
     props.onAssertionChange?.(pmid, userAssertion);
   }
 
   const handleUpdatePublicationAll = (userAssertion: string) => {
-    // Suggested tab: keep cards in place with actioned visual state
-    if (isSuggested) {
-      publications.forEach((p: any) => props.onAssertionChange?.(p.pmid, userAssertion));
-      setPublications(prev => prev.map((p: any) => ({ ...p, userAssertion })));
-      return;
-    }
-
     const userId = session?.data?.databaseUser?.userID;
     const pmids = getPaginatedData().map((publication) => { return publication.pmid });
     const request = {
