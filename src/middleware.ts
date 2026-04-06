@@ -55,6 +55,12 @@ export async function middleware(request: NextRequest) {
     if (pathName.startsWith('/curate')) {
       if (caps.canCurate.all) return NextResponse.next();
       if (caps.canCurate.scoped) return NextResponse.next(); // D-10: person-level check deferred to API (Phase 10)
+      // Allow proxy targets regardless of curate role
+      const proxyPersonIds: string[] = token.proxyPersonIds
+        ? JSON.parse(token.proxyPersonIds as string)
+        : [];
+      const targetId = pathName.replace('/curate/', '');
+      if (targetId && proxyPersonIds.includes(targetId)) return NextResponse.next();
       if (caps.canCurate.self) {
         const expectedPath = '/curate/' + personIdentifier;
         if (pathName === expectedPath) return NextResponse.next();

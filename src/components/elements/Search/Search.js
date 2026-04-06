@@ -584,12 +584,16 @@ const Search = () => {
   
   const RoleSplitDropdown = (identity) => {
     
-    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser && loggedInPersonIdentifier === identity.identity.personIdentifier) 
+    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser
+        && (loggedInPersonIdentifier === identity.identity.personIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier)))
     {
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
     }
     else if(dropdownTitle && dropdownTitle =='Create Report' && isReporterAll && !isCuratorAll && !isSuperUser && !isCuratorSelf)
     {
+        if (isProxyFor(proxyPersonIds, identity.identity.personIdentifier)) {
+          return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
+        }
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("report", identity.identity)}>{"Create Reports"}</Button>
     }
     else if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorAll && !isReporterAll && !isSuperUser && !isCuratorSelf) 
@@ -598,13 +602,14 @@ const Search = () => {
     }
     else if(isCuratorSelf && isReporterAll && !isCuratorAll && !isSuperUser)
     {
+      const canCurateRow = identity && (identity.identity.personIdentifier === loggedInPersonIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier));
       return  <SplitDropdown
-        title={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? "Curate Publications" : "Create Reports"}
-        onDropDownClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
+        title={canCurateRow ? "Curate Publications" : "Create Reports"}
+        onDropDownClick={canCurateRow ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
         id={`curate-publications_${identity.identity.personIdentifier}`}
-        listItems={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? dropdownMenuItems : []} //{isUserRole && isUserRole === allowedPermissions.Superuser ? dropdownItemsSuper : dropdownItemsReport}
+        listItems={canCurateRow ? dropdownMenuItems : []}
         secondary={true}
-        onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
+        onClick={canCurateRow ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
     }
     else if((isCuratorAll && isReporterAll && isCuratorSelf) ||isSuperUser || (isCuratorAll && isReporterAll))
     {
@@ -798,10 +803,12 @@ function Name(props) {
     const nameString = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, ' ').trim()
     return (
       <div>
-        <button className={styles.btnLink} onClick={props.onClickProfile}>
-          {nameString}
-        </button>
-        {isProxyFor(props.proxyPersonIds, props.identity.personIdentifier) && <ProxyBadge />}
+        <div className={styles.nameRow}>
+          <button className={styles.btnLink} onClick={props.onClickProfile}>
+            {nameString}
+          </button>
+          {isProxyFor(props.proxyPersonIds, props.identity.personIdentifier) && <ProxyBadge />}
+        </div>
         {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
         <div className={styles.personCwid}>
           <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}

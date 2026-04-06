@@ -279,6 +279,15 @@
   color: #c0392b;
 }
 
+/* Flex row containing name button + proxy badge */
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
 /* Person name button link in table */
 .btnLink {
   text-decoration: none;
@@ -291,8 +300,6 @@
   font-family: var(--font-sans);
   cursor: pointer;
   transition: color 0.15s;
-  display: block;
-  margin-bottom: 2px;
   text-align: left;
 }
 
