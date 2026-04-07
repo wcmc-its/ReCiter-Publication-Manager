@@ -136,6 +136,7 @@ useEffect(() => {
                 onLoadMore={() => {}}
                 value=""
               />
+              <span style={{ flex: 1 }} />
               <Button className="primary" type="submit" style={{ padding: '6px 20px', background: '#8B1A1A', borderColor: '#8B1A1A', borderRadius: '20px', fontSize: '14px', fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Search</Button>
               <button type="button" className={styles.textButton} onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: '13px', color: '#a09a92', cursor: 'pointer', whiteSpace: 'nowrap' }}>Reset</button>
             </div>
