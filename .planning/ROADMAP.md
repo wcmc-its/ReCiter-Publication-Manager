@@ -80,10 +80,10 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — Jest dual-config infrastructure (jest.config.js + jest.config.dom.js) + RTL scope/proxy component tests
-- [ ] 11-02-PLAN.md — eslint-plugin-jsx-a11y strict mode config + fix 22 label-has-associated-control violations
-- [ ] 11-03-PLAN.md — Fix 36 click-events/static-element/anchor/noninteractive a11y violations + final audit
-- [ ] 11-04-PLAN.md — GoldStandard audit source tag (one-line deferred gap from Phase 10)
+- [x] 11-01-PLAN.md — Jest dual-config infrastructure (jest.config.js + jest.config.dom.js) + RTL scope/proxy component tests
+- [x] 11-02-PLAN.md — eslint-plugin-jsx-a11y strict mode config + fix 22 label-has-associated-control violations
+- [x] 11-03-PLAN.md — Fix 36 click-events/static-element/anchor/noninteractive a11y violations + final audit
+- [x] 11-04-PLAN.md — GoldStandard audit source tag (one-line deferred gap from Phase 10)
 - [ ] 11-05-PLAN.md — Final verification: skeleton loading, test suite, a11y audit, human sign-off
 
 </details>
@@ -112,6 +112,6 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 8. Auth Pipeline | v1.1 | 2/2 | Complete | 2026-03-27 |
 | 9. Scoped Roles and Proxy UI | v1.1 | 4/4 | Complete | 2026-03-28 |
 | 10. API Scope Enforcement | v1.1 | N/A | Complete | 2026-04-06 |
-| 11. Polish and Testing | v1.1 | 0/5 | Planning | - |
+| 11. Polish and Testing | v1.1 | 4/5 | In Progress|  |
 | 12. Fix SP and Sync Code | v1.2 | 2/2 | Complete | 2026-03-26 |
 | 13. Deploy and Verify | v1.2 | 2/2 | Complete | 2026-03-27 |
