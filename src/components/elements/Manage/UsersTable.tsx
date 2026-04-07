@@ -85,7 +85,7 @@ const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications, nameO
           <th>Name</th>
           <th>Role</th>
           <th>Email</th>
-          <th style={{ textAlign: 'right' }}>Actions</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -104,15 +104,14 @@ const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications, nameO
               </td>
               <td>{renderRoleCell(user)}</td>
               <td><span className={styles.email}>{email || ''}</span></td>
-              <td style={{ textAlign: 'right' }}>
-                <SplitDropdown
-                  title="Manage User"
-                  onDropDownClick={() => redirectToManageUsers(userID)}
-                  id={`manage-user_${userID}`}
-                  listItems={listItems}
-                  secondary={true}
-                  onClick={(title) => handleDropdownClick(title, user)}
-                />
+              <td>
+                <button type="button" className={styles.actionLink} onClick={() => redirectToManageUsers(userID)}>Edit</button>
+                {listItems && listItems.map((item, i) => (
+                  <span key={i}>
+                    <span className={styles.actionDot}>·</span>
+                    <button type="button" className={styles.actionLink} onClick={() => handleDropdownClick(item.title, user)}>{item.title}</button>
+                  </span>
+                ))}
               </td>
             </tr>
           )
