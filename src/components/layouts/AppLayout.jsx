@@ -3,8 +3,8 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import SideNavbar from "../elements/Navbar/SideNavbar";
 import { Footer } from "../elements/Footer/Footer";
-import Header from "../elements/Header/Header";
 import { ExpandNavContext } from "../elements/Navbar/ExpandNavContext";
+import { signOut } from "next-auth/react";
 import styles from "./AppLayout.module.css";
 import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
@@ -65,6 +65,16 @@ export const AppLayout = ({ children }) => {
           <SideNavbar />
         </ExpandNavContext.Provider>
       <div className={expandedNav ? styles.expandedSideBarContent : styles.nonExpandedSideBarContent}>
+        {session?.data?.username && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
+            <span style={{ fontSize: 13, color: '#6b6560', padding: '5px 12px', borderRadius: 20, background: '#f3f1ed' }}>{session.data.username}</span>
+            <button
+              type="button"
+              onClick={() => signOut({ redirect: false }).then(() => { window.location.href = '/api/auth/saml-logout'; })}
+              style={{ fontSize: 13, color: '#a09a92', cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontFamily: 'inherit' }}
+            >Logout</button>
+          </div>
+        )}
         {children}
         <Footer />
         {reciterConfig?.showToasts ? <ToastContainerWrapper /> : null}

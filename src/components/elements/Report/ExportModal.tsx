@@ -19,7 +19,7 @@ interface ExportModalProps {
 }
 
 const DownloadIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 2v9M4 8l4 4 4-4"/><path d="M2 14h12"/></svg>
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v8M4 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M2 11h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
 );
 
 const ExportModal = ({ articlesCount, reportsResultsIds, articleLimit, authorLimit, exportArticleCsvLoading, exportAuthorshipCsvLoading, show, handleClose, title, countInfo, error, loadingResults, buttonsList }: ExportModalProps) => {
@@ -39,15 +39,15 @@ const ExportModal = ({ articlesCount, reportsResultsIds, articleLimit, authorLim
           <div className={styles.titleWrap}>
             <div className={`${styles.icon} ${isRTF ? styles.iconRtf : styles.iconCsv}`}>
               {isRTF ? (
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 2h7l4 4v9H3z"/><path d="M10 2v4h4"/><path d="M5 8h4M5 11h3"/></svg>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 1h5.5L13 4.5V13a2 2 0 01-2 2H5a2 2 0 01-2-2V3a2 2 0 012-2z" stroke="#6b6560" strokeWidth="1.2"/><path d="M9 1v4h4" stroke="#6b6560" strokeWidth="1.2"/></svg>
               ) : (
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 2h7l4 4v9H3z"/><path d="M10 2v4h4"/><path d="M5 7h6M5 10h6M5 13h4"/></svg>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 1h5.5L13 4.5V13a2 2 0 01-2 2H5a2 2 0 01-2-2V3a2 2 0 012-2z" stroke="#3b7a57" strokeWidth="1.2"/><path d="M9 1v4h4" stroke="#3b7a57" strokeWidth="1.2"/></svg>
               )}
             </div>
             <div className={styles.title}>Export to {title}</div>
           </div>
           <button className={styles.closeBtn} onClick={handleClose}>
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 1l12 12M13 1L1 13"/></svg>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="#a09a92" strokeWidth="1.5" strokeLinecap="round"/></svg>
           </button>
         </div>
 
@@ -126,7 +126,6 @@ const ExportModal = ({ articlesCount, reportsResultsIds, articleLimit, authorLim
                 </button>
               );
             })}
-            <button className={styles.btnCancel} onClick={handleClose}>Cancel</button>
           </div>
         )}
       </div>

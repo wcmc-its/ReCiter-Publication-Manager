@@ -445,20 +445,31 @@ const SearchSummary = ({
             formattedSortOptions.map((sortOption, index) => {
               const {labelName, keyName} = sortOption || {};
               const isActive = selected.type === keyName;
+              const isDesc = selected.order === 'DESC';
               return (
-                <div key={index} className={`${styles.sortItem} ${isActive ? styles.sortItemActive : ''}`}>
+                <button
+                  type="button"
+                  key={index}
+                  className={`${styles.sortItem} ${isActive ? styles.sortItemActive : ''}`}
+                  onClick={() => {
+                    if (isActive) {
+                      onClick(keyName, isDesc ? 'ASC' : 'DESC');
+                    } else {
+                      onClick(keyName, 'DESC');
+                    }
+                  }}
+                  style={{ width: '100%', background: 'none', border: 'none', fontFamily: 'inherit', textAlign: 'left' }}
+                >
                   <span className={styles.sortLabel}>{labelName}</span>
-                  <div className={styles.sortToggle}>
-                    <button
-                      className={`${styles.sortToggleBtn} ${isActive && selected.order === 'DESC' ? styles.sortToggleBtnActive : ''}`}
-                      onClick={() => onClick(keyName, 'DESC')}
-                    >↓ High</button>
-                    <button
-                      className={`${styles.sortToggleBtn} ${isActive && selected.order === 'ASC' ? styles.sortToggleBtnActive : ''}`}
-                      onClick={() => onClick(keyName, 'ASC')}
-                    >↑ Low</button>
-                  </div>
-                </div>
+                  {isActive && <span className={styles.sortDirection}>{isDesc ? 'High → Low' : 'Low → High'}</span>}
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: isActive ? 1 : 0.3, flexShrink: 0 }}>
+                    {(isActive && !isDesc) ? (
+                      <path d="M7 11V3M7 3L4 6M7 3l3 3" stroke={isActive ? '#2c4a7c' : '#6b6560'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    ) : (
+                      <path d="M7 3v8M7 11L4 8M7 11l3-3" stroke={isActive ? '#2c4a7c' : '#6b6560'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    )}
+                  </svg>
+                </button>
               )
             })
           }

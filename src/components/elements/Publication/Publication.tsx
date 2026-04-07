@@ -806,77 +806,38 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
         {/* Main content column */}
         <div className={styles.cardMain}>
           <div className={styles.cardTop}>
+            {/* Score at top-left */}
+            <div className={styles.scoreArea}>
+              <span className={styles.scoreTip}>
+                <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
+                  {score !== null ? score : "N/A"}
+                </span>
+                {score !== null && (
+                  <span className={styles.scoreTooltip}>
+                    <span className={styles.stRow}>
+                      <span className={styles.stLabel}>Score</span>
+                      <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>{rawScore !== null ? Number(rawScore).toFixed(2) : scoreNum}</span>
+                    </span>
+                    <span className={styles.stRow}>
+                      <span className={styles.stLabel}>Tier</span>
+                      <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>
+                        {scoreNum >= 70 ? 'Strong match' : scoreNum >= 40 ? 'Moderate match' : 'Weak match'}
+                      </span>
+                    </span>
+                  </span>
+                )}
+              </span>
+            </div>
             {/* Content area */}
             <div className={styles.cardContent}>
-              <div className={styles.titleRow}>
-                <span className={styles.scoreTip}>
-                  <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
-                    {score !== null ? score : "N/A"}
-                  </span>
-                  {score !== null && (
-                    <span className={styles.scoreTooltip}>
-                      <span className={styles.stRow}>
-                        <span className={styles.stLabel}>Score</span>
-                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>{rawScore !== null ? Number(rawScore).toFixed(2) : scoreNum}</span>
-                      </span>
-                      <span className={styles.stRow}>
-                        <span className={styles.stLabel}>Tier</span>
-                        <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>
-                          {scoreNum >= 70 ? 'Strong match' : scoreNum >= 40 ? 'Moderate match' : 'Weak match'}
-                        </span>
-                      </span>
-                    </span>
-                  )}
-                </span>
-                <div className={styles.articleTitle}>{reciterArticle.articleTitle}</div>
-              </div>
-              <div className={styles.articleAuthors}>
-                {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
-                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
-              </div>
-              <div className={styles.articleMeta}>
-                <span>{reciterArticle.journalTitleVerbose}</span>
-                {reciterArticle.publicationDateDisplay && <span>{reciterArticle.publicationDateDisplay}</span>}
-                {reciterArticle.publicationType?.publicationTypeCanonical &&
-                  <span>
+              {/* Row 1: Badge + Date + PMID + DOI + Supporting Evidence */}
+              <div className={styles.cardMetaRow}>
+                <div className={styles.cardMetaLeft}>
+                  {reciterArticle.publicationType?.publicationTypeCanonical &&
                     <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>
-                  </span>
-                }
-              </div>
-              <div className={styles.articleLinks}>
-                <div className={styles.articleLinksLeft}>
-                  <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a></span>
-                  {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a></span>}
-                  {Object.keys(feedbacklog).length > 0 && (
-                    <span className={styles.curationWrap} ref={curationLogRef}>
-                      <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>Curation log</button>
-                      {showCurationLog && (
-                        <div className={styles.curationLogPopover}>
-                          <div className={styles.clogHead}>Curation history</div>
-                          {clogEntries.length > 0 ? (
-                            clogEntries.map((entry: any, i: number) => {
-                              const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
-                              const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
-                              const who = entry.AdminUser?.personIdentifier || '';
-                              const date = formatClogDate(entry.modifyTimestamp);
-                              return (
-                                <div className={styles.clogEntry} key={entry.feedbackID || i}>
-                                  <div className={styles.clogAction}>
-                                    <div className={`${styles.clogDot} ${action === 'accepted' ? styles.clogDotAccepted : action === 'rejected' ? styles.clogDotRejected : styles.clogDotUndone}`} />
-                                    <span className={`${styles.clogVerb} ${action === 'accepted' ? styles.clogVerbAccepted : action === 'rejected' ? styles.clogVerbRejected : styles.clogVerbUndone}`}>{verb}</span>
-                                    <span className={styles.clogWho}>{who}</span>
-                                  </div>
-                                  <span className={styles.clogDate}>{date}</span>
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <div className={styles.clogEmpty}>No curation events yet</div>
-                          )}
-                        </div>
-                      )}
-                    </span>
-                  )}
+                  }
+                  {reciterArticle.publicationDateDisplay && <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}>{reciterArticle.publicationDateDisplay}</span></>}
+                  <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}><span className={styles.pmidLabel}>PMID</span> <a className={styles.pmidLink} href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><span style={{userSelect: 'none', color: '#2c4a7c'}}> ↗</span></span></>
                 </div>
                 {reciterArticle.evidence !== undefined && (
                   <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
@@ -885,57 +846,98 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                   </button>
                 )}
               </div>
-
-              {/* Evidence panel */}
-              {reciterArticle.evidence !== undefined && (
-                <div className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
-
-                  {/* Feedback-based scores panel */}
-                  <div className={styles.sectionPanel}>
-                    <div className={styles.sectionHeader}>
-                      <div className={styles.sectionTitleGroup}>
-                        <span className={styles.sectionTitle}>Feedback-based scores</span>
-                        <span className={styles.sectionSubtitle}>Scores learned from curation history</span>
+              {/* Row 2: Title */}
+              <div className={styles.articleTitle}>{reciterArticle.articleTitle}</div>
+              {/* Row 3: Authors */}
+              <div className={styles.articleAuthors}>
+                {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
+                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
+              </div>
+              {/* Row 4: Journal */}
+              <div className={styles.articleMeta}>
+                <span>{reciterArticle.journalTitleVerbose}</span>
+                {Object.keys(feedbacklog).length > 0 && (
+                  <span className={styles.curationWrap} ref={curationLogRef}>
+                    <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>Curation log</button>
+                    {showCurationLog && (
+                      <div className={styles.curationLogPopover}>
+                        <div className={styles.clogHead}>Curation history</div>
+                        {clogEntries.length > 0 ? (
+                          clogEntries.map((entry: any, i: number) => {
+                            const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
+                            const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
+                            const who = entry.AdminUser?.personIdentifier || '';
+                            const date = formatClogDate(entry.modifyTimestamp);
+                            return (
+                              <div className={styles.clogEntry} key={entry.feedbackID || i}>
+                                <div className={styles.clogAction}>
+                                  <div className={`${styles.clogDot} ${action === 'accepted' ? styles.clogDotAccepted : action === 'rejected' ? styles.clogDotRejected : styles.clogDotUndone}`} />
+                                  <span className={`${styles.clogVerb} ${action === 'accepted' ? styles.clogVerbAccepted : action === 'rejected' ? styles.clogVerbRejected : styles.clogVerbUndone}`}>{verb}</span>
+                                  <span className={styles.clogWho}>{who}</span>
+                                </div>
+                                <span className={styles.clogDate}>{date}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className={styles.clogEmpty}>No curation events yet</div>
+                        )}
                       </div>
-                      <div className={styles.learnMoreWrap}>
-                        <div className={styles.learnMoreBtn}>
-                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5.5v.5" strokeLinecap="round"/></svg>
-                          Learn more
-                        </div>
-                        <div className={styles.learnMorePopover}>
-                          <p>Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for <strong>{props.fullName}.</strong> Each subscore represents the contribution of a specific attribute to the overall likelihood that the article was authored by <strong>{props.fullName}.</strong></p>
-                          <p>A score of <strong>100</strong> for an attribute indicates strong evidence supporting authorship, while a score of <strong>&minus;100</strong> suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence.</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className={styles.sectionBody}>
-                      {reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0
-                        ? displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)
-                        : <p style={{color:'var(--gray-400)', fontStyle:'italic', margin:'0'}}>No feedback available.</p>
-                      }
-                    </div>
-                  </div>
+                    )}
+                  </span>
+                )}
+              </div>
 
-                  {/* Identity-based scores panel */}
-                  <div className={styles.sectionPanel}>
-                    <div className={styles.sectionHeader} style={{borderBottom: 'none'}}>
-                      <div className={styles.sectionTitleGroup}>
-                        <span className={styles.sectionTitle}>Identity-based scores</span>
-                        <span className={styles.sectionSubtitle}>Comparison of institutional profile data against article metadata</span>
-                      </div>
-                    </div>
-                    <div className={styles.identityTable}>
-                      {formatEvidenceTable(reciterArticle.evidence)}
-                    </div>
-                  </div>
 
-                </div>
-              )}
-
-              {/* Action buttons (inside card-content, per mockup) */}
-              <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />
             </div>
           </div>
+          {/* Action buttons — above evidence panel */}
+          <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />
+          {/* Evidence panel — full card width */}
+          {reciterArticle.evidence !== undefined && (
+            <div className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
+
+              {/* Feedback-based scores panel */}
+              <div className={styles.sectionPanel}>
+                <div className={styles.sectionHeader}>
+                  <div className={styles.sectionTitleGroup}>
+                    <span className={styles.sectionTitle}>Feedback-based scores</span>
+                    <span className={styles.sectionSubtitle}>Scores learned from curation history</span>
+                  </div>
+                  <div className={styles.learnMoreWrap}>
+                    <div className={styles.learnMoreBtn}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5.5v.5" strokeLinecap="round"/></svg>
+                      Learn more
+                    </div>
+                    <div className={styles.learnMorePopover}>
+                      <p>Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for <strong>{props.fullName}.</strong> Each subscore represents the contribution of a specific attribute to the overall likelihood that the article was authored by <strong>{props.fullName}.</strong></p>
+                      <p>A score of <strong>100</strong> for an attribute indicates strong evidence supporting authorship, while a score of <strong>&minus;100</strong> suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.sectionBody}>
+                  {reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0
+                    ? displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)
+                    : <p style={{color:'var(--gray-400)', fontStyle:'italic', margin:'0'}}>No feedback available.</p>
+                  }
+                </div>
+              </div>
+
+              {/* Identity-based scores panel */}
+              <div className={styles.sectionPanel}>
+                <div className={styles.sectionHeader} style={{borderBottom: 'none'}}>
+                  <div className={styles.sectionTitleGroup}>
+                    <span className={styles.sectionTitle}>Identity-based scores</span>
+                    <span className={styles.sectionSubtitle}>Comparison of institutional profile data against article metadata</span>
+                  </div>
+                </div>
+                <div className={styles.identityTable}>
+                  {formatEvidenceTable(reciterArticle.evidence)}
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
 
 

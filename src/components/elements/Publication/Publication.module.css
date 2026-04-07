@@ -21,7 +21,6 @@
 
 .publicationShowEvidenceContainer {
     display: none;
-    margin-top: 20px;
 }
 .publicationShowEvidenceContainer.publicationShowEvidenceContainerOpen {
     display: block;
@@ -158,7 +157,6 @@
   line-height: normal;
   letter-spacing: 0.03em;
   color: #2c4a7c;
-  margin-left: 6px;
 }
 
 /* Tag pill variants for evidence table */
@@ -320,13 +318,13 @@
 }
 
 .sectionHeader {
-  padding: 16px 24px;
+  padding: 10px 24px;
   border-bottom: 1px solid #eae6df;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  background: #fff;
+  background: #faf8f5;
   border-radius: 0;
 }
 
@@ -349,7 +347,7 @@
 }
 
 .sectionBody {
-  padding: 16px 24px;
+  padding: 14px 24px;
   border-radius: 0;
 }
 
@@ -644,7 +642,7 @@
 .articleCard {
   background: #fff;
   border: 1px solid #d6d0c4;
-  border-radius: 10px;
+  border-radius: 14px;
   box-shadow: none;
   display: flex;
   flex-direction: row;
@@ -658,19 +656,19 @@
 
 /* Status strip for accepted/rejected cards */
 .statusStrip {
-  width: 4px;
+  width: 3px;
   flex-shrink: 0;
-  border-radius: 8px 0 0 8px;
+  border-radius: 10px 0 0 10px;
 }
 
 .statusStripAccepted {
   composes: statusStrip;
-  background: #22c55e;
+  background: #3b7a57;
 }
 
 .statusStripRejected {
   composes: statusStrip;
-  background: #ef4444;
+  background: #a33030;
 }
 
 .cardMain {
@@ -689,42 +687,36 @@
 
 .scoreCol {
   position: relative;
-  width: 68px;
-  min-width: 68px;
+  width: auto;
+  min-width: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 16px 0;
-  background: #faf8f5;
-  border-right: 1px solid #e8e2d9;
+  padding: 14px 6px 14px 16px;
+  background: none;
+  border-right: none;
   gap: 2px;
   align-self: flex-start;
 }
 
 .focused .scoreCol {
-  background: #f0f5fc;
+  background: none;
 }
 
 .scoreNumber {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
   line-height: 1;
-  color: var(--gray-800);
+  color: #2a6b47;
 }
 
 .scoreLabel {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--gray-400);
-  margin-bottom: 6px;
+  display: none;
 }
 
 .scorePip {
-  width: 32px;
-  height: 4px;
-  border-radius: 2px;
+  display: none;
 }
 
 .scoreHigh { background-color: #22c55e; }
@@ -735,19 +727,57 @@
 
 .cardContent {
   flex: 1;
-  padding: 14px 18px;
+  padding: 16px 20px 12px;
   min-width: 0;
 }
 
 .titleRow {
-  display: flex;
-  align-items: center;
-  gap: 14px;
   margin-bottom: 5px;
 }
 
-.titleRow .articleTitle {
-  margin-bottom: 0;
+.scoreArea {
+  flex-shrink: 0;
+  padding: 16px 0 16px 20px;
+  align-self: flex-start;
+}
+
+.cardMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.cardMetaLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardDate {
+  font-size: 12px;
+  color: #6b6560;
+}
+
+.cardMetaSep {
+  color: #d0cbc3;
+  margin: 0 2px;
+}
+
+.pmidLabel {
+  color: #a09a92;
+}
+
+.pmidLink {
+  color: #000;
+  text-decoration: underline;
+  text-decoration-color: #b8cce4;
+  text-underline-offset: 3px;
+  margin-left: 2px;
+}
+
+.pmidLink:hover {
+  text-decoration-color: #2c4a7c;
 }
 
 .scoreTip {
@@ -836,12 +866,12 @@
 .scoreInline {
   font-family: inherit;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 16px;
   letter-spacing: -0.01em;
   line-height: 1;
   flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -869,11 +899,12 @@
 }
 
 .articleTitle {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: #1a1a1a;
-  line-height: 1.4;
-  margin-bottom: 6px;
+  line-height: 1.35;
+  margin-bottom: 4px;
+  margin-top: 6px;
 }
 
 .articleAuthors {
@@ -906,16 +937,15 @@
 
 .typeBadge {
   display: inline-block;
-  background: #eeeae4;
-  border: 1px solid #ddd7ce;
-  border-radius: 3px;
-  padding: 1px 7px;
-  font-size: 10.5px;
+  background: #e6eef7;
+  border: none;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #8a94a6;
-  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  color: #2c4a7c;
 }
 
 .articleLinks {
@@ -971,17 +1001,17 @@
   font-size: 12px;
   font-weight: 500;
   color: #2c4a7c;
-  background: #eef3fb;
+  background: none;
   border: none;
-  border-radius: 999px;
+  border-radius: 0;
   font-family: inherit;
   cursor: pointer;
-  padding: 5px 14px;
-  transition: background 0.12s;
+  padding: 0;
+  transition: opacity 0.12s;
 }
 
 .evidenceBtnPrimary:hover {
-  background: #dce8f7;
+  text-decoration: underline;
 }
 
 .evidenceBtnPrimary svg {
@@ -1134,14 +1164,19 @@
 .cardActions {
   display: flex;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #eae6df;
+  margin-top: 0;
+  padding: 5px 20px 14px;
+  border-top: none;
+}
+
+/* Evidence container spans full card width */
+.publicationShowEvidenceContainerOpen {
+  padding: 16px 20px;
 }
 
 .cardActions button {
   flex: 1;
-  padding: 8px;
+  padding: 6px;
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
@@ -1215,9 +1250,9 @@
 }
 
 .legendBar {
-  padding: 10px 20px;
-  border-bottom: 1px solid #e8e2d9;
-  background: #f5f2ee;
+  padding: 10px 24px;
+  border-bottom: 1px solid #eae6df;
+  background: #fff;
 }
 
 .evidenceLegend {
@@ -1257,23 +1292,23 @@
 
 .identityHeaderRow {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.7);
-  background: #3a4a6b;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgb(150, 150, 150);
   border-bottom: none;
   border-radius: 0;
 }
 
 .identityHeaderRow div {
-  color: rgba(255, 255, 255, 0.6);
-  padding-top: 7px;
-  padding-bottom: 7px;
+  color: #fff;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .identityHeaderRow:hover {
-  background: #3a4a6b;
+  background: rgb(150, 150, 150);
 }
 
 .identityStrip {

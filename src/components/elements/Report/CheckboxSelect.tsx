@@ -89,9 +89,19 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
 
   const getPersonTypeLabel = (slug: string) => {
     return slug
-      .replace(/^academic-/, '')
-      .replace(/-/g, ' — ')
+      .replace(/fullprofessor/i, 'full-professor')
+      .replace(/-/g, ' ')
       .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  const renderLabel = (text: string) => {
+    const parenIdx = text.lastIndexOf(' (');
+    if (parenIdx > 0 && text.endsWith(')')) {
+      const name = text.substring(0, parenIdx);
+      const dept = text.substring(parenIdx + 2, text.length - 1);
+      return <><span>{highlightMatch(name)}</span><span className={styles.ptSlug}>{dept}</span></>;
+    }
+    return highlightMatch(text);
   }
 
   const highlightMatch = (text: string) => {
@@ -174,15 +184,12 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
                 <button
                   type="button"
                   key={val}
-                  className={styles.ptItem}
+                  className={isChecked ? styles.ptItemChecked : styles.ptItem}
                   onClick={() => onSelect(val)}
-                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                 >
-                  <div className={isChecked ? styles.cbOn : styles.cb} style={{marginTop: 3}} />
-                  <div>
-                    <div className={styles.ptLabel}>{getPersonTypeLabel(label)}</div>
-                    <div className={styles.ptSlug}>{label}</div>
-                  </div>
+                  <div className={isChecked ? styles.cbOn : styles.cb} />
+                  <span className={styles.ptLabel}>{getPersonTypeLabel(label)}</span>
+                  <span className={styles.ptSlug}>{label}</span>
                 </button>
               );
             }
@@ -193,10 +200,9 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
                 key={val}
                 className={isChecked ? styles.ddItemChecked : styles.ddItem}
                 onClick={() => onSelect(val)}
-                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%' }}
               >
                 <div className={isChecked ? styles.cbOn : styles.cb} />
-                <span className={styles.ddItemLabel}>{highlightMatch(label)}</span>
+                <span className={styles.ddItemLabel}>{renderLabel(label)}</span>
               </button>
             );
           })}

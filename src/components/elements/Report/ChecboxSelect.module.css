@@ -1,43 +1,43 @@
 /* ── SHARED DROPDOWN CONTAINER ── */
 .dropdownContainer {
-  width: 380px;
+  width: 440px;
 }
 
 /* ── SEARCH BAR ── */
 .ddSearch {
-  padding: 10px;
+  padding: 12px 16px;
   border-bottom: 1px solid #eae6df;
-  background: #f3f1ed;
+  background: #fff;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
 }
 
 .ddSearch input {
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 12.5px;
+  font-size: 15px;
   font-family: inherit;
-  color: #1a2133;
+  color: #2c2a27;
   outline: none;
 }
 
 .ddSearch input::placeholder {
-  color: #8a94a6;
+  color: #b0aca4;
 }
 
 .ddSearch svg {
   width: 14px;
   height: 14px;
-  color: #8a94a6;
+  color: #a09a92;
   flex-shrink: 0;
 }
 
 /* ── HEADER (match count + hints) ── */
 .ddHeader {
-  padding: 7px 12px;
-  background: #f3f1ed;
+  padding: 7px 14px;
+  background: #fff;
   border-bottom: 1px solid #eae6df;
   display: flex;
   align-items: center;
@@ -54,10 +54,13 @@
 
 /* ── LIST ── */
 .selectListContainer {
-  max-height: 220px;
+  max-height: 380px;
   overflow-y: auto;
-  -webkit-mask-image: linear-gradient(to bottom, black 88%, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 88%, transparent 100%);
+  padding: 0;
+}
+
+.selectListContainer > button:first-child {
+  border-top: none;
 }
 
 /* ── ITEM ROW ── */
@@ -66,35 +69,42 @@
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 500;
   color: #2c2a27;
   cursor: pointer;
-  border-left: 2px solid transparent;
   transition: background 0.1s;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-bottom: 1px solid #eae6df;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
 }
 
 .ddItem:hover {
-  background: #f7f5f1;
+  background: #faf8f5;
   color: #2c2a27;
-  border-left-color: #2563a8;
 }
 
 .ddItemChecked {
   composes: ddItem;
-  color: #1a2133;
+  color: #2c2a27;
   font-weight: 500;
 }
 
 /* ── CUSTOM CHECKBOX ── */
 .cb {
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
-  border: 1.5px solid #d6d0c4;
-  border-radius: 3px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 1.5px solid #d0cbc3;
+  border-radius: 5px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -110,8 +120,8 @@
 
 .cbOn::after {
   content: '';
-  width: 8px;
-  height: 5px;
+  width: 10px;
+  height: 6px;
   border-left: 2px solid #fff;
   border-bottom: 2px solid #fff;
   transform: rotate(-45deg) translateY(-1px);
@@ -137,17 +147,17 @@
 
 /* ── FOOTER ── */
 .ddFooter {
-  padding: 7px 12px;
+  padding: 12px 16px;
   border-top: 1px solid #eae6df;
-  background: #f3f1ed;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .ddClear {
-  font-size: 11px;
-  color: #8a94a6;
+  font-size: 14px;
+  color: #2c4a7c;
   cursor: pointer;
   background: none;
   border: none;
@@ -157,13 +167,13 @@
 }
 
 .ddClear:hover {
-  color: #c0392b;
+  text-decoration: underline;
 }
 
 .ddSelectedCount {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  color: #2c4a7c;
+  color: #8a847c;
 }
 
 /* ── LEGACY COMPAT (divider for selected section) ── */
@@ -176,34 +186,48 @@
   border-top: 1px solid #eae6df;
 }
 
-/* ── PERSON TYPE (two-line item) ── */
+/* ── PERSON TYPE (single-line item) ── */
 .ptItem {
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 8px 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
   cursor: pointer;
-  border-left: 2px solid transparent;
   transition: background 0.1s;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #eae6df;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
 }
 
 .ptItem:hover {
-  background: #f3f1ed;
-  border-left-color: #2563a8;
+  background: #f7f5f1;
+}
+
+.ptItemChecked {
+  composes: ptItem;
+  background: #f7f5f1;
 }
 
 .ptLabel {
-  font-size: 12.5px;
-  color: #1a2133;
+  font-size: 14px;
+  color: #2c2a27;
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .ptSlug {
-  font-size: 10.5px;
-  color: #8a94a6;
-  font-family: monospace;
-  margin-top: 1px;
+  font-size: 12px;
+  color: #a09a92;
+  font-family: inherit;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 /* ── AUTHOR POSITION (with sub-label) ── */

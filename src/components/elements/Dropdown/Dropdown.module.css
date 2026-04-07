@@ -1,16 +1,16 @@
 .dropdownMenu span {
     display: block;
-    padding: 3px 20px 4px 20px;
+    padding: 8px 14px;
     clear: both;
     font-weight: 400;
     line-height: 1.4em;
-    font-size: 13px;
-    color: #5a6478;
+    font-size: 14px;
+    color: #2c2a27;
     white-space: nowrap;
     cursor: pointer;
 }
 .dropdownMenu span:hover {
-    background-color: #faf8f5;
+    background-color: #f7f5f1;
 }
 .dropdownSortAsc::after {
     content: '\2191';
@@ -44,50 +44,49 @@
 }
 
 .dropdownItem {
-  color: #1a2133;
+  color: #2c2a27;
   background: white !important;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .dropdownItem:hover {
-  background-color: #faf8f5 !important;
+  background-color: #f7f5f1 !important;
 }
 
 /* ── ACTIONS DROPDOWN (light card) ── */
 .actionsHeader {
-  padding: 7px 12px;
-  background: #eeeae4;
-  border-bottom: 1px solid #ddd7ce;
+  padding: 8px 14px;
+  background: #fff;
+  border-bottom: 1px solid #eae6df;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8a94a6;
+  letter-spacing: 0.06em;
+  color: #8a847c;
 }
 
 .actionsItem {
   display: flex !important;
   align-items: center !important;
-  gap: 9px !important;
-  padding: 9px 12px !important;
-  font-size: 12.5px !important;
-  color: #5a6478 !important;
+  gap: 10px !important;
+  padding: 8px 14px !important;
+  font-size: 14px !important;
+  color: #2c2a27 !important;
   cursor: pointer;
-  border-left: 2px solid transparent;
+  border-left: none;
   transition: background 0.1s;
   background: white !important;
 }
 
 .actionsItem:hover {
-  background: #eeeae4 !important;
-  color: #1a2133 !important;
-  border-left-color: #2563a8;
+  background: #f7f5f1 !important;
+  color: #2c2a27 !important;
 }
 
 .actionsItemPrimary {
   composes: actionsItem;
   font-weight: 500 !important;
-  color: #1a2133 !important;
+  color: #1e2d3d !important;
 }
 
 .actionsItem svg {
@@ -99,15 +98,15 @@
 
 .actionsDivider {
   height: 1px;
-  background: #ddd7ce;
+  background: #eae6df;
   margin: 0;
 }
 
 /* Override the dropdown-menu within secondary button to be light card */
 .secondaryDropdownButton :global(.dropdown-menu) {
   background: #fff !important;
-  border: 1px solid #e8e2d9 !important;
-  border-radius: 8px !important;
+  border: 1px solid #d6d0c4 !important;
+  border-radius: 12px !important;
   box-shadow: 0 4px 20px rgba(26,33,51,0.14), 0 1px 4px rgba(26,33,51,0.07) !important;
   padding: 0 !important;
   overflow: hidden;
@@ -120,9 +119,9 @@
 
 /* Action buttons in table rows — dark style matching target */
 .secondaryDropdownButton button {
-  background-color: #1a2133 !important;
+  background-color: #1e2d3d !important;
   color: #ffffff !important;
-  border-color: #1a2133 !important;
+  border-color: #1e2d3d !important;
   font-size: 12px !important;
   font-weight: 500 !important;
   font-family: var(--font-sans) !important;
@@ -135,27 +134,27 @@
 }
 
 .secondaryDropdownButton button:hover {
-  background-color: #243050 !important;
-  border-color: #243050 !important;
+  background-color: #273848 !important;
+  border-color: #273848 !important;
   color: #ffffff !important;
 }
 
 .secondaryDropdownButton button:active {
-  background-color: #243050 !important;
-  border-color: #243050 !important;
+  background-color: #273848 !important;
+  border-color: #273848 !important;
   color: #ffffff !important;
 }
 
 .secondaryDropdownButton button:focus {
-  background-color: #1a2133 !important;
-  border-color: #1a2133 !important;
+  background-color: #1e2d3d !important;
+  border-color: #1e2d3d !important;
   color: #ffffff !important;
 }
 
 .secondaryDropdownButton a {
-  background-color: #243050 !important;
+  background-color: #273848 !important;
   color: rgba(255,255,255,0.7) !important;
-  border-color: #1a2133 !important;
+  border-color: #1e2d3d !important;
   border-left: 1px solid rgba(255,255,255,0.12) !important;
 }
 

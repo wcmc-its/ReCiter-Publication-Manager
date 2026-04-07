@@ -17,7 +17,7 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
   }
 
   const pathName = customRouterPathNames(router.pathname);
-  const selected = to.includes(pathName);
+  const selected = to.includes(pathName) || pathName.startsWith(to);
 
   const renderIcon = () => {
     if (muiIcon) return muiIcon;

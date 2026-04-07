@@ -109,31 +109,30 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
 
   return (
     <div className={styles.articleCard}>
-      {/* Title + type badge */}
-      <div className={styles.articleCardTop}>
-        <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: title }} />
+      {/* Row 1: Badge + date + PMID */}
+      <div className={styles.cardMetaRow}>
         <span className={styles.typeBadge}>{publicationTypeCanonical}</span>
+        <span className={styles.metaSep}>·</span>
+        <span className={styles.cardDate}>{publicationDateDisplay}</span>
+        <span className={styles.metaSep}>·</span>
+        <span className={styles.cardDate}><span className={styles.idLabel}>PMID</span> <a className={styles.idLink} href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a><span style={{userSelect: 'none', color: '#2c4a7c'}}> ↗</span></span>
       </div>
 
-      {/* Authors */}
+      {/* Row 2: Title */}
+      <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: title }} />
+
+      {/* Row 3: Authors */}
       <div className={styles.articleAuthors}>
         <AuthorsComponent authors={authors} onClick={onClickAuthor} />
       </div>
 
-      {/* Journal + date */}
+      {/* Row 4: Journal + DOI */}
       <div className={styles.articleBib}>
         <span>{journalTitleVerbose}</span>
-        <span className={styles.dot} />
-        <span>{publicationDateDisplay}</span>
-      </div>
-
-      {/* PMID + DOI */}
-      <div className={styles.articleIds}>
-        <span>PMID: <a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a></span>
         {doi && (
           <>
             <span className={styles.dot} />
-            <a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI ↗</a>
+            <a className={styles.idLink} href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI ↗</a>
           </>
         )}
       </div>

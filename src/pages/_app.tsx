@@ -7,7 +7,7 @@ import type { AppProps } from 'next/app'
 import { SessionProvider } from "next-auth/react"
 import type { NextPage } from 'next'
 import type { ReactElement, ReactNode } from 'react'
-import Header from '../components/elements/Header/Header'
+// Header removed — brand is in sidebar, user info in content area
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import { useDispatch, useSelector } from 'react-redux';
@@ -27,13 +27,12 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: [
-      '"DM Sans"',
+      'Arial',
+      'Helvetica',
       '-apple-system',
       'BlinkMacSystemFont',
       '"Segoe UI"',
       'Roboto',
-      '"Helvetica Neue"',
-      'Arial',
       'sans-serif',
     ].join(','),
   },
@@ -82,14 +81,10 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
       <Head>
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@500&display=swap" rel="stylesheet" />
       </Head>
       <ThemeProvider theme={theme}>
         <ReduxProvider store={store}>
         <AdminSettingsDataLoader/>
-        <Header/>
           {getLayout(<Component {...pageProps} />)}
         </ReduxProvider>
       </ThemeProvider>

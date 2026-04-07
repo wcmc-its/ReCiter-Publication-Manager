@@ -55,7 +55,7 @@ const openedMixin = (theme: any) => ({
   top: 0,
   width: drawerWidth,
   height: '100vh',
-  paddingTop: '52px',
+  paddingTop: 0,
   zIndex: 999,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
@@ -72,7 +72,7 @@ const openedMixin = (theme: any) => ({
 const closedMixin = (theme: any) => ({
   top: 0,
   height: '100vh',
-  paddingTop: '52px',
+  paddingTop: 0,
   zIndex: 999,
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
@@ -353,9 +353,15 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
 
   return (
     <Drawer variant="permanent" className='drawer-container' open={open} theme={theme}>
-      <StyledList sx={{ flexGrow: 1, paddingTop: '16px' }}>
+      {open && (
+        <div style={{ padding: '16px 20px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#c44040', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>ReCiter</span>
+        </div>
+      )}
+      <StyledList sx={{ flexGrow: 1, paddingTop: '4px' }}>
           {open && (
-            <Typography sx={{ padding: '12px 20px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#5a7a94' }}>
+            <Typography sx={{ padding: '4px 20px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#5a7a94' }}>
               Navigation
             </Typography>
           )}

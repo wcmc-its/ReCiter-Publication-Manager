@@ -1,84 +1,109 @@
 /* ── article card ── */
 
 .articleCard {
-  background: var(--color-warm-surface);
-  border: 1px solid var(--color-warm-border);
-  border-radius: var(--radius-lg);
-  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid #d6d0c4;
+  border-radius: 10px;
+  padding: 16px 24px;
+  margin-bottom: 5px;
+}
+
+.cardMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
-.articleCardTop {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 6px;
+.cardDate {
+  font-size: 12px;
+  color: rgb(100, 100, 100);
+}
+
+.metaSep {
+  color: #d0cbc3;
+  margin: 0 2px;
 }
 
 .articleTitle {
-  font-size: 13.5px;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--gray-900);
-  line-height: 1.45;
-  flex: 1;
+  color: #1a1a1a;
+  line-height: 1.4;
+  margin-bottom: 8px;
 }
 
 .typeBadge {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 7px;
-  border-radius: 3px;
-  background: #f0ece6;
-  border: 1px solid #ddd8d0;
-  color: #8a95a3;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: #e6eef7;
+  border: none;
+  color: #2c4a7c;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .articleAuthors {
-  font-size: 12px;
-  color: var(--gray-600);
+  font-size: 14px;
+  color: #6b6560;
   margin-bottom: 8px;
   line-height: 1.5;
 }
 
 .articleBib {
-  font-size: 12px;
-  color: var(--gray-600);
-  margin-bottom: 7px;
+  font-size: 13px;
+  color: #6b6560;
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.metricInline {
+  font-size: 13px;
+  color: #8a847c;
+}
+
+.metricInlineValue {
+  font-weight: 600;
+  color: #6b6560;
 }
 
 .articleIds {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
-  color: #8a95a3;
+  font-size: 13px;
+  color: #a09a92;
   flex-wrap: wrap;
-  margin-bottom: 9px;
+  margin-bottom: 8px;
 }
 
-.articleIds a {
-  color: var(--link-blue);
-  text-decoration: none;
+.idLabel {
+  color: #a09a92;
 }
 
-.articleIds a:hover {
+.idLink {
+  color: #2c4a7c;
   text-decoration: underline;
+  text-decoration-color: #b8cce4;
+  text-underline-offset: 2px;
+}
+
+.idLink:hover {
+  text-decoration-color: #2c4a7c;
 }
 
 .dot {
   display: inline-block;
   width: 3px;
   height: 3px;
-  background: #ddd8d0;
+  background: #d0cbc3;
   border-radius: 50%;
   vertical-align: middle;
   flex-shrink: 0;
@@ -89,9 +114,9 @@
 .articleMetrics {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  color: #8a95a3;
+  gap: 6px;
+  font-size: 12px;
+  color: #8a847c;
   flex-wrap: wrap;
 }
 
@@ -146,7 +171,7 @@
 
 .metricValue {
   font-weight: 600;
-  color: var(--gray-600);
+  color: #6b6560;
 }
 
 .metricValueTop {
