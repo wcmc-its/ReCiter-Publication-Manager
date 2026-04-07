@@ -359,6 +359,11 @@ h1 {
   padding: 6px 12px 6px 14px;
 }
 
+/* Dropdown menu reset — kill Bootstrap default padding */
+.dropdown-menu {
+  padding: 0 !important;
+}
+
 /* Chevron flip when dropdown is open */
 .dropdown .dropdown-toggle::after {
   transition: transform 0.15s;
