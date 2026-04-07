@@ -171,7 +171,8 @@ const Notifications = () => {
                         <div className={styles.toggleTitle}>A publication has been accepted on my behalf</div>
                         <div className={styles.toggleDesc}>Notifies you when an admin or curator accepts a publication and attributes it to your profile.</div>
                       </div>
-                      <label className={styles.toggle}>
+                      {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- toggle label wraps checkbox; visible text is in sibling div */}
+                      <label className={styles.toggle} aria-label="Toggle accepted publication notifications">
                         <input type="checkbox" checked={accepted} onChange={handleAccept} />
                         <span className={styles.toggleSlider}></span>
                       </label>
@@ -181,7 +182,8 @@ const Notifications = () => {
                         <div className={styles.toggleTitle}>A new publication has been suggested</div>
                         <div className={styles.toggleDesc}>Notifies you when ReCiter identifies a new publication that may belong to you and is pending your review.</div>
                       </div>
-                      <label className={styles.toggle}>
+                      {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- toggle label wraps checkbox; visible text is in sibling div */}
+                      <label className={styles.toggle} aria-label="Toggle suggested publication notifications">
                         <input type="checkbox" checked={suggested} onChange={handleSuggested} />
                         <span className={styles.toggleSlider}></span>
                       </label>

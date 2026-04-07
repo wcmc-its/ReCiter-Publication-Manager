@@ -449,7 +449,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                             value={pubmedSearch}
                         />
                     </div>
-                    <label className={styles.yearSelectLabel}>From</label>
+                    <label className={styles.yearSelectLabel} htmlFor="earliestYear">From</label>
                     <DatePicker
                         placeholderText="Year"
                         selected={(earliestYear !== undefined && earliestYear !== '') ? earliestYear : null}
@@ -463,7 +463,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
                         maxDate={new Date(currentYear, 11, 31)}
                         customInput={<ReadOnlyInput />}
                     />
-                    <label className={styles.yearSelectLabel}>To</label>
+                    <label className={styles.yearSelectLabel} htmlFor="latestYear">To</label>
                     <DatePicker
                         placeholderText="Year"
                         selected={(latestYear !== undefined && latestYear !== '') ? latestYear : null}
