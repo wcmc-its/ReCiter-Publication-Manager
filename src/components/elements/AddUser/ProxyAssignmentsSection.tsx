@@ -71,7 +71,7 @@ const ProxyAssignmentsSection: React.FC<ProxyAssignmentsSectionProps> = ({
             <div className={styles.sectionTitle}>Proxy Assignments</div>
 
             <div className={styles.field}>
-                <label className={styles.fieldLabel}>People this user can curate on behalf of</label>
+                <label className={styles.fieldLabel} htmlFor="proxy-assignments">People this user can curate on behalf of</label>
                 <Autocomplete
                     multiple
                     id="proxy-assignments"

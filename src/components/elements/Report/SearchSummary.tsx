@@ -417,7 +417,7 @@ const SearchSummary = ({
         <div className="d-flex align-items-center gap-2">
           {total > 0 && count && page && (
             <div className={`d-flex align-items-center ${styles.inlinePagination}`}>
-              <label className={styles.showLabel}>Show</label>
+              <label className={styles.showLabel} htmlFor="count-dropdown">Show</label>
               <DropdownButton className={styles.countDropdown} id="count-dropdown" title={count} onSelect={(eventKey) => onCountUpdate(eventKey)}>
                 <Dropdown.Item eventKey={10} className={`${styles.showItem} ${count == 10 ? styles.showItemActive : ''}`}>
                   <span>10 per page</span>{count == 10 ? <span className={styles.showCheck}>✓</span> : <span className={styles.showHint}>faster</span>}

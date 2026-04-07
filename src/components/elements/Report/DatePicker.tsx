@@ -75,8 +75,9 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
         {/* From / To inputs */}
         <div className={styles.dateInputs}>
           <div className={styles.dateField}>
-            <label>From</label>
+            <label htmlFor="report-date-from">From</label>
             <input
+              id="report-date-from"
               className={startDate ? styles.dateInputFilled : styles.dateInput}
               type="date"
               value={startDate}
@@ -87,8 +88,9 @@ export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, sel
             />
           </div>
           <div className={styles.dateField}>
-            <label>To</label>
+            <label htmlFor="report-date-to">To</label>
             <input
+              id="report-date-to"
               className={endDate ? styles.dateInputFilled : styles.dateInput}
               type="date"
               value={endDate}

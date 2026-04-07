@@ -31,7 +31,7 @@ const CurationScopeSection: React.FC<CurationScopeSectionProps> = ({
             <div className={styles.sectionTitle}>Curation Scope</div>
 
             <div className={styles.field}>
-                <label className={styles.fieldLabel}>Person type(s)</label>
+                <label className={styles.fieldLabel} htmlFor="scope-person-types">Person type(s)</label>
                 <Autocomplete
                     multiple
                     disableClearable
@@ -57,7 +57,7 @@ const CurationScopeSection: React.FC<CurationScopeSectionProps> = ({
             </div>
 
             <div className={styles.field}>
-                <label className={styles.fieldLabel}>Organizational unit(s)</label>
+                <label className={styles.fieldLabel} htmlFor="scope-org-units">Organizational unit(s)</label>
                 <Autocomplete
                     multiple
                     disableClearable

@@ -406,7 +406,8 @@ const AdminSettings = () => {
                                       <div className={styles.settingDesc}>{helpTextSettingsView}</div>
                                     )}
                                   </div>
-                                  <label className={styles.toggle}>
+                                  {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- toggle label wraps checkbox; visible text is in sibling div */}
+                                  <label className={styles.toggle} aria-label={`Toggle ${labelSettingsView}`}>
                                     <input
                                       type="checkbox"
                                       checked={isVisible}
@@ -434,7 +435,8 @@ const AdminSettings = () => {
                                       <div className={styles.settingDesc}>
                                         {labelUserKey === 'emailNotifications' ? 'Enabled' : 'Visible'}
                                       </div>
-                                      <label className={styles.toggle}>
+                                      {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- toggle label wraps checkbox; visible text is in sibling div */}
+                                      <label className={styles.toggle} aria-label={`Toggle ${labelUserKey === 'emailNotifications' ? 'enabled' : 'visible'} for ${labelSettingsView}`}>
                                         <input
                                           type="checkbox"
                                           checked={isVisible}
@@ -554,7 +556,8 @@ const AdminSettings = () => {
                                   {innerObj.hasOwnProperty('useEmailForScheduledJobs') && (
                                     <div className={styles.toggleRow} style={{ marginTop: 12 }}>
                                       <div className={styles.settingDesc}>Use Email Override in all regularly scheduled jobs</div>
-                                      <label className={styles.toggle}>
+                                      {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- toggle label wraps checkbox; visible text is in sibling div */}
+                                      <label className={styles.toggle} aria-label="Toggle use email override for scheduled jobs">
                                         <input
                                           type="checkbox"
                                           checked={useEmailForScheduledJobs}

@@ -384,10 +384,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                             <div className={styles.formSectionTitle}>Account</div>
                             <div className={`${styles.fieldGrid} ${styles.col2}`}>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>CWID</label>
+                                    <label className={styles.fieldLabel} htmlFor="adduser-cwid">CWID</label>
                                     <input
                                         className={styles.fieldInput}
                                         type="text"
+                                        id="adduser-cwid"
                                         value={cwid}
                                         disabled={isEdit}
                                         maxLength={128}
@@ -397,10 +398,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     {formErrorsInst.cwid && <span className={styles.errorText}>{formErrorsInst.cwid}</span>}
                                 </div>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>Primary Email</label>
+                                    <label className={styles.fieldLabel} htmlFor="adduser-email">Primary Email</label>
                                     <input
                                         className={styles.fieldInput}
                                         type="email"
+                                        id="adduser-email"
                                         value={email}
                                         disabled={isEdit}
                                         maxLength={128}
@@ -417,10 +419,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                             <div className={styles.formSectionTitle}>Identity</div>
                             <div className={`${styles.fieldGrid} ${styles.col3}`}>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>First Name <span className={styles.req}>*</span></label>
+                                    <label className={styles.fieldLabel} htmlFor="adduser-firstName">First Name <span className={styles.req}>*</span></label>
                                     <input
                                         className={styles.fieldInput}
                                         type="text"
+                                        id="adduser-firstName"
                                         value={firstName}
                                         maxLength={128}
                                         placeholder="Jane"
@@ -429,10 +432,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     {formErrorsInst.firstName && <span className={styles.errorText}>{formErrorsInst.firstName}</span>}
                                 </div>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>Middle Name</label>
+                                    <label className={styles.fieldLabel} htmlFor="adduser-middleName">Middle Name</label>
                                     <input
                                         className={styles.fieldInput}
                                         type="text"
+                                        id="adduser-middleName"
                                         value={middleName}
                                         maxLength={128}
                                         placeholder="D."
@@ -440,10 +444,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     />
                                 </div>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>Last Name <span className={styles.req}>*</span></label>
+                                    <label className={styles.fieldLabel} htmlFor="adduser-lastName">Last Name <span className={styles.req}>*</span></label>
                                     <input
                                         className={styles.fieldInput}
                                         type="text"
+                                        id="adduser-lastName"
                                         value={lastName}
                                         maxLength={128}
                                         placeholder="Smith"
@@ -454,10 +459,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                             </div>
                             <div className={`${styles.fieldGrid} ${styles.col21}`} style={{ marginTop: 16 }}>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>Primary Organizational Unit</label>
+                                    <label className={styles.fieldLabel} htmlFor="adduser-division">Primary Organizational Unit</label>
                                     <input
                                         className={styles.fieldInput}
                                         type="text"
+                                        id="adduser-division"
                                         value={division}
                                         maxLength={200}
                                         placeholder="Department of Medicine"
@@ -465,10 +471,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     />
                                 </div>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>Title</label>
+                                    <label className={styles.fieldLabel} htmlFor="adduser-title">Title</label>
                                     <input
                                         className={styles.fieldInput}
                                         type="text"
+                                        id="adduser-title"
                                         value={title}
                                         maxLength={200}
                                         placeholder="Associate Professor"
@@ -483,7 +490,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                             <div className={styles.formSectionTitle}>Access</div>
                             <div className={styles.fieldGrid}>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>Organizational unit(s) user can manage</label>
+                                    <label className={styles.fieldLabel} htmlFor="institutions">Organizational unit(s) user can manage</label>
                                     <Autocomplete
                                         freeSolo
                                         multiple
@@ -509,7 +516,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     <span className={styles.fieldHint}>Leave empty if user should have access to all units</span>
                                 </div>
                                 <div className={styles.field}>
-                                    <label className={styles.fieldLabel}>Role(s) <span className={styles.req}>*</span></label>
+                                    <label className={styles.fieldLabel} htmlFor="roles">Role(s) <span className={styles.req}>*</span></label>
                                     <Autocomplete
                                         multiple
                                         id="roles"
