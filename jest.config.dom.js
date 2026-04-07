@@ -1,7 +1,7 @@
 module.exports = {
   testEnvironment: 'jest-environment-jsdom',
   transform: {
-    '^.+\\.[jt]sx?$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
+    '^.+\\.[jt]sx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   testMatch: ['<rootDir>/__tests__/components/**/*.test.(ts|tsx|js)'],
