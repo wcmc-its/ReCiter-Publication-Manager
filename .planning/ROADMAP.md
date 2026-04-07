@@ -28,8 +28,8 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] **Phase 7: Foundation** - Sequelize models, scopeResolver, constants, and database DDL ported to NextJS14 branch (completed 2026-03-19)
 - [ ] **Phase 8: Auth Pipeline** - findUserPermissions enriched, JWT/session callbacks updated, capability middleware live, SAML auto-create wired in
-- [ ] **Phase 9: Scoped Roles and Proxy UI** - All eight admin UI and curation UI components for scoped roles and proxy delegation ported and rendering correctly
-- [ ] **Phase 10: API Scope Enforcement** - userfeedback and goldstandard endpoints enforce scope with proxy bypass on NextJS14 branch
+- [x] **Phase 9: Scoped Roles and Proxy UI** - All eight admin UI and curation UI components for scoped roles and proxy delegation ported and rendering correctly (completed 2026-03-28)
+- [x] **Phase 10: API Scope Enforcement** - userfeedback and goldstandard endpoints enforce scope with proxy bypass on NextJS14 branch (completed 2026-04-06)
 - [ ] **Phase 11: Polish and Testing** - Skeleton loading adapted for React 18, 31 deferred a11y violations fixed, Jest 29 + RTL 16 infrastructure live with passing scope/proxy unit tests
 
 <details>
@@ -63,11 +63,15 @@ Plans:
 - [x] 09-03-PLAN.md — ScopeLabel, ProxyBadge, ScopeFilterCheckbox, SideNavbar and Search page integration
 - [x] 09-04-PLAN.md — GrantProxyModal creation and CurateIndividual page integration
 
+*Completed: 2026-03-28*
+
 #### Phase 10: API Scope Enforcement
 **Goal**: The userfeedback and goldstandard API endpoints on the NextJS14 branch reject out-of-scope curation attempts at the server side, while proxy holders are allowed through
 **Depends on**: Phase 9
 **Requirements**: PORT-16, PORT-17
-**Plans**: TBD
+**Plans**: N/A (implemented directly, commit `a14a1cb`)
+
+*Completed: 2026-04-06 (retroactive — code shipped before planning artifacts)*
 
 #### Phase 11: Polish and Testing
 **Goal**: The NextJS14 branch has skeleton loading components that work under React 18 StrictMode, 31 outstanding a11y violations are resolved, and a Jest 29 + RTL 16 test suite with passing scope/proxy unit tests provides a regression safety net
@@ -99,8 +103,8 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 6. Proxy API Scope Enforcement | v1.0 | 1/1 | Complete | 2026-03-18 |
 | 7. Foundation | v1.1 | 2/2 | Complete | 2026-03-19 |
 | 8. Auth Pipeline | v1.1 | 2/2 | Complete | 2026-03-27 |
-| 9. Scoped Roles and Proxy UI | v1.1 | 2/4 | Executing | - |
-| 10. API Scope Enforcement | v1.1 | 0/TBD | Paused | - |
+| 9. Scoped Roles and Proxy UI | v1.1 | 4/4 | Complete | 2026-03-28 |
+| 10. API Scope Enforcement | v1.1 | N/A | Complete | 2026-04-06 |
 | 11. Polish and Testing | v1.1 | 0/TBD | Paused | - |
 | 12. Fix SP and Sync Code | v1.2 | 2/2 | Complete | 2026-03-26 |
 | 13. Deploy and Verify | v1.2 | 2/2 | Complete | 2026-03-27 |
