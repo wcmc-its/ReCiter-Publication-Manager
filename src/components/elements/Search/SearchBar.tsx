@@ -136,11 +136,9 @@ useEffect(() => {
                 onLoadMore={() => {}}
                 value=""
               />
+              <Button className="primary" type="submit" style={{ padding: '6px 20px', background: '#8B1A1A', borderColor: '#8B1A1A', borderRadius: '20px', fontSize: '14px', fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Search</Button>
+              <button type="button" className={styles.textButton} onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: '13px', color: '#a09a92', cursor: 'pointer', whiteSpace: 'nowrap' }}>Reset</button>
             </div>
-          </div>
-          <div className="d-flex flex-row align-items-center" style={{ gap: '10px' }}>
-            <Button className="primary" type="submit" style={{ padding: '8px 24px', background: '#c0392b', borderColor: '#c0392b', borderRadius: '5px', fontSize: '13px', fontWeight: 600, fontFamily: '"DM Sans", sans-serif' }}>Search</Button>
-            <button type="button" className={styles.textButton} onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>Reset</button>
           </div>
         </Form.Group>
       </Form>
