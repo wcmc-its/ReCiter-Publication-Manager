@@ -81,7 +81,6 @@ const Login = () => {
             <p>Please enter your CWID and password to log in.</p>
             <FormGroup controlId="username" style={{marginBottom: '10px'}}>
                 <FormControl
-                autoFocus
                 type="username"
                 value={username}
                 onChange={handleUserNameInput}

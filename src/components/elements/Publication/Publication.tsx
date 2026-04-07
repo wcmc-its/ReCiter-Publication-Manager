@@ -797,7 +797,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
     const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
 
     return (
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions
       <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}${isActionedInSuggested ? ` ${styles.actionedCard}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
         {/* Status strip for accepted/rejected */}
         {userAssertion === 'ACCEPTED' && <div className={styles.statusStripAccepted} />}

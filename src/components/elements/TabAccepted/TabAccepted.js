@@ -223,7 +223,7 @@ const TabAccepted = (props) => {
                     onClick={rejectAll}
                 >Reject all on page</button>
             </div>
-            <p>Not finding what you`&apos;`re looking for? <a onClick={() => { props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
+            <p>Not finding what you`&apos;`re looking for? <button type="button" onClick={() => { props.tabClickHandler("Add Publication"); } } style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>Search PubMed...</button></p>
             <Pagination total={publications.filteredPublications.length} page={page} count={count} onChange={handlePaginationUpdate} />
             <div className="table-responsive">
                 <table className="table table-striped">

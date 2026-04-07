@@ -99,9 +99,9 @@ const App = (props) => {
                             <strong>{`${
                                 reciterData.reciterPending.length
                                 } record(s). `}</strong>
-                            <a href="#" onClick={refreshHandler}>
+                            <button type="button" onClick={refreshHandler} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
                                 Refresh
-                            </a>
+                            </button>
                             <span> to get new suggestions.</span>
                         </div>
                     ) : null}
