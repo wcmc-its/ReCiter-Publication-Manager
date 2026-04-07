@@ -31,10 +31,10 @@
   --color-warning-light: #fef3c7;
 
   /* Chrome (dark sidebar/header) */
-  --color-chrome: #1a2133;
-  --color-chrome-hover: #252d42;
-  --color-chrome-border: #2a3350;
-  --color-chrome-text: #a0aec0;
+  --color-chrome: #1e2d3d;
+  --color-chrome-hover: #273848;
+  --color-chrome-border: #2e4050;
+  --color-chrome-text: #8aa8c0;
   --color-chrome-text-bright: #e2e8f0;
 
   /* Warm content */
@@ -63,7 +63,7 @@
   --radius-pill: 999px;
 
   /* Typography */
-  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: Arial, Helvetica, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-serif: 'Space Grotesk', sans-serif;
   --font-size-xs: 12px;
   --font-size-sm: 14px;
@@ -332,11 +332,12 @@ h1 {
 
 .search-summary-buttons .dropdown .btn-primary,
 .d-inline-block.dropdown .btn-primary {
-  background-color: var(--color-chrome) !important;
-  border-color: var(--color-chrome) !important;
+  background-color: #e8e4dc !important;
+  border-color: #b0aca4 !important;
   border-radius: var(--radius-pill) !important;
-  font-size: 12.5px;
-  padding: 5px 12px;
+  color: #2c2a27 !important;
+  font-size: 14px;
+  padding: 6px 12px 6px 14px;
 }
 
 .search-summary-buttons .dropdown .btn-primary:hover,
@@ -345,20 +346,17 @@ h1 {
 .d-inline-block.dropdown .btn-primary:hover,
 .d-inline-block.dropdown .btn-primary:focus,
 .d-inline-block.dropdown .btn-primary:active {
-  background-color: var(--color-chrome-hover) !important;
-  border-color: var(--color-chrome-hover) !important;
+  background-color: #e0dcd4 !important;
+  border-color: #a09c94 !important;
 }
 
 .dropdown .btn-white {
   border-radius: var(--radius-pill) !important;
-}
-
-.dropdown .btn-white {
-  background-color: #eeeae4 !important;
-  border: 1px solid #ddd7ce !important;
-  color: var(--gray-700) !important;
-  font-size: 12.5px;
-  padding: 5px 12px;
+  background-color: #f3f1ed !important;
+  border: 1px solid #d6d0c4 !important;
+  color: #2c2a27 !important;
+  font-size: 14px;
+  padding: 6px 12px 6px 14px;
 }
 
 .btn-danger {

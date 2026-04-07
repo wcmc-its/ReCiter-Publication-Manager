@@ -19,7 +19,7 @@ const Header = () => {
               {(session && session.data) ? 
               <>
                   <li className={styles.headerNavSignedInAs}><p>{session.data.username}</p></li>
-                  <li><button type="button" className={styles.logout} onClick={()=>{signOut({ callbackUrl: getSigninUrl() })}} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>Logout</button></li>
+                  <li><button type="button" className={styles.logout} onClick={()=>{signOut({ redirect: false }).then(() => { window.location.href = '/api/auth/saml-logout'; })}} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>Logout</button></li>
               </> : null}
               
           </ul>

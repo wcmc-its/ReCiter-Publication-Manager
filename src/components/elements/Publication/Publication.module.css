@@ -133,7 +133,7 @@
 }
 
 .publicationAuthorHighlighted {
-    background-color: #fef3c7;
+    background-color: #f5f0c8;
     border-radius: 3px;
     padding: 1px 3px;
 }
@@ -145,19 +145,19 @@
 
 .reciterType {
   display: inline-block;
-  background: var(--gray-200);
-  border-radius: var(--radius-pill);
+  background: #e6eef7;
+  border-radius: 20px;
   text-align: center;
-  padding: 4px 10px;
+  padding: 3px 10px;
   line-height: 1em;
   margin-top: 8px;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   font-stretch: normal;
   font-style: normal;
   line-height: normal;
-  letter-spacing: .11px;
-  color: var(--gray-700);
+  letter-spacing: 0.03em;
+  color: #2c4a7c;
   margin-left: 6px;
 }
 
@@ -313,22 +313,21 @@
 
 .sectionPanel {
   background: #fff;
-  border: 1px solid #e8e2d9;
-  border-radius: 8px;
-  overflow: visible;
+  border: 1px solid #d6d0c4;
+  border-radius: 10px;
+  overflow: hidden;
   margin-bottom: 16px;
 }
 
 .sectionHeader {
-  padding: 0 16px;
-  min-height: 38px;
-  border-bottom: 1px solid #e8e2d9;
+  padding: 16px 24px;
+  border-bottom: 1px solid #eae6df;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  background: #1a2133;
-  border-radius: 8px 8px 0 0;
+  background: #fff;
+  border-radius: 0;
 }
 
 .sectionTitleGroup {
@@ -338,20 +337,20 @@
 }
 
 .sectionTitle {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  color: #fff;
+  color: #1a1a1a;
 }
 
 .sectionSubtitle {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  color: #a09a92;
   font-weight: 400;
 }
 
 .sectionBody {
-  padding: 6px 16px 8px;
-  border-radius: 0 0 8px 8px;
+  padding: 16px 24px;
+  border-radius: 0;
 }
 
 /* Learn more popover */
@@ -366,17 +365,18 @@
   gap: 5px;
   font-size: 12px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.55);
+  color: #2c4a7c;
   background: none;
   border: none;
   cursor: pointer;
   font-family: inherit;
   padding: 0;
+  text-decoration: none;
   transition: opacity 0.12s;
 }
 
 .learnMoreBtn:hover {
-  opacity: 0.75;
+  text-decoration: underline;
 }
 
 .learnMorePopover {
@@ -459,26 +459,26 @@
 .chartAxisNeg {
   text-align: right;
   padding-right: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #c0392b;
+  font-size: 11px;
+  font-weight: 400;
+  color: #a09a92;
 }
 
 .chartAxisPos {
   text-align: left;
   padding-left: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #1a7a4a;
+  font-size: 11px;
+  font-weight: 400;
+  color: #a09a92;
 }
 
 .chartScale {
   position: absolute;
   right: 0;
   top: 0;
-  font-size: 9.5px;
-  font-weight: 500;
-  color: #8a94a6;
+  font-size: 11px;
+  font-weight: 400;
+  color: #a09a92;
   letter-spacing: 0.02em;
 }
 
@@ -486,11 +486,11 @@
   display: grid;
   grid-template-columns: 200px 1fr 1px 1fr;
   align-items: center;
-  border-bottom: 1px solid #ddd7ce;
+  height: 30px;
 }
 
 .chartRow:first-of-type {
-  border-top: 1px solid #ddd7ce;
+  border-top: none;
 }
 
 .chartRow:last-of-type {
@@ -502,8 +502,8 @@
 }
 
 .chartLabel {
-  font-size: 11.5px;
-  color: #5a6478;
+  font-size: 13px;
+  color: #2c2a27;
   padding: 2px 10px 2px 0;
   display: flex;
   align-items: baseline;
@@ -516,18 +516,18 @@
 }
 
 .chartVal {
-  font-size: 12px;
-  font-weight: 700;
-  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
   white-space: nowrap;
 }
 
 .chartValPos {
-  color: var(--gray-900);
+  color: #2c2a27;
 }
 
 .chartValNeg {
-  color: #c0392b;
+  color: #a33030;
 }
 
 .chartValDominant {
@@ -547,7 +547,7 @@
 }
 
 .chartCenterLine {
-  background: #ddd7ce;
+  background: #eae6df;
   width: 1px;
   align-self: stretch;
 }
@@ -560,26 +560,26 @@
 }
 
 .barNeg {
-  height: 6px;
-  border-radius: 3px;
+  height: 10px;
+  border-radius: 3px 0 0 3px;
   min-width: 2px;
-  background: #c0392b;
-  opacity: 0.75;
+  background: #d4706b;
+  opacity: 1;
 }
 
 .barPos {
-  height: 6px;
-  border-radius: 3px;
+  height: 10px;
+  border-radius: 0 3px 3px 0;
   min-width: 2px;
-  background: #1a2133;
+  background: #2c4a7c;
 }
 
 .barDominant {
-  background: #2563a8;
+  background: #2c4a7c;
 }
 
 .barNeg.barDominant {
-  background: #2563a8;
+  background: #d4706b;
   opacity: 1;
 }
 
@@ -643,9 +643,9 @@
 
 .articleCard {
   background: #fff;
-  border: 1px solid #e8e2d9;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
+  border: 1px solid #d6d0c4;
+  border-radius: 10px;
+  box-shadow: none;
   display: flex;
   flex-direction: row;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -834,44 +834,46 @@
 }
 
 .scoreInline {
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 400;
-  font-size: 16px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 18px;
   letter-spacing: -0.01em;
   line-height: 1;
   flex-shrink: 0;
-  padding: 3px 8px;
-  border-radius: 5px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: none;
   cursor: default;
 }
 
 .scoreInlineHigh {
   composes: scoreInline;
-  color: #1a7a4a;
-  background: #edf7f2;
-  border: 1px solid #b8e0cc;
+  color: #2a6b47;
+  background: #e6f3ec;
 }
 
 .scoreInlineMedium {
   composes: scoreInline;
   color: #92600a;
   background: #fdf4e7;
-  border: 1px solid #f0d8a0;
 }
 
 .scoreInlineLow {
   composes: scoreInline;
-  color: #8a94a6;
-  background: #eeeae4;
-  border: 1px solid #ddd7ce;
+  color: #a33030;
+  background: #fdf5f5;
 }
 
 .articleTitle {
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--gray-900);
+  color: #1a1a1a;
   line-height: 1.4;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .articleAuthors {
@@ -966,24 +968,25 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
-  color: #2563a8;
-  background: none;
+  color: #2c4a7c;
+  background: #eef3fb;
   border: none;
+  border-radius: 999px;
   font-family: inherit;
   cursor: pointer;
-  padding: 0;
-  transition: opacity 0.12s;
+  padding: 5px 14px;
+  transition: background 0.12s;
 }
 
 .evidenceBtnPrimary:hover {
-  opacity: 0.7;
+  background: #dce8f7;
 }
 
 .evidenceBtnPrimary svg {
-  width: 11px;
-  height: 11px;
+  width: 13px;
+  height: 13px;
 }
 
 /* ── Curation log popover ── */
@@ -1129,60 +1132,62 @@
 /* ── Card actions footer ── */
 
 .cardActions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 10px;
-  border: 1px solid #e8e2d9;
-  border-radius: 5px;
-  overflow: hidden;
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eae6df;
 }
 
 .cardActions button {
-  padding: 9px 16px;
+  flex: 1;
+  padding: 8px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   font-family: inherit;
-  border: none;
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   transition: background 0.12s, color 0.12s;
 }
 
 .btnAccept {
-  background: #edf7f2;
-  color: #1a7a4a;
-  border-right: 1px solid #e8e2d9;
+  background: #f0f8f4;
+  color: #2a6b47;
+  border: 1px solid #b8d4c4;
 }
 
 .btnAccept:hover {
-  background: #d0eddf;
+  background: #e2f0e8;
 }
 
 .btnReject {
-  background: #fdf0ee;
-  color: #c0392b;
+  background: #fdf5f5;
+  color: #a33030;
+  border: 1px solid #e8c4c4;
 }
 
 .btnReject:hover {
-  background: #fae0dc;
+  background: #fae8e8;
 }
 
-/* Actioned state (single undo button) */
+/* Actioned state (undo + opposite action) */
 .cardActionsActioned {
-  grid-template-columns: 1fr;
+  /* no special grid override needed with flex */
 }
 
 .btnUndo {
-  background: #eeeae4;
-  color: #5a6478;
+  background: #fff;
+  color: #6b6560;
+  border: 1px solid #d6d0c4;
 }
 
 .btnUndo:hover {
-  background: #e4e0d8;
-  color: #1a2133;
+  background: #f7f5f1;
+  color: #2c2a27;
 }
 
 /* Actioned card in Suggested tab */

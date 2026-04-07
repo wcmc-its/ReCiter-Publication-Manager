@@ -233,11 +233,10 @@
 .kwTag {
   position: relative;
   display: inline-block;
-  background: #eeeae4;
-  border: 1px solid #ddd7ce;
-  border-radius: 20px;
-  padding: 2px 8px;
-  font-size: 11px;
+  background: rgb(245, 245, 245);
+  border-radius: 10px;
+  padding: 2px 14px;
+  font-size: 12px;
   color: #5a6478;
   white-space: nowrap;
   cursor: default;
@@ -245,8 +244,7 @@
 }
 
 .kwTag:hover {
-  background: #e4e0d8;
-  border-color: #ccc6bc;
+  background: #e8e8e8;
   color: #1a2133;
 }
 
@@ -476,9 +474,9 @@
 .addRecordBtn {
   font-size: 12px;
   font-weight: 600;
-  color: var(--gray-600);
-  background: #eeeae4;
-  border: 1px solid #ddd7ce;
+  color: #2563a8;
+  background: #eef3fb;
+  border: 1px solid #d4e0f0;
   border-radius: 6px;
   padding: 5px 14px;
   cursor: pointer;
@@ -487,7 +485,7 @@
 }
 
 .addRecordBtn:hover {
-  background: #e5e0d9;
+  background: #dce8f7;
 }
 
 .addRecordIndicator {

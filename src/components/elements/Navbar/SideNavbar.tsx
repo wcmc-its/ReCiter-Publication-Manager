@@ -62,7 +62,7 @@ const openedMixin = (theme: any) => ({
     duration: theme.transitions.duration.enteringScreen,
   }),
   paddingBottom: '16px',
-  backgroundColor: '#1a2133',
+  backgroundColor: '#1e2d3d',
   borderRight: 'none',
   boxShadow: 'none',
   display: 'flex',
@@ -91,8 +91,8 @@ const closedMixin = (theme: any) => ({
     display: 'none'
   },
   paddingBottom: '16px',
-  backgroundColor: '#1a2133',
-  borderRight: '1px solid #2a3350',
+  backgroundColor: '#1e2d3d',
+  borderRight: '1px solid #2e4050',
   boxShadow: 'none',
   display: 'flex',
   flexDirection: 'column' as const,
@@ -127,15 +127,15 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 
 const StyledList = styled(List)({
   paddingTop: '0px',
-  backgroundColor: '#1a2133',
+  backgroundColor: '#1e2d3d',
   // Link wrappers: fill background to prevent subpixel seams
   '& > a': {
     display: 'block',
-    backgroundColor: '#1a2133',
+    backgroundColor: '#1e2d3d',
   },
   // selected: active bg, white text, red left accent
   '&& .Mui-selected': {
-    backgroundColor: '#2d3a52',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderLeft: '2px solid #e05a5a',
     color: '#ffffff',
     fontWeight: 500,
@@ -143,31 +143,31 @@ const StyledList = styled(List)({
     '& .MuiListItemIcon-root svg': { opacity: 1 },
   },
   '&& .Mui-selected:hover': {
-    backgroundColor: '#2d3a52',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     color: '#ffffff',
     '& .MuiListItemIcon-root': { color: '#ffffff' },
   },
   // hover: lighter bg, text goes white
   '& .MuiListItem-root:hover': {
-    backgroundColor: '#242e44',
+    backgroundColor: 'rgba(255,255,255,0.07)',
     color: '#ffffff',
     '& .MuiListItemText-primary': { color: '#ffffff' },
     '& .MuiListItemIcon-root': { color: '#ffffff' },
     '& .MuiListItemIcon-root svg': { opacity: 1 },
   },
   '& .MuiListItem-root': {
-    color: '#a8b4cc',
+    color: '#8aa8c0',
     cursor: 'pointer',
     transition: 'background 0.15s, color 0.15s',
     padding: '9px 20px',
-    backgroundColor: '#1a2133',
+    backgroundColor: '#1e2d3d',
     borderTop: 'none',
     borderRight: 'none',
     borderBottom: 'none',
     borderLeft: '2px solid transparent',
     '& .MuiListItemIcon-root': {
       minWidth: '16px',
-      color: '#a8b4cc',
+      color: '#8aa8c0',
       marginRight: '10px',
     },
     '& .MuiListItemIcon-root svg': {
@@ -355,7 +355,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     <Drawer variant="permanent" className='drawer-container' open={open} theme={theme}>
       <StyledList sx={{ flexGrow: 1, paddingTop: '16px' }}>
           {open && (
-            <Typography sx={{ padding: '12px 20px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(168,180,204,0.4)' }}>
+            <Typography sx={{ padding: '12px 20px 6px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#5a7a94' }}>
               Navigation
             </Typography>
           )}
@@ -391,7 +391,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             })
           }
           {open && (
-            <Typography sx={{ padding: '12px 20px 6px', marginTop: '8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(168,180,204,0.4)' }}>
+            <Typography sx={{ padding: '12px 20px 6px', marginTop: '8px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#5a7a94' }}>
               Admin
             </Typography>
           )}
@@ -421,7 +421,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             })
           }
       </StyledList>
-      <button type="button" className={styles.compactToggle} onClick={handleDrawerToggle} style={{ marginTop: 'auto', borderTop: '1px solid #2a3350', background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', width: '100%' }} aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}>
+      <button type="button" className={styles.compactToggle} onClick={handleDrawerToggle} style={{ marginTop: 'auto', borderTop: '1px solid #2e4050', background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', width: '100%' }} aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}>
         {open && <span>Compact mode</span>}
         {open ? <ChevronLeftIcon sx={{ fontSize: 16, color: '#4a5568' }} /> : <ChevronRightIcon sx={{ fontSize: 16, color: '#4a5568' }} />}
       </button>

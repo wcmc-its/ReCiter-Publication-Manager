@@ -6,8 +6,8 @@
 /* ── SEARCH BAR ── */
 .ddSearch {
   padding: 10px;
-  border-bottom: 1px solid #ddd7ce;
-  background: #eeeae4;
+  border-bottom: 1px solid #eae6df;
+  background: #f3f1ed;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -18,7 +18,7 @@
   border: none;
   background: transparent;
   font-size: 12.5px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
   color: #1a2133;
   outline: none;
 }
@@ -37,8 +37,8 @@
 /* ── HEADER (match count + hints) ── */
 .ddHeader {
   padding: 7px 12px;
-  background: #eeeae4;
-  border-bottom: 1px solid #ddd7ce;
+  background: #f3f1ed;
+  border-bottom: 1px solid #eae6df;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -64,10 +64,10 @@
 .ddItem {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 12px;
-  font-size: 12.5px;
-  color: #5a6478;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #2c2a27;
   cursor: pointer;
   border-left: 2px solid transparent;
   transition: background 0.1s;
@@ -77,8 +77,8 @@
 }
 
 .ddItem:hover {
-  background: #eeeae4;
-  color: #1a2133;
+  background: #f7f5f1;
+  color: #2c2a27;
   border-left-color: #2563a8;
 }
 
@@ -93,7 +93,7 @@
   width: 14px;
   height: 14px;
   min-width: 14px;
-  border: 1.5px solid #ddd7ce;
+  border: 1.5px solid #d6d0c4;
   border-radius: 3px;
   flex-shrink: 0;
   display: flex;
@@ -104,8 +104,8 @@
 
 .cbOn {
   composes: cb;
-  background: #1a2133;
-  border-color: #1a2133;
+  background: #2c4a7c;
+  border-color: #2c4a7c;
 }
 
 .cbOn::after {
@@ -138,8 +138,8 @@
 /* ── FOOTER ── */
 .ddFooter {
   padding: 7px 12px;
-  border-top: 1px solid #ddd7ce;
-  background: #eeeae4;
+  border-top: 1px solid #eae6df;
+  background: #f3f1ed;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -151,7 +151,7 @@
   cursor: pointer;
   background: none;
   border: none;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
   transition: color 0.15s;
   padding: 0;
 }
@@ -161,9 +161,9 @@
 }
 
 .ddSelectedCount {
-  font-size: 11px;
-  font-weight: 600;
-  color: #2563a8;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2c4a7c;
 }
 
 /* ── LEGACY COMPAT (divider for selected section) ── */
@@ -173,7 +173,7 @@
 }
 
 .selectFiltersContainer {
-  border-top: 1px solid #ddd7ce;
+  border-top: 1px solid #eae6df;
 }
 
 /* ── PERSON TYPE (two-line item) ── */
@@ -188,7 +188,7 @@
 }
 
 .ptItem:hover {
-  background: #eeeae4;
+  background: #f3f1ed;
   border-left-color: #2563a8;
 }
 
@@ -220,7 +220,7 @@
 }
 
 .posItem:hover {
-  background: #eeeae4;
+  background: #f3f1ed;
   color: #1a2133;
   border-left-color: #2563a8;
 }

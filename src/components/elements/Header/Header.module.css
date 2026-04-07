@@ -79,7 +79,7 @@ a.logout {
   border: none !important;
   padding: 0 !important;
   border-radius: 0 !important;
-  color: #a8b4cc !important;
+  color: #8aa8c0 !important;
   font-weight: 400;
   font-size: 12px !important;
   font-family: var(--font-sans) !important;
@@ -93,7 +93,7 @@ a.logout {
 a.logout:hover {
   opacity: 1;
   background-color: transparent !important;
-  color: #a8b4cc !important;
+  color: #8aa8c0 !important;
 }
 
 .main-content {

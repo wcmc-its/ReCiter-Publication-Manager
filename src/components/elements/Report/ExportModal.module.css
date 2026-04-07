@@ -12,10 +12,11 @@
 /* ── MODAL SHELL ── */
 .modal {
   background: #fff;
-  border-radius: 10px;
+  border-radius: 14px;
+  border: 1px solid #d6d0c4;
   box-shadow: 0 8px 40px rgba(26,33,51,0.18), 0 2px 8px rgba(26,33,51,0.1);
   overflow: hidden;
-  width: 420px;
+  width: 380px;
   max-width: calc(100vw - 40px);
 }
 
@@ -24,8 +25,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 22px 16px;
-  border-bottom: 1px solid #e8e2d9;
+  padding: 24px 24px 0;
+  border-bottom: none;
+  margin-bottom: 20px;
 }
 
 .titleWrap {
@@ -37,7 +39,7 @@
 .icon {
   width: 32px;
   height: 32px;
-  border-radius: 7px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,21 +52,21 @@
 }
 
 .iconRtf {
-  background: #f0ece5;
-  color: #5a6478;
+  background: #f3f1ed;
+  color: #6b6560;
 }
 
 .iconCsv {
-  background: #edf7f2;
-  color: #1a7a4a;
+  background: #e6f3ec;
+  color: #3b7a57;
 }
 
 .title {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: inherit;
   font-weight: 500;
-  font-size: 17px;
-  letter-spacing: -0.02em;
-  color: #1a2133;
+  font-size: 16px;
+  letter-spacing: 0;
+  color: #1a1a1a;
 }
 
 .closeBtn {
@@ -82,7 +84,7 @@
 }
 
 .closeBtn:hover {
-  background: #eeeae4;
+  background: #f3f1ed;
   color: #1a2133;
 }
 
@@ -93,44 +95,44 @@
 
 /* ── BODY ── */
 .body {
-  padding: 20px 22px;
+  padding: 0 24px;
 }
 
 /* ── SUMMARY ROW ── */
 .summaryRow {
   display: flex;
   align-items: stretch;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
 .statBlock {
   flex: 1;
-  padding: 12px 14px;
-  background: #eeeae4;
-  border: 1px solid #ddd7ce;
-  border-radius: 5px;
+  padding: 16px;
+  background: #f7f5f1;
+  border: none;
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .statNum {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
-  font-weight: 500;
-  font-size: 22px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 28px;
   letter-spacing: -0.02em;
-  color: #1a2133;
+  color: #1a1a1a;
   line-height: 1;
 }
 
 .statLabel {
   font-size: 11px;
-  color: #8a94a6;
+  color: #8a847c;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 600;
-  margin-top: 3px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  margin-top: 2px;
 }
 
 /* ── FORMAT BADGE ── */
@@ -146,30 +148,30 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.03em;
 }
 
 .badgeRtf {
-  background: #f0ece5;
-  color: #5a6478;
+  background: #e6eef7;
+  color: #2c4a7c;
 }
 
 .badgeCsv {
-  background: #edf7f2;
-  color: #1a7a4a;
+  background: #e6f3ec;
+  color: #2a6b47;
 }
 
 /* ── DESCRIPTION ── */
 .desc {
-  font-size: 12.5px;
-  color: #8a94a6;
-  line-height: 1.6;
-  margin: 0;
+  font-size: 13px;
+  color: #8a847c;
+  line-height: 1.5;
+  margin: 0 0 20px;
 }
 
 /* ── LIMIT ALERT ── */
@@ -195,9 +197,9 @@
 
 /* ── FOOTER ── */
 .footer {
-  padding: 14px 22px;
-  background: #faf8f5;
-  border-top: 1px solid #e8e2d9;
+  padding: 0 24px 24px;
+  background: none;
+  border-top: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -209,22 +211,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 9px 16px;
-  background: #1a2133;
+  gap: 6px;
+  padding: 10px 16px;
+  background: #2c2a27;
   color: #fff;
   border: none;
-  border-radius: 5px;
-  font-size: 12.5px;
-  font-weight: 600;
-  font-family: 'DM Sans', sans-serif;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
   transition: background 0.15s;
   white-space: nowrap;
 }
 
 .btnExport:hover {
-  background: #243050;
+  background: #3d3b37;
 }
 
 .btnExport:disabled {
@@ -239,40 +241,40 @@
 }
 
 .btnBlue {
-  background: #2563a8;
+  background: #2c2a27;
 }
 
 .btnBlue:hover {
-  background: #1a4f8a;
+  background: #3d3b37;
 }
 
 .btnBlueLight {
-  background: #eef3fb;
-  color: #2563a8;
-  border: 1px solid #c9d9f0;
+  background: #fff;
+  color: #2c2a27;
+  border: 1px solid #2c2a27;
 }
 
 .btnBlueLight:hover {
-  background: #dde9f7;
-  border-color: #adc4e8;
+  background: #f7f5f1;
+  border-color: #2c2a27;
 }
 
 .btnCancel {
-  padding: 9px 14px;
-  background: transparent;
-  color: #8a94a6;
-  border: 1px solid #ddd7ce;
-  border-radius: 5px;
-  font-size: 12.5px;
-  font-family: 'DM Sans', sans-serif;
+  padding: 10px 16px;
+  background: #fff;
+  color: #6b6560;
+  border: 1px solid #d6d0c4;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
 }
 
 .btnCancel:hover {
-  color: #5a6478;
-  border-color: #bbb5aa;
+  color: #2c2a27;
+  border-color: #b0aca4;
 }
 
 /* ── LOADING SPINNER ── */
