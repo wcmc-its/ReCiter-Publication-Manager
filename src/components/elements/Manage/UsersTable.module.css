@@ -2,6 +2,9 @@
 .table {
   width: 100%;
   border-collapse: collapse;
+  border: 1px solid #eae6df;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 .table thead tr {
@@ -9,19 +12,19 @@
 }
 
 .table th {
-  padding: 10px 16px;
+  padding: 8px 14px;
   text-align: left;
-  font-size: 10.5px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8a94a6;
-  border-bottom: 1px solid #e8e2d9;
+  letter-spacing: 0.04em;
+  color: #8a847c;
+  border-bottom: 1px solid #eae6df;
   white-space: nowrap;
 }
 
 .table tbody tr {
-  border-bottom: 1px solid #ddd7ce;
+  border-bottom: 1px solid #eae6df;
   transition: background 0.1s;
 }
 
@@ -34,22 +37,22 @@
 }
 
 .table td {
-  padding: 13px 16px;
+  padding: 10px 14px;
   vertical-align: middle;
 }
 
 /* ── Name cell ── */
 .personName {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #2563a8;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2c4a7c;
   margin-bottom: 1px;
   white-space: nowrap;
 }
 
 .personDept {
-  font-size: 11.5px;
-  color: #5a6478;
+  font-size: 12px;
+  color: #8a847c;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -58,36 +61,36 @@
 
 .personId {
   font-size: 11px;
-  color: #8a94a6;
+  color: #a09a92;
   margin-top: 2px;
 }
 
 .idLabel {
-  font-weight: 600;
-  color: #5a6478;
+  font-weight: 500;
+  color: #6b6560;
 }
 
 /* ── Email ── */
 .email {
-  font-size: 12px;
-  color: #5a6478;
+  font-size: 13px;
+  color: #6b6560;
 }
 
 /* ── Role cell ── */
 .roleLabel {
   font-size: 13px;
-  color: #5a6478;
+  color: #6b6560;
   line-height: 1.5;
 }
 
 .roleMuted {
-  font-size: 11px;
-  color: #8a94a6;
+  font-size: 12px;
+  color: #a09a92;
 }
 
 .proxyCount {
   font-size: 11px;
-  color: #8a94a6;
+  color: #a09a92;
   margin-top: 2px;
 }
 

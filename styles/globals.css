@@ -359,6 +359,21 @@ h1 {
   padding: 6px 12px 6px 14px;
 }
 
+/* Chevron flip when dropdown is open */
+.dropdown .dropdown-toggle::after {
+  transition: transform 0.15s;
+}
+
+.dropdown.show .dropdown-toggle::after {
+  transform: rotate(180deg);
+}
+
+/* Open state gets active pill styling */
+.dropdown.show .btn-white {
+  background-color: #e8e4dc !important;
+  border-color: #b0aca4 !important;
+}
+
 .btn-danger {
   background-color: var(--wcm-red) !important;
   border-color: var(--wcm-red) !important;
