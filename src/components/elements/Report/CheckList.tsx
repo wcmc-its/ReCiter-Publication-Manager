@@ -44,7 +44,6 @@ export const CheckList = ({ reportFiltersLabes, title, options, onUpdateFilter, 
               key={option.key}
               className={styles.posItem}
               onClick={() => onSelect(option.key)}
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%' }}
             >
               <div className={isChecked ? styles.cbOn : styles.cb} />
               <div>
