@@ -171,29 +171,33 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
 
             if (isPersonType) {
               return (
-                <div
+                <button
+                  type="button"
                   key={val}
                   className={styles.ptItem}
                   onClick={() => onSelect(val)}
+                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                 >
                   <div className={isChecked ? styles.cbOn : styles.cb} style={{marginTop: 3}} />
                   <div>
                     <div className={styles.ptLabel}>{getPersonTypeLabel(label)}</div>
                     <div className={styles.ptSlug}>{label}</div>
                   </div>
-                </div>
+                </button>
               );
             }
 
             return (
-              <div
+              <button
+                type="button"
                 key={val}
                 className={isChecked ? styles.ddItemChecked : styles.ddItem}
                 onClick={() => onSelect(val)}
+                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%' }}
               >
                 <div className={isChecked ? styles.cbOn : styles.cb} />
                 <span className={styles.ddItemLabel}>{highlightMatch(label)}</span>
-              </div>
+              </button>
             );
           })}
         </div>

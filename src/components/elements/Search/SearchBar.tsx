@@ -140,7 +140,7 @@ useEffect(() => {
           </div>
           <div className="d-flex flex-row align-items-center" style={{ gap: '10px' }}>
             <Button className="primary" type="submit" style={{ padding: '8px 24px', background: '#c0392b', borderColor: '#c0392b', borderRadius: '5px', fontSize: '13px', fontWeight: 600, fontFamily: '"DM Sans", sans-serif' }}>Search</Button>
-            <div className={styles.textButton} onClick={clearFilters}>Reset</div>
+            <button type="button" className={styles.textButton} onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>Reset</button>
           </div>
         </Form.Group>
       </Form>

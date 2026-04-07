@@ -321,7 +321,7 @@ const Profile = ({
   const showEmails = identity.emails && identity.emails.length > 0 && roleAccess;
 
   return (
-    <div className={styles.profileOverlay} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+    <div className={styles.profileOverlay} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClose(); } }}>
       <div className={styles.profileDrawer}>
 
         {isLoading ? (

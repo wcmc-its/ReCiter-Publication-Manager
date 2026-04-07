@@ -39,17 +39,19 @@ export const CheckList = ({ reportFiltersLabes, title, options, onUpdateFilter, 
           const isChecked = selectedOptions && selectedOptions.includes(option.key);
           const desc = positionDescriptions[option.key];
           return (
-            <div
+            <button
+              type="button"
               key={option.key}
               className={styles.posItem}
               onClick={() => onSelect(option.key)}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'left', width: '100%' }}
             >
               <div className={isChecked ? styles.cbOn : styles.cb} />
               <div>
                 <div className={styles.posLabel}>{option.label} author</div>
                 {desc && <div className={styles.posDesc}>{desc}</div>}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

@@ -421,10 +421,10 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             })
           }
       </StyledList>
-      <div className={styles.compactToggle} onClick={handleDrawerToggle} style={{ marginTop: 'auto', borderTop: '1px solid #2a3350' }}>
+      <button type="button" className={styles.compactToggle} onClick={handleDrawerToggle} style={{ marginTop: 'auto', borderTop: '1px solid #2a3350', background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', width: '100%' }} aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}>
         {open && <span>Compact mode</span>}
         {open ? <ChevronLeftIcon sx={{ fontSize: 16, color: '#4a5568' }} /> : <ChevronRightIcon sx={{ fontSize: 16, color: '#4a5568' }} />}
-      </div>
+      </button>
     </Drawer>
   )
 }

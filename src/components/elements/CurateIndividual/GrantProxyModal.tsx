@@ -229,18 +229,26 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
                                             }}
                                         >
                                             {formatUserLabel(user)}
-                                            <span
+                                            <button
+                                                type="button"
                                                 onClick={tagProps.onDelete}
+                                                aria-label="Remove"
                                                 style={{
                                                     cursor: 'pointer',
                                                     fontSize: 16,
                                                     lineHeight: 1,
                                                     marginLeft: 4,
                                                     opacity: 0.7,
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    padding: 0,
+                                                    color: 'inherit',
+                                                    minWidth: 24,
+                                                    minHeight: 24,
                                                 }}
                                             >
                                                 &times;
-                                            </span>
+                                            </button>
                                         </span>
                                     );
                                 })

@@ -546,6 +546,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                             const selected = selectedRoles.includes(option);
                                             const isLast = optIdx === allAdminRoles.length - 1;
                                             return (
+                                                // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
                                                 <li {...props} key={option} style={{
                                                     display: 'flex', alignItems: 'center', gap: '12px',
                                                     padding: '12px 14px',

@@ -31,7 +31,8 @@ const ExportModal = ({ articlesCount, reportsResultsIds, articleLimit, authorLim
   const isDownloading = (exportAuthorshipCsvLoading && reportsResultsIds?.authorshipsCount > authorLimit?.maxLimit) || (exportArticleCsvLoading && articlesCount > articleLimit?.maxLimit);
 
   return (
-    <div className={styles.overlay} onClick={handleClose}>
+    <div className={styles.overlay} onClick={handleClose} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClose(); } }}>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         {/* ── HEADER ── */}
         <div className={styles.header}>
