@@ -331,7 +331,7 @@
 
 /* Column-specific styles */
 .actionsCell {
-  text-align: right !important;
+  text-align: left !important;
 }
 
 .actionLink {
@@ -365,7 +365,7 @@
 }
 
 .colPending {
-  text-align: center;
+  text-align: left;
 }
 
 /* Pending badges */

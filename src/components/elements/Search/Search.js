@@ -473,7 +473,7 @@ const Search = () => {
   }
 
   const handleClose = () => setShowprofile(false);
-  const handleShow = () => setShowprofile(false);
+  const handleShow = () => setShowprofile(true);
 
   const handleGoAction = () => {
     dispatch(updatePubFiltersFromSearch());
@@ -762,8 +762,8 @@ const Search = () => {
                             <th key="0">Name</th>
                             <th key="1">Organization</th>
                             <th key="2">Institution</th>
-                            {isCuratorAll || isSuperUser  ? <th key="3" style={{textAlign:'center'}}>Pending</th> : ""}
-                            <th key="4" style={{textAlign:'right'}}>Actions</th>
+                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : ""}
+                            <th key="4">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
