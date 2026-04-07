@@ -35,11 +35,12 @@ Declared values (must be multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding, tag margins |
 | sm | 8px | Compact element spacing, form input padding-y |
-| md | 12px | Form input padding-x, dropdown padding-y |
 | lg | 16px | Default element spacing, card padding |
 | xl | 24px | Section padding, modal body padding |
 | 2xl | 32px | Layout gaps between major sections |
 | 3xl | 48px | Page-level top/bottom margins |
+
+Exception: 12px form input padding-x inherited from existing Bootstrap component styles -- not a grid spacing token; no new elements may use this value.
 
 Exceptions: Header height is 52px (`--header-height`). Sidebar width is 220px (`--sidebar-width-expanded`). Touch targets for newly-created `<button>` elements (a11y fixes) must be at minimum 24x24px CSS (WCAG 2.5.8 minimum) but should target 32x32px where layout permits.
 
@@ -53,9 +54,11 @@ Source: `styles/globals.css` custom properties, existing component padding/margi
 |------|------|--------|-------------|-------------|
 | Body | 14px (`--font-size-sm`) | 400 (regular) | 1.6 | DM Sans (`--font-sans`) |
 | Label | 12px (`--font-size-xs`) | 600 (semibold) | 1.4 | DM Sans (`--font-sans`) |
-| Heading | 22px (h3 strong) / 28px (h1) | 500 (medium) | 1.2 | Space Grotesk (`--font-serif`) |
+| Heading | 22px (h3 strong) / 28px (h1) | 600 (semibold) | 1.2 | Space Grotesk (`--font-serif`) |
 
-Additional sizes used in component CSS: 10px (metadata badges), 12.5px (dropdown buttons), 13px (button labels, form controls), 13.5px (publication titles), 16px (`--font-size-base`), 18px (`--font-size-lg`), 20px (`--font-size-xl`), 24px (`--font-size-2xl`).
+Declared scale: 4 sizes -- 12px, 14px, 22px, 28px. 2 weights -- 400 (regular), 600 (semibold).
+
+Implementation note (not part of the declared scale): Existing component CSS contains additional sizes (10px, 12.5px, 13px, 13.5px, 16px, 18px, 20px, 24px) inherited from the original codebase. The a11y fixes in this phase must not introduce any of these or any other sizes not in the declared scale above.
 
 A11y constraint: When replacing `<span onClick>` or `<div onClick>` with `<button>`, the resulting button must inherit the same font-size and font-family as the original element. Do not introduce new font sizes.
 
