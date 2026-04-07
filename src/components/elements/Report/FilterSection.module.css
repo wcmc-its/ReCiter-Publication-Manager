@@ -6,11 +6,11 @@
   padding: 16px 20px;
 }
 
-.filterContainer button {
+.filterContainer :global(.d-inline-block) {
   margin: 0 4px;
 }
 
-.filterContainer button:first-child {
+.filterContainer :global(.d-inline-block):first-child {
   margin-left: 0px;
 }
 
