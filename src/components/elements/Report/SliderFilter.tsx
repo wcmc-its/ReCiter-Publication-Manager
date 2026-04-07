@@ -56,8 +56,9 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ reportFiltersLabes, 
         {setReportFilterLabels(reportFiltersLabes, name)}
       </Dropdown.Toggle>
 
-      <Dropdown.Menu style={{ padding: '18px 16px 14px', minWidth: 280 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#8a94a6', marginBottom: 14 }}>
+      <Dropdown.Menu style={{ minWidth: 280, borderRadius: 12, border: '1px solid #d6d0c4', overflow: 'hidden' }}>
+        <div style={{ padding: '18px 16px 14px' }}>
+        <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#a09a92', marginBottom: 14 }}>
           {setReportFilterLabels(reportFiltersLabes, name)}
         </div>
         <Box sx={{ width: '100%', px: 1 }}>
@@ -99,6 +100,7 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ reportFiltersLabes, 
               }}
             />
           </div>
+        </div>
         </div>
       </Dropdown.Menu>
     </Dropdown>
