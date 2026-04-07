@@ -30,7 +30,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [ ] **Phase 8: Auth Pipeline** - findUserPermissions enriched, JWT/session callbacks updated, capability middleware live, SAML auto-create wired in
 - [x] **Phase 9: Scoped Roles and Proxy UI** - All eight admin UI and curation UI components for scoped roles and proxy delegation ported and rendering correctly (completed 2026-03-28)
 - [x] **Phase 10: API Scope Enforcement** - userfeedback and goldstandard endpoints enforce scope with proxy bypass on NextJS14 branch (completed 2026-04-06)
-- [ ] **Phase 11: Polish and Testing** - Skeleton loading adapted for React 18, 31 deferred a11y violations fixed, Jest 29 + RTL 16 infrastructure live with passing scope/proxy unit tests
+- [ ] **Phase 11: Polish and Testing** - Skeleton loading adapted for React 18, 58 a11y violations fixed, Jest 29 + RTL 16 infrastructure live with passing scope/proxy unit tests
 
 <details>
 <summary>v1.1 Phase Details</summary>
@@ -74,10 +74,17 @@ Plans:
 *Completed: 2026-04-06 (retroactive — code shipped before planning artifacts)*
 
 #### Phase 11: Polish and Testing
-**Goal**: The NextJS14 branch has skeleton loading components that work under React 18 StrictMode, 31 outstanding a11y violations are resolved, and a Jest 29 + RTL 16 test suite with passing scope/proxy unit tests provides a regression safety net
+**Goal**: The NextJS14 branch has skeleton loading components that work under React 18 StrictMode, 58 a11y violations are resolved, and a Jest 29 + RTL 16 test suite with passing scope/proxy unit tests provides a regression safety net
 **Depends on**: Phase 10
 **Requirements**: PORT-18, A11Y-01, PORT-19, PORT-20
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 11-01-PLAN.md — Jest dual-config infrastructure (jest.config.js + jest.config.dom.js) + RTL scope/proxy component tests
+- [ ] 11-02-PLAN.md — eslint-plugin-jsx-a11y strict mode config + fix 22 label-has-associated-control violations
+- [ ] 11-03-PLAN.md — Fix 36 click-events/static-element/anchor/noninteractive a11y violations + final audit
+- [ ] 11-04-PLAN.md — GoldStandard audit source tag (one-line deferred gap from Phase 10)
+- [ ] 11-05-PLAN.md — Final verification: skeleton loading, test suite, a11y audit, human sign-off
 
 </details>
 
@@ -105,6 +112,6 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 | 8. Auth Pipeline | v1.1 | 2/2 | Complete | 2026-03-27 |
 | 9. Scoped Roles and Proxy UI | v1.1 | 4/4 | Complete | 2026-03-28 |
 | 10. API Scope Enforcement | v1.1 | N/A | Complete | 2026-04-06 |
-| 11. Polish and Testing | v1.1 | 0/TBD | Paused | - |
+| 11. Polish and Testing | v1.1 | 0/5 | Planning | - |
 | 12. Fix SP and Sync Code | v1.2 | 2/2 | Complete | 2026-03-26 |
 | 13. Deploy and Verify | v1.2 | 2/2 | Complete | 2026-03-27 |
