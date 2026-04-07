@@ -36,7 +36,7 @@
 
 /* ── HEADER (match count + hints) ── */
 .ddHeader {
-  padding: 7px 14px;
+  padding: 7px 16px;
   background: #fff;
   border-bottom: 1px solid #eae6df;
   display: flex;
