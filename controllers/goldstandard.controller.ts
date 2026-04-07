@@ -10,7 +10,7 @@ export async function updateGoldStandard(req: NextApiRequest)  {
       } = req;
 
     
-   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}`, {
+   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}&source=publication-manager`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
