@@ -663,10 +663,12 @@ const Search = () => {
           }
         </td>
          : ""}
-        <td key={`${identityIndex}__dropdown`} width="20%">
-          {
-            <RoleSplitDropdown identity = {identity}></RoleSplitDropdown>
-          }
+        <td key={`${identityIndex}__dropdown`} width="20%" className={styles.actionsCell}>
+          <button type="button" className={styles.actionLink} style={{fontWeight:500}} onClick={() => onClickProfile(identity.personIdentifier)}>Curate</button>
+          <span className={styles.actionDot}>·</span>
+          <button type="button" className={styles.actionLink} onClick={() => redirectToCurate("report", identity)}>Reports</button>
+          <span className={styles.actionDot}>·</span>
+          <button type="button" className={styles.actionLink} onClick={() => { setShowProfileID(identity.personIdentifier); handleShow(); }}>Profile</button>
         </td>
       </tr>;
     })
