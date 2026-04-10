@@ -40,3 +40,8 @@ node_modules
 .planning/
 .superpowers/
 tsconfig.tsbuildinfo
+
+# Claude Code local artifacts
+CLAUDE.md
+CLAUDE.local.md
+.claude/
