@@ -4,7 +4,7 @@ import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
-import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
+import { findUserPermissions, findUserPermissionsEnriched } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
@@ -38,6 +38,18 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
          }
 
         createdAdminUser.userRoles = userRoles;
+        // Phase 15: Resolve permissions from DB tables
+        if(samlEmail || cwid) {
+            try {
+                const enriched = await findUserPermissionsEnriched([EMAIL, PERSONIDENTIFIER], [samlEmail, cwid]);
+                createdAdminUser.permissions = enriched.permissions;
+                createdAdminUser.permissionResources = enriched.permissionResources;
+            } catch(err) {
+                console.error('Permission enrichment failed:', err);
+                createdAdminUser.permissions = [];
+                createdAdminUser.permissionResources = [];
+            }
+        }
           let databaseUser = {
             "userID" : createdAdminUser.userID,
             "personIdentifier": createdAdminUser.personIdentifier,
@@ -144,7 +156,17 @@ const options = {
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
                     const userRoles = await findUserPermissions([EMAIL, PERSONIDENTIFIER], [credentials.email, credentials.username]);
                     apiResponse.userRoles = userRoles;
-                    if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI 
+                    // Phase 15: Resolve permissions from DB tables
+                    try {
+                        const enriched = await findUserPermissionsEnriched([EMAIL, PERSONIDENTIFIER], [credentials.email, credentials.username]);
+                        apiResponse.permissions = enriched.permissions;
+                        apiResponse.permissionResources = enriched.permissionResources;
+                    } catch(err) {
+                        console.error('Permission enrichment failed:', err);
+                        apiResponse.permissions = [];
+                        apiResponse.permissionResources = [];
+                    }
+                    if(reciterConfig.asms.asmsApiBaseUrl && reciterConfig.asms.userTrackingAPI
                             && reciterConfig.asms.userTrackingAPIAuthorization)
 					    persistUserLogin(credentials.username);									   
                     return apiResponse;
@@ -286,6 +308,13 @@ const options = {
               if(apiResponse.userRoles) {
                 if(apiResponse.userRoles)
                     token.userRoles = apiResponse.userRoles
+              }
+              // Phase 15: Carry permissions in JWT
+              if(apiResponse.permissions) {
+                  token.permissions = JSON.stringify(apiResponse.permissions)
+              }
+              if(apiResponse.permissionResources) {
+                  token.permissionResources = JSON.stringify(apiResponse.permissionResources)
               }
             }
             return token
