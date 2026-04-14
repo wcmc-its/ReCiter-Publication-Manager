@@ -151,10 +151,10 @@ Plans:
   2. A Curator_Self user sees only the nav items their permissions grant (Curate Publications) -- not Search, Report, or admin items
   3. ReciterTabs on the curation page no longer reference allowedRoleNames -- tab visibility is determined by the user's permission set
   4. The Grant Proxy button on the curation page appears only when the user has both canCurate and canManageUsers permissions
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 16-01-PLAN.md -- Icon registry, usePermissions hook, MenuItem type update, SideNavbar/MenuListItem/NestedListItem data-driven rewrite
+- [x] 16-01-PLAN.md -- Icon registry, usePermissions hook, MenuItem type update, SideNavbar/MenuListItem/NestedListItem data-driven rewrite
 - [ ] 16-02-PLAN.md -- ReciterTabs permission gate, full sweep of 10 remaining files converting role-label checks to permission checks
 
 ### Phase 17: Admin CRUD
@@ -200,6 +200,6 @@ Plans:
 | 13. Deploy and Verify | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 14. Permission Tables and Models | v1.3 | 2/2 | Complete | 2026-04-14 |
 | 15. Auth and Middleware | v1.3 | 2/2 | Complete    | 2026-04-14 |
-| 16. Data-Driven UI | v1.3 | 0/2 | Not started | - |
+| 16. Data-Driven UI | v1.3 | 1/2 | In Progress|  |
 | 17. Admin CRUD | v1.3 | 0/? | Not started | - |
 | 18. Cleanup | v1.3 | 0/? | Not started | - |
