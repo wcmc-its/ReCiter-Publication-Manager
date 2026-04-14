@@ -9,7 +9,7 @@ import { useSession } from "next-auth/client";
 import { useRouter } from "next/router";
 import { reciterConfig } from "../../../../config/local";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
-import { allowedPermissions } from "../../../utils/constants";
+import { getPermissionsFromRaw, hasPermission } from '../../../utils/permissionUtils';
 import { toast } from "react-toastify";
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
@@ -58,14 +58,14 @@ const Notifications = () => {
     })
     setEvidenceScoreStepsCount(evidenceScore);
 
-    let userPermissions = JSON.parse(session.data.userRoles);
-    let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
-    let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
-    let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);
+    const perms = getPermissionsFromRaw((session as any)?.data?.permissions)
+    const canCurateUser = hasPermission(perms, 'canCurate')
+    const canManageUsersUser = hasPermission(perms, 'canManageUsers')
+    const canSearchUser = hasPermission(perms, 'canSearch')
 
     if(router.query.userId === session.data.username ){
-      if (!curatorSelfRole) {
-        if (superUserRole || curatorAllfRole) {
+      if (!canCurateUser || canSearchUser) {
+        if (canManageUsersUser || (canCurateUser && canSearchUser)) {
           SetIsSuperUserORCuratorAll(true)
         } else {
           setIsReporterAll(true)

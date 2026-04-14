@@ -7,7 +7,7 @@ import Router from "next/router"
 import Header from "../Header/Header"
 import { signIn,getSession } from "next-auth/client"
 import { toast } from "react-toastify"
-import { allowedPermissions } from "../../../utils/constants";
+import { getPermissionsFromRaw, getLandingPageFromPermissions } from '../../../utils/permissionUtils';
 import { useRouter } from 'next/router'
 
 const Login = () => {
@@ -48,21 +48,20 @@ const Login = () => {
                 autoClose: 2000,
                 theme: "colored"
             });
-            //if(session && session.data && session.data.userRoles)
-             getSession().then((session) => {
+            getSession().then((session) => {
                 if (session) {
-                    let userPermissions = session.data.userRoles && session.data.userRoles !="" && JSON.parse(session.data.userRoles);
-                    let userName = session.data.username;
-                     if(!userPermissions || userPermissions == "" ){
-                         router.push('/noaccess');
-                     }else{
-                        let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
-                        if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
-                            router.push(`curate/${personIdentifier}`);
-                        else 
-                           router.push('/search');
-                     }
-                } 
+                    const permissions = getPermissionsFromRaw(session?.data?.permissions)
+                    const userRoles = session.data.userRoles ? JSON.parse(session.data.userRoles) : []
+
+                    if (!session.data.databaseUser || session.data.databaseUser.status == 0) {
+                        router.push('/noaccess')
+                    } else if (permissions.length === 0 && (!userRoles || userRoles.length === 0)) {
+                        router.push('/noaccess')
+                    } else {
+                        const landingPage = getLandingPageFromPermissions(permissions, userRoles)
+                        router.push(landingPage)
+                    }
+                }
             });
             
         } else {

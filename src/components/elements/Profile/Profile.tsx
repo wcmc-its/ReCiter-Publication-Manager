@@ -11,7 +11,8 @@ import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
 import { useSession } from 'next-auth/client';
-import { allowedPermissions, setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
+import { setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
+import { getPermissionsFromRaw, hasPermission } from '../../../utils/permissionUtils';
 
 
 
@@ -58,7 +59,7 @@ const Profile = ({
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const [session, loading] = useSession();
-  const userPermissions = JSON.parse(session.data.userRoles);
+  const permissions = getPermissionsFromRaw((session as any)?.data?.permissions);
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
 
@@ -300,8 +301,8 @@ const Profile = ({
     }
 
     if (list.emails) {
-      let roleAccess = userPermissions.some(role => role.roleLabel === (allowedPermissions.Superuser || allowedPermissions.Curator_Self  ) )
-      if (list.emails.length > 0 && userPermissions.length >= 0 && roleAccess) {
+      let roleAccess = hasPermission(permissions, 'canCurate') || hasPermission(permissions, 'canManageUsers')
+      if (list.emails.length > 0 && roleAccess) {
         let formattedEmails = list.emails.map((email) => {
           return {name: email}
         })

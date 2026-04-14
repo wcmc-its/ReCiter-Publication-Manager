@@ -1,6 +1,10 @@
 
 import { toast } from "react-toastify";
 
+/**
+ * @deprecated Use hasPermission() from permissionUtils.ts instead.
+ * Retained for backward compatibility. Will be removed in Phase 18 cleanup.
+ */
 export const allowedPermissions = Object.freeze({
 	Superuser: "Superuser",
 	Curator_All: "Curator_All",
