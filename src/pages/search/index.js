@@ -1,21 +1,23 @@
 import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
 import { getSession } from "next-auth/client"
+import { getPermissionsFromRaw } from "../../utils/permissionUtils"
 
  export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
-    const userPermissions = JSON.parse(session.data?.userRoles);
 
-    // if (!session || !session.data) {
-    //     return {
-    //         redirect: {
-    //             destination: "/login",
-    //             permanent: false,
-    //         },
-    //     };
-    // }
+    if (!session || !session.data) {
+        return {
+            redirect: {
+                destination: "/login",
+                permanent: false,
+            },
+        };
+    }
 
-    if(userPermissions.length === 0) {
+    const permissions = getPermissionsFromRaw(session.data.permissions);
+
+    if (permissions.length === 0) {
         return {
             redirect: {
                 destination: "/noaccess",
