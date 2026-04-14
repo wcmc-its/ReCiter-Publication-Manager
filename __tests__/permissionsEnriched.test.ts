@@ -1,13 +1,11 @@
-import { findUserPermissionsEnriched } from '../controllers/db/userroles.controller'
+// Mock the sequelize instance BEFORE importing the controller
+jest.mock('../src/db/db', () => ({
+  __esModule: true,
+  default: { query: jest.fn() },
+}))
 
-// Mock the sequelize instance
-jest.mock('../src/db/db', () => {
-  const mockQuery = jest.fn()
-  return {
-    __esModule: true,
-    default: { query: mockQuery },
-  }
-})
+// Use require after mock declaration to ensure mock is applied
+const { findUserPermissionsEnriched } = require('../controllers/db/userroles.controller')
 
 // Get the mock so we can configure it per test
 const getMockQuery = () => {
@@ -122,7 +120,7 @@ describe('findUserPermissionsEnriched', () => {
     mockQuery.mockImplementation((sql: string, opts: any) => {
       const replacements = opts?.replacements || {}
 
-      // Permissions query (contains admin_permissions)
+      // Permissions query (contains admin_permissions but NOT admin_permission_resources)
       if (sql.includes('admin_permissions') && !sql.includes('admin_permission_resources')) {
         const key = `${replacements.personIdentifier}|${replacements.email}`
         const rows = permissionsByUser[key] || []
@@ -263,7 +261,7 @@ describe('findUserPermissionsEnriched', () => {
     const orders = result.permissionResources.map(
       (r: any) => r.displayOrder
     )
-    const sorted = [...orders].sort((a, b) => a - b)
+    const sorted = [...orders].sort((a: number, b: number) => a - b)
     expect(orders).toEqual(sorted)
   })
 })
