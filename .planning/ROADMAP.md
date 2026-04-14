@@ -104,7 +104,7 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 **Milestone Goal:** Move all role/permission definitions, role-to-permission mappings, and UI resource visibility from hardcoded application code to database tables, with full admin CRUD. Existing behavior is preserved exactly -- no user-facing changes until admin UI is added.
 
 - [x] **Phase 14: Permission Tables and Models** - Three new DB tables created and seeded, Sequelize models registered with associations, permission helper utilities tested (completed 2026-04-14)
-- [ ] **Phase 15: Auth and Middleware** - Login resolves permissions from DB via JOINs, JWT carries permission set and resources, middleware enforces routes using permission set instead of getCapabilities()
+- [x] **Phase 15: Auth and Middleware** - Login resolves permissions from DB via JOINs, JWT carries permission set and resources, middleware enforces routes using permission set instead of getCapabilities() (completed 2026-04-14)
 - [ ] **Phase 16: Data-Driven UI** - SideNavbar renders from permissionResources data, component-level checks use permission set instead of role-based arrays
 - [ ] **Phase 17: Admin CRUD** - Superuser can manage roles, permissions, and permission resources through new tabs in the Manage Users page
 - [ ] **Phase 18: Cleanup** - All deprecated capability code removed, permission-based tests replace capability tests, no remaining imports of old functions
@@ -136,11 +136,11 @@ Plans:
   3. A Curator_Self user is redirected to /curate/:ownId when accessing /search, and cannot access /manageusers or /configuration
   4. A user with no roles still has access to /search and /report (baseline fallback)
   5. Curation scope logic (self/scoped/proxy) works identically to before -- no scope regressions
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 15-01-PLAN.md -- findUserPermissionsEnriched controller, both auth path wiring, JWT callback extension
-- [ ] 15-02-PLAN.md -- Middleware rewrite with ROUTE_PERMISSIONS map, permission-based enforcement, comprehensive tests
+- [x] 15-02-PLAN.md -- Middleware rewrite with ROUTE_PERMISSIONS map, permission-based enforcement, comprehensive tests
 
 ### Phase 16: Data-Driven UI
 **Goal**: The navigation menu and component-level permission checks are driven by database data instead of hardcoded arrays, so that future permission changes via admin UI will immediately affect the rendered UI
@@ -196,7 +196,7 @@ Plans:
 | 12. Fix SP and Sync Code | v1.2 | 2/2 | Complete | 2026-03-26 |
 | 13. Deploy and Verify | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 14. Permission Tables and Models | v1.3 | 2/2 | Complete | 2026-04-14 |
-| 15. Auth and Middleware | v1.3 | 1/2 | In Progress|  |
+| 15. Auth and Middleware | v1.3 | 2/2 | Complete    | 2026-04-14 |
 | 16. Data-Driven UI | v1.3 | 0/? | Not started | - |
 | 17. Admin CRUD | v1.3 | 0/? | Not started | - |
 | 18. Cleanup | v1.3 | 0/? | Not started | - |
