@@ -200,6 +200,6 @@ Plans:
 | 13. Deploy and Verify | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 14. Permission Tables and Models | v1.3 | 2/2 | Complete | 2026-04-14 |
 | 15. Auth and Middleware | v1.3 | 2/2 | Complete    | 2026-04-14 |
-| 16. Data-Driven UI | v1.3 | 2/2 | Complete   | 2026-04-14 |
+| 16. Data-Driven UI | v1.3 | 2/2 | Complete    | 2026-04-14 |
 | 17. Admin CRUD | v1.3 | 0/? | Not started | - |
 | 18. Cleanup | v1.3 | 0/? | Not started | - |
