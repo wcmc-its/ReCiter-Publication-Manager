@@ -41,18 +41,22 @@ Declared values (must be multiples of 4):
 | 2xl | 48px | Not used this phase |
 | 3xl | 64px | Not used this phase |
 
-Exceptions: Existing ManageUsers page uses `15px` padding in filter bar and `5px` padding-top in places. New tab content panels use `16px` (md) for consistency but do not rewrite existing Users tab spacing.
+**Pre-existing out-of-scope values:** The existing ManageUsers page uses `15px` padding in its filter bar and `5px` padding-top in places. These are inherited values from prior phases and are NOT part of this phase's spacing contract. New tab content panels use `16px` (md) for consistency. This phase does not rewrite existing Users tab spacing.
 
 ---
 
 ## Typography
 
+This phase declares **2 weights** (400, 600) and **4 sizes** (13px, 14px, 16px, 20px) for new components.
+
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 14px | 400 (regular) | 1.5 | Table cell text, modal body text, form labels |
 | Label | 13px | 400 (regular) | 1.4 | Table header cells, chip text, resource row labels |
-| Heading | 20px | 200 (light) | 1.3 | Page header ("Manage Users") -- existing, do not change |
+| Heading | 20px | 200 (light) | 1.3 | Page header ("Manage Users") -- inherited from existing PageHeader.module.css, not declared for new phase components. Do not change. |
 | Subheading | 16px | 600 (semibold) | 1.3 | Modal titles, section headers within modals (e.g., "UI Resources") |
+
+**Phase weight count: 2** -- 400 (regular) and 600 (semibold). The Heading row's weight 200 is inherited from the pre-existing `PageHeader.module.css` and is not part of this phase's declared type scale.
 
 **Font stack:** `"Open Sans", sans-serif, Arial` -- matches existing `globals.css` h1 declaration and PageHeader.module.css.
 
@@ -95,7 +99,7 @@ Exceptions: Existing ManageUsers page uses `15px` padding in filter bar and `5px
 | RoleEditModal | Bootstrap Modal + Form | `src/components/elements/Manage/RoleEditModal.tsx` | Modal for creating/editing a role: name field + permission checkboxes |
 | PermissionEditModal | Bootstrap Modal + Form | `src/components/elements/Manage/PermissionEditModal.tsx` | Modal for creating/editing a permission: fields + resource list |
 | ResourceRow | Bootstrap Form inline | `src/components/elements/Manage/ResourceRow.tsx` | Single inline-editable row for a permission resource (resourceType, key, icon, label, route, displayOrder) |
-| DeleteBlockedModal | Bootstrap Modal | `src/components/elements/Manage/DeleteBlockedModal.tsx` | Read-only warning modal showing dependency info, single "OK" dismiss |
+| DeleteBlockedModal | Bootstrap Modal | `src/components/elements/Manage/DeleteBlockedModal.tsx` | Read-only warning modal showing dependency info, single "Close" dismiss |
 | DeleteConfirmModal | Bootstrap Modal | `src/components/elements/Manage/DeleteConfirmModal.tsx` | Confirmation dialog with Cancel/Delete for items with no dependencies |
 
 ### Reused Existing Components
@@ -224,7 +228,7 @@ CATEGORY: "Administration"                   <- category section header
   - **resourceType:** `<Form.Select>` dropdown with options: "nav", "tab", "feature".
   - **resourceKey, icon, label, route:** `<Form.Control type="text" size="sm">`.
   - **displayOrder:** `<Form.Control type="number" size="sm">` width 60px.
-  - **Remove button:** `<Button variant="link" className="text-danger">` with MUI `<ClearIcon fontSize="small" />` (already imported in TabAddPublication).
+  - **Remove button:** `<Button variant="link" className="text-danger">` with MUI `<ClearIcon fontSize="small" />` (already imported in TabAddPublication). Must include `aria-label="Remove resource"` for screen reader context (see Accessibility Notes).
   - **"+ Add Resource" button:** Text-style button (`color: #0d6efd`, no border, underline on hover). Adds a new empty row at the bottom of the resources list.
 - **Footer buttons:** Same as Role Edit Modal pattern.
 
@@ -239,7 +243,7 @@ CATEGORY: "Administration"                   <- category section header
 |                                           |
 | Remove these assignments first.           |  <- guidance text, italic
 +-------------------------------------------+
-|                                    [OK]   |  <- Modal.Footer, single button
+|                                 [Close]   |  <- Modal.Footer, single button
 +-------------------------------------------+
 ```
 
@@ -253,9 +257,9 @@ CATEGORY: "Administration"                   <- category section header
 ```
 
 - **Modal:** React Bootstrap `<Modal>` standard size.
-- **Header:** "Cannot Delete [ItemName]". No close button needed (OK dismisses).
+- **Header:** "Cannot Delete [ItemName]". No close button needed (Close dismisses).
 - **Body:** Warning message in regular body text. List items in `<ul>` with default styling. Guidance text in italic (`font-style: italic`), color `#666363`.
-- **Footer:** Single `<Button variant="secondary">OK</Button>`, right-aligned.
+- **Footer:** Single `<Button variant="secondary">Close</Button>`, right-aligned.
 
 ### Delete Confirm Modal (D-15)
 
@@ -320,6 +324,7 @@ CATEGORY: "Administration"                   <- category section header
 | Save CTA (Role modal) | "Save Role" |
 | Save CTA (Permission modal) | "Save Permission" |
 | Add resource inline | "+ Add Resource" |
+| Dismiss blocked modal | "Close" |
 | Empty state - Roles tab | "No roles defined." |
 | Empty state - Permissions tab | "No permissions defined." |
 | Error state - fetch failure | "Failed to load [roles/permissions]. Please try again." |
@@ -363,6 +368,7 @@ No shadcn or third-party registries are used. All components are built from Reac
 - **Tables:** Use `<th scope="col">` on header cells. Empty state messages use `<td colSpan={N}>` to span the full table width.
 - **Form validation:** Error messages linked to inputs via `aria-describedby`. Invalid inputs have `aria-invalid="true"`.
 - **Delete buttons:** Include `aria-label="Delete [ItemName]"` for screen reader context since the button text is just "Delete".
+- **Resource remove button:** The icon-only `<ClearIcon>` remove button on each ResourceRow must include `aria-label="Remove resource"` so screen readers announce the button purpose.
 - **Chips:** Non-interactive chips do not need additional ARIA -- MUI Chip renders as `<div role="button">` only when clickable; for display-only it renders as a plain `<div>`.
 
 ---
