@@ -559,17 +559,19 @@ Note: Controller tests require mocking Sequelize models. The existing test files
 | A3 | React 16.14.0 supports `style={{ display: 'none' }}` pattern for hidden tab panels without performance issues | Code Examples (tab panel) | VERY LOW -- this is fundamental React |
 | A4 | Jest tests can mock Sequelize models by mocking `../../../src/db/sequelize` module | Validation Architecture | MEDIUM -- may need to use a different mocking approach |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the delete-check API be a separate endpoint or merged with the delete endpoint?**
    - What we know: D-12 says "Server-side dependency check happens on click". The delete button click needs to either show the blocked modal or the confirm modal.
    - What's unclear: Whether to make a separate `GET /api/db/admin/roles/[roleId]/dependencies` endpoint, or have the `DELETE /api/db/admin/roles/[roleId]` endpoint return 409 with dependency info.
    - Recommendation: Use a single `DELETE` endpoint that returns 409 Conflict with dependency data when blocked, and performs the deletion when clear. This reduces API surface area and ensures the check-and-delete is atomic (no TOCTOU race). The client interprets 409 to show the blocked modal and 200 to show the success toast.
+   - RESOLVED: Using `DELETE` with `?check=true` query param — returns `{ canDelete: true }` without deleting, or 409 if deps found. Client calls `DELETE` again without `?check=true` to perform actual deletion. Implemented in Plan 01 Tasks 1 and 2.
 
 2. **Should the ManageUsers page re-render when the Redux admin roles list changes?**
    - What we know: ManageUsers dispatches `getAdminRoles()` on mount for the AddUser form. If a user adds a role in the Roles tab, then navigates to AddUser, the role dropdown should include the new role.
    - What's unclear: Whether to invalidate the Redux cache when a role is created/deleted in the Roles tab.
    - Recommendation: After a successful role create/delete in the Roles tab, dispatch `getAdminRoles()` to refresh the Redux store. This ensures the AddUser form's role dropdown stays current. This is a one-line addition with minimal coupling.
+   - RESOLVED: Dispatch `getAdminRoles()` after every role create/delete mutation in RolesTab to keep AddUser form dropdown current. Implemented in Plan 02 Task 1.
 
 ## Sources
 
