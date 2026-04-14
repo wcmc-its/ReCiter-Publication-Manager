@@ -492,22 +492,19 @@ const canReport = hasPermission(permissions, 'canReport')
 | A2 | FilterReview.tsx and Search.js role cascades can collapse to 2-3 permission checks without losing behavior | Pitfall 2 | If some role combination produced unique behavior not captured by permissions, it would be lost. Verified against seed data: all role combinations map cleanly to permission sets. |
 | A3 | `SvgIconComponent` type from `@mui/icons-material` is the correct type for MUI 5 icon components | Pattern 1 | Type error at compile time. Easily fixable -- fallback to `React.ComponentType<SvgIconProps>`. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Profile.tsx email visibility intent**
+1. **Profile.tsx email visibility intent** — RESOLVED: Convert to `hasPermission(p, 'canCurate') || hasPermission(p, 'canManageUsers')` per Plan 02 Task 2. This matches the apparent original intent (both Superuser and Curator_Self were listed).
    - What we know: Current code has a bug where the OR check evaluates as string concatenation. Only Superuser actually passes.
-   - What's unclear: Should curators (canCurate) also see emails, or only admins (canManageUsers)?
-   - Recommendation: Convert to `hasPermission(p, 'canCurate')` to match apparent original intent (both Superuser and Curator_Self were listed). Flag for review during implementation.
+   - Resolution: Plan 02 Task 2 converts to `canCurate || canManageUsers` permission check.
 
-2. **NestedListItem future usage**
+2. **NestedListItem future usage** — RESOLVED: Keep and convert per D-06 (Plan 01 Task 2).
    - What we know: NestedListItem handles expandable sub-menus. Current code has it commented out in the SideNavbar menuItems array.
-   - What's unclear: Whether to keep the component or simplify since no nested menus are in the current seed data.
-   - Recommendation: Keep and convert it (per D-06) for forward compatibility. It costs little to maintain.
+   - Resolution: Plan 01 Task 2 explicitly keeps and converts NestedListItem for forward compatibility.
 
-3. **constants.js allowedPermissions removal**
+3. **constants.js allowedPermissions removal** — RESOLVED: Add `@deprecated` JSDoc, remove imports from converted files, leave export for Phase 18 cleanup (Plan 02 Task 2).
    - What we know: `allowedPermissions` is used in 10+ files. Phase 18 (Cleanup) is planned for removing old code.
-   - What's unclear: Whether to remove the import or just stop using it in this phase.
-   - Recommendation: Remove imports of `allowedPermissions` from converted files. Leave the export in constants.js for now (Phase 18 will clean it up). Add a `@deprecated` JSDoc comment.
+   - Resolution: Plan 02 Task 2 adds `@deprecated` JSDoc and removes imports from converted files.
 
 ## Sources
 
