@@ -5,23 +5,15 @@ import List from '@mui/material/List';
 import Divider from '@mui/material/Divider';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import SettingsIconGare from '../../../../public/images/settingsIconGare.png';
-import SettingsGareIconActive from '../../../../public/images/settingsWhite.png';
 import NestedListItem from './NestedListItem';
 import { MenuItem } from '../../../../types/menu';
 import MenuListItem from './MenuListItem';
 import { ExpandNavContext } from './ExpandNavContext';
-import facultyIcon from '../../../../public/images/icon-side-faculty_index.png';
-import SettingsIconTools from '../../../../public/images/icon-side-admin_index.png';
-import chartIcon from '../../../../public/images/icon-side-faculty_report.png';
-import checkMarkIcon from '../../../../public/images/icon-side-check_mark.png';
 import styles from './Navbar.module.css'
-import facultyIconActive from '../../../../public/images/icon-side-faculty_index-active.png';
-import settingsIconActive from '../../../../public/images/icon-side-faculty_admin-active.png';
-import chartIconActive from '../../../../public/images/icon-side-faculty_report-active.png';
-import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-active.png';
 import { useSelector, RootStateOrAny } from "react-redux";
-import { useSession } from 'next-auth/client';
+import { usePermissions, PermissionResource } from '../../../hooks/usePermissions'
+import { getIcon } from '../../../utils/iconRegistry'
+import { hasPermission } from '../../../utils/permissionUtils'
 
 
 type SideNavBarProps = {
@@ -145,113 +137,16 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const [open, setOpen] = React.useState(true);
   const filters = useSelector((state: RootStateOrAny) => state.filters)
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
-   
-  const [isCurateSelf, setIsCurateSelf] = React.useState(false);
+
   const [isVisibleNotification, setVisibleNotification] = React.useState(true);
 
+  const { permissions, permissionResources, session, loading } = usePermissions()
 
-  const [session, loading] = useSession();
-
-  const menuItems: Array<MenuItem> = [
-    {
-      title: 'Find People',
-      to: '/search',
-      imgUrl: facultyIcon,
-      imgUrlActive: facultyIconActive,
-      disabled: false,
-      allowedRoleNames: ["Superuser", "Curator_All","Reporter_All"],
-      isRequired:true
-    },
-    {
-      title: 'Curate Publications',
-      to: '/curate',
-      imgUrl: SettingsIconTools,
-      imgUrlActive: settingsIconActive,
-      disabled: (Object.keys(filters).length === 0),
-      allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
-      isRequired:true
-    },
-    {
-      title: 'Create Reports',
-      to: '/report',
-      imgUrl: chartIcon,
-      imgUrlActive: chartIconActive,
-      disabled: false,
-      allowedRoleNames: ["Superuser","Reporter_All" ],
-      isRequired:true
-    },
-    {
-      title: 'Manage Notifications',
-      to: `/notifications/${session.data.username}`,
-      imgUrl: chartIcon,
-      imgUrlActive: chartIconActive,
-      disabled: false,
-      allowedRoleNames: ["Department_user","Curator_Self","Superuser", "Curator_All"],
-      isRequired: isVisibleNotification && session.data.email ? true : false
-    },
-    {
-      title: 'Manage Profile',
-      to: `/manageprofile/${session.data.username}`,
-      imgUrl: chartIcon,
-      imgUrlActive: chartIconActive,
-      disabled: false,
-      allowedRoleNames: ["Department_user","Curator_Self","Superuser", "Curator_All"],
-      isRequired: true
-    },
-    {title: 'Manage Users', 
-      to: '/manageusers', 
-      imgUrl: facultyIcon, 
-      imgUrlActive: facultyIconActive, 
-      disabled: false,
-      allowedRoleNames: ["Superuser"],
-      isRequired:true
-    },
-    {title: 'Configuration', 
-    to: '/configuration', 
-    imgUrl: SettingsIconGare, 
-    imgUrlActive: SettingsGareIconActive, 
-    disabled: false,
-    allowedRoleNames: ["Superuser"],
-    isRequired:true
-  },
-    // {
-    //   title: 'Manage Users',
-    //   to: '/manageUsers',
-    //   imgUrl: chartIcon,
-    //   imgUrlActive: chartIconActive,
-    //   disabled: false,
-    //   allowedRoleNames: ["Superuser","" ],
-    // },
-    // {
-    //   title: 'Perform Analysis',
-    //   to: '/login',
-    //   imgUrl: checkMarkIcon,
-    //   imgUrlActive: checkMarkIconActive,
-    //   disabled: false,
-    //   allowedRoleNames: ["Superuser","Reporter_All" ],
-    // },
-  //   {
-  //     title: 'Manage Module',
-  //     imgUrl: SettingsIconTools,
-  //     imgUrlActive: settingsIconActive,
-  //     nestedMenu: [{title: 'Manage Users', 
-  //     to: '/admin/manage/users', 
-  //     imgUrl: facultyIcon, 
-  //     imgUrlActive: facultyIconActive, 
-  //     disabled: false,
-  //     allowedRoleNames: ["Superuser"],
-  //   },
-  //   {title: 'Settings', 
-  //   to: '/admin/manage/settings', 
-  //   imgUrl: SettingsIconGare, 
-  //   imgUrlActive: SettingsGareIconActive, 
-  //   disabled: false,
-  //   allowedRoleNames: ["Superuser"],
-  // }],
-  //     allowedRoleNames: ["Superuser"],
-
-  //   }
-  ]
+  const navItems = React.useMemo(() => {
+    return permissionResources
+      .filter((r: PermissionResource) => r.resourceType === 'nav')
+      .sort((a: PermissionResource, b: PermissionResource) => a.displayOrder - b.displayOrder)
+  }, [permissionResources])
 
   const expandNavCotext = React.useContext(ExpandNavContext);
 
@@ -259,7 +154,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     expandNavCotext.updateExpand();
     setOpen(!open);
   };
-  
+
 
   React.useEffect(()=>{
     let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
@@ -286,28 +181,42 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       <Divider />
       <StyledList>
           {
-            menuItems.map((item: MenuItem, index: number) => {
-              let userPermissions = JSON.parse(session.data.userRoles);
-              const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
-              if(matchedRoles.length >= 1 && item.isRequired){
-              return item.nestedMenu ? 
-                <NestedListItem 
-                  header={item.title}
-                  menuItems={item.nestedMenu}
-                  key={index}
-                  imgUrl={item.imgUrl}
-                />
-                :
-                <MenuListItem
-                  title={item.title}
-                  key={index}
-                  id={index}
-                  to={item.to}
-                  imgUrl={item.imgUrl}
-                  imgUrlActive={item.imgUrlActive}
-                  disabled={item.disabled}
-                />
+            navItems.map((item: PermissionResource, index: number) => {
+              // D-07: Permission controls visibility -- hidden if user lacks permission
+              if (!hasPermission(permissions, item.permissionKey)) return null
+
+              // D-08: Manage Notifications triple-check
+              if (item.resourceKey === 'nav_notifications') {
+                if (!isVisibleNotification || !session?.data?.email) return null
               }
+
+              // Route adjustments for user-specific pages
+              let route = item.route
+              if (item.resourceKey === 'nav_curate' && Object.keys(filters).length > 0) {
+                route = `/curate/${filters.personIdentifier || (session as any)?.data?.username || ''}`
+              }
+              if (item.resourceKey === 'nav_notifications') {
+                route = `/notifications/${(session as any)?.data?.username}`
+              }
+              if (item.resourceKey === 'nav_profile') {
+                route = `/manageprofile/${(session as any)?.data?.username}`
+              }
+
+              // D-07: Application state controls disabled
+              const disabled = item.resourceKey === 'nav_curate' && Object.keys(filters).length === 0
+
+              const IconComponent = getIcon(item.icon)
+
+              return (
+                <MenuListItem
+                  title={item.label}
+                  key={item.resourceKey}
+                  id={index}
+                  to={route}
+                  icon={IconComponent}
+                  disabled={disabled}
+                />
+              )
             })
           }
       </StyledList>
