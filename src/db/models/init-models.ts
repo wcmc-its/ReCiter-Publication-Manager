@@ -9,14 +9,8 @@ import { AdminNotificationLog } from "./AdminNotificationLog";
 import type { AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes } from "./AdminNotificationLog";
 import { AdminNotificationPreference } from "./AdminNotificationPreference";
 import type { AdminNotificationPreferenceAttributes, AdminNotificationPreferenceCreationAttributes } from "./AdminNotificationPreference";
-import { AdminPermission } from "./AdminPermission";
-import type { AdminPermissionAttributes, AdminPermissionCreationAttributes } from "./AdminPermission";
-import { AdminPermissionResource } from "./AdminPermissionResource";
-import type { AdminPermissionResourceAttributes, AdminPermissionResourceCreationAttributes } from "./AdminPermissionResource";
 import { AdminRole } from "./AdminRole";
 import type { AdminRoleAttributes, AdminRoleCreationAttributes } from "./AdminRole";
-import { AdminRolePermission } from "./AdminRolePermission";
-import type { AdminRolePermissionAttributes, AdminRolePermissionCreationAttributes } from "./AdminRolePermission";
 import { AdminUser } from "./AdminUser";
 import type { AdminUserAttributes, AdminUserCreationAttributes } from "./AdminUser";
 import { AdminUsersDepartment } from "./AdminUsersDepartment";
@@ -95,10 +89,7 @@ export {
   AdminFeedbackLog,
   AdminNotificationLog,
   AdminNotificationPreference,
-  AdminPermission,
-  AdminPermissionResource,
   AdminRole,
-  AdminRolePermission,
   AdminUser,
   AdminOrcid,
   AdminUsersDepartment,
@@ -148,14 +139,8 @@ export type {
   AdminNotificationPreferenceCreationAttributes,
   AdminOrcidAttributes,
   AdminOrcidCreationAttributes,
-  AdminPermissionAttributes,
-  AdminPermissionCreationAttributes,
-  AdminPermissionResourceAttributes,
-  AdminPermissionResourceCreationAttributes,
   AdminRoleAttributes,
   AdminRoleCreationAttributes,
-  AdminRolePermissionAttributes,
-  AdminRolePermissionCreationAttributes,
   AdminUserAttributes,
   AdminUserCreationAttributes,
   AdminUsersDepartmentAttributes,
@@ -230,10 +215,7 @@ export function initModels(sequelize: Sequelize) {
   AdminFeedbackLog.initModel(sequelize);
   AdminNotificationLog.initModel(sequelize);
   AdminNotificationPreference.initModel(sequelize);
-  AdminPermission.initModel(sequelize);
-  AdminPermissionResource.initModel(sequelize);
   AdminRole.initModel(sequelize);
-  AdminRolePermission.initModel(sequelize);
   AdminUser.initModel(sequelize);
   AdminUsersDepartment.initModel(sequelize);
   AdminUsersRole.initModel(sequelize);
@@ -274,12 +256,6 @@ export function initModels(sequelize: Sequelize) {
   AdminDepartment.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "departmentID"});
   AdminUsersRole.belongsTo(AdminRole, { as: "role", foreignKey: "roleID"});
   AdminRole.hasMany(AdminUsersRole, { as: "adminUsersRoles", foreignKey: "roleID"});
-  AdminRolePermission.belongsTo(AdminRole, { as: "role", foreignKey: "roleID" });
-  AdminRole.hasMany(AdminRolePermission, { as: "adminRolePermissions", foreignKey: "roleID" });
-  AdminRolePermission.belongsTo(AdminPermission, { as: "permission", foreignKey: "permissionID" });
-  AdminPermission.hasMany(AdminRolePermission, { as: "adminRolePermissions", foreignKey: "permissionID" });
-  AdminPermissionResource.belongsTo(AdminPermission, { as: "permission", foreignKey: "permissionID" });
-  AdminPermission.hasMany(AdminPermissionResource, { as: "adminPermissionResources", foreignKey: "permissionID" });
   AdminFeedbackLog.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
   AdminUser.hasMany(AdminFeedbackLog, { as: "adminFeedbackLogs", foreignKey: "userID"});
   AdminNotificationLog.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
@@ -299,10 +275,7 @@ export function initModels(sequelize: Sequelize) {
     AdminFeedbackLog: AdminFeedbackLog,
     AdminNotificationLog: AdminNotificationLog,
     AdminNotificationPreference: AdminNotificationPreference,
-    AdminPermission: AdminPermission,
-    AdminPermissionResource: AdminPermissionResource,
     AdminRole: AdminRole,
-    AdminRolePermission: AdminRolePermission,
     AdminUser: AdminUser,
     AdminUsersDepartment: AdminUsersDepartment,
     AdminUsersRole: AdminUsersRole,
