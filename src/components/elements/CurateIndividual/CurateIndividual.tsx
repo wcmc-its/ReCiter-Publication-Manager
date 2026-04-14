@@ -13,7 +13,7 @@ import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/client";
-import { allowedPermissions, toastMessage } from "../../../utils/constants";
+import { toastMessage } from "../../../utils/constants";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
 
