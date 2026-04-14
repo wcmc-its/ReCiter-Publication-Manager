@@ -1,4 +1,4 @@
-import React, { Component } from "react";
+import React from "react";
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -7,25 +7,21 @@ import Collapse from '@mui/material/Collapse';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { MenuItem } from "../../../../types/menu";
-import Image from 'next/image';
 import MenuListItem from "./MenuListItem";
 import Box from '@mui/material/Box';
 import styles from './Navbar.module.css';
-import { useSession } from 'next-auth/client';
+import type SvgIcon from '@mui/material/SvgIcon'
 
-
-type ImageSourcePropType = React.ComponentProps<typeof Image>['src']
+type SvgIconComponent = typeof SvgIcon
 
 type NestedListItemProps = {
-  header: String,
+  header: string,
   menuItems: Array<MenuItem>,
-  imgUrl?: string | ImageSourcePropType
+  icon?: SvgIconComponent
 }
 
-const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgUrl}) => {
+const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, icon: Icon }) => {
   const [open, setOpen] = React.useState(false);
-  const [session, loading] = useSession();
-
 
   const handleClick = () => {
     setOpen(!open);
@@ -35,12 +31,7 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgU
     <>
       <ListItemButton onClick={handleClick}>
         <ListItemIcon>
-          <Image
-            src={imgUrl || ""}
-            height={15}
-            width={15}
-            alt='Menu Icon'
-          />
+          {Icon && <Icon fontSize="small" aria-hidden="true" />}
         </ListItemIcon>
         <ListItemText primary={header} />
         {open ? <ExpandLess /> : <ExpandMore />}
@@ -49,21 +40,17 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgU
         <List component="div" disablePadding>
           {
             menuItems.map((item: MenuItem, index: number) => {
-              let userPermissions = JSON.parse(session.data.userRoles);
-              const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
-              if (matchedRoles.length >= 1) {
-                return (
-                  <Box p={2} key={index} className={styles.subMenu}>
-                    <MenuListItem
-                      title={item.title}
-                      to={item.to}
-                      id={index}
-                      imgUrl={item.imgUrl}
-                      imgUrlActive={item.imgUrlActive}
-                    />
-                  </Box>
-                )
-              }
+              return (
+                <Box p={2} key={index} className={styles.subMenu}>
+                  <MenuListItem
+                    title={item.title}
+                    to={item.to}
+                    id={index}
+                    icon={item.icon}
+                    disabled={item.disabled}
+                  />
+                </Box>
+              )
             })
           }
         </List>

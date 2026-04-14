@@ -4,11 +4,10 @@ import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import { MenuItem } from "../../../../types/menu";
-import Image from 'next/image';
 import { useRouter } from 'next/router';
 import styles from './Navbar.module.css'
 
-const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive, disabled }) => {
+const MenuListItem: React.FC<MenuItem> = ({ title, to, id, icon: IconComponent, disabled }) => {
   const router = useRouter();
   const customRouterPathNames = (routerPath) => {
     if (routerPath === "/notifications/[userId]") { return "/notifications" }
@@ -24,16 +23,11 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
       <>
         <ListItem component="a" selected={selected}>
           <ListItemIcon>
-            <Image 
-              src={selected ? imgUrlActive: imgUrl }
-              height={15}
-              width={15}
-              alt={title}
-            />
+            {IconComponent && <IconComponent fontSize="small" aria-hidden="true" />}
           </ListItemIcon>
-          <ListItemText 
+          <ListItemText
             disableTypography
-            primary={<span className={styles.disabled}>{title}</span>} 
+            primary={<span className={styles.disabled}>{title}</span>}
             />
         </ListItem>
       </>
@@ -45,16 +39,11 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
       <Link href={to} passHref key={`${title}_${id}`}>
         <ListItem button component="a" selected={selected}>
           <ListItemIcon>
-            <Image 
-              src={selected ? imgUrlActive: imgUrl }
-              height={15}
-              width={15}
-              alt={title}
-            />
+            {IconComponent && <IconComponent fontSize="small" aria-hidden="true" />}
           </ListItemIcon>
-          <ListItemText 
+          <ListItemText
             disableTypography
-            primary={<span className={(disabled && !selected) ? styles.disabled : ''}>{title}</span>} 
+            primary={<span className={(disabled && !selected) ? styles.disabled : ''}>{title}</span>}
             />
         </ListItem>
       </Link>
