@@ -167,8 +167,12 @@ Plans:
   3. In the Permissions tab, a Superuser can create a new permission with key/label/description/category, edit its label/description/category (key is immutable), and manage its associated UI resources
   4. Attempting to delete a role that has assigned users shows a warning with the user count and blocks the deletion
   5. Attempting to delete a permission assigned to any role shows the affected roles and blocks the deletion
-**Plans**: TBD
-**UI hint**: yes
+**Plans:** 3 plans
+
+Plans:
+- [ ] 17-01-PLAN.md -- Roles and permissions controllers with CRUD logic, 7 API route files
+- [ ] 17-02-PLAN.md -- RolesTab table with chips, RoleEditModal, DeleteBlockedModal, DeleteConfirmModal
+- [ ] 17-03-PLAN.md -- ManageUsersTabs container, PermissionsTab with category grouping, PermissionEditModal with ResourceRow
 
 ### Phase 18: Cleanup
 **Goal**: All deprecated capability-model code is removed from the codebase, leaving only the data-driven permission system as the single source of truth
@@ -201,5 +205,5 @@ Plans:
 | 14. Permission Tables and Models | v1.3 | 2/2 | Complete | 2026-04-14 |
 | 15. Auth and Middleware | v1.3 | 2/2 | Complete    | 2026-04-14 |
 | 16. Data-Driven UI | v1.3 | 2/2 | Complete    | 2026-04-14 |
-| 17. Admin CRUD | v1.3 | 0/? | Not started | - |
+| 17. Admin CRUD | v1.3 | 0/3 | Not started | - |
 | 18. Cleanup | v1.3 | 0/? | Not started | - |
