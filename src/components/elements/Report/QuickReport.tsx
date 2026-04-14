@@ -8,11 +8,11 @@ const QuickReport = () => {
       <p>You can also click on one of the following:</p>
       <ul>
         <li>
-          <Link href=''>NewPubs report</Link> - publications added to Pubmed in the last month that have been authored by active full-time WCM faculty,
+          <Link href=''><a>NewPubs report</a></Link> - publications added to Pubmed in the last month that have been authored by active full-time WCM faculty,
           MD-PhD students, and MD students
         </li>
         <li>
-          <Link href=''>TrendingPubs report</Link> - new publications that have generated the most scholarly interest since their
+          <Link href=''><a>TrendingPubs report</a></Link> - new publications that have generated the most scholarly interest since their
           publication; includes publications authored by active full-time WCM faculty, MD-PhD students, and MD students
         </li>
       </ul>

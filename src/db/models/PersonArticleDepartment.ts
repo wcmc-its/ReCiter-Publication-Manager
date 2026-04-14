@@ -77,7 +77,6 @@ export class PersonArticleDepartment extends Model<PersonArticleDepartmentAttrib
   }, {
     sequelize,
     tableName: 'person_article_department',
-    modelName: 'PersonArticleDepartment',
     timestamps: false,
     indexes: [
       {

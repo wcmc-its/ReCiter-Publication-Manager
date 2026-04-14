@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     commands:
-      - kubectl version --client
+      - kubectl version --short --client
   pre_build:
       commands:
         # Fetch Docker credentials from AWS Secrets Manager
@@ -17,20 +17,13 @@ phases:
         # Print the Docker username to the CodeBuild log
         - echo "Docker Username $DOCKER_USERNAME"
         
-        # Log in to Docker registry 
+        # Log in to Docker registry
         - echo "Logging in to Docker registry"
         - echo "$DOCKER_PASSWORD" | docker login --username $DOCKER_USERNAME --password-stdin
         
         - TAG="${BRANCH}-$CODEBUILD_BUILD_NUMBER.$(date +%Y-%m-%d.%H.%M.%S).$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
         - echo "${CODEBUILD_WEBHOOK_HEAD_REF}"
         - echo "${BRANCH}"
-        - echo "${AWS_REGION}"
-        - |
-          if expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
-            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
-            aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/reciter-boxyhqsaml.crt ./config/certs/reciter-boxyhqsaml.crt
-            aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/metadata.xml ./config/certs/metadata.xml
-          fi
         - |
           if expr "${BRANCH}" : ".*dev" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
@@ -45,8 +38,7 @@ phases:
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.key ./config/certs/reciter-saml.key
           fi
-        #- $(aws ecr get-login --no-include-email)
-        - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
+        - $(aws ecr get-login --no-include-email)
         # - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
         # - sed -i -e "s/TOKEN_SECRET/$TOKEN_SECRET/g" config/local.js
         - cat config/local.js
@@ -61,9 +53,7 @@ phases:
   build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || \
-           expr "${BRANCH}" : ".*dev" >/dev/null || \
-           expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
           docker build --build-arg NEXT_PUBLIC_RECITER_API_KEY=$ADMIN_API_KEY --build-arg NEXT_PUBLIC_RECITER_TOKEN_SECRET=$TOKEN_SECRET --tag $REPOSITORY_URI:$TAG .
         fi
 
@@ -71,7 +61,7 @@ phases:
   post_build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null || expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
           docker push $REPOSITORY_URI:$TAG
           # Log out from the Docker registry to clear credentials
           docker logout $REPOSITORY_URI
@@ -80,6 +70,6 @@ phases:
         if expr "${BRANCH}" : ".*master" >/dev/null; then
           kubectl set image deployment/reciter-pm-prod reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
         fi
-        if expr "${BRANCH}" : ".*dev" >/dev/null ||  expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
+        if expr "${BRANCH}" : ".*dev" >/dev/null; then
           kubectl set image deployment/reciter-pm-dev reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
         fi

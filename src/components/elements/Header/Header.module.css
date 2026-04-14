@@ -1,45 +1,20 @@
 .topNav {
-  background-color: var(--color-chrome) !important;
-  color: var(--color-chrome-text-bright) !important;
-  padding: 0 20px 0 0;
-  height: var(--header-height) !important;
-  min-height: var(--header-height) !important;
+  background-color: #cf4520 !important;
+  color: white !important;
+  padding: 15px;
   border-radius: 0;
   margin: 0;
   display: flex;
-  align-items: center;
   justify-content: space-between;
   position: sticky;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1000;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  box-shadow: none;
 }
 
 .headerText {
-  color: #ffffff !important;
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 13.5px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 220px;
-  padding: 0 20px;
-  height: 100%;
-  border-right: 1px solid rgba(255,255,255,0.07);
-  margin: 0;
-}
-
-.brandDot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  background: #e05a5a;
-  border-radius: 50%;
-  flex-shrink: 0;
+  color: white !important;
 }
 
 .nav li {
@@ -49,54 +24,41 @@
 
 .navbarRight {
   margin: 0 auto;
-  align-items: center;
-  gap: 14px;
 }
 
 .navbarRight li a {
-  font-weight: 400;
+  font-weight: 300;
+  color: #fff !important;
 }
 
 .headerNavSignedInAs {
-  color: #d0d8e8;
-  font-weight: 500;
-  font-size: 12px !important;
-  margin-right: 0;
+  color: #fff;
+  font-weight: 300;
+  font-size: 13px !important;
+  margin-right: 15px;
+  opacity: 0.8;
 }
 
 .headerNavSignedInAs p {
-  margin: 0;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255,255,255,0.1);
-  padding: 4px 12px;
-  border-radius: 20px;
-  color: #d0d8e8;
-  font-size: 12px;
-  font-weight: 500;
+  margin: 0 auto;
+  margin-top: 2px;
 }
 
 a.logout {
-  border: none !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  color: #8aa8c0 !important;
+  border: 1px solid #fff;
+  padding: 7px 15px !important;
+  border-radius: 4px;
+  color: #fff;
   font-weight: 400;
-  font-size: 12px !important;
-  font-family: var(--font-sans) !important;
-  text-decoration: none !important;
+  font-size: 15px !important;
+  margin-top: 0 auto;
+  font-family: "Open Sans", sans-serif, Arial !important;
+  text-decoration: none;
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-  background: none !important;
-}
-
-a.logout:hover {
-  opacity: 1;
-  background-color: transparent !important;
-  color: #8aa8c0 !important;
 }
 
 .main-content {
   width: 100%;
   height: 100%;
 }
+

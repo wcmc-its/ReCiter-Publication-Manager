@@ -9,8 +9,8 @@ import {metrics } from "../../../config/report";
 					 
 											
 import models from "../../../src/db/sequelize";
-//import path from 'path';
-//import fsPromises from 'fs/promises';
+import path from 'path';
+import fsPromises from 'fs/promises';
 
 models.AnalysisSummaryAuthor.hasOne(models.Person, { constraints: false });
 models.AnalysisSummaryAuthor.hasMany(models.PersonPersonType, {
@@ -29,7 +29,7 @@ export const generatePubsRtf = async (
   res: NextApiResponse
 ) => {
   try {
-    let apiBody: GeneratePubsApiBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
     let generatePubsRtfOutput: any = [];
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
@@ -67,7 +67,7 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      let apiBody: GeneratePubsPeopleOnlyApiBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      let apiBody: GeneratePubsPeopleOnlyApiBody = JSON.parse(req.body);
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
         "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
         {

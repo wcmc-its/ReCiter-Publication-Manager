@@ -5,7 +5,7 @@
 }
 
 .noAccessText {
-    color: var(--color-danger);
+    color: red;
     text-align: center;
     margin-top: 25px;
     font-size: 20px;

@@ -57,7 +57,6 @@ export class PersonArticleGrant extends Model<PersonArticleGrantAttributes, Pers
   }, {
     sequelize,
     tableName: 'person_article_grant',
-    modelName: 'PersonArticleGrant',
     timestamps: false,
     indexes: [
       {

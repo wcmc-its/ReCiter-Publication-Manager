@@ -67,7 +67,6 @@ export class JournalImpactAlternative extends Model<JournalImpactAlternativeAttr
   }, {
     sequelize,
     tableName: 'journalImpactAlternative',
-    modelName: 'JournalImpactAlternative',
     timestamps: false,
     indexes: [
       {

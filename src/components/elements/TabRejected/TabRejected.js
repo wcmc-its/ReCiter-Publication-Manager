@@ -11,7 +11,7 @@ const TabRejected = (props) => {
     const [sort, setSort] = useState("0")
     const [search, setSearch] = useState("")
     const [page, setPage] = useState(1)
-    const [count, setCount] = useState(100)
+    const [count, setCount] = useState(20)
 
     const dispatch = useDispatch()
 
@@ -223,7 +223,7 @@ const TabRejected = (props) => {
                     onClick={acceptAll}
                 >Accept all on page</button>
             </div>
-            <p>Not finding what you`&apos;`re looking for? <button type="button" onClick={() => { props.tabClickHandler("Add Publication"); } } style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>Search PubMed...</button></p>
+            <p>Not finding what you`&apos;`re looking for? <a onClick={() => { props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
             <Pagination total={publications.filteredPublications.length} page={page} count={count} onChange={handlePaginationUpdate} />
             <div className="table-responsive">
                 <table className="table table-striped">

@@ -37,11 +37,3 @@ node_modules
 
 /config/local.js
 /config/certs
-.planning/
-.superpowers/
-tsconfig.tsbuildinfo
-
-# Claude Code local artifacts
-CLAUDE.md
-CLAUDE.local.md
-.claude/

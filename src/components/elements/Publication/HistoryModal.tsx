@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Modal } from "react-bootstrap";
-import { useDispatch, useSelector } from "react-redux";
-import { RootStateOrAny } from "../../../types/redux";
+import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { fetchFeedbacklog } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import Loader from "../Common/Loader";
@@ -74,7 +73,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
             )
           })
         }
-        {feedbacklog[props.id].length > defaultLogsSize && !showAll && <button type="button" className="text-btn text-center" onClick={() => setShowAll(true)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', display: 'block', width: '100%' }}>Show More</button>}
+        {feedbacklog[props.id].length > defaultLogsSize && !showAll && <div className="text-btn text-center" onClick={() => setShowAll(true)}>Show More</div>}
         </>
       )
     }
@@ -84,7 +83,7 @@ const HistoryModal: React.FC<HistoryModalProps> = (props) => {
     <Modal show={props.showModal} onHide={props.onClose} size="lg">
       <Modal.Header closeButton>Feedback History</Modal.Header>
       <Modal.Body>
-       {feedbacklogFetching ? <Loader/> : isError? <p>Unable to load feedback history. Please try again.</p> : <ModalContent />}
+       {feedbacklogFetching ? <Loader/> : isError? <p>Something went wrong. Please try again later.</p> : <ModalContent />}
       </Modal.Body>
     </Modal>
   )

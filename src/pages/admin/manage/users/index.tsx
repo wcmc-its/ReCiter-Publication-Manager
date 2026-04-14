@@ -1,9 +1,9 @@
 import { AppLayout } from "../../../../components/layouts/AppLayout"
-import { useSession } from "next-auth/react"
+import { getSession } from "next-auth/client"
 import ManageUsers from "../../../../components/elements/Manage/ManageUsers"
 
 /* export async function getServerSideProps(ctx) {
-    const session = await useSession(ctx);
+    const session = await getSession(ctx);
 
     if (!session || !session.data) {
         return {

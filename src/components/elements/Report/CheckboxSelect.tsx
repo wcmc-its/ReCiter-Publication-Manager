@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { DropdownWrapper } from "../Common/DropdownWrapper";
+import { Form, InputGroup, FormControl, Button } from "react-bootstrap";
+import { AiOutlineSearch } from "react-icons/ai";
 import styles from "./ChecboxSelect.module.css";
-import { useSelector } from "react-redux";
-import { RootStateOrAny } from "../../../types/redux";
+import { useSelector,RootStateOrAny } from "react-redux";
 import { setReportFilterLabels } from "../../../utils/constants";
 
 export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,isFilterClear, title, value, options, formatOptionTitle, optionLabel, filterUpdateOptions,authorsFilteredData, isDynamicFetch, optionValue, filterName, onUpdateFilter, selectedOptions }) => {
   const [userInput, setUserInput] = useState<string>('');
   const [selectedList, setSelectedList] = useState<any>([]);
+  const [filteredList, setFilteredList] = useState<any>([]);
   const [totalCount, setTotalCount] = useState<number>(10);
   const [isHideSeeMoreLink, setHideSeeMoreLink] = useState<boolean>(false);
 
   const authorFilterDataFromSearch = useSelector((state: RootStateOrAny) => state.authorFilterDataFromSearch)
 
-  const isPersonType = filterName === 'personTypes';
 
   const onInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     let inputBySearch = e.target.value;
@@ -23,19 +24,19 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
       dataPreparation(inputBySearch)
      }
   }
-
   useEffect(() => {
     if(userInput) setUserInput("");
-    if(isHideSeeMoreLink) setHideSeeMoreLink(false);
+    if(isHideSeeMoreLink) setHideSeeMoreLink( false );
     if(totalCount > 10) setTotalCount(10);
     if(selectedList) setSelectedList([]);
-  }, [isFilterClear])
+  }, [isFilterClear ])
 
+  // fetch data on input change
   useEffect(() => {
     dataPreparation();
-  }, [selectedOptions, authorFilterDataFromSearch])
+  }, [  selectedOptions,authorFilterDataFromSearch])
 
-  const dataPreparation = (inputBySearch?: any) => {
+  const dataPreparation = (inputBySearch? : any)=>{
     if (isDynamicFetch) {
       filterUpdateOptions[value](inputBySearch);
     }
@@ -43,8 +44,8 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
     let updatedSelectedList = selectedOptions && selectedOptions.map((selectedOption) => {
       return options.find(option => option[optionValue] == selectedOption);
     })
-
-    let filteredData = updatedSelectedList?.filter(item => item !== undefined)
+    
+    let filteredData = updatedSelectedList?.filter(item => item !== undefined) 
 
     if (filteredData.length > 0 && filteredData?.every((currentValue) => currentValue !== undefined)) {
       const uniqueIds = selectedList;
@@ -54,175 +55,158 @@ export const CheckboxSelect: React.FC<any> = ({ reportFiltersLabes,onLoadMore,is
         if(element.hasOwnProperty("journalTitleVerbose")){
           if(element.hasOwnProperty("journalTitleVerbose")) isJournalTitleVerbose = true;
           const isDuplicate = uniqueIds.includes(element);
-          if (!isDuplicate) { uniqueIds.push(element); return true; }
+          if (!isDuplicate) {
+              uniqueIds.push(element);
+              return true;
+          }
           return false;
         }else if(element.hasOwnProperty("personIdentifier")){
           if(element.hasOwnProperty("personIdentifier")) isPersonIdentifier = true;
           const isDuplicate = uniqueIds.includes(element.personIdentifier);
-          if (!isDuplicate) { uniqueIds.push(element); return true; }
+          if (!isDuplicate) {
+              uniqueIds.push(element);
+              return true;
+          }
           return false;
         }
       });
-      let filtered = [];
+      let filtered =[];
       if(uniqueIds.some(i=> i.hasOwnProperty("personIdentifier"))){
         const ids = uniqueIds.map(i => i.personIdentifier)
-        filtered = uniqueIds.filter(({ personIdentifier }, index) => !ids.includes(personIdentifier, index + 1))
+        filtered = uniqueIds.filter(({
+          personIdentifier
+        }, index) => !ids.includes(personIdentifier, index + 1))
       }else if(uniqueIds.some(i=> i.hasOwnProperty("journalTitleVerbose"))){
         const ids = uniqueIds.map(i => i.journalTitleVerbose)
-        filtered = uniqueIds.filter(({ journalTitleVerbose }, index) => !ids.includes(journalTitleVerbose, index + 1))
+        filtered = uniqueIds.filter(({
+          journalTitleVerbose
+        }, index) => !ids.includes(journalTitleVerbose, index + 1))
       }
-      if(isPersonIdentifier || isJournalTitleVerbose) setSelectedList(filtered);
+      if(isPersonIdentifier || isJournalTitleVerbose)  setSelectedList(filtered);
       else setSelectedList(filteredData)
-    }
+  }
   }
 
-  const filteredOptions = (options: any[], isDynamicFetch: boolean) => {
+  const filteredOptions = (options, isDynamicFetch) => {
     if (userInput != '' && !isDynamicFetch) {
-      return options.filter(option => getLabel(option).toUpperCase().includes(userInput.toUpperCase()));
+      let optionsList = options.filter(option => getLabel(option).toUpperCase().includes(userInput.toUpperCase()));
+      return optionsList;
     }
+
     return options;
   }
 
-  const getLabel = (option: any) => {
-    return formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label;
+  const getLabel = (option) => {
+    let label = formatOptionTitle ? formatOptionTitle(option) : optionLabel ? option[optionLabel] : option.label;
+    return label;
   }
 
-  const getPersonTypeLabel = (slug: string) => {
-    return slug
-      .replace(/fullprofessor/i, 'full-professor')
-      .replace(/-/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
-  }
-
-  const renderLabel = (text: string) => {
-    const parenIdx = text.lastIndexOf(' (');
-    if (parenIdx > 0 && text.endsWith(')')) {
-      const name = text.substring(0, parenIdx);
-      const dept = text.substring(parenIdx + 2, text.length - 1);
-      return <><span>{highlightMatch(name)}</span><span className={styles.ptSlug}>{dept}</span></>;
-    }
-    return highlightMatch(text);
-  }
-
-  const highlightMatch = (text: string) => {
-    if (!userInput) return text;
-    const idx = text.toUpperCase().indexOf(userInput.toUpperCase());
-    if (idx === -1) return text;
-    return (
-      <>
-        {text.substring(0, idx)}
-        <span className={styles.match}>{text.substring(idx, idx + userInput.length)}</span>
-        {text.substring(idx + userInput.length)}
-      </>
-    );
-  }
-
-  const onSelect = (optionVal: string) => {
-    const isChecked = selectedOptions && selectedOptions.includes(optionVal);
+  const onSelect = (event) => {
+    let value = event.target.value;
+    let checked = event.target.checked;
     let updatedSelected = [];
 
-    if (!isChecked) {
-      updatedSelected = [...selectedOptions, optionVal];
-      let optionObj = options.find(option => option[optionValue] == optionVal);
+    if (checked) {
+      updatedSelected = [...selectedOptions, value]
+
+      // find the option
+      let optionObj = options.find(option => option[optionValue] == value);
+      // add to the selected list state to display at the bottom of the options
       if (optionObj) {
-        setSelectedList([...selectedList, optionObj]);
+        let updatedList = [...selectedList, optionObj];
+        setSelectedList(updatedList);
       }
     } else {
-      updatedSelected = selectedOptions.filter(option => option != optionVal);
-      setSelectedList(selectedList.filter(item => item[optionValue] != optionVal));
+      updatedSelected = selectedOptions && selectedOptions.filter(option => option != value)
+
+      // remove from the selected list state
+      let updatedList = selectedList.filter(item => item[optionValue] != value);
+      setSelectedList(updatedList);
     }
+    
     onUpdateFilter(filterName, updatedSelected);
   }
 
-  const onClearAll = () => {
-    setSelectedList([]);
-    onUpdateFilter(filterName, []);
+  const onRemoveSelected = (event) => {
+    let value = event.target.value;
+    // remove from the selected list
+    let updatedList = selectedList.filter(item => item[optionValue] !== value)
+    setSelectedList(updatedList);
+    // update filters state
+    let updatedSelected = selectedOptions && selectedOptions.filter(option => option != value);
+    onUpdateFilter(filterName, updatedSelected);
   }
 
-  const onClickLoadMore = (title: string) => {
+  const onClickLoadMore = (title) => {
     let updatedCount = totalCount + 12;
     setTotalCount(updatedCount);
     onLoadMore(title, updatedCount);
   }
 
-  const filtered = filteredOptions(options, isDynamicFetch);
-  const matchCount = userInput.length >= 1 ? filtered.length : null;
-  const selectedCount = selectedOptions?.length || 0;
-
   return (
-    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
+    <DropdownWrapper title={setReportFilterLabels(reportFiltersLabes, title)} variant={ selectedOptions && selectedOptions.length > 0 ? "primary" : "white"}>
       <div className={styles.dropdownContainer}>
-        {/* Search bar */}
-        <div className={styles.ddSearch}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" style={{width:14,height:14}}>
-            <circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l2.5 2.5"/>
-          </svg>
-          <input
-            type="text"
-            placeholder={isDynamicFetch ? "Type 3 letters to search" : "Search..."}
+      <InputGroup className="mb-3">         
+       <FormControl
+            className="border-right-0 border-top-right-radius-0 border-bottom-right-radius-0"
+            placeholder="Type 3 letters to search"
+            aria-label={title}
+            aria-describedby={title}
             value={userInput}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onInputChange(e)}
           />
-        </div>
-
-        {/* Match count header */}
-        {matchCount !== null && (
-          <div className={styles.ddHeader}>
-            <span className={styles.ddCount}>{matchCount} match{matchCount !== 1 ? 'es' : ''}</span>
-          </div>
-        )}
-
-        {/* Options list */}
-        <div className={styles.selectListContainer}>
-          {filtered.map((option, index) => {
-            const val = option[optionValue];
-            const isChecked = selectedOptions && selectedOptions.includes(val);
-            const label = getLabel(option);
-
-            if (isPersonType) {
+            <div className="d-flex border-grey p-1 rounded-right align-items-center">
+              <AiOutlineSearch style={{ marginTop: "-2px" }} />
+            </div>
+       </InputGroup>
+       <div className={styles.selectListContainer}>
+        {
+          filteredOptions(options, isDynamicFetch).map((option, index) => {
+            if (selectedOptions && selectedOptions.includes(option[optionValue])) {
+              return null;
+            } else {
               return (
-                <button
-                  type="button"
-                  key={val}
-                  className={isChecked ? styles.ptItemChecked : styles.ptItem}
-                  onClick={() => onSelect(val)}
-                >
-                  <div className={isChecked ? styles.cbOn : styles.cb} />
-                  <span className={styles.ptLabel}>{getPersonTypeLabel(label)}</span>
-                  <span className={styles.ptSlug}>{label}</span>
-                </button>
-              );
+                <Form.Check
+                  type="checkbox"
+                  id={option.key}
+                  key={option[optionValue]}
+                  label={getLabel(option)}
+                  value={option[optionValue]}
+                  checked={selectedOptions && selectedOptions.includes(option[optionValue]) }
+                  onChange={(e) => onSelect(e)}
+                  />
+              )
             }
-
-            return (
-              <button
-                type="button"
-                key={val}
-                className={isChecked ? styles.ddItemChecked : styles.ddItem}
-                onClick={() => onSelect(val)}
-              >
-                <div className={isChecked ? styles.cbOn : styles.cb} />
-                <span className={styles.ddItemLabel}>{renderLabel(label)}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* See more for dynamic fetch */}
-        {isDynamicFetch && !isHideSeeMoreLink && (
-          <div className={styles.ddFooter}>
-            <button className={styles.ddClear} onClick={() => onClickLoadMore(title)}>Load more</button>
-            <span className={styles.ddSelectedCount}>{selectedCount} selected</span>
+          })
+          }
+       </div>
+       {
+         isDynamicFetch &&
+         <div className="d-flex justify-content-center">
+          {!isHideSeeMoreLink ? <Button className="transparent-button" onClick={()=>onClickLoadMore(title)}>See More</Button> : ""}
+         </div>
+       }
+        {
+          selectedList.length > 0 && 
+          <div className={styles.selectFiltersContainer}>
+            <div className={styles.divider}></div>
+              {
+                selectedList.map((item, index) => {
+                  return (
+                    <Form.Check
+                      type="checkbox"
+                      id={item.key}
+                      key={`${item[optionValue]}_${index}_selected`}
+                      label={getLabel(item)}
+                      value={item[optionValue]}
+                      checked={selectedOptions && selectedOptions.includes(item[optionValue]) }
+                      onChange={(e) => onRemoveSelected(e)}
+                      />
+                  )
+                })
+              }
           </div>
-        )}
-
-        {/* Footer with clear + selected count */}
-        {(!isDynamicFetch || isHideSeeMoreLink) && (
-          <div className={styles.ddFooter}>
-            <button className={styles.ddClear} onClick={onClearAll}>Clear</button>
-            <span className={styles.ddSelectedCount}>{selectedCount} selected</span>
-          </div>
-        )}
+        }
       </div>
     </DropdownWrapper>
   )

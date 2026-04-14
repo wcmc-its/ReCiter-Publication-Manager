@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { saveUserFeedback } from "../../../../../../controllers/userfeedback.controller"
 import { reciterConfig } from '../../../../../../config/local'
-import { checkCurationScope } from '../../../../../utils/checkCurationScope'
 
 type Error = {
     statusCode: number,
@@ -20,11 +19,6 @@ export default async function handler(
     if(req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
         const { uid } = req.query;
-
-        const scopeCheck = await checkCurationScope(req, uid as string);
-        if (!scopeCheck.allowed) {
-            return res.status(scopeCheck.status!).send({ statusCode: scopeCheck.status!, message: scopeCheck.message })
-        }
 
         const apiResponse = await saveUserFeedback(req, uid);
         if(apiResponse.statusCode === 200) {

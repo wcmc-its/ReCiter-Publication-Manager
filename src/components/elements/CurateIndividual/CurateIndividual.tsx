@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
-import { useDispatch, useSelector } from "react-redux";
-import { RootStateOrAny } from "../../../types/redux";
+import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
 import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
@@ -13,13 +12,10 @@ import SuggestionsBanner from "./SuggestionsBanner";
 import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
-import { useSession } from "next-auth/react";
-import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
+import { useSession } from "next-auth/client";
+import { allowedPermissions, toastMessage } from "../../../utils/constants";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
-import { toast } from "react-toastify";
-import { reportError } from "../../../utils/reportError";
-import GrantProxyModal from './GrantProxyModal';
 
 
 
@@ -44,33 +40,18 @@ const CurateIndividual = () => {
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
-  const { data: session, status } = useSession(); const loading = status === "loading";
+  const [session, loading] = useSession();
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [viewProfileLabels, setViewProfileLabels] = useState([])
   const [isLoading, setLoading] = useState(false);
   const [headShot, setHeadShot] = useState<any>([]);
   const [showNoPermitError, setShowNoPermitError] = useState(false)
-  const [headShotLoaded, setHeadShotLoaded] = useState(false)
-  const [showGrantProxy, setShowGrantProxy] = useState(false)
-
-  // Derive capabilities from session roles
-  const userRoles = (() => {
-    try {
-      if (session?.data?.userRoles) {
-        return JSON.parse(session.data.userRoles as string);
-      }
-    } catch (e) { /* ignore parse errors */ }
-    return [];
-  })();
-  const caps = getCapabilities(userRoles);
-  const canGrantProxy = caps.canCurate.all || caps.canManageUsers;
 
   useEffect(() => {
 
     if (!id) {
       return;
     }
-    setHeadShotLoaded(false);
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
     setNewId(id);
@@ -121,43 +102,23 @@ const CurateIndividual = () => {
         setHeadShot(headShotViewAttributes)
       })
       .catch(error => {
-        console.error("[ERR-9010]", error);
-        reportError("ERR-9010", "Unable to load display settings", error);
-        toast.error("Unable to load display settings. Please try again. (ERR-9010)", {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
+        // setLoading(false);
       });
   }
 
-  const personFullName = identityData ? fullName(identityData.primaryName) : '';
+  const DisplayName = ({ name }: { name: PrimaryName }) => {
+    let formattedName = fullName(name);
+    return (
+      <h2 className="mb-1">{formattedName}</h2>
+    )
+  }
 
   const handleClose = () => setModalShow(false);
   const handleShow = () => setModalShow(true);
 
   if (identityFetching || reciterFetching) {
     return (
-      <div className={appStyles.mainContainer}>
-        <div className={styles.loadingRow}>
-          <div className={styles.loadingSpinner} />
-          <span>Loading publications…</span>
-        </div>
-        <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
-        <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
-        <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
-      </div>
-    )
-  }
-
-  if (identityORFeatureGenError) {
-    return (
-      <div className={appStyles.mainContainer}>
-        <ToastContainerWrapper />
-        <div style={{ padding: '40px 24px', textAlign: 'center', color: '#8a94a6', fontSize: 14 }}>
-          Unable to load publication data. The page may be temporarily unavailable.
-        </div>
-      </div>
+      <Loader />
     )
   }
 
@@ -166,76 +127,50 @@ const CurateIndividual = () => {
       <ToastContainerWrapper />
       {
         showNoPermitError ? <p className="text-center">{`${id} does not have an identity to view this page. Please contact system administartor`}</p> : <>
-          {identityData &&
-            <div className={styles.personHeader}>
-              <div className={styles.personPhotoWrap}>
-                <svg className={styles.personPhotoPlaceholder} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2"><circle cx="8" cy="5.5" r="3"/><path d="M2 14c0-3.31 2.69-6 6-6s6 2.69 6 6"/></svg>
-                {identityData.uid && (
-                  <img
-                    className={`${styles.personPhoto}${headShotLoaded ? ` ${styles.personPhotoLoaded}` : ''}`}
-                    src={`https://directory.weill.cornell.edu/api/v1/person/profile/${identityData.uid.replace(/^_/, '')}.png?returnGenericOn404=false`}
-                    alt=""
-                    loading="lazy"
-                    onLoad={() => setHeadShotLoaded(true)}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                )}
-              </div>
-              <div className={styles.personInfo}>
-                <h2 className={styles.personName}>{personFullName}</h2>
-                {identityData.title && <div className={styles.personRole}>{identityData.title}</div>}
-                {identityData.primaryOrganizationalUnit && <div className={styles.personDept}>{identityData.primaryOrganizationalUnit}</div>}
-                {reciterData && reciterData.reciter && reciterData.reciter.articleKeywordsAcceptedArticles &&
-                  reciterData.reciter.articleKeywordsAcceptedArticles.length > 0 && (() => {
-                    const keywords = reciterData.reciter.articleKeywordsAcceptedArticles;
-                    const allArticles = reciterData.reciter.reCiterArticleFeatures || [];
-                    const totalAccepted = allArticles.filter((a: any) => a.userAssertion === 'ACCEPTED').length;
-                    const counts = keywords.map((kw: any) => kw.count || 0);
-                    const sorted = [...counts].sort((a: number, b: number) => b - a);
-                    const n = keywords.length;
-                    const maxTier = totalAccepted < 5 ? 'low' : totalAccepted < 10 ? 'medium' : 'high';
-                    return (
-                      <div className={styles.personKeywords}>
-                        <span className={styles.kwLabel}>Keywords</span>
-                        {keywords.map((kw: any, i: number) => {
-                          const count = kw.count || 0;
-                          const rank = sorted.indexOf(count) / n;
-                          let tier = rank < 0.25 ? 'high' : rank < 0.75 ? 'medium' : 'low';
-                          if (maxTier === 'low') tier = 'low';
-                          else if (maxTier === 'medium' && tier === 'high') tier = 'medium';
-                          const tierClass = tier === 'high' ? styles.kwHigh : tier === 'medium' ? styles.kwMedium : styles.kwLow;
-                          return (
-                            <span key={i} className={`${styles.kwTag} ${tierClass}`}>
-                              {kw.keyword}
-                              <span className={styles.kwTip}>
-                                <strong>{count}</strong> of {totalAccepted} accepted publications
-                              </span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()
+          <h1 className={styles.header}>Curate Publications</h1>
+          {
+            identityData &&
+            <Container className={styles.indentityDataContainer} fluid={true}>
+              <div className="d-flex">
+                {
+                  displayImage && identityData.identityImageEndpoint && headShot && headShot.length > 0 && headShot[0].isVisible &&
+                  <div className={styles.profileImgWrapper}>
+                    <Image
+                      src={headShot.length > 0 && headShot[0]?.syntax?.replace("{personIdentifier}", identityData.uid)}
+                      alt="Profile photo"
+                      width={144}
+                      height={217}
+                      onError={() => setDisplayImage(false)}
+                    />
+                  </div>
                 }
+                <div className="flex-grow-1">
+                  <DisplayName
+                    name={identityData.primaryName}
+                  />
+                  <b>{identityData.title}</b>
+                  <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
+                  {reciterData && reciterData.reciter &&
+                    <InferredKeywords
+                      reciter={reciterData.reciter}
+                    />
+                  }
+                  <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+                </div>
               </div>
-              <div className={styles.personActions}>
-                <button className={styles.viewProfileBtn} onClick={handleShow}>View Profile</button>
-                {canGrantProxy && (
-                  <button
-                    type="button"
-                    className={styles.viewProfileBtn}
-                    onClick={() => setShowGrantProxy(true)}
-                  >
-                    Grant Proxy
-                  </button>
-                )}
-              </div>
-            </div>
+            </Container>
+          }
+
+          {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
+            <SuggestionsBanner
+              uid={newId}
+              count={reciterData.reciterPending.length}
+            />
           }
 
           <ReciterTabs
             reciterData={reciterData}
-            fullName={personFullName}
+            fullName={fullName(identityData.primaryName)}
             fetchOriginalData={fetchData}
           />
           <Profile
@@ -245,19 +180,7 @@ const CurateIndividual = () => {
             handleClose={handleClose}
             viewProfileLabels={viewProfileLabels}
             headShotLabelData={headShot}
-            reciterData={reciterData}
           />
-          {canGrantProxy && (
-            <GrantProxyModal
-              show={showGrantProxy}
-              onHide={() => setShowGrantProxy(false)}
-              personIdentifier={id as string}
-              personName={personFullName}
-              onSave={() => {
-                // Proxy changes saved; no additional refresh needed on curate page
-              }}
-            />
-          )}
         </>
       }
     </div>

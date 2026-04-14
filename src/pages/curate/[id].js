@@ -1,6 +1,6 @@
 import CurateIndividual from "../../components/elements/CurateIndividual/CurateIndividual"
 import { AppLayout } from "../../components/layouts/AppLayout"
-import { getSession } from "next-auth/react"
+import { getSession } from "next-auth/client"
 
 /* export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);

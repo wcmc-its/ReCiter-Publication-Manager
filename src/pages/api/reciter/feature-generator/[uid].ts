@@ -17,13 +17,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data | Error>
 ) {
-    console.log(`[API] feature-generator/${req.query.uid} - auth: ${req.headers.authorization === reciterConfig.backendApiKey ? 'OK' : 'FAIL'} (got: ${req.headers.authorization}, expect: ${reciterConfig.backendApiKey})`);
     if(req.method === "GET") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
         const { uid } = req.query;
 
         const apiResponse = await getPublications(uid, req);
-        console.log(`[API] feature-generator/${uid} - ReCiter responded: statusCode=${apiResponse.statusCode}, hasData=${!!apiResponse.statusText?.reciterData}, type=${typeof apiResponse.statusText}`);
         if(apiResponse.statusCode === 200) {
             res.status(apiResponse.statusCode).send({
                 statusCode: apiResponse.statusCode,
@@ -31,9 +29,8 @@ export default async function handler(
                 reciterPending: apiResponse.statusText.reciterPendingData
             })
         } else {
-            console.log(`[API] feature-generator/${uid} - ERROR: ${JSON.stringify(apiResponse.statusText).substring(0, 200)}`);
-            res.status(apiResponse.statusCode || 502).send({
-                statusCode: apiResponse.statusCode || 502,
+            res.status(apiResponse.statusCode).send({
+                statusCode: apiResponse.statusCode,
                 message: apiResponse.statusText
             })
         }

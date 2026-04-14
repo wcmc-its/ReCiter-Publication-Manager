@@ -5,7 +5,6 @@ export type MenuItem = {
   id?: number
   imgUrl?: string | StaticImport
   imgUrlActive?: string | StaticImport
-  muiIcon?: any
   disabled?: boolean
   allowedRoleNames?:Array,
   isRequired?:boolean

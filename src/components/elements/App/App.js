@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useHistory } from 'react-router-dom';
 import appStyles from './App.module.css';
 import { useSelector, useDispatch } from "react-redux";
 import { identityFetchData, reciterFetchData } from '../../../redux/actions/actions'
@@ -9,11 +10,12 @@ import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import {getSession } from "next-auth/react"
+import {getSession } from "next-auth/client"
 
 const App = (props) => {
 
     const dispatch = useDispatch()
+    const history = useHistory()
 
     const reciterFetching = useSelector((state) => state.reciterFetching)
     const reciterData = useSelector((state) => state.reciterData)
@@ -99,9 +101,9 @@ const App = (props) => {
                             <strong>{`${
                                 reciterData.reciterPending.length
                                 } record(s). `}</strong>
-                            <button type="button" onClick={refreshHandler} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
+                            <a href="#" onClick={refreshHandler}>
                                 Refresh
-                            </button>
+                            </a>
                             <span> to get new suggestions.</span>
                         </div>
                     ) : null}

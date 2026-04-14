@@ -1,8 +1,9 @@
 import React, { useState, FormEvent, useEffect } from "react";
-import { Dropdown, DropdownButton } from "react-bootstrap";
+import { Button, Row, Form, Dropdown, DropdownButton, FormControlProps, FormControl } from "react-bootstrap";
 import { Publication } from "../../../../types/publication";
 import styles from "./CurateIndividual.module.css";
-import Pagination from '../Pagination/Pagination';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 interface FilterPubSectionProps {
   searchTextUpdate: (searchText: string) => void
@@ -11,11 +12,6 @@ interface FilterPubSectionProps {
   updateAll: any
   tabType: string
   isSearchText: any
-  page?: number
-  count?: number
-  totalCount?: number
-  handlePaginationUpdate?: (page: number) => void
-  handleCountUpdate?: (count: string) => void
 }
 
 const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
@@ -50,36 +46,23 @@ const FilterPubSection: React.FC<FilterPubSectionProps> = (props) => {
 
 
   return (
-    <div className={styles.controlsBar}>
-      {props.tabType !== 'ACCEPTED' && <button className={styles.btnBulkAccept} onClick={() => updateAll('ACCEPTED')}>Accept All</button>}
-      {props.tabType !== 'REJECTED' && <button className={styles.btnBulkReject} onClick={() => updateAll('REJECTED')}>Reject All</button>}
-      {props.tabType !== 'NULL' && <button className={styles.btnBulkUndo} onClick={() => updateAll('NULL')}>Undo All</button>}
-      <div className={styles.controlsSpacer} />
-      <form onSubmit={handleFormSubmit} style={{display:'flex', gap: 8, alignItems:'center'}}>
-        <input
-          className={styles.searchInput}
-          type="text"
-          placeholder="Filter..."
-          value={searchText}
-          onChange={handleInputChange}
-        />
-      </form>
-      <DropdownButton className={styles.sortDropdown} title="Sort by" id="curate-sort" onSelect={(eventKey) => handleSortChange(eventKey)}>
-        <Dropdown.Item eventKey="1" className={styles.sortItem}>Score ↓</Dropdown.Item>
-        <Dropdown.Item eventKey="3" className={styles.sortItem}>Score ↑</Dropdown.Item>
-        <Dropdown.Item eventKey="2" className={styles.sortItem}>Date ↓</Dropdown.Item>
-        <Dropdown.Item eventKey="4" className={styles.sortItem}>Date ↑</Dropdown.Item>
-      </DropdownButton>
-      {props.totalCount > 0 && props.handlePaginationUpdate && (
-        <Pagination
-          total={props.totalCount}
-          page={props.page}
-          count={props.count}
-          onChange={props.handlePaginationUpdate}
-          onCountChange={props.handleCountUpdate}
-          merged
-        />
-      )}
+    <div className={`${styles.filterPubSection} d-flex justify-content-between`}>
+      <div className={`${styles.filterSectionButtons} d-flex flex-basis-content`}>
+        {props.tabType !== 'ACCEPTED' && <Button className="m-2" variant="primary" onClick={() => updateAll('ACCEPTED')}>Accept All</Button>}
+        {props.tabType !== 'REJECTED' && <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('REJECTED')}>Reject All</Button>}
+        {props.tabType !== 'NULL' && <Button className={`m-2 ${styles.whiteBtn}`} variant="outline-primary" onClick={() => updateAll('NULL')}>Undo All</Button>}
+      </div>
+      <div className={`${styles.filterSort} d-flex align-items-end`}>
+        <Form className="d-flex flex-basis-content mx-2" onSubmit={(event) => handleFormSubmit(event)}>
+          <Form.Control type="text" placeholder="Filter..." value={searchText} onChange={(e) => handleInputChange(e)} />
+        </Form>
+        <DropdownButton className={`${styles.basicDropdown} mx-2`} title="Sort by" id="dropdown-basic-button" onSelect={(eventKey) => handleSortChange(eventKey)}>
+          <Dropdown.Item eventKey="1">Score <ArrowDownwardIcon /></Dropdown.Item>
+          <Dropdown.Item eventKey="3">Score <ArrowUpwardIcon /></Dropdown.Item>
+          <Dropdown.Item eventKey="2">Date <ArrowDownwardIcon /></Dropdown.Item>
+          <Dropdown.Item eventKey="4">Date <ArrowUpwardIcon /></Dropdown.Item>
+        </DropdownButton>
+      </div>
     </div>
   )
 }

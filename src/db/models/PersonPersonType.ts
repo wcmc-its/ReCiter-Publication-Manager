@@ -37,7 +37,6 @@ export class PersonPersonType extends Model<PersonPersonTypeAttributes, PersonPe
   }, {
     sequelize,
     tableName: 'person_person_type',
-    modelName: 'PersonPersonType',
     timestamps: false,
     indexes: [
       {

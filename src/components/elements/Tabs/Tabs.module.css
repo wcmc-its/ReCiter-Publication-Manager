@@ -1,30 +1,28 @@
 .publicationsTabLink {
     cursor: pointer;
-    color: var(--wcm-red);
+    color: #337ab7;
     font-size: 15px;
 }
 .publicationsTabLink:hover {
     border-bottom: 0px;
-    color: var(--wcm-red-dark);
 }
 .nav-tabs li.active .publicationsTabLink {
-    color: var(--gray-800);
-    background-color: #ffffff;
-    border-bottom: 2px solid var(--wcm-red);
-    font-weight: 600;
+    color: #777777;
+    background-color: #efefef;
+    border-bottom: 2px solid #efefef;
 }
 .nav-tabs li.active .publicationsTabLink:hover {
-    border-bottom: 2px solid var(--wcm-red);
-    background-color: #ffffff;
-    color: var(--gray-800);
+    border-bottom: 2px solid #efefef;
+    background-color: #efefef;
+    color: #777777;
 }
 
 .publicationsTabLink span {
     display: inline-block;
     padding-right: 8px;
     padding-left: 8px;
-    background: var(--gray-200);
-    color: var(--gray-600);
+    background: #e6e6e6;
+    color: #777777;
     border-radius: 50%;
     width: inherit;
     height: 22px;
@@ -38,6 +36,6 @@
 }
 
 .publicationsTabLink span.publicationsTabLinkActive {
-    background: var(--wcm-red);
+    background: #999999;
     color: #ffffff;
 }

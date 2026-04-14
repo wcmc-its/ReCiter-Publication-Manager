@@ -6,36 +6,25 @@ import { useRouter } from "next/router";
 import Pagination from '../Pagination/Pagination';
 import appStyles from '../App/App.module.css';
 import publicationStyles from '../Publication/Publication.module.css';
-import { useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/client';
 import SearchBar from "./SearchBar";
+import FilterReview from "./FilterReview";
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
-import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import { styled } from '@mui/material/styles';
 import { Table,Button} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
-import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation, getCapabilities } from "../../../utils/constants"
+import { useHistory } from "react-router-dom";
+import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 import Profile from "../Profile/Profile";
-import ProxyBadge from './ProxyBadge';
-import ScopeFilterCheckbox from './ScopeFilterCheckbox';
-import { isProxyFor } from '../../../utils/scopeResolver';
 
 const Search = () => {
 
-  const { data: session, status } = useSession(); const loading = status === "loading";
-
-  // Phase 9: Parse scope/proxy data and derive capabilities
-  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
-  const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
-  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
-  const caps = getCapabilities(userRoles);
-  const showScopeFilter = caps.canCurate.scoped && !caps.canCurate.all;
+  const [session, loading] = useSession();
 
   const router = useRouter()
+  const history = useHistory();
   const dispatch = useDispatch()
 
   const identityAllData = useSelector((state) => state.identityAllData)
@@ -58,7 +47,7 @@ const Search = () => {
   const [isUserRole, setIsuserRole] = useState([])
 
   const [page, setPage] = useState(1)
-  const [count, setCount] = useState(100)
+  const [count, setCount] = useState(20)
   const [filterByPending, setFilterByPending] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [countAllData, setCountAllData] = useState(0);
@@ -78,15 +67,14 @@ const Search = () => {
   const [showProfileID, setShowprofileID] = useState("");
   const [headShot, setHeadShot] = useState([]);
   const [viewProfileLabels, setViewProfileLabels] = useState([])
-  const [selectedAction, setSelectedAction] = useState("Curate Publications")
-  const [scopeFilterChecked, setScopeFilterChecked] = useState(true); // Default checked for scoped curators (D-14)
-
+  
   //ref
   const searchValue = useRef()
 
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
     dispatch(clearFilters())
+    let adminSettings = JSON.parse(session.adminSettings);
     var viewAttributes = [];
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
@@ -95,9 +83,8 @@ const Search = () => {
 
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel)
-    } else if (session?.adminSettings) {
+    } else {
       // regular settings from session
-      let adminSettings = JSON.parse(session.adminSettings);
       let data = adminSettings.find(obj => obj.viewName === "findPeople")
       viewAttributes = JSON.parse(data.viewAttributes)
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
@@ -195,22 +182,14 @@ const Search = () => {
       setIsReporterAll(true)
       setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
     } 
-    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self )
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self ) 
     && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All )) {
     setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsCuratorAll(true)
-      }
-    // Phase 9: Curator_Scoped handling -- same dropdown behavior as Curator_All
-    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Scoped)) {
-      setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
-      setDropdownMenuItems(dropDownMenuItems);
-      setIsCuratorAll(true); // Scoped curators get same dropdown actions as Curator_All
-      setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
-    }
+      } 
     else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
@@ -225,51 +204,6 @@ const Search = () => {
     // }
     fetchAllAdminSettings()
   }, [])
-
-  // Re-derive labels when admin settings arrive in Redux (async)
-  useEffect(() => {
-    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
-      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
-      if (updatedData) {
-        let viewAttributes = updatedData.viewAttributes;
-        let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-        setNameOrcwidLabel(cwidLabel)
-        setFindPeopleLabels(viewAttributes)
-      }
-    }
-  }, [updatedAdminSettings])
-
-  // Phase 9: Re-trigger search when scope filter checkbox is toggled
-  const scopeFilterInitRef = useRef(true);
-  useEffect(() => {
-    // Skip the initial render (the main useEffect handles initial load)
-    if (scopeFilterInitRef.current) {
-      scopeFilterInitRef.current = false;
-      return;
-    }
-    // Build scope-aware filters and re-search
-    let updatedFilters = { ...filters };
-    if (showScopeFilter && scopeFilterChecked && scopeData) {
-      updatedFilters = {
-        ...updatedFilters,
-        scopeOrgUnits: scopeData.orgUnits || [],
-        scopePersonTypes: scopeData.personTypes || [],
-        proxyPersonIds: proxyPersonIds,
-      };
-    } else {
-      // Remove scope filters when unchecked
-      const { scopeOrgUnits, scopePersonTypes, proxyPersonIds: _p, ...rest } = updatedFilters;
-      updatedFilters = rest;
-    }
-    let request = {
-      filters: { ...updatedFilters },
-      limit: count,
-      offset: 0
-    };
-    dispatch(updateFilters(updatedFilters));
-    dispatch(identityFetchAllData(request));
-    setPage(1);
-  }, [scopeFilterChecked])
 
   const fetchAllAdminSettings = () => {
     const request = {};
@@ -425,20 +359,10 @@ const Search = () => {
       updatedFilters = { ...updatedFilters, personTypes: [...personTypes] };
     }
 
-    // Phase 9: Add scope filter parameters when scope filter is active
-    if (showScopeFilter && scopeFilterChecked && scopeData) {
-      updatedFilters = {
-        ...updatedFilters,
-        scopeOrgUnits: scopeData.orgUnits || [],
-        scopePersonTypes: scopeData.personTypes || [],
-        proxyPersonIds: proxyPersonIds,
-      };
-    }
-
     let request = {
       filters: { ...updatedFilters },
       limit:count,
-      offset: page - 1
+      offset: page - 1 
     }
 
     dispatch(updateFilters(updatedFilters));
@@ -473,49 +397,12 @@ const Search = () => {
   }
 
   const handleClose = () => setShowprofile(false);
-  const handleShow = () => setShowprofile(true);
-
-  const handleGoAction = () => {
-    dispatch(updatePubFiltersFromSearch());
-    if (selectedAction === "Curate Publications") {
-      dispatch(curateIdsFromSearch(identities.paginatedIdentities))
-      router.push({ pathname: '/curate' })
-    } else if (selectedAction === "Create Reports") {
-      router.push('/report');
-    }
-  }
-
-  const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
-    marginLeft: '8px',
-    borderRadius: '5px',
-    overflow: 'hidden',
-    border: '1px solid #ddd7ce',
-    '& .MuiToggleButtonGroup-grouped': {
-      textTransform: 'none',
-      border: 'none',
-      borderRadius: '0 !important',
-      fontSize: '12px',
-      fontWeight: 600,
-      fontFamily: '"DM Sans", sans-serif',
-      padding: '5px 12px',
-      minHeight: 'auto',
-      lineHeight: 'normal',
-      color: '#8a94a6',
-      backgroundColor: '#eeeae4',
-    },
-    '& .MuiToggleButton-root.MuiButtonBase-root.Mui-selected': {
-      color: '#fff',
-      backgroundColor: '#1a2133',
-      '&:hover': {
-        backgroundColor: '#252d42',
-      }
-    }
-  }));
+  const handleShow = () => setShowprofile(false);
 
   const resetData = () => {
     dispatch(clearFilters())
     setPage(1)
-    setCount(100)
+    setCount(20)
     fetchPaginatedData('reset')
     fetchCount()
   }
@@ -584,16 +471,12 @@ const Search = () => {
   
   const RoleSplitDropdown = (identity) => {
     
-    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser
-        && (loggedInPersonIdentifier === identity.identity.personIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier)))
+    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser && loggedInPersonIdentifier === identity.identity.personIdentifier) 
     {
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
     }
     else if(dropdownTitle && dropdownTitle =='Create Report' && isReporterAll && !isCuratorAll && !isSuperUser && !isCuratorSelf)
     {
-        if (isProxyFor(proxyPersonIds, identity.identity.personIdentifier)) {
-          return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
-        }
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("report", identity.identity)}>{"Create Reports"}</Button>
     }
     else if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorAll && !isReporterAll && !isSuperUser && !isCuratorSelf) 
@@ -602,14 +485,13 @@ const Search = () => {
     }
     else if(isCuratorSelf && isReporterAll && !isCuratorAll && !isSuperUser)
     {
-      const canCurateRow = identity && (identity.identity.personIdentifier === loggedInPersonIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier));
       return  <SplitDropdown
-        title={canCurateRow ? "Curate Publications" : "Create Reports"}
-        onDropDownClick={canCurateRow ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
+        title={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? "Curate Publications" : "Create Reports"}
+        onDropDownClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
         id={`curate-publications_${identity.identity.personIdentifier}`}
-        listItems={canCurateRow ? dropdownMenuItems : []}
+        listItems={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? dropdownMenuItems : []} //{isUserRole && isUserRole === allowedPermissions.Superuser ? dropdownItemsSuper : dropdownItemsReport}
         secondary={true}
-        onClick={canCurateRow ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
+        onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
     }
     else if((isCuratorAll && isReporterAll && isCuratorSelf) ||isSuperUser || (isCuratorAll && isReporterAll))
     {
@@ -641,34 +523,29 @@ const Search = () => {
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
-        {
-
+        { 
+          
           isCuratorSelf ?
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)}></Name>
           :
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)}></Name>
         }
         </td>
-        <td key={`${identityIndex}__orgUnit`} width="20%" className={styles.colOrg}>
+        <td key={`${identityIndex}__orgUnit`} width="20%">
           {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
         </td>
-        <td key={`${identityIndex}__institution`} width="20%" className={styles.colInst}>
+        <td key={`${identityIndex}__institution`} width="20%">
           {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
         </td>
-        {isCuratorAll || isSuperUser  ?
-        <td key={`${identityIndex}__pending`} width="10%" className={styles.colPending}>
-          {identity.countPendingArticles ?
-            <span className={styles.pendingBadgeHas}>{identity.countPendingArticles}</span> :
-            <span className={styles.pendingBadgeNone}>0</span>
-          }
+        {isCuratorAll || isSuperUser  ? 
+        <td key={`${identityIndex}__pending`} width="10%">
+          {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
         </td>
          : ""}
-        <td key={`${identityIndex}__dropdown`} width="20%" className={styles.actionsCell}>
-          <button type="button" className={styles.actionLink} style={{fontWeight:500}} onClick={() => onClickProfile(identity.personIdentifier)}>Curate</button>
-          <span className={styles.actionDot}>·</span>
-          <button type="button" className={styles.actionLink} onClick={() => redirectToCurate("report", identity)}>Reports</button>
-          <span className={styles.actionDot}>·</span>
-          <button type="button" className={styles.actionLink} onClick={() => { setShowprofileID(identity.personIdentifier); handleShow(); }}>Profile</button>
+        <td key={`${identityIndex}__dropdown`} width="20%">
+          {
+            <RoleSplitDropdown identity = {identity}></RoleSplitDropdown>
+          }
         </td>
       </tr>;
     })
@@ -677,9 +554,7 @@ const Search = () => {
       <tr>
         <td colSpan="5">
           <p className={styles.noitemsList}>
-            {showScopeFilter && scopeFilterChecked
-              ? 'No people found matching your scope. Try unchecking the scope filter to see all results.'
-              : 'No records found'}
+            No records found
           </p>
         </td>
       </tr>
@@ -691,68 +566,26 @@ const Search = () => {
     <div className={appStyles.mainContainer}>
       <div className={styles.searchContentContainer}>
         <div className={styles.searchBar}>
-          <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Find People</h1>
+          <h1>Find People</h1>
           <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
-          {showScopeFilter && (
-            <ScopeFilterCheckbox
-              checked={scopeFilterChecked}
-              onChange={(checked) => {
-                setScopeFilterChecked(checked);
-              }}
-            />
-          )}
           {(isDisplayLoader()) ?
             (
               <Loader />
             ) : (
               <div>
-                <div className={styles.resultsBar}>
-                  <div className={styles.resultsCount}>
-                    <span className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</span>
-                    <span className={styles.resultsCountLabel}>{filtersOn ? 'people found using filters' : 'people'}</span>
-                  </div>
-                  {filtersOn && (
-                    <div className={styles.resultsRight}>
-                      {(isCuratorAll || isSuperUser) && (
-                        <div className={styles.pendingFilter}>
-                          <span className={styles.pendingFilterLabel}>Show only pending</span>
-                          <StyledToggleButtonGroup
-                            color="primary"
-                            value={filterByPending}
-                            exclusive
-                            onChange={(e, val) => { handlePendingFilterUpdate(val); }}
-                          >
-                            <ToggleButton value={false}>No</ToggleButton>
-                            <ToggleButton value={true}>Yes</ToggleButton>
-                          </StyledToggleButtonGroup>
-                        </div>
-                      )}
-                      <span className={styles.actionLabel}>Go to</span>
-                      <div className={styles.actionSelectWrap}>
-                        <select
-                          className={styles.actionSelect}
-                          value={selectedAction}
-                          onChange={(e) => setSelectedAction(e.target.value)}
-                        >
-                          <option value="Curate Publications">Curate Publications</option>
-                          {dropdownMenuItems.filter(i => i.title).map(item => (
-                            <option key={item.title} value={item.title}>{item.title}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <button className={styles.btnGo} onClick={handleGoAction}>
-                        Go
-                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
-                      </button>
+                <br />
+                {!filtersOn &&
+                  <div className="row">
+                    <div className="col-md-4">
+                      <h3><strong>{ numberFormation(totalCountUpdated)}</strong> people</h3>
                     </div>
-                  )}
-                </div>
+                  </div>}
+                {filtersOn && <FilterReview count={totalCountUpdated}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} showPendingToggle = {isCuratorAll || isSuperUser} />}
                 <React.Fragment>
                   <Pagination total={totalCountUpdated} page={page}
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
-                    merged
                   />
                   {isDisplayLoaderTable() ? <Loader /> :
                     <div className="table-responsive">
@@ -797,28 +630,35 @@ const Search = () => {
 }
 
 function Name(props) {
+  let nameArray = []
+  let imageUrl = ''
+  if (props.identity.identityImageEndpoint !== undefined) {
+    if (props.identity.identityImageEndpoint.length > 0)
+      imageUrl = props.identity.identityImageEndpoint
+    else
+      imageUrl = '../../../images/generic-headshot.png'
+  }
   let firstName = props.identity.firstName ?? ''
   let middleName = props.identity.middleName ?? ''
   let lastName = props.identity.lastName ?? ''
+  
 
-  if (props.identity.firstName !== undefined) {
-    const nameString = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, ' ').trim()
-    return (
-      <div>
-        <div className={styles.nameRow}>
-          <button className={styles.btnLink} onClick={props.onClickProfile}>
-            {nameString}
-          </button>
-          {isProxyFor(props.proxyPersonIds, props.identity.personIdentifier) && <ProxyBadge />}
-        </div>
-        {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
-        <div className={styles.personCwid}>
-          <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}
-        </div>
-      </div>
-    )
+  if (props.identity.firstName !== undefined ) {
+    const nameString = `${firstName}  ${middleName} ${lastName}`
+    nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onClickProfile}>
+      <b>{nameString}</b>
+    </button>
+      <br />
+      {props.identity.title && <>{props.identity.title}<br /></>}
+      {props.nameOrcwidLabel}: {props.identity.personIdentifier}</p>)
+
   }
-  return null
+  if (props.title) {
+    nameArray.push(<p key="1"><span>{props.title}</span></p>)
+  }
+  return (
+    nameArray
+  )
 }
 
 export default Search

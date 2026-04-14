@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import styles from './CuratePublications.module.css';
 import appStyles from '../App/App.module.css';
 import FilterSection from "../Filter/FilterSection";
-import { useSelector, useDispatch } from "react-redux";
-import { RootStateOrAny } from "../../../types/redux";
+import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import  PublicationsPane from "../Publication/PublicationsPane";
 import { publicationsFetchGroupData, fetchGroupFeedbacklog } from '../../../redux/actions/actions';
 import Loader from "../Common/Loader";
@@ -106,17 +105,7 @@ const CuratePublications = () => {
         buttonTitle="Update Search..."
         buttonUrl="/search"
         ></FilterSection>
-      { (publicationsGroupDataFetching) ? (
-        <div>
-          <div className={styles.loadingRow}>
-            <div className={styles.loadingSpinner} />
-            <span>Loading publications…</span>
-          </div>
-          <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
-          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
-          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
-        </div>
-      ) :
+      { (publicationsGroupDataFetching) ? <Loader /> : 
         <>
             {publicationsGroupData.reciter ? 
           <div className="d-flex justify-content-between">

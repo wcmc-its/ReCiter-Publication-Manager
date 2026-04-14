@@ -1,8 +1,8 @@
 import React from "react";
+import Loader from "../Common/Loader";
 import { ReportsResultPane } from "./ReportsResultPane";
 import { PublicationSearchFilter } from "../../../../types/publication.report.search";
 import { Author } from "../../../../types/Author";
-import reportStyles from "./Report.module.css";
 
 interface ReportResultsProps  {
   results: any,
@@ -15,14 +15,8 @@ interface ReportResultsProps  {
 export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDisplay, results, loading, onClickAuthor, pubSearchFilter, highlightSelectedAuthors }) => {
   if (loading) {
     return (
-      <div>
-        <div className={reportStyles.loadingRow}>
-          <div className={reportStyles.spinner} />
-          <span>Searching…</span>
-        </div>
-        <div className={reportStyles.skeletonCard}><div className={reportStyles.skTitle} /><div className={reportStyles.skAuthors} /><div className={reportStyles.skMeta} /></div>
-        <div className={reportStyles.skeletonCard}><div className={reportStyles.skTitle} style={{ width: '60%' }} /><div className={reportStyles.skAuthors} style={{ width: '50%' }} /><div className={reportStyles.skMeta} style={{ width: '38%' }} /></div>
-        <div className={reportStyles.skeletonCard}><div className={reportStyles.skTitle} style={{ width: '74%' }} /><div className={reportStyles.skAuthors} style={{ width: '44%' }} /><div className={reportStyles.skMeta} style={{ width: '32%' }} /></div>
+      <div className="m-5">
+        <Loader />
       </div>
     )
   }

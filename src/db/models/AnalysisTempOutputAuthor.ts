@@ -38,7 +38,6 @@ export class AnalysisTempOutputAuthor extends Model<AnalysisTempOutputAuthorAttr
   }, {
     sequelize,
     tableName: 'analysis_temp_output_author',
-    modelName: 'AnalysisTempOutputAuthor',
     timestamps: false,
     indexes: [
       {

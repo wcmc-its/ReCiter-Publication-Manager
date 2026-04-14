@@ -21,23 +21,6 @@ export async function authenticate(credential: Credential){
         maxAge: hour,
         secure: true, 
     }
-    // Local dev bypass — skip ReCiter API when LOCAL_DEV_PASSWORD is set
-    if(process.env.LOCAL_DEV_PASSWORD && credential?.password === process.env.LOCAL_DEV_PASSWORD) {
-        const payload = { username: credential.username };
-        const token = jwt.sign(payload, reciterConfig.tokenSecret, { algorithm: 'HS256', expiresIn: '1 day' });
-        return {
-            statusCode: 200,
-            statusMessage: {
-                name: 'reciter-pub-manager-session',
-                accessToken: token,
-                username: credential.username,
-                path: '/',
-                expires: new Date(Date.now() + 3600000 * 8),
-                maxAge: 3600000 * 8,
-                secure: true,
-            }
-        };
-    }
     if(credential === undefined) {
         return {
             statusCode: 401,

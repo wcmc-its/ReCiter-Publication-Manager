@@ -38,7 +38,6 @@ export class AnalysisRcrCite extends Model<AnalysisRcrCiteAttributes, AnalysisRc
   }, {
     sequelize,
     tableName: 'analysis_rcr_cites',
-    modelName: 'AnalysisRcrCite',
     timestamps: false,
     indexes: [
       {

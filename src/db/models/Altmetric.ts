@@ -235,7 +235,6 @@ export class Altmetric extends Model<AltmetricAttributes, AltmetricCreationAttri
   }, {
     sequelize,
     tableName: 'altmetric',
-    modelName: 'Altmetric',
     timestamps: false,
     indexes: [
       {

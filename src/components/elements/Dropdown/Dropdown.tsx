@@ -84,30 +84,25 @@ const Dropdown: FunctionComponent<FuncProps> = (props) => {
     }
 
     return (
-        <div className="dropdown">
+        <div className="dropdown" onClick={toggleOpen}>
             <button
                 className="btn btn-primary dropdown-toggle"
                 type="button"
                 id="dropdownMenuButton"
                 data-toggle="dropdown"
                 aria-haspopup="true"
-                onClick={toggleOpen}
             >
                 Sort by <span className={sortClass}>{sortBy}</span>
             </button>
             <div className={`${styles.dropdownMenu} dropdown-menu-right ${isOpen ? " show" : ""}`} aria-labelledby="dropdownMenuButton">
-                <button
-                    type="button"
+                <span
                     className={(sortBy === "Score")?sortClass:""}
                     onClick={(event) => handleClick(event, "Score")}
-                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
-                >Score</button>
-                <button
-                    type="button"
+                >Score</span>
+                <span
                     className={(sortBy === "Date")?sortClass:""}
                     onClick={(event) => handleClick(event, "Date")}
-                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
-                >Date</button>
+                >Date</span>
             </div>
         </div>
     );

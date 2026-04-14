@@ -116,7 +116,6 @@ export class PersonArticleRelationship extends Model<PersonArticleRelationshipAt
   }, {
     sequelize,
     tableName: 'person_article_relationship',
-    modelName: 'PersonArticleRelationship',
     timestamps: false,
     indexes: [
       {

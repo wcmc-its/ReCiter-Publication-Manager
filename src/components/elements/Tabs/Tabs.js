@@ -27,44 +27,36 @@ const Tabs = (props) => {
 
     return (
 
-        <div className={`nav nav-tabs tabs-headers`} role="tablist">
-            <div className={(props.tabActive === "Accepted")?"active":""}>
-                <button
-                    type="button"
+        <ul className={`nav nav-tabs tabs-headers`} role="tablist">
+            <li className={(props.tabActive === "Accepted")?"active":""}>
+                <a
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" tabIndex={props.tabActive === "Accepted" ? 0 : -1} aria-selected={props.tabActive === "Accepted"} data-toggle="tab" data-page="accepted"
+                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
                     onClick={() => { props.tabClickHandler("Accepted"); } }
-                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
-                >Accepted <span className={(props.tabActive === "Accepted")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{accepted}</span></button>
-            </div>
-            <div className={(props.tabActive === "Suggested")?"active":""}>
-                <button
-                    type="button"
+                >Accepted <span className={(props.tabActive === "Accepted")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{accepted}</span></a>
+            </li>
+            <li className={(props.tabActive === "Suggested")?"active":""}>
+                <a
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" tabIndex={props.tabActive === "Suggested" ? 0 : -1} aria-selected={props.tabActive === "Suggested"} data-toggle="tab" data-page="accepted"
+                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
                     onClick={() => { props.tabClickHandler("Suggested"); } }
-                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
-                >Suggested <span className={(props.tabActive === "Suggested")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{suggested}</span></button>
-            </div>
-            <div className={(props.tabActive === "Rejected")?"active":""}>
-                <button
-                    type="button"
+                >Suggested <span className={(props.tabActive === "Suggested")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{suggested}</span></a>
+            </li>
+            <li className={(props.tabActive === "Rejected")?"active":""}>
+                <a
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" tabIndex={props.tabActive === "Rejected" ? 0 : -1} aria-selected={props.tabActive === "Rejected"} data-toggle="tab" data-page="accepted"
+                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
                     onClick={() => { props.tabClickHandler("Rejected"); } }
-                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
-                >Rejected <span className={(props.tabActive === "Rejected")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{rejected}</span></button>
-            </div>
-            <div className={(props.tabActive === "Add Publication")?"active":""}>
-                <button
-                    type="button"
+                >Rejected <span className={(props.tabActive === "Rejected")?styles.publicationsTabLinkActive:styles.publicationsTabLinkActive}>{rejected}</span></a>
+            </li>
+            <li className={(props.tabActive === "Add Publication")?"active":""}>
+                <a
                     className={styles.publicationsTabLink}
-                    aria-controls="publications-tabpanel" role="tab" tabIndex={props.tabActive === "Add Publication" ? 0 : -1} aria-selected={props.tabActive === "Add Publication"} data-toggle="tab" data-page="accepted"
+                    aria-controls="publications-tabpanel" role="tab" data-toggle="tab" data-page="accepted"
                     onClick={() => { props.tabClickHandler("Add Publication"); } }
-                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
-                >Add Publication</button>
-            </div>
-        </div>
+                >Add Publication</a>
+            </li>
+        </ul>
     );
 }
 

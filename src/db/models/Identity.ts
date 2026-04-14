@@ -267,7 +267,6 @@ export class Identity extends Model<IdentityAttributes, IdentityCreationAttribut
   }, {
     sequelize,
     tableName: 'identity',
-    modelName: 'Identity',
     timestamps: false,
     indexes: [
       {

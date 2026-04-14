@@ -19,7 +19,7 @@ const NoAccessModal = ({ show, handleClose, title, error }: ExportModalProps) =>
           <Modal.Title> {title}</Modal.Title>
         </Modal.Header> */}
         <Modal.Body >
-            <p>You do not have sufficient privileges to visit other profiles. Please contact your administrator if you need access.</p>
+            <p>You do not have sufficient privileges to visit other profiles..</p>
             <div className="textAlignCenter">
             <ExportButton title="Ok Continue" onClick={()=> handleClose()}/>
             </div>

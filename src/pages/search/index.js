@@ -1,34 +1,27 @@
 import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../api/auth/[...nextauth]"; 
+import { getSession } from "next-auth/client"
 
  export async function getServerSideProps(ctx) {
-    try {						  
-    const session = await getServerSession(ctx.req,ctx.res, authOptions);
+    const session = await getSession(ctx);
+    const userPermissions = JSON.parse(session.data?.userRoles);
 
-    if (!session || !session?.data) {
-        console.log('Search page - No session or session.data, redirecting to login');
-        return {
-            redirect: {
-                destination: "/login",
-                permanent: false,
-            },
-        };
-    }
-	const userPermissions = session.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
-   
+    // if (!session || !session.data) {
+    //     return {
+    //         redirect: {
+    //             destination: "/login",
+    //             permanent: false,
+    //         },
+    //     };
+    // }
+
     if(userPermissions.length === 0) {
-
         return {
             redirect: {
                 destination: "/noaccess",
                 permanent: false,
             },
         };
-					 
-															
-																		 
     }
 
     return {
@@ -36,14 +29,9 @@ import { authOptions } from "../api/auth/[...nextauth]";
             session: session,
         },
     };
-}  catch (error) {
-        console.error("[SEARCH:getServerSideProps]", error);
-        return { redirect: { destination: "/login", permanent: false } };
-    }
+}
 
- }
-
- const SearchPage = () => {
+const SearchPage = () => {
     return (
         <>
             <Search />

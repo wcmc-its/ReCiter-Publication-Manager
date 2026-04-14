@@ -257,7 +257,6 @@ export class AnalysisSummaryPerson extends Model<AnalysisSummaryPersonAttributes
   }, {
     sequelize,
     tableName: 'analysis_summary_person',
-    modelName: 'AnalysisSummaryPerson',
     timestamps: false,
     indexes: [
       {

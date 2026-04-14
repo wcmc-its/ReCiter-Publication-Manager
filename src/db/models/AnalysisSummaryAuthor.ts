@@ -56,7 +56,6 @@ export class AnalysisSummaryAuthor extends Model<AnalysisSummaryAuthorAttributes
   }, {
     sequelize,
     tableName: 'analysis_summary_author',
-    modelName: 'AnalysisSummaryAuthor',
     timestamps: false,
     indexes: [
       {

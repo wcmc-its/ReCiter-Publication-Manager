@@ -11,29 +11,44 @@ export const getManageProfileByID = async (
 ) => {
     const { personIdentifier } = req.query;
     try {
-        const adminUserData = await models.AdminUser.findOne({
+        let profileInfo: any = [];
+        let adminUserData = await models.AdminUser.findOne({
             where: { "personIdentifier": personIdentifier }
         })
 
-        const profileInfo = await sequelize.query(
-            QueryConstants.getManageProfileForOCIDData,
-            {
-                type: QueryTypes.SELECT,
-                replacements: { personIdentifier: personIdentifier },
-                raw: true,
-            },
-        );
-
-        if (profileInfo && profileInfo.length > 0) {
-            res.send({
-                "email": adminUserData?.email || '',
-                "data": profileInfo
-            });
+        if (adminUserData) {
+            profileInfo = await sequelize.query(
+                QueryConstants.getManageProfileForOCIDData,
+                {
+                type: QueryTypes.SELECT,    
+                replacements: {personIdentifier: personIdentifier} ,
+                   raw : true,
+                //    benchmark:true
+                },
+                
+            );
+            if (profileInfo) {
+                let result = {
+                    "email": adminUserData.email,
+                    "data": profileInfo
+                }
+                res.send(result);
+            }
+            else {
+                let result = {
+                    "message": "No data found",
+                    "email": adminUserData.email,
+                    "userID": adminUserData.userID
+                }
+                res.send(result);
+            }
         } else {
-            res.send({
-                "message": "No data found",
-                "email": adminUserData?.email || '',
-            });
+            let noData = {
+                "message": "User does not exist",
+                "email": ''
+
+            }
+            res.send(noData)
         }
     } catch (e) {
         console.log(e);

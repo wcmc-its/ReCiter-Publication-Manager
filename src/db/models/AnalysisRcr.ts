@@ -134,7 +134,6 @@ export class AnalysisRcr extends Model<AnalysisRcrAttributes, AnalysisRcrCreatio
   }, {
     sequelize,
     tableName: 'analysis_rcr',
-    modelName: 'AnalysisRcr',
     timestamps: false,
     indexes: [
       {

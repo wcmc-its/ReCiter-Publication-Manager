@@ -1,41 +1,16 @@
 import React, { useState, FunctionComponent, useEffect } from "react"
+import { Form, Row, Col, Button, Container } from 'react-bootstrap';
 import Autocomplete from '@mui/material/Autocomplete';
-import Paper from '@mui/material/Paper';
-import Popper from '@mui/material/Popper';
-import { useSelector, useDispatch } from "react-redux";
-import { RootStateOrAny } from "../../../types/redux";
+import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
+import { styled } from '@mui/material/styles';
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
 import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
-import Link from "next/link";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
-import CurationScopeSection from './CurationScopeSection';
-import ProxyAssignmentsSection from './ProxyAssignmentsSection';
-import { reciterConfig } from '../../../../config/local';
-import { toast } from 'react-toastify';
+import { PageHeader } from "../Common/PageHeader";
 
-/* ── Role label formatting ── */
-const ROLE_LABELS: Record<string, string> = {
-    'Superuser': 'Superuser',
-    'Curator_All': 'Curator \u2014 All',
-    'Curator_Self': 'Curator \u2014 Self',
-    'Curator_Scoped': 'Curator \u2014 Scoped',
-    'Curator_Department': 'Curator \u2014 Department',
-    'Curator_Department_Delegate': 'Curator \u2014 Department Delegate',
-    'Reporter_All': 'Reporter \u2014 All',
-};
-const ROLE_DESCS: Record<string, string> = {
-    'Superuser': 'Full access to all features and admin functions.',
-    'Curator_All': 'Can curate publications for any person in the system.',
-    'Curator_Self': 'Can only curate their own publications.',
-    'Curator_Scoped': 'Can curate publications only for people matching specific person types or organizational units.',
-    'Curator_Department': 'Can curate publications for their managed org units.',
-    'Curator_Department_Delegate': 'Delegated curation access for specific departments.',
-    'Reporter_All': 'Can generate and export reports for all users.',
-};
-const formatRoleLabel = (slug: string) => ROLE_LABELS[slug] || slug.replace(/_/g, ' ');
 
 interface FuncProps {
     onAccept(id: number): void,
@@ -46,6 +21,7 @@ type  formErrors = {[key: string]: any};
 
 const AddUser: FunctionComponent<FuncProps> = (props) => {
 
+    //Store Data
     const adminDepartments = useSelector((state: RootStateOrAny) => state.AllAdminDepatments);
     const allAdminRoles = useSelector((state: RootStateOrAny) => state.AllAdminRoles);
 
@@ -62,13 +38,10 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     })
     const { cwid, email, firstName, lastName, middleName, division, title} = state;
     const [selectedRoles, setSelectedRoles] = useState([]);
+
     const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
+
     const [selectedDepartments, setSelectedDepartments] = useState([]);
-    const [selectedPersonTypes, setSelectedPersonTypes] = useState<string[]>([]);
-    const [selectedOrgUnits, setSelectedOrgUnits] = useState<string[]>([]);
-    const [selectedProxies, setSelectedProxies] = useState<any[]>([]);
-    const [personTypeOptions, setPersonTypeOptions] = useState<string[]>([]);
-    const [orgUnitOptions, setOrgUnitOptions] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
     const router = useRouter()
@@ -76,30 +49,43 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
     const dispatch = useDispatch();
 
+
     const handleValueChangeTargetValue = (field, value) => {
-        if(value != '') formErrorsInst[field] = '';
+        if(value != '') formErrorsInst[field] = ''; 
         setState(state => ({ ...state, [field]: value }))
     }
 
     const validateEmail = (email) => {
         let mailformat = /^([A-Za-z0-9_\-\.])+\@([A-Za-z0-9_\-\.])+\.([A-Za-z]{2,4})$/;
-        return email.match(mailformat)
-    };
+        return email.match(mailformat) 
+      };
 
+  
     const checkFormValidations = () => {
         let formErrInst: formErrors = {};
+        // cwid errors
+        // if ( !cwid || cwid === '' || cwid.trim().length === 0 ) formErrInst.cwid = 'Please enter valid cwid!'
+        // email errors
+        // if ( !email || email === '' || email.trim().length === 0 || validateEmail(email) === false ) formErrInst.email = 'Please enter  valid  email!'
+        
+        // firstName errors
         if ( !firstName || firstName === '' || firstName.trim().length === 0 ) formErrInst.firstName = 'Please enter valid first Name!'
-        if ( !lastName || lastName === '' || lastName.trim().length === 0 ) formErrInst.lastName = 'Please enter valid last Name!'
-        if ( !selectedRoles || selectedRoles.length === 0  ) formErrInst.selectedRole = 'Please select atleast one role!'
+          // lastName errors
+          if ( !lastName || lastName === '' || lastName.trim().length === 0 ) formErrInst.lastName = 'Please enter valid last Name!'
+          // roles errors
+          if ( !selectedRoles || selectedRoles.length === 0  ) formErrInst.selectedRole = 'Please select atleast one role!'
+
         setformErrInst(formErrInst)
+
         return formErrInst
     }
+
 
     const handleSubmit = async (event) => {
         event.preventDefault();
         const newErrors = checkFormValidations()
 
-        if ( Object.keys(newErrors).length === 0 ) {
+          if ( Object.keys(newErrors).length === 0 ) {
             let roleIds = [];
             let departMentIds = [];
             selectedRoles && selectedRoles.length > 0 && allAdminRoles.map(role => {
@@ -115,34 +101,11 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             let selectedRoleIds = roleIds || [];
             let departmentIds = departMentIds || [];
             let isEditUserId = router.query.userId;
-            const hasScopedRole = selectedRoles.includes('Curator_Scoped');
-            let createOrUpdatePayload = {
-                cwid, email, firstName, lastName, middleName, division, title,
-                selectedRoleIds, departmentIds, isEditUserId,
-                scopePersonTypes: hasScopedRole ? (selectedPersonTypes.length > 0 ? selectedPersonTypes : null) : null,
-                scopeOrgUnits: hasScopedRole ? (selectedOrgUnits.length > 0 ? selectedOrgUnits : null) : null,
-            }
-
-            const hasCurationRole = selectedRoles.some(r => ['Curator_Scoped', 'Curator_All', 'Curator_Self'].includes(r));
+            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
 
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0] === 1) {
-                    // Save proxies via separate endpoint
-                    if (hasCurationRole) {
-                        try {
-                            await fetch('/api/db/admin/proxy', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', Authorization: reciterConfig?.backendApiKey || '' },
-                                body: JSON.stringify({
-                                    userID: isEditUserId,
-                                    personIdentifiers: selectedProxies.map(p => p.personIdentifier)
-                                })
-                            });
-                        } catch (err) {
-                            console.log('Error saving proxies:', err);
-                        }
-                    }
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
                     router.push("/admin/manage/users")
                 }
@@ -150,21 +113,6 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             else {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0].userID) {
-                    // Save proxies via separate endpoint
-                    if (hasCurationRole) {
-                        try {
-                            await fetch('/api/db/admin/proxy', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', Authorization: reciterConfig?.backendApiKey || '' },
-                                body: JSON.stringify({
-                                    userID: resp[0].userID,
-                                    personIdentifiers: selectedProxies.map(p => p.personIdentifier)
-                                })
-                            });
-                        } catch (err) {
-                            console.log('Error saving proxies:', err);
-                        }
-                    }
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
                     router.push("/admin/manage/users")
                 }
@@ -175,19 +123,6 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     useEffect(() => {
         dispatch(getAdminRoles());
         dispatch(getAdminDepartments());
-
-        // Fetch scope options
-        fetch('/api/db/users/persontypes/', {
-            headers: { Authorization: reciterConfig?.backendApiKey || '' }
-        }).then(r => r.json()).then(data => {
-            setPersonTypeOptions(data.map((d: any) => d.personType).filter(Boolean));
-        }).catch(() => toast.error('Unable to load scope options. Please refresh the page.'));
-
-        fetch('/api/db/users/orgunits/', {
-            headers: { Authorization: reciterConfig?.backendApiKey || '' }
-        }).then(r => r.json()).then(data => {
-            setOrgUnitOptions(data.map((d: any) => d.primaryOrganizationalUnit).filter(Boolean));
-        }).catch(() => toast.error('Unable to load scope options. Please refresh the page.'));
     },[])
 
     useEffect(() => {
@@ -209,448 +144,179 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
                 if (adminUsersDepartments) {
                     let departmentNames = [];
+
                     adminDepartments.map((department) => {
                         adminUsersDepartments.map((editIds) => {
                             if (editIds.departmentID == department.departmentID) departmentNames.push(department.departmentLabel)
-                        })
+                        }
+                        )
                     })
                     setSelectedDepartments(departmentNames ? departmentNames : [])
-                }
-
-                // Preload scope data
-                if (result[0].scope_person_types) {
-                    const spt = typeof result[0].scope_person_types === 'string'
-                        ? JSON.parse(result[0].scope_person_types)
-                        : result[0].scope_person_types;
-                    setSelectedPersonTypes(spt || []);
-                }
-                if (result[0].scope_org_units) {
-                    const sou = typeof result[0].scope_org_units === 'string'
-                        ? JSON.parse(result[0].scope_org_units)
-                        : result[0].scope_org_units;
-                    setSelectedOrgUnits(sou || []);
-                }
-
-                // Preload proxy data from separate endpoint
-                if (result[0].proxy_person_ids) {
-                    fetch(`/api/db/admin/proxy?userID=${isEditUserId}`, {
-                        headers: { Authorization: reciterConfig?.backendApiKey || '' }
-                    }).then(r => r.json()).then(data => setSelectedProxies(data || []))
-                    .catch(err => console.log('Error loading proxies:', err));
                 }
 
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
                 setLoading(false)
             })
         }
+
     }, [router.query.userId])
 
-    // Clear scope data when Curator_Scoped is deselected
-    useEffect(() => {
-        if (!selectedRoles.includes('Curator_Scoped')) {
-            setSelectedPersonTypes([]);
-            setSelectedOrgUnits([]);
-        }
-    }, [selectedRoles]);
-
-    /* Base input styling shared by both Autocompletes */
-    const baseSx = {
+    const CssTextField = styled(TextField)({
         '& .MuiOutlinedInput-root': {
-            padding: '4px 8px',
-            background: '#fff',
-            borderRadius: '5px',
-            fontSize: '13px',
-            fontFamily: 'inherit',
+            background: 'rgba(255, 255, 255, 0.9)',
+            borderColor: '#ced4da',
+            padding: '.375rem .75rem',
             '& fieldset': {
-                borderColor: '#ddd7ce',
-                top: 0,
-                '& legend': { display: 'none' },
+                top: '0px',
+                '& legend': {
+                    display: 'none'
+                }
             },
-            '&:hover fieldset': { borderColor: '#ddd7ce' },
-            '&.Mui-focused fieldset': {
-                borderColor: '#2563a8',
-                borderWidth: '1px',
-                boxShadow: '0 0 0 3px rgba(37,99,168,0.1)',
+            '&:hover fieldset': {
+                borderColor: '#ced4da',
             },
         },
-    };
+    });
 
-    /* Org-unit & Role Autocomplete share base input styling only */
-    const orgUnitSx = { ...baseSx };
-    const roleSx = { ...baseSx };
-
-    /* SVG × icon shared by both token types */
-    const xSvg = (
-        <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ width: 8, height: 8, pointerEvents: 'none' }}>
-            <path d="M1.5 1.5l5 5M6.5 1.5l-5 5" />
-        </svg>
-    );
-
-    /* Dark token (roles) */
-    const renderRoleTags = (value: string[], getTagProps: any) =>
-        value.map((option, index) => {
-            const { key, onDelete } = getTagProps({ index });
-            return (
-                <span key={key} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    background: '#1a2133', color: '#fff', borderRadius: 20,
-                    fontSize: '12.5px', fontWeight: 500, padding: '4px 8px 4px 12px',
-                }}>
-                    {formatRoleLabel(option)}
-                    <button type="button" onClick={onDelete} style={{
-                        width: 16, height: 16, background: 'rgba(255,255,255,0.18)',
-                        border: 'none', borderRadius: '50%', color: 'rgba(255,255,255,0.8)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', padding: 0, flexShrink: 0, transition: 'background 0.12s, color 0.12s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.32)'; e.currentTarget.style.color = '#fff'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}
-                    >{xSvg}</button>
-                </span>
-            );
-        });
-
-    /* Light token (org units) */
-    const renderOrgTags = (value: string[], getTagProps: any) =>
-        value.map((option, index) => {
-            const { key, onDelete } = getTagProps({ index });
-            return (
-                <span key={key} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    background: '#eeeae4', color: '#5a6478', border: '1px solid #ddd7ce', borderRadius: 20,
-                    fontSize: '12.5px', fontWeight: 500, padding: '4px 8px 4px 12px',
-                }}>
-                    {option}
-                    <button type="button" onClick={onDelete} style={{
-                        width: 16, height: 16, background: 'rgba(0,0,0,0.06)',
-                        border: 'none', borderRadius: '50%', color: '#8a94a6',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', padding: 0, flexShrink: 0, transition: 'background 0.12s, color 0.12s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; e.currentTarget.style.color = '#5a6478'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = '#8a94a6'; }}
-                    >{xSvg}</button>
-                </span>
-            );
-        });
-
-    const RolePaper = (props: any) => (
-        <Paper {...props} sx={{
-            border: '1px solid #e8e2d9',
-            borderRadius: '8px',
-            boxShadow: '0 4px 20px rgba(26,33,51,0.14)',
-            overflow: 'hidden',
-            mt: '5px',
-        }}>
-            <div style={{
-                padding: '8px 12px 10px',
-                background: '#eeeae4',
-                borderBottom: '1px solid #ddd7ce',
-                fontSize: '10px',
-                fontWeight: 700,
-                textTransform: 'uppercase' as const,
-                letterSpacing: '0.08em',
-                color: '#8a94a6',
-            }}>Available roles</div>
-            {props.children}
-        </Paper>
-    );
-
-    /* Force dropdown below the input so the search field stays on top */
-    const RolePopper = (props: any) => (
-        <Popper {...props} placement="bottom-start" modifiers={[{ name: 'flip', enabled: false }]} />
-    );
 
     return (
         <>
-            {/* Breadcrumb */}
-            <div className={styles.breadcrumb}>
-                <Link href="/admin/manage/users">Manage Users</Link>
-                <svg className={styles.breadcrumbChevron} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 5l7 7-7 7" />
-                </svg>
-                <span>{isEdit ? 'Edit User' : 'Add User'}</span>
-            </div>
+            <PageHeader label={isEdit ? "Edit User" : "Add User"} />
+            <Container className={styles.addUser}>
+                {loading ?
+                    <div className="d-flex justify-content-center align-items"><Loader /> </div>
+                    :
+                    <Form  onSubmit={handleSubmit} noValidate method="post">
+                        <Row className="mb-3 pt-3" >
+                            <Form.Group as={Col} sm={12} lg={4} controlId="formGridCwid">
+                                <Form.Label>CWID<span className="text-danger">*</span></Form.Label>
+                                <Form.Control required  type="text" value={cwid} name="cwid" disabled={isEdit ? true : false}
+                                    onChange={(e) => handleValueChangeTargetValue("cwid", e.target.value)} maxLength={128}   placeholder="Enter CWID" 
+                                    isInvalid={formErrorsInst.cwid }/>
+                                <Form.Control.Feedback type="valid">Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.cwid }
+                                </Form.Control.Feedback>
+                            </Form.Group>
 
-            <h1 className={styles.pageTitle}>{isEdit ? 'Edit User' : 'Add User'}</h1>
+                            <Form.Group as={Col} sm={12} lg={6} controlId="formGridCwid">
+                                <Form.Label>Primary Email<span className="text-danger">*</span></Form.Label>
+                                <Form.Control required type="email" disabled={isEdit ? true : false} maxLength={128} value={email} name="email" onChange={(e) => handleValueChangeTargetValue("email", e.target.value)} placeholder="Enter Email" 
+                                 isInvalid={ formErrorsInst.email }/>
+                                <Form.Control.Feedback type="valid">Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.email }
+                                </Form.Control.Feedback>
+                            </Form.Group>
+                        </Row>
+                        <Row className="mb-3 pt-3" >
+                            <Form.Group as={Col} sm={12} lg={4} controlId="formGridFirstname">
+                                <Form.Label>First Name<span className="text-danger">*</span></Form.Label>
+                                <Form.Control required  type="text" maxLength={128} placeholder="Enter First name" /*isInvalid={ validated && firstName.trim().length == 0}*/ value={firstName} name="firstName" onChange={(e) => handleValueChangeTargetValue("firstName", e.target.value)} 
+                                    isInvalid={formErrorsInst.firstName }/>
+                                <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.firstName }
+                                </Form.Control.Feedback>
+                            </Form.Group>
 
-            {loading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Loader /></div>
-            ) : (
-                <form onSubmit={handleSubmit} noValidate>
-                    <div className={styles.formCard}>
-                        {/* ── Account section ── */}
-                        <div className={styles.formSection}>
-                            <div className={styles.formSectionTitle}>Account</div>
-                            <div className={`${styles.fieldGrid} ${styles.col2}`}>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="adduser-cwid">CWID</label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        id="adduser-cwid"
-                                        value={cwid}
-                                        disabled={isEdit}
-                                        maxLength={128}
-                                        placeholder="e.g. jds2001"
-                                        onChange={(e) => handleValueChangeTargetValue("cwid", e.target.value)}
-                                    />
-                                    {formErrorsInst.cwid && <span className={styles.errorText}>{formErrorsInst.cwid}</span>}
-                                </div>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="adduser-email">Primary Email</label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="email"
-                                        id="adduser-email"
-                                        value={email}
-                                        disabled={isEdit}
-                                        maxLength={128}
-                                        placeholder="user@med.cornell.edu"
-                                        onChange={(e) => handleValueChangeTargetValue("email", e.target.value)}
-                                    />
-                                    {formErrorsInst.email && <span className={styles.errorText}>{formErrorsInst.email}</span>}
-                                </div>
-                            </div>
-                        </div>
+                            <Form.Group as={Col} sm={12} lg={4} controlId="formGridMiddleName">
+                                <Form.Label>Middle Name</Form.Label>
+                                <Form.Control type="text" placeholder="Enter Middle name" maxLength={128} value={middleName} name="middleName" onChange={(e) => handleValueChangeTargetValue("middleName", e.target.value)} />
+                                <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
+                            </Form.Group>
 
-                        {/* ── Identity section ── */}
-                        <div className={styles.formSection}>
-                            <div className={styles.formSectionTitle}>Identity</div>
-                            <div className={`${styles.fieldGrid} ${styles.col3}`}>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="adduser-firstName">First Name <span className={styles.req}>*</span></label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        id="adduser-firstName"
-                                        value={firstName}
-                                        maxLength={128}
-                                        placeholder="Jane"
-                                        onChange={(e) => handleValueChangeTargetValue("firstName", e.target.value)}
-                                    />
-                                    {formErrorsInst.firstName && <span className={styles.errorText}>{formErrorsInst.firstName}</span>}
-                                </div>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="adduser-middleName">Middle Name</label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        id="adduser-middleName"
-                                        value={middleName}
-                                        maxLength={128}
-                                        placeholder="D."
-                                        onChange={(e) => handleValueChangeTargetValue("middleName", e.target.value)}
-                                    />
-                                </div>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="adduser-lastName">Last Name <span className={styles.req}>*</span></label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        id="adduser-lastName"
-                                        value={lastName}
-                                        maxLength={128}
-                                        placeholder="Smith"
-                                        onChange={(e) => handleValueChangeTargetValue("lastName", e.target.value)}
-                                    />
-                                    {formErrorsInst.lastName && <span className={styles.errorText}>{formErrorsInst.lastName}</span>}
-                                </div>
-                            </div>
-                            <div className={`${styles.fieldGrid} ${styles.col21}`} style={{ marginTop: 16 }}>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="adduser-division">Primary Organizational Unit</label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        id="adduser-division"
-                                        value={division}
-                                        maxLength={200}
-                                        placeholder="Department of Medicine"
-                                        onChange={(e) => handleValueChangeTargetValue("division", e.target.value)}
-                                    />
-                                </div>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="adduser-title">Title</label>
-                                    <input
-                                        className={styles.fieldInput}
-                                        type="text"
-                                        id="adduser-title"
-                                        value={title}
-                                        maxLength={200}
-                                        placeholder="Associate Professor"
-                                        onChange={(e) => handleValueChangeTargetValue("title", e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                            <Form.Group as={Col} sm={12} lg={4} controlId="formGridLastName">
+                                <Form.Label>Last Name<span className="text-danger">*</span></Form.Label>
+                                <Form.Control required type="text" maxLength={128} placeholder="Enter Last name" /* isInvalid={ validated && lastName.trim().length == 0} */ value={lastName} name="lastName" onChange={(e) => handleValueChangeTargetValue("lastName", e.target.value)} 
+                                     isInvalid={ formErrorsInst.lastName }/>
+                                <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type='invalid'>
+                                 { formErrorsInst.lastName }
+                                </Form.Control.Feedback>
+                            </Form.Group>
+                        </Row>
+                        <Row className="mb-3 pt-3" >
+                            <Form.Group as={Col} sm={12} lg={8} controlId="formGridCwid">
+                                <Form.Label>Primary organizational Unit </Form.Label>
+                                <Form.Control type="text" value={division} name="division" maxLength={200}
+                                    onChange={(e) => handleValueChangeTargetValue("division", e.target.value)} placeholder="Enter Primary organizational Unit" />
+                                <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type="invalid">
+                                    Please enter a Primary Organization Unit.
+                                </Form.Control.Feedback>
+                            </Form.Group>
 
-                        {/* ── Access section ── */}
-                        <div className={styles.formSection}>
-                            <div className={styles.formSectionTitle}>Access</div>
-                            <div className={styles.fieldGrid}>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="institutions">Organizational unit(s) user can manage</label>
-                                    <Autocomplete
-                                        freeSolo
-                                        multiple
-                                        id="institutions"
-                                        disableClearable
-                                        value={selectedDepartments}
-                                        options={adminDepartments.map((option) => option.departmentLabel)}
-                                        onChange={(event, value) => setSelectedDepartments(value as string[])}
-                                        sx={orgUnitSx}
-                                        renderTags={renderOrgTags}
-                                        renderInput={(params) => (
-                                            <TextField
-                                                variant="outlined"
-                                                {...params}
-                                                placeholder={selectedDepartments.length === 0 ? "Search and select departments..." : ""}
-                                                InputProps={{
-                                                    ...params.InputProps,
-                                                    type: 'search',
-                                                }}
-                                            />
-                                        )}
-                                    />
-                                    <span className={styles.fieldHint}>Leave empty if user should have access to all units</span>
-                                </div>
-                                <div className={styles.field}>
-                                    <label className={styles.fieldLabel} htmlFor="roles">Role(s) <span className={styles.req}>*</span></label>
-                                    <Autocomplete
-                                        multiple
-                                        id="roles"
-                                        disableClearable
-                                        disableCloseOnSelect
-                                        value={selectedRoles}
-                                        options={allAdminRoles.map((option) => option.roleLabel)}
-                                        onChange={(event, value) => setSelectedRoles(value as string[])}
-                                        getOptionLabel={(option) => formatRoleLabel(option)}
-                                        sx={roleSx}
-                                        PaperComponent={RolePaper}
-                                        PopperComponent={RolePopper}
-                                        ListboxProps={{
-                                            sx: {
-                                                p: 0,
-                                                maxHeight: '360px',
-                                                '& .MuiAutocomplete-option': {
-                                                    p: '0 !important',
-                                                    minHeight: 'unset !important',
-                                                    '&[aria-selected="true"]': { background: 'transparent !important' },
-                                                    '&.Mui-focused': { background: 'transparent !important' },
-                                                },
-                                            }
-                                        } as any}
-                                        renderTags={renderRoleTags}
-                                        renderOption={(props, option, { index: optIdx }) => {
-                                            const selected = selectedRoles.includes(option);
-                                            const isLast = optIdx === allAdminRoles.length - 1;
-                                            return (
-                                                // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-                                                <li {...props} key={option} style={{
-                                                    display: 'flex', alignItems: 'center', gap: '12px',
-                                                    padding: '12px 14px',
-                                                    borderLeft: selected ? '2px solid #2563a8' : '2px solid transparent',
-                                                    borderBottom: isLast ? 'none' : '1px solid #e8e2d9',
-                                                    background: selected ? '#eef3fb' : 'transparent',
-                                                    cursor: 'pointer',
-                                                    transition: 'background 0.1s',
-                                                }}
-                                                onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = '#f5f2ee'; }}
-                                                onMouseLeave={(e) => { e.currentTarget.style.background = selected ? '#eef3fb' : 'transparent'; }}
-                                                >
-                                                    <span style={{
-                                                        width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        border: selected ? 'none' : '1.5px solid #bbb5aa',
-                                                        background: selected ? '#1a2133' : 'transparent',
-                                                    }}>
-                                                        {selected && (
-                                                            <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
-                                                                <path d="M1 3l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                                            </svg>
-                                                        )}
-                                                    </span>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#1a2133', lineHeight: '16px' }}>{formatRoleLabel(option)}</div>
-                                                        {ROLE_DESCS[option] && (
-                                                            <div style={{ fontSize: '11px', color: '#8a94a6', marginTop: 2, lineHeight: 1.4 }}>{ROLE_DESCS[option]}</div>
-                                                        )}
-                                                    </div>
-                                                </li>
-                                            );
-                                        }}
-                                        renderInput={(params) => (
-                                            <TextField
-                                                variant="outlined"
-                                                {...params}
-                                                placeholder={selectedRoles.length === 0 ? "Add role\u2026" : ""}
-                                                InputProps={{
-                                                    ...params.InputProps,
-                                                    type: 'search',
-                                                }}
-                                            />
-                                        )}
-                                    />
-                                    <span className={styles.fieldHint}>Roles control what this user can access. At least one role is required.</span>
-                                    {formErrorsInst.selectedRole && <span className={styles.errorText}>{formErrorsInst.selectedRole}</span>}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── Curation Scope section (conditional) ── */}
-                        {selectedRoles.includes('Curator_Scoped') && (
-                            <div className={styles.formSection}>
-                                <CurationScopeSection
-                                    selectedPersonTypes={selectedPersonTypes}
-                                    onPersonTypesChange={setSelectedPersonTypes}
-                                    selectedOrgUnits={selectedOrgUnits}
-                                    onOrgUnitsChange={setSelectedOrgUnits}
-                                    personTypeOptions={personTypeOptions}
-                                    orgUnitOptions={orgUnitOptions}
-                                    error={null}
-                                    baseSx={baseSx}
-                                    renderOrgTags={renderOrgTags}
+                            <Form.Group as={Col} sm={12} lg={4} controlId="formGridTitle">
+                                <Form.Label>Title</Form.Label>
+                                <Form.Control type="text" placeholder="Enter Title" maxLength={200} value={title} name="title" onChange={(e) => handleValueChangeTargetValue("title", e.target.value)} />
+                                <Form.Control.Feedback>Looks good!</Form.Control.Feedback>
+                                <Form.Control.Feedback type="invalid">
+                                    Please enter a Title.
+                                </Form.Control.Feedback>
+                            </Form.Group>
+                        </Row>
+                        <Row className="mb-3">
+                            <Form.Group as={Col} sm={12} lg={12} controlId="formGridDepartment">
+                                <Form.Label>Organizational unit(s) user can manage</Form.Label>
+                                <Autocomplete
+                                    freeSolo
+                                    multiple
+                                    id="institutions"
+                                    disableClearable
+                                    value={selectedDepartments}
+                                    options={adminDepartments.map((option) => option.departmentLabel)}
+                                    onChange={(event, value) => setSelectedDepartments(value as string[])}
+                                    renderInput={(params) => (
+                                        <CssTextField
+                                            variant="outlined"
+                                            {...params}
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                type: 'search',
+                                            }}
+                                        />
+                                    )}
                                 />
-                            </div>
-                        )}
+                            </Form.Group>
+                        </Row>
 
-                        {/* ── Proxy Assignments section (conditional) ── */}
-                        {selectedRoles.some(r => ['Curator_Scoped', 'Curator_All', 'Curator_Self'].includes(r)) && (
-                            <div className={styles.formSection}>
-                                <ProxyAssignmentsSection
-                                    selectedProxies={selectedProxies}
-                                    onProxiesChange={setSelectedProxies}
-                                    baseSx={baseSx}
+                        <Row className="mb-3">
+                            <Form.Group as={Col} sm={12} lg={12} controlId="formGridRole">
+                                <Form.Label>Role(s)<span className="text-danger">*</span></Form.Label>
+                                <Autocomplete
+                                    freeSolo
+                                    multiple
+                                    id="roles"
+                                    disableClearable
+                                    value={selectedRoles}
+                                    options={allAdminRoles.map((option) => option.roleLabel)}
+                                    onChange={(event, value) => setSelectedRoles(value as string[])}
+                                    renderInput={(params) => (
+                                        <CssTextField
+                                            variant="outlined"
+                                            {...params}
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                type: 'search',
+                                            }}
+                                        />
+                                    )}
                                 />
-                            </div>
-                        )}
-
-                        {/* ── Footer ── */}
-                        <div className={styles.formFooter}>
-                            <button
-                                type="submit"
-                                className={styles.btnSubmit}
-                                disabled={cwid.trim().length === 0 && !validateEmail(email)}
-                            >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M20 6L9 17l-5-5" />
-                                </svg>
-                                {isEdit ? "Update User" : "Create User"}
-                            </button>
-                            <button
-                                type="button"
-                                className={styles.btnCancelForm}
-                                onClick={() => router.push("/admin/manage/users")}
-                            >
-                                Cancel
-                            </button>
-                            <span className={styles.reqNote}><span>*</span> Required fields</span>
-                        </div>
-                    </div>
-                </form>
-            )}
-            <ToastContainerWrapper />
+                                 { formErrorsInst.selectedRole ? <p className="text-danger">{formErrorsInst.selectedRole}</p>:""}
+                            </Form.Group>
+                        </Row>
+                        <Row className="justify-content-center">
+                            <Col md={4} sm={12} lg={2}>
+                                <Button variant="primary" type="submit" className="primary mb-4 " disabled={cwid.trim().length === 0 && !validateEmail(email)}>
+                                    {isEdit ? "Update" : "Submit"}
+                                </Button>
+                            </Col>
+                        </Row>
+                    </Form>
+                }
+                <ToastContainerWrapper />
+            </Container>
         </>
     );
 }

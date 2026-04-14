@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import styles from './Navbar.module.css'
 
-const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive, muiIcon, disabled }) => {
+const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive, disabled }) => {
   const router = useRouter();
   const customRouterPathNames = (routerPath) => {
     if (routerPath === "/notifications/[userId]") { return "/notifications" }
@@ -17,29 +17,24 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
   }
 
   const pathName = customRouterPathNames(router.pathname);
-  const selected = to.includes(pathName) || pathName.startsWith(to);
-
-  const renderIcon = () => {
-    if (muiIcon) return muiIcon;
-    return (
-      <Image
-        src={imgUrl}
-        height={15}
-        width={15}
-        alt={title}
-        style={{ filter: 'brightness(0) invert(1)', opacity: selected ? 1 : 0.5 }}
-      />
-    );
-  };
+  const selected = to.includes(pathName);
 
   if (disabled && !selected) {
     return (
       <>
-        <ListItem component="a" selected={selected} sx={{ opacity: 0.35, cursor: 'not-allowed', '&:hover': { background: 'transparent' } }} title="Select a person from Find People first">
+        <ListItem component="a" selected={selected}>
           <ListItemIcon>
-            {renderIcon()}
+            <Image 
+              src={selected ? imgUrlActive: imgUrl }
+              height={15}
+              width={15}
+              alt={title}
+            />
           </ListItemIcon>
-          <ListItemText primary={title} />
+          <ListItemText 
+            disableTypography
+            primary={<span className={styles.disabled}>{title}</span>} 
+            />
         </ListItem>
       </>
     )
@@ -47,12 +42,20 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
 
   return (
     <>
-      <Link href={to} passHref key={`${title}_${id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-        <ListItem selected={selected}>
+      <Link href={to} passHref key={`${title}_${id}`}>
+        <ListItem button component="a" selected={selected}>
           <ListItemIcon>
-            {renderIcon()}
+            <Image 
+              src={selected ? imgUrlActive: imgUrl }
+              height={15}
+              width={15}
+              alt={title}
+            />
           </ListItemIcon>
-          <ListItemText primary={title} />
+          <ListItemText 
+            disableTypography
+            primary={<span className={(disabled && !selected) ? styles.disabled : ''}>{title}</span>} 
+            />
         </ListItem>
       </Link>
     </>

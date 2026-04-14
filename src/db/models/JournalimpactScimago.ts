@@ -163,7 +163,6 @@ export class JournalimpactScimago extends Model<JournalimpactScimagoAttributes, 
   }, {
     sequelize,
     tableName: 'journalimpactScimago',
-    modelName: 'JournalimpactScimago',
     timestamps: false,
     indexes: [
       {

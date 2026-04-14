@@ -1,124 +1,98 @@
 // @ts-nocheck
 import React, { useEffect, useState } from "react";
+import { DateRangePicker, SingleDatePicker, DayPickerRangeController } from 'react-dates';
+import 'react-dates/initialize';
+import 'react-dates/lib/css/_datepicker.css';
 import moment from 'moment';
-import { Dropdown } from "react-bootstrap";
+import { Dropdown, Button} from "react-bootstrap";
 import { setReportFilterLabels } from "../../../utils/constants";
-import styles from './DatePicker.module.css';
 
-const PRESETS = [
-  { label: "Last year", years: 1 },
-  { label: "Last 3 years", years: 3 },
-  { label: "Last 5 years", years: 5 },
-  { label: "Last 10 years", years: 10 },
-  { label: "This year", thisYear: true },
-  { label: "Last 30 days", days: 30 },
-];
 
-export const DatePicker = ({ reportFiltersLabes, name, isFilterClear, range, selectedFilters, handleChange, filterLowerName, filterUpperName }) => {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [activePreset, setActivePreset] = useState<string | null>(null);
+export const DatePicker = ({reportFiltersLabes, name, isFilterClear,range,selectedFilters, handleChange, filterLowerName, filterUpperName, selectedStartDate, selectedEndDate }) => {
+  const [focusedInput, setFocusedInput] = useState();
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
+  const [startDate, setStartDate] = useState();
+  const [endDate, setEndDate] = useState();
+  const [minDate, setMinDate] = useState();
 
-  const applyDates = (start: string, end: string) => {
-    setStartDate(start);
-    setEndDate(end);
-    handleChange(filterLowerName, filterUpperName, start || null, end || null);
-  };
 
-  const handlePreset = (preset: typeof PRESETS[0]) => {
-    const now = moment();
-    let start: moment.Moment;
-    let end = now;
-
-    if (preset.thisYear) {
-      start = moment().startOf("year");
-    } else if (preset.days) {
-      start = moment().subtract(preset.days, "days");
-    } else {
-      start = moment().subtract(preset.years, "years");
-    }
-
-    setActivePreset(preset.label);
-    applyDates(start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD"));
-  };
-
-  const handleClear = () => {
-    setActivePreset(null);
-    applyDates("", "");
-  };
-
-  useEffect(() => {
-    setStartDate("");
-    setEndDate("");
-    setActivePreset(null);
-  }, [isFilterClear]);
-
-  if (!range || range.length === 0) {
-    return null;
+  const handleCustomDateRange = ()=>{
+    let tempStartDate = new Date();
+    let tempMinDate = new Date();
+    let tempEndDate = new Date();
+    tempStartDate.setDate(tempEndDate.getDate() - 30);
+    tempMinDate.setDate(tempEndDate.getDate() - 3000)
+  
+    setMinDate(moment(tempMinDate))
+    setStartDate(moment(tempStartDate))
+    setEndDate(moment(tempEndDate))
+    handleChange(filterLowerName, filterUpperName, moment(tempStartDate).format('YYYY-MM-DD'), moment(tempEndDate).format('YYYY-MM-DD'));
   }
 
-  const displayStart = startDate ? moment(startDate).format("MM/DD/YYYY") : "";
-  const displayEnd = endDate ? moment(endDate).format("MM/DD/YYYY") : "";
+
+  useEffect(() => {
+    const { personIdentifers, institutions, orgUnits, personTypes, datePublicationAddedToEntrezLowerBound, datePublicationAddedToEntrezUpperBound } = selectedFilters
+    if (personIdentifers.length === 0 && institutions.length === 0 && orgUnits.length === 0 && personTypes.length === 0) {
+      // handleCustomDateRange();
+    } else {
+      setStartDate()
+      setEndDate()
+      handleChange(filterLowerName, filterUpperName, null, null);
+    }
+  }, [])
+
+  
+
+  useEffect(()=>{
+      setStartDate()
+      setEndDate()
+    },[isFilterClear])
+
+    if (!range || range.length == 0) {
+      return null;
+    }
+
+  const handleDatesChange = ({ startDate, endDate }) => {
+    setStartDate(startDate)
+    setEndDate(endDate)
+    let formattedStartDate = startDate ? startDate.format('YYYY-MM-DD') : null;
+    let formattedEndDate = endDate ? endDate.format('YYYY-MM-DD') : null;
+    handleChange(filterLowerName, filterUpperName, formattedStartDate, formattedEndDate);
+  };
+
+
+  const isOutsideRange = day =>
+    day.isAfter(startDate) || day.isBefore(endDate);
+
+  const toggleDropdown = () => {
+    setShowDropdown(prevShowDropdown => !prevShowDropdown);
+  }
 
   return (
-    <Dropdown className="d-inline-block" autoClose="outside">
-      <Dropdown.Toggle variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-date">
-        {setReportFilterLabels(reportFiltersLabes, name)}
+    <Dropdown className="d-inline-block" autoClose>
+      <Dropdown.Toggle variant={(startDate || endDate) ? "primary" : "white"} id="dropdown-basic">
+      {setReportFilterLabels(reportFiltersLabes, name)}
       </Dropdown.Toggle>
-      <Dropdown.Menu style={{ padding: 0, minWidth: 280 }}>
-        {/* Header */}
-        <div className={styles.ddHeader}>
-          <span className={styles.ddHeaderLabel}>Date range</span>
-          <button className={styles.ddClear} onClick={handleClear}>Clear</button>
-        </div>
-
-        {/* From / To inputs */}
-        <div className={styles.dateInputs}>
-          <div className={styles.dateField}>
-            <label htmlFor="report-date-from">From</label>
-            <input
-              id="report-date-from"
-              className={startDate ? styles.dateInputFilled : styles.dateInput}
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setActivePreset(null);
-                applyDates(e.target.value, endDate);
-              }}
-            />
-          </div>
-          <div className={styles.dateField}>
-            <label htmlFor="report-date-to">To</label>
-            <input
-              id="report-date-to"
-              className={endDate ? styles.dateInputFilled : styles.dateInput}
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setActivePreset(null);
-                applyDates(startDate, e.target.value);
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className={styles.divider} />
-
-        {/* Quick ranges */}
-        <div className={styles.presetsLabel}>Quick ranges</div>
-        <div className={styles.presets}>
-          {PRESETS.map((p) => (
-            <button
-              key={p.label}
-              className={activePreset === p.label ? styles.presetBtnActive : styles.presetBtn}
-              onClick={() => handlePreset(p)}
-            >
-              {p.label}
-            </button>
-          ))}
+      <Dropdown.Menu className="px-4">
+        
+        <DateRangePicker
+          startDate={startDate ? startDate : null}
+          minDate={minDate? minDate : null} // momentPropTypes.momentObj or null,
+          startDateId="date_picker_start_date_id" // PropTypes.string.isRequired,
+          maxDate={endDate ? endDate : null}
+          endDate={endDate ? endDate : null}  // momentPropTypes.momentObj or null,
+          endDateId="date_picker_end_date_id" // PropTypes.string.isRequired,
+          onDatesChange={handleDatesChange} // PropTypes.func.isRequired,
+          focusedInput={focusedInput} // PropTypes.oneOf([START_DATE, END_DATE]) or null,
+          onFocusChange={focusedInput =>{ setFocusedInput(focusedInput)}} // PropTypes.func.isRequired,
+          isOutsideRange={()=> false}
+          startDatePlaceholderText="MM/DD/YYYY"
+          endDatePlaceholderText="MM/DD/YYYY"
+        />
+        <div className="mt-1">
+          <Button varient="primary" className="fullWidth" onClick= {handleCustomDateRange}>Last 30 days</Button>
         </div>
       </Dropdown.Menu>
     </Dropdown>
-  );
-};
+  )
+}

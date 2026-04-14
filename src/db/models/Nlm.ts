@@ -55,7 +55,6 @@ export class Nlm extends Model<NlmAttributes, NlmCreationAttributes> implements 
   }, {
     sequelize,
     tableName: 'NLM',
-    modelName: 'Nlm',
     timestamps: false,
     indexes: [
       {

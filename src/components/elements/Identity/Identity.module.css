@@ -14,10 +14,9 @@
 }
 
 .imgProps {
-    border: 0px solid var(--gray-300);
+    border: 0px solid #007bff;
     max-height: 100%;
     max-width: 100%;
-    border-radius: var(--radius-md);
 }
 
 .userName {
@@ -44,6 +43,5 @@
 }
 
 .manageBtn {
-    border: 1px solid var(--gray-300);
-    border-radius: var(--radius-md);
+    border: 1px solid #d2cccc;
 }
