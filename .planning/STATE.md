@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Feature Port to Next.js 14
 status: executing
-stopped_at: Phase 17 UI-SPEC approved
-last_updated: "2026-04-14T23:29:38.172Z"
-last_activity: 2026-04-14 -- Phase 17 execution started
+stopped_at: Phase 17 complete
+last_updated: "2026-04-15T00:15:00.000Z"
+last_activity: 2026-04-14 -- Phase 17 execution complete (3/3 plans)
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 4
+  total_plans: 3
+  completed_plans: 3
 ---
 
 # Project State
@@ -20,24 +20,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Curators and administrators can reliably log in, navigate without broken UI, and have fine-grained control over who curates publications for which groups of people.
-**Current focus:** Phase 17 — admin-crud
+**Current focus:** Phase 18 — cleanup
 
 ## Current Position
 
-Phase: 17 (admin-crud) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 17
-Last activity: 2026-04-14 -- Phase 17 execution started
+Phase: 17 (admin-crud) — COMPLETE
+Plan: 3 of 3
+Status: Phase 17 complete, Phase 18 next
+Last activity: 2026-04-14 -- Phase 17 execution complete (3/3 plans)
 
 ```
 v1.3 Data-Driven RBAC
-[████................] 20% (1/5 phases)
+[████████████████....] 80% (4/5 phases)
 
 Phase 14: Permission Tables and Models  ✓
-Phase 15: Auth and Middleware  <-- next
-Phase 16: Data-Driven UI
-Phase 17: Admin CRUD
-Phase 18: Cleanup
+Phase 15: Auth and Middleware  ✓
+Phase 16: Data-Driven UI  ✓
+Phase 17: Admin CRUD  ✓
+Phase 18: Cleanup  <-- next
 ```
 
 ## Accumulated Context
@@ -62,6 +62,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-14T22:35:09.972Z
-Stopped at: Phase 17 UI-SPEC approved
-Resume file: .planning/phases/17-admin-crud/17-UI-SPEC.md
+Last session: 2026-04-15T00:15:00.000Z
+Stopped at: Phase 17 complete
+Resume file: .planning/phases/17-admin-crud/17-03-SUMMARY.md

@@ -106,7 +106,7 @@ Full details: [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md)
 - [x] **Phase 14: Permission Tables and Models** - Three new DB tables created and seeded, Sequelize models registered with associations, permission helper utilities tested (completed 2026-04-14)
 - [x] **Phase 15: Auth and Middleware** - Login resolves permissions from DB via JOINs, JWT carries permission set and resources, middleware enforces routes using permission set instead of getCapabilities() (completed 2026-04-14)
 - [x] **Phase 16: Data-Driven UI** - SideNavbar renders from permissionResources data, component-level checks use permission set instead of role-based arrays (completed 2026-04-14)
-- [ ] **Phase 17: Admin CRUD** - Superuser can manage roles, permissions, and permission resources through new tabs in the Manage Users page
+- [x] **Phase 17: Admin CRUD** - Superuser can manage roles, permissions, and permission resources through new tabs in the Manage Users page (completed 2026-04-14)
 - [ ] **Phase 18: Cleanup** - All deprecated capability code removed, permission-based tests replace capability tests, no remaining imports of old functions
 
 ## Phase Details
@@ -167,12 +167,12 @@ Plans:
   3. In the Permissions tab, a Superuser can create a new permission with key/label/description/category, edit its label/description/category (key is immutable), and manage its associated UI resources
   4. Attempting to delete a role that has assigned users shows a warning with the user count and blocks the deletion
   5. Attempting to delete a permission assigned to any role shows the affected roles and blocks the deletion
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 17-01-PLAN.md -- Roles and permissions controllers with CRUD logic, 7 API route files
-- [ ] 17-02-PLAN.md -- RolesTab table with chips, RoleEditModal, DeleteBlockedModal, DeleteConfirmModal
-- [ ] 17-03-PLAN.md -- ManageUsersTabs container, PermissionsTab with category grouping, PermissionEditModal with ResourceRow
+- [x] 17-02-PLAN.md -- RolesTab table with chips, RoleEditModal, DeleteBlockedModal, DeleteConfirmModal
+- [x] 17-03-PLAN.md -- ManageUsersTabs container, PermissionsTab with category grouping, PermissionEditModal with ResourceRow
 
 ### Phase 18: Cleanup
 **Goal**: All deprecated capability-model code is removed from the codebase, leaving only the data-driven permission system as the single source of truth
