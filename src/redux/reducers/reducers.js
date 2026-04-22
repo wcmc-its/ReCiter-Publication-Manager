@@ -838,6 +838,29 @@ export const identityORFeatureGenError = (state=[], action) => {
   }
 }
 
+export const recomputeDelayedMessage = (state = null, action) => {
+  switch(action.type) {
+    case methods.RECITER_RECOMPUTE_DELAYED:
+      return action.payload
+    case methods.RECITER_CANCEL_FETCHING:
+    case methods.RECITER_RECOMPUTE_STOP_WAITING:
+      return null
+    default:
+      return state
+  }
+}
+
+export const recomputePollCancelled = (state = false, action) => {
+  switch(action.type) {
+    case methods.RECITER_FETCH_DATA:
+      return false
+    case methods.RECITER_RECOMPUTE_STOP_WAITING:
+      return true
+    default:
+      return state
+  }
+}
+
 
 export default combineReducers({
     reciterFetching,
@@ -897,5 +920,7 @@ export default combineReducers({
     updatedAdminSettings,
     notificationEmailCarier,
     saveNotificationsLoading,
-    identityORFeatureGenError
+    identityORFeatureGenError,
+    recomputeDelayedMessage,
+    recomputePollCancelled
 })

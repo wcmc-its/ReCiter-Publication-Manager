@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError } from "../../../redux/actions/actions";
+import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError, cancelRecomputePolling } from "../../../redux/actions/actions";
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
-import { Container, Button, Row, Toast } from "react-bootstrap";
+import { Container, Button, Row, Toast, Spinner } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
 import InferredKeywords from "./InferredKeywords"
@@ -38,6 +38,7 @@ const CurateIndividual = () => {
   const identityORFeatureGenError = useSelector((state: RootStateOrAny) => state.identityORFeatureGenError)
 
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
+  const recomputeDelayedMessage = useSelector((state: RootStateOrAny) => state.recomputeDelayedMessage)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
   const [session, loading] = useSession();
@@ -118,7 +119,23 @@ const CurateIndividual = () => {
 
   if (identityFetching || reciterFetching) {
     return (
-      <Loader />
+      <div className="d-flex flex-column h-100 justify-content-center align-items-center">
+        <Spinner animation="border" variant="danger" style={{ height: '5rem', width: '5rem' }} />
+        {recomputeDelayedMessage && (
+          <div className="text-center mt-3">
+            <p className="mb-1">{recomputeDelayedMessage}</p>
+            <button
+              className="btn btn-link p-0"
+              onClick={() => dispatch(cancelRecomputePolling())}
+            >
+              Stop waiting
+            </button>
+            <small className="d-block text-muted mt-1">
+              Your feedback and recompute are saved — this loads whatever is ready now.
+            </small>
+          </div>
+        )}
+      </div>
     )
   }
 

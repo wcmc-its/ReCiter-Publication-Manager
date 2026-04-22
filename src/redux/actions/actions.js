@@ -223,7 +223,11 @@ export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
         })
 }
 
-export const reciterFetchData = (uid, refresh) => dispatch => {
+export const cancelRecomputePolling = () => ({
+    type: methods.RECITER_RECOMPUTE_STOP_WAITING
+})
+
+export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
 
     dispatch({
         type: methods.RECITER_FETCH_DATA
@@ -233,21 +237,26 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
     if (refresh) {
         url += '?analysisRefreshFlag=true&retrievalRefreshFlag=ONLY_NEWLY_ADDED_PUBLICATIONS'
     }
-    fetchWithTimeout(url, {
+
+    const fetchOptions = {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
             'Authorization': reciterConfig.backendApiKey
         }
-    }, 300000)
+    }
+
+    fetchWithTimeout(url, fetchOptions, 300000)
         .then(response => {
             if (response.status === 200) {
-                toast.success("Feature generator Api successfully fetched for " + uid, {
-                    position: "top-right",
-                    autoClose: 2000,
-                    theme: 'colored'
-                });
+                if (!refresh) {
+                    toast.success("Feature generator Api successfully fetched for " + uid, {
+                        position: "top-right",
+                        autoClose: 2000,
+                        theme: 'colored'
+                    });
+                }
                 return response.json()
             } else {
                 throw {
@@ -259,14 +268,72 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             }
         })
         .then(data => {
-            dispatch({
-                type: methods.RECITER_CHANGE_DATA,
-                payload: data
-            })
+            if (!refresh) {
+                dispatch({ type: methods.RECITER_CHANGE_DATA, payload: data })
+                dispatch({ type: methods.RECITER_CANCEL_FETCHING })
+                return
+            }
 
-            dispatch({
-                type: methods.RECITER_CANCEL_FETCHING
-            })
+            // Recompute: ReCiter returns the current (pre-analysis) dataset immediately,
+            // then finishes writing updated scores ~seconds later. Poll until data changes.
+            let latestData = data
+            const initialCount = data?.reciter?.length ?? 0
+            const initialScore = data?.reciter?.[0]?.totalArticleScoreNonStandardized ?? 0
+            let pollCount = 0
+            const maxPolls = 200 // ~5 min safety ceiling at 1500ms intervals
+            const pollUrl = '/api/reciter/feature-generator/' + uid
+
+            const poll = () => {
+                if (getState().recomputePollCancelled) {
+                    dispatch({ type: methods.RECITER_CHANGE_DATA, payload: latestData })
+                    dispatch({ type: methods.RECITER_CANCEL_FETCHING })
+                    return
+                }
+
+                pollCount++
+
+                if (pollCount === 7) {
+                    dispatch({
+                        type: methods.RECITER_RECOMPUTE_DELAYED,
+                        payload: "Still computing… this may take a minute."
+                    })
+                }
+
+                if (pollCount > maxPolls) {
+                    dispatch({ type: methods.RECITER_CHANGE_DATA, payload: latestData })
+                    dispatch({ type: methods.RECITER_CANCEL_FETCHING })
+                    return
+                }
+
+                fetchWithTimeout(pollUrl, fetchOptions, 300000)
+                    .then(res => {
+                        if (res.status === 200) return res.json()
+                        throw { title: 'Poll failed with status ' + res.status }
+                    })
+                    .then(freshData => {
+                        latestData = freshData
+                        const newCount = freshData?.reciter?.length ?? 0
+                        const newScore = freshData?.reciter?.[0]?.totalArticleScoreNonStandardized ?? 0
+
+                        if (newCount !== initialCount || newScore !== initialScore) {
+                            toast.success("Recompute complete for " + uid, {
+                                position: "top-right",
+                                autoClose: 2000,
+                                theme: 'colored'
+                            })
+                            dispatch({ type: methods.RECITER_CHANGE_DATA, payload: freshData })
+                            dispatch({ type: methods.RECITER_CANCEL_FETCHING })
+                        } else {
+                            setTimeout(poll, 1500)
+                        }
+                    })
+                    .catch(() => {
+                        dispatch({ type: methods.RECITER_CHANGE_DATA, payload: latestData })
+                        dispatch({ type: methods.RECITER_CANCEL_FETCHING })
+                    })
+            }
+
+            setTimeout(poll, 1500)
         })
         .catch(error => {
 
@@ -279,10 +346,6 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             dispatch(
                 addIdentityORFeatureGenError("Feature-Generator-Error")
             )
-
-            // dispatch(
-            //     addError(error)
-            // )
 
             dispatch({
                 type: methods.RECITER_CANCEL_FETCHING
