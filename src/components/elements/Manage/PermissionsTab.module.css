@@ -1,0 +1,13 @@
+.toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 0;
+}
+
+.categoryHeader td {
+    background-color: #f0f0f0;
+    font-weight: 600;
+    font-size: 14px;
+    color: #333333;
+    padding: 8px 16px;
+}

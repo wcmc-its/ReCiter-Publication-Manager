@@ -1,0 +1,5 @@
+/* PermissionEditModal layout uses inline styles per UI-SPEC.
+   This module is reserved for future responsive adjustments. */
+.placeholder {
+    display: block;
+}
