@@ -283,6 +283,12 @@ export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
             const maxPolls = 200 // ~5 min safety ceiling at 1500ms intervals
             const pollUrl = '/api/reciter/feature-generator/' + uid
 
+            // Wait for backend to finish writing before first comparison.
+            // The initial response is pre-analysis data; polling too soon hits the same
+            // stale cache and triggers a false "changed" signal on minor field drift.
+            const INITIAL_POLL_DELAY = 5000
+            const POLL_INTERVAL = 1500
+
             const poll = () => {
                 if (getState().recomputePollCancelled) {
                     dispatch({ type: methods.RECITER_CHANGE_DATA, payload: latestData })
@@ -324,7 +330,7 @@ export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
                             dispatch({ type: methods.RECITER_CHANGE_DATA, payload: freshData })
                             dispatch({ type: methods.RECITER_CANCEL_FETCHING })
                         } else {
-                            setTimeout(poll, 1500)
+                            setTimeout(poll, POLL_INTERVAL)
                         }
                     })
                     .catch(() => {
@@ -333,7 +339,7 @@ export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
                     })
             }
 
-            setTimeout(poll, 1500)
+            setTimeout(poll, INITIAL_POLL_DELAY)
         })
         .catch(error => {
 
