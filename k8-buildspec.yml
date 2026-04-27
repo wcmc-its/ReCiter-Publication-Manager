@@ -38,7 +38,7 @@ phases:
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.key ./config/certs/reciter-saml.key
           fi
-        - $(aws ecr get-login --no-include-email)
+        - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REPOSITORY_URI
         # - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
         # - sed -i -e "s/TOKEN_SECRET/$TOKEN_SECRET/g" config/local.js
         - cat config/local.js
