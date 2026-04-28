@@ -13,9 +13,9 @@ export default async function handler(req, res) {
         return res.status(405).send("Method not allowed");
     }
 
-    const { data, headers } = await axios.get("/api/auth/csrf", {
-        baseURL: "https://" + req.headers.host,
-    });
+    // Self-call must use localhost; the pod can't DNS-resolve its own external
+    // hostname (EAI_AGAIN), and going through the LB would be wasteful anyway.
+    const { data, headers } = await axios.get("http://127.0.0.1:3000/api/auth/csrf");
     const { csrfToken } = data;
 
     const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
