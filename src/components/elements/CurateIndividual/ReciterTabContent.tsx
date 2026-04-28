@@ -8,7 +8,6 @@ import Pagination from '../Pagination/Pagination';
 import { useSession } from "next-auth/client";
 import { curateSearchtextAction, reciterUpdatePublication } from "../../../redux/actions/actions";
 import { RootStateOrAny, useDispatch, useSelector } from "react-redux";
-import { FormControlUnstyled } from "@mui/material";
 
 interface TabContentProps {
   tabType: string,
