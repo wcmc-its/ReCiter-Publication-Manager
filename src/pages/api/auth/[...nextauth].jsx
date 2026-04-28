@@ -39,7 +39,7 @@ export const authOptions = {
         );
 
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
-        const userRoles = await findUserPermissions(credentials.username, 'cwid');
+        const userRoles = await findUserPermissions(["personIdentifier"], [credentials.username]);
 
         if (process.env.ASMS_API_BASE_URL)
           persistUserLogin(credentials.username)

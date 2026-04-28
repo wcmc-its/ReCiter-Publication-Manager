@@ -23,11 +23,11 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
          // a different address than what's stored in admin_users).
          const dbPersonId = createdAdminUser.personIdentifier;
          if(dbPersonId) {
-            userRoles = await findUserPermissions(dbPersonId, "cwid")
+            userRoles = await findUserPermissions(["personIdentifier"], [dbPersonId])
          } else if(samlEmail) {
-            userRoles = await findUserPermissions(samlEmail, "email")
+            userRoles = await findUserPermissions(["email"], [samlEmail])
          } else if(cwid) {
-            userRoles = await findUserPermissions(cwid, "cwid")
+            userRoles = await findUserPermissions(["personIdentifier"], [cwid])
          }
          
          createdAdminUser['userRoles'] = userRoles;
@@ -87,9 +87,9 @@ export const grantDefaultRolesToAdminUser = async(adminUser) => {
     let finalAssignRolesPayload =[];
     if(adminUser && adminUser.personIdentifier)
     {
-        personAPIResponse = await findOnePerson("personIdentifier",adminUser.personIdentifier);
-        
-        existingAdminUserRoles = JSON.parse(await findUserPermissions(adminUser.personIdentifier, "cwid"))
+        personAPIResponse = await findOnePerson(["personIdentifier"], [adminUser.personIdentifier]);
+
+        existingAdminUserRoles = JSON.parse(await findUserPermissions(["personIdentifier"], [adminUser.personIdentifier]))
     } 
     if(assignRolesPayload && assignRolesPayload.length >= 2)
     {
