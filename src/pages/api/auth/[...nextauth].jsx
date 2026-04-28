@@ -295,6 +295,10 @@ const options = {
         jwt: true,
         maxAge: 7200,
     },
+    secret: process.env.NEXTAUTH_SECRET,
+    jwt: {
+        secret: process.env.NEXTAUTH_SECRET,
+    },
 };
 
 const persistUserLogin =async (cwid)=>{
