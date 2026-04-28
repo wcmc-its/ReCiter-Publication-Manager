@@ -21,8 +21,10 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 COPY package.json package-lock.json ./
-#RUN npm install 
-RUN npm ci --frozen-lockfile
+# Committed lockfile is out of sync with package.json (missing entries
+# like string_decoder@1.1.1) and has range-specifier corruption from
+# old npm-force-resolutions. Regenerate fresh from package.json.
+RUN rm -f package-lock.json && npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
 # Rebuild the source code only when needed
 FROM node:20-alpine AS builder
@@ -46,7 +48,8 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 RUN env
-RUN npm run build && npm install --production --ignore-scripts --prefer-offline
+# COPY . . brought back the corrupt committed lockfile; remove again.
+RUN rm -f package-lock.json && npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
 
 # Production image, copy all the files and run next
 FROM node:20-alpine AS runner
