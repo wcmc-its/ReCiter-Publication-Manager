@@ -21,7 +21,9 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 COPY package.json package-lock.json ./
-RUN npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+# Lockfile has corrupt entries from old npm-force-resolutions that npm 10
+# refuses to parse ("Invalid Version: ^17.0.38"). Delete and regenerate.
+RUN rm -f package-lock.json && npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
 # Rebuild the source code only when needed
 FROM node:18-alpine AS builder
