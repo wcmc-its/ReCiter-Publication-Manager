@@ -47,7 +47,7 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 RUN env
-RUN npm run build && npm install --production --ignore-scripts --prefer-offline
+RUN npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
 
 # Production image, copy all the files and run next
 FROM node:18-alpine AS runner
