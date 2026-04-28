@@ -76,5 +76,8 @@
     "jsonwebtoken": "^8.5.1",
     "sequelize-auto": "^0.8.5",
     "typescript": "4.4.3"
+  },
+  "overrides": {
+    "@types/babel__traverse": "7.18.5"
   }
 }
