@@ -1,0 +1,45 @@
+.paginationContainer {
+    padding: 0px 10px;
+}
+.paginationContainer .col {
+    padding: 10px;
+}
+.paginationContainer ul.pagination {
+    margin: 0px;
+}
+
+.tableRows{
+    background-color: #ffffff !important;
+}
+.pmidLink{
+    color: #212529;
+}
+
+/* Pending article badge colors */
+.pendingBadgeGreen {
+    background-color: #28a745 !important;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+    cursor: default;
+}
+.pendingBadgeAmber {
+    background-color: #ffc107 !important;
+    color: #212529;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+    cursor: default;
+}
+.pendingBadgeRed {
+    background-color: #dc3545 !important;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+    cursor: default;
+}

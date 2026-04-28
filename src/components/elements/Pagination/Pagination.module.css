@@ -1,0 +1,35 @@
+
+.showRows {
+    width: 100%;
+    display: table;
+}
+.showRows select {
+    max-width: 100px;
+}
+.showRows label {
+    display: table-cell;
+    padding-right: 10px;
+    width: 110px;
+}
+.paginationContainer {
+    padding: 10px 30px;
+    background-color: #efefef;
+    align-items: center;
+}
+.paginationContainer .col {
+    padding: 10px;
+}
+.paginationContainer ul.pagination {
+    margin: 0px;
+}
+
+.paginationContainer span {
+  padding: 5px;
+  border-radius: 3px;
+}
+
+.basicDropdown button {
+  color: #212529 !important;
+  background-color: #fff !important;
+  border-color: #fff !important;
+}

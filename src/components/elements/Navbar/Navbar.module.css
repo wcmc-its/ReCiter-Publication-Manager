@@ -1,0 +1,45 @@
+.drawer {
+  top: 60px;
+}
+
+.sidebarControl {
+  padding: 5px;
+  text-align: right;
+}
+
+.sidebar-control span.hideSidebar {
+  background-size: 15px 15px;
+  padding: 0px 20px 3px 0px;
+}
+
+.sidebarControl span {
+  font-size: 12px;
+  line-height: 12px;
+  height: 12px;
+  cursor: pointer;
+  opacity: 0.25;
+  font-weight: 300;
+  overflow: hidden;
+  font-weight: 300;
+}
+
+.sidebarControl span:hover {
+  opacity: 0.5;
+}
+
+.drawerHeader {
+  min-height: 25px !important;
+}
+
+.subMenu {
+  padding: 0px !important;
+  background: #eaeaea;
+}
+
+.disabled {
+  color: #aaa;
+}
+
+.disabledLink {
+  pointer-events: none;
+}

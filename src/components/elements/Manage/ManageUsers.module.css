@@ -1,0 +1,28 @@
+.filterSecbgColor {
+    background-color: rgb(193 233 235);
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    margin: 1px;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 10%);
+}
+.filterSecbgColor .totalresult {
+    margin-bottom: 0px;
+}
+.pt5{
+    padding-top: 5px !important;
+}
+.labels{
+    width:15rem ;
+}
+.labelForCheckBox{
+    width:10.6rem ;
+}
+.textButton{
+    color:#0d6efd;
+    cursor:pointer;
+}
+.errorMessage{
+    margin-left: 10.5rem;
+    color: red;
+}

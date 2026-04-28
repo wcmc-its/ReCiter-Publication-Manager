@@ -1,0 +1,173 @@
+/* Skeleton loading components -- CSS-only shimmer animation */
+/* Phase 1: UIBUG-03 -- replaces Loader spinner with content-shaped placeholders */
+
+.skeleton {
+  background-color: #e0e0e0;
+  background-image: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* SkeletonTable */
+.skeletonTableContainer {
+  padding: 16px;
+}
+
+.skeletonTableHeader {
+  height: 40px;
+  background-color: rgba(46, 65, 79, 0.3);
+  background-image: linear-gradient(90deg, rgba(46, 65, 79, 0.3) 25%, rgba(46, 65, 79, 0.15) 50%, rgba(46, 65, 79, 0.3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.skeletonTableRow {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.skeletonTableCell {
+  height: 20px;
+  flex: 1;
+}
+
+/* SkeletonCard */
+.skeletonCardContainer {
+  padding: 16px;
+}
+
+.skeletonCard {
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.skeletonCardTitle {
+  width: 60%;
+  height: 16px;
+  margin-bottom: 8px;
+}
+
+.skeletonCardMeta {
+  height: 12px;
+  margin-bottom: 8px;
+}
+
+.skeletonCardMeta1 {
+  width: 40%;
+}
+
+.skeletonCardMeta2 {
+  width: 30%;
+}
+
+.skeletonCardButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.skeletonCardButton {
+  width: 60px;
+  height: 28px;
+}
+
+/* SkeletonProfile */
+.skeletonProfileContainer {
+  padding: 16px;
+  display: flex;
+  gap: 16px;
+}
+
+.skeletonAvatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeletonProfileContent {
+  flex: 1;
+}
+
+.skeletonProfileName {
+  width: 200px;
+  height: 20px;
+  margin-bottom: 8px;
+}
+
+.skeletonProfileTitle {
+  width: 150px;
+  height: 14px;
+  margin-bottom: 8px;
+}
+
+.skeletonProfileMeta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.skeletonProfileMetaItem1 {
+  width: 100px;
+  height: 12px;
+}
+
+.skeletonProfileMetaItem2 {
+  width: 80px;
+  height: 12px;
+}
+
+.skeletonProfileMetaItem3 {
+  width: 120px;
+  height: 12px;
+}
+
+.skeletonKeywords {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.skeletonPill {
+  height: 24px;
+  border-radius: 12px;
+}
+
+/* SkeletonForm */
+.skeletonFormContainer {
+  padding: 16px;
+}
+
+.skeletonFormRow {
+  margin-bottom: 16px;
+}
+
+.skeletonFormLabel {
+  width: 80px;
+  height: 14px;
+  margin-bottom: 8px;
+}
+
+.skeletonFormInput {
+  width: 100%;
+  height: 36px;
+}
+
+.skeletonFormButton {
+  width: 100px;
+  height: 36px;
+  margin-left: auto;
+  display: block;
+  margin-top: 16px;
+}

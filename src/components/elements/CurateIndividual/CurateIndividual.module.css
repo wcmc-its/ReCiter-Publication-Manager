@@ -1,0 +1,155 @@
+.header {
+  font-weight: 200;
+  color: #666363;
+  font-size: 20px;
+  font-family: Open Sans, sans-serif, Arial;
+  padding-bottom: 10px;
+}
+
+.greyText {
+  color: #666363;
+}
+
+.highlighted {
+  background-color: #f5f5f5;
+  padding: 5px;
+  border-radius: 3px;
+  line-height: 2.3;
+  margin: 0 2px 0 2px;
+  white-space: nowrap;
+}
+
+.suggestionsBanner div[role=alert] {
+  width: fit-content;
+  margin-left: 0; 
+}
+.suggestionsBanner{
+  margin: 2em 0 !important;
+}
+
+.count {
+  overflow: visible;
+  height: 0;
+  margin-top: -1.5em;
+}
+
+.circle:after {
+  content: '';
+  display: block;
+  height: 0;
+  /* width: 100%; */
+  padding-bottom: 100%;
+}
+
+.circle {
+  margin-left: 8px;
+  border-radius: 50%;
+  background-color: #474747;
+  color: white;
+  padding: 0.25em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21.5px;
+  min-height: 21.5px;
+}
+
+.circle.active {
+  background-color: #2458D1;
+}
+
+.activeCount {
+  background-color: #2458D1;
+  color: white;
+}
+
+.tabTitle {
+  color: #282828;
+}
+
+.activeTab {
+  font-weight: bold;
+  /* margin-top: 2px; */
+  border-bottom: 1px solid #ffffff;
+}
+
+.nav-tabs .nav-link.active .tabTitle {
+  font-weight: bold;
+}
+
+.filterPubSection {
+  background-color: #EFEFEF;
+  border-bottom: 1px solid #ced4da;
+  padding: 10px 30px;
+  align-items: center;
+}
+
+.filterSectionButtons button:first-of-type {
+  margin-left: 0px !important;
+}
+
+.filterSort {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.whiteBtn {
+  background-color: white;
+}
+
+.profileImgWrapper {
+  padding-right: 1.5rem;
+}
+
+.basicDropdown {
+  color: black;
+  background-color: white;
+  border-color: #ccc;
+}
+
+.indentityDataContainer {
+  margin-bottom: 5em;
+}
+
+.addPubmade{
+  text-align: right;
+  z-index: 1;
+  position: relative;
+  width: 200px;
+  left: 80%;
+}
+.tabDisplayNone{
+  justify-content: flex-end !important;
+  /* background-color: red !important; */
+  width: 34em;
+  display: flex;
+  padding-right: 3px ;
+}
+.pubMadeTab{
+  border: none !important;
+  color: blue !important;
+  padding: 9px 0 0 0;
+}
+.pubMadeTab .nav-tabs .nav-link.active .tabTitle{
+  padding: 6px 0 0 0;
+  /* color: #2458D1; */
+}
+.tabsMain{
+  border-top: 1px solid grey !important;
+  border-right: 1px solid grey !important;
+  border-left: 1px solid grey !important;
+  /* margin-bottom: 0 !important; */
+}
+/* .curateTabsMain{
+  background-color: red !important;
+} */
+.pubMadeTab .nav .nav-tabs{
+  margin: 0 0 I !important;
+}
+.curateTabsMainPub{
+  background-color: #EFEFEF !important;
+}
+.tab-content>.active{
+  background-color: #EFEFEF !important;
+}
+

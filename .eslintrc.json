@@ -1,0 +1,15 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:jsx-a11y/strict"
+  ],
+  "settings": {
+    "jsx-a11y": {
+      "components": {
+        "Button": "button",
+        "Image": "img",
+        "Link": "a"
+      }
+    }
+  }
+}

@@ -1,0 +1,71 @@
+.loginMainContainer {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: [header] auto [form] 1fr [footer] auto;
+  background-color: whitesmoke;
+}
+
+.header {
+  grid-row-start: header;
+}
+
+.formContainer {
+    margin: auto;
+    text-align: left;
+    margin-top: 10%;
+    color: #999;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 30%;
+}
+
+.loginForm {
+  display: inline-block;
+  padding: 30px 40px;
+  width: 100%;
+}
+
+h3.loginHeader {
+  margin: 0;
+  margin-bottom: 20px;
+}
+
+.formControl {
+  margin-top: 5px;
+}
+
+button.loginBtn.btn.btnPrimary {
+  float: right;
+  color: white;
+  background-color: orange;
+  font-weight: 500;
+  border-color: orange;
+}
+
+.footer {
+  grid-row-start: footer;
+}
+
+.userLoginContainer {
+  max-width: 500 px;
+  margin: auto;
+  text-align: left;
+  border: 1 px solid #ccc;
+  border-radius: 4 px;
+  padding: 30 px 50 px;
+  margin-bottom: 50 px;
+  color: #999;
+  background: #fff;
+}
+
+.formContainer h3 {
+  color: #555;
+  margin-top: 0 px;
+  margin-bottom: 20 px;
+  font-weight: 400;
+}
+
+.formContainer p {
+  margin: 0 0 10 px;
+}

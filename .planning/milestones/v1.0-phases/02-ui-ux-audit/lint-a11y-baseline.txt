@@ -1,0 +1,187 @@
+# ========================================
+# ESLint jsx-a11y Strict Mode Baseline
+# Date: 2026-03-17
+# Config: plugin:jsx-a11y/strict
+# ========================================
+#
+# SUMMARY
+# -------
+# Total Errors:   64 (all jsx-a11y rules)
+# Total Warnings: 24 (22 react-hooks/exhaustive-deps, 1 @next/next/no-img-element, 1 node deprecation)
+# Affected Files: 32
+#
+# ERRORS BY RULE:
+#   21  jsx-a11y/click-events-have-key-events
+#   16  jsx-a11y/no-static-element-interactions
+#   14  jsx-a11y/anchor-is-valid
+#    4  jsx-a11y/interactive-supports-focus
+#    3  jsx-a11y/label-has-associated-control
+#    2  jsx-a11y/img-redundant-alt
+#    1  jsx-a11y/no-noninteractive-element-to-interactive-role
+#    1  jsx-a11y/no-noninteractive-element-interactions
+#    1  jsx-a11y/no-autofocus
+#    1  jsx-a11y/alt-text
+#
+# WARNINGS BY RULE:
+#   22  react-hooks/exhaustive-deps
+#    1  @next/next/no-img-element
+#
+# ========================================
+# RAW OUTPUT FOLLOWS
+# ========================================
+
+(node:37055) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+./src/components/elements/AddUser/AddUser.tsx
+146:8  Warning: React Hook useEffect has missing dependencies: 'adminDepartments' and 'allAdminRoles'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/App/App.js
+39:7  Warning: React Hook useEffect has missing dependencies: 'dispatch', 'props.uid', and 'session'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+104:29  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+
+./src/components/elements/Common/AuthorsComponent.tsx
+21:34  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+21:34  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+25:34  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+25:34  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/CurateIndividual/CurateIndividual.tsx
+57:6  Warning: React Hook useEffect has missing dependencies: 'dispatch', 'fetchData', 'router.query.id', and 'session.data?.userRoles'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+133:19  Error: Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don't need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop.  jsx-a11y/img-redundant-alt
+
+./src/components/elements/CurateIndividual/FilterPubSection.tsx
+35:6  Warning: React Hook useEffect has a missing dependency: 'props'. Either include it or remove the dependency array. However, 'props' will change when *any* prop changes, so the preferred fix is to destructure the 'props' object outside of the useEffect call and refer to those specific props inside useEffect.  react-hooks/exhaustive-deps
+
+./src/components/elements/CurateIndividual/ReciterTabs.tsx
+43:6  Warning: React Hook useEffect has missing dependencies: 'reciterData' and 'tabsData'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/CuratePublications/CuratePublications.tsx
+64:6  Warning: React Hook useEffect has missing dependencies: 'dispatch', 'filteredIds', and 'incrementBy'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/Dropdown/Dropdown.tsx
+87:9  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+87:9  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+98:17  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+98:17  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+102:17  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+102:17  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/Header/Header.tsx
+22:23  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+22:23  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+22:23  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/Identity/Identity.js
+33:13  Error: img elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+33:13  Warning: Do not use <img>. Use Image from 'next/image' instead. See https://nextjs.org/docs/messages/no-img-element.  @next/next/no-img-element
+
+./src/components/elements/Login/Login.js
+88:17  Error: The autoFocus prop should not be used, as it can reduce usability and accessibility for users.  jsx-a11y/no-autofocus
+
+./src/components/elements/Manage/ManageUsers.tsx
+39:6  Warning: React Hook useEffect has missing dependencies: 'count', 'dispatch', 'fetchAllAdminUsers', and 'page'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+168:9  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+168:9  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/Navbar/SideNavbar.tsx
+213:9  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+213:9  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/Notifications/Notifications.tsx
+28:3  Warning: React Hook useEffect has a missing dependency: 'session.data.username'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/Pagination/Pagination.tsx
+73:13  Error: A form label must be associated with a control.  jsx-a11y/label-has-associated-control
+
+./src/components/elements/Profile/Profile.tsx
+81:6  Warning: React Hook useEffect has missing dependencies: 'fetchIdentity' and 'showBiblioAnalysis'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+209:51  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+209:51  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+514:15  Error: Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don't need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop.  jsx-a11y/img-redundant-alt
+
+./src/components/elements/Publication/HistoryModal.tsx
+76:72  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+76:72  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/Publication/Publication.tsx
+634:50  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+634:50  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+640:17  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+640:17  Error: Non-interactive elements should not be assigned mouse or keyboard event listeners.  jsx-a11y/no-noninteractive-element-interactions
+
+./src/components/elements/Report/CheckboxSelect.tsx
+32:6  Warning: React Hook useEffect has missing dependencies: 'isHideSeeMoreLink', 'selectedList', 'totalCount', and 'userInput'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+37:6  Warning: React Hook useEffect has a missing dependency: 'dataPreparation'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/Report/DatePicker.tsx
+42:6  Warning: React Hook useEffect has missing dependencies: 'filterLowerName', 'filterUpperName', 'handleChange', and 'selectedFilters'. Either include them or remove the dependency array. If 'handleChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./src/components/elements/Report/QuickReport.tsx
+11:11  Error: The href attribute requires a valid value to be accessible. Provide a valid, navigable address as the href value. If you cannot provide a valid href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+11:25  Error: The href attribute is required for an anchor to be keyboard accessible. Provide a valid, navigable address as the href value. If you cannot provide an href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+15:11  Error: The href attribute requires a valid value to be accessible. Provide a valid, navigable address as the href value. If you cannot provide a valid href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+15:25  Error: The href attribute is required for an anchor to be keyboard accessible. Provide a valid, navigable address as the href value. If you cannot provide an href, but still need the element to resemble a link, use a button and change it with appropriate styles. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+
+./src/components/elements/Report/Report.tsx
+173:6  Warning: React Hook useEffect has missing dependencies: 'authorInput', 'dispatch', 'journalInput', 'pubSearchFilter', 'session?.adminSettings', 'updateAuthorFilterData', and 'updatedAdminSettings'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+206:6  Warning: React Hook useEffect has missing dependencies: 'dispatch', 'isFiltersOn', 'isFirstLoad', 'isInitialLoad', and 'pubSearchFilter'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/Report/SearchSummary.tsx
+65:6  Warning: React Hook useEffect has a missing dependency: 'reportLabelsForSort'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/Search/FilterReview.tsx
+158:5  Warning: React Hook useEffect has a missing dependency: 'session.data.userRoles'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/Search/Search.js
+115:6  Warning: React Hook useEffect has missing dependencies: 'dispatch', 'fetchPaginatedData', 'session.adminSettings', 'session.data.userRoles', and 'updatedAdminSettings'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/elements/Search/SearchBar.tsx
+47:3  Warning: React Hook useEffect has missing dependencies: 'clearFilters', 'dispatch', 'institutionsData', 'orgUnitsData', and 'personTypesData'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+175:13  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+175:13  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/TabAccepted/TabAccepted.js
+226:60  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+226:60  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+226:60  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/TabAddPublication/TabAddPublication.tsx
+201:8  Warning: React Hook useEffect has missing dependencies: 'filter', 'props.pubSearchFilters', and 'search'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+212:8  Warning: React Hook useEffect has missing dependencies: 'filter', 'props.pubSearchFilters', and 'search'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+495:25  Error: A form label must be associated with a control.  jsx-a11y/label-has-associated-control
+522:25  Error: A form label must be associated with a control.  jsx-a11y/label-has-associated-control
+554:25  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+554:25  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+554:25  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/TabRejected/TabRejected.js
+226:60  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+226:60  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+226:60  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/TabSuggested/TabSuggested.js
+236:60  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+236:60  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+236:60  Error: Avoid non-native interactive elements. If using native HTML is not possible, add an appropriate role and support for tabbing, mouse, keyboard, and touch inputs to an interactive content element.  jsx-a11y/no-static-element-interactions
+
+./src/components/elements/Tabs/Tabs.js
+30:53  Error: Non-interactive elements should not be assigned interactive roles.  jsx-a11y/no-noninteractive-element-to-interactive-role
+32:17  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+32:17  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+32:17  Error: Elements with the 'tab' interactive role must be focusable.  jsx-a11y/interactive-supports-focus
+39:17  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+39:17  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+39:17  Error: Elements with the 'tab' interactive role must be focusable.  jsx-a11y/interactive-supports-focus
+46:17  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+46:17  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+46:17  Error: Elements with the 'tab' interactive role must be focusable.  jsx-a11y/interactive-supports-focus
+53:17  Error: Anchor used as a button. Anchors are primarily expected to navigate. Use the button element instead. Learn more: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y/blob/HEAD/docs/rules/anchor-is-valid.md  jsx-a11y/anchor-is-valid
+53:17  Error: Visible, non-interactive elements with click handlers must have at least one keyboard listener.  jsx-a11y/click-events-have-key-events
+53:17  Error: Elements with the 'tab' interactive role must be focusable.  jsx-a11y/interactive-supports-focus
+
+./src/components/layouts/AppLayout.jsx
+32:6  Warning: React Hook useEffect has a missing dependency: 'router'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+44:6  Warning: React Hook useEffect has missing dependencies: 'dispatch', 'errors.length', 'loading', and 'session'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules

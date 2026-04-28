@@ -1,0 +1,47 @@
+.userContainer {
+    display: grid;
+    min-height: 100%;
+    padding: 0 5rem;
+    padding-top: 4.25rem;
+    grid-template-columns: [col-1-start] 10rem [col-2-start] 3rem [col-3-start] auto [col-end];
+    grid-template-rows: [row-1-start] 6rem [row-2-start] 4rem [row-3-start] auto [row-end];
+}
+
+.userImg {
+    grid-row-start: row-1-start;
+    grid-row-end: row-end;
+    grid-column-start: col-1-start;
+}
+
+.imgProps {
+    border: 0px solid #007bff;
+    max-height: 100%;
+    max-width: 100%;
+}
+
+.userName {
+    grid-row-start: row-1-start;
+    grid-column-start: col-3-start;
+}
+
+.h1Props {
+    margin-top: 1rem;
+}
+
+.userTitle {
+    grid-row-start: row-2-start;
+    grid-column-start: col-3-start;
+}
+
+.h3Props {
+    margin: 0;
+}
+
+.btnContainer {
+    grid-row-start: row-3-start;
+    grid-column-start: col-3-start;
+}
+
+.manageBtn {
+    border: 1px solid #d2cccc;
+}
