@@ -52,6 +52,8 @@
     "redux-devtools-extension": "^2.13.9",
     "redux-thunk": "^2.3.0",
     "reflect-metadata": "^0.1.13",
+    "http-build-query": "^0.7.0",
+    "jsonwebtoken": "^8.5.1",
     "saml2-js": "^3.0.1",
     "sequelize": "^6.9.0",
     "slick-carousel": "^1.8.1",
@@ -71,8 +73,6 @@
     "@types/validator": "^13.6.6",
     "eslint": "7.32.0",
     "eslint-config-next": "11.1.2",
-    "http-build-query": "^0.7.0",
-    "jsonwebtoken": "^8.5.1",
     "sequelize-auto": "^0.8.5",
     "typescript": "4.9.5"
   }
