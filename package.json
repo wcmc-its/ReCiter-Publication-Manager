@@ -3,9 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "preinstall": "npm install --package-lock-only --ignore-scripts && npx npm-force-resolutions",
     "dev": "next dev",
-    "build": "npm install --package-lock-only --ignore-scripts && npx npm-force-resolutions && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "generate-models": "node ./src/db/scripts/generateModels.js"
