@@ -47,7 +47,9 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 RUN env
-RUN npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
+# Same lockfile-corruption issue as deps stage: COPY . . brought back the
+# original corrupt package-lock.json. Remove it before npm install --production.
+RUN rm -f package-lock.json && npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
 
 # Production image, copy all the files and run next
 FROM node:18-alpine AS runner
