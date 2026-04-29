@@ -1,11 +1,10 @@
 import Search from '../../components/elements/Search/Search'
 import { AppLayout } from "../../components/layouts/AppLayout"
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../api/auth/[...nextauth]"; 
+import { getSession } from "next-auth/client";
 
  export async function getServerSideProps(ctx) {
-    try {						  
-    const session = await getServerSession(ctx.req,ctx.res, authOptions);
+    try {
+    const session = await getSession(ctx);
 
     if (!session || !session?.data) {
         console.log('Search page - No session or session.data, redirecting to login');
