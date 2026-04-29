@@ -58,7 +58,7 @@ type AppPropsWithLayout = AppProps & {
 // This sub-component handles the logic so _app.tsx stays clean
 function AdminSettingsDataLoader() {
     const dispatch = useDispatch();
-    const { data: session } = useSession();
+    const [session] = useSession();
     const adminSettings = useSelector((state: any) => state.updatedAdminSettings || []);
     useEffect(() => {
         // If we have a session but NO settings in Redux, fetch them!

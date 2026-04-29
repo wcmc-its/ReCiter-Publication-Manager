@@ -25,7 +25,7 @@ import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrappe
 
 const Report = () => {
   const dispatch = useDispatch()
-  const { data: session, status } = useSession(); const loading = status === "loading";
+  const [session] = useSession();
 
   // state to manage what content to display on inital load
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
