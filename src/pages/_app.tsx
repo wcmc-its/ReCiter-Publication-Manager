@@ -85,7 +85,7 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
       <ThemeProvider theme={theme}>
         <ReduxProvider store={store}>
         <AdminSettingsDataLoader/>
-          {getLayout(<Component {...pageProps} />)}
+          {getLayout(<Component {...(pageProps as any)} />)}
         </ReduxProvider>
       </ThemeProvider>
     </SessionProvider>
