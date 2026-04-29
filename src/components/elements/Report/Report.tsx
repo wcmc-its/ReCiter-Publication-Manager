@@ -4,7 +4,8 @@ import styles from './Report.module.css';
 import QuickReport from './QuickReport';
 import SearchSummary from './SearchSummary';
 import { FilterSection } from './FilterSection';
-import { useDispatch , useSelector, RootStateOrAny } from 'react-redux';
+import { useDispatch , useSelector } from 'react-redux';
+import { RootStateOrAny } from "../../../types/redux";
 import { useEffect } from 'react';
 import { reportsFilters, updatePubSearchFilters, clearPubSearchFilters, updateAuthorFilter, updateJournalFilter, getReportsResults, getReportsResultsInitial, fetchReportsResultsIds, showEvidenceByDefault } from '../../../redux/actions/actions';
 import { ReportsResultPane } from "./ReportsResultPane";
@@ -19,11 +20,12 @@ import { useModal } from "../../../hooks/useModal";
 import { Container } from "react-bootstrap";
 import { ReportResults } from "./ReportResults";
 import { countPersons } from "../../../../controllers/db/person.controller";
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
+import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 
 const Report = () => {
   const dispatch = useDispatch()
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession(); const loading = status === "loading";
 
   // state to manage what content to display on inital load
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
@@ -83,8 +85,6 @@ const Report = () => {
 
   // fetch filters on mount
   useEffect(() => {
-    // let parsedAdminSettings:adminSettings["adminSettings"]  = 
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
     var viewAttributes = [];
     var profileViewAttributes = [];
     var sortLabelViewAttributes = [];
@@ -116,16 +116,17 @@ const Report = () => {
       reportingWeb = reportingWebDisplay.viewAttributes;
       exportArticleRTF = exportRTF.viewAttributes;
 
-    } else {
+    } else if (session?.adminSettings) {
       // regular settings from session
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingFilters")
-      let viewProfileUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "viewProfile")
-      let sortLabelsUpdatedData = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebViewSort")
-      let headShotData =JSON.parse(adminSettings).find(obj => obj.viewName === "headshot")
-      let exportAuthors = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingAuthorshipCSV")
-      let exportArticle = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleCSV")
-      let reportingWebDisplay = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingWebDisplay")
-      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
+      let adminSettings = JSON.parse(session.adminSettings);
+      let data = adminSettings.find(obj => obj.viewName === "reportingFilters")
+      let viewProfileUpdatedData = adminSettings.find(obj => obj.viewName === "viewProfile")
+      let sortLabelsUpdatedData = adminSettings.find(obj => obj.viewName === "reportingWebViewSort")
+      let headShotData = adminSettings.find(obj => obj.viewName === "headshot")
+      let exportAuthors = adminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
+      let exportArticle = adminSettings.find(obj => obj.viewName === "reportingArticleCSV")
+      let reportingWebDisplay = adminSettings.find(obj => obj.viewName === "reportingWebDisplay")
+      let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
 
       sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
@@ -169,6 +170,29 @@ const Report = () => {
 
 
   }, [])
+
+  // Re-derive labels when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      const updatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingFilters")
+      const viewProfileUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "viewProfile")
+      const sortLabelsUpdatedData = updatedAdminSettings.find(obj => obj.viewName === "reportingWebViewSort")
+      const headShotData = updatedAdminSettings.find(obj => obj.viewName === "headshot")
+      const exportAuthors = updatedAdminSettings.find(obj => obj.viewName === "reportingAuthorshipCSV")
+      const exportArticle = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleCSV")
+      const reportingWebDisplay = updatedAdminSettings.find(obj => obj.viewName === "reportingWebDisplay")
+      const exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+
+      if (updatedData) setReportFiltersLabes(updatedData.viewAttributes)
+      if (viewProfileUpdatedData) setViewProfileLabels(viewProfileUpdatedData.viewAttributes)
+      if (sortLabelsUpdatedData) setReportLabelsForSort(sortLabelsUpdatedData.viewAttributes)
+      if (headShotData) setHeadShotLabelData(headShotData.viewAttributes)
+      if (exportAuthors) setExportAuthorShipLabels(exportAuthors.viewAttributes)
+      if (exportArticle) setExportArticleLabels(exportArticle.viewAttributes)
+      if (reportingWebDisplay) setReportingWebDisplay(reportingWebDisplay.viewAttributes)
+      if (exportRTF) setExportArticlesRTF(exportRTF.viewAttributes)
+    }
+  }, [updatedAdminSettings])
 
 
   // fetch new data on page and count update
@@ -387,9 +411,18 @@ const Report = () => {
 
   if (reportingFiltersLoading) {
     return (
-      <Container fluid className="h-100 justify-content-center align-items-center">
-        <Loader />
-      </Container>
+      <div className={appStyles.mainContainer}>
+        <h1 className={styles.header}>Create Reports</h1>
+        <div>
+          <div className={styles.loadingRow}>
+            <div className={styles.spinner} />
+            <span>Searching…</span>
+          </div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
+          <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
+        </div>
+      </div>
     )
   } else return (
     <div>
@@ -407,14 +440,20 @@ const Report = () => {
           onLoadMore = {onLoadMore}
           reportFiltersLabes = {reportFiltersLabes}
           />
-        {reportsSearchResultsLoading && 
-          <Container fluid className="h-100 p-5">
-            <Loader />
-          </Container>
+        {reportsSearchResultsLoading &&
+          <div>
+            <div className={styles.loadingRow}>
+              <div className={styles.spinner} />
+              <span>Searching…</span>
+            </div>
+            <div className={styles.skeletonCard}><div className={styles.skTitle} /><div className={styles.skAuthors} /><div className={styles.skMeta} /></div>
+            <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '60%' }} /><div className={styles.skAuthors} style={{ width: '50%' }} /><div className={styles.skMeta} style={{ width: '38%' }} /></div>
+            <div className={styles.skeletonCard}><div className={styles.skTitle} style={{ width: '74%' }} /><div className={styles.skAuthors} style={{ width: '44%' }} /><div className={styles.skMeta} style={{ width: '32%' }} /></div>
+          </div>
         }
         {!reportsSearchResultsLoading && 
         <div className="search-results-container">
-          {reportsSearchResults && 
+          {reportsSearchResults &&
           <SearchSummary
             articlesCount={reportsSearchResults.articlesCount}
             onClick={updateSort}
@@ -424,15 +463,14 @@ const Report = () => {
             exportAuthorShipLabels = {exportAuthorShipLabels}
             exportArticleLabels = {exportArticleLabels}
             exportArticlesRTF = {exportArticlesRTF}
-            />
-            }
-          <Pagination
             count={count}
             total={reportsSearchResults?.articlesCount}
             page={page}
-            onChange={onPaginationUpdate}
-            onCountChange={onCountUpdate}
+            onPaginationUpdate={onPaginationUpdate}
+            onCountUpdate={onCountUpdate}
             />
+            }
+          <ToastContainerWrapper />
           <ReportResults
             results={reportsSearchResults}
             loading={reportsPaginatedResultsLoading}

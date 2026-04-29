@@ -232,6 +232,7 @@ export class AnalysisRcrSummary extends Model<AnalysisRcrSummaryAttributes, Anal
   }, {
     sequelize,
     tableName: 'analysis_rcr_summary',
+    modelName: 'AnalysisRcrSummary',
     timestamps: false,
     indexes: [
       {

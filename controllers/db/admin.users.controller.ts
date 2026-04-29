@@ -7,40 +7,43 @@ const PERSONIDENTIFIER  = 'personIdentifier'
 
 export const findOrCreateAdminUsers = async (uid: string, samlEmail: string, samlFirstName: string, samlLastName: string) => {
     try {
-        let whereCondition:any =samlEmail?{'email':samlEmail}:{'personIdentifier':uid} ;
-
-        let person:any=null;
-        let adminUser=null
-        if(samlEmail || uid)
-        {
-            adminUser = await findAdminUser([EMAIL,PERSONIDENTIFIER],[samlEmail,uid]);
-            if((samlEmail || uid) && adminUser)
-            {
-                person = await findOnePerson([EMAIL,PERSONIDENTIFIER],[samlEmail,uid]); 
+        // Find by email OR CWID so a returning user isn't duplicated when their
+        // SAML email differs from their direct-login email.
+        if (samlEmail || uid) {
+            const existingUser = await findAdminUser([EMAIL, PERSONIDENTIFIER], [samlEmail, uid]);
+            if (existingUser) {
+                console.log('User ' + uid + ' already exists in adminUsers table');
+                return existingUser.get({ plain: true });
             }
-        
         }
-        const [user, created] = await models.AdminUser.findOrCreate({
 
-            where : whereCondition,
+        // Not found by either email or CWID — first-time user, create a new record.
+        const person: any = (samlEmail || uid)
+            ? await findOnePerson([EMAIL, PERSONIDENTIFIER], [samlEmail, uid])
+            : null;
+
+        const whereCondition: any = uid ? { personIdentifier: uid } : { email: samlEmail };
+        const [user, created] = await models.AdminUser.findOrCreate({
+            where: whereCondition,
             defaults: {
                 personIdentifier: uid,
-                nameFirst: samlFirstName?samlFirstName:((person && person.firstName)?person.firstName:null),
-                nameMiddle: (person && person.middleName)?person.middleName:null,
-                nameLast: samlLastName?samlLastName:(person && person.lastName)?person.lastName:null,
+                nameFirst: samlFirstName ? samlFirstName : ((person && person.firstName) ? person.firstName : null),
+                nameMiddle: (person && person.middleName) ? person.middleName : null,
+                nameLast: samlLastName ? samlLastName : (person && person.lastName) ? person.lastName : null,
                 createTimestamp: new Date(),
                 modifyTimestamp: new Date(),
-                status: 1,//Start of with no access for everybody(person && person.personIdentifier)? 1:0
-                email:samlEmail?samlEmail:((person && person.primaryEmail?.toString())?person.primaryEmail?.toString():null)
+                status: 1,
+                email: samlEmail ? samlEmail : ((person && person.primaryEmail?.toString()) ? person.primaryEmail?.toString() : null)
             }
-        })
+        });
 
-        created?console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table'): 
-            console.log('User ' + uid + ' already exists in adminUsers table')
-        return user.get({plain:true});
-        
+        created
+            ? console.log('User ' + uid + ' is logging in for first time so record is created in adminUsers table')
+            : console.log('User ' + uid + ' already exists in adminUsers table');
+        return user.get({ plain: true });
+
     } catch (e) {
-        console.log(e)
+        console.log(e);
     }
 };
 

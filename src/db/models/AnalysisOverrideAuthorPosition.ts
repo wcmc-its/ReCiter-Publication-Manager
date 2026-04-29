@@ -43,6 +43,7 @@ export class AnalysisOverrideAuthorPosition extends Model<AnalysisOverrideAuthor
   }, {
     sequelize,
     tableName: 'analysis_override_author_position',
+    modelName: 'AnalysisOverrideAuthorPosition',
     timestamps: false,
     indexes: [
       {

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useHistory } from 'react-router-dom';
 import appStyles from './App.module.css';
 import { useSelector, useDispatch } from "react-redux";
 import { identityFetchData, reciterFetchData } from '../../../redux/actions/actions'
@@ -10,13 +9,11 @@ import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import {getSession } from "next-auth/client"
-import { getPermissionsFromRaw, hasPermission } from '../../../utils/permissionUtils'
+import {getSession } from "next-auth/react"
 
 const App = (props) => {
 
     const dispatch = useDispatch()
-    const history = useHistory()
 
     const reciterFetching = useSelector((state) => state.reciterFetching)
     const reciterData = useSelector((state) => state.reciterData)
@@ -30,18 +27,13 @@ const App = (props) => {
     const session = getSession();
 
     useEffect(() => {
-        // Call only if user has canCurate permission
-        if (session) {
-            session.then((sess) => {
-                if (sess && sess.data && sess.data.permissions) {
-                    const perms = getPermissionsFromRaw(sess.data.permissions)
-                    if (hasPermission(perms, 'canCurate')) {
-                        dispatch(reciterFetchData(props.uid, false))
-                        dispatch(identityFetchData(props.uid))
-                    }
-                }
-            })
-        }
+        // Call only if user has curator_self role. otherwise, we should not call these APIs.
+        if(session && session.data && session.data.userRoles && session.data.userRoles.length > 0 
+            && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) 
+         {   
+            dispatch(reciterFetchData(props.uid, false))
+            dispatch(identityFetchData(props.uid))
+         }
     },[])
 
     const tabClickHandler = (str = 'Suggested') => {
@@ -107,9 +99,9 @@ const App = (props) => {
                             <strong>{`${
                                 reciterData.reciterPending.length
                                 } record(s). `}</strong>
-                            <a href="#" onClick={refreshHandler}>
+                            <button type="button" onClick={refreshHandler} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>
                                 Refresh
-                            </a>
+                            </button>
                             <span> to get new suggestions.</span>
                         </div>
                     ) : null}

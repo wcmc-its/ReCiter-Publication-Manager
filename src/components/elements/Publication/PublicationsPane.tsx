@@ -6,12 +6,13 @@ import UndoIcon from '@mui/icons-material/Undo';
 import { Container, Row, Col, Button, Accordion, Card, ButtonProps } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
 import { useRouter } from 'next/router';
-import { useSelector, RootStateOrAny } from "react-redux";
+import { useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import Publication from "./Publication";
 import { reciterConfig } from "../../../../config/local";
 import Divider from "../Common/Divider";
 import Profile from "../Profile/Profile";
-import { useSession } from "next-auth/client";
+import { useSession } from "next-auth/react";
 import { useDispatch } from "react-redux";
 import { reciterUpdatePublicationGroup } from "../../../redux/actions/actions"; 
 
@@ -34,7 +35,7 @@ const PublicationsPane: FunctionComponent<FuncProps> = (props) => {
     const [countPendingArticles, setCountPendingArticles] = useState<number>(props.item.countPendingArticles || 0)
     const [articles, setArticles] = useState<any[]>(props.item.reCiterArticleFeatures)
     const [modalShow, setModalShow] = useState(false);
-    const [session, loading] = useSession();
+    const { data: session, status } = useSession(); const loading = status === "loading";
     const dispatch = useDispatch();
 
     const router = useRouter()

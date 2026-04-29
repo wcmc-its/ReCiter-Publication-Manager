@@ -1,24 +1,19 @@
 import React, { useEffect, useState } from "react";
-import appStyles from '../App/App.module.css';
 import styles from './ManageProfile.module.css';
-import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
-import { Form, Button, Spinner, Carousel, InputGroup } from "react-bootstrap";
-import { useSession } from "next-auth/client";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
-import Radio from '@mui/material/Radio';
-import RadioGroup from '@mui/material/RadioGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import FormControl from '@mui/material/FormControl';
 import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
-import { getPermissionsFromRaw, hasPermission } from '../../../utils/permissionUtils';
+import { reportError } from "../../../utils/reportError";
+import { allowedPermissions } from "../../../utils/constants";
 import Loader from "../Common/Loader";
-
 
 const ManageProfle = () => {
     const dispatch = useDispatch()
-    const [session, loading] = useSession();
+    const { data: session, status } = useSession(); const loading = status === "loading";
     const router = useRouter()
     const [suggested, setSuggested] = useState<boolean>(false);
     const [manualORCID, setManualORCID] = useState('');
@@ -31,16 +26,17 @@ const ManageProfle = () => {
     const [isSuperUserORCuratorAll, SetIsSuperUserORCuratorAll] = useState<boolean>(false);
     const [isReporterAll, setIsReporterAll] = useState<boolean>(false);
     const [serverValue, setServerValue] = useState('');
+    const [identityOrcid, setIdentityOrcid] = useState<string | null>(null);
 
     useEffect(() => {
-        const perms = getPermissionsFromRaw((session as any)?.data?.permissions)
-        const canCurateUser = hasPermission(perms, 'canCurate')
-        const canManageUsersUser = hasPermission(perms, 'canManageUsers')
-        const canSearchUser = hasPermission(perms, 'canSearch')
+        let userPermissions = JSON.parse(session.data.userRoles);
+        let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
+        let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
+        let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);
 
         if (router.query.userId === session.data.username) {
-            if (!canCurateUser || canSearchUser) {
-                if (canManageUsersUser || (canCurateUser && canSearchUser)) {
+            if (!curatorSelfRole) {
+                if (superUserRole || curatorAllfRole) {
                     SetIsSuperUserORCuratorAll(true)
                 } else {
                     setIsReporterAll(true)
@@ -52,21 +48,39 @@ const ManageProfle = () => {
             setIsCuratorSelf(true)
         }
         let userId = null;
-        //some times router query userId not updating correctly. Hence,reading the userId from window location. 
-        // Will be analyzed when we upgrade the next JS and code will be removed if it is obsolete. 
         if (!router.query.userId && session.data.username)
             userId = window.location.pathname.substring(window.location.pathname.lastIndexOf('/') + 1)
         else
             userId = router.query.userId ? router.query.userId : session.data.username
         getManageProfileData(userId)
+        fetchIdentityOrcid(userId)
     }, [router.query.userId])
 
+    const fetchIdentityOrcid = (personIdentifier) => {
+        fetch(`/api/reciter/getidentity/${personIdentifier}`, {
+            credentials: "same-origin",
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'Authorization': reciterConfig.backendApiKey
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.statusCode === 200 && data.identity) {
+                    setIdentityOrcid(data.identity.orcid || null)
+                }
+            })
+            .catch(error => {
+                console.log('Failed to fetch Identity ORCID:', error)
+            })
+    }
+
     const onSave = () => {
-        let payload = {
-            'personIdentifier': router.query.userId,
-            'orcid': manualORCID || selectedOrcidValue,
-        }
-        fetch(`/api/db/admin/manageProfile/saveProfileByORCID`, {
+        const orcidValue = manualORCID || selectedOrcidValue;
+        const uid = router.query.userId as string;
+        // Save to DynamoDB via Identity API
+        fetch(`/api/reciter/saveIdentityOrcid`, {
             credentials: "same-origin",
             method: 'POST',
             headers: {
@@ -74,48 +88,66 @@ const ManageProfle = () => {
                 "Content-Type": "application/json",
                 'Authorization': reciterConfig.backendApiKey
             },
-            body: JSON.stringify(payload)
-        }).then(response => {
-            if (response.status === 200) {
+            body: JSON.stringify({ personIdentifier: uid, orcid: orcidValue })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
                 toast.success("ORCID Saved Successfully", {
                     position: "top-right",
                     autoClose: 2000,
                     theme: 'colored'
                 });
-                getManageProfileData(router.query.userId ? router.query.userId : "")
+                setIdentityOrcid(orcidValue);
+                getManageProfileData(uid);
+            } else {
+                throw new Error(data.error || 'Save failed');
             }
-        }).then(data => {
-
         }).catch(error => {
-
+            console.error("[ERR-1010]", error);
+            reportError("ERR-1010", "Unable to save ORCID", error);
+            toast.error("Unable to save ORCID. Please try again. (ERR-1010)", {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
         })
     }
 
-
     const onReset = () => {
-        let url = `/api/db/admin/manageProfile/resetProfileORCID?personIdentifier=${router.query.userId}`;
-        fetch(url, {
+        const uid = router.query.userId as string;
+        fetch(`/api/reciter/saveIdentityOrcid`, {
             credentials: "same-origin",
-            method: 'DELETE',
+            method: 'POST',
             headers: {
                 Accept: 'application/json',
                 "Content-Type": "application/json",
                 'Authorization': reciterConfig.backendApiKey
             },
+            body: JSON.stringify({ personIdentifier: uid, orcid: '' })
         })
-            .then(res => res.json()) // or res.json()
-            .then(res => {
-                toast.success("ORCID has been deleted successfully", {
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    toast.success("ORCID has been deleted successfully", {
+                        position: "top-right",
+                        autoClose: 2000,
+                        theme: 'colored'
+                    });
+                    setManualORCID("");
+                    setSelectOrcid("");
+                    setIdentityOrcid(null);
+                } else {
+                    throw new Error(data.error || 'Remove failed');
+                }
+            })
+            .catch(error => {
+                console.error("[ERR-1011]", error);
+                reportError("ERR-1011", "Unable to remove ORCID", error);
+                toast.error("Unable to remove ORCID. Please try again. (ERR-1011)", {
                     position: "top-right",
                     autoClose: 2000,
                     theme: 'colored'
                 });
-                setManualORCID("");
-                setSelectOrcid("");
-                
-            })
-            .catch(error => {
-                console.log(error);
             });
     }
 
@@ -147,14 +179,20 @@ const ManageProfle = () => {
                     if(recentUpdatedOrcid)
                         setSelectOrcid(recentUpdatedOrcid?.recently_selected_orcid);
                     else
-                       setManualORCID(orcidData && orcidData.length > 0?orcidData[0].recently_selected_orcid:""); 
+                       setManualORCID(orcidData && orcidData.length > 0?orcidData[0].recently_selected_orcid:"");
                     setProfileData(orcidData);
                     setLoadProfileData(false);
                 }
             })
             .catch(error => {
                 setLoadProfileData(false)
-                console.log(error);
+                console.error("[ERR-1012]", error);
+                reportError("ERR-1012", "Unable to load profile data", error);
+                toast.error("Unable to load profile data. Please try again. (ERR-1012)", {
+                    position: "top-right",
+                    autoClose: 2000,
+                    theme: 'colored'
+                });
             });
     }
 
@@ -163,135 +201,240 @@ const ManageProfle = () => {
         setSelectOrcid("");
         const value = e.target.value;
         const numericValue = value.replace(/\D/g, '');
-        // Format the value into the desired pattern
         const formattedValue = formatInput(numericValue);
         if (formattedValue.length === 19) {
-            // Clear the error message if the input meets the formatter length
             setErrorMessage('');
         } else {
-            // Set an error message if the input does not meet the formatter length
             setErrorMessage('Please enter the value in the format ####-####-####-####');
         }
-
         setManualORCID(formattedValue);
     }
 
-    const onRadioChange = (e) => {
-        let orcidValue = e
+    const onRadioChange = (orcidValue) => {
         if (orcidValue == selectedOrcidValue) {
             setSelectOrcid('')
         } else {
             setSelectOrcid(orcidValue)
-
             setManualORCID('');
         }
         setErrorMessage('');
     }
 
+    const handleUseOrcid = (orcid) => {
+        setSelectOrcid(orcid);
+        setManualORCID('');
+        setErrorMessage('');
+        const uid = router.query.userId as string;
+        fetch(`/api/reciter/saveIdentityOrcid`, {
+            credentials: "same-origin",
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                "Content-Type": "application/json",
+                'Authorization': reciterConfig.backendApiKey
+            },
+            body: JSON.stringify({ personIdentifier: uid, orcid })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                toast.success("ORCID Saved Successfully", {
+                    position: "top-right",
+                    autoClose: 2000,
+                    theme: 'colored'
+                });
+                setIdentityOrcid(orcid);
+                getManageProfileData(uid);
+            } else {
+                throw new Error(data.error || 'Save failed');
+            }
+        }).catch(error => {
+            console.error("[ERR-1013]", error);
+            reportError("ERR-1013", "Unable to save ORCID", error);
+            toast.error("Unable to save ORCID. Please try again. (ERR-1013)", {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
+        });
+    }
+
     const formatInput = (value) => {
-        // Format the value into ####-####-####-####
         const formattedValue = value
-            .replace(/(\d{4})/g, '$1-') // Add a hyphen after every 4 characters
-            .slice(0, 19); // Limit the length to 19 characters
+            .replace(/(\d{4})/g, '$1-')
+            .slice(0, 19);
         return formattedValue;
     };
 
-
-    const displayORCIDDesc = (values) => {
-        const {
-            articleCount_accepted,
-            articleCount_null,
-            articleCount_rejected,
-            pmids_rejected,
-            pmids_null,
-            pmids_accepted,
-            orcid,
-            personIdentifier
-        } = values;
-
-        let formattedLabel = <div className="d-flex customLabel">
-            <p><a href={` https://orcid.org/${orcid}`} target="blank" rel="noreferrer"><span>{orcid}</span></a>- </p>
-            {
-                articleCount_accepted > 0 && <a href={pmids_accepted} target="blank" rel="noreferrer"><span> {articleCount_accepted} accepted {articleCount_null > 0 && ","}</span></a>
-            }
-            {
-                articleCount_null > 0 && <a href={pmids_null} target="blank" rel="noreferrer"><span> {articleCount_null} suggested {articleCount_rejected > 0 && ","}</span></a>
-            }
-            {
-                articleCount_rejected > 0 && <a href={pmids_rejected} target="blank" rel="noreferrer"> <span> {articleCount_rejected} rejected</span></a>
-            }
-        </div>
-        return formattedLabel
-    }
+    /* Current confirmed ORCID from ReCiter Identity (DynamoDB) */
+    const currentOrcid = identityOrcid || '';
 
     return (
-        <div className={appStyles.mainContainer}>
-            <h1 className={styles.header}>Manage Profile</h1>
-            {
-                (isCuratorSelf || isSuperUserORCuratorAll) ? <>
-                    <div className="pb-4">
-                        <h5>ORCID</h5>
-                        <p>Provide your unique <a className="textDecorationLabel" href="https://orcid.org/" target="_blank" rel="noreferrer">ORCID ID</a> to retrieve unclaimed PubMed publications. In the interests of <br />streamlining your administrative tasks, your ORCID may be shared with select authorized parties.</p>
-                    </div>
+        <>
+            <h1 className={styles.pageTitle}>Manage Profile</h1>
 
-                    <div className="pb-4">
-                        <h6><b>Suggested ORCID</b></h6>
-                        <p className="pt-3">Here are your top suggestions. This is based on how often you have accepted or rejected <br />publications associated with those ORCID values.</p>
-                        <div>
-                            {
-                                loadProfileData ? <div className="d-flex justify-content-center align-items">  <Loader /></div>
-                                    :
-                                    <>
-                                        {
-                                            profileData && profileData.length > 0 ?
-                                                <FormControl>
-                                                    <RadioGroup
-                                                        aria-labelledby="demo-radio-buttons-group-label"
-                                                        defaultValue="female"
-                                                        name="radio-buttons-group"
-                                                        value={selectedOrcidValue}
-                                                    >
-                                                        {
-                                                            profileData.map((values, i) => {
-                                                                const { orcid, recent_updated_orcid } = values;
-                                                                return <div className="d-flex" key={i}><FormControlLabel className="orcidLabel" key={i} value={orcid} control={<Radio onChange={() => onRadioChange(orcid)} />} label="" /><p className="customLabelForRadio">{displayORCIDDesc(values)}</p></div>
-                                                            }
-                                                            )
-                                                        }
-                                                    </RadioGroup>
-                                                </FormControl> : <p><i>No available suggestions.</i></p>
-                                        }
-                                    </>
-                            }
+            {(isCuratorSelf || isSuperUserORCuratorAll) ? (
+                <>
+                    {/* ── ORCID section ── */}
+                    <div className={styles.section}>
+                        <div className={styles.sectionLabel}>ORCID</div>
+
+                        {/* Intro card */}
+                        <div className={styles.orcidIntro}>
+                            <div className={styles.orcidLogo}>iD</div>
+                            <div>
+                                <div className={styles.orcidIntroTitle}>
+                                    ORCID Identifier
+                                    <a className={styles.orcidIntroLink} href="https://orcid.org/" target="_blank" rel="noreferrer">orcid.org</a>
+                                </div>
+                                <p className={styles.orcidIntroDesc}>
+                                    Provide your unique ORCID iD to retrieve unclaimed PubMed publications.
+                                    This persistent digital identifier distinguishes you from other researchers
+                                    and ensures your work is properly attributed.
+                                </p>
+                                <div className={styles.orcidPrivacyNote}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                                    </svg>
+                                    <span>Your ORCID may be shared with select authorized parties to streamline administrative tasks.</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div>
-                        <h6><b>Manually add your ORCID</b></h6>
-                        <p>Alternatively, you can manually enter your ORCID ID in the field below: </p>
-                        <div className="width400 pb-3">
-                            <InputGroup>
-                                <Form.Control type="input" value={manualORCID} onChange={(e) => onManualOrcidChange(e)} className="inputORCID" placeholder="####-####-####-####"></Form.Control>
-                            </InputGroup>
-                            {errorMessage && <div style={{ color: 'red' }}>{errorMessage}</div>}
+                    {/* ── Suggested ORCIDs ── */}
+                    <div className={styles.section}>
+                        <div className={styles.suggestionsCard}>
+                            <div className={styles.suggestionsHead}>
+                                <div className={styles.suggestionsHeadTitle}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <path d="M12 16v-4M12 8h.01" />
+                                    </svg>
+                                    Suggested ORCIDs
+                                </div>
+                                <span className={styles.suggestionsHeadDesc}>
+                                    Based on accepted &amp; rejected publication history
+                                </span>
+                            </div>
+                            <div className={styles.suggestionsBody}>
+                                {loadProfileData ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}><Loader /></div>
+                                ) : profileData && profileData.length > 0 ? (
+                                    profileData.map((values, i) => {
+                                        const { orcid, articleCount_accepted, articleCount_null, articleCount_rejected, pmids_accepted, pmids_null, pmids_rejected } = values;
+                                        return (
+                                            <div className={styles.suggestionRow} key={i}>
+                                                <label className={styles.suggestionRadioLabel}>
+                                                    <input
+                                                        type="radio"
+                                                        className={styles.suggestionRadio}
+                                                        name="orcid-suggestion"
+                                                        checked={selectedOrcidValue === orcid}
+                                                        onChange={() => onRadioChange(orcid)}
+                                                    />
+                                                    <span className={styles.suggestionOrcidId}>{orcid}</span>
+                                                </label>
+                                                <div className={styles.suggestionPills}>
+                                                    {articleCount_accepted > 0 && (
+                                                        <a href={pmids_accepted} target="_blank" rel="noreferrer" className={`${styles.pill} ${styles.pillAccepted}`}>
+                                                            {articleCount_accepted} accepted
+                                                        </a>
+                                                    )}
+                                                    {articleCount_rejected > 0 && (
+                                                        <a href={pmids_rejected} target="_blank" rel="noreferrer" className={`${styles.pill} ${styles.pillRejected}`}>
+                                                            {articleCount_rejected} rejected
+                                                        </a>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className={styles.btnUse}
+                                                    onClick={() => handleUseOrcid(orcid)}
+                                                >
+                                                    Use this iD
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className={styles.emptyState}>
+                                        <div className={styles.emptyIcon}>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <circle cx="11" cy="11" r="8" />
+                                                <path d="M21 21l-4.35-4.35" />
+                                            </svg>
+                                        </div>
+                                        <div className={styles.emptyTitle}>No suggestions available</div>
+                                        <div className={styles.emptyDesc}>
+                                            We couldn&apos;t find any ORCID suggestions based on your publication history. You can manually enter your ORCID below.
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
-                    <div className="d-flex">
-                        <Button variant="warning" className="m-2" onClick={() => onSave()} disabled={selectedOrcidValue == "" && manualORCID == ""}>
-                            Save
-                        </Button>
-                        <Button variant="warning" className="m-2" onClick={() => onReset()}  >
-                            Reset
-                        </Button>
+
+                    {/* ── Manual entry ── */}
+                    <div className={styles.section}>
+                        <div className={styles.manualCard}>
+                            <div className={styles.manualHead}>Manually Enter ORCID</div>
+                            <div className={styles.manualBody}>
+                                {currentOrcid && (
+                                    <div className={styles.currentOrcidBanner}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M20 6L9 17l-5-5" />
+                                        </svg>
+                                        Current ORCID: <strong>{currentOrcid}</strong>
+                                    </div>
+                                )}
+
+                                <div className={styles.fieldLabel}>ORCID iD</div>
+                                <div className={styles.fieldRow}>
+                                    <input
+                                        className={styles.fieldInput}
+                                        type="text"
+                                        value={manualORCID}
+                                        onChange={onManualOrcidChange}
+                                        placeholder="0000-0000-0000-0000"
+                                        maxLength={19}
+                                    />
+                                    <button
+                                        type="button"
+                                        className={styles.btnSave}
+                                        onClick={onSave}
+                                        disabled={selectedOrcidValue === "" && manualORCID === ""}
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.btnRemove}
+                                        onClick={onReset}
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                                {errorMessage && <div className={styles.errorText}>{errorMessage}</div>}
+
+                                <div className={styles.orcidFormatHint}>
+                                    Format: <code>####-####-####-####</code>
+                                    &middot;
+                                    <a href="https://orcid.org/" target="_blank" rel="noreferrer">Find your ORCID</a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                     <ToastContainerWrapper />
-                </> : (!isCuratorSelf || !isReporterAll) ? <div className="noAccessRole">
+                </>
+            ) : (!isCuratorSelf || !isReporterAll) ? (
+                <div className={styles.noAccess}>
                     <p>Your user does not have the Curator Self role. To edit the Manage Profile for another user, first click on the Manage Users tab.</p>
-                </div> : ""}
-
-        </div>
+                </div>
+            ) : null}
+        </>
     )
 }
-
 
 export default ManageProfle;

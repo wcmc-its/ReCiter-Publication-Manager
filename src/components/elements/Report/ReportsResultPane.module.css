@@ -1,29 +1,185 @@
-.reportsAdditionalInfo span {
-  color: #65686B;
+/* ── article card ── */
+
+.articleCard {
+  background: #fff;
+  border: 1px solid #d6d0c4;
+  border-radius: 10px;
+  padding: 16px 24px;
+  margin-bottom: 5px;
 }
 
-.reportsAdditionalInfo a {
-  color: #65686B;
+.cardMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.reportsAdditionalInfo .midDot:first-of-type::before {
-  content: "";
+.cardDate {
+  font-size: 12px;
+  color: rgb(100, 100, 100);
 }
 
-.midDot::before {
-  content: "•";
-  padding-left: 5px;
-  padding-right: 5px;
+.metaSep {
+  color: #d0cbc3;
+  margin: 0 2px;
 }
 
-.midDot:first-of-type::before {
+.articleTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.typeBadge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: #e6eef7;
+  border: none;
+  color: #2c4a7c;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.articleAuthors {
+  font-size: 14px;
+  color: #6b6560;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.articleBib {
+  font-size: 13px;
+  color: #6b6560;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.metricInline {
+  font-size: 13px;
+  color: #8a847c;
+}
+
+.metricInlineValue {
+  font-weight: 600;
+  color: #6b6560;
+}
+
+.articleIds {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #a09a92;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.idLabel {
+  color: #a09a92;
+}
+
+.idLink {
+  color: #2c4a7c;
+  text-decoration: underline;
+  text-decoration-color: #b8cce4;
+  text-underline-offset: 2px;
+}
+
+.idLink:hover {
+  text-decoration-color: #2c4a7c;
+}
+
+.dot {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  background: #d0cbc3;
+  border-radius: 50%;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ── metrics row ── */
+
+.articleMetrics {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #8a847c;
+  flex-wrap: wrap;
+}
+
+.metricItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.metricLabel {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dashed #b8c4d0;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.metricLabel:hover .metricTip {
+  display: block;
+}
+
+.metricTip {
   display: none;
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 230px;
+  background: #1e2a3a;
+  color: #f0f4fa;
+  font-size: 11.5px;
+  line-height: 1.55;
+  font-weight: 400;
+  padding: 10px 13px;
+  border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(26, 33, 51, 0.22);
+  pointer-events: none;
+  z-index: 300;
+  white-space: normal;
+  text-align: left;
 }
 
-.infoTitle {
-  text-decoration: underline dotted;
+.metricTip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1e2a3a;
 }
 
-.searchResultContainer {
-  padding: 25px 30px;
+.metricValue {
+  font-weight: 600;
+  color: #6b6560;
+}
+
+.metricValueTop {
+  composes: metricValue;
+  color: #2e7d32;
+}
+
+.metricValueHigh {
+  composes: metricValue;
+  color: var(--link-blue);
 }

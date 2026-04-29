@@ -42,14 +42,14 @@ export const identityFetchData = uid => dispatch => {
     dispatch({
         type: methods.IDENTITY_FETCH_DATA
     })
-    fetchWithTimeout('/api/reciter/getidentity/' + uid, {
+    fetch('/api/reciter/getidentity/' + uid, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
             'Authorization': reciterConfig.backendApiKey
         }
-    }, 300000)
+    })
         .then(response => {
             if (response.status === 200) {
                 toast.success("Identity Api successfully fetched for " + uid, {
@@ -223,11 +223,7 @@ export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
         })
 }
 
-export const cancelRecomputePolling = () => ({
-    type: methods.RECITER_RECOMPUTE_STOP_WAITING
-})
-
-export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
+export const reciterFetchData = (uid, refresh) => dispatch => {
 
     dispatch({
         type: methods.RECITER_FETCH_DATA
@@ -237,26 +233,21 @@ export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
     if (refresh) {
         url += '?analysisRefreshFlag=true&retrievalRefreshFlag=ONLY_NEWLY_ADDED_PUBLICATIONS'
     }
-
-    const fetchOptions = {
+    fetch(url, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
             Accept: 'application/json',
             'Authorization': reciterConfig.backendApiKey
         }
-    }
-
-    fetchWithTimeout(url, fetchOptions, 300000)
+    })
         .then(response => {
             if (response.status === 200) {
-                if (!refresh) {
-                    toast.success("Feature generator Api successfully fetched for " + uid, {
-                        position: "top-right",
-                        autoClose: 2000,
-                        theme: 'colored'
-                    });
-                }
+                toast.success("Feature generator Api successfully fetched for " + uid, {
+                    position: "top-right",
+                    autoClose: 2000,
+                    theme: 'colored'
+                });
                 return response.json()
             } else {
                 throw {
@@ -268,78 +259,14 @@ export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
             }
         })
         .then(data => {
-            if (!refresh) {
-                dispatch({ type: methods.RECITER_CHANGE_DATA, payload: data })
-                dispatch({ type: methods.RECITER_CANCEL_FETCHING })
-                return
-            }
+            dispatch({
+                type: methods.RECITER_CHANGE_DATA,
+                payload: data
+            })
 
-            // Recompute: ReCiter returns the current (pre-analysis) dataset immediately,
-            // then finishes writing updated scores ~seconds later. Poll until data changes.
-            let latestData = data
-            const initialCount = data?.reciter?.length ?? 0
-            const initialScore = data?.reciter?.[0]?.totalArticleScoreNonStandardized ?? 0
-            let pollCount = 0
-            const maxPolls = 200 // ~5 min safety ceiling at 1500ms intervals
-            const pollUrl = '/api/reciter/feature-generator/' + uid
-
-            // Wait for backend to finish writing before first comparison.
-            // The initial response is pre-analysis data; polling too soon hits the same
-            // stale cache and triggers a false "changed" signal on minor field drift.
-            const INITIAL_POLL_DELAY = 5000
-            const POLL_INTERVAL = 1500
-
-            const poll = () => {
-                if (getState().recomputePollCancelled) {
-                    dispatch({ type: methods.RECITER_CHANGE_DATA, payload: latestData })
-                    dispatch({ type: methods.RECITER_CANCEL_FETCHING })
-                    return
-                }
-
-                pollCount++
-
-                if (pollCount === 7) {
-                    dispatch({
-                        type: methods.RECITER_RECOMPUTE_DELAYED,
-                        payload: "Still computing… this may take a minute."
-                    })
-                }
-
-                if (pollCount > maxPolls) {
-                    dispatch({ type: methods.RECITER_CHANGE_DATA, payload: latestData })
-                    dispatch({ type: methods.RECITER_CANCEL_FETCHING })
-                    return
-                }
-
-                fetchWithTimeout(pollUrl, fetchOptions, 300000)
-                    .then(res => {
-                        if (res.status === 200) return res.json()
-                        throw { title: 'Poll failed with status ' + res.status }
-                    })
-                    .then(freshData => {
-                        latestData = freshData
-                        const newCount = freshData?.reciter?.length ?? 0
-                        const newScore = freshData?.reciter?.[0]?.totalArticleScoreNonStandardized ?? 0
-
-                        if (newCount !== initialCount || newScore !== initialScore) {
-                            toast.success("Recompute complete for " + uid, {
-                                position: "top-right",
-                                autoClose: 2000,
-                                theme: 'colored'
-                            })
-                            dispatch({ type: methods.RECITER_CHANGE_DATA, payload: freshData })
-                            dispatch({ type: methods.RECITER_CANCEL_FETCHING })
-                        } else {
-                            setTimeout(poll, POLL_INTERVAL)
-                        }
-                    })
-                    .catch(() => {
-                        dispatch({ type: methods.RECITER_CHANGE_DATA, payload: latestData })
-                        dispatch({ type: methods.RECITER_CANCEL_FETCHING })
-                    })
-            }
-
-            setTimeout(poll, INITIAL_POLL_DELAY)
+            dispatch({
+                type: methods.RECITER_CANCEL_FETCHING
+            })
         })
         .catch(error => {
 
@@ -352,6 +279,10 @@ export const reciterFetchData = (uid, refresh) => (dispatch, getState) => {
             dispatch(
                 addIdentityORFeatureGenError("Feature-Generator-Error")
             )
+
+            // dispatch(
+            //     addError(error)
+            // )
 
             dispatch({
                 type: methods.RECITER_CANCEL_FETCHING
@@ -1143,6 +1074,48 @@ export const updatedAdminSettings = (settingsData) => dispatch => {
         payload: settingsData
     })
 }
+
+export const fetchAdminSettingsAction = () => (dispatch) => {
+    // 1. Perform the fetch
+    return fetchWithTimeout('/api/db/admin/settings', {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            "Authorization": reciterConfig.backendApiKey 
+        }
+    },)
+    .then(response => {
+        if (!response.ok) throw new Error("Failed to load settings");
+        return response.json();
+    })
+    .then(data => {
+        // 2. Success: Parse viewAttributes and update Redux store
+        const parsed = (data || []).map(obj => ({
+            ...obj,
+            viewAttributes: typeof obj.viewAttributes === 'string' ? JSON.parse(obj.viewAttributes) : obj.viewAttributes
+        }));
+        dispatch({
+            type: methods.ADMIN_SETTINGS_UPDATED_LIST,
+            payload: parsed
+        });
+    })
+    .catch(error => {
+        // 3. Failure: Show toast and log error
+        console.error("Admin Settings API failed:", error);
+        toast.error("Failed to load Admin Settings", {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+        });
+        
+        // Optional: Dispatch an error to your global error handler
+        if (typeof addError === 'function') {
+            dispatch(addError(error));
+        }
+    });
+};
 
 export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
     const fetchGroupDataLoading = {

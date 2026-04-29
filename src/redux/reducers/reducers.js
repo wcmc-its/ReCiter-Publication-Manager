@@ -826,13 +826,13 @@ export const saveNotificationsLoading = (state = false, action) => {
   }
 }
 
-export const identityORFeatureGenError = (state=[], action) => {
+export const identityORFeatureGenError = (state=null, action) => {
   switch(action.type) {
       case methods.ERROR_FOR_IDENTITY_FEATURE_GENERATOR :
-          return [
-              ...state,
-              action.payload
-          ]
+          return action.payload
+      case methods.IDENTITY_FETCH_DATA :
+      case methods.RECITER_FETCH_DATA :
+          return null
       default:
           return state
   }

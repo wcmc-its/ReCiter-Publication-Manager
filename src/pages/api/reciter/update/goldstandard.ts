@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { updateGoldStandard } from "../../../../../controllers/goldstandard.controller"
 import { reciterConfig } from '../../../../../config/local'
+import { checkCurationScope } from '../../../../utils/checkCurationScope'
 
 type Error = {
     statusCode: number,
@@ -18,6 +19,15 @@ export default async function handler(
 ) {
     if(req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
+        try {
+        const targetUid = req.body?.uid
+        if (targetUid) {
+            const scopeCheck = await checkCurationScope(req, targetUid);
+            if (!scopeCheck.allowed) {
+                return res.status(scopeCheck.status!).send({ statusCode: scopeCheck.status!, message: scopeCheck.message })
+            }
+        }
+
         const apiResponse = await updateGoldStandard(req);
         if(apiResponse.statusCode === 200) {
             res.status(apiResponse.statusCode).send({
@@ -25,10 +35,14 @@ export default async function handler(
                 goldStandard: apiResponse.statusText
             })
         } else{
-            res.status(apiResponse.statusCode).send({
-                statusCode: apiResponse.statusCode,
+            res.status(apiResponse.statusCode || 500).send({
+                statusCode: apiResponse.statusCode || 500,
                 message: apiResponse.statusText
             })
+        }
+        } catch (err) {
+            console.error('[goldstandard] Unhandled error:', err)
+            res.status(500).send({ statusCode: 500, message: 'Internal server error' })
         }
         } else if(req.headers.authorization === undefined) {
             res.status(400).send({

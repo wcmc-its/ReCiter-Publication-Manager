@@ -1,6 +1,7 @@
 .tabControlsContainer {
-    background: #efefef;
-    border-radius: 4px;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
     padding: 20px;
     margin-bottom: 20px;
 }
@@ -27,5 +28,5 @@
 .tabControlsContainer .btn-default.disabled {
     color: #777;
     background-color: #ffffff;
-    border-color: #ccc;
+    border-color: var(--gray-300);
 }

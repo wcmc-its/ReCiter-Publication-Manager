@@ -10,12 +10,11 @@ export async function updateGoldStandard(req: NextApiRequest)  {
       } = req;
 
     
-   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}`, {
+   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}&source=publication-manager`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
             'api-key': reciterConfig.reciter.adminApiKey,
-            'Content-Length': req.body.length,
             'User-Agent': 'reciter-pub-manager-server'
         },
         body: JSON.stringify(req.body)
@@ -39,7 +38,7 @@ export async function updateGoldStandard(req: NextApiRequest)  {
         .catch((error) => {
             console.log('ReCiter Update Goldstandard api is not reachable: ' + error)
             return {
-                statusCode: error.status,
+                statusCode: error.status || 500,
                 statusText: error
             }
         });

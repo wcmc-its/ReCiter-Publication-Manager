@@ -1,35 +1,121 @@
-
-.showRows {
-    width: 100%;
-    display: table;
-}
-.showRows select {
-    max-width: 100px;
-}
-.showRows label {
-    display: table-cell;
-    padding-right: 10px;
-    width: 110px;
-}
-.paginationContainer {
-    padding: 10px 30px;
-    background-color: #efefef;
-    align-items: center;
-}
-.paginationContainer .col {
-    padding: 10px;
-}
-.paginationContainer ul.pagination {
-    margin: 0px;
+/* Controls bar — standalone (fully rounded) */
+.controls {
+  background: #faf8f5;
+  border: 1px solid #e8e2d9;
+  border-radius: 8px;
+  padding: 9px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sans);
 }
 
-.paginationContainer span {
-  padding: 5px;
-  border-radius: 3px;
+/* Controls bar — merged below a top bar (bottom-rounded, no top border) */
+.controlsMerged {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-sans);
+  background: #eef3fb;
+  border: 1px solid #d6e4f5;
+  border-radius: 6px;
+  padding: 9px 16px;
 }
 
-.basicDropdown button {
-  color: #212529 !important;
-  background-color: #fff !important;
-  border-color: #fff !important;
+.showLabel {
+  font-size: 12px;
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+/* ── Count dropdown (styled DropdownButton) ── */
+.countDropdown button {
+  font-size: 12px !important;
+  padding: 4px 10px !important;
+  background-color: #eeeae4 !important;
+  border: 1px solid #ddd7ce !important;
+  color: #5a6478 !important;
+  border-radius: var(--radius-pill) !important;
+}
+
+.countDropdown button:hover,
+.countDropdown button:focus,
+.countDropdown button:active {
+  background-color: #e4e0d8 !important;
+  border-color: #ccc6bc !important;
+  color: #1a2133 !important;
+}
+
+/* ── Show dropdown items ── */
+.showItem {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px !important;
+  font-size: 12.5px !important;
+  color: #5a6478 !important;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+}
+
+.showItem:hover {
+  background: #eeeae4 !important;
+  color: #1a2133 !important;
+  border-left-color: #2563a8;
+}
+
+.showItemActive {
+  color: #1a2133 !important;
+  font-weight: 600;
+  background: #eef3fb !important;
+  border-left-color: #2563a8;
+}
+
+.showCheck {
+  color: #2563a8;
+  font-size: 11px;
+}
+
+.pageNav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 12px;
+  color: #8a94a6;
+}
+
+.pageInfo {
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.pageInfo strong {
+  color: #1a2133;
+}
+
+.pageBtn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ddd7ce;
+  background: #fff;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #5a6478;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: #1a2133;
+  color: #fff;
+  border-color: #1a2133;
+}
+
+.pageBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }

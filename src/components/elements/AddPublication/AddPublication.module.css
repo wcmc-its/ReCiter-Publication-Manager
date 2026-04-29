@@ -1,16 +1,170 @@
-.paginationContainer {
-    padding: 0px 10px;
-}
-.paginationContainer .col {
-    padding: 10px;
-}
-.paginationContainer ul.pagination {
-    margin: 0px;
+/* ── Publication card (PubMed Add tab) ── */
+
+.pubCard {
+  background: #fff;
+  border: 1px solid #e8e2d9;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
+  display: flex;
+  flex-direction: row;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.tableRows{
-    background-color: #ffffff !important;
+.pubCard:hover {
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.07);
 }
-.pmidLink{
-    color: #212529;
+
+.pubCardCurated {
+  opacity: 0.7;
+}
+
+/* Status strip */
+.statusStripAccepted,
+.statusStripRejected,
+.statusStripNeutral {
+  width: 4px;
+  flex-shrink: 0;
+  border-radius: 8px 0 0 8px;
+}
+
+.statusStripAccepted { background: #22c55e; }
+.statusStripRejected { background: #ef4444; }
+.statusStripNeutral { background: transparent; }
+
+/* Main */
+.pubCardMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pubCardContent {
+  padding: 14px 18px;
+}
+
+.pubTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--gray-900);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.pubAuthors {
+  font-size: 12px;
+  color: var(--gray-600);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.pubMeta {
+  font-size: 12px;
+  color: var(--gray-500);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 6px;
+}
+
+.pubMeta > span:not(:first-child)::before {
+  content: "\2022";
+  padding: 0 6px;
+  color: var(--gray-300);
+}
+
+.pubJournal {
+  font-style: italic;
+}
+
+.pubTypeBadge {
+  display: inline-block;
+  background: var(--gray-200);
+  border: 1px solid #e8e2d9;
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--gray-600);
+  margin-left: 6px;
+}
+
+.pubLinks {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 12px;
+}
+
+.pubLinks > span:not(:first-child)::before {
+  content: "\2022";
+  padding: 0 6px;
+  color: var(--gray-300);
+}
+
+.pubLinks a {
+  color: var(--gray-500);
+  text-decoration: none;
+}
+
+.pubLinks a:hover {
+  text-decoration: underline;
+}
+
+/* Badges for already-curated cards */
+.badgeAccepted {
+  display: inline-block;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.badgeRejected {
+  display: inline-block;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Action footer */
+.cardActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid #e8e2d9;
+}
+
+.cardActions button {
+  padding: 10px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: filter 0.15s;
+}
+
+.cardActions button:hover {
+  filter: brightness(0.95);
+}
+
+.btnAccept {
+  background: #edf7f2;
+  color: #1a7a4a;
+  border-right: 1px solid #e8e2d9;
+}
+
+.btnReject {
+  background: #fdf0ee;
+  color: #c0392b;
 }
