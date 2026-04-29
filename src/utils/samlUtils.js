@@ -22,12 +22,13 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
          // SAML-provided email may not match the DB email (e.g., IdP returns
          // a different address than what's stored in admin_users).
          const dbPersonId = createdAdminUser.personIdentifier;
-         if(dbPersonId) {
-            userRoles = await findUserPermissions(["personIdentifier"], [dbPersonId])
-         } else if(samlEmail) {
-            userRoles = await findUserPermissions(["email"], [samlEmail])
-         } else if(cwid) {
-            userRoles = await findUserPermissions(["personIdentifier"], [cwid])
+         // Controller's SQL references both :personIdentifier and :email
+         // unconditionally, so always pass both even if one is empty.
+         if(dbPersonId || samlEmail || cwid) {
+            userRoles = await findUserPermissions(
+                ["personIdentifier", "email"],
+                [dbPersonId || cwid || "", samlEmail || ""]
+            )
          }
          
          createdAdminUser['userRoles'] = userRoles;
@@ -89,7 +90,10 @@ export const grantDefaultRolesToAdminUser = async(adminUser) => {
     {
         personAPIResponse = await findOnePerson(["personIdentifier"], [adminUser.personIdentifier]);
 
-        existingAdminUserRoles = JSON.parse(await findUserPermissions(["personIdentifier"], [adminUser.personIdentifier]))
+        existingAdminUserRoles = JSON.parse(await findUserPermissions(
+            ["personIdentifier", "email"],
+            [adminUser.personIdentifier, adminUser.email || ""]
+        ))
     } 
     if(assignRolesPayload && assignRolesPayload.length >= 2)
     {
