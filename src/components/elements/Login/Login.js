@@ -5,9 +5,9 @@ import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import Router from "next/router"
 import Header from "../Header/Header"
-import { signIn,getSession } from "next-auth/react"
+import { signIn,getSession } from "next-auth/client"
 import { toast } from "react-toastify"
-import { getPermissionsFromRaw, getLandingPageFromPermissions } from '../../../utils/permissionUtils';
+import { allowedPermissions } from "../../../utils/constants";
 import { useRouter } from 'next/router'
 
 const Login = () => {
@@ -19,12 +19,19 @@ const Login = () => {
     const session = getSession();
     const router = useRouter()
 
-    useEffect(() => {
-        setIsShowButton(username === '' || password === '')
-    }, [username, password])
+    const validateForm = () => {
+        if(username === ''){
+            setIsShowButton(true)
+        } else if(password === '') {
+            setIsShowButton(true)
+        } else {
+            setIsShowButton(false)
+        }
+    }
 
     const handleUserNameInput = e => {
         setUsername(e.target.value)
+        validateForm()
     }
 
     const handleSubmit = async(e) => {
@@ -41,20 +48,17 @@ const Login = () => {
                 autoClose: 2000,
                 theme: "colored"
             });
-            getSession().then((session) => {
+            //if(session && session.data && session.data.userRoles)
+             getSession().then((session) => {
                 if (session) {
-                    const permissions = getPermissionsFromRaw(session?.data?.permissions)
-                    const userRoles = session.data.userRoles ? JSON.parse(session.data.userRoles) : []
-
-                    if (!session.data.databaseUser || session.data.databaseUser.status == 0) {
-                        router.push('/noaccess')
-                    } else if (permissions.length === 0 && (!userRoles || userRoles.length === 0)) {
-                        router.push('/noaccess')
-                    } else {
-                        const landingPage = getLandingPageFromPermissions(permissions, userRoles)
-                        router.push(landingPage)
-                    }
-                }
+                    let userPermissions = JSON.parse(session.data.userRoles);
+                    let userName = session.data.username;
+                    let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : ""
+                    if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName)  
+                        router.push(`/curate/${personIdentifier}`);
+                    else 
+                        router.push('/search');
+                } 
             });
             
         } else {
@@ -69,22 +73,26 @@ const Login = () => {
 
     const handlePasswordInput = e => {
         setPassword(e.target.value)
+        validateForm()
     }
 
     return (
         <div className={styles.loginMainContainer}>
-        {/* <Header/> */}
+        <Header/>
         <div className={styles.formContainer}>
             <Form className={styles.loginForm} onSubmit={handleSubmit}>
             <h3>Sign in to your account</h3>
             <p>Please enter your CWID and password to log in.</p>
             <FormGroup controlId="username" style={{marginBottom: '10px'}}>
+                <Form.Label className="visually-hidden">CWID</Form.Label>
                 <FormControl
-                type="username"
+                type="text"
+                autoComplete="username"
                 value={username}
                 onChange={handleUserNameInput}
                 placeholder="Username"
-                style={{ 
+                aria-label="CWID"
+                style={{
                         background: `url("../../../images/icon-login-user.png")`,
                         backgroundSize: '15px 15px',
                         backgroundRepeat: 'no-repeat',
@@ -95,14 +103,16 @@ const Login = () => {
                 />
             </FormGroup>
             <FormGroup controlId="password" style={{marginBottom: '10px'}}>
+                <Form.Label className="visually-hidden">Password</Form.Label>
                 <FormControl
                 value={password}
                 onChange={handlePasswordInput}
                 type="password"
                 placeholder="Password"
+                aria-label="Password"
                 style={{
                         background: `url("../../../images/icon-login-pass.png")`,
-                        backgroundSize: '15px 15px', 
+                        backgroundSize: '15px 15px',
                         backgroundRepeat: 'no-repeat',
                         backgroundPosition: 'left 10px center',
                         paddingLeft: '32px'
@@ -128,7 +138,7 @@ const Login = () => {
             </Form>
         </div>
 
-        {/* <Footer /> */}
+        <Footer />
         </div>
     );
 };

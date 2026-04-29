@@ -1,5 +1,5 @@
 import { AppLayout } from "../../../../components/layouts/AppLayout"
-import { useSession } from "next-auth/react"
+import { useSession } from "next-auth/client"
 import ManageUsers from "../../../../components/elements/Manage/ManageUsers"
 
 /* export async function getServerSideProps(ctx) {

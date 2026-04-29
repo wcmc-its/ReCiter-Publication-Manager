@@ -10,7 +10,7 @@ import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { useSession } from "next-auth/react";
+import { useSession } from "next-auth/client";
 // import { VrpanoSharp, ClearIcon } from "@mui/icons-material";
 import ClearIcon from '@mui/icons-material/Clear';
 import { toast } from "react-toastify"

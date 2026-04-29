@@ -204,6 +204,15 @@ export const updatedAdminSettings = (state= [], action) => {
   }
 }
 
+export const showOnlyScopeFiltered = (state = false, action) => {
+  switch(action.type) {
+      case methods.UPDATE_SCOPE_FILTER :
+          return action.payload
+      default :
+          return state
+  }
+}
+
 
 
 export const pubMedCount = (state= 0, action) => {
@@ -709,15 +718,6 @@ export const reportingFiltersLoading = (state=false, action) => {
   }
 }
 
-export const notificationEmailCarier = (state={}, action) => {
-  switch(action.type) {
-      case methods.NOTIFICATION_EMAIL_CARRIER :
-          return action.payload
-      default :
-          return state
-  }
-}
-
 export const initialStatePubSearchFilter = {
   filters: {
     personIdentifers: [],
@@ -815,53 +815,6 @@ export const reportsResultsIdsLoading = (state = false, action) => {
   }
 }
 
-export const saveNotificationsLoading = (state = false, action) => {
-  switch(action.type) {
-    case methods.NOTIFICATION_PREFERENCE_SAVE_LOADING:
-      return true
-    case methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING:
-      return false
-    default:
-      return state
-  }
-}
-
-export const identityORFeatureGenError = (state=null, action) => {
-  switch(action.type) {
-      case methods.ERROR_FOR_IDENTITY_FEATURE_GENERATOR :
-          return action.payload
-      case methods.IDENTITY_FETCH_DATA :
-      case methods.RECITER_FETCH_DATA :
-          return null
-      default:
-          return state
-  }
-}
-
-export const recomputeDelayedMessage = (state = null, action) => {
-  switch(action.type) {
-    case methods.RECITER_RECOMPUTE_DELAYED:
-      return action.payload
-    case methods.RECITER_CANCEL_FETCHING:
-    case methods.RECITER_RECOMPUTE_STOP_WAITING:
-      return null
-    default:
-      return state
-  }
-}
-
-export const recomputePollCancelled = (state = false, action) => {
-  switch(action.type) {
-    case methods.RECITER_FETCH_DATA:
-      return false
-    case methods.RECITER_RECOMPUTE_STOP_WAITING:
-      return true
-    default:
-      return state
-  }
-}
-
-
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -918,9 +871,6 @@ export default combineReducers({
     authorFilterDataFromSearch,
     showEvidenceDefault,
     updatedAdminSettings,
-    notificationEmailCarier,
-    saveNotificationsLoading,
-    identityORFeatureGenError,
-    recomputeDelayedMessage,
-    recomputePollCancelled
+    showOnlyScopeFiltered
+
 })

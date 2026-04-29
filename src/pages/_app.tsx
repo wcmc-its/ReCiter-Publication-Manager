@@ -4,14 +4,14 @@ import { Provider as ReduxProvider } from 'react-redux'
 import { useStore } from '../redux/store/store'
 import type { Page } from '../../types/pages'
 import type { AppProps } from 'next/app'
-import { SessionProvider } from "next-auth/react"
+import { SessionProvider } from "next-auth/client"
 import type { NextPage } from 'next'
 import type { ReactElement, ReactNode } from 'react'
 // Header removed — brand is in sidebar, user info in content area
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import { useDispatch, useSelector } from 'react-redux';
-import { useSession } from 'next-auth/react';
+import { useSession } from 'next-auth/client';
 import { fetchAdminSettingsAction } from '../redux/actions/actions';
 import { useEffect } from 'react';
 import { createTheme, ThemeProvider } from '@mui/material/styles';

@@ -8,7 +8,7 @@ import SplitDropdown from "../Dropdown/SplitDropdown";
 import { useRouter } from 'next/router';
 import { useDispatch } from "react-redux";
 import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
-import { useSession } from "next-auth/react";
+import { useSession } from "next-auth/client";
 import { allowedPermissions, dropdownItemsReport } from "../../../utils/constants";
 import styles from './Search.module.css'
 
@@ -30,7 +30,7 @@ const FilterReview = ({
   const [filter, setFilter] = useState(false);
   const router = useRouter();
   const dispatch = useDispatch();
-  const { data: session, status } = useSession(); const loading = status === "loading";
+  const [session, loading] = useSession();
 
   const[dropdownTitle, setDropdownTitle] = useState("");
   const[dropdownMenuItems, setDropdownMenuItems] = useState([]);
@@ -45,28 +45,18 @@ const FilterReview = ({
   }
 
   const StyledToggleButtonGroup = styled(ToggleButtonGroup)(({ theme }) => ({
-    marginLeft: '8px',
-    borderRadius: '5px',
-    overflow: 'hidden',
-    border: '1px solid #ddd7ce',
+    marginLeft: '20px',
+    marginRight: '20px',
+    maxHeight: '40px',
     '& .MuiToggleButtonGroup-grouped': {
       textTransform: 'none',
-      border: 'none',
-      borderRadius: '0 !important',
-      fontSize: '12px',
-      fontWeight: 600,
-      fontFamily: '"DM Sans", sans-serif',
-      padding: '5px 12px',
-      minHeight: 'auto',
-      lineHeight: 'normal',
-      color: '#8a94a6',
-      backgroundColor: '#eeeae4',
     },
     '& .MuiToggleButton-root.MuiButtonBase-root.Mui-selected': {
       color: '#fff',
-      backgroundColor: '#1a2133',
+
+      backgroundColor: '#337ab7',
       '&:hover': {
-        backgroundColor: '#252d42',
+        backgroundColor: '#549ad8',
       }
     }
   }));
@@ -209,28 +199,28 @@ const FilterReview = ({
 }
 
   return (
-    <div className={styles.resultsHeader}>
-      <div className={styles.resultsCount}>
-        <span className={styles.resultsCountNumber}>{count.toLocaleString()}</span>{' '}
-        people found using filters
-      </div>
-      <div>
-        <RoleSplitDropdown />
-      </div>
+    <Row className="pb-2 pt-2">
+      <Col className="d-flex my-auto"><h4><strong>{`${count}`} people found using filters</strong></h4></Col>
+      <Col>
+      {
+        <RoleSplitDropdown></RoleSplitDropdown>
+
+      }
+      </Col>
       {showPendingToggle ?
-      <div className={styles.pendingFilter}>
-        <span className={styles.pendingFilterLabel}>Show only people with pending suggestions</span>
-        <StyledToggleButtonGroup
-          color="primary"
-          value={filterByPending}
-          exclusive
-          onChange={handleChange}
-        >
-          <ToggleButton value={false}>No</ToggleButton>
-          <ToggleButton value={true}>Yes</ToggleButton>
-        </StyledToggleButtonGroup>
-      </div> : ""}
-    </div>
+      <Col className="d-flex flex-row">
+      <div>Show only people with <br /> pending suggestions</div>
+      <StyledToggleButtonGroup
+        color="primary"
+        value={filterByPending}
+        exclusive
+        onChange={handleChange}
+      >
+        <ToggleButton value={false}>No</ToggleButton>
+        <ToggleButton value={true}>Yes</ToggleButton>
+      </StyledToggleButtonGroup>
+      </Col> : ""}
+    </Row>
   )
 }
 

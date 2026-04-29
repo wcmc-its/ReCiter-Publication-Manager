@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn } from 'next-auth/client';
 import { useRouter } from 'next/router'; // Use this for Pages Router
 
 export default function Finalize() {

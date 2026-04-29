@@ -1,18 +1,12 @@
 
 import { toast } from "react-toastify";
 
-/**
- * @deprecated Use hasPermission() from permissionUtils.ts instead.
- * Retained for backward compatibility. Will be removed in Phase 18 cleanup.
- */
 export const allowedPermissions = Object.freeze({
 	Superuser: "Superuser",
 	Curator_All: "Curator_All",
 	Reporter_All: "Reporter_All",
 	Curator_Self: "Curator_Self",
-	Curator_Scoped: "Curator_Scoped",
-	Curator_Department: "Curator_Department",
-	Curator_Department_Delegate: "Curator_Department_Delegate",
+	Curator_Scoped: "Curator_Scoped"
 })
 
 export const toastMessage = (type, message) => {
@@ -40,29 +34,19 @@ export const numberFormation = (number)=> {
 	return formatedNumber
 }
 
-export const setReportFilterKeyNames = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
-	return filteredLabel?.labelUserKey || ""
-}
-
 export const setReportFilterLabels = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.labelUserView || ""
 }
 
 export const setReportFilterDisplayRank = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.displayRank || ""
 }
 
 export const setHelptextInfo = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
+	let filteredLabel = allFilters?.length > 0 && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
 	return filteredLabel?.helpTextUserView || ""
-}
-
-export const setIsVisible = (allFilters, filterLabel) => {
-	let filteredLabel = allFilters?.length > 0 && Array.isArray(allFilters) && allFilters?.find((allLabels) => allLabels.labelUserKey === filterLabel)
-	return filteredLabel?.isVisible || false; 
 }
 
 export const dropdownItemsSuper = [
@@ -114,20 +98,6 @@ export const ROLE_CAPABILITIES = Object.freeze({
     canConfigure: false,
   },
   [allowedPermissions.Curator_Scoped]: {
-    canCurate: { scoped: true },
-    canReport: false,
-    canSearch: true,
-    canManageUsers: false,
-    canConfigure: false,
-  },
-  [allowedPermissions.Curator_Department]: {
-    canCurate: { scoped: true },
-    canReport: false,
-    canSearch: true,
-    canManageUsers: false,
-    canConfigure: false,
-  },
-  [allowedPermissions.Curator_Department_Delegate]: {
     canCurate: { scoped: true },
     canReport: false,
     canSearch: true,

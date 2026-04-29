@@ -1,326 +1,225 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal } from 'react-bootstrap';
+import { Modal, Button, Spinner } from 'react-bootstrap';
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
-import { Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import Loader from '../Common/Loader';
 import { reciterConfig } from '../../../../config/local';
-import styles from './GrantProxyModal.module.css';
 
 interface ProxyUser {
-    userID: number;
-    personIdentifier: string;
-    nameFirst: string;
-    nameMiddle: string;
-    nameLast: string;
+  userID: number;
+  personIdentifier: string;
+  nameFirst: string;
+  nameMiddle: string;
+  nameLast: string;
 }
 
 interface GrantProxyModalProps {
-    show: boolean;
-    onHide: () => void;
-    personIdentifier: string;
-    personName: string;
-    onSave: () => void;
+  show: boolean;
+  onHide: () => void;
+  personIdentifier: string;
+  personName: string;
+  onSave: () => void;
 }
 
 const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
-    show,
-    onHide,
-    personIdentifier,
-    personName,
-    onSave,
+  show,
+  onHide,
+  personIdentifier,
+  personName,
+  onSave,
 }) => {
-    const [searchResults, setSearchResults] = useState<ProxyUser[]>([]);
-    const [searchLoading, setSearchLoading] = useState(false);
-    const [selectedUsers, setSelectedUsers] = useState<ProxyUser[]>([]);
-    const [existingUsers, setExistingUsers] = useState<ProxyUser[]>([]);
-    const [loadingExisting, setLoadingExisting] = useState(false);
-    const [loadError, setLoadError] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchResults, setSearchResults] = useState<ProxyUser[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<ProxyUser[]>([]);
+  const [existingUsers, setExistingUsers] = useState<ProxyUser[]>([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    useEffect(() => {
-        if (show && personIdentifier) {
-            loadExisting();
-        }
-        if (!show) {
-            // Reset state when modal closes
-            setSearchResults([]);
-            setSearchLoading(false);
-            setSelectedUsers([]);
-            setExistingUsers([]);
-            setLoadingExisting(false);
-            setLoadError(false);
-            setSaving(false);
-            if (searchTimer.current) {
-                clearTimeout(searchTimer.current);
-                searchTimer.current = null;
+  useEffect(() => {
+    if (show) {
+      loadExisting();
+    } else {
+      // Reset state when modal closes
+      setSearchResults([]);
+      setSelectedUsers([]);
+      setExistingUsers([]);
+      setLoadError(false);
+    }
+  }, [show, personIdentifier]);
+
+  const loadExisting = async () => {
+    setLoadingExisting(true);
+    setLoadError(false);
+    try {
+      const res = await fetch(
+        `/api/db/admin/proxy?personIdentifier=${personIdentifier}`,
+        { headers: { Authorization: reciterConfig.backendApiKey } }
+      );
+      const data = await res.json();
+      setExistingUsers(data);
+      setSelectedUsers(data);
+    } catch (err) {
+      console.log('[PROXY] Error loading existing proxies:', err);
+      setLoadError(true);
+    }
+    setLoadingExisting(false);
+  };
+
+  const handleSearch = (query: string) => {
+    if (searchTimer.current) {
+      clearTimeout(searchTimer.current);
+    }
+
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    searchTimer.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(
+          `/api/db/admin/proxy/search-users?q=${encodeURIComponent(query)}`,
+          { headers: { Authorization: reciterConfig.backendApiKey } }
+        );
+        const data = await res.json();
+        // Flatten nested Sequelize response to flat ProxyUser objects
+        const flatUsers: ProxyUser[] = data.map((u: any) => ({
+          userID: u.userID,
+          personIdentifier: u.personIdentifier || '',
+          nameFirst: u.nameFirst || '',
+          nameMiddle: u.nameMiddle || '',
+          nameLast: u.nameLast || '',
+        }));
+        setSearchResults(flatUsers);
+      } catch (err) {
+        console.log('[PROXY] Error searching users:', err);
+        setSearchResults([]);
+      }
+      setSearchLoading(false);
+    }, 300);
+  };
+
+  const formatUserLabel = (user: ProxyUser) => {
+    const name = [user.nameLast, user.nameFirst].filter(Boolean).join(', ');
+    return user.personIdentifier ? `${name} (${user.personIdentifier})` : name;
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/db/admin/proxy/grant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: reciterConfig.backendApiKey,
+        },
+        body: JSON.stringify({
+          personIdentifier,
+          userIds: selectedUsers.map((u) => u.userID),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Save failed');
+      }
+
+      toast.success('Proxy access granted. Changes take effect on the user\'s next login.', {
+        position: 'top-right',
+        autoClose: 5000,
+        theme: 'colored',
+      });
+      onSave();
+      onHide();
+    } catch (err) {
+      console.log('[PROXY] Error saving proxy assignments:', err);
+      toast.error('Unable to save proxy assignments. Please try again.', {
+        position: 'top-right',
+        autoClose: 5000,
+        theme: 'colored',
+      });
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal show={show} onHide={onHide} size="lg" aria-labelledby="grantProxyModalTitle">
+      <Modal.Header closeButton>
+        <Modal.Title id="grantProxyModalTitle" style={{ fontSize: '20px', fontWeight: 400 }}>
+          Grant Proxy Access
+        </Modal.Title>
+      </Modal.Header>
+      <Modal.Body style={{ padding: '16px' }}>
+        <p style={{ fontSize: '14px', color: '#777777', marginBottom: '16px' }}>
+          Select users who can curate publications for {personName}
+        </p>
+        {loadingExisting ? (
+          <Loader />
+        ) : loadError ? (
+          <div role="alert" style={{ color: '#dc3545', fontSize: '14px' }}>
+            Unable to load proxy data. Please close and try again.
+          </div>
+        ) : (
+          <Autocomplete
+            multiple
+            options={searchResults}
+            value={selectedUsers}
+            onChange={(_event, newValue) => setSelectedUsers(newValue as ProxyUser[])}
+            onInputChange={(_event, value, reason) => {
+              if (reason === 'input') {
+                handleSearch(value);
+              }
+            }}
+            getOptionLabel={(option) => formatUserLabel(option as ProxyUser)}
+            isOptionEqualToValue={(option, value) =>
+              (option as ProxyUser).userID === (value as ProxyUser).userID
             }
-        }
-    }, [show, personIdentifier]);
-
-    const loadExisting = async () => {
-        setLoadingExisting(true);
-        setLoadError(false);
-        try {
-            const res = await fetch(
-                `/api/db/admin/proxy?personIdentifier=${encodeURIComponent(personIdentifier)}`,
-                {
-                    headers: {
-                        'Authorization': reciterConfig.backendApiKey,
-                    },
-                }
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data: ProxyUser[] = await res.json();
-            setExistingUsers(data);
-            setSelectedUsers(data);
-        } catch (err) {
-            console.error('[GrantProxyModal] loadExisting error:', err);
-            setLoadError(true);
-        } finally {
-            setLoadingExisting(false);
-        }
-    };
-
-    const handleSearch = (query: string) => {
-        if (searchTimer.current) {
-            clearTimeout(searchTimer.current);
-        }
-        if (!query || query.length < 2) {
-            setSearchResults([]);
-            setSearchLoading(false);
-            return;
-        }
-        setSearchLoading(true);
-        searchTimer.current = setTimeout(async () => {
-            try {
-                const res = await fetch(
-                    `/api/db/admin/proxy/search-users?q=${encodeURIComponent(query)}`,
-                    {
-                        headers: {
-                            'Authorization': reciterConfig.backendApiKey,
-                        },
-                    }
-                );
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                // Handle both flat and nested Sequelize response formats
-                const users: ProxyUser[] = data.map((item: any) => ({
-                    userID: item.userID,
-                    personIdentifier: item.personIdentifier || '',
-                    nameFirst: item.nameFirst || '',
-                    nameMiddle: item.nameMiddle || '',
-                    nameLast: item.nameLast || '',
-                }));
-                setSearchResults(users);
-            } catch (err) {
-                console.error('[GrantProxyModal] search error:', err);
-                setSearchResults([]);
-            } finally {
-                setSearchLoading(false);
-            }
-        }, 300);
-    };
-
-    const formatUserLabel = (user: ProxyUser): string => {
-        const name = [user.nameLast, user.nameFirst].filter(Boolean).join(', ');
-        return user.personIdentifier ? `${name} (${user.personIdentifier})` : name;
-    };
-
-    const handleSave = async () => {
-        setSaving(true);
-        try {
-            const res = await fetch('/api/db/admin/proxy/grant', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': reciterConfig.backendApiKey,
-                },
-                body: JSON.stringify({
-                    personIdentifier,
-                    userIds: selectedUsers.map((u) => u.userID),
-                }),
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            toast.success(
-                'Proxy access updated. Changes take effect on the user\'s next login.',
-                { position: 'top-right', autoClose: 5000, theme: 'colored' }
-            );
-            onSave();
-            onHide();
-        } catch (err) {
-            console.error('[GrantProxyModal] save error:', err);
-            toast.error(
-                'Failed to update proxy access. Please try again.',
-                { position: 'top-right', autoClose: 5000, theme: 'colored' }
-            );
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleDiscard = () => {
-        onHide();
-    };
-
-    // Filter out already-selected users from search results
-    const filteredResults = searchResults.filter(
-        (sr) => !selectedUsers.some((su) => su.userID === sr.userID)
-    );
-
-    return (
-        <Modal show={show} onHide={onHide} centered size="lg">
-            <Modal.Header closeButton>
-                <Modal.Title style={{ fontSize: 13, fontWeight: 600, color: '#1a2133' }}>
-                    Manage Proxy Access
-                </Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                <div className={styles.subtitle}>for {personName}</div>
-
-                {loadingExisting ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-                        <Loader />
-                    </div>
-                ) : loadError ? (
-                    <div className={styles.errorState}>
-                        Unable to load proxy data. Please close and try again.
-                    </div>
-                ) : (
+            noOptionsText="No users found matching your search."
+            loading={searchLoading}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                placeholder="Search users..."
+                variant="outlined"
+                size="small"
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
                     <>
-                        <Autocomplete
-                            multiple
-                            disablePortal
-                            options={filteredResults}
-                            getOptionLabel={formatUserLabel}
-                            filterOptions={(x) => x}
-                            value={selectedUsers}
-                            loading={searchLoading}
-                            noOptionsText="No users found matching your search."
-                            isOptionEqualToValue={(option, value) => option.userID === value.userID}
-                            onChange={(_event, newValue) => {
-                                setSelectedUsers(newValue as ProxyUser[]);
-                            }}
-                            onInputChange={(_event, value, reason) => {
-                                if (reason === 'input') {
-                                    handleSearch(value);
-                                }
-                            }}
-                            renderTags={(value, getTagProps) =>
-                                value.map((user, index) => {
-                                    const { key, ...tagProps } = getTagProps({ index });
-                                    return (
-                                        <span
-                                            key={key}
-                                            {...tagProps}
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 4,
-                                                background: '#1a2133',
-                                                color: '#fff',
-                                                borderRadius: 20,
-                                                padding: '3px 10px',
-                                                fontSize: 12,
-                                                fontWeight: 500,
-                                                margin: '2px 4px 2px 0',
-                                            }}
-                                        >
-                                            {formatUserLabel(user)}
-                                            <button
-                                                type="button"
-                                                onClick={tagProps.onDelete}
-                                                aria-label="Remove"
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    fontSize: 16,
-                                                    lineHeight: 1,
-                                                    marginLeft: 4,
-                                                    opacity: 0.7,
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    padding: 0,
-                                                    color: 'inherit',
-                                                    minWidth: 24,
-                                                    minHeight: 24,
-                                                }}
-                                            >
-                                                &times;
-                                            </button>
-                                        </span>
-                                    );
-                                })
-                            }
-                            renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    variant="outlined"
-                                    placeholder="Search users by name or CWID..."
-                                    size="small"
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            background: '#fff',
-                                            '& fieldset': {
-                                                borderColor: '#ddd7ce',
-                                            },
-                                            '&:hover fieldset': {
-                                                borderColor: '#ddd7ce',
-                                            },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: '#2563a8',
-                                                borderWidth: 2,
-                                            },
-                                        },
-                                    }}
-                                />
-                            )}
-                        />
-                        {existingUsers.length === 0 && selectedUsers.length === 0 && (
-                            <div className={styles.emptyState}>
-                                No users currently have proxy access for this person.
-                            </div>
-                        )}
-                        <div className={styles.loginNote}>
-                            Any user who has logged in can be assigned as a proxy. Access takes effect on their next login.
-                        </div>
+                      {searchLoading ? <Spinner animation="border" size="sm" /> : null}
+                      {params.InputProps.endAdornment}
                     </>
-                )}
-            </Modal.Body>
-            <div className={styles.footer}>
-                <button
-                    type="button"
-                    className={styles.btnDiscard}
-                    onClick={handleDiscard}
-                >
-                    Discard Changes
-                </button>
-                <button
-                    type="button"
-                    className={styles.btnSave}
-                    onClick={handleSave}
-                    disabled={saving || loadingExisting || loadError}
-                >
-                    {saving ? (
-                        <>
-                            <Spinner
-                                as="span"
-                                animation="border"
-                                size="sm"
-                                role="status"
-                                aria-hidden="true"
-                                style={{ marginRight: 6 }}
-                            />
-                            Saving...
-                        </>
-                    ) : (
-                        'Save Changes'
-                    )}
-                </button>
-            </div>
-        </Modal>
-    );
+                  ),
+                }}
+              />
+            )}
+          />
+        )}
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={onHide}>
+          Discard Changes
+        </Button>
+        <Button
+          variant="primary"
+          onClick={handleSave}
+          disabled={saving || loadingExisting || loadError}
+        >
+          {saving ? (
+            <>
+              <Spinner animation="border" size="sm" className="me-2" />
+              Saving...
+            </>
+          ) : (
+            'Save Proxy Assignments'
+          )}
+        </Button>
+      </Modal.Footer>
+    </Modal>
+  );
 };
 
 export default GrantProxyModal;
