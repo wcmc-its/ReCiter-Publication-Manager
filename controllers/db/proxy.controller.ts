@@ -109,7 +109,7 @@ export const saveProxiesForUser = async (req: NextApiRequest, res: NextApiRespon
         }
 
         await models.AdminUser.update(
-            { proxy_person_ids: personIdentifiers && personIdentifiers.length > 0 ? personIdentifiers : null },
+            { proxy_person_ids: personIdentifiers && personIdentifiers.length > 0 ? JSON.stringify(personIdentifiers) : null },
             { where: { userID } }
         );
 
@@ -158,7 +158,7 @@ export const grantProxyForPerson = async (req: NextApiRequest, res: NextApiRespo
             const currentArr = parseJsonColumn(row.proxy_person_ids);
             const newArr = currentArr.filter((pid: string) => pid !== personIdentifier);
             await models.AdminUser.update(
-                { proxy_person_ids: newArr.length > 0 ? newArr : null },
+                { proxy_person_ids: newArr.length > 0 ? JSON.stringify(newArr) : null },
                 { where: { userID: uid } }
             );
         }
@@ -177,7 +177,7 @@ export const grantProxyForPerson = async (req: NextApiRequest, res: NextApiRespo
                     currentArr.push(personIdentifier);
                 }
                 await models.AdminUser.update(
-                    { proxy_person_ids: currentArr },
+                    { proxy_person_ids: JSON.stringify(currentArr) },
                     { where: { userID: uid } }
                 );
             }
