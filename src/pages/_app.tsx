@@ -4,7 +4,7 @@ import { Provider as ReduxProvider } from 'react-redux'
 import { useStore } from '../redux/store/store'
 import type { Page } from '../../types/pages'
 import type { AppProps } from 'next/app'
-import { SessionProvider } from "next-auth/client"
+import { Provider as SessionProvider } from "next-auth/client"
 import type { NextPage } from 'next'
 import type { ReactElement, ReactNode } from 'react'
 // Header removed — brand is in sidebar, user info in content area
