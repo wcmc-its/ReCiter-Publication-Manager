@@ -51,7 +51,7 @@ type NextPageWithLayout = NextPage & {
   getLayout?: (page: ReactElement) => ReactNode
 }
 
-type AppPropsWithLayout = AppProps<{ session?: any }> & {
+type AppPropsWithLayout = AppProps<{ session?: any; initialReduxState?: any }> & {
   Component: NextPageWithLayout
 }
 
