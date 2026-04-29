@@ -2268,6 +2268,37 @@ export const adminSettingsListAction = (adminSettingsList) => dispatch => {
     })
 }
 
+export const fetchAdminSettingsAction = () => (dispatch) => {
+    return fetchWithTimeout('/api/db/admin/settings', {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            "Authorization": reciterConfig.backendApiKey
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("Failed to load settings");
+        return response.json();
+    })
+    .then(data => {
+        dispatch({
+            type: methods.ADMIN_SETTINGS_UPDATED_LIST,
+            payload: data
+        });
+    })
+    .catch(error => {
+        console.error("Admin Settings API failed:", error);
+        toast.error("Failed to load Admin Settings", {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+        });
+        dispatch(addError(error));
+    });
+};
+
 export const saveNotification = (payload) => dispatch => {
       fetch(`/api/db/admin/notifications`, {
         credentials: "same-origin",
