@@ -11,8 +11,7 @@ import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
 import Excel from 'exceljs';
 import { ExportButton } from "../Report/ExportButton";
 import { useSession } from 'next-auth/client';
-import { setHelptextInfo, setReportFilterLabels } from "../../../utils/constants";
-import { getPermissionsFromRaw, hasPermission } from '../../../utils/permissionUtils';
+import { allowedPermissions, setHelptextInfo, setReportFilterLabels, getCapabilities } from "../../../utils/constants";
 
 
 
@@ -50,7 +49,6 @@ const Profile = ({
  }) => {
   const dispatch = useDispatch()
   const relationshipsDisplayed = 10;
-  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
@@ -59,10 +57,10 @@ const Profile = ({
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const [session, loading] = useSession();
-  const permissions = getPermissionsFromRaw((session as any)?.data?.permissions);
+  const userPermissions = JSON.parse(session.data.userRoles);
+  const caps = getCapabilities(userPermissions);
+  const canViewPII = caps.canCurate.all || caps.canCurate.self;
   const [displayImage, setDisplayImage] = useState<boolean>(true);
-  const [exportArticlesRTF, setExportArticlesRTF] = useState([])
-
 
 
 
@@ -81,21 +79,6 @@ const Profile = ({
      Promise.all([fetchIdentityPromise, showBiblioAnalysisPromise]).then(() => { setIsLoading(false); })
     }
   }, [modalShow])
-
-  useEffect(()=>{
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
-    let exportArticleRTFViewAttr = [];
-
-    if (updatedAdminSettings.length > 0) {
-      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
-      exportArticleRTFViewAttr = exportRTF.viewAttributes;
-    }else{
-      let exportRTF = JSON.parse(adminSettings).find(obj => obj.viewName === "reportingArticleRTF")
-      exportArticleRTFViewAttr = JSON.parse(exportRTF.viewAttributes);
-    }
-    setExportArticlesRTF(exportArticleRTFViewAttr)
-
-  },[])
 
   const ADDITIONAL_INFO_CONFIGS = [
     {
@@ -223,7 +206,7 @@ const Profile = ({
         <p>
           {defaultList}
           {" "}
-          {relationships.length > defaultNumber ? <span className={styles.textButton} onClick={() => setDisplayAll(true)}>Show more</span> : ''}
+          {relationships.length > defaultNumber ? <button type="button" className={`btn btn-link p-0 ${styles.textButton}`} onClick={() => setDisplayAll(true)}>Show more</button> : ''}
         </p>
       )
     }
@@ -300,14 +283,11 @@ const Profile = ({
       }
     }
 
-    if (list.emails) {
-      let roleAccess = hasPermission(permissions, 'canCurate') || hasPermission(permissions, 'canManageUsers')
-      if (list.emails.length > 0 && roleAccess) {
-        let formattedEmails = list.emails.map((email) => {
-          return {name: email}
-        })
-        rows.push({ title: 'Emails', values: formattedEmails})
-      }
+    if (list.emails && list.emails.length > 0 && canViewPII) {
+      let formattedEmails = list.emails.map((email) => {
+        return {name: email}
+      })
+      rows.push({ title: 'Emails', values: formattedEmails})
     }
 
     let formattedRelationships = [];
@@ -352,7 +332,7 @@ const Profile = ({
           })
         } 
         {
-          list.knownRelationships && list.knownRelationships.length > 0 &&
+          canViewPII && list.knownRelationships && list.knownRelationships.length > 0 &&
           <tr key={rows.length}>
             <td align="right" width="20%">
               <div className="m-3">
@@ -466,7 +446,7 @@ const Profile = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       },
-      body: JSON.stringify({ personIdentifiers: [uid],limit: exportArticlesRTF && exportArticlesRTF.length > 0 && exportArticlesRTF[0].maxLimit  })
+      body: JSON.stringify({ personIdentifiers: [uid] })
     }).then(response => {
       return response.blob();
     })
@@ -519,7 +499,11 @@ const Profile = ({
         isLoading ? 
         <Modal.Body><Loader /></Modal.Body> : 
         isError ? 
-        <Modal.Body><p>Something went wrong. Please try again later.</p></Modal.Body> :
+        <Modal.Body>
+          <p style={{ color: '#dc3545', fontSize: '14px', textAlign: 'center', padding: '24px' }}>
+            Unable to load profile data. The person record may be incomplete or temporarily unavailable. Try again or contact your administrator.
+          </p>
+        </Modal.Body> :
         <>
         <Modal.Header closeButton className={styles.modalHeader}>
           <Container>
@@ -528,7 +512,7 @@ const Profile = ({
               {
                 displayImage && identity.identityImageEndpoint && headShotLabelData && headShotLabelData.length > 0 && headShotLabelData[0].isVisible &&
               <Image
-                alt='Profile Image'
+                alt={identity?.primaryName ? `${identity.primaryName.firstName || ''} ${identity.primaryName.lastName || ''}`.trim() : ''}
                 width={144}
                 height={217}
                 src={headShotLabelData.length > 0 && headShotLabelData[0]?.syntax?.replace("{personIdentifier}", identity.uid)}

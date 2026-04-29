@@ -11,7 +11,6 @@ import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import {getSession } from "next-auth/client"
-import { getPermissionsFromRaw, hasPermission } from '../../../utils/permissionUtils'
 
 const App = (props) => {
 
@@ -30,18 +29,13 @@ const App = (props) => {
     const session = getSession();
 
     useEffect(() => {
-        // Call only if user has canCurate permission
-        if (session) {
-            session.then((sess) => {
-                if (sess && sess.data && sess.data.permissions) {
-                    const perms = getPermissionsFromRaw(sess.data.permissions)
-                    if (hasPermission(perms, 'canCurate')) {
-                        dispatch(reciterFetchData(props.uid, false))
-                        dispatch(identityFetchData(props.uid))
-                    }
-                }
-            })
-        }
+        // Call only if user has curator_self role. otherwise, we should not call these APIs.
+        if(session && session.data && session.data.userRoles && session.data.userRoles.length > 0 
+            && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) 
+         {   
+            dispatch(reciterFetchData(props.uid, false))
+            dispatch(identityFetchData(props.uid))
+         }
     },[])
 
     const tabClickHandler = (str = 'Suggested') => {

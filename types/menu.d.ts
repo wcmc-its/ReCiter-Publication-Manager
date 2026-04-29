@@ -1,14 +1,12 @@
-import type SvgIcon from '@mui/material/SvgIcon'
-import { Url } from 'next/dist/shared/lib/router/router'
-
-type SvgIconComponent = typeof SvgIcon
-
 export type MenuItem = {
   title: string
   to?: Url
   nestedMenu?: Array<MenuItem>
   id?: number
-  icon?: SvgIconComponent
+  imgUrl?: string | StaticImport
+  imgUrlActive?: string | StaticImport
+  muiIcon?: any
   disabled?: boolean
-  permissionKey?: string
+  allowedRoleNames?:Array,
+  isRequired?:boolean
 }

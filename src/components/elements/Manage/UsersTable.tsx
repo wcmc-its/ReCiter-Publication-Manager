@@ -5,76 +5,74 @@ import Image from 'next/image'
 import Link from "next/link";
 import { useRouter } from 'next/router'
 import { Button } from 'react-bootstrap';
-import { notificationEmail, sendNotification } from '../../../redux/actions/actions';
-import { useDispatch } from 'react-redux';
 
 interface UsersTableProps {
-  data: any,
-  onSendNotifications: () => void,
-  nameOrcwidLabel?:string,
-  isVisibleNotification?:boolean
+  data: any
 }
 
-const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOrcwidLabel, isVisibleNotification }) => {
+const UsersTable:React.FC<UsersTableProps> = ({ data }) => {
   const router = useRouter();
-  const dispatch = useDispatch();
-  
-
-  const onClicked = ()=>{
-    sendNotification()
-  }
-
-  const redirectToNotifications  = (userID, email,nameFirst)=>{
-    let selectedUserInfo = {
-      email : email,
-      userName : nameFirst
-    }
-    dispatch(notificationEmail(selectedUserInfo));
-    router.push(`/notifications/${userID}`)
-  }
-
-  const redirectToManageProfile = (userID)=>{
-    router.push(`/manageprofile/${userID}`)
-  }
-
-  const redirectToManageUsers = (userID)=>{
-    router.push(`/manageusers/${userID}`)
-  }
-
-
-
   return (
-    <Table striped hover>
+    <Table striped bordered hover>
       <thead className={styles.tableHead}>
         <tr className={styles.tableHeadRow}>
-          <th className={styles.tableHeadCell}>Name</th>
-          <th className={styles.tableHeadCell}>Department</th>
-          <th className={styles.tableHeadCell}>Email</th>
-          <th className={styles.tableHeadCell}>Actions</th>
+          <th scope="col" className={styles.tableHeadCell}>Name</th>
+          <th scope="col" className={styles.tableHeadCell}>Department</th>
+          <th scope="col" className={styles.tableHeadCell}>Roles</th>
+          <th scope="col" className={styles.tableHeadCell}>Email</th>
+          <th scope="col" className={styles.tableHeadCell} style={{ minWidth: '80px' }}>Proxies</th>
+          <th scope="col" className={styles.tableHeadCell}>Actions</th>
         </tr>
       </thead>
       <tbody>
         {
          data && data.length > 0 ? data.map((user, index) => {
-          const {nameFirst, nameLast, userID,personIdentifier,email, department, primaryOrganizationalUnit} = user;
+            const {nameFirst, nameLast, userID,personIdentifier,email} = user;
+            const roles = user.adminUsersRoles?.map(ur => ur.role?.roleLabel).filter(Boolean) || [];
+            const personTypes = user.adminUsersPersonTypes?.map(pt => pt.personType).filter(Boolean) || [];
+            const departments = user.adminUsersDepartments?.map(ud => ud.department?.departmentLabel).filter(Boolean) || [];
             return (
               <tr key={index}>
                 <td><div>
-                  <p className="text-primary mb-0">{`${nameFirst || "" } ${nameLast || ""}`}</p>
-                  <p className="mb-0">{primaryOrganizationalUnit || ""}</p>
-                  <p className="mb-0">{nameOrcwidLabel || "Person ID "}: {personIdentifier || ""}</p>
+                  <p className="text-primary mb-0">{`${nameFirst && nameFirst != "null" ? nameFirst : "" } ${nameLast && nameLast != "null" ? nameLast : ""}`}</p>
+                  <p>person ID: {personIdentifier}</p>
                   </div>
                   </td>
-                <td>{department || ""}</td>
-                <td>{email || ""}</td>
-                <td> <div> 
-                  <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageUsers(userID)} size="sm">Manage User</Button>
-                  <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageProfile(personIdentifier)} size="sm">Manage Profile</Button>
-                  {isVisibleNotification && email && <Button size="sm" variant="outline-dark"  className='fw-bold' onClick={()=> redirectToNotifications(personIdentifier, email, nameFirst)}>Manage Notifications</Button> }</div>
+                <td>{departments.join(', ')}</td>
+                <td>
+                  <span style={{ fontSize: '14px', fontWeight: 400 }}>
+                    {roles.map((role, i) => {
+                      if (role === 'Curator_Scoped') {
+                        const scopeParts = [...personTypes, ...departments];
+                        return (
+                          <span key={i}>
+                            {i > 0 ? ', ' : ''}Curator_Scoped
+                            {scopeParts.length > 0 && (
+                              <span style={{ fontSize: '12px', fontWeight: 600, color: '#777777' }}>
+                                {' '}({scopeParts.join(', ')})
+                              </span>
+                            )}
+                          </span>
+                        );
+                      }
+                      return <span key={i}>{i > 0 ? ', ' : ''}{role}</span>;
+                    })}
+                  </span>
+                </td>
+                <td>{email}</td>
+                <td>
+                  {(() => {
+                    const count = user.adminUsersProxies?.length || 0;
+                    if (count === 0) return '\u2014';
+                    if (count === 1) return '1 person';
+                    return `${count} people`;
+                  })()}
+                </td>
+                <td> <div> <Button   variant="outline-dark" className='fw-bold' href={`/manageusers/${userID}`} size="sm">Manage User</Button> <Button size="sm" variant="outline-dark"  className='d-none text-light'>Manage Notifications</Button></div>
                 </td>
               </tr>
             )
-          }) : <p className={styles.noRecordsFound}>No Records Found</p>
+          }) : <tr><td colSpan={6}><p className={styles.noRecordsFound}>No Records Found</p></td></tr>
         }
       </tbody>
     </Table>

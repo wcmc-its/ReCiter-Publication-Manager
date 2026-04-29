@@ -10,7 +10,6 @@ import { useSelector, RootStateOrAny, useDispatch } from "react-redux";
 import HistoryModal from "./HistoryModal";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
-import InfoIcon from '@mui/icons-material/Info';
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -155,14 +154,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-4">
             <Col xs lg={6} className="p-1"><button
                 className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault((showEvidence || props.index === props.showEvidenceDefault) ? props.index : null))}}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
             ><CheckIcon fontSize="small"/> Accept
             </button>
             </Col>
             <Col xs lg={6} className="p-1">
             <button
                 className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault((showEvidence || props.index === props.showEvidenceDefault) ? props.index : null))}}
+                onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
             ><ClearIcon fontSize="small"/> Reject
             </button>
             </Col>
@@ -173,14 +172,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             <Row className="d-flex justify-content-md-between px-4">
               <Col xs lg={6} className="p-1"><button
                 className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault((showEvidence || props.index === props.showEvidenceDefault) ? props.index : null))}}
+                onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
               ><UndoIcon fontSize="small"/>Undo
               </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
                   className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                  onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault((showEvidence || props.index === props.showEvidenceDefault) ? props.index : null))}}
+                  onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
                 ><ClearIcon fontSize="small"/>Reject
                 </button>
               </Col>
@@ -192,14 +191,14 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               <Col xs lg={6} className="p-1">
                 <button
                     className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                    onClick={() => { props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED'); dispatch(showEvidenceByDefault((showEvidence || props.index === props.showEvidenceDefault) ? props.index : null))}}
+                    onClick={() => { props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
                 > <CheckIcon fontSize="small"/> Accept
                 </button>
               </Col>
               <Col xs lg={6} className="p-1">
                 <button
                     className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                    onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault((showEvidence || props.index === props.showEvidenceDefault) ? props.index : null))}}
+                    onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
                 ><UndoIcon fontSize="small"/> Undo
                 </button>
               </Col>
@@ -261,14 +260,13 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { educationYearEvidence: 'Degree year discrepancy'},
       { genderEvidence: 'Inferred gender of name '},
       { articleCountEvidence: 'Candidate article count'},
-      { authorCountEvidence: 'Candidate author count'},
-      //{ averageClusteringEvidence: 'Clustering'},
+      { averageClusteringEvidence: 'Clustering'},
       { coAuthorAffiliationEvidence: 'Co-authors\'s institutional affiliation'},
     ]
 
     const evidenceTableCellFields = {
        authorNameEvidence: { points: 'nameScoreTotal', dataFormat: 'true' },
-       relationshipEvidence: { relationshipNegativeScore: 'relationshipNegativeMatchScore',relationshipPostiveScore: 'relationshipPositiveMatchScore', relationshipIdentityCount: 'relationshipIdentityCount', dataFormat: 'true'},
+       relationshipEvidence: { points: 'relationshipEvidenceTotalScore', dataFormat: 'true'},
        emailEvidence: { points: 'emailMatchScore', institutionalData:'emailMatch', articleData: 'emailMatch'}, 
        organizationalUnitEvidence: { dataFormat: 'true' },
        affiliationEvidence: { scopusUrl: 'https://www.scopus.com/affil/profile.uri?afid=', dataFormat: 'true' } ,
@@ -277,8 +275,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
        educationYearEvidence: { points: 'educationYearEvidence', articleData: 'articleYear', dataFormat: 'true'},
        genderEvidence: { source: 'https://data.world/howarder/gender-by-name', dataFormat: 'true'},
        articleCountEvidence: { institutionalData:'-', articleData: 'countArticlesRetrieved', points: 'articleCountScore'},
-       authorCountEvidence: { institutionalData:'-', articleData: 'countAuthors', points: 'authorCountScore'},
-       //averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
+       averageClusteringEvidence: { institutionalData:'-', dataFormat: 'true', points: 'clusterScoreModificationOfTotalScore'},
        personTypeEvidence: { institutionalData: 'personType', points: 'personTypeScore'},
        coAuthorAffiliationEvidence: { dataFormat: 'true'},
     }
@@ -286,7 +283,11 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const displayRow = (row, evidence) => {
       if (evidence.hasOwnProperty(Object.keys(row)[0])) {
         if (Object.keys(row)[0] === 'relationshipEvidence') {
+          if (evidence.relationshipEvidence.hasOwnProperty('relationshipPositiveMatch')) {
             return true;
+          } else {
+            return false;
+          }
         } else {
           return true
         }
@@ -307,7 +308,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
           let points = '';
-		      let pointsText:any = '';						  
           let source = '';
           let institutionalData = '-';
           let articleData = '-';
@@ -321,7 +321,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 if (evidence[rowName][rowFields['points']]) {
                   let unFormattedpoints = evidence[rowName][rowFields['points']]
                   points = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();
-				  																				   
                 }
               }
             }
@@ -333,14 +332,9 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               }
 
               if (rowName === 'relationshipEvidence') {
-		
-		points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
-                pointsText = <div>
-                  
-                <p>Positive match: {(evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2)}</p>
-                <p>Negative match: {(evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2)}</p>
-                <p>Identity count: {evidence[rowName].relationshipIdentityCount || 0}</p>
-              </div>				  
+                if(evidence[rowName].hasOwnProperty('relationshipEvidenceTotalScore')) {
+                  points = evidence[rowName].relationshipEvidenceTotalScore.toFixed(2)
+                }
                 if (evidence[rowName].hasOwnProperty('relationshipPositiveMatch')) {
                   displayInstDataList = true;
                   displayArticleDataList = true;
@@ -549,7 +543,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             title: Object.values(title),
             name: Object.keys(title)[0],
             points: points,
-			      pointsText : pointsText,						
             institutionalData: institutionalData,
             articleData: articleData,
             displayInstDataList: displayInstDataList,
@@ -584,7 +577,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                       <strong>{evidenceRow.title}</strong>
                       {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
                       <br></br>
-  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points != 0 ? evidenceRow.points : '0.00'} points`}</small>}																 
+                      {<small>{`${evidenceRow.points} points`}</small>}
                     </p>
                   </td>
                   <td width="40%">
@@ -600,105 +593,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         )
     }
 
-// Type the parameter as an object with string keys and number values
-const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.Element => {
-  // Sort the object by score in descending order
-  const sortedFeedback = feedbackEvidence && Object.entries(feedbackEvidence)
-  .sort((a, b) => b[1] - a[1])  // Sort by value in descending order
-  .map(([key, value]) => {
-    // Explicitly assert that key is a string and value is a number
-    const typedKey = key as string; // `key` is inferred as `string`
-    const typedValue = value as number; // `value` is inferred as `number`
-
-    const convertedTypedKey = typedKey
-    //remove the word feedbackScore from the label names
-    .replace('feedbackScore', '')
-    // Insert spaces before uppercase letters
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    // Capitalize the first letter of each word and lowercase the rest
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-
-    // Check if 'typedKey' contains 'Orcid' and update 'typedKey' accordingly
-    const updatedKey = convertedTypedKey.includes('Orcid')
-    ? convertedTypedKey.replace('Orcid', 'ORCID') // Change 'Orcid' to uppercase 'ORCID'
-    : convertedTypedKey;
-    
-    const updatedLabel = updatedKey.includes('Co Author Name')
-    ? updatedKey.replace('Co Author Name:', 'Co-Author Name')
-    : updatedKey;
-  
-    const updatedOrCidLabel = updatedLabel.includes('Co Author')
-    ? updatedLabel.replace('Co Author', 'Co-Author')
-    : updatedLabel;
-    
-    const updatedJournalSubFieldLabel = updatedOrCidLabel.includes('Journal Sub Field')
-    ? updatedOrCidLabel.replace('Journal Sub Field', 'Journal Subfield')
-    : updatedOrCidLabel;
-
-    return [updatedJournalSubFieldLabel, Math.round(typedValue)] as [string, number]; // Ensure that the return is of type [string, number]
-  });
-   // Split the sorted feedback into 4 columns (each column has 3 items)
-   const columns: [string, number][][] = [[], [], [], []];
-  
-   sortedFeedback?.forEach((item, index) => {
-     const columnIndex = Math.floor(index / 3); // Distribute every 3 items into a column
-     if (columnIndex < 4) {
-       columns[columnIndex].push(item);
-     }
-   });
- 
-
-  return (
-    <div className={styles.feedbackContainer}>
-      <div className={styles.columnContainer}>
-        {columns.map((column, index) => (
-          <div className={styles.column} key={index}>
-            {column.map(([key, value], index) => (
-              <div className={styles.feedbackItem} key={index}>
-                <strong>{key}:</strong> {value}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      <h5 style={{marginBottom:"20px"}}>Feedback-based scores</h5>
-      <React.Fragment>
-        <OverlayTrigger
-          trigger={["focus", "hover"]}
-          overlay={
-            <Popover id="feedback-information" style={{ maxWidth: "400px" }}>
-              <Popover.Body>
-                <p>
-                  Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for 
-                  <b> {fullName.trim()}.</b> Each subscore represents the contribution of a specific attribute, such as ORCID, institution, or journal, to the overall likelihood that the article was authored by 
-                  <b> {fullName.trim()}.</b>
-                </p>
-                <p>
-                  A score of 100 for an attribute indicates strong evidence supporting authorship, while a score of -100 suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence, making the feedback more ambiguous for that category.
-                </p>
-              </Popover.Body>
-            </Popover>
-          }
-          placement="right"
-        >
-          <p>
-            <span style={{ color: '#80808078', cursor: 'pointer' }}>
-              <InfoIcon fontSize="small" style={{ fontSize: '22px', marginLeft: '7px' }} /> <u>Learn more</u>
-            </span>
-          </p>
-        </OverlayTrigger>
-      </React.Fragment>
-    </div>
-  );
-};    
-    
     return (
       <Row className={styles.articleContainer}>
         <Col md={2} className={styles.publicationButtons}>
@@ -709,27 +603,14 @@ const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
                     <OverlayTrigger 
                       trigger={["focus", "hover"]} 
                       overlay={(      
-                        <Popover id="keyword-information" style={{ maxWidth: "395px" }}>
+                        <Popover id="keyword-information">
                           <Popover.Body>
-                              <p>
-                              According to ReCiter’s neural network model, the 
-                              likelihood that <b>{props.fullName}</b> has authored this article is&nbsp;
-                              <b>{reciterArticle.authorshipLikelihoodScore ?  (Math.floor(reciterArticle.authorshipLikelihoodScore * 100) / 100).toFixed(5)   : "N/A"}%.</b>
-                              </p>
-                              <p style={{marginBottom:'0px'}}>This estimate is based on: </p>
-                              <ul style={{paddingLeft: '1rem'}}>
-                                   <li>Identity information (e.g., known email address)</li>
-                                   <li>Feedback on other articles</li>
-                                   <li>Raw count of accepted and rejected articles</li>
-                              </ul>
-                                <p>To investigate which evidence is used to generate this 
-                                score, click on &quot;Explore supporting evidence.&quot;
-                                </p>												 
-	                      </Popover.Body>
+                          <strong>{`${reciterArticle.totalArticleScoreNonStandardized} :`}</strong> Raw score<br/><strong>{`${reciterArticle.totalArticleScoreStandardized} :`} </strong>Standardized score (1-10)<br/><br/>These scores represent the strength of evidence supporting the possibility that <b>{props.fullName}</b> wrote this article. To investigate which evidence is used to generate this score, click on &quot;Show evidence behind this suggestion.&quot;
+                          </Popover.Body>
                         </Popover>)} placement="right">
                           <p className={styles.publicationScore}>
-                            Likelihood<br />Score<br />
-                            <strong>{reciterArticle.authorshipLikelihoodScore ? Math.round(reciterArticle.authorshipLikelihoodScore) : "N/A"}</strong>
+                            Matching<br />Score<br />
+                            <strong>{reciterArticle.totalArticleScoreStandardized ? reciterArticle.totalArticleScoreStandardized : "N/A"}</strong>
                           </p>
                     </OverlayTrigger>
                 </React.Fragment>: <p></p>
@@ -750,43 +631,26 @@ const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
               <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
           {reciterArticle.doi ?
             <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span> : ""}
-          {Object.keys(feedbacklog).length > 0 ? <span className={styles.midDot} onClick={onOpenModal}> <div className={`text-decoration-underline d-inline ${styles.cursorPointer}`}>Show History</div> </span> : ""}
+          {Object.keys(feedbacklog).length > 0 ? <span className={styles.midDot}> <button type="button" className={`btn btn-link p-0 text-decoration-underline d-inline ${styles.cursorPointer}`} onClick={onOpenModal}>Show History</button> </span> : ""}
         </div>
         {
           (reciterArticle.evidence !== undefined) ?
             <div className={styles.publicationEvidenceBar}>
-               {/* <p onClick={()=>updatedToggleEvidence(props.index)}>  */}
-                <p onClick={()=>toogleEvidence(props.index)}> 
+                <button type="button" className={`btn btn-link p-0 ${styles.publicationShowEvidenceLink}`} onClick={()=>toogleEvidence(props.index)}>
                 {
                    (props.index === props.showEvidenceDefault) || showEvidence?
                     <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Explore supporting evidence</span>
+                      className={styles.publicationEvidenceShow}>Hide evidence behind this suggestion</span>
                     :
                     <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Explore supporting evidence</span>
+                      className={styles.publicationEvidenceHide}>Show evidence behind this suggestion</span>
                 }
-              </p>
+              </button>
 
 
                         <div
                             className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
-							      
-                    {reciterArticle.evidence && reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0 ? (
-                      <>
-                        {showOverlayFeedbackScoreLearnMorePopup(props.fullName.trim())}
-                            <>{displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)}<br></br></>
-                            </>
-				   
-                          ) : (
-                            <>
-                            {showOverlayFeedbackScoreLearnMorePopup(props.fullName.trim())}
-
-                             <p><i>No feedback available.</i></p>                            
-                            <br></br>
-                            </>
-                          )}
-                          <h5>Identity-based scores</h5>
-	                        <div className="table-responsive">
+                            <div className="table-responsive">
                                 <table className={`${styles.publicationsEvidenceTable} table table-striped`}>
                                     <thead>
                                     <tr>

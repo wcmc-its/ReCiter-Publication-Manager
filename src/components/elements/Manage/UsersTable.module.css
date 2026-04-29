@@ -1,20 +1,124 @@
-.tableHead {
-  border-color: #ddd;
+/* ── TABLE ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #eae6df;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.tableHeadRow {
-  border-top: 0px;
+.table thead tr {
+  background: #faf8f5;
 }
 
-.tableHeadCell {
-  border-left: 0px;
-  border-right: 0px;
-}
-
-.tableBody {
-  border-top: 2px solid #ddd;
-}
-.noRecordsFound{
-  padding: 1em 0;
+.table th {
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 11px;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a847c;
+  border-bottom: 1px solid #eae6df;
+  white-space: nowrap;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid #eae6df;
+  transition: background 0.1s;
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: #faf8f5;
+}
+
+.table td {
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+
+/* ── Name cell ── */
+.personName {
+  font-size: 14px;
+  font-weight: 500;
+  color: #2c4a7c;
+  margin-bottom: 1px;
+  white-space: nowrap;
+}
+
+.personDept {
+  font-size: 12px;
+  color: #8a847c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.personId {
+  font-size: 11px;
+  color: #a09a92;
+  margin-top: 2px;
+}
+
+.idLabel {
+  font-weight: 500;
+  color: #6b6560;
+}
+
+/* ── Email ── */
+.email {
+  font-size: 13px;
+  color: #6b6560;
+}
+
+/* ── Role cell ── */
+.roleLabel {
+  font-size: 13px;
+  color: #6b6560;
+  line-height: 1.5;
+}
+
+.roleMuted {
+  font-size: 12px;
+  color: #a09a92;
+}
+
+.proxyCount {
+  font-size: 11px;
+  color: #a09a92;
+  margin-top: 2px;
+}
+
+/* ── Action links ── */
+.actionLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: #2c4a7c;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.actionLink:hover {
+  text-decoration: underline;
+}
+
+.actionDot {
+  color: #d0cbc3;
+  margin: 0 3px;
+}
+
+/* ── No records ── */
+.noRecordsFound {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: #8a94a6;
 }

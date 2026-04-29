@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault, updateAuthorFilter } from '../../../redux/actions/actions'
+import { identityFetchAllData, curateIdsFromSearch, identityFetchPaginatedData, updateFilters, clearFilters, updateFilteredIds, updateFilteredIdentities, identityClearAllData, F, updateIndividualPersonReportCriteria, showEvidenceByDefault, updateAuthorFilter, updateScopeFilter } from '../../../redux/actions/actions'
 import styles from './Search.module.css'
 import { useSelector, useDispatch } from "react-redux";
 import { useRouter } from "next/router";
@@ -9,16 +9,18 @@ import publicationStyles from '../Publication/Publication.module.css';
 import { useSession } from 'next-auth/client';
 import SearchBar from "./SearchBar";
 import FilterReview from "./FilterReview";
+import ScopeFilterCheckbox from './ScopeFilterCheckbox';
 import fetchWithTimeout from "../../../utils/fetchWithTimeout";
 import { Table,Button} from "react-bootstrap";
-import SplitDropdown from "../Dropdown/SplitDropdown";
-import Loader from "../Common/Loader";
+import SkeletonTable from "../Common/SkeletonTable";
 import { reciterConfig } from "../../../../config/local";
 import { useHistory } from "react-router-dom";
-import { numberFormation } from "../../../utils/constants"
-import { getPermissionsFromRaw, hasPermission } from '../../../utils/permissionUtils'
+import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation, getCapabilities } from "../../../utils/constants"
+import { isPersonInScope, isProxyFor } from '../../../utils/scopeResolver';
+import ProxyBadge from './ProxyBadge';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import Tooltip from '@mui/material/Tooltip';
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
-import Profile from "../Profile/Profile";
 
 const Search = () => {
 
@@ -35,7 +37,7 @@ const Search = () => {
   const identityPaginatedFetching = useSelector((state) => state.identityPaginatedFetching)
   const filters = useSelector((state) => state.filters)
   const updatedAdminSettings = useSelector((state) => state.updatedAdminSettings)
-  
+
 
   const errors = useSelector((state) => state.errors)
 
@@ -54,28 +56,34 @@ const Search = () => {
   const [countAllData, setCountAllData] = useState(0);
   const [isCountLoading, setIsCountLoading] = useState(false);
 
+  const[dropdownTitle, setDropdownTitle] = useState("");
+  const[dropdownMenuItems, setDropdownMenuItems] = useState([]);
+  const[isCuratorSelf ,setIsCuratorSelf] = useState(false);
+  const[isCuratorAll ,setIsCuratorAll] = useState(false);
+  const[isReporterAll ,setIsReporterAll] = useState(false);
+  const[isSuperUser ,setIsSuperUser] = useState(false);
+  const[loggedInPersonIdentifier, setLoggedInPersonIdentifier] = useState("");
   const [findPeopleLabels, setFindPeopleLabels] = useState([])
   const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
 
-  const [showProfile, setShowprofile] = useState(false);
-  const [showProfileID, setShowprofileID] = useState("");
-  const [headShot, setHeadShot] = useState([]);
-  const [viewProfileLabels, setViewProfileLabels] = useState([])
-  
+  // Scope filter state from Redux
+  const showOnlyScopeFiltered = useSelector((state) => state.showOnlyScopeFiltered);
+
+  // Derive scope capabilities from session
+  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  const caps = getCapabilities(userRoles);
+  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
+  const proxyPersonIds = session?.data?.proxyPersonIds
+    ? JSON.parse(session.data.proxyPersonIds)
+    : [];
+  const showScopeCheckbox = caps.canCurate.scoped && !caps.canCurate.all;
+
   //ref
   const searchValue = useRef()
 
-  // Permission-based visibility
-  const permissions = getPermissionsFromRaw(session?.data?.permissions)
-  const canCurate = hasPermission(permissions, 'canCurate')
-  const canReport = hasPermission(permissions, 'canReport')
-  const canManageUsers = hasPermission(permissions, 'canManageUsers')
-  const canSearch = hasPermission(permissions, 'canSearch')
-  // Self-only: has canCurate but NOT canSearch (Curator_Self without broader roles)
-  const isSelfOnly = canCurate && !canSearch
-
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
+
     dispatch(clearFilters())
     let adminSettings = JSON.parse(session.adminSettings);
     var viewAttributes = [];
@@ -97,72 +105,86 @@ const Search = () => {
     // view attributes data from session or updated settings
     setFindPeopleLabels(viewAttributes)
 
+    let userPermissions = JSON.parse(session.data.userRoles);
+
+    // Use capability model from Plan 01
+    const caps = getCapabilities(userPermissions);
+    setIsCuratorSelf(caps.canCurate.self && !caps.canCurate.all);
+    setIsCuratorAll(caps.canCurate.all);
+    setIsReporterAll(caps.canReport);
+    setIsSuperUser(caps.canManageUsers);
+
+    if (caps.canCurate.self && !caps.canCurate.all) {
+      setLoggedInPersonIdentifier(caps.canCurate.personIdentifier);
+    }
+
+    // UIBUG-01: No "Curate publications" in dropdown for ANY user
+    // Dropdown shows only "Create Reports" as a simple button
+    setDropdownTitle("Create Reports");
+    setDropdownMenuItems([]);
+
     // if (identityAllData.length === 0) {
       fetchPaginatedData()
       fetchCount()
     // }
-    fetchAllAdminSettings()
   }, [])
 
-  const fetchAllAdminSettings = () => {
-    const request = {};
-    fetch(`/api/db/admin/settings`, {
-      credentials: "same-origin",
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        "Content-Type": "application/json",
-        'Authorization': reciterConfig.backendApiKey
-      },
-      body: JSON.stringify(request),
-    }).then(response => response.json())
-      .then(data => {
-        let parsedSettingsArray = [];
-        data.map((obj, index1) => {
-          let a = JSON.stringify(obj.viewAttributes)
-          let b = JSON.parse(a);
-          let c = typeof(b) === "string" ? JSON.parse(b) : b
-          let parsedSettings = {
-            viewName : obj.viewName,
-            viewAttributes: c,
-            viewLabel: obj.viewLabel
-          }
-          parsedSettingsArray.push(parsedSettings)
-        })
-        var viewAttributes = [];
-        var headShotViewAttributes = [];
+  // Pre-check scope filter from query param (e.g., from "Curate Publications" nav link)
+  useEffect(() => {
+    if (router.query.scopeFilter === 'true' && showScopeCheckbox) {
+      dispatch(updateScopeFilter(true));
+    }
+  }, [router.query.scopeFilter])
 
-        let updatedData = parsedSettingsArray.find(obj => obj.viewName === "viewProfile")
-        let headShotData = parsedSettingsArray.find(obj => obj.viewName === "headshot")
-
-        viewAttributes = updatedData.viewAttributes;
-        headShotViewAttributes = headShotData.viewAttributes
-        setViewProfileLabels(viewAttributes)
-        setHeadShot(headShotViewAttributes)
-      })
-      .catch(error => {
-        // setLoading(false);
-      });
-  }
-
+  const handleScopeFilterChange = (checked) => {
+    dispatch(updateScopeFilter(checked));
+    // Re-fetch with scope filter applied
+    if (checked && scopeData) {
+      let scopeFilters = {};
+      if (scopeData.personTypes) {
+        scopeFilters = { ...scopeFilters, personTypes: scopeData.personTypes };
+      }
+      if (scopeData.orgUnits) {
+        scopeFilters = { ...scopeFilters, orgUnits: scopeData.orgUnits };
+      }
+      // Include proxy matches via OR logic
+      if (proxyPersonIds.length > 0) {
+        scopeFilters = { ...scopeFilters, proxyPersonIds: proxyPersonIds };
+      }
+      let updatedFilters = { ...filters, ...scopeFilters };
+      let request = {
+        filters: { ...updatedFilters },
+        limit: count,
+        offset: 0
+      };
+      dispatch(updateFilters(updatedFilters));
+      dispatch(identityFetchAllData(request));
+      setPage(1);
+    } else if (!checked) {
+      // Reset to unfiltered paginated data
+      dispatch(clearFilters());
+      fetchPaginatedData();
+      fetchCount();
+    }
+  };
 
   const fetchIdentityData = () => {
     dispatch(identityFetchAllData(filters));
   }
 
   const fetchPaginatedData = (newCount) => {
-    if (newCount === 'reset') {
-      let filters = {}
-      dispatch(identityFetchPaginatedData(1, count, filters))
-    } else {
-      dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
-    }
+    const options = showScopeCheckbox ? { includeScopeData: true } : {};
+    dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters, options))
   }
 
 
   const handlePaginationUpdate = (page) => {
     setPage(page)
-      dispatch(identityFetchPaginatedData(page, count, filters))
+
+    if (Object.keys(filters).length === 0) {
+      const options = showScopeCheckbox ? { includeScopeData: true } : {};
+      dispatch(identityFetchPaginatedData(page, count, filters, options))
+    }
   }
 
   const handleCountUpdate = (count) => {
@@ -258,16 +280,29 @@ const Search = () => {
       updatedFilters = { ...updatedFilters, personTypes: [...personTypes] };
     }
 
+    // Apply scope filters when scope checkbox is checked
+    if (showOnlyScopeFiltered && scopeData) {
+      if (scopeData.personTypes) {
+        updatedFilters = { ...updatedFilters, personTypes: scopeData.personTypes };
+      }
+      if (scopeData.orgUnits) {
+        updatedFilters = { ...updatedFilters, orgUnits: scopeData.orgUnits };
+      }
+      // Include proxy matches via OR logic
+      if (proxyPersonIds.length > 0) {
+        updatedFilters = { ...updatedFilters, proxyPersonIds: proxyPersonIds };
+      }
+    }
+
     let request = {
       filters: { ...updatedFilters },
       limit:count,
-      offset: page - 1 
+      offset: page - 1
     }
 
     dispatch(updateFilters(updatedFilters));
     dispatch(identityFetchAllData(request));
     setPage(1);
-    setFilterByPending(false);
   }
 
   const handlePendingFilterUpdate = (value) => {
@@ -285,9 +320,6 @@ const Search = () => {
   }
 
   const onClickProfile = (personIdentifier) => {
-    // setShowprofile(true);
-    // setShowprofileID(personIdentifier)
-   
     router.push(`/curate/${personIdentifier}`);
     if (identityAllData && !identityAllFetching) {
       dispatch(identityClearAllData())
@@ -295,14 +327,9 @@ const Search = () => {
     }
   }
 
-  const handleClose = () => setShowprofile(false);
-  const handleShow = () => setShowprofile(false);
-
   const resetData = () => {
     dispatch(clearFilters())
-    setPage(1)
-    setCount(20)
-    fetchPaginatedData('reset')
+    fetchPaginatedData()
     fetchCount()
   }
 
@@ -334,12 +361,9 @@ const Search = () => {
     }
   }
 
-  const redirectToCurate = (isFor, data, title) => {
-    if(title === "View Profile"){
-      // let isLoggedInUser =  data === loggedInPersonIdentifier
-      setShowprofile(true);
-      setShowprofileID(data.personIdentifier)
-    }else {
+  const redirectToCurate = (isFor, data) => {
+
+    // if()
     if (isFor === "individual") {
       router.push({
         pathname: `/curate/${data}`,
@@ -358,7 +382,6 @@ const Search = () => {
       })
     }
   }
-  }
 
   // Spinner when navigating between pages
   const isDisplayLoaderTable = () => {
@@ -369,29 +392,17 @@ const Search = () => {
   }
   
   const RoleSplitDropdown = (identity) => {
-    const dropdownItems = []
-    if (canReport) dropdownItems.push({ title: 'Create Reports', to: '' })
-    dropdownItems.push({ title: 'View Profile', to: '' })
-
-    if (canCurate && canReport) {
-      return (
-        <SplitDropdown
-          title={"Curate Publications"}
-          onDropDownClick={(e) => redirectToCurate("individual", identity.identity.personIdentifier, e)}
-          id={`curate-publications_${identity.identity.personIdentifier}`}
-          listItems={dropdownItems}
-          secondary={true}
-          onClick={(e) => redirectToCurate("report", identity.identity, e)}
-        />
-      )
-    }
-    if (canCurate) {
-      return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
-    }
-    if (canReport) {
-      return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("report", identity.identity)}>{"Create Reports"}</Button>
-    }
-    return null
+    // UIBUG-01: "Curate publications" removed from dropdown for ALL users
+    // Remaining action: Create Reports button only
+    return (
+      <Button
+        className="secondary"
+        variant="secondary"
+        onClick={() => redirectToCurate("report", identity.identity)}
+      >
+        {"Create Reports"}
+      </Button>
+    );
   }
 
 
@@ -403,14 +414,27 @@ const Search = () => {
   if (paginatedIdentities?.length > 0) {
     // setCurateIds(paginatedIdentities);
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
+      // Determine if this person is in scope for scoped curators
+      const personInScope = caps.canCurate.all || isSuperUser || (caps.canCurate.scoped && scopeData && isPersonInScope(
+        scopeData,
+        identity.primaryOrganizationalUnit,
+        identity.PersonPersonTypes?.map(pt => pt.personType) || []
+      )) || isProxyFor(proxyPersonIds, identity.personIdentifier);
+
+      // Name click handler: in-scope goes to curate, out-of-scope goes to report
+      const handleNameClick = () => {
+        if (isCuratorSelf && identity.personIdentifier !== loggedInPersonIdentifier) {
+          redirectToCurate("report", identity);
+        } else if (caps.canCurate.all || isSuperUser || (caps.canCurate.scoped && personInScope)) {
+          onClickProfile(identity.personIdentifier);
+        } else {
+          redirectToCurate("report", identity);
+        }
+      };
+
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
-        {
-          isSelfOnly ?
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === session?.data?.username ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)}></Name>
-          :
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={canCurate ? () => onClickProfile(identity.personIdentifier) : () => redirectToCurate("report", identity)}></Name>
-        }
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={handleNameClick} isProxy={isProxyFor(proxyPersonIds, identity.personIdentifier)}></Name>
         </td>
         <td key={`${identityIndex}__orgUnit`} width="20%">
           {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
@@ -418,15 +442,24 @@ const Search = () => {
         <td key={`${identityIndex}__institution`} width="20%">
           {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
         </td>
-        {canManageUsers || (canCurate && canSearch) ?
+        {isCuratorAll || isSuperUser  ?
         <td key={`${identityIndex}__pending`} width="10%">
           {identity.countPendingArticles && <div>{identity.countPendingArticles}</div>}
         </td>
          : ""}
         <td key={`${identityIndex}__dropdown`} width="20%">
-          {
-            <RoleSplitDropdown identity = {identity}></RoleSplitDropdown>
-          }
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {personInScope && (caps.canCurate.all || caps.canCurate.scoped || isSuperUser) && (
+              <Tooltip title="Curate publications">
+                <EditOutlinedIcon
+                  titleAccess="Curate publications"
+                  sx={{ color: '#337ab7', fontSize: 20, cursor: 'pointer', minWidth: 44, minHeight: 44, padding: '12px' }}
+                  onClick={() => router.push(`/curate/${identity.personIdentifier}`)}
+                />
+              </Tooltip>
+            )}
+            <RoleSplitDropdown identity={identity}></RoleSplitDropdown>
+          </div>
         </td>
       </tr>;
     })
@@ -451,7 +484,7 @@ const Search = () => {
           <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
           {(isDisplayLoader()) ?
             (
-              <Loader />
+              <SkeletonTable />
             ) : (
               <div>
                 <br />
@@ -461,14 +494,20 @@ const Search = () => {
                       <h3><strong>{ numberFormation(totalCountUpdated)}</strong> people</h3>
                     </div>
                   </div>}
-                {filtersOn && <FilterReview count={totalCountUpdated}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} showPendingToggle = {canManageUsers || (canCurate && canSearch)} />}
+                {showScopeCheckbox && (
+                  <ScopeFilterCheckbox
+                    checked={showOnlyScopeFiltered}
+                    onChange={handleScopeFilterChange}
+                  />
+                )}
+                {filtersOn && <FilterReview count={totalCountUpdated}  onCurate={redirectToCurate} filterByPending={filterByPending} onToggle={handlePendingFilterUpdate} showPendingToggle = {isCuratorAll || isSuperUser} />}
                 <React.Fragment>
                   <Pagination total={totalCountUpdated} page={page}
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
                   />
-                  {isDisplayLoaderTable() ? <Loader /> :
+                  {isDisplayLoaderTable() ? <SkeletonTable /> :
                     <div className="table-responsive">
                       <Table className={`${publicationStyles.h6fnhWdegPublicationsEvidenceTable} ${styles.table} table`}>
                         <thead>
@@ -476,7 +515,7 @@ const Search = () => {
                             <th key="0">Name</th>
                             <th key="1">Organization</th>
                             <th key="2">Institution</th>
-                            {canManageUsers || (canCurate && canSearch) ? <th key="3">Pending</th> : ""}
+                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : ""}
                             <th key="4">Actions</th>
                           </tr>
                         </thead>
@@ -490,15 +529,6 @@ const Search = () => {
                     count={count}
                     onChange={handlePaginationUpdate}
                     onCountChange={handleCountUpdate}
-                  />
-
-                  <Profile
-                    uid={showProfileID}
-                    modalShow={showProfile}
-                    handleShow={handleShow}
-                    handleClose={handleClose}
-                    viewProfileLabels={viewProfileLabels}
-                    headShotLabelData = {headShot}
                   />
                 </React.Fragment>
               </div>
@@ -529,6 +559,7 @@ function Name(props) {
     nameArray.push(<p key="0"> <button className={`text-btn ${styles.btnLink}`} onClick={props.onClickProfile}>
       <b>{nameString}</b>
     </button>
+      {props.isProxy && <ProxyBadge />}
       <br />
       {props.identity.title && <>{props.identity.title}<br /></>}
       {props.nameOrcwidLabel}: {props.identity.personIdentifier}</p>)

@@ -2,17 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import { reciterConfig } from '../../../../config/local';
 import { useRouter } from 'next/router'
-import { adminSettingsListAction, updatedAdminSettings ,sendEmailData} from "../../../redux/actions/actions";
+import { adminSettingsListAction, updatedAdminSettings } from "../../../redux/actions/actions";
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
-import { Accordion, Button, Form, InputGroup, Card,Spinner } from "react-bootstrap"
-import Loader from "../Common/Loader";
-import { toast } from "react-toastify";
-import { resolveSrv } from "dns";
-import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import moment from 'moment-timezone';
-
+import { Accordion, Button, Form, InputGroup, Card } from "react-bootstrap"
+import SkeletonForm from "../Common/SkeletonForm";
 
 const AdminSettings = () => {
 
@@ -25,18 +20,11 @@ const AdminSettings = () => {
   const [labelOverRide, setLabelOverride] = useState("");
   const [helpText, setHelpText] = useState("");
   const [isChecked, setIsChecked] = useState(false);
-  const [personIdentifierError, setPersonIdentifierError ] = useState('');
-  const [showTestEmailText, setShowTestEmailText] = useState(false)
-  const [emailDeliveredTime, setEmailDeliveredTime] = useState("");
-  const [emailRecipient, setEmailRecipient] = useState("");
-  const [isSendTestEmail, setIsSendTestEmail] = useState(false);
-  const[noConfiguredNotifMsg,setNoConfiguredNotifMsg] = useState(""); 
-  const[noEligiblePubNotifMsg,setNoEligiblePubNotifMsg] = useState("");
-  const[successEmailNotifMsg,setSuccessEmailNotifMsg] = useState("");
-  const [senTestEmailLoading, setSendTestEmailLoading] = useState(false);
-  const [emailError, setEmailError ] = useState('');
 
+ 
   const dispatch = useDispatch();
+
+
 
   useEffect(() => {
     fetchAllAdminSettings()
@@ -78,9 +66,9 @@ const AdminSettings = () => {
   }
 
   const handleValueChange = (viewLabelIndex?: number, viewAttrIndex?: number, name? : string, e?:any , labelName? : string) => {
-    if(name === "personIdentifier" || name === "emailOverride") setIsSendTestEmail(false);
-
+    console.log('name of the field',name,e);
     setSettings(settings.map((obj, index1) => {
+      console.log('inside map function',obj,index1)
       if (index1 == viewLabelIndex) {
         return {
           ...obj,
@@ -89,30 +77,10 @@ const AdminSettings = () => {
               if (index2 == viewAttrIndex) {
                 //  return innerObj[name] = e.target.value
                 if(name === "isVisible") return { ...innerObj, [name]: !innerObj.isVisible }
-                else if(name === "useEmailForScheduledJobs" ) return { ...innerObj, [name]: !innerObj.useEmailForScheduledJobs }
                 else if(labelName === "Reporting Article RTF" && e.target.value > 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: true }
                 else if(labelName === "Reporting Article RTF" && e.target.value < 30000) return { ...innerObj, [name]: e.target.value || 0, ["isValidate"]: false }
-                else if(name === "isChecked" && innerObj.hasOwnProperty('isRoleGroup')){
-                  return {
-                    ...innerObj,
-                    roles:
-                      innerObj.roles.map((rolesInfo, rolesIndex) => {
-                        if(!innerObj.isRoleGroup){
-                          if (rolesIndex === labelName) return { ...rolesInfo, [name]: !rolesInfo.isChecked }
-                          else return { ...rolesInfo }
-                        }else{
-                          if (rolesIndex === labelName) return { ...rolesInfo, [name]: !rolesInfo.isChecked }
-                          else return { ...rolesInfo, [name]: false }
-                        }
-                      })
-                  }
-                }
-                else {
-                  if(name === "personIdentifier") setPersonIdentifierError("")
-                  if(name=== "emailOverride") setEmailError("")
-                  return { ...innerObj, [name]: e.target.value }
-                 
-                }
+
+                else return { ...innerObj, [name]: e.target.value }
               }
               else return { ...innerObj }
             })
@@ -149,7 +117,6 @@ const AdminSettings = () => {
       .then(data => {
         dispatch(updatedAdminSettings(data))
         setSettings(data);
-        setIsSendTestEmail(false);
         setLoading(false);
       })
       .catch(error => {
@@ -158,101 +125,12 @@ const AdminSettings = () => {
       });
   }
 
-
-  const sendTestEmail = (personIdentifier, emailRecipient) => {
-    let personIdentifiersStr = '';
-    if(personIdentifier && personIdentifier.length > 0)
-    {
-      let personIdentifierArr = personIdentifier.split(',');
-      personIdentifiersStr = personIdentifierArr.map(s => s.trim()).join(',');
-       
-    }
-    if(!emailRecipient || emailRecipient.length <=0)
-    {
-      setEmailError("Email is required");
-      return;
-    }
-    let emailSentDate = moment(new Date().toUTCString()).tz("America/New_York").format("hh:mm A zz")
-    setEmailDeliveredTime(emailSentDate);
-    setSuccessEmailNotifMsg("");
-    setNoEligiblePubNotifMsg("");
-    setNoConfiguredNotifMsg("");
-    if (personIdentifiersStr && personIdentifiersStr.length > 0) {
-      // setIsSendTestEmail(true)
-      setEmailRecipient(emailRecipient);
-      setSendTestEmailLoading(true);
-      let payLoad = {
-        "personIdentifier": personIdentifiersStr, "emailOverride": emailRecipient
-      }
-
-      fetch(`/api/notification/sendEmail`, {
-        credentials: "same-origin",
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          "Content-Type": "application/json",
-          'Authorization': reciterConfig.backendApiKey
-        },
-        body: JSON.stringify(payLoad)
-      }).then(response => {
-        if (response.status === 200) {
-          return response.json()
-        } else {
-          throw {
-            type: response.type,
-            title: response.statusText,
-            status: response.status,
-            detail: "Error occurred with api " + response.url + ". Please, try again later "
-          }
-        }
-      }).then(data => {
-        if (data.message && data.message === "Could not find any notifications") {
-          setIsSendTestEmail(false);
-          setSendTestEmailLoading(false);
-          toast.info("No data found to send an email", {
-            position: "top-right",
-            autoClose: 4000,
-            theme: 'colored'
-          });
-        } else {
-          setIsSendTestEmail(true)
-          if(data && data.noConfiguredNotificationMsg)
-            setNoConfiguredNotifMsg(data.noConfiguredNotificationMsg);
-          if(data && data.noEligiblePubNotifMsg)
-            setNoEligiblePubNotifMsg(data.noEligiblePubNotifMsg);
-          if(data && data.successEmailNotifMsg)
-          {
-            let successEmailNotifMsg = data.successEmailNotifMsg;
-            setSuccessEmailNotifMsg(successEmailNotifMsg);
-          }
-          setSendTestEmailLoading(false);
-          toast.success("Test email sent Successfully - to " + payLoad.emailOverride, {
-            position: "top-right",
-            autoClose: 4000,
-            theme: 'colored'
-          });
-        }
-      }).catch(error => {
-      setSendTestEmailLoading(false);
-        toast.error("Send Test Email failed - " + error.title, {
-          position: "top-right",
-          autoClose: 2000,
-          theme: 'colored'
-        });
-      })
-
-    } else {
-      setPersonIdentifierError("Person Identifier(s) are required");
-    }
-  }
-
-
   return (
     <div className={appStyles.mainContainer}>
       <PageHeader label="Settings" />
       <p>Changes will apply to all users and will be reflected with next login</p>
       {
-        loading ? <div className="d-flex justify-content-center align-items"><Loader /> </div>
+        loading ? <SkeletonForm />
         :
         <>
       <Accordion defaultActiveKey="0">
@@ -264,18 +142,19 @@ const AdminSettings = () => {
                 <Accordion.Body>
                   {
                     obj.viewAttributes.map((innerObj, viewAttrIndex) => {
-                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank,roles,personIdentifier,emailOverride,submitButton,useEmailForScheduledJobs} = innerObj;
-                      return <Card style={{ width: '60rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
+                      const { labelSettingsView, labelUserView,errorMessage,isValidate, labelUserKey, helpTextSettingsView, isVisible, helpTextUserView, maxLimit,syntax,displayRank} = innerObj;
+                      return <Card style={{ width: '40rem', marginBottom: '3px' }} key={`${viewAttrIndex}`}>
                         <Card.Body>
                           <Card.Title>{labelSettingsView}</Card.Title>
                           <Card.Subtitle className="mb-2 text-muted">{helpTextSettingsView}</Card.Subtitle>
                           <Card.Text>
-                          {(innerObj && innerObj.hasOwnProperty('labelUserView'))  && labelSettingsView !== "Email signature" &&
+                          { labelUserView &&
                             <div className="d-flex">
-                              <p className={styles.labels}>Label Override</p>
+                              <Form.Label htmlFor={`labelOverride-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Label Override</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="labelOverRide"
+                                id={`labelOverride-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`labelUserView-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Label override"
                                 value={labelUserView}
@@ -283,81 +162,51 @@ const AdminSettings = () => {
                               />
                             </div>
                             }
-                            {(innerObj && innerObj.hasOwnProperty('labelUserView')) && labelSettingsView == "Email signature" &&
-
-                              <div className="d-flex">
-                                <p className={styles.labels}>Label</p>
-                                <Form.Control
-                                  type="textarea"
-                                  name="labelOverRide"
-                                  as="textarea" rows={3}
-                                  className={`form-control ${styles.searchInput}`}
-                                  placeholder="Label"
-                                  value={labelUserView}
-                                  onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "labelUserView", e)}
-                                />
-                              </div>
-                            }
-                            {(innerObj && innerObj.hasOwnProperty('helpTextUserView')) &&
-                            <div className="d-flex mt-4 mb-4">
-                              <p className={styles.labels}>Help Text</p>
+                            { helpTextUserView &&
+                            <div className="d-flex mt-2 mb-2">
+                              <Form.Label htmlFor={`helpText-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Help Text</Form.Label>
                               <Form.Control
                                 type="textarea"
                                 as="textarea"
-                                className={`form-control ${styles.searchInput} ml-8`}
+                                id={`helpText-${viewLabelIndex}-${viewAttrIndex}`}
+                                className={`form-control ${styles.searchInput} ml-5`}
                                 placeholder="Help text"
                                 value={helpTextUserView}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "helpTextUserView", e)}
                               />
                             </div>
                             }
-                            {(innerObj && innerObj.hasOwnProperty('syntax')) && 
+                            {
+                              syntax &&
                               <div className="d-flex">
-                              <p className={styles.labels}>Image Path</p>
+                              <Form.Label htmlFor={`syntax-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Image Path</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="labelOverRide"
+                                id={`syntax-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`syntax-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
-                                placeholder="Label override"
+                                placeholder="Image path"
                                 value={syntax || ""}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "syntax", e)}
                               />
                             </div>
                             }
-                           {(innerObj && innerObj.hasOwnProperty('isVisible')) && labelUserKey == 'emailNotifications' &&
                             <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Is enabled</p>
-                              <div>
-                                <Form.Check
-                                  type="checkbox"
-                                  id="check"
-                                  checked={isVisible}
-                                // value={isChecked}
+                              <Form.Check
+                                type="checkbox"
+                                id={`visibility-${viewLabelIndex}-${viewAttrIndex}`}
+                                label="Is visible"
+                                checked={!!isVisible}
                                 onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isVisible", e)}
-                                />
-                              </div> 
+                              />
                             </div>
-                           }  
-                          {(innerObj && innerObj.hasOwnProperty('isVisible')) && labelUserKey != 'emailNotifications' && 
-                            <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Is visible</p>
-                              <div>
-                                <Form.Check
-                                  type="checkbox"
-                                  id="check"
-                                  checked={isVisible}
-                                // value={isChecked}
-                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isVisible", e)}
-                                />
-                              </div> 
-                            </div>
-                           }
                            { (innerObj && innerObj.hasOwnProperty('displayRank')) &&
                             <div className="d-flex">
-                              <p className={styles.labelForCheckBox}>Display Rank</p>
+                              <Form.Label htmlFor={`displayRank-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labelForCheckBox}>Display Rank</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="displayRank"
+                                id={`displayRank-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`displayRank-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Display Rank"
                                 value={displayRank}
@@ -365,77 +214,13 @@ const AdminSettings = () => {
                               />
                             </div>
                            }
-                           { (innerObj && innerObj.hasOwnProperty('personIdentifier')) && <>
-                            <div className="d-flex mb-2">
-                              <p className={styles.labels}>Person Identifier(s)</p>
-                              <Form.Control
-                                type="textarea"
-                                as="textarea" rows={3}
-                                name="personIdentifier"
-                                className={`form-control ${styles.searchInput}`}
-                                placeholder="PersonIdentifier1, PersonIdentifier2, PersonIdentifier3, etc"
-                                value={personIdentifier}
-                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "personIdentifier", e, obj.viewLabel)}
-                              />
-                            </div>
-                              {personIdentifierError && personIdentifier === "" && <p className="textError" >{personIdentifierError}</p>}
-                              </>
-                           }
-                           { (innerObj && innerObj.hasOwnProperty('emailOverride')) && <>
-                            <div className="d-flex">
-                              <p className={styles.labels}>Email</p>
-                              <Form.Control
-                                type="text"
-                                name="emailOverride"
-                                className={`form-control ${styles.searchInput}`}
-                                placeholder="Recipient email address"
-                                value={emailOverride}
-                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "emailOverride", e, obj.viewLabel)}
-                              />
-                            </div>
-                              {emailError && emailOverride === "" && <p className="textError" >{emailError}</p>}
-                              </>
-                           }
-                           {(innerObj && innerObj.hasOwnProperty('useEmailForScheduledJobs'))  && 
-                            <div className={`d-flex ${styles.pt5}`}>
-                              <p >Use Email Override in all regularly scheduled jobs</p>
-                              <div className={styles.pl20}>
-                                <Form.Check
-                                  type="checkbox"
-                                  id="check"
-                                  checked={useEmailForScheduledJobs}
-                                // value={isChecked}
-                                onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "useEmailForScheduledJobs", e)}
-                                />
-                              </div> 
-                            </div>
-                           }  
-                          {(innerObj && innerObj.hasOwnProperty('submitButton')) &&
-                              <div className="d-flex sendTestEmailInfo">
-                                <Button
-                                  type="button"
-                                  name="submitButton"
-                                  variant="primary" className="mt-3"
-                                  onClick={() => sendTestEmail(personIdentifier, emailOverride)}
-                                > 
-                                 { senTestEmailLoading ? <div className="d-flex">
-                    <Spinner animation="border" role="status" className="danger">
-                      {/* <span className="">Loading...</span> */}
-                    </Spinner> <h5>Loading...</h5></div>: "Send test email" }
-                                </Button>
-                                <div>
-                               {isSendTestEmail && <p> {noConfiguredNotifMsg}</p>  }
-                               {isSendTestEmail && <p> {noEligiblePubNotifMsg}</p>  }
-                               {isSendTestEmail && successEmailNotifMsg ? <p> {successEmailNotifMsg} <span> {emailRecipient}</span> at {emailDeliveredTime}.</p> :'' }
-                               </div>
-                              </div>
-                            }
-                           { (innerObj && innerObj.hasOwnProperty('maxLimit')) && labelUserKey !== "suggestedEmailNotificationsLimit" && labelUserKey !== "acceptedEmailNotificationsLimit" && <>
+                           { maxLimit && maxLimit >= 0 && <>
                            <div className="d-flex">
-                              <p className={styles.labels}>Max Limit</p>
+                              <Form.Label htmlFor={`maxLimit-${viewLabelIndex}-${viewAttrIndex}`} className={styles.labels}>Max Limit</Form.Label>
                               <Form.Control
                                 type="text"
-                                name="maxLimit"
+                                id={`maxLimit-${viewLabelIndex}-${viewAttrIndex}`}
+                                name={`maxLimit-${viewLabelIndex}-${viewAttrIndex}`}
                                 className={`form-control ${styles.searchInput}`}
                                 placeholder="Max Limit"
                                 defaultValue="30000"
@@ -445,32 +230,6 @@ const AdminSettings = () => {
                             </div>
                             {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
                            }
-                           {(innerObj && innerObj.hasOwnProperty('maxLimit')) && (labelUserKey === "suggestedEmailNotificationsLimit" || labelUserKey === "acceptedEmailNotificationsLimit") && <>
-                              <div className="d-flex">
-                                <p className={styles.labels}>Max Limit</p>
-                                <Form.Select aria-label="Default select example"  value={maxLimit} defaultValue={1} onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "maxLimit", e, obj.viewLabel)} className={styles.selectFrequecy}>
-                                {[ ...Array(20) ].map((e, i) =>{ return <option value={1+i} key={i} >{1+i}</option>})}
-                                </Form.Select>
-                              </div>
-                              {isValidate && <p className={styles.errorMessage}>{errorMessage}</p>}</>
-                            }
-                            {
-                              innerObj && innerObj.hasOwnProperty('isRoleGroup') && roles.map((roleInfo, rolesIndex) => {
-                                const { roleId, roleLabel, isChecked } = roleInfo;
-                                return <div className="d-flex" key={`${rolesIndex}`}>
-                                  <div>
-                                    <Form.Check
-                                      type="checkbox"
-                                      id="rolecheckbox"
-                                      checked={isChecked}
-                                      // value={isChecked}
-                                      onChange={(e) => handleValueChange(viewLabelIndex, viewAttrIndex, "isChecked", e, rolesIndex)}
-                                    />
-                                  </div>
-                                  <p className={styles.rolesLabel}>{roleLabel}</p>
-                                </div>
-                              })
-                            }
                           </Card.Text>
                         </Card.Body>
                       </Card>
@@ -486,8 +245,6 @@ const AdminSettings = () => {
       <Button variant="primary" className="mt-3" onClick={() => handleSubmit()}>Update</Button>
       </>
       }
-
-<ToastContainerWrapper />
     </div>
   )
 

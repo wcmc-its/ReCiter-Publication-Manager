@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from 'next/router';
 import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData, reciterFetchData, reCalcPubMedPubCount, fetchFeedbacklog, addError, cancelRecomputePolling } from "../../../redux/actions/actions";
-import Loader from "../Common/Loader";
+import { identityFetchData, reciterFetchData,reCalcPubMedPubCount, fetchFeedbacklog } from "../../../redux/actions/actions";
+import SkeletonProfile from "../Common/SkeletonProfile";
+import SkeletonCard from "../Common/SkeletonCard";
 import fullName from "../../../utils/fullName";
-import { Container, Button, Row, Toast, Spinner } from "react-bootstrap";
+import { Container, Button, Row,Toast } from "react-bootstrap";
 import appStyles from '../App/App.module.css';
 import styles from "./CurateIndividual.module.css";
 import InferredKeywords from "./InferredKeywords"
@@ -13,8 +14,11 @@ import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/client";
-import { toastMessage } from "../../../utils/constants";
+import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
+import { isProxyFor } from "../../../utils/scopeResolver";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import GrantProxyModal from './GrantProxyModal';
+import ProxyBadge from '../Search/ProxyBadge';
 import { reciterConfig } from "../../../../config/local";
 
 
@@ -29,36 +33,42 @@ interface PrimaryName {
 
 const CurateIndividual = () => {
   const router = useRouter()
-  const { id } = router.query;
-  const [newId, setNewId] = useState<any>();
+  const  id  = router.query.id
+  const [newId, setNewId ] = useState<any>();
   const dispatch = useDispatch();
   const identityData = useSelector((state: RootStateOrAny) => state.identityData)
   const identityFetching = useSelector((state: RootStateOrAny) => state.identityFetching)
   const reciterData = useSelector((state: RootStateOrAny) => state.reciterData)
-  const identityORFeatureGenError = useSelector((state: RootStateOrAny) => state.identityORFeatureGenError)
-
   const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
-  const recomputeDelayedMessage = useSelector((state: RootStateOrAny) => state.recomputeDelayedMessage)
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [modalShow, setModalShow] = useState(false);
   const [session, loading] = useSession();
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [viewProfileLabels, setViewProfileLabels] = useState([])
   const [isLoading, setLoading] = useState(false);
-  const [headShot, setHeadShot] = useState<any>([]);
-  const [showNoPermitError, setShowNoPermitError] = useState(false)
+  const [headShot, setHeadShot] = useState<any>([])
+  const [showGrantProxy, setShowGrantProxy] = useState(false);
+
+  // Proxy state
+  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  const caps = getCapabilities(userRoles);
+  const proxyPersonIds = session?.data?.proxyPersonIds
+    ? JSON.parse(session.data.proxyPersonIds)
+    : [];
+  const personIdentifier = (id as string) || '';
+  const isProxied = isProxyFor(proxyPersonIds, personIdentifier);
+  const canCurateThisPerson = caps.canCurate.all || caps.canCurate.scoped || isProxied;
+
 
   useEffect(() => {
-
-    if (!id) {
-      return;
-    }
+    let userPermissions = JSON.parse(session.data?.userRoles);
+    let routerUserId = router.query.id ;
     fetchAllAdminSettings();
     let nextPersonIdentifier = "";
-    setNewId(id);
-    dispatch(identityFetchData(id));
-    fetchData();
-  }, [id])
+     setNewId(routerUserId);
+     dispatch(identityFetchData(routerUserId));
+     fetchData();
+  }, [])
 
   const fetchData = () => {
     dispatch(reciterFetchData(id, false));
@@ -83,9 +93,9 @@ const CurateIndividual = () => {
         data.map((obj, index1) => {
           let a = JSON.stringify(obj.viewAttributes)
           let b = JSON.parse(a);
-          let c = typeof (b) === "string" ? JSON.parse(b) : b
+          let c = typeof(b) === "string" ? JSON.parse(b) : b
           let parsedSettings = {
-            viewName: obj.viewName,
+            viewName : obj.viewName,
             viewAttributes: c,
             viewLabel: obj.viewLabel
           }
@@ -119,87 +129,88 @@ const CurateIndividual = () => {
 
   if (identityFetching || reciterFetching) {
     return (
-      <div className="d-flex flex-column h-100 justify-content-center align-items-center">
-        <Spinner animation="border" variant="danger" style={{ height: '5rem', width: '5rem' }} />
-        {recomputeDelayedMessage && (
-          <div className="text-center mt-3">
-            <p className="mb-1">{recomputeDelayedMessage}</p>
-            <button
-              className="btn btn-link p-0"
-              onClick={() => dispatch(cancelRecomputePolling())}
-            >
-              Stop waiting
-            </button>
-            <small className="d-block text-muted mt-1">
-              Your feedback and recompute are saved — this loads whatever is ready now.
-            </small>
-          </div>
-        )}
-      </div>
+      <><SkeletonProfile /><SkeletonCard /></>
     )
   }
 
   return (
-    <div className={appStyles.mainContainer}>
-      <ToastContainerWrapper />
-      {
-        showNoPermitError ? <p className="text-center">{`${id} does not have an identity to view this page. Please contact system administartor`}</p> : <>
-          <h1 className={styles.header}>Curate Publications</h1>
-          {
-            identityData &&
-            <Container className={styles.indentityDataContainer} fluid={true}>
-              <div className="d-flex">
-                {
-                  displayImage && identityData.identityImageEndpoint && headShot && headShot.length > 0 && headShot[0].isVisible &&
-                  <div className={styles.profileImgWrapper}>
-                    <Image
-                      src={headShot.length > 0 && headShot[0]?.syntax?.replace("{personIdentifier}", identityData.uid)}
-                      alt="Profile photo"
-                      width={144}
-                      height={217}
-                      onError={() => setDisplayImage(false)}
-                    />
-                  </div>
-                }
-                <div className="flex-grow-1">
+      <div className={appStyles.mainContainer}>
+       <ToastContainerWrapper />
+        <h1 className={styles.header}>Curate Publications</h1>
+        {
+          identityData &&
+          <Container className={styles.indentityDataContainer} fluid={true}>
+            <div className="d-flex">
+              {
+                displayImage && identityData.identityImageEndpoint && headShot && headShot.length > 0 && headShot[0].isVisible &&
+                <div className={styles.profileImgWrapper}>
+                  <Image
+                    src={headShot.length > 0 && headShot[0]?.syntax?.replace("{personIdentifier}", identityData.uid)}
+                    alt={fullName(identityData.primaryName)}
+                    width={144}
+                    height={217}
+                    onError={() => setDisplayImage(false)}
+                  />
+                </div>
+              }
+              <div className="flex-grow-1">
+                <div className="d-flex align-items-center mb-1">
                   <DisplayName
                     name={identityData.primaryName}
                   />
-                  <b>{identityData.title}</b>
-                  <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
-                  {reciterData && reciterData.reciter &&
-                    <InferredKeywords
-                      reciter={reciterData.reciter}
-                    />
-                  }
+                  {isProxied && <ProxyBadge />}
+                </div>
+                <b>{identityData.title}</b>
+                <p className={`${styles.greyText} mb-1`}>{identityData.primaryOrganizationalUnit}</p>
+                {reciterData && reciterData.reciter &&
+                  <InferredKeywords
+                    reciter={reciterData.reciter}
+                  />
+                }
+                <div className="d-flex align-items-center" style={{ gap: '8px' }}>
                   <Button className="transparent-btn mx-0" onClick={handleShow}>View Profile</Button>
+                  {canCurateThisPerson && (
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => setShowGrantProxy(true)}
+                      style={{ minHeight: '44px' }}
+                    >
+                      Grant Proxy Access
+                    </Button>
+                  )}
                 </div>
               </div>
-            </Container>
-          }
+            </div>
+          </Container>
+        }
 
-          {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
-            <SuggestionsBanner
-              uid={newId}
-              count={reciterData.reciterPending.length}
-            />
-          }
-
-          <ReciterTabs
-            reciterData={reciterData}
-            fullName={fullName(identityData.primaryName)}
-            fetchOriginalData={fetchData}
-          />
-          <Profile
-            uid={identityData.uid}
-            modalShow={modalShow}
-            handleShow={handleShow}
-            handleClose={handleClose}
-            viewProfileLabels={viewProfileLabels}
-            headShotLabelData={headShot}
-          />
-        </>
+      {reciterData.reciterPending && reciterData.reciterPending.length > 0 &&
+        <SuggestionsBanner
+          uid={newId}
+          count={reciterData.reciterPending.length}
+        />
       }
+
+      <ReciterTabs
+        reciterData={reciterData}
+        fullName={fullName(identityData.primaryName)}
+        fetchOriginalData={fetchData}
+      />
+      <Profile
+        uid={identityData.uid}
+        modalShow={modalShow}
+        handleShow={handleShow}
+        handleClose={handleClose}
+        viewProfileLabels={viewProfileLabels}
+        headShotLabelData = {headShot}
+      />
+      <GrantProxyModal
+        show={showGrantProxy}
+        onHide={() => setShowGrantProxy(false)}
+        personIdentifier={personIdentifier}
+        personName={`${identityData?.primaryName?.firstName || ''} ${identityData?.primaryName?.lastName || ''}`}
+        onSave={() => { /* optional refresh */ }}
+      />
     </div>
   )
 }

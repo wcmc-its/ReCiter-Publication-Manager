@@ -3,83 +3,46 @@ import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import appStyles from '../App/App.module.css';
 import styles from "./ManageUsers.module.css";
 import { PageHeader } from '../Common/PageHeader';
-import Loader from '../Common/Loader';
+import SkeletonTable from '../Common/SkeletonTable';
 import { reciterConfig } from '../../../../config/local';
 import UsersTable from "./UsersTable";
 import { useRouter } from 'next/router'
 import { Button, Card, Row, Col,InputGroup,Form } from 'react-bootstrap';
-import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, getAdminRoles, sendNotification } from "../../../redux/actions/actions";
+import { adminUsersListAction, createORupdateUserIDAction, getAdminDepartments, getAdminRoles } from "../../../redux/actions/actions";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { toast } from "react-toastify"
 import Pagination from '../Pagination/Pagination';
 import Filter from "../Filter/Filter";
-import { useSession } from 'next-auth/client';
-
 
 
 const ManageUsers = () => {
 
   const createORupdateUserID = useSelector((state: RootStateOrAny) => state.createORupdateUserID);
-  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
-
-  const [session, loading] = useSession();
 
   const [users, setUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [searchText, setSearchText] = useState("")
-  const [pageLoading, setpageLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const [nameOrcwidLabel, setNameOrcwidLabel] = useState()
-  const [isVisibleNotification, setVisibleNotification] =useState(true)
-
-
 
   const router = useRouter()
   const dispatch = useDispatch();
 
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(50)
+  const [roleFilter, setRoleFilter] = useState('')
 
  
   useEffect(() => {
         dispatch(getAdminDepartments());
         dispatch(getAdminRoles());
         fetchAllAdminUsers(page, count)
-        adminConfigurations();
   }, [])
 
-  const adminConfigurations = ()=>{
-    let adminSettings = JSON.parse(JSON.stringify(session?.adminSettings));
-    var viewAttributes = [];
-    var emailNotifications = [];
-
-    if (updatedAdminSettings.length > 0) {
-      // updated settings from manage settings page
-      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
-      let notificationsData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
-
-      viewAttributes = updatedData.viewAttributes;
-      emailNotifications = notificationsData.viewAttributes;
-      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      setNameOrcwidLabel(cwidLabel.labelUserView)
-    } else {
-      // regular settings from session
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "findPeople")
-      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      let notificationsData = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
-
-      viewAttributes = JSON.parse(data.viewAttributes)
-      emailNotifications = JSON.parse(notificationsData.viewAttributes);
-      cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
-    }
-    let settingsObj = emailNotifications && emailNotifications.find(data=> data.isVisible)
-    setVisibleNotification(settingsObj && settingsObj.isVisible || false)
-  }
-
-  const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string)=>{
-    setpageLoading(true);
+  const fetchAllAdminUsers=(page ?: number, limit?:number, searchTextInput? :string, roleFilterParam? :string)=>{
+    setLoading(true);
     const offset = (page - 1) * limit;
-    const request = { limit, offset , searchTextInput};
+    const request = { limit, offset , searchTextInput, roleFilter: roleFilterParam !== undefined ? roleFilterParam : roleFilter };
     fetch(`/api/db/admin/users`, {
       credentials: "same-origin",
       method: 'POST',
@@ -91,10 +54,11 @@ const ManageUsers = () => {
       body: JSON.stringify(request),
     }).then(response => response.json())
       .then(data => {
-        prepareTabelData(data.usersData)
+        setUsers(data.usersData);
+        setAllUsers(data.usersData)
         setTotalCount( data.totalUsersCount)
         dispatch(adminUsersListAction(data))
-        setpageLoading(false);
+        setLoading(false);
         if (createORupdateUserID) toast.success(createORupdateUserID + " successfully", {
           position: "top-right",
           autoClose: 2000,
@@ -104,49 +68,16 @@ const ManageUsers = () => {
       })
       .catch(error => {
         console.log(error)
-        setpageLoading(false);
+        setLoading(false);
       });
-  }
-
-  const prepareTabelData = (usersData) => {
-    let tableData = [];
-    usersData.map((data) => {
-      const {nameFirst, nameLast, userID,personIdentifier,email, department,person} = data;
-     if(data.AdminUserDept?.length > 0){
-       data.AdminUserDept && data.AdminUserDept.map((deptData => {
-        let obj = {
-          email : email,
-          personIdentifier : personIdentifier,
-          userID: userID,
-          nameFirst: nameFirst,
-          nameLast : nameLast,
-          department : deptData.departmentLabel,
-          primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
-        }
-        tableData.push(obj);
-      }))
-    }else{
-      let obj = {
-          email : email,
-          personIdentifier : personIdentifier,
-          userID: userID,
-          nameFirst: nameFirst,
-          nameLast : nameLast,
-          department : "",
-          primaryOrganizationalUnit: person && Object.keys(person).length > 0 && person.primaryOrganizationalUnit || ""
-      }
-      tableData.push(obj);
-    }
-    })
-    setUsers(tableData);
-    setAllUsers(tableData)
   }
 
   const onReset = ()=>{
     setPage(1);
     setCount(50);
     setSearchText("");
-    fetchAllAdminUsers(1,50);
+    setRoleFilter("");
+    fetchAllAdminUsers(1,50,'','');
   }
 
   const fetchPaginatedData = (newCount) => {
@@ -163,48 +94,43 @@ const ManageUsers = () => {
   }
 
   const handleFilterUpdate= (searchText)=>{
-    filter(searchText ? searchText.trim() : "");
+    filter(searchText ? searchText : "");
   }
 
-  const filter = (search) => {
+  const filter = (search) => { 
     let filteredUsers = []
-    if (allUsers && allUsers.length > 0) {
-      allUsers.forEach((user) => {
-        if (search) {
-          var addUser = true;
-          if (search) {
-            addUser = false;
-            //nameFirst
-            if (user.nameFirst && user.nameFirst.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //nameLast
-            if (user.nameLast && user.nameLast.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //personIdentifier
-            if (user.personIdentifier && user.personIdentifier.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //departmentLabel
-            if (user.department && user.department.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-            //primaryOrganizationalUnit
-            if (user.primaryOrganizationalUnit && user.primaryOrganizationalUnit.toLowerCase().includes(search.toLowerCase())) {
-              addUser = true
-            }
-          }
-          if (addUser) {
+    if (users  && users.length > 0) {
+      users.forEach((user) => {
+    if (search ) {
+      if (/^[0-9 ]*$/.test(search)) {
+        var userIds = search.split(" ");
+        if (userIds.some(userId => Number(userId) === user.userID)) {
             filteredUsers.push(user);
-          }
-        }else{
-          filteredUsers.push(user)
         }
-      })
+      }else{
+        var addUser = true;
+        if (search) {
+          addUser = false;
+          //nameFirst
+          if (user.nameFirst && user.nameFirst.toLowerCase().includes(search.toLowerCase())) {
+            addUser = true
+          }
+          //nameLast
+          if (user.nameLast && user.nameLast.toLowerCase().includes(search.toLowerCase())) {
+              addUser = true
+          }
+        }
+        if (addUser) {
+          filteredUsers.push(user);
+        }
+      }
     }
-    setUsers(filteredUsers)
+  })
   }
+  if(filteredUsers && filteredUsers.length > 0 ) setUsers( filteredUsers)
+  else setUsers( allUsers)
+ 
+}
 
   
   const handleCountUpdate = (count) => {
@@ -219,11 +145,6 @@ const ManageUsers = () => {
     let inputBySearch = e.target.value;
     await setSearchText(inputBySearch);
     }
-
-    const onSendNotifications = ()=>{
-     sendNotification()
-    }
-
     const onSearch = ()=>{
      if(searchText.trim().length >= 3) {
       fetchAllAdminUsers(page, count, searchText)
@@ -233,28 +154,50 @@ const ManageUsers = () => {
     <div className={appStyles.mainContainer}>
       <PageHeader label="Manage Users" />
       <Row className={styles.globalfilter}>
-        <Col md={6} className={styles.pt5}>
+        <Col md={4} className={styles.pt5}>
           <InputGroup className="mb-3">
             <Form.Control
               type="text"
               className={`form-control ${styles.searchInput}`}
               placeholder="Search users"
+              aria-label="Search users"
               value={searchText}
               onChange={handleSearchUpdate}
+              onKeyDown={(e) => { if (e.key === 'Enter') onSearch(); }}
             />
-            <InputGroup.Text id="basic-addon2" onClick={onSearch}>search</InputGroup.Text>
+            <Button variant="outline-secondary" onClick={onSearch}>Search</Button>
           </InputGroup>
         </Col>
-        <Col md={1}>
-        <div className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</div>
+        <Col md={3} className={styles.pt5}>
+          <Form.Group controlId="roleFilter">
+            <Form.Label htmlFor="roleFilter">Filter by role</Form.Label>
+            <Form.Select
+              id="roleFilter"
+              value={roleFilter}
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                fetchAllAdminUsers(1, count, searchText, e.target.value);
+              }}
+            >
+              <option value="">All Roles</option>
+              <option value="Superuser">Superuser</option>
+              <option value="Curator_All">Curator_All</option>
+              <option value="Curator_Scoped">Curator_Scoped</option>
+              <option value="Curator_Self">Curator_Self</option>
+              <option value="Reporter_All">Reporter_All</option>
+            </Form.Select>
+          </Form.Group>
         </Col>
-        <Col md={5}>
+        <Col md={1}>
+        <Button variant="link" className={`mt-1 pt-2 ${styles.textButton}`} onClick={onReset}>Reset</Button>
+        </Col>
+        <Col md={4}>
           <Button className="my-1 floatRight" onClick={() => router.push("/manageusers/add")}>Add User</Button>
         </Col>
       </Row>
       {/* <Button className="my-2" onClick={() => router.push("/admin/users/add")}>Add User</Button> */}
-      {pageLoading ?
-        <div className="d-flex justify-content-center align-items"><Loader /> </div>
+      {loading ?
+        <SkeletonTable />
         :
         <>
           <Pagination total={totalCount} page={page} count={count} onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
@@ -264,10 +207,11 @@ const ManageUsers = () => {
               <Filter onSearch={handleFilterUpdate} showSort={false} isFrom="pubMed"/>
             </div>
           </div>
-            <UsersTable isVisibleNotification ={isVisibleNotification} data={users} onSendNotifications = {onSendNotifications} nameOrcwidLabel={nameOrcwidLabel}/>
+            <UsersTable data={users} />
           <Pagination total={totalCount} page={page} count={count}  onCountChange={handleCountUpdate} onChange={handlePaginationUpdate} />
         </>}
       <ToastContainerWrapper />
+
     </div>
   )
 }
