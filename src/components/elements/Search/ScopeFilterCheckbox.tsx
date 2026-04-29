@@ -11,7 +11,6 @@ const ScopeFilterCheckbox: React.FC<ScopeFilterCheckboxProps> = ({ checked, onCh
     <Form.Check
       type="checkbox"
       id="scopeFilterCheckbox"
-      controlId="scopeFilterCheckbox"
       label="Show only people I can curate"
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
