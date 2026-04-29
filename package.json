@@ -36,6 +36,7 @@
     "nodemailer-smtp-transport": "^2.7.4",
     "react": "^16.14.0",
     "react-bootstrap": "^2.0.3",
+    "react-datepicker": "^4.25.0",
     "react-dates": "^21.8.0",
     "react-dom": "^16.14.0",
     "react-dropdown-date": "2.2.7",
