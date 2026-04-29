@@ -9,4 +9,5 @@ export type MenuItem = {
   disabled?: boolean
   allowedRoleNames?:Array,
   isRequired?:boolean
+  capabilityKey?: string
 }
