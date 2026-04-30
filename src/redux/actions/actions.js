@@ -1912,7 +1912,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
         })
         .then(data => {
 
-            if (data.count == 0 || Object.keys(data).length == 0) {
+            if (data.articlesCount == 0 || Object.keys(data).length == 0) {
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
                     payload: data,
@@ -1925,7 +1925,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
                     type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
                 })
             } else {
-               
+
                 if (data && data.rows && data.rows.length > 0) {
                     let updatePmidRespData  = {
                         pmids: data.pmidList,
@@ -1957,7 +1957,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
 
                         dispatch({
                             type: methods.REPORTS_SEARCH_UPDATE,
-                            payload: { count: data.count, rows: results },
+                            payload: { articlesCount: data.articlesCount, rows: results },
                         })
                         if (paginationUpdate) {
                             dispatch({
@@ -2043,7 +2043,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
         })
         .then(data => {
 
-            if (data.count === 0) {
+            if (data.articlesCount === 0) {
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
                     payload: data,
@@ -2082,7 +2082,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
 
                     dispatch({
                         type: methods.REPORTS_SEARCH_UPDATE,
-                        payload: { count: data.count, rows: results },
+                        payload: { articlesCount: data.articlesCount, rows: results },
                     })
 
                     dispatch({
