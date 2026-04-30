@@ -5,4 +5,4 @@ const ToastContainerWrapper = () => {
     return <ToastContainer />
 }
 
-export default ToastContainerWrapper
+export default ToastContainerWrapper;
