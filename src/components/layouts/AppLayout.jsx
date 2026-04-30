@@ -17,16 +17,16 @@ export const AppLayout = ({ children }) => {
   const router = useRouter();
   const dispatch = useDispatch();
 
-  const { data: session, status } = useSession();
+  const [session, loading] = useSession();
   const errors = useSelector((state) => state.errors);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (!loading && !session) {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
     }
-  }, [status, errors, router]);
+  }, [loading, session, errors, router]);
 
   useEffect(() => {
     if (router?.pathname !== "/report") {
@@ -53,7 +53,7 @@ export const AppLayout = ({ children }) => {
     setExpandedNav(!expandedNav);
   };
 
-  if (status === "loading") {
+  if (loading) {
     return <Loader />;
   }
 
