@@ -2283,9 +2283,20 @@ export const fetchAdminSettingsAction = () => (dispatch) => {
         return response.json();
     })
     .then(data => {
+        // Sequelize returns viewAttributes as a JSON-encoded string. Parse it
+        // here so every consumer of state.updatedAdminSettings sees the same
+        // already-parsed shape (matches what JSON.parse(session.adminSettings)
+        // followed by JSON.parse(item.viewAttributes) yields in the cold-start
+        // path).
+        const normalized = Array.isArray(data) ? data.map(item => ({
+            ...item,
+            viewAttributes: typeof item.viewAttributes === "string"
+                ? JSON.parse(item.viewAttributes)
+                : item.viewAttributes
+        })) : data;
         dispatch({
             type: methods.ADMIN_SETTINGS_UPDATED_LIST,
-            payload: data
+            payload: normalized
         });
     })
     .catch(error => {
