@@ -6,11 +6,18 @@ import { saveUserFeedback } from './userfeedback.controller'
 export async function updateGoldStandard(req: NextApiRequest)  {
 
     const {
-        query: { goldStandardUpdateFlag }
+        query: { goldStandardUpdateFlag, entryPath }
       } = req;
 
-    
-   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}`, {
+    // Phase 33-14 (ReCiter Java): pass entryPath through so the Java write path
+    // can distinguish auto-retrieved-candidate curation from PubMed-search-driven
+    // curation. CANDIDATE_LIST is the default; the only caller that emits
+    // PUBMED_SEARCH is the manually-added (PubMed-search) flow in actions.js.
+    const entryPathParam = (typeof entryPath === 'string' && entryPath.length > 0)
+        ? entryPath
+        : 'CANDIDATE_LIST';
+
+   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}&entryPath=${entryPathParam}`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',

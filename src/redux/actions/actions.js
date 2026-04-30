@@ -513,9 +513,14 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
     }
 
 
-    var url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=UPDATE';
+    // Phase 33-14: PM emits entryPath so the ReCiter Java write path can tag
+    // ArticleProvenance correctly. manuallyAddedFlag=true means the curator added
+    // this PMID via the in-app PubMed search workflow; the auto-retrieved candidate
+    // list path leaves manuallyAddedFlag falsy.
+    var entryPath = request.manuallyAddedFlag ? 'PUBMED_SEARCH' : 'CANDIDATE_LIST';
+    var url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=UPDATE&entryPath=' + entryPath;
     if (request.userAssertion === 'NULL') {
-        url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=DELETE'
+        url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=DELETE&entryPath=' + entryPath
     }
 
     fetchWithTimeout(url, {
@@ -681,9 +686,11 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
     }
 
 
-    var url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=UPDATE';
+    // Phase 33-14: emit entryPath (see first call site for details)
+    var entryPath = request.manuallyAddedFlag ? 'PUBMED_SEARCH' : 'CANDIDATE_LIST';
+    var url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=UPDATE&entryPath=' + entryPath;
     if (request.userAssertion === 'NULL') {
-        url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=DELETE'
+        url = '/api/reciter/update/goldstandard?goldStandardUpdateFlag=DELETE&entryPath=' + entryPath
     }
 
     fetchWithTimeout(url, {
