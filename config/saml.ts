@@ -1,7 +1,7 @@
 import fs from 'fs';
 
 export const reciterSamlConfig = {
-   samlOptions : {
+   saml_options : {
       assert_endpoint: process.env.ACS_URL, // ACS URL
       entity_id: process.env.ENTITY_ID, // Your SP entity ID
       certificate: fs.readFileSync(process.cwd() + "/config/certs/reciter-saml.crt").toString(),
@@ -21,7 +21,7 @@ export const reciterSamlConfig = {
   digest_algorithm: "http://www.w3.org/2001/04/xmlenc#sha256"
     },
 
-   idpOptions : {
+   saml_idp_options : {
       sso_login_url: process.env.SSO_LOGIN_URL,
       sso_logout_url: process.env.SSO_LOGOUT_URL,
       certificates: [
