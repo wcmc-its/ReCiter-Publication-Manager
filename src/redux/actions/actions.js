@@ -2299,6 +2299,13 @@ export const fetchAdminSettingsAction = () => (dispatch) => {
     });
 };
 
+export const notificationEmail = (email) => dispatch => {
+    dispatch({
+        type: methods.NOTIFICATION_EMAIL_CARIER,
+        payload: email
+    })
+}
+
 export const saveNotification = (payload) => dispatch => {
       fetch(`/api/db/admin/notifications`, {
         credentials: "same-origin",

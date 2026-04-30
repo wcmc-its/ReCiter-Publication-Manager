@@ -708,13 +708,22 @@ export const reportingFiltersLoading = (state=false, action) => {
   switch (action.type) {
 
     case methods.REPORTING_FILTERS_SET_LOADING :
-      return true 
+      return true
 
     case methods.REPORTING_FILTERS_CANCEL_LOADING :
-      return false 
-    
+      return false
+
       default :
         return state
+  }
+}
+
+export const notificationEmailCarier = (state="", action) => {
+  switch(action.type) {
+    case methods.NOTIFICATION_EMAIL_CARIER :
+      return action.payload
+    default :
+      return state
   }
 }
 
@@ -871,6 +880,7 @@ export default combineReducers({
     authorFilterDataFromSearch,
     showEvidenceDefault,
     updatedAdminSettings,
-    showOnlyScopeFiltered
+    showOnlyScopeFiltered,
+    notificationEmailCarier
 
 })
