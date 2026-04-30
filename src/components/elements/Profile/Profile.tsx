@@ -1,19 +1,17 @@
-import React, { useEffect, useState, MouseEvent } from "react";
-import { useDispatch, useSelector, RootStateOrAny } from "react-redux";
-import { identityFetchData } from "../../../redux/actions/actions";
-import { Modal, Container, Row, Button, Col,Popover, OverlayTrigger } from "react-bootstrap";
+import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import Image from 'next/image'
 import Loader from "../Common/Loader";
 import fullName from "../../../utils/fullName";
 import styles from "./Profile.module.css";
 import { reciterConfig } from '../../../../config/local';
-import { metrics, labels , infoBubblesConfig} from "../../../../config/report";
+import { metrics, labels } from "../../../../config/report";
 import Excel from 'exceljs';
-import { ExportButton } from "../Report/ExportButton";
 import { useSession } from 'next-auth/client';
-import { allowedPermissions, setHelptextInfo, setReportFilterLabels, getCapabilities } from "../../../utils/constants";
-
-
+import { allowedPermissions } from "../../../utils/constants";
+import { toast } from "react-toastify";
+import { reportError } from "../../../utils/reportError";
 
 interface PrimaryName {
   firstInitial?: string,
@@ -23,32 +21,24 @@ interface PrimaryName {
   middleInitial?: string,
 }
 
-interface TableRow {
-  name: string,
-  tag?: string,
-}
-
-const imageLoader = ({ src, width, quality }) => {
-  return src;
-}
-
-const Profile = ({ 
+const Profile = ({
   uid,
   modalShow,
   handleShow,
   handleClose,
   viewProfileLabels,
-  headShotLabelData
- } : {
-   uid: string,
-   modalShow: boolean,
-   handleShow: (e: MouseEvent<HTMLButtonElement>) => void,
-   handleClose: () => void,
-   viewProfileLabels?:any,
-   headShotLabelData?:any
- }) => {
-  const dispatch = useDispatch()
-  const relationshipsDisplayed = 10;
+  headShotLabelData,
+  reciterData,
+} : {
+  uid: string,
+  modalShow: boolean,
+  handleShow: any,
+  handleClose: () => void,
+  viewProfileLabels?: any,
+  headShotLabelData?: any,
+  reciterData?: any,
+}) => {
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [identity, setIdentity] = useState<any>({});
@@ -58,40 +48,84 @@ const Profile = ({
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const [session, loading] = useSession();
   const userPermissions = JSON.parse(session.data.userRoles);
-  const caps = getCapabilities(userPermissions);
-  const canViewPII = caps.canCurate.all || caps.canCurate.self;
   const [displayImage, setDisplayImage] = useState<boolean>(true);
+  const [exportArticlesRTF, setExportArticlesRTF] = useState([])
+  const [showAllRels, setShowAllRels] = useState(false);
+  const relsDefaultCount = 5;
 
-
-
-  
+  // Convert slugs: CO_INVESTIGATOR → Co-investigator, CTSC_PROTOCOL_ASSOCIATE → CTSC protocol associate, HR → HR
+  const slugToText = (s: string) => {
+    const acronyms = new Set(['CTSC', 'HR', 'NIH', 'PI', 'MD', 'IRB', 'IT', 'EHR', 'NYC', 'NYP', 'NYPH']);
+    const tokens = s.split(/[_-]/);
+    const parts: string[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const upper = tokens[i].toUpperCase();
+      if (upper === 'CO' && i === 0 && tokens.length > 1) {
+        parts.push('Co-' + tokens[i + 1].toLowerCase());
+        i++;
+      } else if (acronyms.has(upper)) {
+        parts.push(upper);
+      } else {
+        parts.push(upper.toLowerCase());
+      }
+    }
+    const text = parts.join(' ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  };
 
   // for CSV Report
   const workbook = new Excel.Workbook();
   let date = new Date().toISOString().slice(0, 10);
   let articleFileName = `ArticleReport-ReCiter-${date}`;
 
+  // Fetch identity when drawer opens
   useEffect(() => {
     if (modalShow) {
-     setIsLoading(true);
-     const fetchIdentityPromise = fetchIdentity();
-     const showBiblioAnalysisPromise = showBiblioAnalysis();
-     Promise.all([fetchIdentityPromise, showBiblioAnalysisPromise]).then(() => { setIsLoading(false); })
+      setIsLoading(true);
+      setShowAllRels(false);
+      const fetchIdentityPromise = fetchIdentity();
+      const showBiblioAnalysisPromise = showBiblioAnalysis();
+      Promise.all([fetchIdentityPromise, showBiblioAnalysisPromise]).then(() => { setIsLoading(false); })
     }
   }, [modalShow])
 
-  const ADDITIONAL_INFO_CONFIGS = [
-    {
-      label:setReportFilterLabels(viewProfileLabels,"h-index"),
-      title: setHelptextInfo(viewProfileLabels,"h-index"),
-      value: identity.hindexNIH
-    },
-    {
-      label: setReportFilterLabels(viewProfileLabels,"h5-index"),
-      title: setHelptextInfo(viewProfileLabels,"h5-index"),
-      value: identity.h5indexNIH
+  // RTF export settings
+  useEffect(() => {
+    let exportArticleRTFViewAttr = [];
+    if (updatedAdminSettings.length > 0) {
+      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+      exportArticleRTFViewAttr = exportRTF.viewAttributes;
+    } else if (session?.adminSettings) {
+      let adminSettings = JSON.parse(session.adminSettings);
+      let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+      exportArticleRTFViewAttr = JSON.parse(exportRTF.viewAttributes);
     }
-  ]
+    setExportArticlesRTF(exportArticleRTFViewAttr)
+  }, [])
+
+  // Re-derive RTF export settings when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
+      if (exportRTF) {
+        setExportArticlesRTF(exportRTF.viewAttributes)
+      }
+    }
+  }, [updatedAdminSettings])
+
+  // Body scroll lock + Escape key
+  useEffect(() => {
+    if (!modalShow) return;
+    document.body.style.overflow = 'hidden';
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [modalShow]);
+
+  // ── Data fetching ──
 
   const fetchIdentity = async () => {
     return await fetch('/api/reciter/getidentity/' + uid, {
@@ -103,23 +137,19 @@ const Profile = ({
       }
     })
       .then(response => {
-        if (response.status === 200) {
-          return response.json()
-        } else {
-          throw {
-            type: response.type,
-            title: response.statusText,
-            status: response.status,
-            detail: "Error occurred with api " + response.url + ". Please, try again later "
-          }
-        }
+        if (response.status === 200) return response.json()
+        throw { status: response.status, detail: "Error with " + response.url }
       })
-      .then(data => {
-        setIdentity(data.identity);
-      })
+      .then(data => { setIdentity(data.identity); })
       .catch(error => {
-        console.log(error)
+        console.error("[ERR-1020]", error);
+        reportError("ERR-1020", "Unable to load profile", error);
         setIsError(true);
+        toast.error("Unable to load profile. Please try again. (ERR-1020)", {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
       })
   }
 
@@ -131,25 +161,118 @@ const Profile = ({
         Accept: 'application/json',
         'Authorization': reciterConfig.backendApiKey
       }
-    }).then(response => {
-      if (response.status === 200) {
-        return response.json()
-      } else {
-        throw {
-          type: response.type,
-          title: response.statusText,
-          status: response.status,
-          detail: "Error occurred with api " + response.url + ". Please, try again later "
+    })
+      .then(response => {
+        if (response.status === 200) return response.json()
+        throw { status: response.status }
+      })
+      .then(data => { isShowBiblioBtn(data); })
+      .catch(error => {
+        console.log(error);
+        setIsError(true);
+      })
+  }
+
+  // ── Export functions ──
+
+  const exportArticleCSV = () => {
+    setExportArticleCsvLoading(true);
+    fetch(`/api/db/reports/publication/article`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        "Content-Type": "application/json",
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify({ personIdentifiers: [uid] })
+    }).then(response => response.json())
+      .then(result => { generateArticleCSV(result); setExportArticleCsvLoading(false); })
+      .catch(error => {
+        setExportArticleCsvLoading(false);
+        console.error("[ERR-8010]", error);
+        reportError("ERR-8010", "Unable to export article CSV", error);
+        toast.error("Unable to export article CSV. Please try again. (ERR-8010)", {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+      })
+  }
+
+  const generateArticleCSV = async (data) => {
+    let columns = [];
+    if (labels.articleInfo) {
+      Object.keys(labels.articleInfo).forEach((field) => {
+        columns.push({ header: labels.articleInfo[field], key: field });
+      })
+    }
+    if (metrics.article && labels.article) {
+      Object.keys(metrics.article).forEach(field => {
+        if (metrics.article[field] == true) {
+          columns.push({ header: labels.article[field], key: field });
         }
-      }
-    })
-    .then(data => {
-      isShowBiblioBtn(data);
-    })
-    .catch(error => {
-      console.log(error)
-      setIsError(true);
-    })
+      })
+    }
+    try {
+      const worksheet = workbook.addWorksheet(articleFileName);
+      worksheet.columns = columns;
+      data.forEach(item => {
+        let itemRow = {};
+        Object.keys(item).forEach(obj => {
+          if (obj === 'PersonPersonTypes') {
+            let personTypes = item[obj].map(pt => pt.personType).join('|');
+            itemRow = { ...itemRow, personType: personTypes };
+          } else {
+            itemRow = { ...itemRow, ...item[obj] };
+          }
+        })
+        worksheet.addRow(itemRow);
+      })
+      const buf = await workbook.csv.writeBuffer();
+      let blobFromBuffer = new Blob([buf]);
+      var link = document.createElement('a')
+      link.href = window.URL.createObjectURL(blobFromBuffer);
+      link.download = `${articleFileName}.csv`;
+      link.click()
+      link.remove();
+    } catch (error) {
+      console.error('Error generating CSV', error.message);
+    } finally {
+      workbook.removeWorksheet(articleFileName);
+    }
+  }
+
+  const generateRTFPeopleOnly = () => {
+    setExportArticleRTFLoading(true);
+    fetch(`/api/db/reports/publication/people-only`, {
+      credentials: "same-origin",
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Authorization': reciterConfig.backendApiKey
+      },
+      body: JSON.stringify({ personIdentifiers: [uid], limit: exportArticlesRTF && exportArticlesRTF.length > 0 && exportArticlesRTF[0].maxLimit })
+    }).then(response => response.blob())
+      .then(fileBlob => {
+        let d = new Date().toISOString().slice(0, 10);
+        var link = document.createElement('a')
+        link.href = window.URL.createObjectURL(fileBlob)
+        link.download = 'ArticleReport-ReCiter-' + d + ".rtf";
+        link.click()
+        link.remove();
+        setExportArticleRTFLoading(false);
+      })
+      .catch(error => {
+        console.error("[ERR-8011]", error);
+        reportError("ERR-8011", "Unable to export article report", error);
+        setExportArticleRTFLoading(false);
+        toast.error("Unable to export article report. Please try again. (ERR-8011)", {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
+      })
   }
 
   const generateBiblioAnalysis = () => {
@@ -161,410 +284,270 @@ const Profile = ({
         'Authorization': reciterConfig.backendApiKey
       }
     })
-      .then(response => {
-        return response.blob();
-      })
+      .then(response => response.blob())
       .then(fileBlob => {
-        let fileName = uid + ".rtf";
-        var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
+        var link = document.createElement('a')
         link.href = window.URL.createObjectURL(fileBlob)
-        link.download = fileName;
+        link.download = uid + ".rtf";
         link.click()
         link.remove();
       })
       .catch(error => {
-        console.log(error)
+        console.error("[ERR-8012]", error);
+        reportError("ERR-8012", "Unable to generate bibliometric analysis", error);
         setIsError(true);
-        setIsLoading(false);
+        toast.error("Unable to generate bibliometric analysis. Please try again. (ERR-8012)", {
+          position: "top-right",
+          autoClose: 2000,
+          theme: 'colored'
+        });
       })
   }
 
-  const DisplayName = ({ name } : { name: PrimaryName}) => {
-    let formattedName = fullName(name);
-    return (
-      <h2>{formattedName}</h2>
-    )
-  }
+  // ── Metrics from reciter data ──
 
-  const DisplayRelationships = ({
-    relationships,
-    defaultNumber
-  } : {
-    relationships: string[],
-    defaultNumber: number,
-  }) => {
-    const [displayAll, setDisplayAll] = useState<boolean>(false);
+  const allArticles = reciterData?.reciter?.reCiterArticleFeatures || [];
+  const acceptedCount = allArticles.filter((a: any) => a.userAssertion === 'ACCEPTED').length;
+  const suggestedCount = allArticles.filter((a: any) => a.userAssertion === 'NULL').length;
 
-    let fullList = relationships.reduce((rel, acc, i) => [rel, acc].join(i === relationships.length - 1 ? '' : ', '));
-    let defaultList = relationships.slice(0, defaultNumber).reduce((rel, acc, i) => [rel, acc].join(', '));
-    if (displayAll) {
-      return (
-        <p>{fullList}</p>
-      )
-    } else {
-      return (
-        <p>
-          {defaultList}
-          {" "}
-          {relationships.length > defaultNumber ? <button type="button" className={`btn btn-link p-0 ${styles.textButton}`} onClick={() => setDisplayAll(true)}>Show more</button> : ''}
-        </p>
-      )
-    }
-  }
+  // ── Render ──
 
-  const TableRows = ({ list }) => {
-    let rows = [];
+  if (!modalShow) return null;
 
-    let nameRow = {title: 'Names', values: []};
-    if (list.primaryName) {
-      let formattedName = fullName(list.primaryName);
-      nameRow = { ...nameRow, values: [{name: formattedName, tag: 'Primary'}]}
-    }
-
-    if (list.alternateNames) {
-      list.alternateNames.forEach((alternateName) => {
-        let formattedName = fullName(alternateName);
-        nameRow = { ...nameRow, values: [...nameRow.values, {name: formattedName}]}
-      })
-    }
-
-    rows.push(nameRow)
-
-    if (list.organizationalUnits) {
-      let units = [];
-      list.organizationalUnits.forEach((unit) => {
-        let formattedUnitData: TableRow = { name: unit.organizationalUnitLabel}
-        let formattedDate = '';
-        if (unit.startDate) {
-          formattedDate = unit.startDate.split('-')[0];
-          if (unit.endDate) {
-            formattedDate = formattedDate + ' - ' + unit.endDate.split('-')[0];
-          } else {
-            formattedDate = formattedDate + ' - ' + 'Present';
-          }
-        }
-        if (formattedDate !== '') {
-          formattedUnitData = {...formattedUnitData, tag: formattedDate};
-        }
-        units.push(formattedUnitData);
-      })
-      let orgUnitRow = { title: 'Organizational units', values: units}
-      rows.push(orgUnitRow)
-    }
-
-    if (list.degreeYear) {
-      let degreeYears = []
-      if (list.degreeYear.bachelorYear !== 0) {
-        degreeYears.push({ name: list.degreeYear.bachelorYear + ' - Bachelor\'s'})
-      }
-      if (list.degreeYear.doctoralYear !== 0) {
-        degreeYears.push({ name: list.degreeYear.doctoralYear + ' - Doctoral'})
-      }
-      if (degreeYears.length > 0) {
-        rows.push({ title: 'Degrees', values: degreeYears})
-      }
-    }
-
-    if (list.institutions) {
-      if (list.institutions.length > 0) {
-        let institutions = [];
-        // remove duplicates
-        let uniqueInstitutions = list.institutions.filter((institution, index) => list.institutions.indexOf(institution) === index);
-        uniqueInstitutions.forEach((institution) => {
-          if (institution === list.primaryInstitution) {
-            institutions.push({ name: institution, tag: 'Primary'})
-          } else {
-            institutions.push({ name: institution })
-          }
-        })
-
-
-        rows.push({ title: 'Institutions', values: institutions});
-      }
-    }
-
-    if (list.emails && list.emails.length > 0 && canViewPII) {
-      let formattedEmails = list.emails.map((email) => {
-        return {name: email}
-      })
-      rows.push({ title: 'Emails', values: formattedEmails})
-    }
-
-    let formattedRelationships = [];
-    if (list.knownRelationships) {
-      list.knownRelationships.forEach((relationship: any) => {
-        let formattedName = fullName(relationship.name);
-        if (relationship.type) formattedName = formattedName + ' (' + relationship.type + ')'
-        formattedRelationships.push(formattedName);
-      })
-    }
-
-    if (list.grants) {
-      let grantsList = formatter.format(list.grants);
-      rows.push({ title: 'Grants', values: [{ name: grantsList }]})
-    }
-
-    if (list.personTypes) {
-      let personTypesList = formatter.format(list.personTypes);
-      rows.push({ title: 'Person Types', values: [{ name: personTypesList }]})
-    }
-
-    return(
-      <>
-        {
-          rows.map((row: any, index: number) => {
-            return (
-              <tr key={index}>
-                <td align="right" width="20%">
-                  <div className="m-3">
-                    <b>{row.title}</b>
-                  </div>
-                </td>
-                <td width="80%">
-                   {row.values.map((value: TableRow, index: number) => {
-                     return (
-                       <p key={index}>{value.name} {value.tag && <span className={styles.highlighted}>{value.tag}</span>}</p>
-                     )
-                   })}
-                </td>
-              </tr>
-            )
-          })
-        } 
-        {
-          canViewPII && list.knownRelationships && list.knownRelationships.length > 0 &&
-          <tr key={rows.length}>
-            <td align="right" width="20%">
-              <div className="m-3">
-                <b>Known Relationships</b>
-              </div>
-            </td>
-            <td width="80%">
-              <DisplayRelationships
-                defaultNumber={relationshipsDisplayed}
-                relationships={formattedRelationships}
-              />
-            </td>
-          </tr>
-        }
-      </>
-    )
-  }
-
-  const exportArticleCSV = () => {
-    setExportArticleCsvLoading(true);
-
-    let body = {
-      personIdentifiers: [uid]
-    }
-
-    fetch(`/api/db/reports/publication/article`, {
-      credentials: "same-origin",
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        "Content-Type": "application/json",
-        'Authorization': reciterConfig.backendApiKey
-      },
-      body: JSON.stringify(body)
-    }).then(response => {
-      return response.json();
-    }).then(result => {
-      generateArticleCSV(result);
-      setExportArticleCsvLoading(false);
-    }).catch(error => {
-      setExportArticleCsvLoading(false);
-      console.log(error);
-    })
-  }
-
-  const generateArticleCSV = async (data) => {
-    let columns = [];
-
-    if (labels.articleInfo) {
-      Object.keys(labels.articleInfo).forEach((articleInfoField) => {
-        let labelObj = { header: labels.articleInfo[articleInfoField], key: articleInfoField };
-        columns.push(labelObj);
-      })
-    }
-    
-    if (metrics.article && labels.article) {
-      Object.keys(metrics.article).forEach(articleField => {
-        if (metrics.article[articleField] == true) {
-          let labelObj = { header: labels.article[articleField], key: articleField};
-          columns.push(labelObj);
-        }
-      })
-    }
-
-    try {
-      // creating one worksheet in workbook
-      const worksheet = workbook.addWorksheet(articleFileName);
-      // add worksheet columns
-      // each columns contains header and its mapping key from data
-      worksheet.columns = columns;
-      
-      // process the data and add rows to worksheet
-      data.forEach(item => {
-        let itemRow = {};
-        Object.keys(item).forEach(obj => {
-          if (obj === 'PersonPersonTypes') {
-            let personTypes = item[obj].map(personType => personType.personType).join('|');
-            itemRow = {...itemRow, personType: personTypes};
-          } else {
-            itemRow = {...itemRow, ...item[obj]};
-          }
-        })
-        worksheet.addRow(itemRow);
-      })
-
-      // write the content using writeBuffer
-      const buf = await workbook.csv.writeBuffer();
-      let blobFromBuffer = new Blob([buf]);
-      let fileName = `${articleFileName}.csv`;
-      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
-      link.href = window.URL.createObjectURL(blobFromBuffer);
-      link.download = fileName;
-      link.click()
-      link.remove();
-    } catch (error) {
-      console.error('<<<ERRROR>>>', error);
-      console.error('Something Went Wrong', error.message);
-    } finally {
-      // removing worksheet's instance to create new one
-      workbook.removeWorksheet(articleFileName);
-    }
-  }
-
-  const generateRTFPeopleOnly = () => {
-    setExportArticleRTFLoading(true);
-  
-    fetch(`/api/db/reports/publication/people-only`, {
-      credentials: "same-origin",
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Authorization': reciterConfig.backendApiKey
-      },
-      body: JSON.stringify({ personIdentifiers: [uid] })
-    }).then(response => {
-      return response.blob();
-    })
-    .then(fileBlob => {
-      let date = new Date().toISOString().slice(0, 10);
-      let fileName = 'ArticleReport-ReCiter-' + date + ".rtf";
-      var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
-      link.href = window.URL.createObjectURL(fileBlob)
-      link.download = fileName;
-      link.click()
-      link.remove();
-      setExportArticleRTFLoading(false);
-    })
-    .catch(error => {
-      console.log(error);
-      setExportArticleRTFLoading(false);
-    })
-  }
-
-  const DisplayInfo = ({ label, title, value}) => {
-     if (title) {
-       return (
-        <span style={{ 'position': 'relative', paddingRight : '10px'}}>
-         <OverlayTrigger
-           trigger={["hover","focus"]}
-           overlay={(
-             <Popover id="information-description" className={styles.popoverBg}>
-               <Popover.Body>
-                 {title}
-               </Popover.Body>
-             </Popover>)}
-             placement="top"
-             >
-               <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value || "Not Available"}</span>
-         </OverlayTrigger>
-         </span>
-       )
-     } else {
-       return (
-         <span className={styles.midDot}>{' '}<span className={styles.infoTitle}>{`${label}:`}</span>{' '}{value || "Not Available"}</span>
-       )
-     } 
-  //  } else
-   return null
- }
+  // Email permission check
+  const roleAccess = userPermissions.some((role: any) =>
+    role.roleLabel === (allowedPermissions.Superuser || allowedPermissions.Curator_Self)
+  );
+  const showEmails = identity.emails && identity.emails.length > 0 && roleAccess;
 
   return (
-    <Modal show={modalShow} size="lg" onHide={handleClose} dialogClassName={ showBiblioBtn ? styles.modalWidth : ""}>
-      {
-        isLoading ? 
-        <Modal.Body><Loader /></Modal.Body> : 
-        isError ? 
-        <Modal.Body>
-          <p style={{ color: '#dc3545', fontSize: '14px', textAlign: 'center', padding: '24px' }}>
-            Unable to load profile data. The person record may be incomplete or temporarily unavailable. Try again or contact your administrator.
-          </p>
-        </Modal.Body> :
-        <>
-        <Modal.Header closeButton className={styles.modalHeader}>
-          <Container>
-          <div className="d-flex">
-              <div className={styles.pr20}>
-              {
-                displayImage && identity.identityImageEndpoint && headShotLabelData && headShotLabelData.length > 0 && headShotLabelData[0].isVisible &&
-              <Image
-                alt={identity?.primaryName ? `${identity.primaryName.firstName || ''} ${identity.primaryName.lastName || ''}`.trim() : ''}
-                width={144}
-                height={217}
-                src={headShotLabelData.length > 0 && headShotLabelData[0]?.syntax?.replace("{personIdentifier}", identity.uid)}
-                onError={() => setDisplayImage(false)}
-              />
-              }
+    <div className={styles.profileOverlay} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClose(); } }}>
+      <div className={styles.profileDrawer}>
+
+        {isLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', flex: 1 }}>
+            <Loader />
+          </div>
+        ) : isError ? (
+          <div style={{ padding: '40px 24px', textAlign: 'center', color: '#8a94a6', fontSize: 13 }}>
+            Unable to load profile. Please try again.
+          </div>
+        ) : (
+          <>
+            {/* ── Drawer Head (sticky) ── */}
+            <div className={styles.drawerHead}>
+              <button className={styles.drawerClose} onClick={handleClose}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13"/></svg>
+              </button>
+
+              <div className={styles.drawerIdentity}>
+                <div className={styles.drawerPhoto}>
+                  {displayImage && identity.identityImageEndpoint && headShotLabelData?.length > 0 && headShotLabelData[0].isVisible ? (
+                    <Image
+                      className={styles.drawerPhotoImg}
+                      alt="Profile photo"
+                      width={64}
+                      height={64}
+                      src={headShotLabelData[0]?.syntax?.replace("{personIdentifier}", identity.uid)}
+                      onError={() => setDisplayImage(false)}
+                    />
+                  ) : (
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" width="28" height="28">
+                      <circle cx="8" cy="5.5" r="3"/><path d="M2 14c0-3.31 2.69-6 6-6s6 2.69 6 6"/>
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <div className={styles.drawerName}>{identity.primaryName ? fullName(identity.primaryName) : ''}</div>
+                  {identity.title && <div className={styles.drawerTitle}>{identity.title}</div>}
+                  {identity.primaryOrganizationalUnit && <div className={styles.drawerDept}>{identity.primaryOrganizationalUnit}</div>}
+                  <div className={styles.drawerMetrics}>
+                    <div className={styles.drawerMetric}>
+                      <div className={styles.drawerMetricVal}>{acceptedCount}</div>
+                      <div className={styles.drawerMetricLbl}>Accepted</div>
+                    </div>
+                    <div className={styles.drawerMetricDivider} />
+                    <div className={styles.drawerMetric}>
+                      <div className={styles.drawerMetricVal}>{identity.hindexNIH ?? '–'}</div>
+                      <div className={styles.drawerMetricLbl}>h-index</div>
+                    </div>
+                    <div className={styles.drawerMetricDivider} />
+                    <div className={styles.drawerMetric}>
+                      <div className={styles.drawerMetricVal}>{identity.h5indexNIH ?? '–'}</div>
+                      <div className={styles.drawerMetricLbl}>h5-index</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex-grow-1">
-                <DisplayName 
-                  name={identity.primaryName}
-                />
-                <b>{identity.title}</b>
-                <p>{identity.primaryOrganizationalUnit}</p>
-                <div className={`${styles.reportsAdditionalInfo} pt-2`}>
-                        {
-                          ADDITIONAL_INFO_CONFIGS.map(({ label, title, value }) => {
-                            return (
-                              <DisplayInfo
-                                label={label}
-                                title={title}
-                                value={value}
-                                key={title}
-                              />
-                            )
-                          })
+
+              <div className={styles.drawerActions}>
+                <button className={styles.drawerActionBtn} onClick={exportArticleCSV} disabled={exportArticleCsvLoading}>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M2 4h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/><path d="M2 4l6 5 6-5"/></svg>
+                  {exportArticleCsvLoading ? 'Exporting…' : 'Export CSV'}
+                </button>
+                <button className={styles.drawerActionBtn} onClick={generateRTFPeopleOnly} disabled={exportArticlRTFLoading}>
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M2 4h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/><path d="M2 4l6 5 6-5"/></svg>
+                  {exportArticlRTFLoading ? 'Exporting…' : 'Export RTF'}
+                </button>
+                {showBiblioBtn && (
+                  <button className={styles.drawerActionBtn} onClick={generateBiblioAnalysis}>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M5 7h6M5 10h4"/></svg>
+                    Bibliometric analysis
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* ── Drawer Body ── */}
+            <div className={styles.drawerBody}>
+
+              {/* Names section */}
+              <div className={styles.drawerSection}>
+                <div className={styles.drawerSectionTitle}>Names</div>
+                <div className={styles.drawerFieldVal}>
+                  {identity.primaryName && (
+                    <div className={styles.drawerListItem}>
+                      {fullName(identity.primaryName)} <span className={styles.primaryDot}>·</span> <span className={styles.primaryLabel}>Primary</span>
+                    </div>
+                  )}
+                  {identity.alternateNames && (() => {
+                    const primaryStr = identity.primaryName ? fullName(identity.primaryName) : '';
+                    const seen = new Set([primaryStr]);
+                    return identity.alternateNames
+                      .filter((altName: PrimaryName) => {
+                        const str = fullName(altName);
+                        if (seen.has(str)) return false;
+                        seen.add(str);
+                        return true;
+                      })
+                      .map((altName: PrimaryName, i: number) => (
+                        <div key={i} className={`${styles.drawerListItem} ${styles.drawerListItemSecondary}`}>{fullName(altName)}</div>
+                      ));
+                  })()}
+                </div>
+              </div>
+
+              {/* Affiliation section */}
+              <div className={styles.drawerSection}>
+                <div className={styles.drawerSectionTitle}>Affiliation</div>
+
+                {/* Org units */}
+                {identity.organizationalUnits && identity.organizationalUnits.length > 0 && (
+                  <div className={styles.drawerField}>
+                    <div className={styles.drawerFieldLabel}>Org units</div>
+                    <div className={styles.drawerFieldVal}>
+                      {identity.organizationalUnits.map((unit: any, i: number) => {
+                        let dateStr = '';
+                        if (unit.startDate) {
+                          dateStr = unit.startDate.split('-')[0] + ' – ' + (unit.endDate ? unit.endDate.split('-')[0] : 'present');
                         }
+                        return (
+                          <div key={i} className={`${styles.drawerListItem} ${i > 0 ? styles.drawerListItemSecondary : ''}`}>
+                            {unit.organizationalUnitLabel}
+                            {dateStr && <span className={styles.yearBadge}>{dateStr}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Institutions */}
+                {identity.institutions && identity.institutions.length > 0 && (
+                  <div className={styles.drawerField}>
+                    <div className={styles.drawerFieldLabel}>Institutions</div>
+                    <div className={styles.drawerFieldVal}>
+                      {[...new Set(identity.institutions)].map((inst: string, i: number) => (
+                        <div key={i} className={`${styles.drawerListItem} ${inst !== identity.primaryInstitution ? styles.drawerListItemSecondary : ''}`}>
+                          {inst}
+                          {inst === identity.primaryInstitution && (
+                            <><span className={styles.primaryDot}>·</span> <span className={styles.primaryLabel}>Primary</span></>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Email */}
+                {showEmails && (
+                  <div className={styles.drawerField}>
+                    <div className={styles.drawerFieldLabel}>Email</div>
+                    <div className={styles.drawerFieldVal}>
+                      {[...new Set(identity.emails as string[])].map((email: string, i: number) => (
+                        <div key={i} className={`${styles.drawerListItem} ${i > 0 ? styles.drawerListItemSecondary : ''}`}>{email}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Grants */}
+                {identity.grants && identity.grants.length > 0 && (
+                  <div className={styles.drawerField}>
+                    <div className={styles.drawerFieldLabel}>Grants</div>
+                    <div className={styles.drawerFieldVal}>
+                      <div className={styles.grantPillList}>
+                        {identity.grants.map((grant: string, i: number) => (
+                          <span key={i} className={styles.grantPill}>{grant}</span>
+                        ))}
                       </div>
-                <div className="d-flex">
-                  <ExportButton title="Export articles as CSV" onClick={exportArticleCSV} loading={exportArticleCsvLoading} />
-                  <ExportButton title="Export articles as RTF" onClick={generateRTFPeopleOnly} loading={exportArticlRTFLoading} />
-                  {showBiblioBtn && <Button variant="warning" onClick={() => generateBiblioAnalysis()} className="m-2">Generate bibliometric analysis</Button>}
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* Known relationships section */}
+              {(() => {
+                // Group relationships by person, combine types
+                const rels = identity.knownRelationships || [];
+                const map = new Map<string, { name: any, types: string[] }>();
+                rels.forEach((rel: any) => {
+                  const personName = fullName(rel.name);
+                  if (map.has(personName)) {
+                    const existing = map.get(personName)!;
+                    if (rel.type && !existing.types.includes(rel.type)) {
+                      existing.types.push(rel.type);
+                    }
+                  } else {
+                    map.set(personName, { name: rel.name, types: rel.type ? [rel.type] : [] });
+                  }
+                });
+                const grouped = Array.from(map.values()).sort((a, b) => {
+                  if (b.types.length !== a.types.length) return b.types.length - a.types.length;
+                  return (a.name.lastName || '').localeCompare(b.name.lastName || '');
+                });
+                if (grouped.length === 0) return null;
+                const visible = showAllRels ? grouped : grouped.slice(0, relsDefaultCount);
+                const hiddenCount = grouped.length - relsDefaultCount;
+                return (
+                  <div className={styles.drawerSection}>
+                    <div className={styles.drawerSectionTitle}>Known relationships</div>
+                    <div className={styles.drawerRelList}>
+                      {visible.map((rel, i) => {
+                        const name = fullName(rel.name);
+                        const typeStr = rel.types.map(slugToText).join(' · ');
+                        return (
+                          <div key={i} className={styles.drawerRelItem}>
+                            <span className={styles.drawerRelName}>{name}</span>
+                            {typeStr && <span className={styles.drawerRelType}>{typeStr}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {hiddenCount > 0 && (
+                      <button className={styles.showMoreBtn} onClick={() => setShowAllRels(!showAllRels)}>
+                        {showAllRels ? 'Show less \u2191' : `Show ${hiddenCount} more \u2192`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
-            </div>
-          </Container>
-        </Modal.Header>
-        <Modal.Body>
-          <Container className="px-5">
-            <p>The following are attributes from institutional data sources. This data can only be corrected in authorative systems of record.</p>
-            <table id="profile-table" className={styles.profileTable}>
-              <tbody>
-                <TableRows
-                  list={identity}
-                />
-              </tbody>
-            </table>
-          </Container>
-        </Modal.Body>
-        </>
-      }
-    </Modal>
-  )
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default Profile;
