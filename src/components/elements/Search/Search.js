@@ -90,7 +90,9 @@ const Search = () => {
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
-      viewAttributes = updatedData.viewAttributes;
+      viewAttributes = typeof updatedData.viewAttributes === "string"
+        ? JSON.parse(updatedData.viewAttributes)
+        : updatedData.viewAttributes;
 
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel)
