@@ -1572,32 +1572,46 @@ export const publicationSearchWithFilterPmids = async (
       finalSearchOutput = { authorshipsCount, pmids }; 
     } 
     else {
-      let results = await models.AnalysisSummaryArticle.findAll({
-        subQuery:false,
-        include :[
-          { 
-            model: models.AnalysisSummaryAuthor,
-            as: "AnalysisSummaryAuthor",
-            required: true,
-            on: {
-              col: Sequelize.where(
-                Sequelize.col("AnalysisSummaryAuthor.pmid"),
-                "=",
-                Sequelize.col("AnalysisSummaryArticle.pmid")
-              ),
-            },
-            attributes: [],
+      // No-filter export: bound the join so we don't load every authorship row
+      // in the database into memory (caused OOM kills on the pod when called
+      // unbounded). apiBody.limit is set by the client per export type
+      // (CSV: 10000, RTF: 4000); fall back to 10000 for the pmids prefetch.
+      const noFilterLimit = (typeof apiBody.limit === 'number' && apiBody.limit > 0) ? apiBody.limit : 10000;
+      const includeJoin = [
+        {
+          model: models.AnalysisSummaryAuthor,
+          as: "AnalysisSummaryAuthor",
+          required: true,
+          on: {
+            col: Sequelize.where(
+              Sequelize.col("AnalysisSummaryAuthor.pmid"),
+              "=",
+              Sequelize.col("AnalysisSummaryArticle.pmid")
+            ),
           },
-        ],
-       
+          attributes: [],
+        },
+      ];
+
+      let results = await models.AnalysisSummaryArticle.findAll({
+        subQuery: false,
+        include: includeJoin,
         attributes: [`AnalysisSummaryAuthor.id`, `pmid`, `pmcid`, `publicationDateDisplay`, `publicationDateStandardized`, `datePublicationAddedToEntrez`, `articleTitle`, `articleTitleRTF`, `publicationTypeCanonical`, `publicationTypeNIH`, `journalTitleVerbose`, `issn`, `journalImpactScore1`, `journalImpactScore2`, `articleYear`, `doi`, `volume`, `issue`, `pages`, `citationCountScopus`, `citationCountNIH`, `percentileNIH`, `relativeCitationRatioNIH`, `readersMendeley`, `trendingPubsScore`],
+        limit: noFilterLimit,
         benchmark: true
       });
 
       let pmids = results.map(result => result.pmid);
-      let authorshipsCount = results && results.length || 0 ;
+      // True authorship count (uncapped) for the modal display, computed via
+      // an efficient COUNT(*) with the same INNER JOIN.
+      let totalAuthorships = await models.AnalysisSummaryArticle.count({
+        subQuery: false,
+        include: includeJoin,
+        benchmark: true,
+      });
+      let authorshipsCount = totalAuthorships || (results && results.length) || 0;
 
-      finalSearchOutput = { authorshipsCount, pmids }; 
+      finalSearchOutput = { authorshipsCount, pmids };
 
     }
     return finalSearchOutput;
