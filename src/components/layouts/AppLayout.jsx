@@ -10,7 +10,7 @@ import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../config/local";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { clearPubSearchFilters, getAdminDepartments, getAdminRoles, notificationEmail } from "../../redux/actions/actions";
 
 export const AppLayout = ({ children }) => {
@@ -18,15 +18,12 @@ export const AppLayout = ({ children }) => {
   const dispatch = useDispatch();
 
   const [session, loading] = useSession();
-  const errors = useSelector((state) => state.errors);
 
   useEffect(() => {
     if (!loading && !session) {
       router.push("/");
-    } else if (errors.length) {
-      router.push("/_error");
     }
-  }, [loading, session, errors, router]);
+  }, [loading, session, router]);
 
   useEffect(() => {
     if (router?.pathname !== "/report") {
