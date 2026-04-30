@@ -112,10 +112,16 @@ export const reciterConfig = {
     /**
      * This endpoint is used to search pubmed. You need to have ReCiter-Pubmed-Retrieval tool conifgured. See https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool.git
      * for details.
+     *
+     * On prod these /pubmed/query-* routes live behind the same ingress as the
+     * ReCiter Spring Boot service, so RECITER_API_BASE_URL is sufficient. On
+     * dev the two services are separate (reciter-dev vs reciter-pubmed-dev),
+     * so RECITER_PUBMED_API_URL can override just these routes. Falls back to
+     * RECITER_API_BASE_URL when not set, preserving prod behavior.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-complex/',
-        searchPubmedCountEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-number-pubmed-articles/',
+        searchPubmedEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-complex/',
+        searchPubmedCountEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-number-pubmed-articles/',
     },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.

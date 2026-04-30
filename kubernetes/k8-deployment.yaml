@@ -66,10 +66,16 @@ spec:
                 name: reciter-pm-secrets
                 key: RECITER_DB_HOST
            - name: RECITER_API_BASE_URL
-            valueFrom: 
+            valueFrom:
               secretKeyRef:
                 name: reciter-pm-secrets
-                key: RECITER_API_BASE_URL                           
+                key: RECITER_API_BASE_URL
+          - name: RECITER_PUBMED_API_URL
+            valueFrom:
+              secretKeyRef:
+                name: reciter-pm-secrets
+                key: RECITER_PUBMED_API_URL
+                optional: true
          - name: LOGIN_PROVIDER
             value: SAML
           - name : ENTITY_ID
