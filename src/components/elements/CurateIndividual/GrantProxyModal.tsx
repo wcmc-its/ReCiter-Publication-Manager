@@ -38,6 +38,7 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
     const [loadingExisting, setLoadingExisting] = useState(false);
     const [loadError, setLoadError] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<null | 'success' | 'error'>(null);
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -53,6 +54,7 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
             setLoadingExisting(false);
             setLoadError(false);
             setSaving(false);
+            setSaveStatus(null);
             if (searchTimer.current) {
                 clearTimeout(searchTimer.current);
                 searchTimer.current = null;
@@ -131,6 +133,7 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
 
     const handleSave = async () => {
         setSaving(true);
+        setSaveStatus(null);
         try {
             const res = await fetch('/api/db/admin/proxy/grant', {
                 method: 'POST',
@@ -148,17 +151,24 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
                 'Proxy access updated. Changes take effect on the user\'s next login.',
                 { position: 'top-right', autoClose: 5000, theme: 'colored' }
             );
+            // Inline confirmation for users who have global toasts disabled.
+            // Hold the modal open for ~1.2s with a green status before closing.
+            setSaveStatus('success');
             onSave();
-            onHide();
+            setTimeout(() => {
+                setSaving(false);
+                onHide();
+            }, 1200);
+            return;
         } catch (err) {
             console.error('[GrantProxyModal] save error:', err);
             toast.error(
                 'Failed to update proxy access. Please try again.',
                 { position: 'top-right', autoClose: 5000, theme: 'colored' }
             );
-        } finally {
-            setSaving(false);
+            setSaveStatus('error');
         }
+        setSaving(false);
     };
 
     const handleDiscard = () => {
@@ -289,6 +299,35 @@ const GrantProxyModal: React.FC<GrantProxyModalProps> = ({
                 )}
             </Modal.Body>
             <div className={styles.footer}>
+                {saveStatus === 'success' && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        style={{
+                            color: '#1e7e34',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            marginRight: 'auto',
+                            paddingLeft: 4,
+                        }}
+                    >
+                        ✓ Proxy access updated
+                    </div>
+                )}
+                {saveStatus === 'error' && (
+                    <div
+                        role="alert"
+                        style={{
+                            color: '#b31b1b',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            marginRight: 'auto',
+                            paddingLeft: 4,
+                        }}
+                    >
+                        ✕ Save failed. Please try again.
+                    </div>
+                )}
                 <button
                     type="button"
                     className={styles.btnDiscard}
