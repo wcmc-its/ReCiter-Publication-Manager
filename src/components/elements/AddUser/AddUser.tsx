@@ -253,10 +253,14 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     }, [router.query.userId, allAdminRoles])
 
     const CssTextField = styled(TextField)({
+        // Match the .fieldInput CSS in AddUser.module.css so the Autocomplete
+        // text fields in the Curation Scope and Proxy Assignment sections are
+        // visually consistent with the plain inputs above them on this form.
         '& .MuiOutlinedInput-root': {
             background: 'rgba(255, 255, 255, 0.9)',
             borderColor: '#ced4da',
             padding: '.375rem .75rem',
+            fontSize: '13px',
             '& fieldset': {
                 top: '0px',
                 '& legend': {
@@ -266,6 +270,15 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             '&:hover fieldset': {
                 borderColor: '#ced4da',
             },
+        },
+        '& .MuiOutlinedInput-input': {
+            fontSize: '13px',
+        },
+        '& .MuiAutocomplete-tag': {
+            fontSize: '13px',
+        },
+        '& input::placeholder': {
+            fontSize: '13px',
         },
     });
 
