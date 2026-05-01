@@ -1605,7 +1605,6 @@ export const publicationSearchWithFilterPmids = async (
       // True authorship count (uncapped) for the modal display, computed via
       // an efficient COUNT(*) with the same INNER JOIN.
       let totalAuthorships = await models.AnalysisSummaryArticle.count({
-        subQuery: false,
         include: includeJoin,
         benchmark: true,
       });
