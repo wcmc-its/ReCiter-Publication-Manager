@@ -43,10 +43,17 @@ export const generatePubsRtf = async (
     } else {
 
 																	   
+      // Stored procedure reciterdb.generatePubsNoPeopleRTF accepts a single
+      // arg (pmids); apiBody.limit is not honored here because the procedure
+      // signature was never updated to accept it. Caller applies a limit when
+      // staging the pmid list if it cares about cap.
+      const cappedPmids = typeof apiBody.limit === 'number' && apiBody.limit > 0
+        ? apiBody.pmids.slice(0, apiBody.limit)
+        : apiBody.pmids;
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsNoPeopleRTF ( :pmids, :limit)",
+        "CALL generatePubsNoPeopleRTF ( :pmids )",
         {
-          replacements: { pmids: apiBody.pmids.join(','), limit: apiBody.limit },
+          replacements: { pmids: cappedPmids.join(',') },
           raw: true,
         }
       );
