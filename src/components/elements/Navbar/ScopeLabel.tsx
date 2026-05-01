@@ -1,67 +1,62 @@
 import React from 'react';
 import Tooltip from '@mui/material/Tooltip';
+import styles from './ScopeLabel.module.css';
 
 interface ScopeLabelProps {
-  scopeData: { personTypes: string[] | null; orgUnits: string[] | null } | null;
-  proxyCount?: number;
+    scopeData: { personTypes: string[] | null; orgUnits: string[] | null } | null;
+    proxyCount: number;
 }
 
+const MAX_DISPLAY_ITEMS = 3;
+
 const ScopeLabel: React.FC<ScopeLabelProps> = ({ scopeData, proxyCount }) => {
-  const items: string[] = [];
-  if (scopeData) {
-    if (scopeData.personTypes) items.push(...scopeData.personTypes);
-    if (scopeData.orgUnits) items.push(...scopeData.orgUnits);
-  }
+    // Collect all scope items into a single array
+    const scopeItems: string[] = [];
+    if (scopeData?.personTypes) {
+        scopeItems.push(...scopeData.personTypes);
+    }
+    if (scopeData?.orgUnits) {
+        scopeItems.push(...scopeData.orgUnits);
+    }
 
-  const proxyText = proxyCount
-    ? proxyCount === 1
-      ? '1 proxied person'
-      : `${proxyCount} proxied people`
-    : '';
+    // Build proxy text
+    let proxyText = '';
+    if (proxyCount === 1) {
+        proxyText = '1 proxy';
+    } else if (proxyCount > 1) {
+        proxyText = `${proxyCount} proxies`;
+    }
 
-  // Nothing to display if no scope items and no proxy count
-  if (items.length === 0 && !proxyText) return null;
+    // Return null if nothing to display
+    if (scopeItems.length === 0 && !proxyText) {
+        return null;
+    }
 
-  const maxDisplay = 3;
-  const displayItems = items.slice(0, maxDisplay);
-  const remaining = items.length - maxDisplay;
-  const scopeDisplayText = displayItems.join(', ') + (remaining > 0 ? `, +${remaining} more` : '');
-  const fullScopeText = items.join(', ');
+    // Truncate scope items for display
+    const displayItems = scopeItems.slice(0, MAX_DISPLAY_ITEMS);
+    const overflow = scopeItems.length - MAX_DISPLAY_ITEMS;
+    let displayText = displayItems.join(', ');
+    if (overflow > 0) {
+        displayText += ` +${overflow} more`;
+    }
+    if (proxyText) {
+        displayText += displayText ? ` + ${proxyText}` : proxyText;
+    }
 
-  // Build label text
-  let labelText = '';
-  if (items.length > 0 && proxyText) {
-    labelText = `Curating: ${scopeDisplayText} + ${proxyText}`;
-  } else if (items.length > 0) {
-    labelText = `Curating: ${scopeDisplayText}`;
-  } else if (proxyText) {
-    labelText = `Curating: ${proxyText}`;
-  }
+    // Build full tooltip text (untruncated)
+    const fullItems = [...scopeItems];
+    if (proxyText) {
+        fullItems.push(proxyText);
+    }
+    const tooltipText = fullItems.join(', ');
 
-  // Build aria-label
-  const ariaLabel = items.length > 0
-    ? `Curation scope: ${fullScopeText}${proxyText ? ' plus ' + proxyText : ''}`
-    : `Curation scope: ${proxyText}`;
-
-  return (
-    <Tooltip title={items.length > maxDisplay ? fullScopeText : ''} placement="right">
-      <div
-        aria-label={ariaLabel}
-        style={{
-          fontSize: '12px',
-          fontWeight: 600,
-          lineHeight: 1.4,
-          color: '#777777',
-          padding: '4px 16px 8px 16px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        {labelText}
-      </div>
-    </Tooltip>
-  );
+    return (
+        <Tooltip title={tooltipText} placement="right" arrow>
+            <div className={styles.scopeLabel} aria-label={`Scope: ${tooltipText}`}>
+                {displayText}
+            </div>
+        </Tooltip>
+    );
 };
 
 export default ScopeLabel;
