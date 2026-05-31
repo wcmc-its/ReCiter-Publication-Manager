@@ -153,7 +153,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         console.log('Error saving proxy assignments:', err);
                     }
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
-                    router.push("/admin/manage/users")
+                    router.push("/manageusers")
                 }
             }
             else {
@@ -177,7 +177,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         console.log('Error saving proxy assignments:', err);
                     }
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
-                    router.push("/admin/manage/users")
+                    router.push("/manageusers")
                 }
             }
         }
