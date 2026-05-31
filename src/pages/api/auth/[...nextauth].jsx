@@ -212,6 +212,8 @@ const options = {
                         reciterSamlConfig.saml_idp_options
                     );
                     const { user } = await postAssert(idp, samlBody);
+                    // TEMP DIAGNOSTIC (remove after SAML debug): confirm the assertion validated + show what attributes arrived
+                    console.log('[saml-authorize] post_assert OK; attribute keys:', user && user.attributes ? Object.keys(user.attributes) : 'none');
                     let cwid = null;
                     let email = null;
                     let usrAttr = null;
@@ -278,8 +280,13 @@ const options = {
                            if(adminUser)
                                     return adminUser;
                     }
+                    // TEMP DIAGNOSTIC (remove after SAML debug): assertion validated but no usable identity extracted
+                    console.warn('[saml-authorize] has_access:false — no cwid/email/upn extracted. cwid=', cwid, 'email=', smalUserEmail, 'upn=', userPrincipalName);
                     return { cwid, has_access: false };
                 } catch (error) {
+                    // TEMP DIAGNOSTIC (remove after SAML debug): surface the swallowed SAML/login error
+                    console.error('[saml-authorize] FAILED:', error && error.message ? error.message : error);
+                    console.error('[saml-authorize] stack:', error && error.stack ? error.stack : '(no stack)');
                     return null;
                 }
             },
