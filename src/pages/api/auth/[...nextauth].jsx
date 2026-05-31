@@ -4,7 +4,7 @@ import saml2 from "saml2-js";
 import { reciterSamlConfig }  from "../../../../config/saml"
 import { authenticate } from "../../../../controllers/authentication.controller";
 import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from '../../../../controllers/db/admin.users.controller';
-import { findUserPermissions, findUserPermissionsEnriched } from '../../../../controllers/db/userroles.controller';
+import { findUserPermissions, findUserPermissionsEnriched, findUserScope } from '../../../../controllers/db/userroles.controller';
 import {fetchUpdatedAdminSettings, findOneAdminSettings} from '../../../../controllers/db/admin.settings.controller';
 import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
@@ -48,6 +48,15 @@ const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLastName) =
                 console.error('Permission enrichment failed:', err);
                 createdAdminUser.permissions = [];
                 createdAdminUser.permissionResources = [];
+            }
+        }
+        // Phase 9: Resolve curation scope (Curator_Scoped) into the JWT
+        if(samlEmail || cwid) {
+            try {
+                createdAdminUser.scopeData = await findUserScope([EMAIL, PERSONIDENTIFIER], [samlEmail, cwid]);
+            } catch(err) {
+                console.error('Scope enrichment failed:', err);
+                createdAdminUser.scopeData = { personTypes: null, orgUnits: null };
             }
         }
           let databaseUser = {
@@ -315,6 +324,10 @@ const options = {
               }
               if(apiResponse.permissionResources) {
                   token.permissionResources = JSON.stringify(apiResponse.permissionResources)
+              }
+              // Phase 9: Carry curation scope in JWT (read by checkCurationScope / Search / SideNavbar)
+              if(apiResponse.scopeData) {
+                  token.scopeData = JSON.stringify(apiResponse.scopeData)
               }
             }
             return token

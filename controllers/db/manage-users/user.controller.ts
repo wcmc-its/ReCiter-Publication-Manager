@@ -239,9 +239,9 @@ export const createOrUpdateAdminUser = async (
         'nameMiddle': middleName,
         'nameLast': lastName,
         'modifyTimestamp': new Date(),
-        // Phase 9: Scope fields for Curator_Scoped role
-        'scope_person_types': req.body.scopePersonTypes || null,
-        'scope_org_units': req.body.scopeOrgUnits || null,
+        // Phase 9: Scope fields for Curator_Scoped role (stored as JSON text)
+        'scope_person_types': Array.isArray(req.body.scopePersonTypes) && req.body.scopePersonTypes.length ? JSON.stringify(req.body.scopePersonTypes) : null,
+        'scope_org_units': Array.isArray(req.body.scopeOrgUnits) && req.body.scopeOrgUnits.length ? JSON.stringify(req.body.scopeOrgUnits) : null,
       }
       
 
@@ -316,9 +316,9 @@ export const createOrUpdateAdminUser = async (
         'email': email,
         'status': 1,  // Hardcoded 1 to make user active bydefault
         'createTimestamp': new Date(),
-        // Phase 9: Scope fields for Curator_Scoped role
-        'scope_person_types': req.body.scopePersonTypes || null,
-        'scope_org_units': req.body.scopeOrgUnits || null,
+        // Phase 9: Scope fields for Curator_Scoped role (stored as JSON text)
+        'scope_person_types': Array.isArray(req.body.scopePersonTypes) && req.body.scopePersonTypes.length ? JSON.stringify(req.body.scopePersonTypes) : null,
+        'scope_org_units': Array.isArray(req.body.scopeOrgUnits) && req.body.scopeOrgUnits.length ? JSON.stringify(req.body.scopeOrgUnits) : null,
       }
 
       

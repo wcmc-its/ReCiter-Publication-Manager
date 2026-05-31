@@ -129,8 +129,9 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             let selectedRoleIds = roleIds || [];
             let departmentIds = departMentIds || [];
             let isEditUserId = router.query.userId;
-            let personTypeLabels = hasScopedRole ? selectedPersonTypes : [];
-            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, personTypeLabels }
+            let scopePersonTypes = hasScopedRole ? selectedPersonTypes : [];
+            let scopeOrgUnits = hasScopedRole ? selectedDepartments : [];
+            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, scopePersonTypes, scopeOrgUnits }
 
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
@@ -153,7 +154,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         console.log('Error saving proxy assignments:', err);
                     }
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
-                    router.push("/admin/manage/users")
+                    router.push("/manageusers")
                 }
             }
             else {
@@ -177,7 +178,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                         console.log('Error saving proxy assignments:', err);
                     }
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
-                    router.push("/admin/manage/users")
+                    router.push("/manageusers")
                 }
             }
         }
@@ -202,9 +203,9 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         if (isEditUserId && allAdminRoles.length > 0) {
             setLoading(true)
             let userDetails = fetchUserInfoByID(isEditUserId).then(result => {
-                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier } = result && result[0];
+                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier, scope_person_types, scope_org_units } = result && result[0];
+                let roleNames = [];
                 if (adminUsersRoles) {
-                    let roleNames = [];
                     allAdminRoles.map(role => {
                         adminUsersRoles.map((editRole) => {
                             if (editRole.roleID === role.roleID) roleNames.push(role.roleLabel)
@@ -212,20 +213,27 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                     })
                     setSelectedRoles(roleNames ? roleNames : [])
 
-                    // Load person type scope data for edit
+                    // Load saved person-type scope for edit (stored as JSON on the user record)
                     if (roleNames.includes('Curator_Scoped')) {
-                        fetch(`/api/db/admin/users/persontypes?userId=${isEditUserId}`, {
-                            headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
-                        })
-                            .then(r => r.json())
-                            .then(data => {
-                                if (Array.isArray(data)) setSelectedPersonTypes(data.map(d => d.personType));
-                            })
-                            .catch(err => console.log('Error fetching user person types:', err));
+                        try {
+                            const savedPersonTypes = scope_person_types ? JSON.parse(scope_person_types) : [];
+                            if (Array.isArray(savedPersonTypes)) setSelectedPersonTypes(savedPersonTypes);
+                        } catch (err) {
+                            console.log('Error parsing scope_person_types:', err);
+                        }
                     }
                 }
 
-                if (adminUsersDepartments) {
+                if (roleNames.includes('Curator_Scoped')) {
+                    // Scoped curators: org-unit scope lives in scope_org_units, not the department join
+                    try {
+                        const savedOrgUnits = scope_org_units ? JSON.parse(scope_org_units) : [];
+                        setSelectedDepartments(Array.isArray(savedOrgUnits) ? savedOrgUnits : [])
+                    } catch (err) {
+                        console.log('Error parsing scope_org_units:', err);
+                        setSelectedDepartments([])
+                    }
+                } else if (adminUsersDepartments) {
                     let departmentNames = [];
                     adminDepartments.map((department) => {
                         adminUsersDepartments.map((editIds) => {

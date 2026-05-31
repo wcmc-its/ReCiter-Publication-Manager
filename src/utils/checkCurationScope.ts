@@ -59,23 +59,33 @@ export async function checkCurationScope(
       ? JSON.parse(token.scopeData as string)
       : null
 
-    const person = await models.Person.findOne({
-      where: { personIdentifier: targetUid },
-      attributes: ['primaryOrganizationalUnit'],
-      raw: true,
-    })
+    // Fail closed: a scoped curator with no configured scope can curate no one.
+    // isPersonInScope treats a null/empty scope as "no restriction" (allow-all) —
+    // correct for the search filter, but wrong for the curate gate, so guard here.
+    const hasScope =
+      !!scopeData &&
+      ((Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
+        (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0))
 
-    const personTypes = await models.PersonPersonType.findAll({
-      where: { personIdentifier: targetUid },
-      attributes: ['personType'],
-      raw: true,
-    })
+    if (hasScope) {
+      const person = await models.Person.findOne({
+        where: { personIdentifier: targetUid },
+        attributes: ['primaryOrganizationalUnit'],
+        raw: true,
+      })
 
-    const orgUnit = person?.primaryOrganizationalUnit || null
-    const types = personTypes.map((pt: any) => pt.personType).filter(Boolean)
+      const personTypes = await models.PersonPersonType.findAll({
+        where: { personIdentifier: targetUid },
+        attributes: ['personType'],
+        raw: true,
+      })
 
-    if (isPersonInScope(scopeData, orgUnit, types)) {
-      return { allowed: true }
+      const orgUnit = person?.primaryOrganizationalUnit || null
+      const types = personTypes.map((pt: any) => pt.personType).filter(Boolean)
+
+      if (isPersonInScope(scopeData, orgUnit, types)) {
+        return { allowed: true }
+      }
     }
   }
 
