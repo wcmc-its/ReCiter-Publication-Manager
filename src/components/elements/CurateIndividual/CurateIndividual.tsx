@@ -20,6 +20,7 @@ import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
 import GrantProxyModal from './GrantProxyModal';
+import AuditHistoryPanel from './AuditHistoryPanel';
 
 
 
@@ -238,6 +239,7 @@ const CurateIndividual = () => {
             fullName={personFullName}
             fetchOriginalData={fetchData}
           />
+          {identityData.uid && <AuditHistoryPanel uid={identityData.uid} />}
           <Profile
             uid={identityData.uid}
             modalShow={modalShow}

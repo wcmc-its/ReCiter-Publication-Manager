@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getToken } from 'next-auth/jwt'
 import { updateGoldStandard } from "../../../../../controllers/goldstandard.controller"
 import { reciterConfig } from '../../../../../config/local'
 import { checkCurationScope } from '../../../../utils/checkCurationScope'
@@ -28,7 +29,20 @@ export default async function handler(
             }
         }
 
-        const apiResponse = await updateGoldStandard(req);
+        // Phase 34: resolve the curating user's admin_users.userID from the JWT so
+        // ReCiter can record who performed the action (FeedbackLog.curatedBy).
+        let curatedBy: number | undefined = undefined;
+        try {
+            const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+            const userID = token?.databaseUser?.userID;
+            if (userID !== undefined && userID !== null && !Number.isNaN(Number(userID))) {
+                curatedBy = Number(userID);
+            }
+        } catch (e) {
+            // Leave curatedBy undefined -> ReCiter defaults to 0 (unknown).
+        }
+
+        const apiResponse = await updateGoldStandard(req, curatedBy);
         if(apiResponse.statusCode === 200) {
             res.status(apiResponse.statusCode).send({
                 statusCode: apiResponse.statusCode,

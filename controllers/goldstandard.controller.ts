@@ -3,14 +3,17 @@ import { NextApiRequest } from 'next'
 import url from 'url'
 import { saveUserFeedback } from './userfeedback.controller'
 
-export async function updateGoldStandard(req: NextApiRequest)  {
+export async function updateGoldStandard(req: NextApiRequest, curatedBy?: number)  {
 
     const {
         query: { goldStandardUpdateFlag }
       } = req;
 
-    
-   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}&source=publication-manager`, {
+    // Phase 34: forward the curating user's id so ReCiter records who performed the action
+    const curatedByParam = (curatedBy !== undefined && curatedBy !== null && !Number.isNaN(curatedBy))
+        ? `&curatedBy=${curatedBy}` : '';
+
+   return fetch(`${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${goldStandardUpdateFlag}&source=publication-manager${curatedByParam}`, {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
