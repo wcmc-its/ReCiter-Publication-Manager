@@ -154,6 +154,67 @@ export const findUserPermissionsEnriched = async (
     return { permissions, permissionResources };
 };
 
+/**
+ * Resolve a user's curation scope (Curator_Scoped) from the stored JSON columns.
+ * Returns { personTypes, orgUnits } where each is a non-empty string[] or null
+ * (null = no restriction on that axis). Used to enrich the JWT at login.
+ */
+export const findUserScope = async (
+  attrTypes: string[],
+  attrValues: string[]
+): Promise<{ personTypes: string[] | null; orgUnits: string[] | null }> => {
+
+    if (!Array.isArray(attrTypes) || !Array.isArray(attrValues) || attrTypes.length !== attrValues.length) {
+        return { personTypes: null, orgUnits: null };
+    }
+
+    const allowedFields = ['email', 'personIdentifier'];
+    const replacements: Record<string, any> = { personIdentifier: '', email: '' };
+
+    attrTypes.forEach((field, index) => {
+        const value = attrValues[index] ?? '';
+        if (!allowedFields.includes(field)) return;
+        if (field === 'personIdentifier') replacements.personIdentifier = value;
+        if (field === 'email') replacements.email = value;
+    });
+
+    const whereClause = `
+        (au.personIdentifier = :personIdentifier AND au.email = :email)
+        OR
+        (
+        au.email = :email
+        AND au.email IS NOT NULL AND au.email <> ''
+        AND au.email IN (
+            SELECT email
+            FROM admin_users
+            WHERE email IS NOT NULL AND email <> ''
+            GROUP BY email
+            HAVING COUNT(*) = 1
+        )
+        )
+    `;
+
+    const rows: any[] = await sequelize.query(
+        `SELECT au.scope_person_types, au.scope_org_units FROM admin_users au WHERE ${whereClause}`,
+        { replacements, raw: true, nest: true }
+    );
+
+    // Prefer the row that actually has scope set (handles duplicate-email rows)
+    const chosen: any = rows.find((r: any) => r.scope_person_types || r.scope_org_units) || rows[0] || {};
+
+    const parse = (v: any): string[] | null => {
+        if (!v) return null;
+        try {
+            const arr = JSON.parse(v);
+            return Array.isArray(arr) && arr.length ? arr : null;
+        } catch {
+            return null;
+        }
+    };
+
+    return { personTypes: parse(chosen.scope_person_types), orgUnits: parse(chosen.scope_org_units) };
+};
+
 
 
 
