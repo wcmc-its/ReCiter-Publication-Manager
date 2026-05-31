@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getFeedbackLog } from "../../../../../controllers/feedbacklog.controller"
+import { findAdminUserNamesByIds } from "../../../../../controllers/db/manage-users/user.controller"
 import { reciterConfig } from '../../../../../config/local'
 import { checkCurationScope } from '../../../../utils/checkCurationScope'
 
@@ -36,7 +37,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const apiResponse = await getFeedbackLog(targetUid)
         if (apiResponse.statusCode === 200) {
-            return res.status(200).send(apiResponse.data)
+            const data = apiResponse.data
+            // Resolve curatedBy (admin_users.userID) -> display name for the UI.
+            if (Array.isArray(data)) {
+                const ids: number[] = Array.from(
+                    new Set(data.map((e: any) => e.curatedBy).filter((n: any) => Number.isInteger(n) && n > 0))
+                )
+                const nameMap = await findAdminUserNamesByIds(ids)
+                data.forEach((e: any) => {
+                    e.curatorName = (e.curatedBy && nameMap[e.curatedBy]) ? nameMap[e.curatedBy] : null
+                })
+            }
+            return res.status(200).send(data)
         }
         return res.status(apiResponse.statusCode || 500).send({
             statusCode: apiResponse.statusCode || 500,
