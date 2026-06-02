@@ -6,7 +6,7 @@ import { styled } from '@mui/material/styles';
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
-import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminRoles, getAdminDepartments} from "../../../redux/actions/actions";
+import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminRoles, getAdminDepartments, getOrgUnits} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { PageHeader } from "../Common/PageHeader";
@@ -27,6 +27,9 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
     //Store Data
     const adminDepartments = useSelector((state: RootStateOrAny) => state.AllAdminDepatments);
+    // Curation-scope org units come from the real org-unit vocabulary (distinct
+    // Person.primaryOrganizationalUnit) — the same values scope enforcement compares against.
+    const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData);
     const allAdminRoles = useSelector((state: RootStateOrAny) => state.AllAdminRoles);
 
     const [state, setState] = useState({
@@ -60,6 +63,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     useEffect(() => {
         if (!allAdminRoles || allAdminRoles.length === 0) dispatch(getAdminRoles());
         if (!adminDepartments || adminDepartments.length === 0) dispatch(getAdminDepartments());
+        if (!orgUnitsData || orgUnitsData.length === 0) dispatch(getOrgUnits());
     }, []);
 
     const hasScopedRole = selectedRoles.includes('Curator_Scoped');
@@ -432,7 +436,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     selectedDepartments={selectedDepartments}
                                     onDepartmentsChange={setSelectedDepartments}
                                     personTypeOptions={personTypeOptions}
-                                    departmentOptions={adminDepartments.map(d => d.departmentLabel)}
+                                    departmentOptions={(orgUnitsData || []).map((o: any) => o.primaryOrganizationalUnit).filter(Boolean)}
                                     error={formErrorsInst.scopeRequired || null}
                                     CssTextField={CssTextField}
                                 />
