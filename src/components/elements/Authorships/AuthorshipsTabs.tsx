@@ -45,6 +45,21 @@ const CLASS_META: Record<string, { label: string; color: string; hint: string }>
   assigned: { label: "Assigned", color: "#067647", hint: "Accepted by a WCM person" },
 };
 
+// Column headers; `hint` (when present) renders a hover tooltip explaining the jargon.
+const HEADERS: Array<{ label: string; hint?: string }> = [
+  { label: "WCM author" },
+  { label: "Proposed identity" },
+  { label: "FG", hint: "Production (final-gate) score: the authorship-likelihood score ReCiter assigns in production (0–100). Below 30 means production buried this person." },
+  { label: "IO", hint: "Identity-only score: likelihood from identity evidence alone (name, affiliation, etc.), ignoring curator feedback (0–100)." },
+  { label: "Class", hint: "How production currently treats this authorship — Buried (final < 30), Never retrieved (never scored), Suggested (already pending), or Assigned (accepted)." },
+  { label: "Cand.", hint: "Number of WCM identities matching this author name. “1 ✓” = a single, near-certain candidate." },
+  { label: "Conf.", hint: "Confidence that the proposed WCM identity is the correct author of this article (0–1)." },
+  { label: "Date", hint: "Article publication date (Entrez date)." },
+  { label: "Article" },
+  { label: "" },
+];
+const COL_COUNT = HEADERS.length;
+
 // ---- small presentational bits -------------------------------------------
 const Badge = ({ text, color, title }: { text: string; color: string; title?: string }) => (
   <span title={title} style={{
@@ -73,6 +88,9 @@ const AuthorshipsTabs = () => {
   const [classification, setClassification] = useState<"all" | "buried" | "absent" | "suggested">("all");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [sort, setSort] = useState("precision");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const filterBody = useCallback(() => ({
@@ -80,8 +98,10 @@ const AuthorshipsTabs = () => {
     precision: lane === "single" ? "single" : "all",
     classification,
     searchTextInput: search,
-    sort: "precision",
-  }), [lane, classification, search]);
+    dateFrom,
+    dateTo,
+    sort,
+  }), [lane, classification, search, dateFrom, dateTo, sort]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -98,15 +118,15 @@ const AuthorshipsTabs = () => {
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search }),
+      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo }),
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search]);
+  }, [search, dateFrom, dateTo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  // reset to first page when filters change
-  useEffect(() => { setPage(0); }, [lane, classification, search]);
+  // reset to first page when filters or sort change
+  useEffect(() => { setPage(0); }, [lane, classification, search, dateFrom, dateTo, sort]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
@@ -142,20 +162,53 @@ const AuthorshipsTabs = () => {
         ))}
       </div>
 
-      {/* classification chips + search */}
+      {/* classification chips + sort + date filter + search */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         {classChips.map((c) => (
-          <button key={c} onClick={() => setClassification(c)} style={{
-            padding: "4px 12px", borderRadius: 16, border: "1px solid #d0d5dd", cursor: "pointer",
-            background: classification === c ? "#eff8ff" : "#fff",
-            color: classification === c ? "#175cd3" : "#475467", fontSize: 12, fontWeight: 600,
-          }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
+          <button key={c} onClick={() => setClassification(c)}
+            title={c === "all" ? "Show every classification" : CLASS_META[c].hint}
+            style={{
+              padding: "4px 12px", borderRadius: 16, border: "1px solid #d0d5dd", cursor: "pointer",
+              background: classification === c ? "#eff8ff" : "#fff",
+              color: classification === c ? "#175cd3" : "#475467", fontSize: 12, fontWeight: 600,
+            }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
         ))}
-        <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }} style={{ marginLeft: "auto" }}>
-          <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search name, CWID, or PMID"
-            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d0d5dd", width: 240, fontSize: 13 }} />
-        </form>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}>
+            Sort
+            <select value={sort} onChange={(e) => setSort(e.target.value)}
+              style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #d0d5dd", fontSize: 13, color: "#344054" }}>
+              <option value="precision">Best match</option>
+              <option value="confidence">Confidence</option>
+              <option value="date">Newest</option>
+              <option value="io">Identity-only score</option>
+              <option value="fg">Production score</option>
+            </select>
+          </label>
+          <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}
+            title="Filter by article publication date (from)">
+            From
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #d0d5dd", fontSize: 13, color: "#344054" }} />
+          </label>
+          <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}
+            title="Filter by article publication date (to)">
+            To
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #d0d5dd", fontSize: 13, color: "#344054" }} />
+          </label>
+          {(dateFrom || dateTo) && (
+            <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
+              style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid #d0d5dd", background: "#fff", cursor: "pointer", color: "#475467", fontSize: 12 }}>
+              Clear dates
+            </button>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
+            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search name, CWID, or PMID"
+              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d0d5dd", width: 240, fontSize: 13 }} />
+          </form>
+        </div>
       </div>
 
       {/* table */}
@@ -163,17 +216,21 @@ const AuthorshipsTabs = () => {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ background: "#f9fafb", textAlign: "left", color: "#475467" }}>
-              {["WCM author", "Proposed identity", "FG", "IO", "Class", "Cand.", "Conf.", "Article", ""].map((h, i) => (
-                <th key={i} style={{ padding: "10px 12px", fontWeight: 600, borderBottom: "1px solid #eaecf0", whiteSpace: "nowrap" }}>{h}</th>
+              {HEADERS.map((h, i) => (
+                <th key={i} style={{ padding: "10px 12px", fontWeight: 600, borderBottom: "1px solid #eaecf0", whiteSpace: "nowrap" }}>
+                  {h.hint
+                    ? <span title={h.hint} style={{ borderBottom: "1px dotted #98a2b3", cursor: "help" }}>{h.label}</span>
+                    : h.label}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={9} style={{ padding: 24, textAlign: "center", color: "#98a2b3" }}>Loading…</td></tr>
+              <tr><td colSpan={COL_COUNT} style={{ padding: 24, textAlign: "center", color: "#98a2b3" }}>Loading…</td></tr>
             )}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={9} style={{ padding: 24, textAlign: "center", color: "#98a2b3" }}>No authorships match these filters.</td></tr>
+              <tr><td colSpan={COL_COUNT} style={{ padding: 24, textAlign: "center", color: "#98a2b3" }}>No authorships match these filters.</td></tr>
             )}
             {!loading && rows.map((r) => {
               const meta = CLASS_META[r.classification || "absent"];
@@ -205,9 +262,10 @@ const AuthorshipsTabs = () => {
                           }}>{r.n_candidates} ▾</button>}
                     </td>
                     <td style={{ padding: "10px 12px", color: "#475467" }}>{r.top_confidence?.toFixed(2)}</td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap", color: "#475467" }}>{r.entrez_date || "—"}</td>
                     <td style={{ padding: "10px 12px", maxWidth: 360 }}>
                       <div style={{ color: "#101828", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 360 }} title={r.title}>{r.title}</div>
-                      <div style={{ color: "#667085", fontSize: 11 }}>{r.journal}{r.entrez_date ? ` · ${r.entrez_date}` : ""}</div>
+                      <div style={{ color: "#667085", fontSize: 11 }}>{r.journal}</div>
                     </td>
                     <td style={{ padding: "10px 12px" }}>
                       <a href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`} target="_blank" rel="noreferrer"
@@ -216,7 +274,7 @@ const AuthorshipsTabs = () => {
                   </tr>
                   {isOpen && alternates.length > 0 && (
                     <tr key={`${r.id}-exp`} style={{ background: "#fcfcfd" }}>
-                      <td colSpan={9} style={{ padding: "8px 12px 12px 24px" }}>
+                      <td colSpan={COL_COUNT} style={{ padding: "8px 12px 12px 24px" }}>
                         <div style={{ color: "#475467", fontSize: 12, marginBottom: 4 }}>Candidate identities (pick one when assigning):</div>
                         <table style={{ fontSize: 12, borderCollapse: "collapse" }}>
                           <tbody>

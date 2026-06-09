@@ -15,6 +15,7 @@ const LIST_ATTRIBUTES = [
 const SORTS: Record<string, any[]> = {
   // default: single-candidate (high-precision) first, then identity-only score desc
   precision: [["single_candidate", "DESC"], ["top_io_score", "DESC"]],
+  confidence: [["top_confidence", "DESC"]],
   io: [["top_io_score", "DESC"]],
   fg: [["top_fg_score", "DESC"]],
   date: [["entrez_date", "DESC"]],
@@ -46,6 +47,16 @@ function buildWhere(body: any): any {
     ];
     if (/^\d+$/.test(search)) or.push({ pmid: Number(search) });
     and.push({ [Op.or]: or });
+  }
+  // publication-date range (entrez_date is DATEONLY → compare YYYY-MM-DD strings)
+  const dateFrom = (body.dateFrom || "").trim();
+  const dateTo = (body.dateTo || "").trim();
+  if (dateFrom && dateTo) {
+    and.push({ entrez_date: { [Op.between]: [dateFrom, dateTo] } });
+  } else if (dateFrom) {
+    and.push({ entrez_date: { [Op.gte]: dateFrom } });
+  } else if (dateTo) {
+    and.push({ entrez_date: { [Op.lte]: dateTo } });
   }
 
   return and.length ? { [Op.and]: and } : {};
