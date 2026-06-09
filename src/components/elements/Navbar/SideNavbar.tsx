@@ -225,6 +225,16 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       isRequired:true
     },
     {
+      title: 'Authorships',
+      to: '/authorships',
+      imgUrl: chartIcon,
+      imgUrlActive: chartIconActive,
+      muiIcon: <IconReports />,
+      disabled: false,
+      allowedRoleNames: ["Superuser", "Curator_All"],
+      isRequired:true
+    },
+    {
       title: 'Create Reports',
       to: '/report',
       imgUrl: chartIcon,
@@ -342,7 +352,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             </Typography>
           )}
           {
-            menuItems.slice(0, 5).map((item: MenuItem, index: number) => {
+            menuItems.slice(0, 6).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?
@@ -372,7 +382,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             </Typography>
           )}
           {
-            menuItems.slice(5).map((item: MenuItem, index: number) => {
+            menuItems.slice(6).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?

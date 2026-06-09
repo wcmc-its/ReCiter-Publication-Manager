@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt";
 
 //middleware should run for these router paths
 export const config = {
-  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*'],
+  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*','/authorships/:path*'],
 }
 					 
 
@@ -53,6 +53,13 @@ export async function middleware(request: NextRequest) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                 }
 
+            }
+            else if (pathName && pathName.startsWith('/authorships') && !isCuratorAll && !isSuperUser)
+            {
+              // Authorships review is restricted to Curator_All and Superuser.
+              if (userRoles.length == 1 && isCuratorSelf && !isReporterAll)
+                  return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+              return redirectToLandingPage(request,'/search');
             }
             else if (pathName && pathName.startsWith('/search') && !isReporterAll && !isSuperUser && !isCuratorAll)
             {
