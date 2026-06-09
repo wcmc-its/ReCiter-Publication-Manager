@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Tooltip from "@mui/material/Tooltip";
 import { reciterConfig } from "../../../../config/local";
 
 // ---- types ---------------------------------------------------------------
@@ -61,12 +62,15 @@ const HEADERS: Array<{ label: string; hint?: string }> = [
 const COL_COUNT = HEADERS.length;
 
 // ---- small presentational bits -------------------------------------------
-const Badge = ({ text, color, title }: { text: string; color: string; title?: string }) => (
-  <span title={title} style={{
-    background: color, color: "#fff", borderRadius: 10, padding: "1px 8px",
-    fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
-  }}>{text}</span>
-);
+const Badge = ({ text, color, title }: { text: string; color: string; title?: string }) => {
+  const chip = (
+    <span style={{
+      background: color, color: "#fff", borderRadius: 10, padding: "1px 8px",
+      fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", cursor: title ? "help" : "default",
+    }}>{text}</span>
+  );
+  return title ? <Tooltip title={title} placement="top" arrow>{chip}</Tooltip> : chip;
+};
 
 const Score = ({ value, kind }: { value?: number; kind: "fg" | "io" }) => {
   if (value === null || value === undefined) return <span style={{ color: "#98a2b3" }}>—</span>;
@@ -123,6 +127,12 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
   }, [search, dateFrom, dateTo]);
 
+  // live-filter: debounce the search box so the table narrows as you type (no Enter needed)
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   // reset to first page when filters or sort change
@@ -165,13 +175,14 @@ const AuthorshipsTabs = () => {
       {/* classification chips + sort + date filter + search */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         {classChips.map((c) => (
-          <button key={c} onClick={() => setClassification(c)}
-            title={c === "all" ? "Show every classification" : CLASS_META[c].hint}
-            style={{
-              padding: "4px 12px", borderRadius: 16, border: "1px solid #d0d5dd", cursor: "pointer",
-              background: classification === c ? "#eff8ff" : "#fff",
-              color: classification === c ? "#175cd3" : "#475467", fontSize: 12, fontWeight: 600,
-            }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
+          <Tooltip key={c} title={c === "all" ? "Show every classification" : CLASS_META[c].hint} placement="top" arrow>
+            <button onClick={() => setClassification(c)}
+              style={{
+                padding: "4px 12px", borderRadius: 16, border: "1px solid #d0d5dd", cursor: "pointer",
+                background: classification === c ? "#eff8ff" : "#fff",
+                color: classification === c ? "#175cd3" : "#475467", fontSize: 12, fontWeight: 600,
+              }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
+          </Tooltip>
         ))}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}>
@@ -205,7 +216,7 @@ const AuthorshipsTabs = () => {
           )}
           <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
             <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search name, CWID, or PMID"
+              placeholder="Filter by name, CWID, or PMID"
               style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d0d5dd", width: 240, fontSize: 13 }} />
           </form>
         </div>
@@ -219,7 +230,9 @@ const AuthorshipsTabs = () => {
               {HEADERS.map((h, i) => (
                 <th key={i} style={{ padding: "10px 12px", fontWeight: 600, borderBottom: "1px solid #eaecf0", whiteSpace: "nowrap" }}>
                   {h.hint
-                    ? <span title={h.hint} style={{ borderBottom: "1px dotted #98a2b3", cursor: "help" }}>{h.label}</span>
+                    ? <Tooltip title={h.hint} placement="top" arrow>
+                        <span style={{ borderBottom: "1px dotted #98a2b3", cursor: "help" }}>{h.label}</span>
+                      </Tooltip>
                     : h.label}
                 </th>
               ))}
