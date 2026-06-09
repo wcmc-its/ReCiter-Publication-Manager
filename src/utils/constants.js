@@ -85,6 +85,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
     canSearch: true,
     canManageUsers: true,
     canConfigure: true,
+    canAuthorships: true,
   },
   [allowedPermissions.Curator_All]: {
     canCurate: { all: true },
@@ -92,6 +93,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
     canSearch: true,
     canManageUsers: false,
     canConfigure: false,
+    canAuthorships: true,
   },
   [allowedPermissions.Curator_Self]: {
     canCurate: { self: true },
@@ -137,6 +139,7 @@ export function getCapabilities(roles) {
     canSearch: true,
     canManageUsers: false,
     canConfigure: false,
+    canAuthorships: false,
   }
 
   if (!roles || !Array.isArray(roles) || roles.length === 0) {
@@ -161,6 +164,7 @@ export function getCapabilities(roles) {
     if (roleCaps.canSearch) caps.canSearch = true
     if (roleCaps.canManageUsers) caps.canManageUsers = true
     if (roleCaps.canConfigure) caps.canConfigure = true
+    if (roleCaps.canAuthorships) caps.canAuthorships = true
   }
 
   return caps
