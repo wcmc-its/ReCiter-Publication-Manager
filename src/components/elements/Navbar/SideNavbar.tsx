@@ -233,6 +233,16 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       isRequired:true
     },
     {
+      title: 'Authorships',
+      to: '/authorships',
+      imgUrl: chartIcon,
+      imgUrlActive: chartIconActive,
+      muiIcon: <IconReports />,
+      disabled: false,
+      allowedRoleNames: ["Superuser", "Curator_All"],
+      isRequired:true
+    },
+    {
       title: 'Create Reports',
       to: '/report',
       imgUrl: chartIcon,
@@ -372,7 +382,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             />
           )}
           {
-            menuItems.slice(0, 5).map((item: MenuItem, index: number) => {
+            menuItems.slice(0, 6).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?
@@ -402,21 +412,21 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             </Typography>
           )}
           {
-            menuItems.slice(5).map((item: MenuItem, index: number) => {
+            menuItems.slice(6).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?
                 <NestedListItem
                   header={item.title}
                   menuItems={item.nestedMenu}
-                  key={index + 5}
+                  key={index + 6}
                   imgUrl={item.imgUrl}
                 />
                 :
                 <MenuListItem
                   title={item.title}
-                  key={index + 5}
-                  id={index + 5}
+                  key={index + 6}
+                  id={index + 6}
                   to={item.to}
                   imgUrl={item.imgUrl}
                   imgUrlActive={item.imgUrlActive}

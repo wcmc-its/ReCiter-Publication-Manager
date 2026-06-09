@@ -16,7 +16,7 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
 
 // Middleware matcher — UNCHANGED from original
 export const config = {
-  matcher: ['/manageusers/:path*', '/curate/:path*', '/report', '/search', '/configuration', '/notifications/:path*', '/manageprofile/:path*'],
+  matcher: ['/manageusers/:path*', '/curate/:path*', '/report', '/search', '/configuration', '/notifications/:path*', '/manageprofile/:path*', '/authorships/:path*'],
 }
 
 export async function middleware(request: NextRequest) {
@@ -75,6 +75,19 @@ export async function middleware(request: NextRequest) {
 
       if (!hasPermission(permissions, requiredPermission)) {
         // User lacks permission for this route — redirect to their landing page (MW-05)
+        const landing = getLandingPageFromPermissions(permissions, userRoles)
+        return redirectToLandingPage(request, landing)
+      }
+    }
+
+    // Authorships review is restricted to Curator_All and Superuser. It is gated
+    // by role here (not via ROUTE_PERMISSIONS) because the data-driven permission
+    // set has no canAuthorships entry.
+    if (pathName.startsWith('/authorships')) {
+      const canAuthorships = userRoles.some(
+        (r: any) => r.roleLabel === 'Superuser' || r.roleLabel === 'Curator_All'
+      )
+      if (!canAuthorships) {
         const landing = getLandingPageFromPermissions(permissions, userRoles)
         return redirectToLandingPage(request, landing)
       }

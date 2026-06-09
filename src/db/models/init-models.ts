@@ -5,6 +5,8 @@ import { AdminDepartment } from "./AdminDepartment";
 import type { AdminDepartmentAttributes, AdminDepartmentCreationAttributes } from "./AdminDepartment";
 import { AdminFeedbackLog } from "./AdminFeedbackLog";
 import type { AdminFeedbackLogAttributes, AdminFeedbackLogCreationAttributes } from "./AdminFeedbackLog";
+import { AuthorshipReview } from "./AuthorshipReview";
+import type { AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes } from "./AuthorshipReview";
 import { AdminNotificationLog } from "./AdminNotificationLog";
 import type { AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes } from "./AdminNotificationLog";
 import { AdminNotificationPreference } from "./AdminNotificationPreference";
@@ -93,6 +95,7 @@ export {
   Nlm,
   AdminDepartment,
   AdminFeedbackLog,
+  AuthorshipReview,
   AdminNotificationLog,
   AdminNotificationPreference,
   AdminPermission,
@@ -142,6 +145,8 @@ export type {
   AdminDepartmentCreationAttributes,
   AdminFeedbackLogAttributes,
   AdminFeedbackLogCreationAttributes,
+  AuthorshipReviewAttributes,
+  AuthorshipReviewCreationAttributes,
   AdminNotificationLogAttributes,
   AdminNotificationLogCreationAttributes,
   AdminNotificationPreferenceAttributes,
@@ -269,6 +274,7 @@ export function initModels(sequelize: Sequelize) {
   PersonPersonType.initModel(sequelize);
   ScienceMetrix.initModel(sequelize);
   AdminSettings.initModel(sequelize);
+  AuthorshipReview.initModel(sequelize);
 
   AdminUsersDepartment.belongsTo(AdminDepartment, { as: "department", foreignKey: "departmentID"});
   AdminDepartment.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "departmentID"});
@@ -337,6 +343,7 @@ export function initModels(sequelize: Sequelize) {
     PersonArticleScopusTargetAuthorAffiliation: PersonArticleScopusTargetAuthorAffiliation,
     PersonPersonType: PersonPersonType,
     ScienceMetrix: ScienceMetrix,
-    AdminSettings:AdminSettings
+    AdminSettings:AdminSettings,
+    AuthorshipReview: AuthorshipReview
   };
 }
