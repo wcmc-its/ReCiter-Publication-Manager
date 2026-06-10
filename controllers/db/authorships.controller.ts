@@ -18,37 +18,45 @@ const LIST_ATTRIBUTES = [
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const SORTS: Record<string, any[]> = {
-  // default: single-candidate (high-precision) first, then identity-only score desc
-  precision: [["single_candidate", "DESC"], ["top_io_score", "DESC"]],
-  confidence: [["top_confidence", "DESC"]],
-  io: [["top_io_score", "DESC"]],
-  fg: [["top_fg_score", "DESC"]],
-  date: [["entrez_date", "DESC"]],
+  // default: single-candidate (high-precision) first, then identity-only score desc.
+  // ["pmid","DESC"] is appended to every entry as a secondary key so same-paper
+  // authorships land adjacent within a sort tie (PR-2 correction 6).
+  precision: [["single_candidate", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"]],
+  confidence: [["top_confidence", "DESC"], ["pmid", "DESC"]],
+  io: [["top_io_score", "DESC"], ["pmid", "DESC"]],
+  fg: [["top_fg_score", "DESC"], ["pmid", "DESC"]],
+  date: [["entrez_date", "DESC"], ["pmid", "DESC"]],
 };
+
+// The status-view predicate for the current view ("open" | "snoozed" | "dismissed"),
+// or null when feed="all" (no status filter). Factored out of buildWhere so the
+// per-paper sibling count (B2) respects the same status view as the list itself.
+function openStatusWhere(body: any): any {
+  if (body.feed === "all") return null;
+  const view = body.statusView || "open";
+  const today = todayStr();
+  if (view === "snoozed") {
+    // still sleeping (wake date in the future)
+    return { status: "snoozed", snooze_until: { [Op.gt]: today } };
+  } else if (view === "dismissed") {
+    return { status: "dismissed" };
+  }
+  // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date)
+  return {
+    [Op.or]: [
+      { status: "open" },
+      { status: "snoozed", snooze_until: { [Op.lte]: today } },
+      { status: "snoozed", snooze_until: null as any },
+    ],
+  };
+}
 
 function buildWhere(body: any): any {
   const and: any[] = [];
 
   // status view: "open" (default) | "snoozed" | "dismissed"; feed="all" drops the status filter
-  if (body.feed !== "all") {
-    const view = body.statusView || "open";
-    const today = todayStr();
-    if (view === "snoozed") {
-      // still sleeping (wake date in the future)
-      and.push({ status: "snoozed", snooze_until: { [Op.gt]: today } });
-    } else if (view === "dismissed") {
-      and.push({ status: "dismissed" });
-    } else {
-      // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date)
-      and.push({
-        [Op.or]: [
-          { status: "open" },
-          { status: "snoozed", snooze_until: { [Op.lte]: today } },
-          { status: "snoozed", snooze_until: null as any },
-        ],
-      });
-    }
-  }
+  const status = openStatusWhere(body);
+  if (status) and.push(status);
   // classification lane: buried | suggested | absent
   if (body.classification && body.classification !== "all") {
     and.push({ classification: body.classification });
@@ -103,7 +111,29 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       limit,
     });
 
-    res.send({ rows, count, limit, offset });
+    // Per-paper sibling count (B2): one grouped COUNT over the page's distinct pmids,
+    // scoped to the active status-view predicate so we don't count e.g. dismissed
+    // siblings while in the Open view. Accurate even when siblings are off-page.
+    const pmids = [...new Set(rows.map((r: any) => r.pmid))];
+    let sibMap: Record<string, number> = {};
+    if (pmids.length) {
+      const sibWhere: any = { pmid: { [Op.in]: pmids } };
+      const status = openStatusWhere(body);
+      const sibCountWhere = status ? { [Op.and]: [sibWhere, status] } : sibWhere;
+      const sib: any[] = await models.AuthorshipReview.findAll({
+        attributes: ["pmid", [fn("COUNT", col("id")), "n"]],
+        where: sibCountWhere,
+        group: ["pmid"],
+        raw: true,
+      });
+      sibMap = Object.fromEntries(sib.map((s) => [String(s.pmid), Number(s.n)]));
+    }
+    const out = rows.map((r: any) => ({
+      ...r.toJSON(),
+      pmid_sibling_count: sibMap[String(r.pmid)] || 1,
+    }));
+
+    res.send({ rows: out, count, limit, offset });
   } catch (e) {
     console.log(e);
     res.status(500).send(e);
@@ -213,7 +243,8 @@ async function appendFeedbackLog(userID: number, personIdentifier: string, pmid:
 }
 
 // POST /api/db/authorships/action — single-row curator action.
-// body: { id: number, action: "accept"|"reject"|"snooze"|"dismiss"|"reopen" }
+// body: { id: number, action: "accept"|"reject"|"snooze"|"dismiss"|"assign"|"reopen", cwid?: string }
+// cwid is required only for "assign" (the chosen multi-candidate WCM homonym).
 export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const curator = await resolveCurator(req);
@@ -235,7 +266,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     switch (action) {
       case "accept": {
         if (!cwid) return res.status(409).send("No proposed identity to accept");
-        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use Assign (next release)");
+        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
         const gs = await writeGoldStandard(cwid, pmid, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
         await models.AuthorshipReview.update(
@@ -249,7 +280,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
       }
       case "reject": {
         if (!cwid) return res.status(409).send("No proposed identity to reject");
-        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use Assign (next release)");
+        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
         const gs = await writeGoldStandard(cwid, pmid, "rejected", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
         await models.AuthorshipReview.update(
@@ -276,13 +307,54 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         );
         break;
       }
+      case "assign": {
+        // multi-candidate disambiguation: curator picks the chosen WCM homonym.
+        // No single_candidate guard — assign is precisely the multi-candidate path.
+        const chosen = String(body.cwid || "");
+        if (!chosen) return res.status(400).send("cwid is required for assign");
+        // Integrity boundary: assign writes the authoritative gold standard, so the server —
+        // not the client — must verify the chosen cwid is actually a candidate for this
+        // authorship. accept/reject derive cwid server-side from top_cwid and can't be
+        // spoofed; assign trusts a client-supplied cwid, so validate it against the
+        // candidate set (plus top_cwid) before any GS write.
+        let candidateCwids: string[] = [];
+        try {
+          const parsed = JSON.parse(row.candidate_cwids_json || "[]");
+          if (Array.isArray(parsed)) {
+            candidateCwids = parsed
+              .map((c: any) => (typeof c === "string" ? c : c?.cwid))
+              .filter(Boolean)
+              .map(String);
+          }
+        } catch { candidateCwids = []; }
+        const allowed = new Set([row.top_cwid, ...candidateCwids].filter(Boolean).map(String));
+        if (!allowed.has(chosen)) {
+          return res.status(400).send("cwid is not a candidate for this authorship");
+        }
+        const gs = await writeGoldStandard(chosen, pmid, "known", "UPDATE", curator.userID);
+        if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
+        await models.AuthorshipReview.update(
+          { status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() },
+          { where: { id } },
+        );
+        // audit log is best-effort (see accept)
+        try { await appendFeedbackLog(curator.userID, chosen, pmid, "ACCEPTED"); }
+        catch (e) { console.log("[authorships] feedbacklog (assign) non-fatal:", e); }
+        break;
+      }
       case "reopen": {
-        // reverse any prior gold-standard write before re-opening
-        if (row.status === "accepted" && cwid) {
-          const gs = await writeGoldStandard(cwid, pmid, "known", "DELETE", curator.userID);
+        // reverse any prior gold-standard write before re-opening.
+        // accept/assign both wrote a "known" GS entry; the assigned chosen cwid lives
+        // in resolution_cwid (top_cwid is the matcher's default, not the curator's pick).
+        const reverseCwid = row.resolution_cwid || cwid;
+        if (row.status === "accepted" && reverseCwid) {
+          const gs = await writeGoldStandard(reverseCwid, pmid, "known", "DELETE", curator.userID);
           if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
-        } else if (row.status === "rejected" && cwid) {
-          const gs = await writeGoldStandard(cwid, pmid, "rejected", "DELETE", curator.userID);
+        } else if (row.status === "assigned" && reverseCwid) {
+          const gs = await writeGoldStandard(reverseCwid, pmid, "known", "DELETE", curator.userID);
+          if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+        } else if (row.status === "rejected" && reverseCwid) {
+          const gs = await writeGoldStandard(reverseCwid, pmid, "rejected", "DELETE", curator.userID);
           if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
         }
         await models.AuthorshipReview.update(
