@@ -64,9 +64,9 @@ const apiHeaders = {
 const WCM_RE = /Weill Cornell(?:\s+(?:Medicine|Medical College|Medical Cent(?:er|re)))?/i;
 
 const CLASS_META: Record<string, { label: string; color: string; hint: string }> = {
-  buried: { label: "Buried", color: "#b42318", hint: "Production buried it (final < 30)" },
+  buried: { label: "Buried", color: "#b42318", hint: "Production buried it (Authorship Score < 30)" },
   absent: { label: "Never retrieved", color: "#8a5a00", hint: "Production never scored this person" },
-  suggested: { label: "Suggested", color: "#475467", hint: "Already in a curator's pending queue (final ≥ 30)" },
+  suggested: { label: "Suggested", color: "#475467", hint: "Already in a curator's pending queue (Authorship Score ≥ 30)" },
   assigned: { label: "Assigned", color: "#067647", hint: "Accepted by a WCM person" },
 };
 
@@ -145,15 +145,15 @@ const ioFgNote = (r: AuthorshipRow): string => {
   if (r.top_io_score == null) {
     const wcm = hasWcm(r.author_affiliation);
     return wcm
-      ? `Never retrieved — no IO/FG. The affiliation names Weill Cornell${r.top_dept ? ` and the department (${r.top_dept})` : " and the surname is unique"}; production never scored this person.`
-      : `Never retrieved — no IO/FG. The surname is unique among WCM identities (${r.top_cohort_size ?? 1} homonym); production never scored this person.`;
+      ? `Never retrieved — no IO/Authorship Score. The affiliation names Weill Cornell${r.top_dept ? ` and the department (${r.top_dept})` : " and the surname is unique"}; production never scored this person.`
+      : `Never retrieved — no IO/Authorship Score. The surname is unique among WCM identities (${r.top_cohort_size ?? 1} homonym); production never scored this person.`;
   }
   const io = fmtScore(r.top_io_score);
   const fg = fmtScore(r.top_fg_score);
   if (hasWcm(r.author_affiliation)) {
-    return `IO ${io} — unique match; FG fell to ${fg} even though the affiliation names Weill Cornell — production under-scored a clear WCM authorship.`;
+    return `IO ${io} — unique match; Authorship Score fell to ${fg} even though the affiliation names Weill Cornell — production under-scored a clear WCM authorship.`;
   }
-  return `IO ${io} — name uniquely matches ${r.top_cwid || "this identity"} (${r.top_cohort_size ?? 1} WCM homonym); FG fell to ${fg} because the affiliation names an external institution, not WCM. Identity carries it.`;
+  return `IO ${io} — name uniquely matches ${r.top_cwid || "this identity"} (${r.top_cohort_size ?? 1} WCM homonym); Authorship Score fell to ${fg} because the affiliation names an external institution, not WCM. Identity carries it.`;
 };
 
 const btn = (variant: "accept" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
@@ -186,6 +186,19 @@ const Chip = ({ kind, children }: { kind: "ok" | "warn" | "neutral"; children: R
   );
 };
 
+// PMID outbound PubMed link — lead element of an evidence panel (Item 3).
+// stopPropagation so clicking it never toggles the card (Item 6).
+const PmidLink = ({ pmid }: { pmid: number }) => (
+  <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
+    onClick={(e) => e.stopPropagation()}
+    style={{
+      display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 9, fontSize: 12.5, fontWeight: 600,
+      color: "#2563eb", textDecoration: "none",
+    }}>
+    PMID {pmid} <IconExt size={13} />
+  </a>
+);
+
 // ---- main component ------------------------------------------------------
 const AuthorshipsTabs = () => {
   const [rows, setRows] = useState<AuthorshipRow[]>([]);
@@ -200,6 +213,7 @@ const AuthorshipsTabs = () => {
   const [sort, setSort] = useState("io"); // F3: default sort = IO
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [datePreset, setDatePreset] = useState("any"); // "any" | "30d" | "90d" | "6m" | "12m" | "custom"
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -302,10 +316,9 @@ const AuthorshipsTabs = () => {
         const failed = results.some((r) => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: `Accepted ${ok.length}` });
-        if (failed) {
-          setErrorMsg("Some accepts failed — refreshing");
-          fetchData();
-        }
+        if (failed) setErrorMsg("Some accepts failed — refreshing");
+        // re-sync the page/count after optimistic removals (known drift)
+        fetchData();
         fetchSummary();
       });
     setSelected(new Set());
@@ -349,6 +362,29 @@ const AuthorshipsTabs = () => {
     });
   }, [statusView]);
 
+  // Item 8: date preset → sets dateFrom/dateTo client-side. entrez_date is DATEONLY;
+  // backend buildWhere already handles ranges, so no backend change. "Custom..." reveals
+  // the explicit From/To inputs and leaves whatever is there; "Any time" clears both.
+  const applyDatePreset = useCallback((preset: string) => {
+    setDatePreset(preset);
+    if (preset === "custom") return; // keep current From/To, just show the inputs
+    if (preset === "any") { setDateFrom(""); setDateTo(""); return; }
+    const fmt = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    const today = new Date();
+    const from = new Date(today);
+    if (preset === "30d") from.setDate(from.getDate() - 30);
+    else if (preset === "90d") from.setDate(from.getDate() - 90);
+    else if (preset === "6m") from.setMonth(from.getMonth() - 6);
+    else if (preset === "12m") from.setFullYear(from.getFullYear() - 1);
+    setDateFrom(fmt(from));
+    setDateTo(fmt(today));
+  }, []);
+
   // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open PubMed
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -383,15 +419,28 @@ const AuthorshipsTabs = () => {
   // F4: near-certain bulk = visible single-candidate rows with IO >= 95
   const nearCertain = rows.filter((r) => r.single_candidate && (r.top_io_score ?? 0) >= 95);
   const selectedRows = rows.filter((r) => selected.has(r.id));
+  // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
+  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate) : [];
+  const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
+  const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
+  const toggleSelectAllEligible = useCallback(() => {
+    setSelected((s) => {
+      const next = new Set(s);
+      const allSel = eligibleRows.length > 0 && eligibleRows.every((r) => next.has(r.id));
+      if (allSel) eligibleRows.forEach((r) => next.delete(r.id));
+      else eligibleRows.forEach((r) => next.add(r.id));
+      return next;
+    });
+  }, [eligibleRows]);
 
   return (
-    <div style={{ padding: "24px 28px", fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a", maxWidth: 1040, margin: "0 auto" }}>
-      <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 700, letterSpacing: "-0.01em" }}>Authorships</h2>
-      <p style={{ color: "#475569", marginTop: 0, marginBottom: 20, maxWidth: 760, fontSize: 14, lineHeight: 1.45 }}>
+    <div style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a" }}>
+      <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Authorships</h1>
+      <p style={{ color: "#475569", marginTop: 4, marginBottom: 20, maxWidth: 760, fontSize: 14, lineHeight: 1.45 }}>
         WCM-affiliated authorships not yet assigned to an identity. Each card is one decision: is this author the
         proposed WCM person? <strong style={{ color: "#0f172a", fontWeight: 600 }}>IO</strong> (identity-only, the trusted
-        signal) leads; <strong style={{ color: "#0f172a", fontWeight: 600 }}>FG</strong> (production) is shown small as
-        the diagnosis. Expand a card for the affiliation and evidence.
+        signal) leads; <strong style={{ color: "#0f172a", fontWeight: 600 }}>Authorship Score</strong> (production) is shown
+        small as the diagnosis. Expand a card for the affiliation and evidence.
       </p>
 
       {/* summary */}
@@ -428,7 +477,7 @@ const AuthorshipsTabs = () => {
             <option value="date">Newest</option>
             <option value="confidence">Confidence</option>
             <option value="precision">Best match</option>
-            <option value="fg">Production score</option>
+            <option value="fg">Authorship Score</option>
           </select>
         </label>
       </div>
@@ -464,21 +513,37 @@ const AuthorshipsTabs = () => {
           {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `Type: ${selectedTypes.length}`} <IconChevD size={13} />
         </button>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (from)">
-            From
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
+          <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date">
+            Date
+            <select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)}
+              style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", font: "inherit", fontSize: 13, color: "#0f172a", padding: "0 8px", cursor: "pointer" }}>
+              <option value="any">Any time</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+              <option value="6m">Last 6 months</option>
+              <option value="12m">Last 12 months</option>
+              <option value="custom">Custom…</option>
+            </select>
           </label>
-          <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (to)">
-            To
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
-          </label>
-          {(dateFrom || dateTo) && (
-            <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
-              style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #dde3ea", background: "#fff", cursor: "pointer", color: "#475569", fontSize: 12 }}>
-              Clear dates
-            </button>
+          {datePreset === "custom" && (
+            <>
+              <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (from)">
+                From
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (to)">
+                To
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
+              </label>
+              {(dateFrom || dateTo) && (
+                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #dde3ea", background: "#fff", cursor: "pointer", color: "#475569", fontSize: 12 }}>
+                  Clear dates
+                </button>
+              )}
+            </>
           )}
           <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
             <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
@@ -491,6 +556,16 @@ const AuthorshipsTabs = () => {
       {/* F4: bulk bar (slim) */}
       {statusView === "open" && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 18px", fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
+          <Tip title="Select every single-candidate row on this page for bulk action" placement="top" arrow>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: eligibleRows.length === 0 ? "default" : "pointer", color: eligibleRows.length === 0 ? "#94a3b8" : "#475569" }}>
+              <Checkbox size="small" disabled={eligibleRows.length === 0}
+                checked={allEligibleSelected}
+                indeterminate={someEligibleSelected && !allEligibleSelected}
+                onChange={toggleSelectAllEligible}
+                style={{ padding: 0 }} />
+              Select all single-candidate (this page)
+            </label>
+          </Tip>
           <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
             <button disabled={nearCertain.length === 0} style={btn("soft", nearCertain.length === 0)}
               onClick={() => doBulkAccept(nearCertain)}>
@@ -637,14 +712,15 @@ const AuthorshipCard = ({
     marginBottom: 11,
     boxShadow: isFocused ? "0 0 0 2px #2563eb" : "0 1px 2px rgba(15,23,42,.04)",
     transition: "box-shadow 150ms, background 150ms",
+    cursor: "pointer",
   };
 
   return (
-    <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} style={cardStyle}>
+    <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
         {/* selection checkbox — single-candidate open rows only */}
         <input type="checkbox" disabled={!r.single_candidate || statusView !== "open"}
-          checked={isSelected} onChange={onToggleSelect}
+          checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
           aria-label={`select ${r.wcm_author || ""}`}
           style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && statusView === "open" ? 1 : 0.3 }} />
 
@@ -655,7 +731,7 @@ const AuthorshipCard = ({
             <span style={{ fontSize: 12, color: "#94a3b8" }}>{r.author_position_label} author</span>
             {(r.pmid_sibling_count ?? 1) > 1 && (
               <Tip title="Show all WCM authorships on this paper" placement="top" arrow>
-                <button onClick={onNarrowPmid} style={{
+                <button onClick={(e) => { e.stopPropagation(); onNarrowPmid(); }} style={{
                   display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid #e2e9f3", background: "#f4f7fc",
                   color: "#2563eb", borderRadius: 12, padding: "1px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
                 }}>
@@ -675,6 +751,7 @@ const AuthorshipCard = ({
                 <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
                 {r.top_cwid && (
                   <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
                     style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
                 )}
@@ -683,25 +760,20 @@ const AuthorshipCard = ({
             )}
           </div>
 
-          {/* L3 — paper meta (quiet/truncated) */}
+          {/* L3 — paper meta (quiet/truncated). PMID link now lives in the evidence panel. */}
           <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={r.title}>
-            {r.title} · <i>{r.journal}</i>{r.entrez_date ? ` · ${r.entrez_date}` : ""} ·{" "}
-            <a href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`} target="_blank" rel="noreferrer" style={{ color: "#94a3b8", textDecoration: "none" }}>
-              PMID {r.pmid} <IconExt size={13} />
-            </a>
+            {r.title} · <i>{r.journal}</i>{r.entrez_date ? ` · ${r.entrez_date}` : ""}
           </div>
 
-          {/* L4 — affiliation one line (WCM highlighted, full on hover) + disclosure */}
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 7, fontSize: 12.5, color: "#475569" }}>
-            <Tip title={r.author_affiliation || "No affiliation"} placement="top-start" arrow>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0, cursor: "help" }}>
-                <IconPin size={15} style={{ color: "#94a3b8" }} />
-                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 440 }}>
-                  {r.author_affiliation ? highlightAffiliation(r.author_affiliation) : "—"}
-                </span>
+          {/* L4 — full affiliation (WCM highlighted), wraps to multiple lines + disclosure */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 7, fontSize: 12.5, color: "#475569" }}>
+            <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 6, minWidth: 0, flex: 1 }}>
+              <IconPin size={15} style={{ color: "#94a3b8", marginTop: 2 }} />
+              <span>
+                {r.author_affiliation ? highlightAffiliation(r.author_affiliation) : "—"}
               </span>
-            </Tip>
-            <button onClick={onToggleExpand} aria-expanded={isExpanded} style={{
+            </span>
+            <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} aria-expanded={isExpanded} style={{
               display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto", background: "none", border: "none",
               font: "inherit", fontSize: 12, fontWeight: 600, color: isExpanded ? "#2563eb" : "#475569", cursor: "pointer",
               padding: "2px 4px", borderRadius: 5, flex: "none",
@@ -716,18 +788,18 @@ const AuthorshipCard = ({
           <ScoreRail row={r} isMulti={isMulti} isAbsent={isAbsent} candidates={candidates} />
           {statusView === "open" ? (
             isMulti ? (
-              <button style={btn("ghost")} onClick={onToggleExpand}>Pick one <IconChevR size={13} /></button>
+              <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
             ) : (
-              <button style={btn("accept", acting)} disabled={acting} onClick={() => onAction("accept")}>
+              <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
                 <IconCheck /> Accept
               </button>
             )
           ) : (
-            <button style={btn("ghost", acting)} disabled={acting} onClick={() => onAction("reopen")}>Reopen</button>
+            <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}>Reopen</button>
           )}
           {statusView === "open" && (
             <button style={iconBtn(acting)} disabled={acting} aria-label="More actions"
-              onClick={(e) => onMenu(e.currentTarget)}><IconMore /></button>
+              onClick={(e) => { e.stopPropagation(); onMenu(e.currentTarget); }}><IconMore /></button>
           )}
         </div>
       </div>
@@ -782,14 +854,18 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
     );
   }
   return (
-    <div style={{ textAlign: "right", minWidth: 46 }}>
-      <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: ioColor(r.top_io_score) }}>
-        {fmtScore(r.top_io_score)}
-      </div>
-      {r.top_fg_score != null && (
-        <div style={{ fontSize: 11, color: "#c2410c", marginTop: 3, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-          FG {fmtScore(r.top_fg_score)}
+    <div style={{ textAlign: "right", minWidth: 78 }}>
+      <Tip title="Identity-Only score — authorship likelihood from identity evidence alone (name, affiliation, cohort), ignoring curator feedback (0-100)." placement="left" arrow>
+        <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: ioColor(r.top_io_score), cursor: "help" }}>
+          {fmtScore(r.top_io_score)}
         </div>
+      </Tip>
+      {r.top_fg_score != null && (
+        <Tip title="Authorship Score — ReCiter production authorship-likelihood score (0-100); below 30 means production buried this person." placement="left" arrow>
+          <div style={{ fontSize: 11, color: "#c2410c", marginTop: 3, fontWeight: 600, fontVariantNumeric: "tabular-nums", cursor: "help" }}>
+            Auth. Score {fmtScore(r.top_fg_score)}
+          </div>
+        </Tip>
       )}
     </div>
   );
@@ -798,12 +874,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
 // single-candidate / absent evidence panel
 const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: boolean; isAbsent: boolean }) => (
   <>
-    {r.author_affiliation && (
-      <div style={{ background: "#f8fafc", border: "1px solid #e8edf2", borderRadius: 7, padding: "9px 11px", lineHeight: 1.55, marginBottom: 9 }}>
-        <span style={{ color: "#94a3b8", fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", display: "block", marginBottom: 3 }}>PubMed affiliation</span>
-        {highlightAffiliation(r.author_affiliation)}
-      </div>
-    )}
+    <div><PmidLink pmid={r.pmid} /></div>
     {/* absent → labeled facts, no score blocks (F10) */}
     {isAbsent && (
       <div style={{ display: "flex", gap: 22, marginBottom: 10 }}>
@@ -855,12 +926,7 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 
   return (
     <>
-      {r.author_affiliation && (
-        <div style={{ background: "#f8fafc", border: "1px solid #e8edf2", borderRadius: 7, padding: "9px 11px", lineHeight: 1.55, marginBottom: 9 }}>
-          <span style={{ color: "#94a3b8", fontSize: 11, textTransform: "uppercase", letterSpacing: ".04em", display: "block", marginBottom: 3 }}>PubMed affiliation</span>
-          {highlightAffiliation(r.author_affiliation)}
-        </div>
-      )}
+      <div><PmidLink pmid={r.pmid} /></div>
       {!anyDeptMatch && (
         <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginBottom: 10 }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
@@ -872,17 +938,18 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           const isLead = c.cwid === lead?.cwid;
           const checked = c.cwid === selectedCwid;
           return (
-            <label key={c.cwid || i} style={{
+            <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
               display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
               border: `1px solid ${isLead ? "#bbf7d0" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7, cursor: "pointer",
               background: isLead ? "#f0fdf4" : "#fff",
             }}>
               <input type="radio" name={`m${r.id}`} checked={checked} onChange={() => onPick(c.cwid)}
+                onClick={(e) => e.stopPropagation()}
                 style={{ accentColor: "#2563eb", flex: "none" }} />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
                   {c.name}{" "}
-                  {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
+                  {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
                 </span>
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
                   {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{c.affil_dept_match ? " · dept✓" : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
@@ -893,24 +960,24 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
                   {fmtScore(c.io_score)}
                 </span>
                 {c.final_score != null && (
-                  <span style={{ display: "block", fontSize: 10.5, color: "#c2410c", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>FG {fmtScore(c.final_score)}</span>
+                  <span style={{ display: "block", fontSize: 10.5, color: "#c2410c", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>Auth. Score {fmtScore(c.final_score)}</span>
                 )}
               </span>
             </label>
           );
         })}
         {!showAll && scored.length > 0 && unscored.length > 0 && (
-          <button onClick={() => setShowAll(true)} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
+          <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
             Show all {ranked.length} ({unscored.length} never retrieved, IO unavailable)
           </button>
         )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
         <button style={btn("accept", acting || !pickedCwid)} disabled={acting || !pickedCwid}
-          onClick={() => pickedCwid && onAction("assign", { cwid: pickedCwid })}>
+          onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
           <IconCheck /> Assign selected
         </button>
-        <button style={btn("ghost", acting)} disabled={acting} onClick={() => onAction("dismiss")}>
+        <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("dismiss"); }}>
           <IconX /> None of these
         </button>
       </div>
