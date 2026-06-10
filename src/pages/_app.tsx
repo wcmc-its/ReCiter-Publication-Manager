@@ -79,8 +79,10 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
   return (
     <SessionProvider session={session}>
       <Head>
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        {/* WCM favicon (red shield) */}
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon.png" />
       </Head>
       <ThemeProvider theme={theme}>
         <ReduxProvider store={store}>
