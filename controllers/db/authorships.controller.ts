@@ -212,7 +212,7 @@ async function writeGoldStandard(
   const curatedByQ = curatedBy != null ? `&curatedBy=${curatedBy}` : "";
   try {
     const resp = await fetch(
-      `${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${flag}&source=adversarial-attribution-review${curatedByQ}`,
+      `${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${flag}&source=adversarial-attribution-review&entryPath=PM_AUTHOR${curatedByQ}`,
       {
         method: "POST",
         headers: {
