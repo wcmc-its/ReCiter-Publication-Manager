@@ -4,6 +4,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Snackbar from "@mui/material/Snackbar";
+import Checkbox from "@mui/material/Checkbox";
 import { reciterConfig } from "../../../../config/local";
 
 // ---- types ---------------------------------------------------------------
@@ -13,6 +14,7 @@ interface AuthorshipRow {
   author_key: string;
   wcm_author?: string;
   author_position_label?: string;
+  author_affiliation?: string;
   entrez_date?: string;
   title?: string;
   journal?: string;
@@ -55,6 +57,7 @@ const CLASS_META: Record<string, { label: string; color: string; hint: string }>
 
 // Column headers; `hint` (when present) renders a hover tooltip explaining the jargon.
 const HEADERS: Array<{ label: string; hint?: string }> = [
+  { label: "" },
   { label: "WCM author" },
   { label: "Proposed identity" },
   { label: "FG", hint: "Production (final-gate) score: the authorship-likelihood score ReCiter assigns in production (0–100). Below 30 means production buried this person." },
@@ -64,7 +67,6 @@ const HEADERS: Array<{ label: string; hint?: string }> = [
   { label: "Conf.", hint: "Confidence that the proposed WCM identity is the correct author of this article (0–1)." },
   { label: "Date", hint: "Article publication date (Entrez date)." },
   { label: "Article" },
-  { label: "" },
   { label: "" },
 ];
 const COL_COUNT = HEADERS.length;
@@ -80,6 +82,14 @@ const abtn = (bg: string, color: string, busy: boolean): CSSProperties => ({
 });
 
 // ---- small presentational bits -------------------------------------------
+// MUI Tooltip with a larger, more readable font (the default tooltip text is tiny).
+const Tip = ({ children, ...rest }: any) => (
+  <Tooltip {...rest}
+    componentsProps={{ tooltip: { style: { fontSize: 13, maxWidth: 380, lineHeight: 1.45, padding: "8px 10px" } } }}>
+    {children}
+  </Tooltip>
+);
+
 const Badge = ({ text, color, title }: { text: string; color: string; title?: string }) => {
   const chip = (
     <span style={{
@@ -87,7 +97,7 @@ const Badge = ({ text, color, title }: { text: string; color: string; title?: st
       fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", cursor: title ? "help" : "default",
     }}>{text}</span>
   );
-  return title ? <Tooltip title={title} placement="top" arrow>{chip}</Tooltip> : chip;
+  return title ? <Tip title={title} placement="top" arrow>{chip}</Tip> : chip;
 };
 
 const Score = ({ value, kind }: { value?: number; kind: "fg" | "io" }) => {
@@ -113,7 +123,8 @@ const AuthorshipsTabs = () => {
   const [sort, setSort] = useState("precision");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [personType, setPersonType] = useState("all");
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed">("open");
   const [actingId, setActingId] = useState<number | null>(null);
@@ -126,12 +137,12 @@ const AuthorshipsTabs = () => {
     precision: lane === "single" ? "single" : "all",
     classification,
     searchTextInput: search,
-    personType,
+    personTypes: selectedTypes,
     dateFrom,
     dateTo,
     sort,
     statusView,
-  }), [lane, classification, search, personType, dateFrom, dateTo, sort, statusView]);
+  }), [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -162,7 +173,7 @@ const AuthorshipsTabs = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   // reset to first page when filters, sort, or status view change
-  useEffect(() => { setPage(0); }, [lane, classification, search, personType, dateFrom, dateTo, sort, statusView]);
+  useEffect(() => { setPage(0); }, [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView]);
 
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure)
   const doAction = useCallback((row: AuthorshipRow, action: string) => {
@@ -248,25 +259,22 @@ const AuthorshipsTabs = () => {
       {/* classification chips + sort + date filter + search */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         {classChips.map((c) => (
-          <Tooltip key={c} title={c === "all" ? "Show every classification" : CLASS_META[c].hint} placement="top" arrow>
+          <Tip key={c} title={c === "all" ? "Show every classification" : CLASS_META[c].hint} placement="top" arrow>
             <button onClick={() => setClassification(c)}
               style={{
                 padding: "4px 12px", borderRadius: 16, border: "1px solid #d0d5dd", cursor: "pointer",
                 background: classification === c ? "#eff8ff" : "#fff",
                 color: classification === c ? "#175cd3" : "#475467", fontSize: 12, fontWeight: 600,
               }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
-          </Tooltip>
+          </Tip>
         ))}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}>
             Type
-            <select value={personType} onChange={(e) => setPersonType(e.target.value)}
-              style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #d0d5dd", fontSize: 13, color: "#344054", maxWidth: 220 }}>
-              <option value="all">All types</option>
-              {(summary?.personTypes || []).map((pt) => (
-                <option key={pt.type} value={pt.type}>{pt.type} ({pt.n.toLocaleString()})</option>
-              ))}
-            </select>
+            <button type="button" onClick={(e) => setTypeAnchor(e.currentTarget)}
+              style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d0d5dd", background: "#fff", cursor: "pointer", fontSize: 13, color: "#344054", maxWidth: 240, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `${selectedTypes.length} types`} ▾
+            </button>
           </label>
           <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}>
             Sort
@@ -313,9 +321,9 @@ const AuthorshipsTabs = () => {
               {HEADERS.map((h, i) => (
                 <th key={i} style={{ padding: "10px 12px", fontWeight: 600, borderBottom: "1px solid #eaecf0", whiteSpace: "nowrap" }}>
                   {h.hint
-                    ? <Tooltip title={h.hint} placement="top" arrow>
+                    ? <Tip title={h.hint} placement="top" arrow>
                         <span style={{ borderBottom: "1px dotted #98a2b3", cursor: "help" }}>{h.label}</span>
-                      </Tooltip>
+                      </Tip>
                     : h.label}
                 </th>
               ))}
@@ -338,8 +346,42 @@ const AuthorshipsTabs = () => {
               return (
                 <>
                   <tr key={r.id} style={{ borderBottom: "1px solid #f2f4f7" }}>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                      {statusView !== "open" ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {statusView === "snoozed" && r.snooze_until && (
+                            <span style={{ color: "#98a2b3", fontSize: 11 }}>wakes {r.snooze_until}</span>
+                          )}
+                          <button disabled={actingId === r.id} onClick={() => doAction(r, "reopen")}
+                            style={abtn("#fff", "#175cd3", actingId === r.id)}>Reopen</button>
+                        </span>
+                      ) : r.single_candidate ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button disabled={actingId === r.id} onClick={() => doAction(r, "accept")}
+                            style={abtn("#067647", "#fff", actingId === r.id)}>✓ Accept</button>
+                          <button disabled={actingId === r.id} onClick={() => doAction(r, "reject")}
+                            style={abtn("#fff", "#b42318", actingId === r.id)}>✕ Reject</button>
+                          <button disabled={actingId === r.id} onClick={(e) => setMenu({ anchor: e.currentTarget, row: r })}
+                            style={abtn("#fff", "#475467", actingId === r.id)}>⋯</button>
+                        </span>
+                      ) : (
+                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Tip title="Multiple candidates — Assign arrives in the next release" placement="top" arrow>
+                            <span style={{ color: "#98a2b3", fontSize: 11, cursor: "help" }}>needs review</span>
+                          </Tip>
+                          <button disabled={actingId === r.id} onClick={(e) => setMenu({ anchor: e.currentTarget, row: r })}
+                            style={abtn("#fff", "#475467", actingId === r.id)}>⋯</button>
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: "10px 12px" }}>
-                      <div style={{ fontWeight: 600, color: "#101828" }}>{r.wcm_author}</div>
+                      {r.author_affiliation ? (
+                        <Tip title={r.author_affiliation} placement="top-start" arrow>
+                          <div style={{ fontWeight: 600, color: "#101828", cursor: "help", borderBottom: "1px dotted #cbd2da", display: "inline-block" }}>{r.wcm_author}</div>
+                        </Tip>
+                      ) : (
+                        <div style={{ fontWeight: 600, color: "#101828" }}>{r.wcm_author}</div>
+                      )}
                       <div style={{ color: "#98a2b3", fontSize: 11 }}>{r.author_position_label} author</div>
                     </td>
                     <td style={{ padding: "10px 12px" }}>
@@ -376,34 +418,6 @@ const AuthorshipsTabs = () => {
                     <td style={{ padding: "10px 12px" }}>
                       <a href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`} target="_blank" rel="noreferrer"
                         style={{ color: "#1570ef", textDecoration: "none", fontSize: 12 }}>{r.pmid} ↗</a>
-                    </td>
-                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
-                      {statusView !== "open" ? (
-                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {statusView === "snoozed" && r.snooze_until && (
-                            <span style={{ color: "#98a2b3", fontSize: 11 }}>wakes {r.snooze_until}</span>
-                          )}
-                          <button disabled={actingId === r.id} onClick={() => doAction(r, "reopen")}
-                            style={abtn("#fff", "#175cd3", actingId === r.id)}>Reopen</button>
-                        </span>
-                      ) : r.single_candidate ? (
-                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <button disabled={actingId === r.id} onClick={() => doAction(r, "accept")}
-                            style={abtn("#067647", "#fff", actingId === r.id)}>✓ Accept</button>
-                          <button disabled={actingId === r.id} onClick={() => doAction(r, "reject")}
-                            style={abtn("#fff", "#b42318", actingId === r.id)}>✕ Reject</button>
-                          <button disabled={actingId === r.id} onClick={(e) => setMenu({ anchor: e.currentTarget, row: r })}
-                            style={abtn("#fff", "#475467", actingId === r.id)}>⋯</button>
-                        </span>
-                      ) : (
-                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <Tooltip title="Multiple candidates — Assign arrives in the next release" placement="top" arrow>
-                            <span style={{ color: "#98a2b3", fontSize: 11, cursor: "help" }}>needs review</span>
-                          </Tooltip>
-                          <button disabled={actingId === r.id} onClick={(e) => setMenu({ anchor: e.currentTarget, row: r })}
-                            style={abtn("#fff", "#475467", actingId === r.id)}>⋯</button>
-                        </span>
-                      )}
                     </td>
                   </tr>
                   {isOpen && alternates.length > 0 && (
@@ -448,6 +462,22 @@ const AuthorshipsTabs = () => {
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
         <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
+      </Menu>
+
+      {/* person-type multiselect menu */}
+      <Menu anchorEl={typeAnchor} open={!!typeAnchor} onClose={() => setTypeAnchor(null)}>
+        {(summary?.personTypes || []).length === 0 && <MenuItem disabled>No types</MenuItem>}
+        {(summary?.personTypes || []).map((pt) => (
+          <MenuItem key={pt.type} dense onClick={() =>
+            setSelectedTypes((s) => s.includes(pt.type) ? s.filter((t) => t !== pt.type) : [...s, pt.type])
+          }>
+            <Checkbox checked={selectedTypes.includes(pt.type)} size="small" style={{ padding: "0 8px 0 0" }} />
+            {pt.type} ({pt.n.toLocaleString()})
+          </MenuItem>
+        ))}
+        {selectedTypes.length > 0 && (
+          <MenuItem dense onClick={() => setSelectedTypes([])} style={{ color: "#b42318", fontWeight: 600 }}>Clear selection</MenuItem>
+        )}
       </Menu>
 
       {/* undo (immediate reversal) */}
