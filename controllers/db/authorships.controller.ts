@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { Op, fn, col } from "sequelize";
+import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
+import { reciterConfig } from "../../config/local";
+import { updatePendingArticleCount } from "./person.controller";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 const LIST_ATTRIBUTES = [
@@ -9,8 +12,10 @@ const LIST_ATTRIBUTES = [
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
   "top_given_match", "top_affil_match", "n_candidates", "single_candidate",
-  "candidate_cwids_json", "status",
+  "candidate_cwids_json", "status", "snooze_until", "reviewer", "resolved_at",
 ];
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const SORTS: Record<string, any[]> = {
   // default: single-candidate (high-precision) first, then identity-only score desc
@@ -24,9 +29,25 @@ const SORTS: Record<string, any[]> = {
 function buildWhere(body: any): any {
   const and: any[] = [];
 
-  // feed: unassigned (open/snoozed) is the default; "all" drops the status filter
+  // status view: "open" (default) | "snoozed" | "dismissed"; feed="all" drops the status filter
   if (body.feed !== "all") {
-    and.push({ status: { [Op.in]: ["open", "snoozed"] } });
+    const view = body.statusView || "open";
+    const today = todayStr();
+    if (view === "snoozed") {
+      // still sleeping (wake date in the future)
+      and.push({ status: "snoozed", snooze_until: { [Op.gt]: today } });
+    } else if (view === "dismissed") {
+      and.push({ status: "dismissed" });
+    } else {
+      // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date)
+      and.push({
+        [Op.or]: [
+          { status: "open" },
+          { status: "snoozed", snooze_until: { [Op.lte]: today } },
+          { status: "snoozed", snooze_until: null as any },
+        ],
+      });
+    }
   }
   // classification lane: buried | suggested | absent
   if (body.classification && body.classification !== "all") {
@@ -111,5 +132,156 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
   } catch (e) {
     console.log(e);
     res.status(500).send(e);
+  }
+};
+
+// ---- Phase C: curator actions -------------------------------------------------
+// Resolve the curator's identity + authorization server-side from the next-auth JWT.
+// The /api routes are NOT covered by middleware (matcher is page-only) and the
+// backendApiKey is a shared app secret, so identity/role must be enforced here.
+async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; cwid?: string; authorized: boolean }> {
+  const token: any = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) return { authorized: false };
+  let userID: number | undefined = token.databaseUser?.userID;
+  const cwid: string | undefined = token.username;
+  // fallback: resolve the AdminUser id from the curator CWID if the JWT lacks databaseUser
+  if (!userID && cwid) {
+    const au: any = await models.AdminUser.findOne({ where: { personIdentifier: cwid }, attributes: ["userID"] });
+    userID = au?.userID;
+  }
+  let roles: any[] = [];
+  try { roles = token.userRoles ? JSON.parse(token.userRoles) : []; } catch { roles = []; }
+  const authorized = roles.some((r: any) => r.roleLabel === "Superuser" || r.roleLabel === "Curator_All");
+  return { userID, cwid, authorized };
+}
+
+// Gold-standard MERGE/DELETE via the ReCiter Java endpoint, tagged with the AAR source
+// and the curator's numeric userID. Returns the upstream HTTP status.
+async function writeGoldStandard(
+  uid: string, pmid: number, kind: "known" | "rejected", flag: "UPDATE" | "DELETE", curatedBy?: number,
+): Promise<number> {
+  const body: any = { uid };
+  if (kind === "known") body.knownPmids = [pmid]; else body.rejectedPmids = [pmid];
+  const curatedByQ = curatedBy != null ? `&curatedBy=${curatedBy}` : "";
+  try {
+    const resp = await fetch(
+      `${reciterConfig.reciter.reciterUpdateGoldStandardEndpoint}?goldStandardUpdateFlag=${flag}&source=adversarial-attribution-review${curatedByQ}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": reciterConfig.reciter.adminApiKey,
+          "User-Agent": "reciter-pub-manager-server",
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    return resp.status;
+  } catch (e) {
+    console.log("[authorships] gold-standard write failed:", e);
+    return 500;
+  }
+}
+
+// Append an AdminFeedbackLog row (accept/reject only). Mirrors createFeedbackLog:
+// validates the curator is an ACTIVE AdminUser, then writes + bumps the pending count.
+async function appendFeedbackLog(userID: number, personIdentifier: string, pmid: number, feedback: "ACCEPTED" | "REJECTED") {
+  const active: any = await models.AdminUser.findOne({ where: { userID, status: 1 }, attributes: ["userID"] });
+  if (!active) throw new Error(`userID ${userID} is not an active AdminUser`);
+  await models.AdminFeedbackLog.create({
+    userID, personIdentifier, articleIdentifier: pmid, feedback, createTimestamp: new Date(),
+  });
+  // same side-effect the normal curate flow has; never throws (own try/catch)
+  await updatePendingArticleCount(personIdentifier, feedback);
+}
+
+// POST /api/db/authorships/action — single-row curator action.
+// body: { id: number, action: "accept"|"reject"|"snooze"|"dismiss"|"reopen" }
+export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const curator = await resolveCurator(req);
+    if (!curator.authorized) return res.status(403).send("Not authorized for authorships review");
+    if (!curator.userID) return res.status(401).send("Could not resolve curator identity");
+
+    const body = req.body || {};
+    const id = Number(body.id);
+    const action = String(body.action || "");
+    if (!id || !action) return res.status(400).send("id and action are required");
+
+    const row: any = await models.AuthorshipReview.findByPk(id);
+    if (!row) return res.status(404).send("Authorship not found");
+
+    const pmid = Number(row.pmid);
+    const cwid = row.top_cwid as string | undefined;
+    const reviewer = curator.cwid || String(curator.userID);
+
+    switch (action) {
+      case "accept": {
+        if (!cwid) return res.status(409).send("No proposed identity to accept");
+        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use Assign (next release)");
+        const gs = await writeGoldStandard(cwid, pmid, "known", "UPDATE", curator.userID);
+        if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
+        await models.AuthorshipReview.update(
+          { status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() },
+          { where: { id } },
+        );
+        // audit log is best-effort: a hiccup here must not undo the authoritative GS+status write
+        try { await appendFeedbackLog(curator.userID, cwid, pmid, "ACCEPTED"); }
+        catch (e) { console.log("[authorships] feedbacklog (accept) non-fatal:", e); }
+        break;
+      }
+      case "reject": {
+        if (!cwid) return res.status(409).send("No proposed identity to reject");
+        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use Assign (next release)");
+        const gs = await writeGoldStandard(cwid, pmid, "rejected", "UPDATE", curator.userID);
+        if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
+        await models.AuthorshipReview.update(
+          { status: "rejected", reviewer, resolved_at: new Date() },
+          { where: { id } },
+        );
+        // audit log is best-effort (see accept)
+        try { await appendFeedbackLog(curator.userID, cwid, pmid, "REJECTED"); }
+        catch (e) { console.log("[authorships] feedbacklog (reject) non-fatal:", e); }
+        break;
+      }
+      case "snooze": {
+        const wake = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+        await models.AuthorshipReview.update(
+          { status: "snoozed", snooze_until: wake, reviewer },
+          { where: { id } },
+        );
+        break;
+      }
+      case "dismiss": {
+        await models.AuthorshipReview.update(
+          { status: "dismissed", reviewer, resolved_at: new Date() },
+          { where: { id } },
+        );
+        break;
+      }
+      case "reopen": {
+        // reverse any prior gold-standard write before re-opening
+        if (row.status === "accepted" && cwid) {
+          const gs = await writeGoldStandard(cwid, pmid, "known", "DELETE", curator.userID);
+          if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+        } else if (row.status === "rejected" && cwid) {
+          const gs = await writeGoldStandard(cwid, pmid, "rejected", "DELETE", curator.userID);
+          if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+        }
+        await models.AuthorshipReview.update(
+          { status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer },
+          { where: { id } },
+        );
+        break;
+      }
+      default:
+        return res.status(400).send(`Unknown action: ${action}`);
+    }
+
+    const updated = await models.AuthorshipReview.findByPk(id, { attributes: LIST_ATTRIBUTES });
+    return res.send({ ok: true, row: updated });
+  } catch (e) {
+    console.log(e);
+    return res.status(500).send(String(e));
   }
 };

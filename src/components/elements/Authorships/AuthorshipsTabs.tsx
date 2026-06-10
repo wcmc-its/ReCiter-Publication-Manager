@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import Tooltip from "@mui/material/Tooltip";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Snackbar from "@mui/material/Snackbar";
 import { reciterConfig } from "../../../../config/local";
 
 // ---- types ---------------------------------------------------------------
@@ -28,6 +32,9 @@ interface AuthorshipRow {
   single_candidate?: boolean;
   candidate_cwids_json?: string;
   status?: string;
+  snooze_until?: string;
+  reviewer?: string;
+  resolved_at?: string;
 }
 
 interface Summary { total: number; single_candidate: number; classes: Record<string, number>; }
@@ -58,8 +65,19 @@ const HEADERS: Array<{ label: string; hint?: string }> = [
   { label: "Date", hint: "Article publication date (Entrez date)." },
   { label: "Article" },
   { label: "" },
+  { label: "" },
 ];
 const COL_COUNT = HEADERS.length;
+
+const ACTION_LABEL: Record<string, string> = {
+  accept: "Accepted", reject: "Rejected", snooze: "Snoozed for 90 days", dismiss: "Dismissed",
+};
+// small inline button style for the per-row actions
+const abtn = (bg: string, color: string, busy: boolean): CSSProperties => ({
+  padding: "4px 10px", borderRadius: 6, border: `1px solid ${bg === "#fff" ? "#d0d5dd" : bg}`,
+  background: bg, color, cursor: busy ? "default" : "pointer", fontSize: 12, fontWeight: 600,
+  whiteSpace: "nowrap", opacity: busy ? 0.5 : 1,
+});
 
 // ---- small presentational bits -------------------------------------------
 const Badge = ({ text, color, title }: { text: string; color: string; title?: string }) => {
@@ -96,6 +114,11 @@ const AuthorshipsTabs = () => {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed">("open");
+  const [actingId, setActingId] = useState<number | null>(null);
+  const [menu, setMenu] = useState<{ anchor: HTMLElement; row: AuthorshipRow } | null>(null);
+  const [undo, setUndo] = useState<{ row: AuthorshipRow; label: string } | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
   const filterBody = useCallback(() => ({
     feed: "unassigned",
@@ -105,7 +128,8 @@ const AuthorshipsTabs = () => {
     dateFrom,
     dateTo,
     sort,
-  }), [lane, classification, search, dateFrom, dateTo, sort]);
+    statusView,
+  }), [lane, classification, search, dateFrom, dateTo, sort, statusView]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -122,10 +146,10 @@ const AuthorshipsTabs = () => {
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo }),
+      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView }),
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search, dateFrom, dateTo]);
+  }, [search, dateFrom, dateTo, statusView]);
 
   // live-filter: debounce the search box so the table narrows as you type (no Enter needed)
   useEffect(() => {
@@ -135,8 +159,44 @@ const AuthorshipsTabs = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  // reset to first page when filters or sort change
-  useEffect(() => { setPage(0); }, [lane, classification, search, dateFrom, dateTo, sort]);
+  // reset to first page when filters, sort, or status view change
+  useEffect(() => { setPage(0); }, [lane, classification, search, dateFrom, dateTo, sort, statusView]);
+
+  // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure)
+  const doAction = useCallback((row: AuthorshipRow, action: string) => {
+    setMenu(null);
+    setActingId(row.id);
+    setRows((rs) => rs.filter((x) => x.id !== row.id));
+    setCount((c) => Math.max(0, c - 1));
+    fetch("/api/db/authorships/action", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ id: row.id, action }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        if (action !== "reopen") setUndo({ row, label: ACTION_LABEL[action] || "Done" });
+        fetchSummary();
+      })
+      .catch((e) => {
+        setErrorMsg(`Couldn't ${action} — ${String(e?.message || e)}`);
+        fetchData(); // restore the optimistically-removed row
+      })
+      .finally(() => setActingId(null));
+  }, [fetchData, fetchSummary]);
+
+  // undo = reopen (reverses any gold-standard write + sets status back to open)
+  const doUndo = useCallback(() => {
+    if (!undo) return;
+    const row = undo.row;
+    setUndo(null);
+    fetch("/api/db/authorships/action", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ id: row.id, action: "reopen" }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+      .catch((e) => setErrorMsg(`Undo failed — ${String(e?.message || e)}`))
+      .finally(() => { fetchData(); fetchSummary(); });
+  }, [undo, fetchData, fetchSummary]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
@@ -160,6 +220,17 @@ const AuthorshipsTabs = () => {
           ))}
         </div>
       )}
+
+      {/* status view: Open / Snoozed / Dismissed */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {([["open", "Open"], ["snoozed", "Snoozed"], ["dismissed", "Dismissed"]] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setStatusView(key)} style={{
+            padding: "6px 14px", borderRadius: 8, border: "1px solid #d0d5dd", cursor: "pointer",
+            background: statusView === key ? "#0c111d" : "#fff", color: statusView === key ? "#fff" : "#344054",
+            fontWeight: 600, fontSize: 13,
+          }}>{label}</button>
+        ))}
+      </div>
 
       {/* lane toggle */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -284,6 +355,34 @@ const AuthorshipsTabs = () => {
                       <a href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`} target="_blank" rel="noreferrer"
                         style={{ color: "#1570ef", textDecoration: "none", fontSize: 12 }}>{r.pmid} ↗</a>
                     </td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                      {statusView !== "open" ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {statusView === "snoozed" && r.snooze_until && (
+                            <span style={{ color: "#98a2b3", fontSize: 11 }}>wakes {r.snooze_until}</span>
+                          )}
+                          <button disabled={actingId === r.id} onClick={() => doAction(r, "reopen")}
+                            style={abtn("#fff", "#175cd3", actingId === r.id)}>Reopen</button>
+                        </span>
+                      ) : r.single_candidate ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button disabled={actingId === r.id} onClick={() => doAction(r, "accept")}
+                            style={abtn("#067647", "#fff", actingId === r.id)}>✓ Accept</button>
+                          <button disabled={actingId === r.id} onClick={() => doAction(r, "reject")}
+                            style={abtn("#fff", "#b42318", actingId === r.id)}>✕ Reject</button>
+                          <button disabled={actingId === r.id} onClick={(e) => setMenu({ anchor: e.currentTarget, row: r })}
+                            style={abtn("#fff", "#475467", actingId === r.id)}>⋯</button>
+                        </span>
+                      ) : (
+                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Tooltip title="Multiple candidates — Assign arrives in the next release" placement="top" arrow>
+                            <span style={{ color: "#98a2b3", fontSize: 11, cursor: "help" }}>needs review</span>
+                          </Tooltip>
+                          <button disabled={actingId === r.id} onClick={(e) => setMenu({ anchor: e.currentTarget, row: r })}
+                            style={abtn("#fff", "#475467", actingId === r.id)}>⋯</button>
+                        </span>
+                      )}
+                    </td>
                   </tr>
                   {isOpen && alternates.length > 0 && (
                     <tr key={`${r.id}-exp`} style={{ background: "#fcfcfd" }}>
@@ -322,6 +421,25 @@ const AuthorshipsTabs = () => {
             style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #d0d5dd", background: "#fff", cursor: page + 1 >= totalPages ? "default" : "pointer", opacity: page + 1 >= totalPages ? 0.5 : 1 }}>Next</button>
         </span>
       </div>
+
+      {/* overflow menu: Snooze / Dismiss */}
+      <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
+        <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
+        <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
+      </Menu>
+
+      {/* undo (immediate reversal) */}
+      <Snackbar open={!!undo} autoHideDuration={5000} onClose={() => setUndo(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        message={undo ? undo.label : ""}
+        action={
+          <button onClick={doUndo}
+            style={{ color: "#7cc4ff", background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>UNDO</button>
+        } />
+
+      {/* error */}
+      <Snackbar open={!!errorMsg} autoHideDuration={6000} onClose={() => setErrorMsg("")}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} message={errorMsg} />
     </div>
   );
 };
