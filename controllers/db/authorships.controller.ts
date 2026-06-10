@@ -7,7 +7,7 @@ import { updatePendingArticleCount } from "./person.controller";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 const LIST_ATTRIBUTES = [
-  "id", "pmid", "author_key", "wcm_author", "author_position_label",
+  "id", "pmid", "author_key", "wcm_author", "author_position_label", "author_affiliation",
   "entrez_date", "title", "journal", "doi", "classification",
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
@@ -57,9 +57,9 @@ function buildWhere(body: any): any {
   if (body.precision === "single") {
     and.push({ single_candidate: true });
   }
-  // person-type filter (the proposed identity's person type, e.g. academic-faculty-weillfulltime)
-  if (body.personType && body.personType !== "all") {
-    and.push({ top_person_type: body.personType });
+  // person-type filter (multiselect): the proposed identity's person type(s)
+  if (Array.isArray(body.personTypes) && body.personTypes.length > 0) {
+    and.push({ top_person_type: { [Op.in]: body.personTypes } });
   }
   // free-text search across author name, proposed identity, and pmid
   const search = (body.searchTextInput || "").trim();
@@ -115,7 +115,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
 // each lane shows its own total.
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const body = { ...(req.body || {}), classification: "all", precision: "all", personType: "all" };
+    const body = { ...(req.body || {}), classification: "all", precision: "all", personTypes: [] };
     const where = buildWhere(body);
     const [total, single, byClass, byType] = await Promise.all([
       models.AuthorshipReview.count({ where }),
