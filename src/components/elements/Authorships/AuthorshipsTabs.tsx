@@ -53,7 +53,7 @@ interface Candidate {
 
 interface Summary { total: number; single_candidate: number; classes: Record<string, number>; personTypes?: Array<{ type: string; n: number }>; }
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 20;
 const apiHeaders = {
   Accept: "application/json",
   "Content-Type": "application/json",
@@ -255,6 +255,26 @@ const AuthorshipsTabs = () => {
       .finally(() => setLoading(false));
   }, [filterBody, page]);
 
+  // Rolling queue: silently refill the visible set back up to PAGE_SIZE after a curator
+  // action — NO loading flash (unlike fetchData), so the queue stays on screen and the next
+  // pending authorship slides into the freed slot. Accept 1 → that row drops and the next is
+  // pulled in ("19 remains, add one"); clear the whole set → the next set loads. Steps back a
+  // page if the tail empties so you're never stranded on a now-empty trailing page.
+  const topUp = useCallback(() => {
+    fetch("/api/db/authorships", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        const next = d.rows || [];
+        if (next.length === 0 && page > 0) { setPage((p) => Math.max(0, p - 1)); return; }
+        setRows(next);
+        setCount(d.count || 0);
+      })
+      .catch((e) => console.error("[authorships]", e));
+  }, [filterBody, page]);
+
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
@@ -298,6 +318,7 @@ const AuthorshipsTabs = () => {
     doActionAsync(row, action, extra)
       .then(() => {
         if (action !== "reopen") setUndo({ rows: [row], label: ACTION_LABEL[action] || "Done" });
+        topUp();      // refill so the next pending authorship slides into the freed slot
         fetchSummary();
       })
       .catch((e) => {
@@ -305,7 +326,7 @@ const AuthorshipsTabs = () => {
         fetchData(); // restore the optimistically-removed row
       })
       .finally(() => setActingId(null));
-  }, [doActionAsync, fetchData, fetchSummary]);
+  }, [doActionAsync, fetchData, fetchSummary, topUp]);
 
   // F5: bulk orchestration — accept a batch of rows, collect into one Undo batch
   const doBulkAccept = useCallback((batch: AuthorshipRow[]) => {
@@ -316,13 +337,14 @@ const AuthorshipsTabs = () => {
         const failed = results.some((r) => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: `Accepted ${ok.length}` });
-        if (failed) setErrorMsg("Some accepts failed — refreshing");
-        // re-sync the page/count after optimistic removals (known drift)
-        fetchData();
+        // success: silently refill the queue to the next batch ("accept 20 → next 20").
+        // failure: full refresh (with loading) to restore the optimistically-removed rows.
+        if (failed) { setErrorMsg("Some accepts failed — refreshing"); fetchData(); }
+        else topUp();
         fetchSummary();
       });
     setSelected(new Set());
-  }, [doActionAsync, fetchData, fetchSummary]);
+  }, [doActionAsync, fetchData, fetchSummary, topUp]);
 
   // undo = reopen over the whole batch (F4: extends PR-1's single-row undo)
   const doUndo = useCallback(() => {
