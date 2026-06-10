@@ -57,6 +57,10 @@ function buildWhere(body: any): any {
   if (body.precision === "single") {
     and.push({ single_candidate: true });
   }
+  // person-type filter (the proposed identity's person type, e.g. academic-faculty-weillfulltime)
+  if (body.personType && body.personType !== "all") {
+    and.push({ top_person_type: body.personType });
+  }
   // free-text search across author name, proposed identity, and pmid
   const search = (body.searchTextInput || "").trim();
   if (search) {
@@ -111,9 +115,9 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
 // each lane shows its own total.
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const body = { ...(req.body || {}), classification: "all", precision: "all" };
+    const body = { ...(req.body || {}), classification: "all", precision: "all", personType: "all" };
     const where = buildWhere(body);
-    const [total, single, byClass] = await Promise.all([
+    const [total, single, byClass, byType] = await Promise.all([
       models.AuthorshipReview.count({ where }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
       models.AuthorshipReview.findAll({
@@ -125,10 +129,23 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
         group: ["classification"],
         raw: true,
       }),
+      models.AuthorshipReview.findAll({
+        attributes: [
+          "top_person_type",
+          [fn("COUNT", col("id")), "n"],
+        ],
+        where,
+        group: ["top_person_type"],
+        raw: true,
+      }),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });
-    res.send({ total, single_candidate: single, classes });
+    const personTypes = (byType as any[])
+      .filter((r) => r.top_person_type)
+      .map((r) => ({ type: r.top_person_type as string, n: Number(r.n) }))
+      .sort((a, b) => b.n - a.n);
+    res.send({ total, single_candidate: single, classes, personTypes });
   } catch (e) {
     console.log(e);
     res.status(500).send(e);

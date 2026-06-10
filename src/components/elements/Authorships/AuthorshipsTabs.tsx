@@ -37,7 +37,7 @@ interface AuthorshipRow {
   resolved_at?: string;
 }
 
-interface Summary { total: number; single_candidate: number; classes: Record<string, number>; }
+interface Summary { total: number; single_candidate: number; classes: Record<string, number>; personTypes?: Array<{ type: string; n: number }>; }
 
 const PAGE_SIZE = 25;
 const apiHeaders = {
@@ -113,6 +113,7 @@ const AuthorshipsTabs = () => {
   const [sort, setSort] = useState("precision");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [personType, setPersonType] = useState("all");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed">("open");
   const [actingId, setActingId] = useState<number | null>(null);
@@ -125,11 +126,12 @@ const AuthorshipsTabs = () => {
     precision: lane === "single" ? "single" : "all",
     classification,
     searchTextInput: search,
+    personType,
     dateFrom,
     dateTo,
     sort,
     statusView,
-  }), [lane, classification, search, dateFrom, dateTo, sort, statusView]);
+  }), [lane, classification, search, personType, dateFrom, dateTo, sort, statusView]);
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -160,7 +162,7 @@ const AuthorshipsTabs = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   // reset to first page when filters, sort, or status view change
-  useEffect(() => { setPage(0); }, [lane, classification, search, dateFrom, dateTo, sort, statusView]);
+  useEffect(() => { setPage(0); }, [lane, classification, search, personType, dateFrom, dateTo, sort, statusView]);
 
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure)
   const doAction = useCallback((row: AuthorshipRow, action: string) => {
@@ -257,6 +259,16 @@ const AuthorshipsTabs = () => {
         ))}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}>
+            Type
+            <select value={personType} onChange={(e) => setPersonType(e.target.value)}
+              style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #d0d5dd", fontSize: 13, color: "#344054", maxWidth: 220 }}>
+              <option value="all">All types</option>
+              {(summary?.personTypes || []).map((pt) => (
+                <option key={pt.type} value={pt.type}>{pt.type} ({pt.n.toLocaleString()})</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ fontSize: 12, color: "#475467", display: "flex", alignItems: "center", gap: 6 }}>
             Sort
             <select value={sort} onChange={(e) => setSort(e.target.value)}
               style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #d0d5dd", fontSize: 13, color: "#344054" }}>
@@ -331,7 +343,17 @@ const AuthorshipsTabs = () => {
                       <div style={{ color: "#98a2b3", fontSize: 11 }}>{r.author_position_label} author</div>
                     </td>
                     <td style={{ padding: "10px 12px" }}>
-                      <div style={{ color: "#101828" }}>{r.top_name} <span style={{ color: "#1570ef" }}>({r.top_cwid})</span></div>
+                      <div style={{ color: "#101828" }}>
+                        {r.top_cwid ? (
+                          <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
+                            title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
+                            style={{ color: "#101828", textDecoration: "none" }}>
+                            {r.top_name} <span style={{ color: "#1570ef", textDecoration: "underline" }}>({r.top_cwid}) ↗</span>
+                          </a>
+                        ) : (
+                          <>{r.top_name}</>
+                        )}
+                      </div>
                       <div style={{ color: "#667085", fontSize: 11 }}>{r.top_person_type}{r.top_dept ? ` · ${r.top_dept}` : ""}</div>
                     </td>
                     <td style={{ padding: "10px 12px" }}><Score value={r.top_fg_score} kind="fg" /></td>
