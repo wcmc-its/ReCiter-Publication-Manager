@@ -230,6 +230,10 @@ const AuthorshipsTabs = () => {
   // F13: keyboard focus
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLElement | null>>({});
+  // ids optimistically removed by a curator action whose server write may still be in flight.
+  // Guards the rolling-queue refill (topUp/fetchData) from resurrecting a just-actioned row when
+  // a sibling action hasn't committed yet (rapid-accept race). Cleared per-id once its POST settles.
+  const pendingRemoved = useRef<Set<number>>(new Set());
 
   const filterBody = useCallback(() => ({
     feed: "unassigned",
@@ -250,16 +254,23 @@ const AuthorshipsTabs = () => {
       body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
     })
       .then((r) => r.json())
-      .then((d) => { setRows(d.rows || []); setCount(d.count || 0); })
+      .then((d) => {
+        // never show a row whose removal is still in flight (race protection, same as topUp)
+        setRows((d.rows || []).filter((row: AuthorshipRow) => !pendingRemoved.current.has(row.id)));
+        setCount(d.count || 0);
+      })
       .catch((e) => console.error("[authorships]", e))
       .finally(() => setLoading(false));
   }, [filterBody, page]);
 
-  // Rolling queue: silently refill the visible set back up to PAGE_SIZE after a curator
-  // action — NO loading flash (unlike fetchData), so the queue stays on screen and the next
-  // pending authorship slides into the freed slot. Accept 1 → that row drops and the next is
-  // pulled in ("19 remains, add one"); clear the whole set → the next set loads. Steps back a
-  // page if the tail empties so you're never stranded on a now-empty trailing page.
+  // Rolling queue: silently refill the visible set back up to PAGE_SIZE after a curator action —
+  // NO loading flash (unlike fetchData) and, critically, ADDITIVE rather than a wholesale swap.
+  // The rows already on screen stay exactly where they are (no reflow of what the curator is
+  // reading at the top); only genuinely-new rows are appended into the freed slots at the bottom,
+  // out of the curator's focus area — so the late-arriving refill (gated on the slow gold-standard
+  // write) is invisible. Filtering against pendingRemoved stops a refetch from resurrecting a row
+  // a sibling action just removed but whose write hasn't committed yet (rapid-accept race). Steps
+  // back a page only when this offset is genuinely empty, so you're never stranded on a dead tail.
   const topUp = useCallback(() => {
     fetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
@@ -267,10 +278,16 @@ const AuthorshipsTabs = () => {
     })
       .then((r) => r.json())
       .then((d) => {
-        const next = d.rows || [];
-        if (next.length === 0 && page > 0) { setPage((p) => Math.max(0, p - 1)); return; }
-        setRows(next);
+        const fetched: AuthorshipRow[] = (d.rows || []).filter(
+          (row: AuthorshipRow) => !pendingRemoved.current.has(row.id),
+        );
         setCount(d.count || 0);
+        if (fetched.length === 0 && page > 0) { setPage((p) => Math.max(0, p - 1)); return; }
+        setRows((current) => {
+          const visibleIds = new Set(current.map((r) => r.id));
+          const additions = fetched.filter((r) => !visibleIds.has(r.id));
+          return [...current, ...additions].slice(0, PAGE_SIZE);
+        });
       })
       .catch((e) => console.error("[authorships]", e));
   }, [filterBody, page]);
@@ -293,12 +310,17 @@ const AuthorshipsTabs = () => {
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   // reset to first page when filters, sort, or status view change
   useEffect(() => { setPage(0); }, [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView]);
-  // clear transient per-page UI state when the page contents change
-  useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); }, [rows]);
+  // clear transient per-page UI state on deliberate navigation only (filter/sort/status/page) —
+  // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
+  // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
+  // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
+  useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); },
+    [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView, page]);
 
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure).
   // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
   const doActionAsync = useCallback((row: AuthorshipRow, action: string, extra?: Record<string, any>): Promise<boolean> => {
+    pendingRemoved.current.add(row.id);
     setRows((rs) => rs.filter((x) => x.id !== row.id));
     setCount((c) => Math.max(0, c - 1));
     return fetch("/api/db/authorships/action", {
@@ -308,7 +330,10 @@ const AuthorshipsTabs = () => {
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
         return true;
-      });
+      })
+      // settled (DB write committed on success, or failed): the id no longer needs guarding.
+      // Runs before the caller's .then(topUp), so this row is clear while siblings stay guarded.
+      .finally(() => { pendingRemoved.current.delete(row.id); });
   }, []);
 
   // single-row action with its own optimistic remove + Undo (PR-1 behaviour, extended for assign)
