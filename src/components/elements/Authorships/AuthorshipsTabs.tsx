@@ -74,6 +74,12 @@ const ACTION_LABEL: Record<string, string> = {
   accept: "Accepted", reject: "Rejected", snooze: "Snoozed for 90 days", dismiss: "Dismissed", assign: "Assigned",
 };
 
+// noun for the summary total — the count is scoped to the active status view, so the label must
+// follow it (Snoozed/Dismissed counts aren't "unassigned").
+const SUMMARY_TOTAL_LABEL: Record<"open" | "snoozed" | "dismissed", string> = {
+  open: "unassigned", snoozed: "snoozed", dismissed: "dismissed",
+};
+
 // ---- inline Lucide SVG icons (no npm deps) -------------------------------
 type IconProps = { size?: number; style?: CSSProperties };
 const svgBase = (size: number, style?: CSSProperties): CSSProperties => ({
@@ -129,6 +135,8 @@ const ioColor = (v?: number) => (v == null ? "#94a3b8" : v >= 90 ? "#15803d" : v
 const fmtScore = (v?: number) => (v == null ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(1));
 // confidence band (F10): >=0.8 High, 0.5-0.79 Medium, <0.5 Low
 const confBand = (c?: number) => (c == null ? "—" : c >= 0.8 ? "High" : c >= 0.5 ? "Medium" : "Low");
+// days in a given month (0-indexed) — used to clamp the day when shifting date presets across months
+const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
 const parseCandidates = (json?: string): Candidate[] => {
   if (!json) return [];
@@ -234,6 +242,20 @@ const AuthorshipsTabs = () => {
   // Guards the rolling-queue refill (topUp/fetchData) from resurrecting a just-actioned row when
   // a sibling action hasn't committed yet (rapid-accept race). Cleared per-id once its POST settles.
   const pendingRemoved = useRef<Set<number>>(new Set());
+  // Monotonic request-sequence guard shared by fetchData and topUp. Each list request captures the
+  // sequence at dispatch and discards its response if a newer request has since started — last-write-
+  // wins, so a stale-filter/offset response (e.g. an out-of-range offset returning {rows:[]}) can't
+  // clobber the current page or append rows from an abandoned filter.
+  const seqRef = useRef(0);
+  // Live mirrors of state the stable window-keydown listener and the focus-advance logic read
+  // without re-subscribing. Kept in sync below so the single keydown handler always sees current
+  // rows/focus/view rather than the values captured when it was registered.
+  const rowsRef = useRef<AuthorshipRow[]>([]);
+  const focusedIdRef = useRef<number | null>(null);
+  const statusViewRef = useRef(statusView);
+  // latest action handlers, so the stable keydown listener invokes the current closures
+  const doActionRef = useRef<(row: AuthorshipRow, action: string, extra?: Record<string, any>) => void>();
+  const toggleSelectRef = useRef<(row: AuthorshipRow) => void>();
 
   const filterBody = useCallback(() => ({
     feed: "unassigned",
@@ -247,7 +269,13 @@ const AuthorshipsTabs = () => {
     statusView,
   }), [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView]);
 
+  // keep the refs the (stable) keydown listener reads in sync with the latest render
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
+  useEffect(() => { focusedIdRef.current = focusedId; }, [focusedId]);
+  useEffect(() => { statusViewRef.current = statusView; }, [statusView]);
+
   const fetchData = useCallback(() => {
+    const myId = ++seqRef.current;
     setLoading(true);
     fetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
@@ -255,6 +283,7 @@ const AuthorshipsTabs = () => {
     })
       .then((r) => r.json())
       .then((d) => {
+        if (myId !== seqRef.current) return; // superseded by a newer request — drop this response
         // never show a row whose removal is still in flight (race protection, same as topUp)
         setRows((d.rows || []).filter((row: AuthorshipRow) => !pendingRemoved.current.has(row.id)));
         setCount(d.count || 0);
@@ -272,12 +301,14 @@ const AuthorshipsTabs = () => {
   // a sibling action just removed but whose write hasn't committed yet (rapid-accept race). Steps
   // back a page only when this offset is genuinely empty, so you're never stranded on a dead tail.
   const topUp = useCallback(() => {
+    const myId = ++seqRef.current;
     fetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
     })
       .then((r) => r.json())
       .then((d) => {
+        if (myId !== seqRef.current) return; // a newer fetch/topUp started — don't merge stale rows
         const fetched: AuthorshipRow[] = (d.rows || []).filter(
           (row: AuthorshipRow) => !pendingRemoved.current.has(row.id),
         );
@@ -306,10 +337,22 @@ const AuthorshipsTabs = () => {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // A filter/sort/status change must always show page 0. If we're already on a later page we
+  // synchronously snap back to 0 and skip the about-to-fire stale-offset fetch, so ONLY the
+  // offset-0 fetch runs (not both a stale-offset and an offset-0 request). pendingPageReset marks
+  // the one fetchData call that would otherwise dispatch at the stale offset. Keyed on filterBody
+  // (memoized on the same filter/sort/status values fetchData uses) so this reset can never drift
+  // out of lockstep with the fetch it guards.
+  const pendingPageReset = useRef(false);
+  useEffect(() => {
+    if (page !== 0) { pendingPageReset.current = true; setPage(0); }
+  }, [filterBody]);
+
+  useEffect(() => {
+    if (pendingPageReset.current) { pendingPageReset.current = false; return; } // offset-0 fetch follows
+    fetchData();
+  }, [fetchData]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  // reset to first page when filters, sort, or status view change
-  useEffect(() => { setPage(0); }, [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView]);
   // clear transient per-page UI state on deliberate navigation only (filter/sort/status/page) —
   // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
@@ -321,6 +364,18 @@ const AuthorshipsTabs = () => {
   // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
   const doActionAsync = useCallback((row: AuthorshipRow, action: string, extra?: Record<string, any>): Promise<boolean> => {
     pendingRemoved.current.add(row.id);
+    // Keep the keyboard triage queue moving: if the row being removed is the focused one, advance
+    // focus to whatever now sits at the same index (the next row), falling back to the new last row,
+    // then the first remaining — or clear when nothing is left. Computed from the pre-removal index
+    // off the live rows mirror. Without this the next Y/N/S would resolve the now-gone focusedId to
+    // undefined and be silently swallowed.
+    setFocusedId((cur) => {
+      if (cur !== row.id) return cur;
+      const curRows = rowsRef.current;
+      const idx = curRows.findIndex((x) => x.id === row.id);
+      const remaining = curRows.filter((x) => x.id !== row.id);
+      return (remaining[idx] ?? remaining[remaining.length - 1] ?? remaining[0])?.id ?? null;
+    });
     setRows((rs) => rs.filter((x) => x.id !== row.id));
     setCount((c) => Math.max(0, c - 1));
     return fetch("/api/db/authorships/action", {
@@ -409,6 +464,9 @@ const AuthorshipsTabs = () => {
     });
   }, [statusView]);
 
+  useEffect(() => { doActionRef.current = doAction; }, [doAction]);
+  useEffect(() => { toggleSelectRef.current = toggleSelect; }, [toggleSelect]);
+
   // Item 8: date preset → sets dateFrom/dateTo client-side. entrez_date is DATEONLY;
   // backend buildWhere already handles ranges, so no backend change. "Custom..." reveals
   // the explicit From/To inputs and leaves whatever is there; "Any time" clears both.
@@ -426,19 +484,26 @@ const AuthorshipsTabs = () => {
     const from = new Date(today);
     if (preset === "30d") from.setDate(from.getDate() - 30);
     else if (preset === "90d") from.setDate(from.getDate() - 90);
-    else if (preset === "6m") from.setMonth(from.getMonth() - 6);
-    else if (preset === "12m") from.setFullYear(from.getFullYear() - 1);
+    // Shift the month/year off day 1 then re-clamp the day, so Aug 31 − 6mo lands on the last day of
+    // February, not rolls forward into March (setMonth/setFullYear overflow on short target months).
+    else if (preset === "6m") { const day = from.getDate(); from.setDate(1); from.setMonth(from.getMonth() - 6); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
+    else if (preset === "12m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 1); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
     setDateFrom(fmt(from));
     setDateTo(fmt(today));
   }, []);
 
-  // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open PubMed
+  // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open PubMed.
+  // Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so an optimistic action
+  // or a rolling-queue refill never swaps the listener (and the post-action focus-advance still sees
+  // current state through those same refs).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "select" || tag === "textarea") return;
-      const visible = rows;
+      const visible = rowsRef.current;
       if (visible.length === 0) return;
+      const focusedId = focusedIdRef.current;
+      const statusView = statusViewRef.current;
       const idx = focusedId == null ? -1 : visible.findIndex((r) => r.id === focusedId);
       const focus = (i: number) => {
         const r = visible[Math.max(0, Math.min(visible.length - 1, i))];
@@ -450,15 +515,17 @@ const AuthorshipsTabs = () => {
       if (focusedId == null) return;
       const row = visible.find((r) => r.id === focusedId);
       if (!row) return;
-      if (k === "y") { if (row.single_candidate && statusView === "open") doAction(row, "accept"); else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship"); e.preventDefault(); }
-      else if (k === "n") { if (statusView === "open") { if (row.single_candidate) doAction(row, "reject"); else setErrorMsg("Use Pick one ▾ / None of these for a multi-candidate authorship"); } e.preventDefault(); }
-      else if (k === "s") { if (statusView === "open") doAction(row, "snooze"); e.preventDefault(); }
-      else if (k === "x") { toggleSelect(row); e.preventDefault(); }
+      const doAction = doActionRef.current;
+      const toggleSelect = toggleSelectRef.current;
+      if (k === "y") { if (row.single_candidate && statusView === "open") doAction?.(row, "accept"); else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship"); e.preventDefault(); }
+      else if (k === "n") { if (statusView === "open") { if (row.single_candidate) doAction?.(row, "reject"); else setErrorMsg("Use Pick one ▾ / None of these for a multi-candidate authorship"); } e.preventDefault(); }
+      else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
+      else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
       else if (e.key === "Enter") { window.open(`https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`, "_blank", "noreferrer"); e.preventDefault(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [rows, focusedId, statusView, doAction, toggleSelect]);
+  }, []);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
@@ -493,7 +560,7 @@ const AuthorshipsTabs = () => {
       {/* summary */}
       {summary && (
         <div style={{ display: "flex", gap: 18, margin: "12px 0 18px", color: "#475569", fontSize: 13, flexWrap: "wrap" }}>
-          <span><strong style={{ color: "#0f172a" }}>{summary.total.toLocaleString()}</strong> unassigned</span>
+          <span><strong style={{ color: "#0f172a" }}>{summary.total.toLocaleString()}</strong> {SUMMARY_TOTAL_LABEL[statusView]}</span>
           <span><strong style={{ color: "#0f172a" }}>{summary.single_candidate.toLocaleString()}</strong> single-candidate</span>
           {Object.entries(summary.classes).map(([k, v]) => (
             <span key={k}>{CLASS_META[k]?.label || k}: <strong style={{ color: "#0f172a" }}>{v.toLocaleString()}</strong></span>
