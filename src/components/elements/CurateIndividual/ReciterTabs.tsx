@@ -61,29 +61,26 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
 
   const updatePublicationAssertion = (reciterArticle: any, userAssertion: string, prevUserAssertion: string) => {
     setFilteredData(prev => prev.map((tabData: any) => {
+      // Remove this pmid from every bucket, then add it once to the destination tab.
+      // Robust even when prevUserAssertion is stale (e.g. an undo fired from the Suggested
+      // tab for a card that already moved to Accepted): accept/reject/undo always land in
+      // the right queue, with accurate counts and no duplicates.
+      const without = tabData.data.filter((i: any) => i.pmid !== reciterArticle.pmid);
       if (tabData.value === userAssertion) {
-        return { ...tabData, data: [...tabData.data, reciterArticle], count: tabData.count + 1 };
+        return { ...tabData, data: [...without, reciterArticle], count: without.length + 1 };
       }
-      if (tabData.value === prevUserAssertion) {
-        const newData = tabData.data.filter((i: any) => i.pmid !== reciterArticle.pmid);
-        return { ...tabData, data: newData, count: Math.max(0, tabData.count - 1) };
-      }
-      return tabData;
+      return { ...tabData, data: without, count: without.length };
     }));
   }
 
   const updatePublicationAssertionBulk = (reciterArticles: any, userAssertion: string, prevUserAssertion: string) => {
     const pmids = new Set(reciterArticles.map((a: any) => a.pmid));
     setFilteredData(prev => prev.map((tabData: any) => {
+      const without = tabData.data.filter((i: any) => !pmids.has(i.pmid));
       if (tabData.value === userAssertion) {
-        return { ...tabData, data: [...tabData.data, ...reciterArticles], count: tabData.count + reciterArticles.length };
+        return { ...tabData, data: [...without, ...reciterArticles], count: without.length + reciterArticles.length };
       }
-      if (tabData.value === prevUserAssertion) {
-        const newData = tabData.data.filter((i: any) => !pmids.has(i.pmid));
-        const removed = tabData.data.length - newData.length;
-        return { ...tabData, data: newData, count: Math.max(0, tabData.count - removed) };
-      }
-      return tabData;
+      return { ...tabData, data: without, count: without.length };
     }));
   }
   const handleUpdateSearchFilters = (pubFilters : any)=>{

@@ -1,7 +1,7 @@
 /* ── HEADER ── */
 .ddHeader {
   padding: 8px 12px;
-  background: #f3f1ed;
+  background: transparent;
   border-bottom: 1px solid #eae6df;
   display: flex;
   align-items: center;
@@ -10,7 +10,7 @@
 
 .ddHeaderLabel {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #5a5650;
@@ -18,7 +18,7 @@
 
 .ddClear {
   font-size: 13px;
-  color: #8B1A1A;
+  color: var(--color-accent);
   background: none;
   border: none;
   font-family: inherit;
@@ -28,7 +28,7 @@
 }
 
 .ddClear:hover {
-  color: #c0392b;
+  text-decoration: underline;
 }
 
 /* ── DATE INPUTS ── */

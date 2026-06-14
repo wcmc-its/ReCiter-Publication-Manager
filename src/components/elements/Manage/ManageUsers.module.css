@@ -11,7 +11,7 @@
   font-weight: 600;
   font-size: 24px;
   letter-spacing: -0.02em;
-  color: #1a1a1a;
+  color: #1a2133;
 }
 
 .pageSubtitle {
@@ -25,7 +25,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: #1e2d3d;
+  background: #1a2133;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -39,7 +39,7 @@
 }
 
 .btnAdd:hover {
-  background: #273848;
+  background: #243050;
 }
 
 .btnAdd svg {

@@ -163,11 +163,16 @@ const options = {
                     const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
                     apiResponse.databaseUser = adminUser;
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
-                    const userRoles = await findUserPermissions([EMAIL, PERSONIDENTIFIER], [credentials.email, credentials.username]);
+                    // Local login (LOGIN_PROVIDER=LOCAL) submits no email, but the role
+                    // lookup keys on personIdentifier AND email. Fall back to the email on
+                    // the resolved admin_users row so roles resolve for the user we just
+                    // found/created instead of returning empty (which lands on /noaccess).
+                    const resolvedEmail = credentials.email || (adminUser && adminUser.email) || '';
+                    const userRoles = await findUserPermissions([EMAIL, PERSONIDENTIFIER], [resolvedEmail, credentials.username]);
                     apiResponse.userRoles = userRoles;
                     // Phase 15: Resolve permissions from DB tables
                     try {
-                        const enriched = await findUserPermissionsEnriched([EMAIL, PERSONIDENTIFIER], [credentials.email, credentials.username]);
+                        const enriched = await findUserPermissionsEnriched([EMAIL, PERSONIDENTIFIER], [resolvedEmail, credentials.username]);
                         apiResponse.permissions = enriched.permissions;
                         apiResponse.permissionResources = enriched.permissionResources;
                     } catch(err) {

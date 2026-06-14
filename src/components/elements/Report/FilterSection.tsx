@@ -25,7 +25,7 @@ const filterNameToState = {
 const Buttons = ({ clearFilters, searchResults }) => {
   return (
     <div className="d-flex align-items-center">
-      <Button variant="danger" onClick={searchResults}>Search</Button>
+      <Button className="primary" onClick={searchResults} style={{ padding: '6px 20px', background: '#1a2133', borderColor: '#1a2133', borderRadius: '6px', fontSize: '14px', fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Search</Button>
       <Button variant="outline-secondary" size="sm" className="ms-3" onClick={clearFilters}>Reset</Button>
     </div>
   )

@@ -17,7 +17,7 @@
 
 .cardDate {
   font-size: 12px;
-  color: rgb(100, 100, 100);
+  color: #5a6478;
 }
 
 .metaSep {
@@ -28,7 +28,7 @@
 .articleTitle {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #1a2133;
   line-height: 1.4;
   margin-bottom: 8px;
 }
@@ -40,9 +40,9 @@
   letter-spacing: 0.03em;
   padding: 3px 10px;
   border-radius: 20px;
-  background: #e6eef7;
+  background: #eeeae4;
   border: none;
-  color: #2c4a7c;
+  color: #5a6478;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -89,14 +89,14 @@
 }
 
 .idLink {
-  color: #2c4a7c;
+  color: #2563a8;
   text-decoration: underline;
-  text-decoration-color: #b8cce4;
+  text-decoration-color: #c9d9f0;
   text-underline-offset: 2px;
 }
 
 .idLink:hover {
-  text-decoration-color: #2c4a7c;
+  text-decoration-color: #2563a8;
 }
 
 .dot {
@@ -129,7 +129,7 @@
 .metricLabel {
   position: relative;
   cursor: help;
-  border-bottom: 1px dashed #b8c4d0;
+  border-bottom: 1px dashed #ddd7ce;
   white-space: nowrap;
   display: inline-block;
 }
@@ -145,8 +145,8 @@
   left: 50%;
   transform: translateX(-50%);
   width: 230px;
-  background: #1e2a3a;
-  color: #f0f4fa;
+  background: #1a2133;
+  color: #f5f2ee;
   font-size: 11.5px;
   line-height: 1.55;
   font-weight: 400;
@@ -166,7 +166,7 @@
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: #1e2a3a;
+  border-top-color: #1a2133;
 }
 
 .metricValue {

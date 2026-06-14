@@ -196,7 +196,7 @@ const PermissionEditModal: FunctionComponent<PermissionEditModalProps> = ({
               readOnly
               value={permissionKey}
               style={{
-                backgroundColor: "#e9ecef",
+                backgroundColor: "#eeeae4",
                 padding: "6px 12px",
               }}
             />
@@ -266,7 +266,7 @@ const PermissionEditModal: FunctionComponent<PermissionEditModalProps> = ({
             )}
           />
         </Form.Group>
-        <hr style={{ borderColor: "#ddd" }} />
+        <hr style={{ borderColor: "#ddd7ce" }} />
         <div
           style={{
             fontSize: "16px",
@@ -289,7 +289,7 @@ const PermissionEditModal: FunctionComponent<PermissionEditModalProps> = ({
           variant="link"
           onClick={handleAddResource}
           style={{
-            color: "#0d6efd",
+            color: "#2563a8",
             padding: 0,
             textDecoration: "none",
             fontSize: "14px",

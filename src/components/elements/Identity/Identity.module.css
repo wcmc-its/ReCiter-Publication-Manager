@@ -14,7 +14,7 @@
 }
 
 .imgProps {
-    border: 0px solid var(--gray-300);
+    border: 0px solid #ddd7ce;
     max-height: 100%;
     max-width: 100%;
     border-radius: var(--radius-md);
@@ -44,6 +44,6 @@
 }
 
 .manageBtn {
-    border: 1px solid var(--gray-300);
+    border: 1px solid #ddd7ce;
     border-radius: var(--radius-md);
 }

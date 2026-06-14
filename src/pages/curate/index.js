@@ -2,24 +2,17 @@ import CuratePublications from '../../components/elements/CuratePublications/Cur
 import { AppLayout } from "../../components/layouts/AppLayout"
 import { getSession } from "next-auth/client"
 
-/* export async function getServerSideProps(ctx) {
-    const session = await getSession(ctx);
-
-    if (!session || !session.data) {
-        return {
-            redirect: {
-                destination: "/login",
-                permanent: false,
-            },
-        };
-    }
-
+// The group curation surface (the multi-person People/Org/Institution/Person-Type queue)
+// has been retired. Curate individuals via Find People (/search -> person -> /curate/[cwid])
+// or use the Authorships review queue. Any visit to /curate redirects to Find People.
+export async function getServerSideProps() {
     return {
-        props: {
-            session: session,
+        redirect: {
+            destination: "/search",
+            permanent: false,
         },
     };
-} */
+}
 
 const PublicationsPage = () => {
     return (

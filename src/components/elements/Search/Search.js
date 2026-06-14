@@ -13,7 +13,7 @@ import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { styled } from '@mui/material/styles';
-import { Table,Button} from "react-bootstrap";
+import { Table,Button,Dropdown} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
@@ -640,7 +640,7 @@ const Search = () => {
     // setCurateIds(paginatedIdentities);
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
       return <tr key={identityIndex}>
-        <td key={`${identityIndex}__name`} width="30%">
+        <td key={`${identityIndex}__name`} width="34%">
         {
 
           isCuratorSelf ?
@@ -649,11 +649,9 @@ const Search = () => {
           <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
         }
         </td>
-        <td key={`${identityIndex}__orgUnit`} width="20%" className={styles.colOrg}>
-          {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
-        </td>
-        <td key={`${identityIndex}__institution`} width="20%" className={styles.colInst}>
-          {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
+        <td key={`${identityIndex}__affiliation`} width="32%" className={styles.colAffiliation}>
+          {identity.primaryOrganizationalUnit && <div className={styles.affilOrg}>{identity.primaryOrganizationalUnit}</div>}
+          {identity.primaryInstitution && <div className={styles.affilInst}>{identity.primaryInstitution}</div>}
         </td>
         {isCuratorAll || isSuperUser  ?
         <td key={`${identityIndex}__pending`} width="10%" className={styles.colPending}>
@@ -662,20 +660,25 @@ const Search = () => {
             <span className={styles.pendingBadgeNone}>0</span>
           }
         </td>
-         : ""}
-        <td key={`${identityIndex}__dropdown`} width="20%" className={styles.actionsCell}>
-          <button type="button" className={styles.actionLink} style={{fontWeight:500}} onClick={() => onClickProfile(identity.personIdentifier)}>Curate</button>
-          <span className={styles.actionDot}>·</span>
-          <button type="button" className={styles.actionLink} onClick={() => redirectToCurate("report", identity)}>Reports</button>
-          <span className={styles.actionDot}>·</span>
-          <button type="button" className={styles.actionLink} onClick={() => { setShowprofileID(identity.personIdentifier); handleShow(); }}>Profile</button>
+         : null}
+        <td key={`${identityIndex}__actions`} width="24%" className={styles.actionsCell}>
+          <Dropdown className="d-inline-block">
+            <Dropdown.Toggle variant="primary" id={`actions_${identity.personIdentifier}`}>
+              Curate Publications
+            </Dropdown.Toggle>
+            <Dropdown.Menu className={styles.actionMenu}>
+              <Dropdown.Item className={styles.actionMenuItem} onClick={() => onClickProfile(identity.personIdentifier)}>Curate Publications</Dropdown.Item>
+              <Dropdown.Item className={styles.actionMenuItem} onClick={() => redirectToCurate("report", identity)}>Create Reports</Dropdown.Item>
+              <Dropdown.Item className={styles.actionMenuItem} onClick={() => { setShowprofileID(identity.personIdentifier); handleShow(); }}>View Profile</Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
         </td>
       </tr>;
     })
   } else {
     tableBody = (
       <tr>
-        <td colSpan="5">
+        <td colSpan={(isCuratorAll || isSuperUser) ? 4 : 3}>
           <p className={styles.noitemsList}>
             {showScopeFilter && scopeFilterChecked
               ? 'No people found matching your scope. Try unchecking the scope filter to see all results.'
@@ -760,9 +763,8 @@ const Search = () => {
                         <thead>
                           <tr>
                             <th key="0">Name</th>
-                            <th key="1">Organization</th>
-                            <th key="2">Institution</th>
-                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : ""}
+                            <th key="1">Affiliation</th>
+                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : null}
                             <th key="4">Actions</th>
                           </tr>
                         </thead>
@@ -803,17 +805,21 @@ function Name(props) {
 
   if (props.identity.firstName !== undefined) {
     const nameString = `${firstName} ${middleName} ${lastName}`.replace(/\s+/g, ' ').trim()
+    const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || '?'
     return (
-      <div>
-        <div className={styles.nameRow}>
-          <button className={styles.btnLink} onClick={props.onClickProfile}>
-            {nameString}
-          </button>
-          {isProxyFor(props.proxyPersonIds, props.identity.personIdentifier) && <ProxyBadge />}
-        </div>
-        {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
-        <div className={styles.personCwid}>
-          <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}
+      <div className={styles.nameCell}>
+        <div className={styles.monogram} aria-hidden="true">{initials}</div>
+        <div className={styles.nameBlock}>
+          <div className={styles.nameRow}>
+            <button className={styles.btnLink} onClick={props.onClickProfile}>
+              {nameString}
+            </button>
+            {isProxyFor(props.proxyPersonIds, props.identity.personIdentifier) && <ProxyBadge />}
+          </div>
+          {props.identity.title && <div className={styles.personRole}>{props.identity.title}</div>}
+          <div className={styles.personCwid}>
+            <span className={styles.cwidLabel}>{props.nameOrcwidLabel}:</span> {props.identity.personIdentifier}
+          </div>
         </div>
       </div>
     )
