@@ -115,7 +115,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
         <span className={styles.metaSep}>·</span>
         <span className={styles.cardDate}>{publicationDateDisplay}</span>
         <span className={styles.metaSep}>·</span>
-        <span className={styles.cardDate}><span className={styles.idLabel}>PMID</span> <a className={styles.idLink} href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a><span style={{userSelect: 'none', color: '#2c4a7c'}}> ↗</span></span>
+        <span className={styles.cardDate}><span className={styles.idLabel}>PMID</span> <a className={styles.idLink} href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a><span style={{userSelect: 'none', color: '#2563a8'}}> ↗</span></span>
       </div>
 
       {/* Row 2: Title */}

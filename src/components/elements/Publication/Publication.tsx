@@ -1,9 +1,5 @@
 import React, { useState, useEffect, useRef, FunctionComponent } from "react"
 import styles from './Publication.module.css';
-import {} from "react-bootstrap";
-import CheckIcon from '@mui/icons-material/Check';
-import ClearIcon from '@mui/icons-material/Clear';
-import UndoIcon from '@mui/icons-material/Undo';
 import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
 import { useSelector, useDispatch } from "react-redux";
@@ -179,19 +175,25 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       userAssertion: string
     }) => {
       const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
+      // Compact right-aligned action cluster (not full-width). Wiring/dispatch unchanged.
       switch (userAssertion) {
         case "NULL" :
           return (
-            <div className={styles.cardActions}>
+            <div className={styles.bigActions}>
               <button
-                className={styles.btnAccept}
+                className={styles.btnAcceptBig}
                 onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault))}}
-              ><CheckIcon style={{fontSize:16}}/> Accept <span className={styles.keyHint}>A</span>
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M13.5 4.5L6.3 11.7 3 8.4"/></svg>
+                Accept
               </button>
+              <span className={styles.deadZone}><span className={styles.deadZoneLine} /></span>
               <button
-                className={styles.btnReject}
+                className={styles.btnRejectBig}
                 onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault))}}
-              ><ClearIcon style={{fontSize:16}}/> Reject <span className={styles.keyHint}>R</span>
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" width="15" height="15"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+                Reject
               </button>
             </div>
           )
@@ -204,7 +206,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
                 >
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
-                  Accepted — Undo
+                  Undo
                 </button>
               </div>
             );
@@ -212,16 +214,18 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           return (
             <div className={styles.cardActions}>
               <button
+                className={styles.btnReject}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault)); }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" width="13" height="13"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+                Reject
+              </button>
+              <button
                 className={styles.btnUndo}
                 onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
                 Undo
-              </button>
-              <button
-                className={styles.btnReject}
-                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault)); }}
-              ><ClearIcon style={{fontSize:16}}/> Reject
               </button>
             </div>
           );
@@ -234,7 +238,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
                 >
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
-                  Rejected — Undo
+                  Undo
                 </button>
               </div>
             );
@@ -242,16 +246,18 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
           return (
             <div className={styles.cardActions}>
               <button
-                className={styles.btnAccept}
-                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault)); }}
-              ><CheckIcon style={{fontSize:16}}/> Accept
-              </button>
-              <button
                 className={styles.btnUndo}
                 onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
                 Undo
+              </button>
+              <button
+                className={styles.btnAccept}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault)); }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><path d="M13 4.5L6.2 11.5 3 8.3"/></svg>
+                Accept
               </button>
             </div>
           );
@@ -276,15 +282,10 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       return userName; 
     }
 
-    const getTagClass = (tag: string): string => {
-      const lower = tag.toLowerCase();
-      if (['scopus', 'affiliation', 'co-investigator', 'org unit'].includes(lower)) {
-        return styles.evTagOrg;
-      }
-      if (['pubmed', 'journal category'].includes(lower)) {
-        return styles.evTagPub;
-      }
-      return styles.evTagDept;
+    // Provenance badges (Affiliation / Scopus / PubMed / Journal Category, etc.) all read
+    // as one light pill. Color is reserved strictly for match semantics, not source.
+    const getTagClass = (_tag: string): string => {
+      return styles.evTag;
     };
 
     const TableCellWithTypes = (props: any) => {
@@ -369,18 +370,19 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       return 'mismatch';
     };
 
-    const matchColors: Record<string, { bg: string; border: string; label: string }> = {
-      match: { bg: '#dcfce7', border: '#22c55e', label: 'Strong match' },
-      partial: { bg: '#fef3c7', border: '#f59e0b', label: 'Partial / weak' },
-      mismatch: { bg: '#fee2e2', border: '#ef4444', label: 'Mismatch' },
-      nodata: { bg: '#f3f4f6', border: '#9ca3af', label: 'No data' },
+    // Status lives in exactly one place — the icon color. No fills, no rails, no bars.
+    const matchColors: Record<string, { color: string; label: string }> = {
+      match: { color: '#1D9E75', label: 'Strong' },
+      partial: { color: '#BA7517', label: 'Partial' },
+      mismatch: { color: '#c0392b', label: 'Mismatch' },
+      nodata: { color: '#8a94a6', label: 'No data' },
     };
 
     const matchIcons: Record<string, JSX.Element> = {
-      match: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="9" height="9"><path d="M1.5 5l2.5 2.5 4.5-4.5"/></svg>,
-      partial: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="9" height="9"><path d="M5 2v4M5 7.5v.5"/></svg>,
-      mismatch: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" width="9" height="9"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5"/></svg>,
-      nodata: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" width="9" height="9"><path d="M2 5h6"/></svg>,
+      match: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M5.3 8.2l1.8 1.8 3.6-3.8"/></svg>,
+      partial: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.8v3.6M8 10.7v.05"/></svg>,
+      mismatch: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></svg>,
+      nodata: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>,
     };
 
     const formatEvidenceTable = (evidence: any) => {
@@ -652,31 +654,24 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         const visibleRows = evidenceTableRows.filter((r: any) => Number(r.points) !== 0);
         const zeroRows = evidenceTableRows.filter((r: any) => Number(r.points) === 0);
         const rowsToRender = showZeroWeight ? evidenceTableRows : visibleRows;
-        const maxAbsPoints = Math.max(...evidenceTableRows.map((r: any) => Math.abs(Number(r.points) || 0)), 1);
 
         const IdentityRow = ({ evidenceRow, idx }: { evidenceRow: any; idx: number }) => {
           const mt = determineMatchType(evidenceRow.name, evidenceRow.points, evidence);
           const mc = matchColors[mt];
           const ptsNum = Number(evidenceRow.points) || 0;
-          const barPct = Math.min((Math.abs(ptsNum) / maxAbsPoints) * 100, 100);
+          const ptsIsNeg = ptsNum < 0;
           return (
             <div className={styles.identityRow} key={idx}>
-              <div className={styles.identityStrip} style={{ background: mc.border }} />
               <div className={styles.identityEvidence}>
-                <div className={styles.evNameRow}>
-                  <span className={styles.matchIconCircle} style={{ background: mc.bg, color: mc.border }}>{matchIcons[mt]}</span>
-                  <span className={styles.evName}>{evidenceRow.title}</span>
-                  {evidenceRow.source && <a href={evidenceRow.source} target="_blank" rel="noreferrer" className={styles.sourceLink}>(source)</a>}
-                </div>
+                <span className={styles.matchIcon} style={{ color: mc.color }}>{matchIcons[mt]}</span>
+                <span className={styles.evName}>{evidenceRow.title}</span>
+                {evidenceRow.source && <a href={evidenceRow.source} target="_blank" rel="noreferrer" className={styles.sourceLink}>(source)</a>}
                 {evidenceRow.pointsText ? (
-                  <div style={{ fontSize: '10.5px', color: 'var(--gray-400)', marginTop: 2 }}>{evidenceRow.pointsText}</div>
+                  <span className={styles.evPoints}>{evidenceRow.pointsText}</span>
                 ) : (
-                  <div className={styles.evPointsRow}>
-                    <span className={ptsNum === 0 ? styles.pointsValueZero : styles.pointsValue}>
-                      {ptsNum !== 0 ? ptsNum.toFixed(2) : '0.00'} pts
-                    </span>
-                    <div className={styles.miniBar}><div className={styles.miniBarFill} style={{ width: `${barPct}%`, background: mc.border }} /></div>
-                  </div>
+                  <span className={ptsIsNeg ? styles.evPointsNeg : styles.evPoints}>
+                    {ptsNum !== 0 ? ptsNum.toFixed(2) : '0.00'} pts
+                  </span>
                 )}
               </div>
               {evidenceRow.spanData ? (
@@ -699,23 +694,11 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
         return (
           <>
-            {/* Color legend bar */}
-            <div className={styles.legendBar}>
-              <div className={styles.evidenceLegend}>
-                {Object.entries(matchColors).map(([key, mc]) => (
-                  <span className={styles.legendItem} key={key}>
-                    <span className={styles.legendDot} style={{ background: mc.border }} />
-                    {mc.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {/* Table header */}
+            {/* Quiet column header */}
             <div className={`${styles.identityRow} ${styles.identityHeaderRow}`}>
-              <div style={{ padding: 0 }} />
               <div className={styles.identityEvidence}>Evidence</div>
-              <div className={styles.identityData}>Institutional Data</div>
-              <div className={styles.identityData}>Article Data</div>
+              <div className={styles.identityData}>Institutional</div>
+              <div className={styles.identityData}>Article</div>
             </div>
             {/* Rows */}
             {rowsToRender.map((evidenceRow: any, idx: number) => (
@@ -746,59 +729,49 @@ const formatFeedbackLabel = (key: string): string => {
 };
 
 const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.Element => {
-  const sortedFeedback = feedbackEvidence && Object.entries(feedbackEvidence)
+  const sortedFeedback = (feedbackEvidence ? Object.entries(feedbackEvidence) : [])
     .map(([key, value]) => [formatFeedbackLabel(key), Math.round(value as number)] as [string, number])
     .filter(([, v]) => v !== 0)
-    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+    .sort((a, b) => b[1] - a[1]);
+
+  // Scale every bar against the documented ±100 feedback range (not the per-card
+  // max), so the same value renders at the same width on every card — bars stay
+  // comparable across publications. Values beyond 100 cap at full width.
+  const FEEDBACK_SCALE = 100;
 
   return (
-    <div className={styles.feedbackChart}>
-      <div className={styles.chartAxisHeader}>
-        <div />
-        <span className={styles.chartAxisNeg}>&larr; Negative</span>
-        <div />
-        <span className={styles.chartAxisPos}>Positive &rarr;</span>
-        <span className={styles.chartScale}>Scale: &plusmn;100</span>
-      </div>
-      {sortedFeedback?.map(([label, value], i) => {
-        const absVal = Math.abs(value);
-        const isOverflow = absVal > 100;
-        const isDominant = isOverflow;
-        const barWidth = Math.min(absVal, 100);
+    <div className={styles.feedbackList}>
+      {sortedFeedback.map(([label, value], i) => {
+        const isNeg = value < 0;
+        const barPct = Math.min((Math.abs(value) / FEEDBACK_SCALE) * 100, 100);
         return (
-          <div className={`${styles.chartRow} ${isDominant ? styles.chartRowDominant : ''}`} key={i}>
-            <div className={`${styles.chartLabel} ${isDominant ? styles.chartLabelDominant : ''}`}>
-              <span className={styles.chartLabelText}>{label}</span>
-              <span className={`${styles.chartVal} ${isDominant ? styles.chartValDominant : value < 0 ? styles.chartValNeg : styles.chartValPos}`}>
-                {value < 0 ? `\u2212${absVal}` : value}{isOverflow && <span className={styles.chartValOverflowMarker}> »</span>}
-              </span>
+          <React.Fragment key={i}>
+            <span className={styles.feedbackLabel}>{label}</span>
+            <span className={isNeg ? styles.feedbackValueNeg : styles.feedbackValue}>
+              {isNeg ? `−${Math.abs(value)}` : value}
+            </span>
+            <div className={styles.feedbackBarTrack}>
+              <div
+                className={isNeg ? styles.feedbackBarFillNeg : styles.feedbackBarFill}
+                style={{ width: `${barPct}%` }}
+              />
             </div>
-            <div className={styles.chartBarNeg}>
-              {value < 0 && <div className={`${styles.barNeg} ${isDominant ? styles.barDominant : ''} ${isOverflow ? styles.barOverflow : ''}`} style={{ width: `${barWidth}%` }} />}
-            </div>
-            <div className={styles.chartCenterLine} />
-            <div className={styles.chartBarPos}>
-              {value > 0 && <div className={`${styles.barPos} ${isDominant ? styles.barDominant : ''} ${isOverflow ? styles.barOverflow : ''}`} style={{ width: `${barWidth}%` }} />}
-            </div>
-          </div>
+          </React.Fragment>
         );
       })}
     </div>
   );
 };
-
     const rawScore = reciterArticle.authorshipLikelihoodScore ?? null;
     const score = rawScore !== null ? Math.round(rawScore) : null;
     const scoreNum = typeof score === 'number' ? score : 0;
-    const pipClass = scoreNum >= 70 ? styles.scoreHigh : scoreNum >= 40 ? styles.scoreMedium : styles.scoreLow;
     const userAssertion = reciterArticle.userAssertion;
     const isActioned = userAssertion === 'ACCEPTED' || userAssertion === 'REJECTED';
-    const isActionedInSuggested = props.activekey === 'NULL' && isActioned;
     const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
 
     return (
       // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-      <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}${isActionedInSuggested ? ` ${styles.actionedCard}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
+      <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
         {/* Status strip for accepted/rejected */}
         {userAssertion === 'ACCEPTED' && <div className={styles.statusStripAccepted} />}
         {userAssertion === 'REJECTED' && <div className={styles.statusStripRejected} />}
@@ -806,11 +779,12 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
         {/* Main content column */}
         <div className={styles.cardMain}>
           <div className={styles.cardTop}>
-            {/* Score at top-left */}
+            {/* Score tile — left rail */}
             <div className={styles.scoreArea}>
               <span className={styles.scoreTip}>
-                <span className={scoreNum >= 70 ? styles.scoreInlineHigh : scoreNum >= 40 ? styles.scoreInlineMedium : styles.scoreInlineLow}>
-                  {score !== null ? score : "N/A"}
+                <span className={scoreNum >= 70 ? styles.scoreTileHigh : scoreNum >= 40 ? styles.scoreTileMedium : styles.scoreTileLow}>
+                  <span className={styles.scoreTileNumber}>{score !== null ? score : "N/A"}</span>
+                  <span className={styles.scoreTileLabel}>SCORE</span>
                 </span>
                 {score !== null && (
                   <span className={styles.scoreTooltip}>
@@ -830,21 +804,27 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
             </div>
             {/* Content area */}
             <div className={styles.cardContent}>
-              {/* Row 1: Badge + Date + PMID + DOI + Supporting Evidence */}
+              {/* Row 1: Type chip · date · PMID link */}
               <div className={styles.cardMetaRow}>
                 <div className={styles.cardMetaLeft}>
                   {reciterArticle.publicationType?.publicationTypeCanonical &&
                     <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>
                   }
                   {reciterArticle.publicationDateDisplay && <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}>{reciterArticle.publicationDateDisplay}</span></>}
-                  <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}><span className={styles.pmidLabel}>PMID</span> <a className={styles.pmidLink} href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><span style={{userSelect: 'none', color: '#2c4a7c'}}> ↗</span></span></>
+                  <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}><span className={styles.pmidLabel}>PMID</span> <a className={styles.pmidLink} href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><span style={{userSelect: 'none', color: '#2563a8'}}> ↗</span></span></>
+                  {userAssertion === 'ACCEPTED' && (
+                    <span className={styles.statusChipAccepted}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M13 4.5L6.2 11.5 3 8.3"/></svg>
+                      Accepted
+                    </span>
+                  )}
+                  {userAssertion === 'REJECTED' && (
+                    <span className={styles.statusChipRejected}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" width="12" height="12"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+                      Rejected
+                    </span>
+                  )}
                 </div>
-                {reciterArticle.evidence !== undefined && (
-                  <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3"/><path d="M8.5 8.5L11.5 11.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                    Supporting evidence
-                  </button>
-                )}
               </div>
               {/* Row 2: Title */}
               <div className={styles.articleTitle}>{reciterArticle.articleTitle}</div>
@@ -891,22 +871,27 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
 
             </div>
           </div>
-          {/* Action buttons — above evidence panel */}
-          <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />
+          {/* Footer row — action cluster left, evidence link right */}
+          <div className={styles.cardFooter}>
+            <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />
+            {reciterArticle.evidence !== undefined ? (
+              <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3"/><path d="M8.5 8.5L11.5 11.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                Supporting evidence
+              </button>
+            ) : <span />}
+          </div>
           {/* Evidence panel — full card width */}
           {reciterArticle.evidence !== undefined && (
             <div className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
 
-              {/* Feedback-based scores panel */}
-              <div className={styles.sectionPanel}>
+              {/* Feedback-based scores */}
+              <div className={styles.sectionBlock}>
                 <div className={styles.sectionHeader}>
-                  <div className={styles.sectionTitleGroup}>
-                    <span className={styles.sectionTitle}>Feedback-based scores</span>
-                    <span className={styles.sectionSubtitle}>Scores learned from curation history</span>
-                  </div>
+                  <span className={styles.sectionTitle}>Feedback-based scores</span>
                   <div className={styles.learnMoreWrap}>
                     <div className={styles.learnMoreBtn}>
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5.5v.5" strokeLinecap="round"/></svg>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5.5v.5" strokeLinecap="round"/></svg>
                       Learn more
                     </div>
                     <div className={styles.learnMorePopover}>
@@ -915,23 +900,34 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                     </div>
                   </div>
                 </div>
-                <div className={styles.sectionBody}>
+                <div className={styles.sectionCard}>
                   {reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0
                     ? displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)
-                    : <p style={{color:'var(--gray-400)', fontStyle:'italic', margin:'0'}}>No feedback available.</p>
+                    : <p style={{color:'#8a94a6', fontStyle:'italic', margin:'0'}}>No feedback available.</p>
                   }
                 </div>
               </div>
 
-              {/* Identity-based scores panel */}
-              <div className={styles.sectionPanel}>
-                <div className={styles.sectionHeader} style={{borderBottom: 'none'}}>
-                  <div className={styles.sectionTitleGroup}>
-                    <span className={styles.sectionTitle}>Identity-based scores</span>
-                    <span className={styles.sectionSubtitle}>Comparison of institutional profile data against article metadata</span>
+              {/* Identity-based scores */}
+              <div className={styles.sectionBlock}>
+                <div className={styles.sectionHeader}>
+                  <span className={styles.sectionTitle}>Identity-based scores</span>
+                  <div className={styles.learnMoreWrap}>
+                    <div className={styles.learnMoreBtn}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5.5v.5" strokeLinecap="round"/></svg>
+                      Legend
+                    </div>
+                    <div className={`${styles.learnMorePopover} ${styles.legendPopover}`}>
+                      {Object.entries(matchColors).map(([key, mc]) => (
+                        <span className={styles.legendItem} key={key}>
+                          <span className={styles.legendIcon} style={{ color: mc.color }}>{matchIcons[key]}</span>
+                          {mc.label}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className={styles.identityTable}>
+                <div className={styles.identityCard}>
                   {formatEvidenceTable(reciterArticle.evidence)}
                 </div>
               </div>

@@ -5,9 +5,11 @@
 }
 
 .categoryHeader td {
-    background-color: #f0f0f0;
+    background-color: transparent;
     font-weight: 600;
-    font-size: 14px;
-    color: #333333;
-    padding: 8px 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #8a94a6;
+    padding: 12px 16px 4px;
 }

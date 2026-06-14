@@ -7,6 +7,7 @@ import Pagination from '../Pagination/Pagination';
 import { useSession } from "next-auth/client";
 import { curateSearchtextAction, reciterUpdatePublication, reciterFetchData } from "../../../redux/actions/actions";
 import { useDispatch, useSelector } from "react-redux";
+import { toast } from "react-toastify";
 import { RootStateOrAny } from "../../../types/redux";
 import styles from "./CurateIndividual.module.css";
 import CheckIcon from '@mui/icons-material/Check';
@@ -32,6 +33,8 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   const [sort, setSort] = useState<string>("0")
   const [publications, setPublications] = useState<any>(props.publications);
   const [searchtextCarier, setSearchtextCarier] = useState<any>("");
+  const [showShortcuts, setShowShortcuts] = useState<boolean>(false);
+  const shortcutsRef = useRef<HTMLDivElement>(null);
 
   const [page, setPage] = useState(1)
   const [count, setCount] = useState(20)
@@ -110,7 +113,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
 
 
 
-  const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string) => {
+  const handleUpdatePublication = (uid: string, pmid: number, userAssertion: string, articleOverride?: any) => {
     const userId = session?.data?.databaseUser?.userID;
     const request = {
       publications: [pmid],
@@ -129,14 +132,20 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     // Always call the API
     dispatch(reciterUpdatePublication(uid, request));
 
-    // update user assertion of the publication
-    let updatedPublication = {};
-    let index = publications.findIndex(publication => publication.pmid === pmid);
-    if (index > -1) {
-      updatedPublication = {
-        ...publications[index],
-        userAssertion: userAssertion
-      };
+    // update user assertion of the publication. Prefer an explicitly-passed article
+    // (e.g. undo, where the card was already removed from the local list) so the parent
+    // always gets a full record to file into the destination queue — never an empty {}.
+    let updatedPublication: any = {};
+    if (articleOverride) {
+      updatedPublication = { ...articleOverride, userAssertion };
+    } else {
+      let index = publications.findIndex(publication => publication.pmid === pmid);
+      if (index > -1) {
+        updatedPublication = {
+          ...publications[index],
+          userAssertion: userAssertion
+        };
+      }
     }
 
     // Suggested tab: immediately remove actioned card and track for undo
@@ -144,12 +153,42 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
       const article = publications.find((p: any) => p.pmid === pmid);
       setPublications(prev => prev.filter((p: any) => p.pmid !== pmid));
       lastActioned.current = { pmid, prevState: 'NULL', article };
+      fireUndoToast(pmid, userAssertion, article);
     }
 
     // Update parent filteredData so clearing a filter reflects the change
     props.updatePublicationAssertion(updatedPublication, userAssertion, props.tabType);
     props.onAssertionChange?.(pmid, userAssertion);
   }
+
+  // Toast with an Undo affordance — the rolling queue removes the card on decision,
+  // so this is the catchable "you just did X — undo?" line. Reverts via the same path.
+  const fireUndoToast = (pmid: number, userAssertion: string, article: any) => {
+    const accepted = userAssertion === 'ACCEPTED';
+    const title = article?.articleTitle || article?.title || `PMID ${pmid}`;
+    const shortTitle = title.length > 60 ? title.slice(0, 60).trim() + '…' : title;
+    const toastId = `undo-${pmid}`;
+    const doUndo = () => {
+      if (isSuggested && article) {
+        setPublications((prev: any) =>
+          prev.some((p: any) => p.pmid === pmid) ? prev : [...prev, { ...article, userAssertion: 'NULL' }]
+        );
+      }
+      handleUpdatePublication(props.personIdentifier, pmid, 'NULL', article);
+      if (lastActioned.current?.pmid === pmid) lastActioned.current = null;
+      toast.dismiss(toastId);
+    };
+    toast(
+      <div className={styles.undoToast}>
+        <span className={accepted ? styles.undoToastVerbAccept : styles.undoToastVerbReject}>
+          {accepted ? 'Accepted' : 'Rejected'}
+        </span>
+        <span className={styles.undoToastTitle}>{shortTitle}</span>
+        <button type="button" className={styles.undoToastBtn} onClick={doUndo}>Undo</button>
+      </div>,
+      { toastId, autoClose: 6000 }
+    );
+  };
 
   const handleUpdatePublicationAll = (userAssertion: string) => {
     const userId = session?.data?.databaseUser?.userID;
@@ -242,7 +281,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
               : [...prev, { ...article, userAssertion: prevState }]
           );
         }
-        handleUpdatePublication(props.personIdentifier, undoPmid, prevState);
+        handleUpdatePublication(props.personIdentifier, undoPmid, prevState, article);
         lastActioned.current = null;
       } else if (key === 'e' && focusedPub) {
         e.preventDefault();
@@ -272,6 +311,25 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     const el = document.querySelector(`[data-pmid="${focusedPub.pmid}"]`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [focusedIndex, isArticleTab]);
+
+  // Close the keyboard-shortcuts popover on click outside or Escape
+  useEffect(() => {
+    if (!showShortcuts) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (shortcutsRef.current && !shortcutsRef.current.contains(e.target as Node)) {
+        setShowShortcuts(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowShortcuts(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showShortcuts]);
 
   if (!props.publications.length) {
     if (props.tabType === 'NULL') {
@@ -349,14 +407,30 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         handleCountUpdate={handleCountUpdate}
       />
 
-      {/* Keyboard hint bar — Suggested tab only */}
+      {/* Keyboard shortcuts — behind a quiet "?" popover (handlers stay active regardless) */}
       {isArticleTab && (
-        <div className={styles.kbdHint}>
-          <span><span className={styles.kbd}>A</span> Accept</span>
-          <span><span className={styles.kbd}>R</span> Reject</span>
-          <span><span className={styles.kbd}>U</span> Undo last</span>
-          <span><span className={styles.kbd}>E</span> Toggle Evidence</span>
-          <span><span className={styles.kbd}>&uarr;</span><span className={styles.kbd}>&darr;</span> Navigate</span>
+        <div className={styles.kbdHintRow}>
+          <div className={styles.kbdHintWrap} ref={shortcutsRef}>
+            <button
+              type="button"
+              className={styles.kbdHintBtn}
+              aria-label="Keyboard shortcuts"
+              aria-expanded={showShortcuts}
+              onClick={() => setShowShortcuts((v) => !v)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13"><circle cx="8" cy="8" r="6.5"/><path d="M6.3 6.2a1.7 1.7 0 113 .9c-.7.5-1.3.8-1.3 1.6M8 11.4v.05" strokeLinecap="round"/></svg>
+              Keyboard shortcuts
+            </button>
+            {showShortcuts && (
+              <div className={styles.kbdHintPopover}>
+                <span><span className={styles.kbd}>A</span> Accept</span>
+                <span><span className={styles.kbd}>R</span> Reject</span>
+                <span><span className={styles.kbd}>U</span> Undo last</span>
+                <span><span className={styles.kbd}>E</span> Toggle evidence</span>
+                <span><span className={styles.kbd}>&uarr;</span><span className={styles.kbd}>&darr;</span> Navigate</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

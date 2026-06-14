@@ -25,11 +25,11 @@ const ManageUsersTabs: FunctionComponent = () => {
             fontFamily: '"Open Sans", sans-serif, Arial',
           },
           "& .Mui-selected": {
-            color: "#0d6efd !important",
+            color: "#2563a8 !important",
             fontWeight: 600,
           },
           "& .MuiTabs-indicator": {
-            backgroundColor: "#0d6efd",
+            backgroundColor: "#2563a8",
             height: "2px",
           },
         }}

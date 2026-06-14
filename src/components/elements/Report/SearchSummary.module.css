@@ -13,8 +13,8 @@
 .articlesCount {
   font-family: var(--font-serif);
   font-size: 28px;
-  font-weight: 500;
-  color: var(--gray-900);
+  font-weight: 600;
+  color: #1a2133;
 }
 
 .controlsRow {
@@ -64,6 +64,19 @@
   font-size: 14px !important;
   padding: 6px 14px !important;
   margin: 0 !important;
+  background-color: #1a2133 !important;
+  border: 1px solid #1a2133 !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.exportBtn:hover,
+.exportBtn:focus,
+.exportBtn:active {
+  background-color: #11172a !important;
+  border-color: #11172a !important;
+  color: #fff !important;
 }
 
 /* ── SORT BY ── */
@@ -87,14 +100,14 @@
 .sortItem:hover {
   background: #f7f5f1;
   color: #2c2a27;
-  border-left-color: #2c4a7c;
+  border-left-color: #2563a8;
 }
 
 .sortItemActive {
   color: #2c2a27;
   font-weight: 500;
   background: #f7f5f1;
-  border-left-color: #2c4a7c;
+  border-left-color: #2563a8;
 }
 
 .sortLabel {
@@ -135,7 +148,7 @@
 }
 
 .sortToggleBtnActive {
-  background: #2c4a7c;
+  background: #2563a8;
   color: #fff;
 }
 
@@ -159,18 +172,18 @@
 .showItem:hover {
   background: #f7f5f1 !important;
   color: #2c2a27 !important;
-  border-left-color: #2c4a7c;
+  border-left-color: #2563a8;
 }
 
 .showItemActive {
   color: #2c2a27 !important;
   font-weight: 500;
   background: #f7f5f1 !important;
-  border-left-color: #2c4a7c;
+  border-left-color: #2563a8;
 }
 
 .showCheck {
-  color: #2c4a7c;
+  color: #2563a8;
   font-size: 11px;
 }
 

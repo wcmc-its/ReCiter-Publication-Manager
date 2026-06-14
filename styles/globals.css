@@ -30,12 +30,20 @@
   --color-warning: #f59e0b;
   --color-warning-light: #fef3c7;
 
-  /* Chrome (dark sidebar/header) */
-  --color-chrome: #1e2d3d;
-  --color-chrome-hover: #273848;
-  --color-chrome-border: #2e4050;
-  --color-chrome-text: #8aa8c0;
+  /* Chrome (dark sidebar/header) — one navy across the app.
+     Aligned to the shipped hardcode #1a2133 used by headings, CTAs, dark tokens,
+     and the sidebar (reconciles STYLEGUIDE drift #2 and #3). */
+  --color-chrome: #1a2133;
+  --color-chrome-hover: #252d42;
+  --color-chrome-border: #2a3350;
+  --color-chrome-text: #a0aec0;
   --color-chrome-text-bright: #e2e8f0;
+
+  /* Accent blue — canonical accent token (reconciles STYLEGUIDE drift #4).
+     Use for content/curator links, focus rings, selected state, ProxyBadge.
+     The global <a> color uses this accent token; WCM red is reserved for brand chrome. */
+  --color-accent: #2563a8;
+  --color-accent-soft: rgba(37, 99, 168, 0.1);
 
   /* Warm content */
   --color-warm-bg: #f5f2ee;
@@ -63,8 +71,13 @@
   --radius-pill: 999px;
 
   /* Typography */
-  --font-sans: Arial, Helvetica, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-serif: 'Space Grotesk', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'Inter', sans-serif;
+  /* --font-serif is a legacy alias of --font-display (kept so existing references resolve). */
+  --font-serif: var(--font-display);
+  /* Bootstrap's reboot is imported after globals.css and sets body font from this var;
+     point it at our stack so DM Sans actually reaches body text app-wide. */
+  --bs-body-font-family: var(--font-sans);
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-base: 16px;
@@ -85,7 +98,7 @@ html,
 body {
   height: 100vh;
   background: var(--color-warm-bg) !important;
-  font-family: var(--font-sans);
+  font-family: var(--font-sans) !important;
   color: var(--gray-900);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -94,15 +107,15 @@ body {
 
 .btn-warning {
   background-color: #ffffff !important;
-  color: var(--gray-700) !important;
-  border: 1px solid var(--gray-300) !important;
+  color: #5a6478 !important;
+  border: 1px solid #ddd7ce !important;
   border-radius: var(--radius-md) !important;
   font-size: 14px !important;
 }
 .btn-warning:hover {
-  background-color: var(--gray-50) !important;
-  border-color: var(--gray-400) !important;
-  color: var(--gray-800) !important;
+  background-color: #faf8f5 !important;
+  border-color: #bbb5aa !important;
+  color: #1a2133 !important;
 }
 
 /* Form controls — warm input style */
@@ -145,13 +158,14 @@ h3 strong {
 }
 
 a {
-  color: var(--wcm-red);
+  color: var(--color-accent);
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
 a:hover {
-  color: var(--wcm-red-dark);
+  color: var(--color-accent);
+  text-decoration: underline;
 }
 
 * {
@@ -237,7 +251,7 @@ h1 {
 .table {
   vertical-align: middle !important;
   border-radius: var(--radius-md);
-  border-color: var(--gray-200);
+  border-color: var(--color-warm-border);
 }
 
 .wcm-primary-lg.btn {
@@ -322,7 +336,7 @@ h1 {
 }
 
 .border-grey {
-  border: 1px solid #ced4da;
+  border: 1px solid #ddd7ce;
 }
 
 .rounded-right {
@@ -395,20 +409,20 @@ h1 {
 
 .btn-outline-secondary {
   border-color: var(--color-warm-border) !important;
-  color: var(--gray-600) !important;
+  color: #5a6478 !important;
   border-radius: var(--radius-pill) !important;
   font-size: 13px !important;
   padding: 6px 14px !important;
 }
 
 .btn-outline-secondary:hover {
-  background-color: var(--gray-100) !important;
-  border-color: var(--gray-400) !important;
-  color: var(--gray-800) !important;
+  background-color: #faf8f5 !important;
+  border-color: #bbb5aa !important;
+  color: #1a2133 !important;
 }
 
 .dropdown-menu {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--color-warm-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 12px 0;

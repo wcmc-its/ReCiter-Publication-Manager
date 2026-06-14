@@ -32,7 +32,7 @@
 .resultsBar {
   background: #ffffff;
   border: 1px solid #e8e2d9;
-  border-radius: 8px 8px 0 0;
+  border-radius: 6px 6px 0 0;
   padding: 12px 16px;
   display: flex;
   align-items: center;
@@ -214,7 +214,7 @@
 /* ── TABLE ── */
 .table {
   border: 1px solid #eae6df;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
   font-family: var(--font-sans);
 }
@@ -226,7 +226,7 @@
 
 .table > thead th {
   font-size: 11px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #8a847c !important;
@@ -256,7 +256,7 @@
 }
 
 .table tbody td {
-  padding: 10px 14px;
+  padding: 12px 14px;
   vertical-align: middle;
   font-size: 13px;
   color: #6b6560;
@@ -270,7 +270,7 @@
 
 .table tr a {
   text-decoration: none;
-  color: #2c4a7c;
+  color: #2563a8;
   font-weight: 500;
   font-size: 14px;
 }
@@ -291,12 +291,11 @@
 /* Person name button link in table */
 .btnLink {
   text-decoration: none;
-  color: #2c4a7c;
+  color: #1a2133;
   background: none;
   border: none;
   padding: 0px;
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: 600;
   font-size: 14px;
   font-family: var(--font-sans);
   cursor: pointer;
@@ -306,7 +305,7 @@
 
 .btnLink:hover {
   text-decoration: underline;
-  color: #2c4a7c;
+  color: #2563a8;
 }
 
 /* Person role / title */
@@ -319,9 +318,10 @@
 
 /* CWID line */
 .personCwid {
-  font-size: 11.5px;
+  font-size: 11px;
   color: #8a94a6;
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .cwidLabel {
@@ -329,24 +329,98 @@
   color: #5a6478;
 }
 
+/* Name cell: monogram + text block */
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.monogram {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #eeeae4;
+  color: #1a2133;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.nameBlock {
+  min-width: 0;
+}
+
+/* Affiliation cell: organization over institution */
+.colAffiliation {
+  vertical-align: middle;
+}
+
+.affilOrg {
+  font-size: 13px;
+  color: #1a2133;
+  line-height: 1.4;
+}
+
+.affilInst {
+  font-size: 12px;
+  color: #8a94a6;
+  line-height: 1.4;
+  margin-top: 1px;
+}
+
 /* Column-specific styles */
 .actionsCell {
   text-align: left !important;
+  vertical-align: middle;
+}
+
+.actionsCell :global(.mt-2) {
+  margin-top: 0 !important;
+}
+
+/* Row action menu — matches the top filter pill dropdowns */
+.actionMenu {
+  min-width: 180px;
+  border-radius: 8px;
+  border: 1px solid #d6d0c4;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.actionMenuItem {
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  color: #1a2133 !important;
+}
+
+.actionMenuItem:hover,
+.actionMenuItem:focus {
+  background: #f7f5f1 !important;
+  color: #1a2133 !important;
 }
 
 .actionLink {
   background: none;
   border: none;
-  padding: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-family: inherit;
   font-size: 12px;
-  color: #2c4a7c;
+  color: #2563a8;
   cursor: pointer;
   text-decoration: none;
 }
 
 .actionLink:hover {
   text-decoration: underline;
+  background: var(--color-accent-soft, rgba(37,99,168,0.1));
 }
 
 .actionDot {
@@ -379,14 +453,14 @@
   border-radius: 11px;
   font-size: 11px;
   font-weight: 600;
-  background: #e6eef7;
-  color: #2c4a7c;
+  background: #eeeae4;
+  color: #1a2133;
   border: none;
 }
 
 .pendingBadgeNone {
   font-size: 12px;
-  color: #a09a92;
+  color: #8a94a6;
 }
 
 .noitemsList {

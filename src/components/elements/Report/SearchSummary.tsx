@@ -464,9 +464,9 @@ const SearchSummary = ({
                   {isActive && <span className={styles.sortDirection}>{isDesc ? 'High → Low' : 'Low → High'}</span>}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: isActive ? 1 : 0.3, flexShrink: 0 }}>
                     {(isActive && !isDesc) ? (
-                      <path d="M7 11V3M7 3L4 6M7 3l3 3" stroke={isActive ? '#2c4a7c' : '#6b6560'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M7 11V3M7 3L4 6M7 3l3 3" stroke={isActive ? '#2563a8' : '#6b6560'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     ) : (
-                      <path d="M7 3v8M7 11L4 8M7 11l3-3" stroke={isActive ? '#2c4a7c' : '#6b6560'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M7 3v8M7 11L4 8M7 11l3-3" stroke={isActive ? '#2563a8' : '#6b6560'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     )}
                   </svg>
                 </button>

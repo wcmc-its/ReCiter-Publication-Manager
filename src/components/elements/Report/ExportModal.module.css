@@ -63,10 +63,10 @@
 
 .title {
   font-family: inherit;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 16px;
   letter-spacing: 0;
-  color: #1a1a1a;
+  color: #1a2133;
 }
 
 .closeBtn {
@@ -122,7 +122,7 @@
   font-weight: 600;
   font-size: 28px;
   letter-spacing: -0.02em;
-  color: #1a1a1a;
+  color: #1a2133;
   line-height: 1;
 }
 
@@ -131,7 +131,7 @@
   color: #8a847c;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-weight: 500;
+  font-weight: 600;
   margin-top: 2px;
 }
 
@@ -157,13 +157,13 @@
 }
 
 .badgeRtf {
-  background: #e6eef7;
-  color: #2c4a7c;
+  background: #eeeae4;
+  color: #5a6478;
 }
 
 .badgeCsv {
   background: #e6f3ec;
-  color: #2a6b47;
+  color: #166534;
 }
 
 /* ── DESCRIPTION ── */
@@ -293,14 +293,14 @@
   width: 22px;
   height: 22px;
   border: 2.5px solid #ddd8d0;
-  border-top-color: #8a95a3;
+  border-top-color: #8a94a6;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
 
 .loadingText {
   font-size: 12.5px;
-  color: #8a95a3;
+  color: #8a94a6;
 }
 
 /* ── ERROR ── */

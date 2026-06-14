@@ -19,7 +19,7 @@
   background: transparent;
   font-size: 15px;
   font-family: inherit;
-  color: #2c2a27;
+  color: #1a2133;
   outline: none;
 }
 
@@ -71,7 +71,7 @@
   padding: 8px 16px;
   font-size: 15px;
   font-weight: 500;
-  color: #2c2a27;
+  color: #1a2133;
   cursor: pointer;
   transition: background 0.1s;
   white-space: nowrap;
@@ -89,12 +89,12 @@
 
 .ddItem:hover {
   background: #faf8f5;
-  color: #2c2a27;
+  color: #1a2133;
 }
 
 .ddItemChecked {
   composes: ddItem;
-  color: #2c2a27;
+  color: #1a2133;
   font-weight: 500;
 }
 
@@ -114,8 +114,8 @@
 
 .cbOn {
   composes: cb;
-  background: #2c4a7c;
-  border-color: #2c4a7c;
+  background: #2563a8;
+  border-color: #2563a8;
 }
 
 .cbOn::after {
@@ -157,7 +157,7 @@
 
 .ddClear {
   font-size: 14px;
-  color: #2c4a7c;
+  color: #2563a8;
   cursor: pointer;
   background: none;
   border: none;
@@ -213,7 +213,7 @@
 
 .ptLabel {
   font-size: 14px;
-  color: #2c2a27;
+  color: #1a2133;
   font-weight: 500;
   line-height: 1;
   flex-shrink: 0;
@@ -239,7 +239,7 @@
   cursor: pointer;
   transition: background 0.1s;
   font-size: 14px;
-  color: #2c2a27;
+  color: #1a2133;
   background: none;
   border: none;
   border-bottom: 1px solid #eae6df;
@@ -250,12 +250,12 @@
 
 .posItem:hover {
   background: #f7f5f1;
-  color: #2c2a27;
+  color: #1a2133;
 }
 
 .posLabel {
   font-size: 14px;
-  color: #2c2a27;
+  color: #1a2133;
   font-weight: 500;
 }
 

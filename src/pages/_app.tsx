@@ -26,13 +26,15 @@ const theme = createTheme({
     },
   },
   typography: {
+    // Matches --font-sans in globals.css (Inter loaded via Google Fonts <link> in _document.tsx).
     fontFamily: [
-      'Arial',
-      'Helvetica',
+      '"Inter"',
       '-apple-system',
       'BlinkMacSystemFont',
       '"Segoe UI"',
       'Roboto',
+      'Helvetica',
+      'Arial',
       'sans-serif',
     ].join(','),
   },
