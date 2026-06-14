@@ -137,7 +137,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     res.send({ rows: out, count, limit, offset });
   } catch (e) {
     console.log(e);
-    res.status(500).send(e);
+    res.status(500).send(String(e));
   }
 };
 
@@ -179,7 +179,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     res.send({ total, single_candidate: single, classes, personTypes });
   } catch (e) {
     console.log(e);
-    res.status(500).send(e);
+    res.status(500).send(String(e));
   }
 };
 
