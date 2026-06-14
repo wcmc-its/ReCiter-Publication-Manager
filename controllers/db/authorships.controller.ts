@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
+import { getEffectiveRolesScope } from "../../src/utils/effectiveSession";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 const LIST_ATTRIBUTES = [
@@ -189,6 +190,9 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; cwid?: string; authorized: boolean }> {
   const token: any = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
   if (!token) return { authorized: false };
+  // AUDIT identity stays REAL: the JWT is never overlaid server-side, so
+  // databaseUser.userID / username are always the real signed-in superuser.
+  // curatedBy / reviewer / feedbacklog are stamped with this real user.
   let userID: number | undefined = token.databaseUser?.userID;
   const cwid: string | undefined = token.username;
   // fallback: resolve the AdminUser id from the curator CWID if the JWT lacks databaseUser
@@ -196,8 +200,11 @@ async function resolveCurator(req: NextApiRequest): Promise<{ userID?: number; c
     const au: any = await models.AdminUser.findOne({ where: { personIdentifier: cwid }, attributes: ["userID"] });
     userID = au?.userID;
   }
-  let roles: any[] = [];
-  try { roles = token.userRoles ? JSON.parse(token.userRoles) : []; } catch { roles = []; }
+  // AUTHORIZATION uses the EFFECTIVE roles: the TARGET's when impersonating
+  // (faithful act-as), the REAL user's (read from the token, byte-identical to
+  // before) otherwise. getEffectiveRolesScope returns userRoles already parsed.
+  const effective = await getEffectiveRolesScope(token, req);
+  const roles: any[] = effective.userRoles;
   const authorized = roles.some((r: any) => r.roleLabel === "Superuser" || r.roleLabel === "Curator_All");
   return { userID, cwid, authorized };
 }
