@@ -9,6 +9,7 @@ import styles from "./AppLayout.module.css";
 import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
+import ViewAsControls, { ViewAsTrigger } from "../elements/Impersonation/ViewAsControls";
 import { reciterConfig } from "../../../config/local";
 import { useDispatch } from "react-redux";
 import { clearPubSearchFilters, getAdminDepartments, getAdminRoles, notificationEmail } from "../../redux/actions/actions";
@@ -64,6 +65,7 @@ export const AppLayout = ({ children }) => {
       <div className={expandedNav ? styles.expandedSideBarContent : styles.nonExpandedSideBarContent}>
         {session?.data?.username && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
+            <ViewAsTrigger />
             <span style={{ fontSize: 13, color: '#6b6560', padding: '5px 12px', borderRadius: 20, background: '#f3f1ed' }}>{session.data.username}</span>
             <button
               type="button"
@@ -72,6 +74,7 @@ export const AppLayout = ({ children }) => {
             >Logout</button>
           </div>
         )}
+        <ViewAsControls />
         {children}
         <Footer />
         {reciterConfig?.showToasts ? <ToastContainerWrapper /> : null}
