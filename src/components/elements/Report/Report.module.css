@@ -1,6 +1,6 @@
 .header {
-  font-weight: 500;
-  color: var(--gray-900);
+  font-weight: 600;
+  color: #1a2133;
   font-size: 28px;
   font-family: var(--font-serif);
   padding-bottom: 10px;
@@ -22,7 +22,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #8a95a3;
+  color: #8a94a6;
   font-size: 12.5px;
   padding: 24px 0 8px;
 }
@@ -32,7 +32,7 @@
   height: 18px;
   flex-shrink: 0;
   border: 2px solid #ddd8d0;
-  border-top-color: #8a95a3;
+  border-top-color: #8a94a6;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

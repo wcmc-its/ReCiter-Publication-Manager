@@ -309,15 +309,28 @@ export const institutionsFetching = (state=false, action) => {
 
 }
 
+// Institutions that should always appear first in any Institution(s) dropdown,
+// in this order. Names must match the primaryInstitution values exactly.
+const PINNED_INSTITUTIONS = ['Weill Cornell Medicine', 'Weill Cornell Medical College in Qatar'];
+
+const sortPinnedInstitutions = (list) => {
+  if (!Array.isArray(list)) return list;
+  const pinned = PINNED_INSTITUTIONS
+    .map(name => list.find(item => item && item.primaryInstitution === name))
+    .filter(Boolean);
+  const rest = list.filter(item => !(item && PINNED_INSTITUTIONS.includes(item.primaryInstitution)));
+  return [...pinned, ...rest];
+};
+
 export const institutionsData = (state=[], action) => {
 
   switch(action.type) {
-      
+
       case methods.INSTITUTIONS_CLEAR_ALL_DATA :
           return []
 
       case methods.INSTITUTIONS_CHANGE_ALL_DATA :
-          return action.payload
+          return sortPinnedInstitutions(action.payload)
 
       default :
           return state

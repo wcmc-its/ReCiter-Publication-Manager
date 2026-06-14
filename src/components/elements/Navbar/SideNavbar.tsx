@@ -223,12 +223,15 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       isRequired:true
     },
     {
+      // The group curation surface is retired. This item highlights while you're on
+      // /curate/[cwid] (the startsWith('/curate') match in MenuListItem); clicking it
+      // routes to Find People to pick a person to curate.
       title: 'Curate Publications',
       to: '/curate',
       imgUrl: SettingsIconTools,
       imgUrlActive: settingsIconActive,
       muiIcon: <IconCurate />,
-      disabled: isSuperuser ? false : (Object.keys(filters).length === 0),
+      disabled: false,
       allowedRoleNames: ["Superuser", "Curator_All","Curator_Self","Curator_Scoped"],
       isRequired:true
     },

@@ -86,7 +86,7 @@
 .actionsItemPrimary {
   composes: actionsItem;
   font-weight: 500 !important;
-  color: #1e2d3d !important;
+  color: #1a2133 !important;
 }
 
 .actionsItem svg {
@@ -106,7 +106,7 @@
 .secondaryDropdownButton :global(.dropdown-menu) {
   background: #fff !important;
   border: 1px solid #d6d0c4 !important;
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   box-shadow: 0 4px 20px rgba(26,33,51,0.14), 0 1px 4px rgba(26,33,51,0.07) !important;
   padding: 0 !important;
   overflow: hidden;
@@ -119,47 +119,47 @@
 
 /* Action buttons in table rows — dark style matching target */
 .secondaryDropdownButton button {
-  background-color: #1e2d3d !important;
+  background-color: #1a2133 !important;
   color: #ffffff !important;
-  border-color: #1e2d3d !important;
+  border-color: #1a2133 !important;
   font-size: 12px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   font-family: var(--font-sans) !important;
   padding: 6px 12px !important;
   white-space: nowrap;
 }
 
 .secondaryDropdownButton button:first-child {
-  border-radius: 5px 0 0 5px !important;
+  border-radius: 6px 0 0 6px !important;
 }
 
 .secondaryDropdownButton button:hover {
-  background-color: #273848 !important;
-  border-color: #273848 !important;
+  background-color: #252d42 !important;
+  border-color: #252d42 !important;
   color: #ffffff !important;
 }
 
 .secondaryDropdownButton button:active {
-  background-color: #273848 !important;
-  border-color: #273848 !important;
+  background-color: #252d42 !important;
+  border-color: #252d42 !important;
   color: #ffffff !important;
 }
 
 .secondaryDropdownButton button:focus {
-  background-color: #1e2d3d !important;
-  border-color: #1e2d3d !important;
+  background-color: #1a2133 !important;
+  border-color: #1a2133 !important;
   color: #ffffff !important;
 }
 
 .secondaryDropdownButton a {
-  background-color: #273848 !important;
+  background-color: #252d42 !important;
   color: rgba(255,255,255,0.7) !important;
-  border-color: #1e2d3d !important;
+  border-color: #1a2133 !important;
   border-left: 1px solid rgba(255,255,255,0.12) !important;
 }
 
 .secondaryDropdownButton a:hover {
-  background-color: #2d3a52 !important;
+  background-color: #2a3350 !important;
   color: #ffffff !important;
 }
 
