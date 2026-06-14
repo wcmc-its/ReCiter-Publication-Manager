@@ -1,6 +1,7 @@
 import {
   hasPermission,
   getPermissionsFromRaw,
+  getPermissionsFromRoles,
   getLandingPageFromPermissions,
 } from '../src/utils/permissionUtils'
 
@@ -52,6 +53,46 @@ describe('getPermissionsFromRaw', () => {
 
   it('returns empty array for JSON string of non-array value', () => {
     expect(getPermissionsFromRaw('"just-a-string"')).toEqual([])
+  })
+})
+
+describe('getPermissionsFromRoles (role-derived fallback matrix)', () => {
+  it('maps Superuser to all seven permissions', () => {
+    const result = getPermissionsFromRoles([{ roleLabel: 'Superuser' }])
+    expect(result.sort()).toEqual(
+      ['canConfigure', 'canCurate', 'canManageNotifications', 'canManageProfile', 'canManageUsers', 'canReport', 'canSearch'].sort()
+    )
+  })
+
+  it('maps Curator_All to canCurate + canSearch', () => {
+    expect(getPermissionsFromRoles([{ roleLabel: 'Curator_All' }]).sort()).toEqual(['canCurate', 'canSearch'])
+  })
+
+  it('maps Curator_Self to canCurate only', () => {
+    expect(getPermissionsFromRoles([{ roleLabel: 'Curator_Self' }])).toEqual(['canCurate'])
+  })
+
+  it('maps Reporter_All to canReport + canSearch', () => {
+    expect(getPermissionsFromRoles([{ roleLabel: 'Reporter_All' }]).sort()).toEqual(['canReport', 'canSearch'])
+  })
+
+  it('unions and de-duplicates permissions across multiple roles', () => {
+    const result = getPermissionsFromRoles([{ roleLabel: 'Curator_Self' }, { roleLabel: 'Reporter_All' }])
+    expect(result.sort()).toEqual(['canCurate', 'canReport', 'canSearch'])
+  })
+
+  it('ignores unknown role labels', () => {
+    expect(getPermissionsFromRoles([{ roleLabel: 'Unknown' }])).toEqual([])
+  })
+
+  it('returns empty array for null / undefined / non-array input (defensive)', () => {
+    expect(getPermissionsFromRoles(null as any)).toEqual([])
+    expect(getPermissionsFromRoles(undefined as any)).toEqual([])
+    expect(getPermissionsFromRoles('nope' as any)).toEqual([])
+  })
+
+  it('skips role entries with no roleLabel', () => {
+    expect(getPermissionsFromRoles([{} as any, { roleLabel: 'Curator_All' }]).sort()).toEqual(['canCurate', 'canSearch'])
   })
 })
 

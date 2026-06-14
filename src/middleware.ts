@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt_decode from "jwt-decode"
-import { getPermissionsFromRaw, hasPermission, getLandingPageFromPermissions } from './utils/permissionUtils'
+import { getPermissionsFromRaw, getPermissionsFromRoles, hasPermission, getLandingPageFromPermissions } from './utils/permissionUtils'
 
-// MW-02: Route-to-permission lookup map
-// Every route in config.matcher must have a corresponding entry here.
+// MW-02: Route-to-permission lookup map.
+// Routes gated purely by a single permission key. NOTE: some matcher routes are
+// intentionally ABSENT here and gated by role instead, lower down:
+//   - /authorships              -> role-gated (Superuser / Curator_All)
+//   - /notifications, /manageprofile -> gated only by the self-only-redirect
+//       block. The canonical seed grants canManageNotifications/canManageProfile
+//       to Superuser only, but these pages are exposed to Curator/Department
+//       roles too (see SideNavbar), so gating them on a permission key here
+//       would lock those roles out — a regression vs. the prior role-based gate.
 export const ROUTE_PERMISSIONS: Record<string, string> = {
   '/manageusers': 'canManageUsers',
   '/configuration': 'canConfigure',
   '/curate': 'canCurate',
   '/report': 'canReport',
   '/search': 'canSearch',
-  '/notifications': 'canManageNotifications',
-  '/manageprofile': 'canManageProfile',
 }
 
 // Middleware matcher — UNCHANGED from original
@@ -51,9 +56,16 @@ export async function middleware(request: NextRequest) {
     // MW-01: Parse permissions from JWT
     let permissions = getPermissionsFromRaw(decoded.permissions)
 
-    // MW-03: Baseline fallback — every authenticated user can search and report
+    // MW-03: Fallback when the data-driven permission set is empty.
+    // An empty set means the permission tables were not seeded in this
+    // environment (or the login-time lookup failed) — NOT that the user is
+    // unprivileged. Derive permissions from role labels via the canonical seed
+    // matrix so privileged roles (Superuser, Curator_*, Reporter_All) are never
+    // locked out of /curate, /manageusers, /configuration, etc. Only if no
+    // known role matches do we fall back to the baseline search/report set.
     if (permissions.length === 0) {
-      permissions = ['canSearch', 'canReport']
+      const roleDerived = getPermissionsFromRoles(userRoles)
+      permissions = roleDerived.length > 0 ? roleDerived : ['canSearch', 'canReport']
     }
 
     const personIdentifier = userRoles[0]?.personIdentifier || null

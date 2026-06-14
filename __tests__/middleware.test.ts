@@ -4,7 +4,7 @@
  * Tests verify:
  * - ROUTE_PERMISSIONS map completeness (MW-02)
  * - Permission-based route access via hasPermission (MW-01, MW-02)
- * - Baseline fallback for empty permissions (MW-03)
+ * - Role-derived fallback for empty permissions (MW-03)
  * - Self-only curator enforcement via role labels (MW-04)
  * - Landing page redirect via getLandingPageFromPermissions (MW-05)
  * - .git path blocking (403)
@@ -81,24 +81,27 @@ function createDecodedToken(
   }
 }
 
-// Role presets for readability
+// Role presets for readability.
+// Permission sets mirror the canonical RBAC seed (admin_role_permissions) in
+// docs/superpowers/plans/2026-04-14-data-driven-rbac.md — do NOT add keys a role
+// is not actually granted, or tests stop reflecting real route gating.
 const SUPERUSER_ROLES = [{ personIdentifier: 'su001', roleLabel: 'Superuser', roleID: 1 }]
 const SUPERUSER_PERMISSIONS = ['canManageUsers', 'canConfigure', 'canCurate', 'canReport', 'canSearch', 'canManageNotifications', 'canManageProfile']
 
 const CURATOR_ALL_ROLES = [{ personIdentifier: 'ca001', roleLabel: 'Curator_All', roleID: 2 }]
-const CURATOR_ALL_PERMISSIONS = ['canCurate', 'canSearch', 'canManageNotifications', 'canManageProfile']
+const CURATOR_ALL_PERMISSIONS = ['canCurate', 'canSearch']
 
 const REPORTER_ALL_ROLES = [{ personIdentifier: 'ra001', roleLabel: 'Reporter_All', roleID: 3 }]
-const REPORTER_ALL_PERMISSIONS = ['canReport', 'canSearch', 'canManageProfile']
+const REPORTER_ALL_PERMISSIONS = ['canReport', 'canSearch']
 
 const CURATOR_SELF_ROLES = [{ personIdentifier: 'cs001', roleLabel: 'Curator_Self', roleID: 4 }]
-const CURATOR_SELF_PERMISSIONS = ['canCurate', 'canManageNotifications', 'canManageProfile']
+const CURATOR_SELF_PERMISSIONS = ['canCurate']
 
 const CURATOR_SELF_REPORTER_ROLES = [
   { personIdentifier: 'cs001', roleLabel: 'Curator_Self', roleID: 4 },
   { personIdentifier: 'cs001', roleLabel: 'Reporter_All', roleID: 3 },
 ]
-const CURATOR_SELF_REPORTER_PERMISSIONS = ['canCurate', 'canSearch', 'canReport', 'canManageNotifications', 'canManageProfile']
+const CURATOR_SELF_REPORTER_PERMISSIONS = ['canCurate', 'canSearch', 'canReport']
 
 // -- Tests --
 
@@ -109,11 +112,11 @@ beforeEach(() => {
 })
 
 describe('ROUTE_PERMISSIONS map', () => {
-  test('Test 1: has exactly 7 entries matching the 7 matcher routes', () => {
-    const expectedRoutes = ['/manageusers', '/configuration', '/curate', '/report', '/search', '/notifications', '/manageprofile']
+  test('Test 1: has exactly the 5 permission-gated routes', () => {
+    const expectedRoutes = ['/manageusers', '/configuration', '/curate', '/report', '/search']
     const mapKeys = Object.keys(ROUTE_PERMISSIONS)
 
-    expect(mapKeys).toHaveLength(7)
+    expect(mapKeys).toHaveLength(5)
     expectedRoutes.forEach((route) => {
       expect(ROUTE_PERMISSIONS).toHaveProperty(route)
     })
@@ -123,8 +126,12 @@ describe('ROUTE_PERMISSIONS map', () => {
     expect(ROUTE_PERMISSIONS['/curate']).toBe('canCurate')
     expect(ROUTE_PERMISSIONS['/report']).toBe('canReport')
     expect(ROUTE_PERMISSIONS['/search']).toBe('canSearch')
-    expect(ROUTE_PERMISSIONS['/notifications']).toBe('canManageNotifications')
-    expect(ROUTE_PERMISSIONS['/manageprofile']).toBe('canManageProfile')
+    // /notifications and /manageprofile are intentionally NOT permission-gated
+    // (H1): the seed grants their keys to Superuser only, but the pages are
+    // exposed to Curator/Department roles, so they are gated by the self-only
+    // redirect block instead. Gating them here would lock those roles out.
+    expect(ROUTE_PERMISSIONS).not.toHaveProperty('/notifications')
+    expect(ROUTE_PERMISSIONS).not.toHaveProperty('/manageprofile')
   })
 })
 
@@ -280,6 +287,65 @@ describe('Baseline fallback (no permissions)', () => {
     const req = createMockRequest('/manageusers')
     const result = await middleware(req)
     expect(result.type).toBe('redirect')
+  })
+})
+
+describe('Empty permission set falls back to role matrix, not lockout (C1 regression)', () => {
+  // Simulates an environment where the RBAC permission tables are not seeded
+  // (or the login-time lookup failed): token.permissions is "[]". Privileged
+  // roles must still reach their routes via the role-derived fallback (MW-03),
+  // never get locked out.
+  test('Test 25: Superuser with empty permissions reaches /curate', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken([], SUPERUSER_ROLES))
+    expect((await middleware(createMockRequest('/curate/anyone'))).type).toBe('next')
+  })
+
+  test('Test 26: Superuser with empty permissions reaches /manageusers', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken([], SUPERUSER_ROLES))
+    expect((await middleware(createMockRequest('/manageusers'))).type).toBe('next')
+  })
+
+  test('Test 27: Superuser with empty permissions reaches /configuration', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken([], SUPERUSER_ROLES))
+    expect((await middleware(createMockRequest('/configuration'))).type).toBe('next')
+  })
+
+  test('Test 28: Curator_All with empty permissions reaches /curate but not /manageusers', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken([], CURATOR_ALL_ROLES))
+    expect((await middleware(createMockRequest('/curate/x'))).type).toBe('next')
+    expect((await middleware(createMockRequest('/manageusers'))).type).toBe('redirect')
+  })
+
+  test('Test 29: unknown role with empty permissions still gets baseline search/report', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken([], [{ personIdentifier: 'u1', roleLabel: 'Unknown', roleID: 99 }]))
+    expect((await middleware(createMockRequest('/search'))).type).toBe('next')
+    expect((await middleware(createMockRequest('/report'))).type).toBe('next')
+    expect((await middleware(createMockRequest('/manageusers'))).type).toBe('redirect')
+  })
+})
+
+describe('Profile / notifications routes are not permission-gated (H1 regression)', () => {
+  // The canonical seed grants canManageNotifications/canManageProfile to
+  // Superuser only, but these routes are exposed to Curator roles. They must be
+  // gated only by the self-only-redirect block, not by ROUTE_PERMISSIONS.
+  test('Test 30: Curator_All reaches /manageprofile (not redirected)', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken(CURATOR_ALL_PERMISSIONS, CURATOR_ALL_ROLES))
+    expect((await middleware(createMockRequest('/manageprofile'))).type).toBe('next')
+  })
+
+  test('Test 31: Curator_All reaches /notifications (not redirected)', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken(CURATOR_ALL_PERMISSIONS, CURATOR_ALL_ROLES))
+    expect((await middleware(createMockRequest('/notifications'))).type).toBe('next')
+  })
+
+  test('Test 32: Curator_Self on own /manageprofile/cs001 is allowed', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken(CURATOR_SELF_PERMISSIONS, CURATOR_SELF_ROLES))
+    expect((await middleware(createMockRequest('/manageprofile/cs001'))).type).toBe('next')
+  })
+
+  test('Test 33: Curator_Self on another user /manageprofile/other is redirected (self-only)', async () => {
+    jwtDecode.mockReturnValue(createDecodedToken(CURATOR_SELF_PERMISSIONS, CURATOR_SELF_ROLES))
+    expect((await middleware(createMockRequest('/manageprofile/other'))).type).toBe('redirect')
   })
 })
 

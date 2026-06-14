@@ -46,6 +46,55 @@ export function getPermissionsFromRaw(
 }
 
 /**
+ * Canonical role-label → permission-key matrix.
+ *
+ * This MUST stay in exact sync with the RBAC seed in
+ * docs/superpowers/plans/2026-04-14-data-driven-rbac.md (admin_role_permissions).
+ * It is used ONLY as a safety fallback by getPermissionsFromRoles() when the
+ * data-driven permission set is empty — e.g. the permission tables have not
+ * been seeded in this environment, or the login-time permission lookup failed —
+ * so that privileged roles are never locked out of routes they are entitled to.
+ */
+const ROLE_PERMISSION_FALLBACK: Record<string, string[]> = {
+  Superuser: [
+    'canCurate', 'canSearch', 'canReport',
+    'canManageUsers', 'canConfigure',
+    'canManageNotifications', 'canManageProfile',
+  ],
+  Curator_All: ['canCurate', 'canSearch'],
+  Curator_Self: ['canCurate'],
+  Curator_Scoped: ['canCurate', 'canSearch'],
+  Curator_Department: ['canCurate', 'canSearch'],
+  Curator_Department_Delegate: ['canCurate', 'canSearch'],
+  Reporter_All: ['canReport', 'canSearch'],
+}
+
+/**
+ * Derive a permission-key array from a user's role labels using the canonical
+ * seed matrix (ROLE_PERMISSION_FALLBACK).
+ *
+ * Safety fallback only — see the MW-03 fallback in src/middleware.ts. Returns
+ * the de-duplicated union of every matched role's permissions, or an empty
+ * array if no role matches (the caller then applies the baseline set).
+ *
+ * @param roles - User's roles array with { roleLabel }
+ * @returns De-duplicated permission key array
+ */
+export function getPermissionsFromRoles(
+  roles: Array<{ roleLabel?: string | null }> | null | undefined
+): string[] {
+  if (!roles || !Array.isArray(roles)) return []
+  const set = new Set<string>()
+  for (const role of roles) {
+    const keys = role && role.roleLabel ? ROLE_PERMISSION_FALLBACK[role.roleLabel] : undefined
+    if (keys) {
+      for (const key of keys) set.add(key)
+    }
+  }
+  return Array.from(set)
+}
+
+/**
  * Broader curate roles that override self-only detection.
  * A user with any of these roles is NOT a self-only curator,
  * even if they also have Curator_Self.
