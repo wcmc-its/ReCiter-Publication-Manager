@@ -17,10 +17,98 @@ import {
   findUserPermissionsEnriched,
   findUserScope,
 } from '../../controllers/db/userroles.controller';
+import { findOnePerson } from '../../controllers/db/person.controller';
+import { findOneAdminSettings } from '../../controllers/db/admin.settings.controller';
+import sequelize from '../db/db';
 import { getEffectiveIdentity, isSuperuser } from './impersonation';
 
 const EMAIL = 'email';
 const PERSONIDENTIFIER = 'personIdentifier';
+
+/** Curate roles that mean "already provisioned" — if the target has any, we don't add Curator_Self. */
+const CURATE_ROLE_LABELS = ['Curator_All', 'Curator_Self', 'Curator_Scoped'];
+const CURATOR_SELF_ROLE_ID = 4;
+const CURATOR_ALL_ROLE_ID = 2;
+
+/**
+ * Compute the default roles a target WOULD receive at their own login
+ * (configured defaults from admin settings + Curator_Self for anyone in the
+ * person table), WITHOUT writing anything — a read-only, ephemeral mirror of the
+ * login-time `grantDefaultRolesToAdminUser`. Used so "View as" reflects the
+ * target's real post-login experience even if they've never signed in, while
+ * never mutating their account.
+ *
+ * Returns only the roles/permission keys NOT already present on the target.
+ */
+async function defaultRolesForTarget(
+  targetPersonIdentifier: string,
+  existingRoles: Array<{ roleLabel?: string; roleID?: number }>,
+): Promise<{ roles: Array<{ roleLabel: string; roleID: number; personIdentifier: string }>; permissionKeys: string[] }> {
+  const empty = { roles: [], permissionKeys: [] };
+  const existingLabels = new Set(existingRoles.map((r) => r?.roleLabel).filter(Boolean));
+  const existingIds = new Set(existingRoles.map((r) => r?.roleID).filter((v) => v != null));
+
+  // Configured default roleIds (admin_settings 'userRoles' → checked roles).
+  const candidateIds = new Set<number>();
+  try {
+    const settings: any = await findOneAdminSettings('userRoles');
+    if (settings && settings.viewAttributes) {
+      const va = JSON.parse(settings.viewAttributes);
+      (Array.isArray(va) ? va : []).forEach((attr: any) => {
+        (attr?.roles || []).forEach((role: any) => {
+          if (role?.isChecked && role?.roleId != null) candidateIds.add(Number(role.roleId));
+        });
+      });
+    }
+  } catch (err) {
+    console.error('[impersonation] default-role settings read failed', err);
+  }
+
+  // Curator_Self if the target is a person and has no curate role yet
+  // (and the configured defaults don't already include Curator_All).
+  let isPerson = false;
+  try {
+    const person: any = await findOnePerson([PERSONIDENTIFIER], [targetPersonIdentifier]);
+    isPerson = !!(person && person.personIdentifier);
+  } catch (err) {
+    console.error('[impersonation] default-role person check failed', err);
+  }
+  const hasCurateRole = [...existingLabels].some((l) => CURATE_ROLE_LABELS.includes(l as string));
+  if (isPerson && !hasCurateRole && !candidateIds.has(CURATOR_ALL_ROLE_ID)) {
+    candidateIds.add(CURATOR_SELF_ROLE_ID);
+  }
+
+  const newIds = [...candidateIds].filter((id) => !existingIds.has(id));
+  if (!newIds.length) return empty;
+
+  // Fetch labels + permission keys for the net-new roles (read-only).
+  let rows: any[] = [];
+  try {
+    rows = await sequelize.query(
+      `SELECT ar.roleID, ar.roleLabel, p.permissionKey
+       FROM admin_roles ar
+       LEFT JOIN admin_role_permissions arp ON ar.roleID = arp.roleID
+       LEFT JOIN admin_permissions p ON arp.permissionID = p.permissionID
+       WHERE ar.roleID IN (:ids)`,
+      { replacements: { ids: newIds }, raw: true, nest: true },
+    );
+  } catch (err) {
+    console.error('[impersonation] default-role label/permission lookup failed', err);
+    return empty;
+  }
+
+  const roleMap = new Map<number, { roleLabel: string; roleID: number; personIdentifier: string }>();
+  const permKeys = new Set<string>();
+  for (const r of rows) {
+    if (r.roleLabel && !roleMap.has(r.roleID)) {
+      roleMap.set(r.roleID, { roleLabel: r.roleLabel, roleID: r.roleID, personIdentifier: targetPersonIdentifier });
+    }
+    if (r.permissionKey) permKeys.add(r.permissionKey);
+  }
+  // Don't duplicate a roleLabel the target already has.
+  const roles = [...roleMap.values()].filter((r) => !existingLabels.has(r.roleLabel));
+  return { roles, permissionKeys: [...permKeys] };
+}
 
 /** A login-shaped `session.data` slice for the impersonation target. */
 export interface EffectiveSessionData {
@@ -96,6 +184,22 @@ export async function resolveEffectiveSessionData(
     console.error('[impersonation] effective scope resolution failed', err);
   }
 
+  // Ephemeral default roles: reflect what the target would have AFTER their own
+  // login (Curator_Self for a person + configured defaults), WITHOUT writing to
+  // the DB. This function only runs under an active overlay, so this only ever
+  // augments the impersonation target — never the real user.
+  let rolesArr: Array<{ roleLabel?: string; roleID?: number }> = [];
+  try {
+    const parsed = JSON.parse(userRoles);
+    rolesArr = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    rolesArr = [];
+  }
+  const def = await defaultRolesForTarget(targetPersonIdentifier, rolesArr);
+  if (def.roles.length) rolesArr = [...rolesArr, ...def.roles];
+  if (def.permissionKeys.length) permissions = [...new Set([...permissions, ...def.permissionKeys])];
+  const userRolesOut = JSON.stringify(rolesArr);
+
   // Mirror the login databaseUser shape (status gates AppLayout NoAccess; userID
   // is read by feedbacklog/resolveCurator; name drives the header/banner).
   const databaseUser = {
@@ -114,7 +218,7 @@ export async function resolveEffectiveSessionData(
     username: targetPersonIdentifier,
     email,
     databaseUser,
-    userRoles,
+    userRoles: userRolesOut,
     permissions: JSON.stringify(permissions),
     permissionResources: JSON.stringify(permissionResources),
     scopeData: JSON.stringify(scopeData),
@@ -196,6 +300,15 @@ export async function getEffectiveRolesScope(
     } catch (err) {
       console.error('[impersonation] effective roles (authz) resolution failed', err);
       userRoles = [];
+    }
+
+    // Ephemeral default roles (same read-only logic as the session overlay) so
+    // server-side authorization matches what the target would have after login.
+    try {
+      const def = await defaultRolesForTarget(pid, userRoles as Array<{ roleLabel?: string; roleID?: number }>);
+      if (def.roles.length) userRoles = [...userRoles, ...def.roles];
+    } catch (err) {
+      console.error('[impersonation] effective default-roles (authz) failed', err);
     }
 
     // Scope — findUserScope returns an OBJECT already; use as-is.

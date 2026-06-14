@@ -137,10 +137,11 @@ const ImpersonationBanner: React.FC = () => {
     try {
       await fetch('/api/impersonation', { method: 'DELETE' });
     } catch {
-      // Even if the call fails, reload so the user isn't stuck; the cookie may
-      // already be cleared and the session will re-resolve to the real user.
+      // Even if the call fails, navigate away so the user isn't stuck; the cookie
+      // may already be cleared and the session will re-resolve to the real user.
     }
-    window.location.reload();
+    // Back to your own landing page (e.g. /search) rather than a target-specific URL.
+    window.location.href = '/';
   };
 
   return (
@@ -247,8 +248,11 @@ const ViewAsPicker: React.FC<{ show: boolean; onHide: () => void }> = ({ show, o
         body: JSON.stringify({ targetPersonIdentifier: target.personIdentifier }),
       });
       if (res.status === 200) {
-        // Re-resolve /api/auth/session to the target by reloading.
-        window.location.reload();
+        // Land the target on THEIR page: navigating to "/" runs index.js
+        // getServerSideProps, which (under the now-active overlay) routes to
+        // getLandingPageFromPermissions(target) — e.g. /curate/{pid} for a
+        // Curator_Self — instead of stranding you on a page the target can't see.
+        window.location.href = '/';
         return;
       }
       let message = 'Could not start View as. Please try again.';
