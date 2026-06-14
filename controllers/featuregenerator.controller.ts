@@ -3,6 +3,7 @@ import { NextApiRequest } from 'next'
 import httpBuildQuery from 'http-build-query'
 import url from 'url'
 import { deleteUserFeedback, findUserFeedback } from './userfeedback.controller'
+import { attachArticleProvenance } from '../src/lib/articleProvenance'
 
 export async function getPublications(uid: string | string[], req: NextApiRequest)  {
 
@@ -32,6 +33,10 @@ export async function getPublications(uid: string | string[], req: NextApiReques
                     }
                 } else {
                     let data: any = await res.json()
+                    // Enrich with first-retrieval date from DynamoDB ArticleProvenance
+                    // (on-the-fly, per (personIdentifier, pmid)). Non-fatal.
+                    const personIdentifier = Array.isArray(uid) ? uid[0] : uid
+                    await attachArticleProvenance(personIdentifier, data)
                     let finalData = await getPendingFeedback(uid, data)
                     return {
                         statusCode: res.status,
