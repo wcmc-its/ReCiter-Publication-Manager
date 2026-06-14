@@ -812,6 +812,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                   }
                   {reciterArticle.publicationDateDisplay && <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}>{reciterArticle.publicationDateDisplay}</span></>}
                   <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}><span className={styles.pmidLabel}>PMID</span> <a className={styles.pmidLink} href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><span style={{userSelect: 'none', color: '#2563a8'}}> ↗</span></span></>
+                  {reciterArticle.firstRetrievalDate && <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}>First retrieved {reciterArticle.firstRetrievalDate}</span></>}
                   {userAssertion === 'ACCEPTED' && (
                     <span className={styles.statusChipAccepted}>
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M13 4.5L6.2 11.5 3 8.3"/></svg>

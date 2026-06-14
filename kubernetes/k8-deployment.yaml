@@ -25,6 +25,9 @@ spec:
         tier: frontend
         owner: szd2013
     spec:
+      # IRSA: grants read-only DynamoDB access to ArticleProvenance (PM #737).
+      # The reciter-pm service account is bound to an IAM role via eksctl.
+      serviceAccountName: reciter-pm
       containers:
       - image: reciter-publication-manager:prod
         name: reciter-pm-prod
