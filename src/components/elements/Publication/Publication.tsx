@@ -11,6 +11,34 @@ import { reciterConfig } from "../../../../config/local";
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
 
+// Friendly labels for ReCiter ArticleProvenance fields (src = source, rs = retrieval strategy).
+// Unmapped values fall back to a cleaned raw value, so nothing is ever hidden.
+const PROV_SOURCE_LABELS: Record<string, string> = {
+  GS: 'Gold standard',
+  PM: 'Publication Manager',
+  CTSC: 'CTSC',
+  MAN: 'Manual',
+  MAN_FROM_PM: 'Manual (via Publication Manager)',
+  MAN_FROM_CTSC: 'Manual (via CTSC)',
+};
+const PROV_STRATEGY_LABELS: Record<string, string> = {
+  GoldStandardRetrievalStrategy: 'Gold standard',
+  OrcidRetrievalStrategy: 'ORCID',
+  EmailRetrievalStrategy: 'Email',
+  GrantRetrievalStrategy: 'Grant',
+  DepartmentRetrievalStrategy: 'Department',
+  AffiliationRetrievalStrategy: 'Affiliation',
+  AffiliationInDbRetrievalStrategy: 'Affiliation (in DB)',
+  FullNameRetrievalStrategy: 'Full name',
+  FirstNameInitialRetrievalStrategy: 'First-name initial',
+  SecondInitialRetrievalStrategy: 'Second initial',
+  KnownRelationshipRetrievalStrategy: 'Known relationship',
+};
+const friendlyProvSource = (v?: string | null): string | null =>
+  v ? (PROV_SOURCE_LABELS[v] || v) : null;
+const friendlyProvStrategy = (v?: string | null): string | null =>
+  v ? (PROV_STRATEGY_LABELS[v] || v.replace(/RetrievalStrategy$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim()) : null;
+
 //TEMP: update to required
 interface FuncProps {
     onAccept?(pmid: number, id: number): void,
@@ -43,8 +71,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
     const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
-    const [showCurationLog, setShowCurationLog] = useState<boolean>(false)
-    const curationLogRef = useRef<HTMLSpanElement>(null)
     const [expandedPubIndex, setExpandedPubIndex] = useState<any>(props.showEvidenceDefault ? props.showEvidenceDefault : null)
 
     const maxArticlesPerPerson = reciterConfig.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams.maxArticlesPerPerson;
@@ -52,25 +78,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const onOpenModal = () => setShowHistoryModal(true)
     const onCloseModal = () => setShowHistoryModal(false)
-
-    // Close curation log popover on click outside or Escape
-    useEffect(() => {
-      if (!showCurationLog) return;
-      const handleClickOutside = (e: MouseEvent) => {
-        if (curationLogRef.current && !curationLogRef.current.contains(e.target as Node)) {
-          setShowCurationLog(false);
-        }
-      };
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setShowCurationLog(false);
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('keydown', handleEscape);
-      };
-    }, [showCurationLog]);
 
     const formatClogDate = (timestamp: string | Date) => {
       const d = new Date(timestamp);
@@ -169,6 +176,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const { reciterArticle } = props;
     const clogEntries = feedbacklog[reciterArticle.pmid] || [];
+    const hasProvenance = !!(reciterArticle.firstRetrievalDate || reciterArticle.retrievalStrategy || reciterArticle.retrievalSource);
 
     const CardFooter = ({pmid, userAssertion} : {
       pmid: number,
@@ -812,7 +820,6 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                   }
                   {reciterArticle.publicationDateDisplay && <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}>{reciterArticle.publicationDateDisplay}</span></>}
                   <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}><span className={styles.pmidLabel}>PMID</span> <a className={styles.pmidLink} href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><span style={{userSelect: 'none', color: '#2563a8'}}> ↗</span></span></>
-                  {reciterArticle.firstRetrievalDate && <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}>First retrieved {reciterArticle.firstRetrievalDate}</span></>}
                   {userAssertion === 'ACCEPTED' && (
                     <span className={styles.statusChipAccepted}>
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M13 4.5L6.2 11.5 3 8.3"/></svg>
@@ -837,34 +844,48 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
               {/* Row 4: Journal */}
               <div className={styles.articleMeta}>
                 <span>{reciterArticle.journalTitleVerbose}</span>
-                {Object.keys(feedbacklog).length > 0 && (
-                  <span className={styles.curationWrap} ref={curationLogRef}>
-                    <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>Curation log</button>
-                    {showCurationLog && (
-                      <div className={styles.curationLogPopover}>
-                        <div className={styles.clogHead}>Curation history</div>
-                        {clogEntries.length > 0 ? (
-                          clogEntries.map((entry: any, i: number) => {
-                            const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
-                            const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
-                            const who = entry.AdminUser?.personIdentifier || '';
-                            const date = formatClogDate(entry.modifyTimestamp);
-                            return (
-                              <div className={styles.clogEntry} key={entry.feedbackID || i}>
-                                <div className={styles.clogAction}>
-                                  <div className={`${styles.clogDot} ${action === 'accepted' ? styles.clogDotAccepted : action === 'rejected' ? styles.clogDotRejected : styles.clogDotUndone}`} />
-                                  <span className={`${styles.clogVerb} ${action === 'accepted' ? styles.clogVerbAccepted : action === 'rejected' ? styles.clogVerbRejected : styles.clogVerbUndone}`}>{verb}</span>
-                                  <span className={styles.clogWho}>{who}</span>
-                                </div>
-                                <span className={styles.clogDate}>{date}</span>
+                {(hasProvenance || clogEntries.length > 0) && (
+                  <span className={styles.curationWrap}>
+                    <button className={styles.evidenceBtn} type="button">History</button>
+                    <div className={styles.curationLogPopover}>
+                      <div className={styles.clogHead}>Provenance</div>
+                      {hasProvenance ? (
+                        <div className={styles.provBlock}>
+                          {reciterArticle.firstRetrievalDate && (
+                            <div className={styles.provRow}><span className={styles.provLabel}>First retrieved</span><span className={styles.provValue}>{reciterArticle.firstRetrievalDate}</span></div>
+                          )}
+                          {reciterArticle.retrievalStrategy && (
+                            <div className={styles.provRow}><span className={styles.provLabel}>Strategy</span><span className={styles.provValue}>{friendlyProvStrategy(reciterArticle.retrievalStrategy)}</span></div>
+                          )}
+                          {reciterArticle.retrievalSource && (
+                            <div className={styles.provRow}><span className={styles.provLabel}>Source</span><span className={styles.provValue}>{friendlyProvSource(reciterArticle.retrievalSource)}</span></div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className={styles.clogEmpty}>Retrieval details unavailable</div>
+                      )}
+                      <div className={styles.clogHead}>Curation history</div>
+                      {clogEntries.length > 0 ? (
+                        clogEntries.map((entry: any, i: number) => {
+                          const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
+                          const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
+                          const who = entry.AdminUser?.personIdentifier || '';
+                          const date = formatClogDate(entry.modifyTimestamp);
+                          return (
+                            <div className={styles.clogEntry} key={entry.feedbackID || i}>
+                              <div className={styles.clogAction}>
+                                <div className={`${styles.clogDot} ${action === 'accepted' ? styles.clogDotAccepted : action === 'rejected' ? styles.clogDotRejected : styles.clogDotUndone}`} />
+                                <span className={`${styles.clogVerb} ${action === 'accepted' ? styles.clogVerbAccepted : action === 'rejected' ? styles.clogVerbRejected : styles.clogVerbUndone}`}>{verb}</span>
+                                <span className={styles.clogWho}>{who}</span>
                               </div>
-                            );
-                          })
-                        ) : (
-                          <div className={styles.clogEmpty}>No curation events yet</div>
-                        )}
-                      </div>
-                    )}
+                              <span className={styles.clogDate}>{date}</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className={styles.clogEmpty}>No curation events yet</div>
+                      )}
+                    </div>
                   </span>
                 )}
               </div>

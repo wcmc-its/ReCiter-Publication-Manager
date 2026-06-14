@@ -873,6 +873,7 @@
 }
 
 .curationLogPopover {
+  display: none;
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0;
@@ -971,6 +972,36 @@
   font-size: 12px;
   color: #8a94a6;
   font-style: italic;
+}
+
+/* Hover/focus reveal for the History popover (provenance + curation) */
+.curationWrap:hover .curationLogPopover,
+.curationWrap:focus-within .curationLogPopover {
+  display: block;
+}
+
+/* Provenance block (top section of the History popover) */
+.provBlock {
+  padding: 8px 14px;
+}
+
+.provRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.provLabel {
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.provValue {
+  color: #1a2133;
+  font-weight: 600;
+  text-align: right;
 }
 
 /* ── Card right column (inline undo for actioned cards) ── */
