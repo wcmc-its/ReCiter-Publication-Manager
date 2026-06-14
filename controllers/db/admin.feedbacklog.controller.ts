@@ -27,7 +27,7 @@ export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResp
 
 
 export const createFeedbackLog = async (req: NextApiRequest, res: NextApiResponse) => {
-    const { userID, personIdentifier, articleIdentifier, feedback } = req.body;
+    const { userID, impersonatedByUserID, personIdentifier, articleIdentifier, feedback } = req.body;
     try {
         if(userID && personIdentifier && articleIdentifier && feedback) {
             const isUserExistAndActive = await models.AdminUser.findOne({
@@ -42,6 +42,7 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
                 articleIdentifier.forEach((element: number) => {
                     data.push({
                         userID: isUserExistAndActive.userID,
+                        impersonatedByUserID: impersonatedByUserID ?? null,
                         personIdentifier: personIdentifier,
                         articleIdentifier: element,
                         feedback: feedback,
