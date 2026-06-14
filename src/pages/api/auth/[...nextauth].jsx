@@ -10,6 +10,13 @@ import { createAdminUser } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
 import { findOnePerson } from "../../../../controllers/db/person.controller";
 import { allowedPermissions } from "../../../utils/constants";
+import {
+    impersonationEnabled,
+    readOverlay,
+    isSuperuser,
+    IMPERSONATION_TTL_SECONDS,
+} from "../../../utils/impersonation";
+import { resolveEffectiveSessionData } from "../../../utils/effectiveSession";
 
 // Determine the condition for choosing the authentication method
 const isSamlEnabled = process.env.SAML_ENABLED === 'true';
@@ -17,7 +24,56 @@ const EMAIL ='email'
 const PERSONIDENTIFIER  = 'personIdentifier'
 
 
+const isSessionGet = (req) =>
+    req.method === 'GET' &&
+    Array.isArray(req.query?.nextauth) &&
+    req.query.nextauth[0] === 'session';
+
 const authHandler = async (req, res) => {
+    // "View as" overlay: when a Superuser has a live impersonation cookie,
+    // return the TARGET's session.data from GET /api/auth/session so every client
+    // useSession()/getSession() consumer (and SSR getSession(ctx)) sees the
+    // target transparently — no per-component change. Dark unless the flag is on.
+    // The next-auth JWT itself is never mutated (v3 can't mid-request); only this
+    // response body is rewritten. resolveEffectiveSessionData is awaited BEFORE
+    // NextAuth so the res.json patch stays synchronous.
+    if (impersonationEnabled() && isSessionGet(req)) {
+        const overlay = readOverlay(req);
+        if (overlay) {
+            let eff = null;
+            try {
+                eff = await resolveEffectiveSessionData(overlay.targetPersonIdentifier, overlay.targetEmail);
+            } catch (err) {
+                console.error('[impersonation] resolveEffectiveSessionData failed', err);
+            }
+            if (eff) {
+                const realJson = res.json.bind(res);
+                res.json = (body) => {
+                    // Re-check binding + Superuser against the REAL session body
+                    // (the JWT belongs to the real signed-in user): only overlay
+                    // when this overlay belongs to this user AND they are a Superuser.
+                    if (
+                        body && body.data &&
+                        body.data.username === overlay.realPersonIdentifier &&
+                        isSuperuser(body.data.userRoles)
+                    ) {
+                        const du = body.data.databaseUser || {};
+                        const realUserName =
+                            [du.nameFirst, du.nameLast].filter(Boolean).join(' ') || overlay.realPersonIdentifier;
+                        body.data = {
+                            ...body.data,
+                            ...eff,
+                            impersonating: true,
+                            realUser: overlay.realPersonIdentifier,
+                            realUserName,
+                            expiresAt: overlay.startedAt + IMPERSONATION_TTL_SECONDS,
+                        };
+                    }
+                    return realJson(body);
+                };
+            }
+        }
+    }
     await NextAuth(req, res, options);
 };
 
@@ -163,11 +219,17 @@ const options = {
                     const adminUser = await findOrCreateAdminUsers(credentials.username,credentials.email,credentials.firstName,credentials.lastName)
                     apiResponse.databaseUser = adminUser;
                     const assignedRoles = await grantDefaultRolesToAdminUser(adminUser)
-                    const userRoles = await findUserPermissions([EMAIL, PERSONIDENTIFIER], [credentials.email, credentials.username]);
+                    // Local login sends no email, but role/permission resolution keys on
+                    // (personIdentifier AND email). Resolve the email from the matched
+                    // admin_users row so roles load (otherwise the user lands on /noaccess).
+                    // Production uses SAML, not this direct_login provider, so this is local-dev only.
+                    const resolveEmail = (adminUser && (adminUser.email || adminUser.samlEmail)) || credentials.email || '';
+                    apiResponse.email = apiResponse.email || resolveEmail;
+                    const userRoles = await findUserPermissions([EMAIL, PERSONIDENTIFIER], [resolveEmail, credentials.username]);
                     apiResponse.userRoles = userRoles;
                     // Phase 15: Resolve permissions from DB tables
                     try {
-                        const enriched = await findUserPermissionsEnriched([EMAIL, PERSONIDENTIFIER], [credentials.email, credentials.username]);
+                        const enriched = await findUserPermissionsEnriched([EMAIL, PERSONIDENTIFIER], [resolveEmail, credentials.username]);
                         apiResponse.permissions = enriched.permissions;
                         apiResponse.permissionResources = enriched.permissionResources;
                     } catch(err) {
