@@ -7,7 +7,7 @@ import Router from "next/router"
 import Header from "../Header/Header"
 import { signIn,getSession } from "next-auth/client"
 import { toast } from "react-toastify"
-import { getPermissionsFromRaw, getLandingPageFromPermissions } from '../../../utils/permissionUtils';
+import { getPermissionsFromRaw, getPermissionsFromRoles, getLandingPageFromPermissions } from '../../../utils/permissionUtils';
 import { useRouter } from 'next/router'
 
 const Login = () => {
@@ -43,8 +43,17 @@ const Login = () => {
             });
             getSession().then((session) => {
                 if (session) {
-                    const permissions = getPermissionsFromRaw(session?.data?.permissions)
+                    let permissions = getPermissionsFromRaw(session?.data?.permissions)
                     const userRoles = session.data.userRoles ? JSON.parse(session.data.userRoles) : []
+
+                    // Fallback when the data-driven permission set is empty (RBAC
+                    // permission tables not seeded in this env, or the login-time
+                    // lookup failed): derive permissions from role labels so
+                    // privileged users are never sent to /noaccess. Mirrors the
+                    // middleware MW-03 fallback.
+                    if (permissions.length === 0) {
+                        permissions = getPermissionsFromRoles(userRoles)
+                    }
 
                     if (!session.data.databaseUser || session.data.databaseUser.status == 0) {
                         router.push('/noaccess')
