@@ -2,6 +2,7 @@ import type { NextApiRequest } from 'next'
 import { getToken } from 'next-auth/jwt'
 import { getCapabilities } from './constants'
 import { isPersonInScope, isProxyFor, ScopeData } from './scopeResolver'
+import { getEffectiveRolesScope } from './effectiveSession'
 import models from '../db/sequelize'
 
 interface ScopeCheckResult {
@@ -32,7 +33,11 @@ export async function checkCurationScope(
     return { allowed: false, status: 401, message: 'Not authenticated' }
   }
 
-  const roles = token.userRoles ? JSON.parse(token.userRoles as string) : []
+  // Effective roles/scope/proxy: the TARGET's when impersonating (faithful act-as),
+  // the REAL user's (read from the token, byte-identical to before) otherwise.
+  const effective = await getEffectiveRolesScope(token, req)
+
+  const roles = effective.userRoles
   const caps = getCapabilities(roles)
 
   // 1. Superuser / Curator_All — unrestricted
@@ -46,18 +51,14 @@ export async function checkCurationScope(
   }
 
   // 3. Proxy holder
-  const proxyPersonIds: string[] = token.proxyPersonIds
-    ? JSON.parse(token.proxyPersonIds as string)
-    : []
+  const proxyPersonIds: string[] = effective.proxyPersonIds
   if (isProxyFor(proxyPersonIds, targetUid)) {
     return { allowed: true }
   }
 
   // 4. Scoped curator — check against person's org unit and person types
   if (caps.canCurate.scoped) {
-    const scopeData: ScopeData = token.scopeData
-      ? JSON.parse(token.scopeData as string)
-      : null
+    const scopeData: ScopeData = effective.scopeData as ScopeData
 
     // Fail closed: a scoped curator with no configured scope can curate no one.
     // isPersonInScope treats a null/empty scope as "no restriction" (allow-all) —

@@ -287,6 +287,7 @@ export function initModels(sequelize: Sequelize) {
   AdminPermissionResource.belongsTo(AdminPermission, { as: "permission", foreignKey: "permissionID" });
   AdminPermission.hasMany(AdminPermissionResource, { as: "adminPermissionResources", foreignKey: "permissionID" });
   AdminFeedbackLog.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
+  AdminFeedbackLog.belongsTo(AdminUser, { as: "impersonatedBy", foreignKey: "impersonatedByUserID"});
   AdminUser.hasMany(AdminFeedbackLog, { as: "adminFeedbackLogs", foreignKey: "userID"});
   AdminNotificationLog.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
   AdminUser.hasMany(AdminNotificationLog, { as: "adminNotificationLogs", foreignKey: "userID"});

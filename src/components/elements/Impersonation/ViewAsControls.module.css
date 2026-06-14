@@ -1,0 +1,218 @@
+/* "View as" (impersonation) controls — calm design system.
+   Navy CTA #1a2133 / white, 6px radius, Inter (inherited), subtle warm borders.
+   Amber banner #FEF3C7 bg / #92400E text / darker-amber left accent. */
+
+/* ---- Entry trigger (top-right user bar) ---- */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #5a6478;
+  background: #fff;
+  border: 1px solid #ddd7ce;
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.trigger:hover {
+  background: #faf8f5;
+  border-color: #bbb5aa;
+  color: #1a2133;
+}
+
+/* ---- Picker modal ---- */
+.pickerSubtitle {
+  font-size: 13px;
+  color: #5a6478;
+  margin-bottom: 16px;
+}
+.searchInput {
+  width: 100%;
+  background: #fff;
+  border: 1px solid #ddd7ce;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1a2133;
+}
+.searchInput::placeholder {
+  color: #8a94a6;
+}
+.searchInput:focus {
+  outline: none;
+  border-color: #2563a8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 168, 0.1);
+}
+
+.results {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.resultsHint {
+  text-align: center;
+  padding: 20px;
+  font-size: 13px;
+  color: #8a94a6;
+}
+.resultRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid #f0ece5;
+}
+.resultRow:last-child {
+  border-bottom: none;
+}
+.resultInfo {
+  min-width: 0;
+}
+.resultName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a2133;
+}
+.resultMeta {
+  font-size: 12px;
+  color: #8a94a6;
+  margin-top: 2px;
+}
+.rowAction {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-family: inherit;
+  color: #5a6478;
+  background: #fff;
+  border: 1px solid #ddd7ce;
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.rowAction:hover {
+  background: #faf8f5;
+  border-color: #bbb5aa;
+  color: #1a2133;
+}
+
+.inlineError {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #c0392b;
+}
+
+/* ---- Confirm dialog ---- */
+.confirmBody {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1a2133;
+}
+
+/* ---- Shared modal footer / buttons ---- */
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid #e8e2d9;
+}
+.btnPrimary {
+  background: #1a2133;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btnPrimary:hover {
+  background: #252d42;
+}
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btnCancel {
+  background: transparent;
+  color: #5a6478;
+  border: 1px solid #ddd7ce;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btnCancel:hover {
+  background: #faf8f5;
+  border-color: #bbb5aa;
+  color: #1a2133;
+}
+.btnCancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- Amber impersonation banner ---- */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #fef3c7;
+  color: #92400e;
+  border-left: 4px solid #b45309;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.bannerText {
+  min-width: 0;
+}
+.bannerText strong {
+  font-weight: 600;
+}
+.bannerRole {
+  color: #92400e;
+}
+.bannerRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+.bannerExpires {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #92400e;
+}
+.bannerExit {
+  background: #1a2133;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.bannerExit:hover {
+  background: #252d42;
+}
+.bannerExit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -5,6 +5,7 @@ import type { AdminUser, AdminUserId } from './AdminUser';
 export interface AdminFeedbackLogAttributes {
   feedbackID: number;
   userID?: number;
+  impersonatedByUserID?: number;
   personIdentifier?: string;
   articleIdentifier?: number;
   feedback?: string;
@@ -14,12 +15,13 @@ export interface AdminFeedbackLogAttributes {
 
 export type AdminFeedbackLogPk = "feedbackID";
 export type AdminFeedbackLogId = AdminFeedbackLog[AdminFeedbackLogPk];
-export type AdminFeedbackLogOptionalAttributes = "feedbackID" | "userID" | "personIdentifier" | "articleIdentifier" | "feedback" | "createTimestamp" | "modifyTimestamp";
+export type AdminFeedbackLogOptionalAttributes = "feedbackID" | "userID" | "impersonatedByUserID" | "personIdentifier" | "articleIdentifier" | "feedback" | "createTimestamp" | "modifyTimestamp";
 export type AdminFeedbackLogCreationAttributes = Optional<AdminFeedbackLogAttributes, AdminFeedbackLogOptionalAttributes>;
 
 export class AdminFeedbackLog extends Model<AdminFeedbackLogAttributes, AdminFeedbackLogCreationAttributes> implements AdminFeedbackLogAttributes {
   feedbackID!: number;
   userID?: number;
+  impersonatedByUserID?: number;
   personIdentifier?: string;
   articleIdentifier?: number;
   feedback?: string;
@@ -41,6 +43,14 @@ export class AdminFeedbackLog extends Model<AdminFeedbackLogAttributes, AdminFee
       primaryKey: true
     },
     userID: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'adminUsers',
+        key: 'userID'
+      }
+    },
+    impersonatedByUserID: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
