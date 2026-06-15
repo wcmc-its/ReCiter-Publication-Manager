@@ -34,7 +34,7 @@ export const ReportResults: React.FC<ReportResultsProps> = ({ reportingWebDispla
           return (
             <ReportsResultPane
             key={row.pmid}
-            title={row.articleTitle}
+            title={row.articleTitleRTF || row.articleTitle}
             pmid={row.pmid}
             doi={row.doi}
             citationCount={row.citationCountNIH}

@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
+import { sanitizeInlineHtml } from "../../../utils/htmlText";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -845,8 +846,8 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                   )}
                 </div>
               </div>
-              {/* Row 2: Title */}
-              <div className={styles.articleTitle}>{reciterArticle.articleTitle}</div>
+              {/* Row 2: Title — render PubMed inline markup (e.g. <i>) as formatting, sanitized */}
+              <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
               {/* Row 3: Authors */}
               <div className={styles.articleAuthors}>
                 {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
