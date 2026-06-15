@@ -666,7 +666,7 @@ const Search = () => {
             <Dropdown.Toggle variant="primary" id={`actions_${identity.personIdentifier}`}>
               Curate Publications
             </Dropdown.Toggle>
-            <Dropdown.Menu className={styles.actionMenu}>
+            <Dropdown.Menu className={styles.actionMenu} popperConfig={{ strategy: 'fixed' }}>
               <Dropdown.Item className={styles.actionMenuItem} onClick={() => onClickProfile(identity.personIdentifier)}>Curate Publications</Dropdown.Item>
               <Dropdown.Item className={styles.actionMenuItem} onClick={() => redirectToCurate("report", identity)}>Create Reports</Dropdown.Item>
               <Dropdown.Item className={styles.actionMenuItem} onClick={() => { setShowprofileID(identity.personIdentifier); handleShow(); }}>View Profile</Dropdown.Item>

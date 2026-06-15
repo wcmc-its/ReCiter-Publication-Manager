@@ -6,6 +6,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Snackbar from "@mui/material/Snackbar";
 import Checkbox from "@mui/material/Checkbox";
 import { reciterConfig } from "../../../../config/local";
+import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -875,8 +876,8 @@ const AuthorshipCard = ({
           </div>
 
           {/* L3 — paper meta (quiet/truncated). PMID link now lives in the evidence panel. */}
-          <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={r.title}>
-            {r.title} · <i>{r.journal}</i>{r.entrez_date ? ` · ${r.entrez_date}` : ""}
+          <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={stripHtml(r.title)}>
+            <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} /> · <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>{r.entrez_date ? ` · ${r.entrez_date}` : ""}
           </div>
 
           {/* L4 — full affiliation (WCM highlighted), wraps to multiple lines + disclosure */}

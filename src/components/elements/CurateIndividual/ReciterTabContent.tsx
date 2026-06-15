@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Publication from "../Publication/Publication";
 import FilterPubSection from "./FilterPubSection";
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
+import { stripHtml } from "../../../utils/htmlText";
 import sortPublications from "../../../utils/sortPublications";
 import Pagination from '../Pagination/Pagination';
 import { useSession } from "next-auth/client";
@@ -165,7 +166,7 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
   // so this is the catchable "you just did X — undo?" line. Reverts via the same path.
   const fireUndoToast = (pmid: number, userAssertion: string, article: any) => {
     const accepted = userAssertion === 'ACCEPTED';
-    const title = article?.articleTitle || article?.title || `PMID ${pmid}`;
+    const title = stripHtml(article?.articleTitle || article?.title) || `PMID ${pmid}`;
     const shortTitle = title.length > 60 ? title.slice(0, 60).trim() + '…' : title;
     const toastId = `undo-${pmid}`;
     const doUndo = () => {
