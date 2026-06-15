@@ -36,7 +36,13 @@ export async function getPublications(uid: string | string[], req: NextApiReques
                     // Enrich with first-retrieval date from DynamoDB ArticleProvenance
                     // (on-the-fly, per (personIdentifier, pmid)). Non-fatal.
                     const personIdentifier = Array.isArray(uid) ? uid[0] : uid
-                    await attachArticleProvenance(personIdentifier, data)
+                    // Bound the provenance enrichment so a degraded DynamoDB never stalls
+                    // the /curate page; attachArticleProvenance is non-fatal and simply
+                    // leaves the fields absent if it doesn't finish within the deadline.
+                    await Promise.race([
+                        attachArticleProvenance(personIdentifier, data),
+                        new Promise((resolve) => setTimeout(resolve, 1500)),
+                    ])
                     let finalData = await getPendingFeedback(uid, data)
                     return {
                         statusCode: res.status,

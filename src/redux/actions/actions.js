@@ -1160,12 +1160,51 @@ export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
         })
 }
 
+// Phase 34: the curation-history panel now reads the canonical ReCiter FeedbackLog
+// (DynamoDB) via /api/reciter/feedback-log/[uid] instead of the legacy PM MySQL
+// admin_feedback_log. The canonical endpoint returns a flat array of rows
+// { articleId, feedback, curatedBy, curatorName, createTimestamp(epoch s), sk, src,
+//   provenanceRs/Frd/Src }. Normalize each row so the per-card panel renders unchanged:
+// it reads canonical curatorName directly, plus a few legacy aliases — articleIdentifier
+// (bucketing key), feedbackID (React key), modifyTimestamp (formatted date) — so the
+// existing render code needs no field-by-field rewrite.
+const normalizeFeedbackRow = (row) => {
+    const epochSec = Number(row && row.createTimestamp) || 0;
+    return {
+        ...row,
+        articleIdentifier: row && row.articleId,
+        feedbackID: row && row.sk,
+        modifyTimestamp: epochSec ? new Date(epochSec * 1000).toISOString() : null,
+    };
+};
+
+// Bucket the flat canonical array by articleId (PMID) for per-card lookup, newest first.
+const groupFeedbackByArticle = (rows) => {
+    const data = {};
+    (Array.isArray(rows) ? rows : []).forEach((raw) => {
+        const row = normalizeFeedbackRow(raw);
+        const key = row.articleIdentifier;
+        if (key === undefined || key === null) return;
+        if (!data[key]) data[key] = [];
+        data[key].push(row);
+    });
+    Object.keys(data).forEach((k) => {
+        data[k].sort((a, b) => {
+            const at = Number(a.createTimestamp) || 0;
+            const bt = Number(b.createTimestamp) || 0;
+            if (bt !== at) return bt - at;
+            return String(b.sk || '').localeCompare(String(a.sk || ''));
+        });
+    });
+    return data;
+};
+
 export const fetchFeedbacklog = (id) => dispatch => {
     dispatch({
         type: methods.FEEDBACKLOG_FETCH_DATA
     })
 
-    fetch(`/api/db/admin/feedbacklog/${id}`, {
+    fetch(`/api/reciter/feedback-log/${id}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
@@ -1185,13 +1224,7 @@ export const fetchFeedbacklog = (id) => dispatch => {
             }
         }
     }).then(data => {
-        let articleIds = data.map((feedback) => { return feedback.articleIdentifier })
-        articleIds = articleIds.filter((feedback, i) => { return articleIds.indexOf(feedback) === i });
-        let feedbacklogData = {};
-        articleIds.forEach((articleId) => {
-            let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog });
-            feedbacklogData[articleId] = articleFeedbacks;
-        })
+        const feedbacklogData = groupFeedbackByArticle(data);
 
         dispatch({
             type: methods.FEEDBACKLOG_CHANGE_DATA,
@@ -1226,7 +1259,7 @@ export const fetchGroupFeedbacklog = (ids) => dispatch => {
 
     let feedbackLogs = [];
     for (let id of ids) {
-        fetch(`/api/db/admin/feedbacklog/${id}`, {
+        fetch(`/api/reciter/feedback-log/${id}`, {
             credentials: "same-origin",
             method: 'GET',
             headers: {
@@ -1238,13 +1271,7 @@ export const fetchGroupFeedbacklog = (ids) => dispatch => {
             return response.json()
         }).then(data => {
             if (data?.length) {
-                let articleIds = data.map((feedback) => { return feedback.articleIdentifier })
-                articleIds = articleIds.filter((feedback, i) => { return articleIds.indexOf(feedback) === i });
-                let feedbacklogData = {};
-                articleIds.forEach((articleId) => {
-                    let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog });
-                    feedbacklogData[articleId] = articleFeedbacks;
-                })
+                const feedbacklogData = groupFeedbackByArticle(data);
                 feedbackLogs.push({ [id]: feedbacklogData });
             }
         }).catch(error => {
