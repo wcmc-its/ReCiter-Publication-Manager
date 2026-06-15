@@ -20,18 +20,34 @@ const PROV_SOURCE_LABELS: Record<string, string> = {
   MAN_FROM_PM: 'Manual (via Publication Manager)',
   MAN_FROM_CTSC: 'Manual (via CTSC)',
 };
+// ArticleProvenance.rs stores either a legacy short code (FNI, EMAIL, …) or the
+// full retrieval-strategy class name (FirstNameInitialRetrievalStrategy, …),
+// depending on when the row was written. Map both forms to one spelled-out label.
 const PROV_STRATEGY_LABELS: Record<string, string> = {
-  GoldStandardRetrievalStrategy: 'Gold standard',
-  OrcidRetrievalStrategy: 'ORCID',
-  EmailRetrievalStrategy: 'Email',
-  GrantRetrievalStrategy: 'Grant',
-  DepartmentRetrievalStrategy: 'Department',
-  AffiliationRetrievalStrategy: 'Affiliation',
-  AffiliationInDbRetrievalStrategy: 'Affiliation (in DB)',
-  FullNameRetrievalStrategy: 'Full name',
+  // legacy short codes (production data)
+  FNI: 'First-name initial',
+  SI: 'Second initial',
+  FN: 'Full name',
+  EMAIL: 'Email',
+  ORC: 'ORCID',
+  AFF: 'Affiliation',
+  AFFD: 'Affiliation (in database)',
+  DEP: 'Department',
+  REL: 'Known relationship',
+  GR: 'Grant',
+  GS: 'Gold standard',
+  // full strategy class names (current ReCiter)
   FirstNameInitialRetrievalStrategy: 'First-name initial',
   SecondInitialRetrievalStrategy: 'Second initial',
+  FullNameRetrievalStrategy: 'Full name',
+  EmailRetrievalStrategy: 'Email',
+  OrcidRetrievalStrategy: 'ORCID',
+  AffiliationRetrievalStrategy: 'Affiliation',
+  AffiliationInDbRetrievalStrategy: 'Affiliation (in database)',
+  DepartmentRetrievalStrategy: 'Department',
   KnownRelationshipRetrievalStrategy: 'Known relationship',
+  GrantRetrievalStrategy: 'Grant',
+  GoldStandardRetrievalStrategy: 'Gold standard',
 };
 const friendlyProvSource = (v?: string | null): string | null =>
   v ? (PROV_SOURCE_LABELS[v] || v) : null;
@@ -863,7 +879,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                       {clogEntries.length > 0 ? (
                         clogEntries.map((entry: any, i: number) => {
                           const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
-                          const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
+                          const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Returned to pending';
                           const who = entry.curatorName || 'Unknown';
                           const date = entry.modifyTimestamp ? formatClogDate(entry.modifyTimestamp) : '';
                           return (
