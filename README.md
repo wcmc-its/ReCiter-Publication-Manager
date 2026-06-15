@@ -89,6 +89,19 @@ Publication Manager is part of the ReCiter suite of applications. In addition to
 | State | Redux + redux-thunk | |
 | Email | nodemailer (SMTP) | |
 
+> The deployed image is pinned to the versions in `package.json` (Next.js 12,
+> React 16, next-auth 3, saml2-js 3, Sequelize 6); the row above tracks the
+> in-progress Next 14 / Node 18 migration target.
+
+## Architecture diagrams
+
+Five version-controlled architecture views — system context, container internals,
+request flows, deployment/CI-CD, and the RBAC model — live in
+[`docs/architecture/`](docs/architecture/) (open `index.html` for the gallery).
+They are generated from plain-data specs by a dependency-free renderer; see
+[`scripts/diagrams/README.md`](scripts/diagrams/README.md) to rebuild
+(`node scripts/diagrams/build.mjs`) or edit them.
+
 
 
 

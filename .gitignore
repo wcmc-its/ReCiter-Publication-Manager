@@ -41,6 +41,10 @@ node_modules
 .superpowers/
 tsconfig.tsbuildinfo
 
+# architecture diagrams — commit the SVGs (render on GitHub, diff as text);
+# the PNG rasters are regenerable via `node scripts/diagrams/build.mjs`
+docs/architecture/*.png
+
 # Claude Code local artifacts
 CLAUDE.md
 CLAUDE.local.md
