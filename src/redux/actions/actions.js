@@ -556,8 +556,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
 
     //update adminFeedbackLog table
     const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
-    if (request.userID &&
-        request.personIdentifier &&
+    if (request.personIdentifier &&
         request.publications &&
         request.userAssertion
     ) {
@@ -721,8 +720,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
 
     //update adminFeedbackLog table
     const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
-    if (request.userID &&
-        request.personIdentifier &&
+    if (request.personIdentifier &&
         request.publications &&
         request.userAssertion
     ) {

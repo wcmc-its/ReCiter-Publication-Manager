@@ -39,9 +39,23 @@ export default async function handler(req: NextApiRequest,
     res: NextApiResponse<AdminFeedbackLog | string>) {
     if (req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
-            // Stamp the REAL superuser for "logged to you" honesty; keep userID
-            // as the EFFECTIVE target (already set by the client overlay).
-            req.body.impersonatedByUserID = await resolveImpersonatedByUserID(req);
+            // Stamp the REAL superuser for "logged to you" honesty. userID stays
+            // the EFFECTIVE target when they have a PM account; otherwise it falls
+            // back to the real superuser (see below).
+            const impersonatedByUserID = await resolveImpersonatedByUserID(req);
+            req.body.impersonatedByUserID = impersonatedByUserID;
+            // Acting as a target with no PM account (no userID): attribute the audit
+            // row's userID to the real superuser who performed it, so the row is still
+            // written and discoverable in userID-keyed queries. impersonatedByUserID
+            // already flags it as an act-as write. With no actor at all (not
+            // impersonating), preserve the prior "don't log anonymous writes" behavior.
+            if ((req.body.userID === undefined || req.body.userID === null) && impersonatedByUserID) {
+                req.body.userID = impersonatedByUserID;
+            }
+            if (req.body.userID === undefined || req.body.userID === null) {
+                res.status(200).send('No user to attribute; feedback log not recorded');
+                return;
+            }
             await createFeedbackLog(req, res)
         } else if(req.headers.authorization === undefined) {
             res.status(400).send("Authorization header is needed")

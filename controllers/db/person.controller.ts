@@ -248,9 +248,9 @@ export const findOnePerson = async (attrTypes: string | string[], attrValues: st
         where: {
           [Op.or]: whereConditions,
         },
-        attributes: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title'],
+        attributes: ['id', 'personIdentifier', 'firstName', 'middleName', 'lastName', 'title', 'primaryEmail'],
       });
-      return person ; 
+      return person ;
     
 };
 
