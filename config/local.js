@@ -100,6 +100,11 @@ export const reciterConfig = {
         reciterUpdateGoldStandardEndpoint:
                 process.env.RECITER_API_BASE_URL + '/reciter/goldstandard',
         /**
+         * Read-only curation audit history (FeedbackLog + ArticleProvenance) by uid.
+         */
+        reciterFeedbackLogEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/feedback-log/',
+        /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */
