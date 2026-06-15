@@ -13,6 +13,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getToken } from 'next-auth/jwt';
 import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
 import { findAdminUser } from '../../../../controllers/db/admin.users.controller';
+import { findOnePerson } from '../../../../controllers/db/person.controller';
 import {
   IMPERSONATION_COOKIE,
   IMPERSONATION_TTL_SECONDS,
@@ -74,11 +75,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return;
     }
 
-    // Resolve the target's admin_users row. Role/scope resolution keys on
-    // personIdentifier + email, so we MUST use the email actually stored — never
-    // an empty fallback. Otherwise the superuser-target guard below could be
-    // bypassed: an empty email resolves zero roles, making isSuperuser() falsely
-    // return false and permitting a view-as of an actual Superuser. Fail closed.
+    // Resolve the target's identity. Prefer the canonical admin_users row, which
+    // only exists once the target has logged into PM at least once. Role/scope
+    // resolution keys on personIdentifier + email, so we MUST use the email
+    // actually stored — never an empty fallback. Otherwise the superuser-target
+    // guard below could be bypassed: an empty email resolves zero roles, making
+    // isSuperuser() falsely return false and permitting a view-as of an actual
+    // Superuser. Fail closed.
     let adminUser: any;
     try {
       adminUser = await findAdminUser([PERSONIDENTIFIER], [targetPersonIdentifier]);
@@ -87,14 +90,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(502).json({ error: 'Could not verify target user' });
       return;
     }
-    if (!adminUser) {
-      res.status(404).json({ error: 'Target user not found' });
-      return;
-    }
-    const targetEmail = String(adminUser.email || '').trim();
-    if (!targetEmail) {
-      res.status(422).json({ error: 'Target has no email on record; cannot verify roles' });
-      return;
+
+    let targetEmail: string;
+    if (adminUser) {
+      targetEmail = String(adminUser.email || '').trim();
+      if (!targetEmail) {
+        res.status(422).json({ error: 'Target has no email on record; cannot verify roles' });
+        return;
+      }
+    } else {
+      // No admin_users row — the target has never logged into PM. Fall back to the
+      // ReCiter directory (person table) and synthesize a login-shaped identity, so
+      // a Superuser can still "View as" them with the access they'd get on their own
+      // first login (Curator_Self + configured defaults, via defaultRolesForTarget;
+      // NEVER Superuser). A never-logged-in person resolves to zero stored roles, so
+      // an empty directory email cannot bypass the superuser guard below — we do NOT
+      // 422 on an empty email for this person-only path.
+      let person: any;
+      try {
+        person = await findOnePerson([PERSONIDENTIFIER], [targetPersonIdentifier]);
+      } catch (err) {
+        console.error('[impersonation] target person lookup failed', err);
+        res.status(502).json({ error: 'Could not verify target user' });
+        return;
+      }
+      if (!person || !person.personIdentifier) {
+        res.status(404).json({ error: 'Target user not found' });
+        return;
+      }
+      targetEmail = String(person.primaryEmail || '').trim();
     }
 
     let targetRoles: unknown;

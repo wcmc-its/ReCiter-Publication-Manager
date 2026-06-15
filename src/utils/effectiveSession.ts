@@ -146,8 +146,37 @@ export async function resolveEffectiveSessionData(
     console.error('[impersonation] effective admin_users lookup failed', err);
     return null;
   }
-  if (!row) return null;
-  const plain: any = typeof row.get === 'function' ? row.get({ plain: true }) : row;
+  let plain: any;
+  if (row) {
+    plain = typeof row.get === 'function' ? row.get({ plain: true }) : row;
+  } else {
+    // No admin_users row — the target has never logged into PM. Synthesize a
+    // login-shaped identity from the ReCiter directory (person table). Everything
+    // below (roles via findUserPermissions → [], the isSuperuser fail-closed guard,
+    // the defaultRolesForTarget augmentation that grants Curator_Self + configured
+    // defaults, and the databaseUser shape) then works unchanged, mirroring exactly
+    // what the target would receive on their own first login.
+    let person: any;
+    try {
+      person = await findOnePerson([PERSONIDENTIFIER], [targetPersonIdentifier]);
+    } catch (err) {
+      console.error('[impersonation] effective person lookup failed', err);
+      return null;
+    }
+    if (!person || !person.personIdentifier) return null;
+    const p: any = typeof person.get === 'function' ? person.get({ plain: true }) : person;
+    plain = {
+      userID: null,
+      personIdentifier: p.personIdentifier,
+      nameFirst: p.firstName,
+      nameMiddle: p.middleName,
+      nameLast: p.lastName,
+      email: String(p.primaryEmail || targetEmail || '').trim(),
+      status: 1,
+      createTimestamp: null,
+      modifyTimestamp: null,
+    };
+  }
 
   // Use the email actually stored so role/scope resolution matches login.
   const email = String(plain.email || targetEmail || '').trim();
