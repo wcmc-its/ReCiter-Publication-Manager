@@ -2,7 +2,7 @@
   min-height: 100%;
   display: grid;
   grid-template-rows: [header] auto [form] 1fr [footer] auto;
-  background-color: whitesmoke;
+  background-color: var(--gray-50);
 }
 
 .header {
@@ -15,9 +15,10 @@
     margin-top: 10%;
     color: #999;
     background: #fff;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
     width: 30%;
+    box-shadow: var(--shadow-lg);
 }
 
 .loginForm {
@@ -38,9 +39,15 @@ h3.loginHeader {
 button.loginBtn.btn.btnPrimary {
   float: right;
   color: white;
-  background-color: orange;
+  background-color: var(--wcm-red);
   font-weight: 500;
-  border-color: orange;
+  border-color: var(--wcm-red);
+  border-radius: var(--radius-md);
+}
+
+button.loginBtn.btn.btnPrimary:hover {
+  background-color: var(--wcm-red-dark);
+  border-color: var(--wcm-red-dark);
 }
 
 .footer {

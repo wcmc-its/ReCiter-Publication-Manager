@@ -7,6 +7,36 @@ import sequelize from "../../../src/db/db";
 models.AdminUser.hasMany(models.AdminUsersDepartment, {as:'AdminUserDept', constraints: false,foreignKey:"userID" });
 models.AdminUser.hasOne(models.Person, {as:'person', constraints: false,foreignKey:"personIdentifier" });
 models.AdminUser.hasMany(models.AdminDepartment, {as:'AdminDepartment', constraints: false,foreignKey:"departmentID" });
+// Phase 9: Association for role labels in user list display (D-16, D-17, D-18)
+models.AdminUser.hasMany(models.AdminUsersRole, { as: 'listRoles', constraints: false, foreignKey: 'userID' });
+models.AdminUsersRole.belongsTo(models.AdminRole, { as: 'listRole', constraints: false, foreignKey: 'roleID' });
+
+/**
+ * Phase 34: resolve a set of admin_users.userID values to display names, for the
+ * curation Audit History (FeedbackLog.curatedBy). Returns a { userID: name } map;
+ * ids that are missing/invalid (e.g. 0 = unknown) are simply absent from the map.
+ */
+export const findAdminUserNamesByIds = async (ids: number[]): Promise<{ [id: number]: string }> => {
+  const map: { [id: number]: string } = {};
+  const valid = (ids || []).filter((id) => Number.isInteger(id) && id > 0);
+  if (valid.length === 0) {
+    return map;
+  }
+  try {
+    const users: any[] = await models.AdminUser.findAll({
+      where: { userID: { [Op.in]: valid } },
+      attributes: ['userID', 'nameFirst', 'nameLast'],
+      raw: true,
+    });
+    users.forEach((u) => {
+      const name = [u.nameFirst, u.nameLast].filter(Boolean).join(' ').trim();
+      map[u.userID] = name || String(u.userID);
+    });
+  } catch (e) {
+    console.log('findAdminUserNamesByIds error', e);
+  }
+  return map;
+};
 
 export const listAllUsers = async (
   req: NextApiRequest,
@@ -74,8 +104,8 @@ export const listAllUsers = async (
           rows
         } = await models.AdminUser.findAndCountAll({
 
-          // new code 
-          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", ],
+          // new code
+          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", "scope_person_types", "scope_org_units", "proxy_person_ids"],
           include: [
             {
               model: models.Person,
@@ -106,23 +136,36 @@ export const listAllUsers = async (
               where: where,
               attributes: ["departmentLabel"]
             },
+            {
+              model: models.AdminUsersRole,
+              as: "listRoles",
+              required: false,
+              separate: true,
+              attributes: ['userID', 'roleID'],
+              include: [{
+                model: models.AdminRole,
+                as: 'listRole',
+                required: false,
+                attributes: ['roleLabel'],
+              }]
+            },
           ],
           where: where,
-          group: ['AdminUser.userID'],
           order: [["nameFirst","ASC"],["nameLast","ASC"]],
           subQuery: false,
+          group: ['AdminUser.userID'],
           offset: req.body.offset,
           limit: req.body.limit,
 
         });
         users['usersData'] = rows;
-        users['totalUsersCount'] = count;
+        users['totalUsersCount'] = count.length;
       } else {
         const {
           count,
           rows
         } = await models.AdminUser.findAndCountAll({
-          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", ],
+          attributes:['userID','personIdentifier', 'email', "nameFirst", "nameMiddle", "nameLast", "scope_person_types", "scope_org_units", "proxy_person_ids"],
           include: [
             {
               model: models.Person,
@@ -151,9 +194,22 @@ export const listAllUsers = async (
               },
               attributes: ["departmentLabel"]
             },
+            {
+              model: models.AdminUsersRole,
+              as: "listRoles",
+              required: false,
+              separate: true,
+              attributes: ['userID', 'roleID'],
+              include: [{
+                model: models.AdminRole,
+                as: 'listRole',
+                required: false,
+                attributes: ['roleLabel'],
+              }]
+            },
           ],
-          group: ['AdminUser.userID'],
           subQuery: false,
+          group: ['AdminUser.userID'],
           order: [["nameFirst","ASC"],["nameLast","ASC"]],
           offset: req.body.offset,
           limit: req.body.limit,
@@ -209,7 +265,10 @@ export const createOrUpdateAdminUser = async (
         'nameFirst': firstName,
         'nameMiddle': middleName,
         'nameLast': lastName,
-        'modifyTimestamp': new Date()
+        'modifyTimestamp': new Date(),
+        // Phase 9: Scope fields for Curator_Scoped role (stored as JSON text)
+        'scope_person_types': Array.isArray(req.body.scopePersonTypes) && req.body.scopePersonTypes.length ? JSON.stringify(req.body.scopePersonTypes) : null,
+        'scope_org_units': Array.isArray(req.body.scopeOrgUnits) && req.body.scopeOrgUnits.length ? JSON.stringify(req.body.scopeOrgUnits) : null,
       }
       
 
@@ -283,7 +342,10 @@ export const createOrUpdateAdminUser = async (
         'nameLast': lastName,
         'email': email,
         'status': 1,  // Hardcoded 1 to make user active bydefault
-        'createTimestamp': new Date()
+        'createTimestamp': new Date(),
+        // Phase 9: Scope fields for Curator_Scoped role (stored as JSON text)
+        'scope_person_types': Array.isArray(req.body.scopePersonTypes) && req.body.scopePersonTypes.length ? JSON.stringify(req.body.scopePersonTypes) : null,
+        'scope_org_units': Array.isArray(req.body.scopeOrgUnits) && req.body.scopeOrgUnits.length ? JSON.stringify(req.body.scopeOrgUnits) : null,
       }
 
       
@@ -330,7 +392,7 @@ export const fetchUserDetailsByUserId = async (
   try {
     const UserDetails = await models.AdminUser.findAll({
       where: { userID: req.body },
-      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status"],
+      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status", "scope_person_types", "scope_org_units", "proxy_person_ids"],
       include: [{
         model: models.AdminUsersDepartment,
         attributes: ["id", "userID", "departmentID"],

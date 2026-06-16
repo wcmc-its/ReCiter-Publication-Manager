@@ -1,12 +1,34 @@
-import React, { useState } from "react";
+import React from "react";
 import Slider from '@mui/material/Slider';
 import Box from '@mui/material/Box';
 import { Dropdown } from "react-bootstrap";
+import { styled } from '@mui/material/styles';
 import { setReportFilterLabels } from "../../../utils/constants";
 
+const DarkSlider = styled(Slider)({
+  color: '#1a2133',
+  height: 4,
+  '& .MuiSlider-thumb': {
+    width: 16,
+    height: 16,
+    backgroundColor: '#1a2133',
+    border: '2px solid #fff',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+    '&:hover, &.Mui-active': {
+      boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+    },
+  },
+  '& .MuiSlider-track': {
+    backgroundColor: '#1a2133',
+    border: 'none',
+  },
+  '& .MuiSlider-rail': {
+    backgroundColor: '#ddd7ce',
+  },
+});
 
 interface SliderFilterProps {
-  reportFiltersLabes?:any
+  reportFiltersLabes?: any
   name: string
   value?: number | Array<number>
   min?: number
@@ -17,34 +39,69 @@ interface SliderFilterProps {
   filterUpperName: string
   values: Array<number>
 }
-export const SliderFilter: React.FC<SliderFilterProps> = ({ reportFiltersLabes, name, max, min, getAriaValueText, handleChange, filterLowerName, filterUpperName, values }) => {
 
-  const onSliderUpdate = (event, newValue) => {
-    handleChange(filterLowerName, filterUpperName, newValue[0], newValue[1]);
+export const SliderFilter: React.FC<SliderFilterProps> = ({ reportFiltersLabes, name, max, min, handleChange, filterLowerName, filterUpperName, values }) => {
+
+  const onSliderUpdate = (event: any, newValue: number | number[]) => {
+    if (Array.isArray(newValue)) {
+      handleChange(filterLowerName, filterUpperName, newValue[0], newValue[1]);
+    }
   }
+
+  const currentValues = values.some(value => value === undefined) ? [min, max] : values;
 
   return (
     <Dropdown className="d-inline-block">
       <Dropdown.Toggle variant={values.some(value => value === undefined) ? "white" : "primary"} id="dropdown-basic">
-      {setReportFilterLabels(reportFiltersLabes, name)}
+        {setReportFilterLabels(reportFiltersLabes, name)}
       </Dropdown.Toggle>
 
-      <Dropdown.Menu className="px-4">
-        <Box sx={{ width: 250 }}>
-          <Slider
-            value={values.some(value => value === undefined) ? [min, max] : values}
+      <Dropdown.Menu style={{ minWidth: 280, borderRadius: 12, border: '1px solid #d6d0c4', overflow: 'hidden' }}>
+        <div style={{ padding: '18px 16px 14px' }}>
+        <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#a09a92', marginBottom: 14 }}>
+          {setReportFilterLabels(reportFiltersLabes, name)}
+        </div>
+        <Box sx={{ width: '100%', px: 1 }}>
+          <DarkSlider
+            value={currentValues}
             min={min}
             step={1}
             max={max}
             onChange={onSliderUpdate}
-            aria-labelledby="non-linear-slider"
+            aria-labelledby="range-slider"
             disableSwap
           />
-          <div id="input-slider" className="slider-label d-flex justify-content-between">
-            <span>{values[0] ? values[0] : min}</span>
-            <span>{values[1] ? values[1] : max}</span>
-          </div>
         </Box>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#8a94a6', marginBottom: 4 }}>Min</div>
+            <input
+              type="text"
+              readOnly
+              value={currentValues[0] ?? min}
+              style={{
+                width: '100%', padding: '6px 8px', border: '1px solid #ddd7ce', borderRadius: 5,
+                fontSize: 12, fontFamily: "inherit", background: '#f3f1ed', color: '#1a2133',
+                outline: 'none', textAlign: 'center'
+              }}
+            />
+          </div>
+          <span style={{ color: '#8a94a6', fontSize: 12, marginTop: 16 }}>–</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#8a94a6', marginBottom: 4 }}>Max</div>
+            <input
+              type="text"
+              readOnly
+              value={currentValues[1] ?? max}
+              style={{
+                width: '100%', padding: '6px 8px', border: '1px solid #d6d0c4', borderRadius: 5,
+                fontSize: 12, fontFamily: "inherit", background: '#f3f1ed', color: '#1a2133',
+                outline: 'none', textAlign: 'center'
+              }}
+            />
+          </div>
+        </div>
+        </div>
       </Dropdown.Menu>
     </Dropdown>
   )

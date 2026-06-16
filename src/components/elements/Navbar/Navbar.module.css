@@ -1,5 +1,5 @@
 .drawer {
-  top: 60px;
+  top: 0;
 }
 
 .sidebarControl {
@@ -7,39 +7,40 @@
   text-align: right;
 }
 
-.sidebar-control span.hideSidebar {
-  background-size: 15px 15px;
-  padding: 0px 20px 3px 0px;
-}
-
-.sidebarControl span {
-  font-size: 12px;
-  line-height: 12px;
-  height: 12px;
-  cursor: pointer;
-  opacity: 0.25;
-  font-weight: 300;
-  overflow: hidden;
-  font-weight: 300;
-}
-
-.sidebarControl span:hover {
-  opacity: 0.5;
-}
-
 .drawerHeader {
-  min-height: 25px !important;
+  min-height: 0px !important;
+  padding: 0 !important;
+  background-color: var(--color-chrome);
 }
 
 .subMenu {
   padding: 0px !important;
-  background: #eaeaea;
+  background: var(--color-chrome-hover);
 }
 
 .disabled {
-  color: #aaa;
+  color: #667085;
 }
 
 .disabledLink {
   pointer-events: none;
+}
+
+.compactToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  cursor: pointer;
+  color: rgba(168,180,204,0.4);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.compactToggle:hover {
+  color: #a8b4cc;
+}
+
+.compactToggle span {
+  font-size: 11px;
 }

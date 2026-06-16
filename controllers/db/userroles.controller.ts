@@ -62,10 +62,158 @@ export const findUserPermissions = async (attrTypes: string[], attrValues: strin
         }
     );
     return JSON.stringify(userRolesList) ;
-   
+
 };
 
+export const findUserPermissionsEnriched = async (
+  attrTypes: string[],
+  attrValues: string[]
+): Promise<{ permissions: string[]; permissionResources: any[] }> => {
 
+    if (!Array.isArray(attrTypes) || !Array.isArray(attrValues)) {
+        throw new Error('Both attrTypes and attrValues must be arrays');
+    }
+
+    if (attrTypes.length !== attrValues.length) {
+        throw new Error('attrTypes and attrValues must be the same length');
+    }
+
+    const allowedFields = ['email', 'personIdentifier'];
+    const replacements: Record<string, any> = {};
+
+    let personIdentifier = null;
+    let email = null;
+
+    attrTypes.forEach((field, index) => {
+        const value = attrValues[index] ?? '';
+        if (!allowedFields.includes(field)) return;
+
+        if (field === 'personIdentifier') {
+            personIdentifier = value;
+            replacements.personIdentifier = value;
+        }
+
+        if (field === 'email') {
+            email = value;
+            replacements.email = value;
+        }
+    });
+
+    // Build WHERE clause (identical to findUserPermissions)
+    const whereClause = `
+        (au.personIdentifier = :personIdentifier AND au.email = :email)
+        OR
+        (
+        au.email = :email
+        AND au.email IS NOT NULL AND au.email <> ''
+        AND au.email IN (
+            SELECT email
+            FROM admin_users
+            WHERE email IS NOT NULL AND email <> ''
+            GROUP BY email
+            HAVING COUNT(*) = 1
+        )
+        )
+    `;
+
+    // Query 1: Resolve distinct permission keys via 4-table JOIN
+    const permRows: any[] = await sequelize.query(
+        `SELECT DISTINCT p.permissionKey
+         FROM admin_users au
+         INNER JOIN admin_users_roles aur ON au.userID = aur.userID
+         INNER JOIN admin_role_permissions arp ON aur.roleID = arp.roleID
+         INNER JOIN admin_permissions p ON arp.permissionID = p.permissionID
+         WHERE ${whereClause}`,
+        {
+            replacements,
+            raw: true,
+            nest: true
+        }
+    );
+
+    const permissions: string[] = permRows.map((r: any) => r.permissionKey);
+
+    // Query 2: Fetch permission resources (only if user has permissions)
+    let permissionResources: any[] = [];
+    if (permissions.length > 0) {
+        permissionResources = await sequelize.query(
+            `SELECT pr.resourceType, pr.resourceKey, pr.displayOrder,
+                    pr.icon, pr.label, pr.route, p.permissionKey
+             FROM admin_permission_resources pr
+             INNER JOIN admin_permissions p ON pr.permissionID = p.permissionID
+             WHERE p.permissionKey IN (:permKeys)
+             ORDER BY pr.displayOrder ASC`,
+            {
+                replacements: { permKeys: permissions },
+                raw: true,
+                nest: true
+            }
+        );
+    }
+
+    return { permissions, permissionResources };
+};
+
+/**
+ * Resolve a user's curation scope (Curator_Scoped) from the stored JSON columns.
+ * Returns { personTypes, orgUnits } where each is a non-empty string[] or null
+ * (null = no restriction on that axis). Used to enrich the JWT at login.
+ */
+export const findUserScope = async (
+  attrTypes: string[],
+  attrValues: string[]
+): Promise<{ personTypes: string[] | null; orgUnits: string[] | null }> => {
+
+    if (!Array.isArray(attrTypes) || !Array.isArray(attrValues) || attrTypes.length !== attrValues.length) {
+        return { personTypes: null, orgUnits: null };
+    }
+
+    const allowedFields = ['email', 'personIdentifier'];
+    const replacements: Record<string, any> = { personIdentifier: '', email: '' };
+
+    attrTypes.forEach((field, index) => {
+        const value = attrValues[index] ?? '';
+        if (!allowedFields.includes(field)) return;
+        if (field === 'personIdentifier') replacements.personIdentifier = value;
+        if (field === 'email') replacements.email = value;
+    });
+
+    const whereClause = `
+        (au.personIdentifier = :personIdentifier AND au.email = :email)
+        OR
+        (
+        au.email = :email
+        AND au.email IS NOT NULL AND au.email <> ''
+        AND au.email IN (
+            SELECT email
+            FROM admin_users
+            WHERE email IS NOT NULL AND email <> ''
+            GROUP BY email
+            HAVING COUNT(*) = 1
+        )
+        )
+    `;
+
+    const rows: any[] = await sequelize.query(
+        `SELECT au.scope_person_types, au.scope_org_units FROM admin_users au WHERE ${whereClause}`,
+        { replacements, raw: true, nest: true }
+    );
+
+    // Prefer the row that actually has scope set (handles duplicate-email rows)
+    const chosen: any = rows.find((r: any) => r.scope_person_types || r.scope_org_units) || rows[0] || {};
+
+    const parse = (v: any): string[] | null => {
+        if (!v) return null;
+        try {
+            const arr = JSON.parse(v);
+            return Array.isArray(arr) && arr.length ? arr : null;
+        } catch {
+            return null;
+        }
+    };
+
+    return { personTypes: parse(chosen.scope_person_types), orgUnits: parse(chosen.scope_org_units) };
+};
 
 
 

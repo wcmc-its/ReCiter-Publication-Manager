@@ -5,12 +5,20 @@ import { AdminDepartment } from "./AdminDepartment";
 import type { AdminDepartmentAttributes, AdminDepartmentCreationAttributes } from "./AdminDepartment";
 import { AdminFeedbackLog } from "./AdminFeedbackLog";
 import type { AdminFeedbackLogAttributes, AdminFeedbackLogCreationAttributes } from "./AdminFeedbackLog";
+import { AuthorshipReview } from "./AuthorshipReview";
+import type { AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes } from "./AuthorshipReview";
 import { AdminNotificationLog } from "./AdminNotificationLog";
 import type { AdminNotificationLogAttributes, AdminNotificationLogCreationAttributes } from "./AdminNotificationLog";
 import { AdminNotificationPreference } from "./AdminNotificationPreference";
 import type { AdminNotificationPreferenceAttributes, AdminNotificationPreferenceCreationAttributes } from "./AdminNotificationPreference";
+import { AdminPermission } from "./AdminPermission";
+import type { AdminPermissionAttributes, AdminPermissionCreationAttributes } from "./AdminPermission";
+import { AdminPermissionResource } from "./AdminPermissionResource";
+import type { AdminPermissionResourceAttributes, AdminPermissionResourceCreationAttributes } from "./AdminPermissionResource";
 import { AdminRole } from "./AdminRole";
 import type { AdminRoleAttributes, AdminRoleCreationAttributes } from "./AdminRole";
+import { AdminRolePermission } from "./AdminRolePermission";
+import type { AdminRolePermissionAttributes, AdminRolePermissionCreationAttributes } from "./AdminRolePermission";
 import { AdminUser } from "./AdminUser";
 import type { AdminUserAttributes, AdminUserCreationAttributes } from "./AdminUser";
 import { AdminUsersDepartment } from "./AdminUsersDepartment";
@@ -87,9 +95,13 @@ export {
   Nlm,
   AdminDepartment,
   AdminFeedbackLog,
+  AuthorshipReview,
   AdminNotificationLog,
   AdminNotificationPreference,
+  AdminPermission,
+  AdminPermissionResource,
   AdminRole,
+  AdminRolePermission,
   AdminUser,
   AdminOrcid,
   AdminUsersDepartment,
@@ -133,14 +145,22 @@ export type {
   AdminDepartmentCreationAttributes,
   AdminFeedbackLogAttributes,
   AdminFeedbackLogCreationAttributes,
+  AuthorshipReviewAttributes,
+  AuthorshipReviewCreationAttributes,
   AdminNotificationLogAttributes,
   AdminNotificationLogCreationAttributes,
   AdminNotificationPreferenceAttributes,
   AdminNotificationPreferenceCreationAttributes,
   AdminOrcidAttributes,
   AdminOrcidCreationAttributes,
+  AdminPermissionAttributes,
+  AdminPermissionCreationAttributes,
+  AdminPermissionResourceAttributes,
+  AdminPermissionResourceCreationAttributes,
   AdminRoleAttributes,
   AdminRoleCreationAttributes,
+  AdminRolePermissionAttributes,
+  AdminRolePermissionCreationAttributes,
   AdminUserAttributes,
   AdminUserCreationAttributes,
   AdminUsersDepartmentAttributes,
@@ -215,7 +235,10 @@ export function initModels(sequelize: Sequelize) {
   AdminFeedbackLog.initModel(sequelize);
   AdminNotificationLog.initModel(sequelize);
   AdminNotificationPreference.initModel(sequelize);
+  AdminPermission.initModel(sequelize);
+  AdminPermissionResource.initModel(sequelize);
   AdminRole.initModel(sequelize);
+  AdminRolePermission.initModel(sequelize);
   AdminUser.initModel(sequelize);
   AdminUsersDepartment.initModel(sequelize);
   AdminUsersRole.initModel(sequelize);
@@ -251,12 +274,20 @@ export function initModels(sequelize: Sequelize) {
   PersonPersonType.initModel(sequelize);
   ScienceMetrix.initModel(sequelize);
   AdminSettings.initModel(sequelize);
+  AuthorshipReview.initModel(sequelize);
 
   AdminUsersDepartment.belongsTo(AdminDepartment, { as: "department", foreignKey: "departmentID"});
   AdminDepartment.hasMany(AdminUsersDepartment, { as: "adminUsersDepartments", foreignKey: "departmentID"});
   AdminUsersRole.belongsTo(AdminRole, { as: "role", foreignKey: "roleID"});
   AdminRole.hasMany(AdminUsersRole, { as: "adminUsersRoles", foreignKey: "roleID"});
+  AdminRolePermission.belongsTo(AdminRole, { as: "role", foreignKey: "roleID" });
+  AdminRole.hasMany(AdminRolePermission, { as: "adminRolePermissions", foreignKey: "roleID" });
+  AdminRolePermission.belongsTo(AdminPermission, { as: "permission", foreignKey: "permissionID" });
+  AdminPermission.hasMany(AdminRolePermission, { as: "adminRolePermissions", foreignKey: "permissionID" });
+  AdminPermissionResource.belongsTo(AdminPermission, { as: "permission", foreignKey: "permissionID" });
+  AdminPermission.hasMany(AdminPermissionResource, { as: "adminPermissionResources", foreignKey: "permissionID" });
   AdminFeedbackLog.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
+  AdminFeedbackLog.belongsTo(AdminUser, { as: "impersonatedBy", foreignKey: "impersonatedByUserID"});
   AdminUser.hasMany(AdminFeedbackLog, { as: "adminFeedbackLogs", foreignKey: "userID"});
   AdminNotificationLog.belongsTo(AdminUser, { as: "user", foreignKey: "userID"});
   AdminUser.hasMany(AdminNotificationLog, { as: "adminNotificationLogs", foreignKey: "userID"});
@@ -275,7 +306,10 @@ export function initModels(sequelize: Sequelize) {
     AdminFeedbackLog: AdminFeedbackLog,
     AdminNotificationLog: AdminNotificationLog,
     AdminNotificationPreference: AdminNotificationPreference,
+    AdminPermission: AdminPermission,
+    AdminPermissionResource: AdminPermissionResource,
     AdminRole: AdminRole,
+    AdminRolePermission: AdminRolePermission,
     AdminUser: AdminUser,
     AdminUsersDepartment: AdminUsersDepartment,
     AdminUsersRole: AdminUsersRole,
@@ -310,6 +344,7 @@ export function initModels(sequelize: Sequelize) {
     PersonArticleScopusTargetAuthorAffiliation: PersonArticleScopusTargetAuthorAffiliation,
     PersonPersonType: PersonPersonType,
     ScienceMetrix: ScienceMetrix,
-    AdminSettings:AdminSettings
+    AdminSettings:AdminSettings,
+    AuthorshipReview: AuthorshipReview
   };
 }

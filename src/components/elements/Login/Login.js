@@ -7,7 +7,7 @@ import Router from "next/router"
 import Header from "../Header/Header"
 import { signIn,getSession } from "next-auth/client"
 import { toast } from "react-toastify"
-import { allowedPermissions } from "../../../utils/constants";
+import { getPermissionsFromRaw, getPermissionsFromRoles, getLandingPageFromPermissions } from '../../../utils/permissionUtils';
 import { useRouter } from 'next/router'
 
 const Login = () => {
@@ -19,19 +19,12 @@ const Login = () => {
     const session = getSession();
     const router = useRouter()
 
-    const validateForm = () => {
-        if(username === ''){
-            setIsShowButton(true)
-        } else if(password === '') {
-            setIsShowButton(true)
-        } else {
-            setIsShowButton(false)
-        }
-    }
+    useEffect(() => {
+        setIsShowButton(username === '' || password === '')
+    }, [username, password])
 
     const handleUserNameInput = e => {
         setUsername(e.target.value)
-        validateForm()
     }
 
     const handleSubmit = async(e) => {
@@ -48,21 +41,29 @@ const Login = () => {
                 autoClose: 2000,
                 theme: "colored"
             });
-            //if(session && session.data && session.data.userRoles)
-             getSession().then((session) => {
+            getSession().then((session) => {
                 if (session) {
-                    let userPermissions = session.data.userRoles && session.data.userRoles !="" && JSON.parse(session.data.userRoles);
-                    let userName = session.data.username;
-                     if(!userPermissions || userPermissions == "" ){
-                         router.push('/noaccess');
-                     }else{
-                        let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
-                        if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
-                            router.push(`curate/${personIdentifier}`);
-                        else 
-                           router.push('/search');
-                     }
-                } 
+                    let permissions = getPermissionsFromRaw(session?.data?.permissions)
+                    const userRoles = session.data.userRoles ? JSON.parse(session.data.userRoles) : []
+
+                    // Fallback when the data-driven permission set is empty (RBAC
+                    // permission tables not seeded in this env, or the login-time
+                    // lookup failed): derive permissions from role labels so
+                    // privileged users are never sent to /noaccess. Mirrors the
+                    // middleware MW-03 fallback.
+                    if (permissions.length === 0) {
+                        permissions = getPermissionsFromRoles(userRoles)
+                    }
+
+                    if (!session.data.databaseUser || session.data.databaseUser.status == 0) {
+                        router.push('/noaccess')
+                    } else if (permissions.length === 0 && (!userRoles || userRoles.length === 0)) {
+                        router.push('/noaccess')
+                    } else {
+                        const landingPage = getLandingPageFromPermissions(permissions, userRoles)
+                        router.push(landingPage)
+                    }
+                }
             });
             
         } else {
@@ -77,7 +78,6 @@ const Login = () => {
 
     const handlePasswordInput = e => {
         setPassword(e.target.value)
-        validateForm()
     }
 
     return (
@@ -89,7 +89,6 @@ const Login = () => {
             <p>Please enter your CWID and password to log in.</p>
             <FormGroup controlId="username" style={{marginBottom: '10px'}}>
                 <FormControl
-                autoFocus
                 type="username"
                 value={username}
                 onChange={handleUserNameInput}

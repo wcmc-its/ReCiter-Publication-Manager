@@ -1,19 +1,59 @@
 import React, { useState, FunctionComponent } from "react"
 import styles from './Publication.module.css';
-import { Popover, OverlayTrigger } from "react-bootstrap";
-import CheckIcon from '@mui/icons-material/Check';
-import ClearIcon from '@mui/icons-material/Clear';
-import UndoIcon from '@mui/icons-material/Undo';
 import { Container, Row, Col, Button, Accordion, Card } from "react-bootstrap";
 import type { Author } from '../../../../types/Author';
-import { useSelector, RootStateOrAny, useDispatch } from "react-redux";
-import HistoryModal from "./HistoryModal";
+import { useSelector, useDispatch } from "react-redux";
+import { RootStateOrAny } from "../../../types/redux";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
-import InfoIcon from '@mui/icons-material/Info';
+import { sanitizeInlineHtml } from "../../../utils/htmlText";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
+
+// Friendly labels for ReCiter ArticleProvenance fields (src = source, rs = retrieval strategy).
+// Unmapped values fall back to a cleaned raw value, so nothing is ever hidden.
+const PROV_SOURCE_LABELS: Record<string, string> = {
+  GS: 'Gold standard',
+  PM: 'Publication Manager',
+  CTSC: 'CTSC',
+  MAN: 'Manual',
+  MAN_FROM_PM: 'Manual (via Publication Manager)',
+  MAN_FROM_CTSC: 'Manual (via CTSC)',
+};
+// ArticleProvenance.rs stores either a legacy short code (FNI, EMAIL, …) or the
+// full retrieval-strategy class name (FirstNameInitialRetrievalStrategy, …),
+// depending on when the row was written. Map both forms to one spelled-out label.
+const PROV_STRATEGY_LABELS: Record<string, string> = {
+  // legacy short codes (production data)
+  FNI: 'First-name initial',
+  SI: 'Second initial',
+  FN: 'Full name',
+  EMAIL: 'Email',
+  ORC: 'ORCID',
+  AFF: 'Affiliation',
+  AFFD: 'Affiliation (in database)',
+  DEP: 'Department',
+  REL: 'Known relationship',
+  GR: 'Grant',
+  GS: 'Gold standard',
+  // full strategy class names (current ReCiter)
+  FirstNameInitialRetrievalStrategy: 'First-name initial',
+  SecondInitialRetrievalStrategy: 'Second initial',
+  FullNameRetrievalStrategy: 'Full name',
+  EmailRetrievalStrategy: 'Email',
+  OrcidRetrievalStrategy: 'ORCID',
+  AffiliationRetrievalStrategy: 'Affiliation',
+  AffiliationInDbRetrievalStrategy: 'Affiliation (in database)',
+  DepartmentRetrievalStrategy: 'Department',
+  KnownRelationshipRetrievalStrategy: 'Known relationship',
+  GrantRetrievalStrategy: 'Grant',
+  GoldStandardRetrievalStrategy: 'Gold standard',
+};
+const friendlyProvSource = (v?: string | null): string | null =>
+  v ? (PROV_SOURCE_LABELS[v] || v) : null;
+const friendlyProvStrategy = (v?: string | null): string | null =>
+  v ? (PROV_STRATEGY_LABELS[v] || v.replace(/RetrievalStrategy$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim()) : null;
 
 //TEMP: update to required
 interface FuncProps {
@@ -34,24 +74,28 @@ interface FuncProps {
     actionSource?:any,
     countPendingArticles?:any,
     maxArticlesPerPerson?:any,
-    showEvidenceDefault?:any
+    showEvidenceDefault?:any,
+    isFocused?: boolean,
+    onCardMouseDown?: () => void,
 }
 
 const Publication: FunctionComponent<FuncProps> = (props) => {
     const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
     const [showEvidence, setShowEvidence] = useState<boolean>(false)
     const [expandedAuthors, setExpandedAuthors] = useState<boolean>(false)
+    const [showZeroWeight, setShowZeroWeight] = useState<boolean>(false)
 
     const filteredIdentities = useSelector((state: RootStateOrAny) => state.filteredIdentities)
-    const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false)
     const [expandedPubIndex, setExpandedPubIndex] = useState<any>(props.showEvidenceDefault ? props.showEvidenceDefault : null)
 
     const maxArticlesPerPerson = reciterConfig.reciter.featureGeneratorByGroup.featureGeneratorByGroupApiParams.maxArticlesPerPerson;
     const dispatch = useDispatch();
 
-    const onOpenModal = () => setShowHistoryModal(true)
-    const onCloseModal = () => setShowHistoryModal(false)
-    
+    const formatClogDate = (timestamp: string | Date) => {
+      const d = new Date(timestamp);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
     const toogleEvidence = (pubExpEvidenceNumber) => {
       let expandedPubNumber = parseInt(pubExpEvidenceNumber.slice(5));
 
@@ -143,72 +187,102 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
     const { item } = props;
 
     const { reciterArticle } = props;
+    const clogEntries = feedbacklog[reciterArticle.pmid] || [];
+    const hasProvenance = !!(reciterArticle.firstRetrievalDate || reciterArticle.retrievalStrategy || reciterArticle.retrievalSource);
 
-    const Buttons = ({index, pmid, userAssertion} : {
-      index: number,
-      pmid: number, 
+    const CardFooter = ({pmid, userAssertion} : {
+      pmid: number,
       userAssertion: string
     }) => {
-      switch (userAssertion) { 
+      const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
+      // Compact right-aligned action cluster (not full-width). Wiring/dispatch unchanged.
+      switch (userAssertion) {
         case "NULL" :
           return (
-            <Row className="d-flex justify-content-md-between px-4">
-            <Col xs lg={6} className="p-1"><button
-                className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
-            ><CheckIcon fontSize="small"/> Accept
-            </button>
-            </Col>
-            <Col xs lg={6} className="p-1">
-            <button
-                className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
-            ><ClearIcon fontSize="small"/> Reject
-            </button>
-            </Col>
-            </Row>
+            <div className={styles.bigActions}>
+              <button
+                className={styles.btnAcceptBig}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault))}}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M13.5 4.5L6.3 11.7 3 8.4"/></svg>
+                Accept
+              </button>
+              <span className={styles.deadZone}><span className={styles.deadZoneLine} /></span>
+              <button
+                className={styles.btnRejectBig}
+                onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault))}}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" width="15" height="15"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+                Reject
+              </button>
+            </div>
           )
         case "ACCEPTED" :
+          if (props.activekey === 'NULL') {
+            return (
+              <div className={`${styles.cardActions} ${styles.cardActionsActioned}`}>
+                <button
+                  className={styles.btnUndo}
+                  onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
+                  Undo
+                </button>
+              </div>
+            );
+          }
           return (
-            <Row className="d-flex justify-content-md-between px-4">
-              <Col xs lg={6} className="p-1"><button
-                className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
-              ><UndoIcon fontSize="small"/>Undo
+            <div className={styles.cardActions}>
+              <button
+                className={styles.btnReject}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(evDefault)); }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" width="13" height="13"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+                Reject
               </button>
-              </Col>
-              <Col xs lg={6} className="p-1">
+              <button
+                className={styles.btnUndo}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
+                Undo
+              </button>
+            </div>
+          );
+        case "REJECTED" :
+          if (props.activekey === 'NULL') {
+            return (
+              <div className={`${styles.cardActions} ${styles.cardActionsActioned}`}>
                 <button
-                  className={`btn btn-danger w-100 p-2 ${styles.publicationReject}`}
-                  onClick={() =>{ props.updatePublication(props.personIdentifier, pmid, 'REJECTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
-                ><ClearIcon fontSize="small"/>Reject
+                  className={styles.btnUndo}
+                  onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
+                  Undo
                 </button>
-              </Col>
-            </Row>
-          )
-        case "REJECTED" : 
+              </div>
+            );
+          }
           return (
-            <Row className="d-flex justify-content-md-between px-4">
-              <Col xs lg={6} className="p-1">
-                <button
-                    className={`btn btn-success w-100 p-2 ${styles.publicationAccept}`}
-                    onClick={() => { props.updatePublication(props.personIdentifier, pmid , 'ACCEPTED'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
-                > <CheckIcon fontSize="small"/> Accept
-                </button>
-              </Col>
-              <Col xs lg={6} className="p-1">
-                <button
-                    className={`btn btn-default w-100 p-2 ${styles.publicationUndo}`}
-                    onClick={() => {props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault))}}
-                ><UndoIcon fontSize="small"/> Undo
-                </button>
-              </Col>
-            </Row>
-          )
+            <div className={styles.cardActions}>
+              <button
+                className={styles.btnUndo}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'NULL'); dispatch(showEvidenceByDefault(evDefault)); }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="13" height="13"><path d="M3 8a5 5 0 105-5H5M3 8V4m0 4H7"/></svg>
+                Undo
+              </button>
+              <button
+                className={styles.btnAccept}
+                onClick={() => { props.updatePublication(props.personIdentifier, pmid, 'ACCEPTED'); dispatch(showEvidenceByDefault(evDefault)); }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><path d="M13 4.5L6.2 11.5 3 8.3"/></svg>
+                Accept
+              </button>
+            </div>
+          );
         default:
-          return (
-            <></>
-          )
+          return null;
       }
     }
 
@@ -228,18 +302,25 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       return userName; 
     }
 
+    // Provenance badges (Affiliation / Scopus / PubMed / Journal Category, etc.) all read
+    // as one light pill. Color is reserved strictly for match semantics, not source.
+    const getTagClass = (_tag: string): string => {
+      return styles.evTag;
+    };
+
     const TableCellWithTypes = (props: any) => {
       return(
         <>
           {props.list.map((item, index) => {
+            const hasPubmedTag = item.tags.some((t: string) => t.toLowerCase() === 'pubmed');
             return (
-              <p key={index}>
+              <p key={index} className={hasPubmedTag && props.list.length > 1 ? styles.dataSub : undefined}>
                 {item.name}
-                {item.url && <a href={item.url} target="_blank" rel="noreferrer">{item.urlName}</a>}
+                {item.url && <a href={item.url} target="_blank" rel="noreferrer">{item.urlName} ↗</a>}
                 {
                   item.tags.map((tag, index) => {
                     return (
-                      <span className={styles.reciterType} key={index}>{tag}</span>
+                      <span className={getTagClass(tag)} key={index}>{tag}</span>
                     )
                   })
                 }
@@ -255,7 +336,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { relationshipEvidence: 'Relationships'},
       { emailEvidence : 'Email'},
       { organizationalUnitEvidence : 'Departmental affiliation'},
-      { affiliationEvidence: 'Target author\'s institutional affiliation' },
+      { affiliationEvidence: 'Target author affiliation' },
       { grantEvidence: 'Grants' },
       { journalCategoryEvidence: 'Journal category'},
       { educationYearEvidence: 'Degree year discrepancy'},
@@ -263,7 +344,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       { articleCountEvidence: 'Candidate article count'},
       { authorCountEvidence: 'Candidate author count'},
       //{ averageClusteringEvidence: 'Clustering'},
-      { coAuthorAffiliationEvidence: 'Co-authors\'s institutional affiliation'},
+      { coAuthorAffiliationEvidence: 'Co-author affiliation'},
     ]
 
     const evidenceTableCellFields = {
@@ -301,13 +382,36 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
       }
     }
 
+    const determineMatchType = (rowName: string, points: any, evidence: any): 'match' | 'partial' | 'mismatch' | 'nodata' => {
+      const p = Number(points);
+      if (isNaN(p) || p === 0) return 'nodata';
+      if (p > 1) return 'match';
+      if (p > 0) return 'partial';
+      return 'mismatch';
+    };
+
+    // Status lives in exactly one place — the icon color. No fills, no rails, no bars.
+    const matchColors: Record<string, { color: string; label: string }> = {
+      match: { color: '#1D9E75', label: 'Strong' },
+      partial: { color: '#BA7517', label: 'Partial' },
+      mismatch: { color: '#c0392b', label: 'Mismatch' },
+      nodata: { color: '#8a94a6', label: 'No data' },
+    };
+
+    const matchIcons: Record<string, JSX.Element> = {
+      match: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M5.3 8.2l1.8 1.8 3.6-3.8"/></svg>,
+      partial: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.8v3.6M8 10.7v.05"/></svg>,
+      mismatch: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></svg>,
+      nodata: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" width="14" height="14"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>,
+    };
+
     const formatEvidenceTable = (evidence: any) => {
       let evidenceTableRows = []
         evidenceTableRowTitles.filter((row) => displayRow(row, evidence)).map((title, index) => {
           let rowName = Object.keys(title)[0];
           let rowFields = evidenceTableCellFields[rowName];
           let points = '';
-		      let pointsText:any = '';						  
+          let pointsText:any = '';
           let source = '';
           let institutionalData = '-';
           let articleData = '-';
@@ -321,7 +425,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 if (evidence[rowName][rowFields['points']]) {
                   let unFormattedpoints = evidence[rowName][rowFields['points']]
                   points = (Math.round(unFormattedpoints * 100 + Number.EPSILON) / 100).toString();
-				  																				   
                 }
               }
             }
@@ -333,14 +436,11 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               }
 
               if (rowName === 'relationshipEvidence') {
-		
-		points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
-                pointsText = <div>
-                  
-                <p>Positive match: {(evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2)}</p>
-                <p>Negative match: {(evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2)}</p>
-                <p>Identity count: {evidence[rowName].relationshipIdentityCount || 0}</p>
-              </div>				  
+                points = (evidence[rowName].relationshipPositiveMatchScore + evidence[rowName].relationshipNegativeMatchScore).toFixed(2)
+                const posScore = (evidence[rowName].relationshipPositiveMatchScore ?? 0).toFixed(2);
+                const negScore = (evidence[rowName].relationshipNegativeMatchScore ?? 0).toFixed(2);
+                const idCount = evidence[rowName].relationshipIdentityCount || 0;
+                pointsText = <span>+{posScore} / {'\u2212'}{Math.abs(Number(negScore)).toFixed(2)} {'\u00B7'} {idCount} identities</span>
                 if (evidence[rowName].hasOwnProperty('relationshipPositiveMatch')) {
                   displayInstDataList = true;
                   displayArticleDataList = true;
@@ -364,21 +464,19 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                     scopusTargetAuthorAffiliationScore = scopusTargetAuthorAffiliationScore + scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore
                     if(scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationMatchType')) {
                       if(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INDIVIDUAL') {
-                          matchType = 'Individual Affiliation'
+                          matchType = 'Affiliation'
                       } else if(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INSTITUTION') {
-                          matchType = 'Institutional Collaborator'
+                          matchType = 'Affiliation'
                       } else if(scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'NULL_MATCH') {
                           matchType = 'No data available'
                       } else {
                           matchType = 'No Match'
                       }
                     }
-
                     let targetAuthorInstitutionalAffiliationIdentity = ''
                     if (scopusTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationIdentity')) {
                       targetAuthorInstitutionalAffiliationIdentity = scopusTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationIdentity
                     }
-
                     if (matchType === 'No data available') {
                       institutionalDataList.push({ name: '-', tags: []})
                       articleDataList.push({ name: '', tags: [matchType]})
@@ -392,7 +490,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                     }
                   })
                 }
-
                 if(evidence[rowName].hasOwnProperty('pubmedTargetAuthorAffiliation')) {
                   displayInstDataList = true;
                   displayArticleDataList = true;
@@ -400,9 +497,9 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   pubmedTargetAuthorAffiliationScore = Number(evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchTypeScore)
                   if (evidence[rowName].pubmedTargetAuthorAffiliation.hasOwnProperty('targetAuthorInstitutionalAffiliationMatchType')) {
                       if (evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INDIVIDUAL') {
-                          matchType = 'Individual Affiliation'
+                          matchType = 'Affiliation'
                       } else if(evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'POSITIVE_MATCH_INSTITUTION') {
-                          matchType = 'Institutional Collaborator'
+                          matchType = 'Affiliation'
                       } else if(evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationMatchType === 'NULL_MATCH') {
                           matchType = 'No data available'
                       } else {
@@ -411,7 +508,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   }
                   displayInstDataList = false;
                   institutionalData = '-';
-                  articleDataList.push({ name: evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationArticlePubmedLabel, tags: ['Pubmed']})
+                  articleDataList.push({ name: evidence[rowName].pubmedTargetAuthorAffiliation.targetAuthorInstitutionalAffiliationArticlePubmedLabel, tags: ['PubMed']})
                 }
                 let totalScore = scopusTargetAuthorAffiliationScore + pubmedTargetAuthorAffiliationScore
                 points = totalScore.toString();
@@ -426,15 +523,16 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                     itemCount++
                     scoreTotal = scoreTotal + Number(orgUnitItem.organizationalUnitMatchingScore + orgUnitItem.organizationalUnitModifierScore)
                     if(orgUnitItem.hasOwnProperty('organizationalUnitType')) {
-                      institutionalDataList.push({ name: orgUnitItem.identityOrganizationalUnit, tags: [orgUnitItem.organizationalUnitType]})
+                      const unitType = orgUnitItem.organizationalUnitType.charAt(0).toUpperCase() + orgUnitItem.organizationalUnitType.slice(1).toLowerCase();
+                      institutionalDataList.push({ name: orgUnitItem.identityOrganizationalUnit, tags: [unitType]})
                     } else {
                       institutionalDataList.push({ name: orgUnitItem.identityOrganizationalUnit, tags: []})
                     }
                     if(itemCount === 1) {
-                      articleDataList.push({ name: orgUnitItem.articleAffiliation, tags: ['Pubmed']})
+                      articleDataList.push({ name: orgUnitItem.articleAffiliation, tags: ['PubMed']})
                     }
                 })
-                points = scoreTotal.toString(); 
+                points = scoreTotal.toString();
               }
 
               if (rowName === 'journalCategoryEvidence') {
@@ -444,7 +542,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                   displayInstDataList = false;
                   institutionalData = '-';
                 } else {
-                  institutionalDataList.push({ name: evidence[rowName].journalSubfieldDepartment, tags: ['Organizational Unit'] })
+                  institutionalDataList.push({ name: evidence[rowName].journalSubfieldDepartment, tags: ['Org Unit'] })
                 }
                 articleDataList.push({ name: evidence[rowName].journalSubfieldScienceMetrixLabel, tags: ['Journal Category']})
               }
@@ -456,7 +554,6 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
                 if (evidence[rowName].identityDoctoralYear !== undefined) {
                   institutionalData = (institutionalData === '-') ? evidence[rowName].identityDoctoralYear + ' - Doctoral' : institutionalData + ' , ' + evidence[rowName].identityDoctoralYear + ' - Doctoral';
                 }
-
                 points = evidence[rowName].discrepancyDegreeYearBachelorScore + evidence[rowName].discrepancyDegreeYearDoctoralScore
               }
 
@@ -526,9 +623,9 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               displayArticleDataList = true;
               evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchKnownInstitution.forEach((matchingKnownInst: any) => {
                   let knownInst = matchingKnownInst.split(', ')
-                  let articleDataName = knownInst[2] + ' author(s) from ' + knownInst[0]
-                  institutionalDataList.push({ name: knownInst[0], tags: ['Individual Affiliation']})
-                  articleDataList.push({ name: articleDataName + ' ', tags: ['Scopus'], url: "https://www.scopus.com/affil/profile.uri?afid=" + knownInst[1], urlName: knownInst[1]})
+                  let articleDataName = knownInst[2] + ' author(s) from '
+                  institutionalDataList.push({ name: knownInst[0], tags: ['Affiliation']})
+                  articleDataList.push({ name: articleDataName, tags: ['Scopus'], url: "https://www.scopus.com/affil/profile.uri?afid=" + knownInst[1], urlName: knownInst[0]})
               })
             }
 
@@ -537,19 +634,19 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
               displayArticleDataList = true;
               evidence.affiliationEvidence.scopusNonTargetAuthorAffiliation.nonTargetAuthorInstitutionalAffiliationMatchCollaboratingInstitution.forEach((matchingCollabInst: any) => {
                 let collabInst = matchingCollabInst.split(', ')
-                institutionalDataList.push({ name: collabInst[0], tags: ['Collaborating Institution']})
-                articleDataList.push({ name: collabInst[2] + ' author(s) from ' + collabInst[0] + ' ', url: "https://www.scopus.com/affil/profile.uri?afid=" + collabInst[1], urlName: collabInst[1], tags: ['Scupus']})
+                institutionalDataList.push({ name: collabInst[0], tags: ['Affiliation']})
+                articleDataList.push({ name: collabInst[2] + ' author(s) from ', url: "https://www.scopus.com/affil/profile.uri?afid=" + collabInst[1], urlName: collabInst[0], tags: ['Scopus']})
               })
             }
 
             points = scopusNonTargetAuthorAffiliationScore.toString()
           }
 
-          let evidenceTableRowData = { 
+          let evidenceTableRowData = {
             title: Object.values(title),
             name: Object.keys(title)[0],
             points: points,
-			      pointsText : pointsText,						
+            pointsText: pointsText,
             institutionalData: institutionalData,
             articleData: articleData,
             displayInstDataList: displayInstDataList,
@@ -557,6 +654,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
             institutionalDataList: institutionalDataList,
             articleDataList: articleDataList,
             source: source,
+            spanData: Object.keys(title)[0] === 'relationshipEvidence',
           }
 
           evidenceTableRows.push(evidenceTableRowData);
@@ -566,261 +664,313 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
         evidenceTableRows.sort((a: any, b: any) => Math.abs(b.points) - Math.abs(a.points))
 
         // Keep Author Name Evidence at the top
-        const authorNameEvidenceIndex = evidenceTableRows.findIndex((evidence) => evidence.name === 'authorNameEvidence');
-        
+        const authorNameEvidenceIndex = evidenceTableRows.findIndex((e) => e.name === 'authorNameEvidence');
         if (authorNameEvidenceIndex > 0) {
           const authorNameEvidenceData = evidenceTableRows[authorNameEvidenceIndex];
           evidenceTableRows.splice(authorNameEvidenceIndex, 1);
           evidenceTableRows.unshift(authorNameEvidenceData);
         }
 
+        const visibleRows = evidenceTableRows.filter((r: any) => Number(r.points) !== 0);
+        const zeroRows = evidenceTableRows.filter((r: any) => Number(r.points) === 0);
+        const rowsToRender = showZeroWeight ? evidenceTableRows : visibleRows;
+
+        const IdentityRow = ({ evidenceRow, idx }: { evidenceRow: any; idx: number }) => {
+          const mt = determineMatchType(evidenceRow.name, evidenceRow.points, evidence);
+          const mc = matchColors[mt];
+          const ptsNum = Number(evidenceRow.points) || 0;
+          const ptsIsNeg = ptsNum < 0;
+          return (
+            <div className={styles.identityRow} key={idx}>
+              <div className={styles.identityEvidence}>
+                <span className={styles.matchIcon} style={{ color: mc.color }}>{matchIcons[mt]}</span>
+                <span className={styles.evName}>{evidenceRow.title}</span>
+                {evidenceRow.source && <a href={evidenceRow.source} target="_blank" rel="noreferrer" className={styles.sourceLink}>(source)</a>}
+                {evidenceRow.pointsText ? (
+                  <span className={styles.evPoints}>{evidenceRow.pointsText}</span>
+                ) : (
+                  <span className={ptsIsNeg ? styles.evPointsNeg : styles.evPoints}>
+                    {ptsNum !== 0 ? ptsNum.toFixed(2) : '0.00'} pts
+                  </span>
+                )}
+              </div>
+              {evidenceRow.spanData ? (
+                <div className={styles.identityDataSpan}>
+                  {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList} /> : (evidenceRow.institutionalData === '-' ? <span className={styles.dataEmpty}>{'\u2014'}</span> : <span>{evidenceRow.institutionalData}</span>)}
+                </div>
+              ) : (
+                <>
+                  <div className={styles.identityData}>
+                    {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList} /> : (evidenceRow.institutionalData === '-' ? <span className={styles.dataEmpty}>{'\u2014'}</span> : <span>{evidenceRow.institutionalData}</span>)}
+                  </div>
+                  <div className={styles.identityData}>
+                    {evidenceRow.displayArticleDataList ? <TableCellWithTypes list={evidenceRow.articleDataList} /> : (evidenceRow.articleData === '-' ? <span className={styles.dataEmpty}>{'\u2014'}</span> : <span>{evidenceRow.articleData}</span>)}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        };
+
         return (
-          <>{
-            evidenceTableRows.map((evidenceRow: any, index: number) => {
-              return (
-                <tr key={index}>
-                  <td align="right" width="20%">
-                    <p>
-                      <strong>{evidenceRow.title}</strong>
-                      {evidenceRow.source && <small>(<a href={evidenceRow.source} target="_blank" rel="noreferrer">source</a>)</small>}
-                      <br></br>
-  				      {<small>{evidenceRow.pointsText || `${evidenceRow.points != 0 ? evidenceRow.points : '0.00'} points`}</small>}																 
-                    </p>
-                  </td>
-                  <td width="40%">
-                    {evidenceRow.displayInstDataList ? <TableCellWithTypes list={evidenceRow.institutionalDataList}></TableCellWithTypes> : <p>{evidenceRow.institutionalData}</p>}
-                  </td>
-                  <td width="40%">
-                    {evidenceRow.displayArticleDataList ? <TableCellWithTypes list={evidenceRow.articleDataList}></TableCellWithTypes> : <p>{evidenceRow.articleData}</p>}
-                  </td>
-                </tr>
-              )
-            })
-          }</>
-        )
+          <>
+            {/* Quiet column header */}
+            <div className={`${styles.identityRow} ${styles.identityHeaderRow}`}>
+              <div className={styles.identityEvidence}>Evidence</div>
+              <div className={styles.identityData}>Institutional</div>
+              <div className={styles.identityData}>Article</div>
+            </div>
+            {/* Rows */}
+            {rowsToRender.map((evidenceRow: any, idx: number) => (
+              <IdentityRow evidenceRow={evidenceRow} idx={idx} key={idx} />
+            ))}
+            {/* Zero-weight toggle */}
+            {zeroRows.length > 0 && (
+              <button className={styles.zeroToggle} onClick={() => setShowZeroWeight(!showZeroWeight)}>
+                {showZeroWeight
+                  ? 'Hide zero-weight factors'
+                  : `Show ${zeroRows.length} zero-weight factor${zeroRows.length > 1 ? 's' : ''} (${zeroRows.map((r: any) => r.title).join(', ')})`
+                }
+              </button>
+            )}
+          </>
+        );
     }
 
-// Type the parameter as an object with string keys and number values
-const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.Element => {
-  // Sort the object by score in descending order
-  const sortedFeedback = feedbackEvidence && Object.entries(feedbackEvidence)
-  .sort((a, b) => b[1] - a[1])  // Sort by value in descending order
-  .map(([key, value]) => {
-    // Explicitly assert that key is a string and value is a number
-    const typedKey = key as string; // `key` is inferred as `string`
-    const typedValue = value as number; // `value` is inferred as `number`
-
-    const convertedTypedKey = typedKey
-    //remove the word feedbackScore from the label names
+const formatFeedbackLabel = (key: string): string => {
+  return key
     .replace('feedbackScore', '')
-    // Insert spaces before uppercase letters
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-    // Capitalize the first letter of each word and lowercase the rest
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .replace('Orcid', 'ORCID')
+    .replace('Co Author Name:', 'Co-Author Name')
+    .replace('Co Author', 'Co-Author')
+    .replace('Journal Sub Field', 'Journal Subfield');
+};
 
-    // Check if 'typedKey' contains 'Orcid' and update 'typedKey' accordingly
-    const updatedKey = convertedTypedKey.includes('Orcid')
-    ? convertedTypedKey.replace('Orcid', 'ORCID') // Change 'Orcid' to uppercase 'ORCID'
-    : convertedTypedKey;
-    
-    const updatedLabel = updatedKey.includes('Co Author Name')
-    ? updatedKey.replace('Co Author Name:', 'Co-Author Name')
-    : updatedKey;
-  
-    const updatedOrCidLabel = updatedLabel.includes('Co Author')
-    ? updatedLabel.replace('Co Author', 'Co-Author')
-    : updatedLabel;
-    
-    const updatedJournalSubFieldLabel = updatedOrCidLabel.includes('Journal Sub Field')
-    ? updatedOrCidLabel.replace('Journal Sub Field', 'Journal Subfield')
-    : updatedOrCidLabel;
+const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.Element => {
+  const sortedFeedback = (feedbackEvidence ? Object.entries(feedbackEvidence) : [])
+    .map(([key, value]) => [formatFeedbackLabel(key), Math.round(value as number)] as [string, number])
+    .filter(([, v]) => v !== 0)
+    .sort((a, b) => b[1] - a[1]);
 
-    return [updatedJournalSubFieldLabel, Math.round(typedValue)] as [string, number]; // Ensure that the return is of type [string, number]
-  });
-   // Split the sorted feedback into 4 columns (each column has 3 items)
-   const columns: [string, number][][] = [[], [], [], []];
-  
-   sortedFeedback?.forEach((item, index) => {
-     const columnIndex = Math.floor(index / 3); // Distribute every 3 items into a column
-     if (columnIndex < 4) {
-       columns[columnIndex].push(item);
-     }
-   });
- 
+  // Scale every bar against the documented ±100 feedback range (not the per-card
+  // max), so the same value renders at the same width on every card — bars stay
+  // comparable across publications. Values beyond 100 cap at full width.
+  const FEEDBACK_SCALE = 100;
 
   return (
-    <div className={styles.feedbackContainer}>
-      <div className={styles.columnContainer}>
-        {columns.map((column, index) => (
-          <div className={styles.column} key={index}>
-            {column.map(([key, value], index) => (
-              <div className={styles.feedbackItem} key={index}>
-                <strong>{key}:</strong> {value}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+    <div className={styles.feedbackList}>
+      {sortedFeedback.map(([label, value], i) => {
+        const isNeg = value < 0;
+        const barPct = Math.min((Math.abs(value) / FEEDBACK_SCALE) * 100, 100);
+        return (
+          <React.Fragment key={i}>
+            <span className={styles.feedbackLabel}>{label}</span>
+            <span className={isNeg ? styles.feedbackValueNeg : styles.feedbackValue}>
+              {isNeg ? `−${Math.abs(value)}` : value}
+            </span>
+            <div className={styles.feedbackBarTrack}>
+              <div
+                className={isNeg ? styles.feedbackBarFillNeg : styles.feedbackBarFill}
+                style={{ width: `${barPct}%` }}
+              />
+            </div>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 };
+    const rawScore = reciterArticle.authorshipLikelihoodScore ?? null;
+    const score = rawScore !== null ? Math.round(rawScore) : null;
+    const scoreNum = typeof score === 'number' ? score : 0;
+    const userAssertion = reciterArticle.userAssertion;
+    const isActioned = userAssertion === 'ACCEPTED' || userAssertion === 'REJECTED';
+    const evDefault = expandedPubIndex ? expandedPubIndex : props.showEvidenceDefault;
 
-const showOverlayFeedbackScoreLearnMorePopup = (fullName :any) => {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      <h5 style={{marginBottom:"20px"}}>Feedback-based scores</h5>
-      <React.Fragment>
-        <OverlayTrigger
-          trigger={["focus", "hover"]}
-          overlay={
-            <Popover id="feedback-information" style={{ maxWidth: "400px" }}>
-              <Popover.Body>
-                <p>
-                  Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for 
-                  <b> {fullName.trim()}.</b> Each subscore represents the contribution of a specific attribute, such as ORCID, institution, or journal, to the overall likelihood that the article was authored by 
-                  <b> {fullName.trim()}.</b>
-                </p>
-                <p>
-                  A score of 100 for an attribute indicates strong evidence supporting authorship, while a score of -100 suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence, making the feedback more ambiguous for that category.
-                </p>
-              </Popover.Body>
-            </Popover>
-          }
-          placement="right"
-        >
-          <p>
-            <span style={{ color: '#80808078', cursor: 'pointer' }}>
-              <InfoIcon fontSize="small" style={{ fontSize: '22px', marginLeft: '7px' }} /> <u>Learn more</u>
-            </span>
-          </p>
-        </OverlayTrigger>
-      </React.Fragment>
-    </div>
-  );
-};    
-    
     return (
-      <Row className={styles.articleContainer}>
-        <Col md={2} className={styles.publicationButtons}>
-          <Buttons pmid={reciterArticle.pmid} index={props.index} userAssertion={reciterArticle.userAssertion}></Buttons>
-            <div className="clear-both"></div>
-            {(reciterArticle.evidence !==undefined)?
-                <React.Fragment>
-                    <OverlayTrigger 
-                      trigger={["focus", "hover"]} 
-                      overlay={(      
-                        <Popover id="keyword-information" style={{ maxWidth: "395px" }}>
-                          <Popover.Body>
-                              <p>
-                              According to ReCiter’s neural network model, the 
-                              likelihood that <b>{props.fullName}</b> has authored this article is&nbsp;
-                              <b>{reciterArticle.authorshipLikelihoodScore ?  (Math.floor(reciterArticle.authorshipLikelihoodScore * 100) / 100).toFixed(5)   : "N/A"}%.</b>
-                              </p>
-                              <p style={{marginBottom:'0px'}}>This estimate is based on: </p>
-                              <ul style={{paddingLeft: '1rem'}}>
-                                   <li>Identity information (e.g., known email address)</li>
-                                   <li>Feedback on other articles</li>
-                                   <li>Raw count of accepted and rejected articles</li>
-                              </ul>
-                                <p>To investigate which evidence is used to generate this 
-                                score, click on &quot;Explore supporting evidence.&quot;
-                                </p>												 
-	                      </Popover.Body>
-                        </Popover>)} placement="right">
-                          <p className={styles.publicationScore}>
-                            Likelihood<br />Score<br />
-                            <strong>{reciterArticle.authorshipLikelihoodScore ? Math.round(reciterArticle.authorshipLikelihoodScore) : "N/A"}</strong>
-                          </p>
-                    </OverlayTrigger>
-                </React.Fragment>: <p></p>
-            }
-        </Col>
-        <Col md={9} className={`${styles.publicationButtons} ${styles.publicationsSummary}`}>
-          <Row className="pb-2"><strong>{reciterArticle.articleTitle}</strong></Row>
-            <div className={styles.publicationField}>
-                <span>
-                  {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
-                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+      <div className={`${styles.articleCard}${props.isFocused ? ` ${styles.focused}` : ''}`} data-pmid={reciterArticle.pmid} onMouseDown={props.onCardMouseDown}>
+        {/* Status strip for accepted/rejected */}
+        {userAssertion === 'ACCEPTED' && <div className={styles.statusStripAccepted} />}
+        {userAssertion === 'REJECTED' && <div className={styles.statusStripRejected} />}
+
+        {/* Main content column */}
+        <div className={styles.cardMain}>
+          <div className={styles.cardTop}>
+            {/* Score tile — left rail */}
+            <div className={styles.scoreArea}>
+              <span className={styles.scoreTip}>
+                <span className={scoreNum >= 70 ? styles.scoreTileHigh : scoreNum >= 40 ? styles.scoreTileMedium : styles.scoreTileLow}>
+                  <span className={styles.scoreTileNumber}>{score !== null ? score : "N/A"}</span>
+                  <span className={styles.scoreTileLabel}>SCORE</span>
                 </span>
+                {score !== null && (
+                  <span className={styles.scoreTooltip}>
+                    <span className={styles.stRow}>
+                      <span className={styles.stLabel}>Score</span>
+                      <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>{rawScore !== null ? Number(rawScore).toFixed(2) : scoreNum}</span>
+                    </span>
+                    <span className={styles.stRow}>
+                      <span className={styles.stLabel}>Tier</span>
+                      <span className={scoreNum >= 70 ? styles.stValGreen : scoreNum >= 40 ? styles.stValAmber : styles.stValMuted}>
+                        {scoreNum >= 70 ? 'Strong match' : scoreNum >= 40 ? 'Moderate match' : 'Weak match'}
+                      </span>
+                    </span>
+                  </span>
+                )}
+              </span>
             </div>
-            <span className={styles.midDot}> {reciterArticle.journalTitleVerbose} </span>
-            <span className={reciterArticle.publicationDateDisplay ? styles.midDot : ""}> {reciterArticle.publicationDateDisplay} </span>
-            <span className={reciterArticle.publicationDateDisplay ? styles.midDot : ""}> {reciterArticle.publicationType?.publicationTypeCanonical} </span>
-            <div className={`${styles.publicationAdditionalInfo} pt-2`}>
-              <span className={styles.midDot}>{`PMID: `}<a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a>{' '}</span>
-          {reciterArticle.doi ?
-            <span className={styles.midDot}>{' '}<a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI</a>{' '}</span> : ""}
-          {Object.keys(feedbacklog).length > 0 ? <span className={styles.midDot} onClick={onOpenModal}> <div className={`text-decoration-underline d-inline ${styles.cursorPointer}`}>Show History</div> </span> : ""}
-        </div>
-        {
-          (reciterArticle.evidence !== undefined) ?
-            <div className={styles.publicationEvidenceBar}>
-               {/* <p onClick={()=>updatedToggleEvidence(props.index)}>  */}
-                <p onClick={()=>toogleEvidence(props.index)}> 
-                {
-                   (props.index === props.showEvidenceDefault) || showEvidence?
-                    <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceShow}`}>Explore supporting evidence</span>
-                    :
-                    <span
-                      className={`${styles.publicationShowEvidenceLink} ${styles.publicationEvidenceHide}`}>Explore supporting evidence</span>
-                }
-              </p>
-
-
-                        <div
-                            className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
-							      
-                    {reciterArticle.evidence && reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0 ? (
-                      <>
-                        {showOverlayFeedbackScoreLearnMorePopup(props.fullName.trim())}
-                            <>{displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)}<br></br></>
-                            </>
-				   
-                          ) : (
-                            <>
-                            {showOverlayFeedbackScoreLearnMorePopup(props.fullName.trim())}
-
-                             <p><i>No feedback available.</i></p>                            
-                            <br></br>
-                            </>
+            {/* Content area */}
+            <div className={styles.cardContent}>
+              {/* Row 1: Type chip · date · PMID link */}
+              <div className={styles.cardMetaRow}>
+                <div className={styles.cardMetaLeft}>
+                  {reciterArticle.publicationType?.publicationTypeCanonical &&
+                    <span className={styles.typeBadge}>{reciterArticle.publicationType.publicationTypeCanonical}</span>
+                  }
+                  {reciterArticle.publicationDateDisplay && <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}>{reciterArticle.publicationDateDisplay}</span></>}
+                  <><span className={styles.cardMetaSep}>·</span><span className={styles.cardDate}><span className={styles.pmidLabel}>PMID</span> <a className={styles.pmidLink} href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a><span style={{userSelect: 'none', color: '#2563a8'}}> ↗</span></span></>
+                  {userAssertion === 'ACCEPTED' && (
+                    <span className={styles.statusChipAccepted}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M13 4.5L6.2 11.5 3 8.3"/></svg>
+                      Accepted
+                    </span>
+                  )}
+                  {userAssertion === 'REJECTED' && (
+                    <span className={styles.statusChipRejected}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" width="12" height="12"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+                      Rejected
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* Row 2: Title — render PubMed inline markup (e.g. <i>) as formatting, sanitized */}
+              <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
+              {/* Row 3: Authors */}
+              <div className={styles.articleAuthors}>
+                {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
+                  displayAuthors(reciterArticle.reCiterArticleAuthorFeatures)}
+              </div>
+              {/* Row 4: Journal */}
+              <div className={styles.articleMeta}>
+                <span>{reciterArticle.journalTitleVerbose}</span>
+                {(hasProvenance || clogEntries.length > 0) && (
+                  <span className={styles.curationWrap}>
+                    <button className={styles.evidenceBtn} type="button" aria-label="Curation history and provenance" aria-describedby={`hist-pop-${reciterArticle.pmid}`}>History</button>
+                    <div className={styles.curationLogPopover} id={`hist-pop-${reciterArticle.pmid}`} role="group" aria-label="Provenance and curation history">
+                      <div className={styles.clogHead}>Provenance</div>
+                      {hasProvenance ? (
+                        <div className={styles.provBlock}>
+                          {reciterArticle.firstRetrievalDate && (
+                            <div className={styles.provRow}><span className={styles.provLabel}>First retrieved</span><span className={styles.provValue}>{reciterArticle.firstRetrievalDate}</span></div>
                           )}
-                          <h5>Identity-based scores</h5>
-	                        <div className="table-responsive">
-                                <table className={`${styles.publicationsEvidenceTable} table table-striped`}>
-                                    <thead>
-                                    <tr>
-                                        <th key="0" className={styles.firstCell}>Evidence</th>
-                                        <th key="1">Institutional Data</th>
-                                        <th key="2">Article Data</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                      <>{formatEvidenceTable(reciterArticle.evidence)}</>
-                                    </tbody>
-                                </table>
-                            </div>
+                          {reciterArticle.retrievalStrategy && (
+                            <div className={styles.provRow}><span className={styles.provLabel}>Strategy</span><span className={styles.provValue}>{friendlyProvStrategy(reciterArticle.retrievalStrategy)}</span></div>
+                          )}
+                          {reciterArticle.retrievalSource && (
+                            <div className={styles.provRow}><span className={styles.provLabel}>Source</span><span className={styles.provValue}>{friendlyProvSource(reciterArticle.retrievalSource)}</span></div>
+                          )}
                         </div>
+                      ) : (
+                        <div className={styles.clogEmpty}>Retrieval details unavailable</div>
+                      )}
+                      <div className={styles.clogHead}>Curation history</div>
+                      {clogEntries.length > 0 ? (
+                        clogEntries.map((entry: any, i: number) => {
+                          const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
+                          const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Returned to pending';
+                          const who = entry.curatorName || 'Unknown';
+                          const date = entry.modifyTimestamp ? formatClogDate(entry.modifyTimestamp) : '';
+                          return (
+                            <div className={styles.clogEntry} key={entry.feedbackID || i}>
+                              <div className={styles.clogAction}>
+                                <div className={`${styles.clogDot} ${action === 'accepted' ? styles.clogDotAccepted : action === 'rejected' ? styles.clogDotRejected : styles.clogDotUndone}`} />
+                                <span className={`${styles.clogVerb} ${action === 'accepted' ? styles.clogVerbAccepted : action === 'rejected' ? styles.clogVerbRejected : styles.clogVerbUndone}`}>{verb}</span>
+                                <span className={styles.clogWho}>{who}</span>
+                              </div>
+                              <span className={styles.clogDate}>{date}</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className={styles.clogEmpty}>No curation events yet</div>
+                      )}
+                    </div>
+                  </span>
+                )}
+              </div>
 
 
+            </div>
+          </div>
+          {/* Footer row — action cluster left, evidence link right */}
+          <div className={styles.cardFooter}>
+            <CardFooter pmid={reciterArticle.pmid} userAssertion={userAssertion} />
+            {reciterArticle.evidence !== undefined ? (
+              <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3"/><path d="M8.5 8.5L11.5 11.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+                Supporting evidence
+              </button>
+            ) : <span />}
+          </div>
+          {/* Evidence panel — full card width */}
+          {reciterArticle.evidence !== undefined && (
+            <div className={`${styles.publicationShowEvidenceContainer} ${(props.index === props.showEvidenceDefault || showEvidence) ? styles.publicationShowEvidenceContainerOpen : ""}`}>
+
+              {/* Feedback-based scores */}
+              <div className={styles.sectionBlock}>
+                <div className={styles.sectionHeader}>
+                  <span className={styles.sectionTitle}>Feedback-based scores</span>
+                  <div className={styles.learnMoreWrap}>
+                    <div className={styles.learnMoreBtn}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5.5v.5" strokeLinecap="round"/></svg>
+                      Learn more
                     </div>
-                    : <div className={styles.publicationEvidenceBar}>
-                        <p className="text-muted fst-italic mt-2 mb-2" style={{fontSize: '14px'}}>
-                          Evidence data is not available for this article.
-                        </p>
+                    <div className={styles.learnMorePopover}>
+                      <p>Based on attributes from articles you&apos;ve previously accepted or rejected, we&apos;ve generated the following feedback-based scores for <strong>{props.fullName}.</strong> Each subscore represents the contribution of a specific attribute to the overall likelihood that the article was authored by <strong>{props.fullName}.</strong></p>
+                      <p>A score of <strong>100</strong> for an attribute indicates strong evidence supporting authorship, while a score of <strong>&minus;100</strong> suggests strong evidence against it. Scores closer to 0 represent attributes that provide less definitive evidence.</p>
                     </div>
-            }
-            <div className="clear-both"></div>
-        </Col>
-        <HistoryModal
-          showModal={showHistoryModal}
-          onOpen={onOpenModal}
-          onClose={onCloseModal}
-          id={reciterArticle.pmid}
-          userId={props.personIdentifier}
-          />
-      </Row>
-  ); 
+                  </div>
+                </div>
+                <div className={styles.sectionCard}>
+                  {reciterArticle.evidence.feedbackEvidence && Object.keys(reciterArticle.evidence.feedbackEvidence).length > 0
+                    ? displayFeedbackEvidence(reciterArticle.evidence.feedbackEvidence)
+                    : <p style={{color:'#8a94a6', fontStyle:'italic', margin:'0'}}>No feedback available.</p>
+                  }
+                </div>
+              </div>
+
+              {/* Identity-based scores */}
+              <div className={styles.sectionBlock}>
+                <div className={styles.sectionHeader}>
+                  <span className={styles.sectionTitle}>Identity-based scores</span>
+                  <div className={styles.learnMoreWrap}>
+                    <div className={styles.learnMoreBtn}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13"><circle cx="8" cy="8" r="6.5"/><path d="M8 7v4M8 5.5v.5" strokeLinecap="round"/></svg>
+                      Legend
+                    </div>
+                    <div className={`${styles.learnMorePopover} ${styles.legendPopover}`}>
+                      {Object.entries(matchColors).map(([key, mc]) => (
+                        <span className={styles.legendItem} key={key}>
+                          <span className={styles.legendIcon} style={{ color: mc.color }}>{matchIcons[key]}</span>
+                          {mc.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.identityCard}>
+                  {formatEvidenceTable(reciterArticle.evidence)}
+                </div>
+              </div>
+
+            </div>
+          )}
+        </div>
+      </div>
+    );
 }
 
 export default Publication;

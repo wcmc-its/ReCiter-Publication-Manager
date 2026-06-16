@@ -71,6 +71,7 @@ export class AdminUsersRole extends Model<AdminUsersRoleAttributes, AdminUsersRo
   }, {
     sequelize,
     tableName: 'admin_users_roles',
+    modelName: 'AdminUsersRole',
     timestamps: false,
     indexes: [
       {

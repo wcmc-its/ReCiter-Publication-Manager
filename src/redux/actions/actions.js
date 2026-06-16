@@ -2,18 +2,14 @@ import methods from '../methods/methods'
 import fetchWithTimeout from '../../utils/fetchWithTimeout';
 import { toast } from "react-toastify"
 import { reciterConfig } from '../../../config/local';
+import { useSession } from 'next-auth/client';
+import { ErrorTwoTone } from '@mui/icons-material';
 import { initialStatePubSearchFilter } from "../reducers/reducers";
 
 
 export const addError = (message) =>
 ({
     type: methods.ADD_ERROR,
-    payload: message
-})
-
-export const addIdentityORFeatureGenError = (message) =>
-({
-    type: methods.ERROR_FOR_IDENTITY_FEATURE_GENERATOR,
     payload: message
 })
 
@@ -87,12 +83,8 @@ export const identityFetchData = uid => dispatch => {
             });
 
             dispatch(
-                addIdentityORFeatureGenError("Identity-Error")
+                addError(error)
             )
-
-            // dispatch(
-            //     addError(error)
-            // )
 
             dispatch({
                 type: methods.IDENTITY_CANCEL_FETCHING
@@ -167,9 +159,9 @@ export const identityClearAllData = () => dispatch => {
     })
 }
 
-export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
+export const identityFetchPaginatedData = (page, limit, filters, options) => dispatch => {
     const offset = (page - 1) * limit;
-    const request = { limit, offset, filters };
+    const request = { limit, offset, ...(options || {}) };
     dispatch({
         type: methods.IDENTITY_FETCH_PAGINATED_DATA
     })
@@ -277,12 +269,8 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
             });
 
             dispatch(
-                addIdentityORFeatureGenError("Feature-Generator-Error")
+                addError(error)
             )
-
-            // dispatch(
-            //     addError(error)
-            // )
 
             dispatch({
                 type: methods.RECITER_CANCEL_FETCHING
@@ -436,7 +424,9 @@ export const pubmedFetchData = query => dispatch => {
                 autoClose: 2000,
                 theme: 'colored'
             });
-            
+            // dispatch(
+            //     addError(error)
+            // )
 
             dispatch({
                 type: methods.PUBMED_CHANGE_DATA,
@@ -571,8 +561,7 @@ export const reciterUpdatePublication = (uid, request) => dispatch => {
 
     //update adminFeedbackLog table
     const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
-    if (request.userID &&
-        request.personIdentifier &&
+    if (request.personIdentifier &&
         request.publications &&
         request.userAssertion
     ) {
@@ -738,8 +727,7 @@ export const reciterUpdatePublicationGroup = (uid, request) => dispatch => {
 
     //update adminFeedbackLog table
     const adminFeedbackLogUrl = '/api/db/admin/feedbacklog/create'
-    if (request.userID &&
-        request.personIdentifier &&
+    if (request.personIdentifier &&
         request.publications &&
         request.userAssertion
     ) {
@@ -1061,6 +1049,13 @@ export const updateFilteredIds = (ids) => dispatch => {
     })
 }
 
+export const updateScopeFilter = (showOnlyScopeFiltered) => dispatch => {
+    dispatch({
+        type: methods.UPDATE_SCOPE_FILTER,
+        payload: showOnlyScopeFiltered
+    })
+}
+
 export const adminUsersListAction = (userList) => dispatch => {
     dispatch({
         type: methods.ADMIN_USERS_LIST,
@@ -1170,12 +1165,51 @@ export const publicationsFetchGroupData = (ids, updateData) => dispatch => {
         })
 }
 
+// Phase 34: the curation-history panel now reads the canonical ReCiter FeedbackLog
+// (DynamoDB) via /api/reciter/feedback-log/[uid] instead of the legacy PM MySQL
+// admin_feedback_log. The canonical endpoint returns a flat array of rows
+// { articleId, feedback, curatedBy, curatorName, createTimestamp(epoch s), sk, src,
+//   provenanceRs/Frd/Src }. Normalize each row so the per-card panel renders unchanged:
+// it reads canonical curatorName directly, plus a few legacy aliases — articleIdentifier
+// (bucketing key), feedbackID (React key), modifyTimestamp (formatted date) — so the
+// existing render code needs no field-by-field rewrite.
+const normalizeFeedbackRow = (row) => {
+    const epochSec = Number(row && row.createTimestamp) || 0;
+    return {
+        ...row,
+        articleIdentifier: row && row.articleId,
+        feedbackID: row && row.sk,
+        modifyTimestamp: epochSec ? new Date(epochSec * 1000).toISOString() : null,
+    };
+};
+
+// Bucket the flat canonical array by articleId (PMID) for per-card lookup, newest first.
+const groupFeedbackByArticle = (rows) => {
+    const data = {};
+    (Array.isArray(rows) ? rows : []).forEach((raw) => {
+        const row = normalizeFeedbackRow(raw);
+        const key = row.articleIdentifier;
+        if (key === undefined || key === null) return;
+        if (!data[key]) data[key] = [];
+        data[key].push(row);
+    });
+    Object.keys(data).forEach((k) => {
+        data[k].sort((a, b) => {
+            const at = Number(a.createTimestamp) || 0;
+            const bt = Number(b.createTimestamp) || 0;
+            if (bt !== at) return bt - at;
+            return String(b.sk || '').localeCompare(String(a.sk || ''));
+        });
+    });
+    return data;
+};
+
 export const fetchFeedbacklog = (id) => dispatch => {
     dispatch({
         type: methods.FEEDBACKLOG_FETCH_DATA
     })
 
-    fetch(`/api/db/admin/feedbacklog/${id}`, {
+    fetch(`/api/reciter/feedback-log/${id}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
@@ -1195,13 +1229,7 @@ export const fetchFeedbacklog = (id) => dispatch => {
             }
         }
     }).then(data => {
-        let articleIds = data.map((feedback) => { return feedback.articleIdentifier })
-        articleIds = articleIds.filter((feedback, i) => { return articleIds.indexOf(feedback) === i });
-        let feedbacklogData = {};
-        articleIds.forEach((articleId) => {
-            let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog });
-            feedbacklogData[articleId] = articleFeedbacks;
-        })
+        const feedbacklogData = groupFeedbackByArticle(data);
 
         dispatch({
             type: methods.FEEDBACKLOG_CHANGE_DATA,
@@ -1236,7 +1264,7 @@ export const fetchGroupFeedbacklog = (ids) => dispatch => {
 
     let feedbackLogs = [];
     for (let id of ids) {
-        fetch(`/api/db/admin/feedbacklog/${id}`, {
+        fetch(`/api/reciter/feedback-log/${id}`, {
             credentials: "same-origin",
             method: 'GET',
             headers: {
@@ -1248,13 +1276,7 @@ export const fetchGroupFeedbacklog = (ids) => dispatch => {
             return response.json()
         }).then(data => {
             if (data?.length) {
-                let articleIds = data.map((feedback) => { return feedback.articleIdentifier })
-                articleIds = articleIds.filter((feedback, i) => { return articleIds.indexOf(feedback) === i });
-                let feedbacklogData = {};
-                articleIds.forEach((articleId) => {
-                    let articleFeedbacks = data.filter((feedbackLog) => { if (feedbackLog.articleIdentifier === articleId) return feedbackLog });
-                    feedbacklogData[articleId] = articleFeedbacks;
-                })
+                const feedbacklogData = groupFeedbackByArticle(data);
                 feedbackLogs.push({ [id]: feedbacklogData });
             }
         }).catch(error => {
@@ -1322,7 +1344,14 @@ const getDateFilter = () => async (dispatch) => {
     }).then(response => {
         return response.json()
     }).then(data => {
-        
+        // let startDate = new Date();
+        // let endDate = new Date();
+        // startDate.setDate(endDate.getDate() - 30);
+
+        // let date = [{
+        //     "minDate": startDate,
+        //     "maxDate": endDate
+        // }]
         dispatch({
             type: methods.DATE_FILTER_CHANGE_ALL_DATA,
             payload: data
@@ -1719,7 +1748,7 @@ export const updateAuthorFilter = (authorInput, count,isFrom) => (dispatch) => {
 
 // Update Journal Filter
 export const updateJournalFilter = (journalInput, count) => (dispatch) => {
-    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput || ""}&count=${count || ""}`, {
+    fetch(`/api/db/reports/filter/journal?journalFilter=${journalInput}&count=${count}`, {
         credentials: "same-origin",
         method: 'GET',
         headers: {
@@ -1822,7 +1851,9 @@ export const clearPubSearchFilters = ()  => {
             type: methods.REPORTS_SEARCH_CLEAR,
             payload: []
         })
-        
+        // dispatch({
+        //     type: methods.AUTHOR_FILTER_CLEAR_ALL_DATA
+        // })
     }
 }
 
@@ -1877,6 +1908,7 @@ export const updatePubFiltersFromSearch = () => {
 // Search Results for Create Reports Page
 export const getReportsResults = (requestBody, paginationUpdate = false) => dispatch => {
     // check if fetching different page of the same results and update loading state accordingly
+    console.log("getReportsResults")
 
     if (paginationUpdate) {
         dispatch({
@@ -1911,6 +1943,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
             }
         })
         .then(data => {
+
             if (data.articlesCount == 0 || Object.keys(data).length == 0) {
                 dispatch({
                     type: methods.REPORTS_SEARCH_UPDATE,
@@ -1924,11 +1957,11 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
                     type: methods.REPORTS_SEARCH_PAGINATED_CANCEL_FETCHING
                 })
             } else {
-               
+
                 if (data && data.rows && data.rows.length > 0) {
                     let updatePmidRespData  = {
                         pmids: data.pmidList,
-                        authorshipsCount : data.authorshipsCount
+                        personIdentifiers : data.personIdentifiersList
                     }
 
                     dispatch({
@@ -2007,6 +2040,7 @@ export const getReportsResults = (requestBody, paginationUpdate = false) => disp
 
 // Default Data for Create Reports Page
 export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => {
+    console.log("getReportsResultsInitial")
     dispatch({
         type: methods.REPORTS_SEARCH_FETCHING
     })
@@ -2014,7 +2048,9 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
     // set the search filters to get results from the last 30 days and sorted by date
     let startDate = new Date();
     let endDate = new Date();
-      let filters = {};
+    // startDate.setDate(endDate.getDate() - 30);
+    // let filters = {"datePublicationAddedToEntrezLowerBound" : new Date(startDate).toISOString().slice(0,10)};
+    let filters = {};
     fetch(`/api/db/reports/publication/search`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2052,7 +2088,7 @@ export const getReportsResultsInitial = (limit = 20, offset = 0) => dispatch => 
                 let pmids = data.rows ? data.rows.map(row => row.pmid) : [];
                 let updatePmidRespData = {
                     pmids: data.pmidList,
-                    authorshipsCount : data.authorshipsCount
+                    personIdentifiers: data.personIdentifiersList
                 }
 
                 dispatch({
@@ -2264,11 +2300,56 @@ export const adminSettingsListAction = (adminSettingsList) => dispatch => {
     })
 }
 
-export const saveNotification = (payload) => dispatch => {
-    dispatch({
-        type: methods.NOTIFICATION_PREFERENCE_SAVE_LOADING,
+export const fetchAdminSettingsAction = () => (dispatch) => {
+    return fetchWithTimeout('/api/db/admin/settings', {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            "Authorization": reciterConfig.backendApiKey
+        }
     })
+    .then(response => {
+        if (!response.ok) throw new Error("Failed to load settings");
+        return response.json();
+    })
+    .then(data => {
+        // Sequelize returns viewAttributes as a JSON-encoded string. Parse it
+        // here so every consumer of state.updatedAdminSettings sees the same
+        // already-parsed shape (matches what JSON.parse(session.adminSettings)
+        // followed by JSON.parse(item.viewAttributes) yields in the cold-start
+        // path).
+        const normalized = Array.isArray(data) ? data.map(item => ({
+            ...item,
+            viewAttributes: typeof item.viewAttributes === "string"
+                ? JSON.parse(item.viewAttributes)
+                : item.viewAttributes
+        })) : data;
+        dispatch({
+            type: methods.ADMIN_SETTINGS_UPDATED_LIST,
+            payload: normalized
+        });
+    })
+    .catch(error => {
+        console.error("Admin Settings API failed:", error);
+        toast.error("Failed to load Admin Settings", {
+            position: "top-right",
+            autoClose: 2000,
+            theme: 'colored'
+        });
+        dispatch(addError(error));
+    });
+};
 
+export const notificationEmail = (email) => dispatch => {
+    dispatch({
+        type: methods.NOTIFICATION_EMAIL_CARIER,
+        payload: email
+    })
+}
+
+export const saveNotification = (payload) => dispatch => {
       fetch(`/api/db/admin/notifications`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2281,24 +2362,22 @@ export const saveNotification = (payload) => dispatch => {
       }).then(response => {
         if (response.status === 200) {
           return response.json()
-        } 
-      }).then(data => {
-        if(data.message === "User does not exist"){
-            toast.error(data.message, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-              });
-        }else{
-            toast.success('Manager Notification Preferences has been saved for this person identifier '+ data.personIdentifier, {
-                position: "top-right",
-                autoClose: 2000,
-                theme: 'colored'
-              });
+        } else {
+          throw {
+            type: response.type,
+            title: response.statusText,
+            status: response.status,
+            detail: "Error occurred with api " + response.url + ". Please, try again later "
+          }
         }
-        dispatch({
-            type: methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING,
-           })
+      }).then(data => {
+        // dispatch({
+        //   type: methods.REPORTS_RESULTS_IDS_UPDATE,
+        //   payload: data
+        // })
+        // dispatch({
+        //   type: methods.REPORTS_RESULTS_IDS_CANCEL_LOADING
+        // })
       }).catch(error => {
         console.log(error)
         toast.error("Save notification Api failed - " + error.title, {
@@ -2306,14 +2385,12 @@ export const saveNotification = (payload) => dispatch => {
           autoClose: 2000,
           theme: 'colored'
         });
-        //Cancel the save button loader
-        dispatch({
-            type: methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING,
-           })
+        dispatch(
+          addError(error)
+        )
       })
     }
-
-export const  sendNotification = (payload) =>{
+export const  sendNotification = (toEmail, body, subject) =>{
     return fetch(`/api/notification`, {
         credentials: "same-origin",
         method: 'POST',
@@ -2322,100 +2399,25 @@ export const  sendNotification = (payload) =>{
             "Content-Type": "application/json",
             'Authorization': reciterConfig.backendApiKey
         },
-        body: JSON.stringify(payload)
+        body: ""
     })
         .then(response => {
             if (response.status === 200) {
                 return response.json()
-            } 
+            } else {
+                // throw {
+                //     type: response.type,
+                //     title: response.statusText,
+                //     status: response.status,
+                //     detail: "Error occurred with api " + response.url + ". Please, try again later "
+                // }
+            }
         })
         .then(data => {
+            console.log("dataa is ", data)
             // return data
         })
         .catch(error => {
             console.log(error)
         })
-}
-
-
-export const disableNotificationbyID = (payload) => dispatch => {
-    fetch(`/api/db/admin/notifications/disableNotifications`, {
-      credentials: "same-origin",
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        "Content-Type": "application/json",
-        'Authorization': reciterConfig.backendApiKey
-      },
-      body: JSON.stringify(payload)
-    }).then(response => {
-      if (response.status === 200) {
-        return response.json()
-      } else {
-        throw {
-          type: response.type,
-          title: response.statusText,
-          status: response.status,
-          detail: "Error occurred with api " + response.url + ". Please, try again later "
-        }
-      }
-    }).then(data => {
-      
-    }).catch(error => {
-      console.log(error)
-      toast.error("Save notification Api failed - " + error.title, {
-        position: "top-right",
-        autoClose: 2000,
-        theme: 'colored'
-      });
-      dispatch(
-        addError(error)
-      )
-    })
-  }
-
-export const notificationEmail = (userInfo) => dispatch => {
-    dispatch({
-        type: methods.NOTIFICATION_EMAIL_CARRIER,
-        payload: userInfo
-    })
-}
-
-export const sendEmailData = (requestBody) => dispatch => {
-   
-    fetch(`/api/notification/sendPubEmailNotifications`, {
-        credentials: "same-origin",
-        method: 'POST',
-        headers: {
-            Accept: 'application/json',
-            "Content-Type": "application/json",
-            'Authorization': reciterConfig.backendApiKey
-        },
-        body: JSON.stringify(requestBody)
-    }).then(response => {
-        if (response.status === 200) {
-            toast.success("Test email sent Successfully - to " + requestBody.emailOverride, {
-            position: "top-right",
-            autoClose: 4000,
-            theme: 'colored'
-        });
-            return response.json()
-        } else {
-            throw {
-                type: response.type,
-                title: response.statusText,
-                status: response.status,
-                detail: "Error occurred with api " + response.url + ". Please, try again later "
-            }
-        }
-    }).then(data => {
-        
-    }).catch(error => {
-        toast.error("Send Test Email failed - " + error.title, {
-            position: "top-right",
-            autoClose: 2000,
-            theme: 'colored'
-        });
-        
-    })
 }

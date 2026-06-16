@@ -50,6 +50,7 @@ export class AnalysisTempOutputArticle extends Model<AnalysisTempOutputArticleAt
   }, {
     sequelize,
     tableName: 'analysis_temp_output_article',
+    modelName: 'AnalysisTempOutputArticle',
     timestamps: false,
     indexes: [
       {

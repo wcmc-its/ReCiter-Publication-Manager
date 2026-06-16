@@ -1,15 +1,19 @@
 import React, { useState, FunctionComponent, useEffect } from "react"
-import { Form, Row, Col, Button, Container } from 'react-bootstrap';
+import { Form, Row, Col, Button, Container, Collapse } from 'react-bootstrap';
 import Autocomplete from '@mui/material/Autocomplete';
 import { useSelector, useDispatch, RootStateOrAny } from "react-redux";
 import { styled } from '@mui/material/styles';
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
-import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles} from "../../../redux/actions/actions";
+import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminRoles, getAdminDepartments, getOrgUnits} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
 import { PageHeader } from "../Common/PageHeader";
+import CurationScopeSection from './CurationScopeSection';
+import ProxyAssignmentsSection from './ProxyAssignmentsSection';
+import { reciterConfig } from '../../../../config/local';
+import { toast } from 'react-toastify';
 
 
 interface FuncProps {
@@ -23,6 +27,9 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
     //Store Data
     const adminDepartments = useSelector((state: RootStateOrAny) => state.AllAdminDepatments);
+    // Curation-scope org units come from the real org-unit vocabulary (distinct
+    // Person.primaryOrganizationalUnit) — the same values scope enforcement compares against.
+    const orgUnitsData = useSelector((state: RootStateOrAny) => state.orgUnitsData);
     const allAdminRoles = useSelector((state: RootStateOrAny) => state.AllAdminRoles);
 
     const [state, setState] = useState({
@@ -42,13 +49,28 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
 
     const [selectedDepartments, setSelectedDepartments] = useState([]);
+    const [selectedPersonTypes, setSelectedPersonTypes] = useState<string[]>([]);
+    const [personTypeOptions, setPersonTypeOptions] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
+    const [selectedProxies, setSelectedProxies] = useState<any[]>([]);
 
     const router = useRouter()
     const isEdit = router.query.userId ? true : false;
 
     const dispatch = useDispatch();
 
+    // Ensure roles and departments are loaded (needed when navigating directly to /manageusers/add)
+    useEffect(() => {
+        if (!allAdminRoles || allAdminRoles.length === 0) dispatch(getAdminRoles());
+        if (!adminDepartments || adminDepartments.length === 0) dispatch(getAdminDepartments());
+        if (!orgUnitsData || orgUnitsData.length === 0) dispatch(getOrgUnits());
+    }, []);
+
+    const hasScopedRole = selectedRoles.includes('Curator_Scoped');
+    const hasCuratorAll = selectedRoles.includes('Curator_All');
+    const hasCurationRole = selectedRoles.some(
+        (r: any) => ['Curator_All', 'Curator_Scoped', 'Curator_Self'].includes(typeof r === 'string' ? r : (r.roleLabel || r.label || ''))
+    );
 
     const handleValueChangeTargetValue = (field, value) => {
         if(value != '') formErrorsInst[field] = ''; 
@@ -75,6 +97,15 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
           // roles errors
           if ( !selectedRoles || selectedRoles.length === 0  ) formErrInst.selectedRole = 'Please select atleast one role!'
 
+          // Mutual exclusion: Curator_All + Curator_Scoped
+          if (hasScopedRole && hasCuratorAll) {
+            formErrInst.mutualExclusion = 'Curator All and Curator Scoped cannot be combined. Remove one.';
+          }
+          // Scope required: at least one person type or org unit
+          if (hasScopedRole && selectedPersonTypes.length === 0 && selectedDepartments.length === 0) {
+            formErrInst.scopeRequired = 'At least one person type or organizational unit is required';
+          }
+
         setformErrInst(formErrInst)
 
         return formErrInst
@@ -86,6 +117,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         const newErrors = checkFormValidations()
 
           if ( Object.keys(newErrors).length === 0 ) {
+
             let roleIds = [];
             let departMentIds = [];
             selectedRoles && selectedRoles.length > 0 && allAdminRoles.map(role => {
@@ -93,7 +125,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                     if (editRole === role.roleLabel) roleIds.push(role.roleID)
                 })
             })
-            selectedDepartments && selectedDepartments.length > 0 && adminDepartments.map(department=>{
+            selectedDepartments && selectedDepartments.length > 0 && adminDepartments.map(department => {
                 selectedDepartments.map((selectedDep) => {
                     if (selectedDep === department.departmentLabel) departMentIds.push(department.departmentID)
                 })
@@ -101,71 +133,146 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             let selectedRoleIds = roleIds || [];
             let departmentIds = departMentIds || [];
             let isEditUserId = router.query.userId;
-            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
+            let scopePersonTypes = hasScopedRole ? selectedPersonTypes : [];
+            let scopeOrgUnits = hasScopedRole ? selectedDepartments : [];
+            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, scopePersonTypes, scopeOrgUnits }
 
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0] === 1) {
+                    // Save proxy assignments
+                    try {
+                        await fetch('/api/db/admin/proxy', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': reciterConfig?.backendApiKey || '',
+                            },
+                            body: JSON.stringify({
+                                userID: isEditUserId,
+                                personIdentifiers: selectedProxies.map(p => p.personIdentifier),
+                            }),
+                        });
+                        toast.success('Proxy assignments saved. Changes take effect on the user\'s next login.');
+                    } catch (err) {
+                        console.log('Error saving proxy assignments:', err);
+                    }
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
-                    router.push("/admin/manage/users")
+                    router.push("/manageusers")
                 }
             }
             else {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0].userID) {
+                    // Save proxy assignments for newly created user
+                    try {
+                        await fetch('/api/db/admin/proxy', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': reciterConfig?.backendApiKey || '',
+                            },
+                            body: JSON.stringify({
+                                userID: resp[0].userID,
+                                personIdentifiers: selectedProxies.map(p => p.personIdentifier),
+                            }),
+                        });
+                        toast.success('Proxy assignments saved. Changes take effect on the user\'s next login.');
+                    } catch (err) {
+                        console.log('Error saving proxy assignments:', err);
+                    }
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
-                    router.push("/admin/manage/users")
+                    router.push("/manageusers")
                 }
             }
         }
     };
 
     useEffect(() => {
-        dispatch(getAdminRoles());
-        dispatch(getAdminDepartments());
-    },[])
+        fetch('/api/db/users/persontypes', {
+            headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setPersonTypeOptions(data.map(d => d.personType));
+                }
+            })
+            .catch(err => console.log('Error fetching person types:', err));
+    }, []);
 
     useEffect(() => {
         let isEditUserId = router.query.userId;
 
-        if (isEditUserId) {
+        if (isEditUserId && allAdminRoles.length > 0) {
             setLoading(true)
             let userDetails = fetchUserInfoByID(isEditUserId).then(result => {
-                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier } = result && result[0];
+                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier, scope_person_types, scope_org_units } = result && result[0];
+                let roleNames = [];
                 if (adminUsersRoles) {
-                    let roleNames = [];
                     allAdminRoles.map(role => {
                         adminUsersRoles.map((editRole) => {
                             if (editRole.roleID === role.roleID) roleNames.push(role.roleLabel)
                         })
                     })
                     setSelectedRoles(roleNames ? roleNames : [])
+
+                    // Load saved person-type scope for edit (stored as JSON on the user record)
+                    if (roleNames.includes('Curator_Scoped')) {
+                        try {
+                            const savedPersonTypes = scope_person_types ? JSON.parse(scope_person_types) : [];
+                            if (Array.isArray(savedPersonTypes)) setSelectedPersonTypes(savedPersonTypes);
+                        } catch (err) {
+                            console.log('Error parsing scope_person_types:', err);
+                        }
+                    }
                 }
 
-                if (adminUsersDepartments) {
+                if (roleNames.includes('Curator_Scoped')) {
+                    // Scoped curators: org-unit scope lives in scope_org_units, not the department join
+                    try {
+                        const savedOrgUnits = scope_org_units ? JSON.parse(scope_org_units) : [];
+                        setSelectedDepartments(Array.isArray(savedOrgUnits) ? savedOrgUnits : [])
+                    } catch (err) {
+                        console.log('Error parsing scope_org_units:', err);
+                        setSelectedDepartments([])
+                    }
+                } else if (adminUsersDepartments) {
                     let departmentNames = [];
-
                     adminDepartments.map((department) => {
                         adminUsersDepartments.map((editIds) => {
                             if (editIds.departmentID == department.departmentID) departmentNames.push(department.departmentLabel)
-                        }
-                        )
+                        })
                     })
                     setSelectedDepartments(departmentNames ? departmentNames : [])
                 }
+
+                // Load existing proxy assignments
+                fetch(`/api/db/admin/proxy?userID=${isEditUserId}`, {
+                    headers: { 'Authorization': reciterConfig?.backendApiKey || '' },
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (Array.isArray(data)) setSelectedProxies(data);
+                    })
+                    .catch(err => console.log('Error fetching proxy assignments:', err));
 
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
                 setLoading(false)
             })
         }
 
-    }, [router.query.userId])
+    }, [router.query.userId, allAdminRoles])
 
     const CssTextField = styled(TextField)({
+        // Match the .fieldInput CSS in AddUser.module.css so the Autocomplete
+        // text fields in the Curation Scope and Proxy Assignment sections are
+        // visually consistent with the plain inputs above them on this form.
         '& .MuiOutlinedInput-root': {
             background: 'rgba(255, 255, 255, 0.9)',
             borderColor: '#ced4da',
             padding: '.375rem .75rem',
+            fontSize: '13px',
             '& fieldset': {
                 top: '0px',
                 '& legend': {
@@ -175,6 +282,15 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             '&:hover fieldset': {
                 borderColor: '#ced4da',
             },
+        },
+        '& .MuiOutlinedInput-input': {
+            fontSize: '13px',
+        },
+        '& .MuiAutocomplete-tag': {
+            fontSize: '13px',
+        },
+        '& input::placeholder': {
+            fontSize: '13px',
         },
     });
 
@@ -256,6 +372,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                 </Form.Control.Feedback>
                             </Form.Group>
                         </Row>
+                        {!hasScopedRole && (
                         <Row className="mb-3">
                             <Form.Group as={Col} sm={12} lg={12} controlId="formGridDepartment">
                                 <Form.Label>Organizational unit(s) user can manage</Form.Label>
@@ -280,6 +397,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                 />
                             </Form.Group>
                         </Row>
+                        )}
 
                         <Row className="mb-3">
                             <Form.Group as={Col} sm={12} lg={12} controlId="formGridRole">
@@ -304,11 +422,39 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     )}
                                 />
                                  { formErrorsInst.selectedRole ? <p className="text-danger">{formErrorsInst.selectedRole}</p>:""}
+                                 { formErrorsInst.mutualExclusion && (
+                                    <p role="alert" className="text-danger">{formErrorsInst.mutualExclusion}</p>
+                                 )}
                             </Form.Group>
                         </Row>
+
+                        <Collapse in={hasScopedRole}>
+                            <div>
+                                <CurationScopeSection
+                                    selectedPersonTypes={selectedPersonTypes}
+                                    onPersonTypesChange={setSelectedPersonTypes}
+                                    selectedDepartments={selectedDepartments}
+                                    onDepartmentsChange={setSelectedDepartments}
+                                    personTypeOptions={personTypeOptions}
+                                    departmentOptions={(orgUnitsData || []).map((o: any) => o.primaryOrganizationalUnit).filter(Boolean)}
+                                    error={formErrorsInst.scopeRequired || null}
+                                    CssTextField={CssTextField}
+                                />
+                            </div>
+                        </Collapse>
+
+                        <Collapse in={hasCurationRole}>
+                            <div>
+                                <ProxyAssignmentsSection
+                                    selectedProxies={selectedProxies}
+                                    onProxiesChange={setSelectedProxies}
+                                    CssTextField={CssTextField}
+                                />
+                            </div>
+                        </Collapse>
                         <Row className="justify-content-center">
                             <Col md={4} sm={12} lg={2}>
-                                <Button variant="primary" type="submit" className="primary mb-4 " disabled={cwid.trim().length === 0 && !validateEmail(email)}>
+                                <Button variant="primary" type="submit" className="primary mb-4 " disabled={(cwid.trim().length === 0 && !validateEmail(email)) || !!formErrorsInst.mutualExclusion}>
                                     {isEdit ? "Update" : "Submit"}
                                 </Button>
                             </Col>

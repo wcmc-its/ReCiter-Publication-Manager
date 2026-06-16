@@ -1,50 +1,33 @@
 import saml2 from "saml2-js"
-import axios from "axios"
-//import type { NextApiRequest, NextApiResponse } from 'next'
-import { reciterSamlConfig }  from "../../../../config/saml"
+import { reciterSamlConfig } from "../../../../config/saml"
+
+// SP-initiated SSO entry point. Unauthenticated users land here (via the
+// redirect in src/pages/index.js when NEXT_PUBLIC_LOGIN_PROVIDER=SAML),
+// we build the AuthnRequest with saml2-js and bounce to the IdP. The IdP
+// POSTs the SAMLResponse to /api/auth/saml-acs, which forwards into
+// NextAuth's credentials callback at /api/auth/callback/saml.
 
 export default async function handler(req, res) {
-    if (req.method === "POST") {
-        const { data, headers } = await axios.get("/api/auth/csrf", {
-            baseURL: "https://" + req.headers.host,
-        });
-        const { csrfToken } = data;
-
-        const encodedSAMLBody = encodeURIComponent(JSON.stringify(req.body));
-
-        res.setHeader("set-cookie", headers["set-cookie"] ?? "");
-        return res.send(
-            `<html>
-          <body>
-            <form action="/api/auth/callback/saml" method="POST">
-              <input type="hidden" name="csrfToken" value="${csrfToken}"/>
-              <input type="hidden" name="samlBody" value="${encodedSAMLBody}"/>
-            </form>
-            <script>
-              document.forms[0].submit();
-            </script>
-          </body>
-        </html>`
-        );
+    if (req.method !== "GET") {
+        return res.status(405).send("Method not allowed");
     }
 
     const sp = new saml2.ServiceProvider(reciterSamlConfig.saml_options);
-    const createLoginRequestUrl = (idp, options = {}) =>
+    const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
+
+    const createLoginRequestUrl = (identityProvider, options = {}) =>
         new Promise((resolve, reject) => {
-            sp.create_login_request_url(idp, options, (error, loginUrl) => {
-                if (error) {
-                    reject(error);
-                }
-                resolve(loginUrl);
+            sp.create_login_request_url(identityProvider, options, (error, loginUrl) => {
+                if (error) reject(error);
+                else resolve(loginUrl);
             });
         });
 
     try {
-        const idp = new saml2.IdentityProvider(reciterSamlConfig.saml_idp_options);
         const loginUrl = await createLoginRequestUrl(idp);
         return res.redirect(loginUrl);
     } catch (error) {
-        console.error(error);
-        res.status(500).send(error);
+        console.error("SAML AuthnRequest build failed:", error);
+        return res.status(500).send("SAML login error");
     }
 }

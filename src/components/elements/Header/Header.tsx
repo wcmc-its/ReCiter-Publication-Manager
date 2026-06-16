@@ -10,6 +10,7 @@ const Header = () => {
         <Navbar bg="primary" className={styles.topNav}>
           <div>
               <Navbar.Brand className={styles.headerText}>
+                  <span className={styles.brandDot}></span>
                   <b>ReCiter Publication Manager</b>
               </Navbar.Brand>
           </div>
@@ -17,8 +18,8 @@ const Header = () => {
           <ul className={`nav navbar-nav ${styles.navbarRight}`}>
               {(session && session.data) ? 
               <>
-                  <li className={styles.headerNavSignedInAs}><p><b>Signed in as {session.data.username}</b></p></li> 
-                  <li><a className={styles.logout} onClick={()=>{signOut({ callbackUrl: getSigninUrl() })}}>Logout</a></li>
+                  <li className={styles.headerNavSignedInAs}><p>{session.data.username}</p></li>
+                  <li><button type="button" className={styles.logout} onClick={()=>{signOut({ redirect: false }).then(() => { window.location.href = '/api/auth/saml-logout'; })}} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}>Logout</button></li>
               </> : null}
               
           </ul>

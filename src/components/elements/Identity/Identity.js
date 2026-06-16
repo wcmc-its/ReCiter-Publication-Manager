@@ -30,7 +30,7 @@ const Identity = (props) => {
                 imageUrl = '../../../../public/images/profile-pic.jpg'
         }
         const image = (
-            <img src={`${imageUrl}`} width="144" className={styles.imgProps}/>
+            <img src={`${imageUrl}`} width="144" className={styles.imgProps} alt="Faculty profile"/>
         );
         const userData = {
             primaryName: identityData.primaryName.firstName + ((identityData.primaryName.middleName !== undefined)? ' ' + identityData.primaryName.middleName + ' ':' ') + identityData.primaryName.lastName,

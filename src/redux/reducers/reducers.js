@@ -204,6 +204,15 @@ export const updatedAdminSettings = (state= [], action) => {
   }
 }
 
+export const showOnlyScopeFiltered = (state = false, action) => {
+  switch(action.type) {
+      case methods.UPDATE_SCOPE_FILTER :
+          return action.payload
+      default :
+          return state
+  }
+}
+
 
 
 export const pubMedCount = (state= 0, action) => {
@@ -300,15 +309,28 @@ export const institutionsFetching = (state=false, action) => {
 
 }
 
+// Institutions that should always appear first in any Institution(s) dropdown,
+// in this order. Names must match the primaryInstitution values exactly.
+const PINNED_INSTITUTIONS = ['Weill Cornell Medicine', 'Weill Cornell Medical College in Qatar'];
+
+const sortPinnedInstitutions = (list) => {
+  if (!Array.isArray(list)) return list;
+  const pinned = PINNED_INSTITUTIONS
+    .map(name => list.find(item => item && item.primaryInstitution === name))
+    .filter(Boolean);
+  const rest = list.filter(item => !(item && PINNED_INSTITUTIONS.includes(item.primaryInstitution)));
+  return [...pinned, ...rest];
+};
+
 export const institutionsData = (state=[], action) => {
 
   switch(action.type) {
-      
+
       case methods.INSTITUTIONS_CLEAR_ALL_DATA :
           return []
 
       case methods.INSTITUTIONS_CHANGE_ALL_DATA :
-          return action.payload
+          return sortPinnedInstitutions(action.payload)
 
       default :
           return state
@@ -699,22 +721,22 @@ export const reportingFiltersLoading = (state=false, action) => {
   switch (action.type) {
 
     case methods.REPORTING_FILTERS_SET_LOADING :
-      return true 
+      return true
 
     case methods.REPORTING_FILTERS_CANCEL_LOADING :
-      return false 
-    
+      return false
+
       default :
         return state
   }
 }
 
-export const notificationEmailCarier = (state={}, action) => {
+export const notificationEmailCarier = (state="", action) => {
   switch(action.type) {
-      case methods.NOTIFICATION_EMAIL_CARRIER :
-          return action.payload
-      default :
-          return state
+    case methods.NOTIFICATION_EMAIL_CARIER :
+      return action.payload
+    default :
+      return state
   }
 }
 
@@ -815,30 +837,6 @@ export const reportsResultsIdsLoading = (state = false, action) => {
   }
 }
 
-export const saveNotificationsLoading = (state = false, action) => {
-  switch(action.type) {
-    case methods.NOTIFICATION_PREFERENCE_SAVE_LOADING:
-      return true
-    case methods.NOTIFICATION_PREFERENCE_SAVE_CANCEL_LOADING:
-      return false
-    default:
-      return state
-  }
-}
-
-export const identityORFeatureGenError = (state=[], action) => {
-  switch(action.type) {
-      case methods.ERROR_FOR_IDENTITY_FEATURE_GENERATOR :
-          return [
-              ...state,
-              action.payload
-          ]
-      default:
-          return state
-  }
-}
-
-
 export default combineReducers({
     reciterFetching,
     pubmedFetching,
@@ -895,7 +893,7 @@ export default combineReducers({
     authorFilterDataFromSearch,
     showEvidenceDefault,
     updatedAdminSettings,
-    notificationEmailCarier,
-    saveNotificationsLoading,
-    identityORFeatureGenError
+    showOnlyScopeFiltered,
+    notificationEmailCarier
+
 })

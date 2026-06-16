@@ -1,32 +1,37 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useMemo } from "react";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useSelector, useDispatch,RootStateOrAny } from "react-redux";
+import { useSelector, RootStateOrAny } from "react-redux";
 import { useSession } from 'next-auth/client';
 
-
-
 const ToastContainerWrapper = () => {
-  const [session, loading] = useSession();
+  const [session] = useSession();
+  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings);
 
-  const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
-  const [isToastVisible, setIsToastVisible] = useState<boolean>(false)
-
-  useEffect(() => {
-    let adminSettings = session && JSON.parse(JSON.stringify(session?.adminSettings));
-    var displayToastMessages = [];
-    if (updatedAdminSettings.length > 0) { 
-      let displayMessages = updatedAdminSettings.find(obj => obj.viewName === "displayMessages")
-      displayToastMessages = displayMessages.viewAttributes;
-    }else{
-        let displayMessages = adminSettings && JSON.parse(adminSettings).find(obj => obj.viewName === "displayMessages")
-        displayToastMessages = displayMessages && JSON.parse(displayMessages.viewAttributes);
+  const isToastVisible = useMemo(() => {
+    let displayToastMessages: any[] = [];
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      const displayMessages = updatedAdminSettings.find((obj: any) => obj.viewName === "displayMessages");
+      // viewAttributes may be a parsed array (post fetchAdminSettingsAction
+      // normalization in actions.js) or still a JSON-encoded string. Handle
+      // both so a Configuration save flips the wrapper without a reload.
+      const raw = displayMessages?.viewAttributes;
+      displayToastMessages = typeof raw === "string" ? JSON.parse(raw) : (raw || []);
+    } else if ((session as any)?.adminSettings) {
+      try {
+        const parsed = JSON.parse((session as any).adminSettings);
+        const displayMessages = Array.isArray(parsed) && parsed.find((obj: any) => obj.viewName === "displayMessages");
+        const raw = displayMessages?.viewAttributes;
+        displayToastMessages = typeof raw === "string" ? JSON.parse(raw) : (raw || []);
+      } catch {
+        displayToastMessages = [];
+      }
     }
-    let getVisibleKey =  displayToastMessages && displayToastMessages.find(obj => obj.isVisible)
-    setIsToastVisible(getVisibleKey && getVisibleKey.isVisible || false );
-  },[])
-    
-    return isToastVisible && <ToastContainer />
-}
+    const visibleEntry = displayToastMessages.find((obj: any) => obj?.isVisible);
+    return !!visibleEntry?.isVisible;
+  }, [updatedAdminSettings, session]);
 
-export default ToastContainerWrapper
+  return isToastVisible ? <ToastContainer /> : null;
+};
+
+export default ToastContainerWrapper;

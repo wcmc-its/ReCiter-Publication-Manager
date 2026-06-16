@@ -1,0 +1,11 @@
+.tabContainer {
+    padding: 0;
+}
+
+.tabPanel {
+    margin-top: 16px;
+}
+
+.usersPanel :global(h1) {
+    display: none;
+}

@@ -54,7 +54,7 @@ export const reciterConfig = {
                  * This flag specifies if reciter will re-compute suggestions. Use if you want to re-compute. This will take more time and resources.
                  * Type: Boolean
                  */
-                analysisRefreshFlag: "false",
+                analysisRefreshFlag: "FALSE",
                 /**
                  * This flag specifies if reciter will re-retrieve all publication from upstream sources. Specify to refresh all retrieval.
                  * Type: String
@@ -100,6 +100,11 @@ export const reciterConfig = {
         reciterUpdateGoldStandardEndpoint:
                 process.env.RECITER_API_BASE_URL + '/reciter/goldstandard',
         /**
+         * Read-only curation audit history (FeedbackLog + ArticleProvenance) by uid.
+         */
+        reciterFeedbackLogEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/feedback-log/',
+        /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */
@@ -112,10 +117,16 @@ export const reciterConfig = {
     /**
      * This endpoint is used to search pubmed. You need to have ReCiter-Pubmed-Retrieval tool conifgured. See https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool.git
      * for details.
+     *
+     * On prod these /pubmed/query-* routes live behind the same ingress as the
+     * ReCiter Spring Boot service, so RECITER_API_BASE_URL is sufficient. On
+     * dev the two services are separate (reciter-dev vs reciter-pubmed-dev),
+     * so RECITER_PUBMED_API_URL can override just these routes. Falls back to
+     * RECITER_API_BASE_URL when not set, preserving prod behavior.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-complex/',
-        searchPubmedCountEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-number-pubmed-articles/',
+        searchPubmedEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-complex/',
+        searchPubmedCountEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-number-pubmed-articles/',
     },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.

@@ -1,10 +1,17 @@
 .mainContainer {
-    font-family: 'Helvetica Neue', Helvetica;
+    font-family: var(--font-sans);
 }
 
 
 .publicationField {
-    line-height: 1.1em !important;
+    line-height: 1.4em !important;
+}
+
+.publicationField b,
+.publicationField strong {
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--gray-900);
 }
 
 
@@ -14,7 +21,6 @@
 
 .publicationShowEvidenceContainer {
     display: none;
-    margin-top: 20px;
 }
 .publicationShowEvidenceContainer.publicationShowEvidenceContainerOpen {
     display: block;
@@ -28,29 +34,6 @@
     margin-left: -10px;
 }
 
-.publicationsEvidenceTable {
-    font-size: 14px;
-}
-.publicationsEvidenceTable thead th {
-    background: #202B3C;
-    color: #fff;
-    padding: 10px;
-    text-align: center;
-}
-.publicationsEvidenceTable td {
-    padding: 5px 10px;
-}
-.publicationsEvidenceTable tbody {
-  border-top: none;
-}
-.publicationsEvidenceTable thead .firstCell {
-    text-align: right !important;
-    border-left: none;
-}
-
-.publicationsEvidenceTable p {
-    margin: 5px 0px;
-}
 
 .publicationButtons {
     text-align: center;
@@ -61,14 +44,16 @@
 .publicationContent {
     padding-top: 20px !important;
     width : 850px !important;
-    
+
 }
 .publicationAccept {
     font-size: 12px;
     font-weight: 600;
     margin-right: 5px;
-    background-color: #66FF66;
-    color:black;
+    background-color: var(--color-success-light);
+    color: var(--color-success);
+    border: 1px solid var(--color-success);
+    border-radius: var(--radius-sm);
 }
 .publicationReject {
     font-size: 12px;
@@ -81,9 +66,9 @@
 }
 .publicationScore {
     display: inline-block;
-    background: #202B3C;
+    background: var(--gray-800);
     color: #ffffff;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     text-align: center;
     padding: 7px 15px;
     line-height: 1.2em;
@@ -106,20 +91,21 @@
 .publicationRowButtons button {
     background-color: #ffffff;
     font-size: 12px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--gray-300);
     margin-left: 10px;
-    color: #333333;
+    color: var(--gray-700);
+    border-radius: var(--radius-sm);
 }
 .publicationRowButtons button:hover {
-  background-color: #f5f5f5;
-  color: #333333;
-  border-color: #ccc;
+  background-color: var(--gray-50);
+  color: var(--gray-700);
+  border-color: var(--gray-300);
 }
 .publicationShowEvidenceContainer {
     font-size: 14px;
 }
 .publicationShowEvidenceLink {
-    color: #337ab7;
+    color: var(--wcm-red);
     cursor: pointer;
 }
 .cursorPointer{
@@ -142,10 +128,13 @@
 }
 .publicationShowEvidenceLink:hover {
     text-decoration: none;
+    color: var(--wcm-red-dark);
 }
 
 .publicationAuthorHighlighted {
-    background-color: #fffdd4;
+    background-color: #f5f0c8;
+    border-radius: 3px;
+    padding: 1px 3px;
 }
 
 .evidenceScorePopupContainer {
@@ -155,45 +144,66 @@
 
 .reciterType {
   display: inline-block;
-  background: #d9d9d9;
-  border-radius: 2px;
+  background: #e6eef7;
+  border-radius: 20px;
   text-align: center;
-  padding: 5px;
+  padding: 3px 10px;
   line-height: 1em;
   margin-top: 8px;
-  font-size: 10px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 600;
   font-stretch: normal;
   font-style: normal;
   line-height: normal;
-  letter-spacing: normal;
-  color: #0a0e13;
-  margin-left: 6px;
-  letter-spacing: .11px;
-  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #2c4a7c;
+}
+
+/* Unified provenance badge — one light pill for every source. Color is reserved
+   for match semantics, never for "where the data came from". */
+.evTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 400;
+  margin: 1px 2px 1px 4px;
+  white-space: nowrap;
+  background: #eeeae4;
+  color: #5a6478;
+  border: none;
+}
+
+.dataEmpty {
+  color: #8a94a6;
+  font-style: italic;
+}
+
+.dataSub {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-top: 2px;
 }
 
 .publicationUndo {
     color: #777;
-    /* color: #ffffff; */
     background-color: #ffffff;
-    border-color: #ccc;
-    /* background-color: red; */
+    border-color: var(--gray-300);
 }
 .publicationUndo:hover {
-    color: #333;
-    /* color: #ffffff; */
-    border-color: #999;
+    color: var(--gray-700);
+    border-color: var(--gray-400);
 }
 
 .facultyTitle {
-  color: #173A7F;
+  color: var(--wcm-red);
   font-size: 1.5rem;
 }
 
 .facultyHeader {
   font-size: 18px;
-  color: #777;
+  color: var(--gray-500);
 }
 
 .publicationsSummary {
@@ -217,7 +227,7 @@
 }
 
 .midDot::before {
-  content: "•";
+  content: "\2022";
   padding-left: 5px;
   padding-right: 5px;
 }
@@ -229,7 +239,15 @@
 .publicationContainer {
   background-color: #ffffff;
   margin-top: 5px;
-  margin-bottom: 5px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  transition: box-shadow 0.15s ease;
+}
+
+.publicationContainer:hover {
+  box-shadow: var(--shadow-sm);
 }
 
 .publicationHeader>button {
@@ -244,11 +262,13 @@
 }
 
 .publicationAdditionalInfo span {
-  color: #65686B;
+  color: var(--gray-500);
+  font-size: 13px;
 }
 
 .publicationAdditionalInfo a {
-  color: #65686B;
+  color: var(--gray-500);
+  font-size: 13px;
 }
 
 .publicationAdditionalInfo .midDot:first-of-type::before {
@@ -256,35 +276,1036 @@
 }
 
 .highlightedAuthor {
-  background-color: #EBF4BC;
+  color: var(--color-accent, #2563a8);
+  background-color: transparent;
+  font-weight: 600;
 }
 .acceptedCheck > i{
   color : red;
 }
-.feedbackContainer {
-  padding: 8px;
+/* ── Evidence sections (quiet title text + white card) ── */
+
+.sectionBlock {
+  margin-bottom: 20px;
 }
 
-.columnContainer {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr); /* 4 equal-width columns */
-  gap: 40px; /* Space between columns */
-  margin:-9px;
+.sectionBlock:last-child {
+  margin-bottom: 0;
 }
 
-.column {
+.sectionHeader {
   display: flex;
-  flex-direction: column; /* Stack items vertically in each column */
-  gap: 3px; /* Space between items in each column */
-  text-align:left;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
 }
 
-.feedbackItem {
+/* Quiet uppercase section-title role on the warm background, no fill */
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a94a6;
+}
+
+.sectionCard {
+  background: #fff;
+  border: 0.5px solid #e8e2d9;
+  border-radius: 6px;
+  padding: 14px 18px;
+}
+
+.identityCard {
+  background: #fff;
+  border: 0.5px solid #e8e2d9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Learn more popover */
+.learnMoreWrap {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.learnMoreBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #8a94a6;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  text-decoration: none;
+  transition: color 0.12s;
+}
+
+.learnMoreBtn:hover {
+  color: #5a6478;
+}
+
+.learnMorePopover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 360px;
+  background: #fff;
+  border: 1px solid #e8e2d9;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(26, 33, 51, 0.14), 0 2px 8px rgba(26, 33, 51, 0.08);
+  padding: 18px 20px;
+  z-index: 100;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #5a6478;
+}
+
+.learnMorePopover::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 22px;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-left: 1px solid #e8e2d9;
+  border-top: 1px solid #e8e2d9;
+  transform: rotate(45deg);
+}
+
+.learnMorePopover p {
+  margin-bottom: 12px;
+}
+
+.learnMorePopover p:last-child {
+  margin-bottom: 0;
+}
+
+.learnMorePopover strong {
+  color: var(--gray-900);
+  font-weight: 600;
+}
+
+.learnMoreWrap:hover .learnMorePopover {
+  display: block;
+}
+
+/* Identity-scores legend popover (icon + label, compact) */
+.legendPopover {
+  width: auto;
+  min-width: 150px;
+  padding: 12px 16px;
+  font-size: 12px;
+}
+
+.learnMoreWrap:hover .legendPopover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #5a6478;
+}
+
+.legendIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.feedbackHeaderLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray-500);
+}
+
+.feedbackLearnMore {
+  font-size: 12px;
+  color: var(--gray-400);
+  text-decoration: none;
+}
+
+.feedbackLearnMore:hover {
+  color: var(--gray-600);
+  text-decoration: underline;
+}
+
+/* ── Feedback-based scores — ranked list (label · value · thin bar) ── */
+
+.feedbackList {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 40px minmax(0, 1fr);
+  gap: 8px 16px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.feedbackLabel {
+  color: #5a6478;
+  white-space: nowrap;
+}
+
+.feedbackValue {
+  color: #1a2133;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.feedbackValueNeg {
+  composes: feedbackValue;
+  color: #c0392b;
+}
+
+.feedbackBarTrack {
+  height: 4px;
+  background: #eeeae4;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.feedbackBarFill {
+  height: 4px;
+  background: #1a2133;
+  opacity: 0.75;
+  border-radius: 2px;
+}
+
+.feedbackBarFillNeg {
+  composes: feedbackBarFill;
+  background: #c0392b;
+}
+
+/* ── New card layout ── */
+
+.articleCard {
+  background: #fff;
+  border: 0.5px solid #e8e2d9;
+  border-radius: 6px;
+  box-shadow: none;
+  display: flex;
+  flex-direction: row;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.articleCard.focused {
+  border-color: #2563a8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 168, 0.15);
+}
+
+/* Status strip for accepted/rejected cards */
+.statusStrip {
+  width: 3px;
+  flex-shrink: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.statusStripAccepted {
+  composes: statusStrip;
+  background: #1D9E75;
+}
+
+.statusStripRejected {
+  composes: statusStrip;
+  background: #c0392b;
+}
+
+.cardMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardTop {
+  display: flex;
+  flex-direction: row;
+}
+
+/* ── Card content ── */
+
+.cardContent {
+  flex: 1;
+  padding: 16px 20px 12px;
+  min-width: 0;
+}
+
+.titleRow {
+  margin-bottom: 5px;
+}
+
+.scoreArea {
+  flex-shrink: 0;
+  padding: 16px 0 16px 18px;
+  align-self: flex-start;
+}
+
+.cardMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.cardMetaLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardDate {
+  font-size: 12px;
+  color: #8a94a6;
+}
+
+.cardMetaSep {
+  color: #ddd7ce;
+  margin: 0 2px;
+}
+
+.pmidLabel {
+  color: #8a94a6;
+}
+
+.pmidLink {
+  color: var(--color-accent, #2563a8);
+  text-decoration: none;
+  margin-left: 2px;
+}
+
+.pmidLink:hover {
+  text-decoration: underline;
+}
+
+.scoreTip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.scoreTip:hover .scoreTooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%);
+}
+
+.scoreTooltip {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  width: 210px;
+  background: #1a2133;
+  border-radius: 8px;
+  padding: 12px 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 200;
+  box-shadow: 0 6px 24px rgba(26, 33, 51, 0.2);
+}
+
+.scoreTooltip::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 6px solid transparent;
+  border-right-color: #1a2133;
+}
+
+.stRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.stRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.stRow:first-child {
+  padding-top: 0;
+}
+
+.stLabel {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.stVal {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.stValGreen {
+  composes: stVal;
+  color: #5de0a0;
+}
+
+.stValAmber {
+  composes: stVal;
+  color: #f0b84a;
+}
+
+.stValMuted {
+  composes: stVal;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Score tile — left rail, ~44px, shaded by score tier */
+.scoreTile {
+  flex-shrink: 0;
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+  border-radius: 6px;
+  border: 0.5px solid transparent;
+  cursor: default;
+}
+
+.scoreTileNumber {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.scoreTileLabel {
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.scoreTileHigh {
+  composes: scoreTile;
+  background: #eaf3ee;
+  border-color: #cfe5da;
+}
+.scoreTileHigh .scoreTileNumber { color: #0f6e56; }
+.scoreTileHigh .scoreTileLabel { color: #5dcaa5; }
+
+.scoreTileMedium {
+  composes: scoreTile;
+  background: #faf2e6;
+  border-color: #ecd9bb;
+}
+.scoreTileMedium .scoreTileNumber { color: #92600a; }
+.scoreTileMedium .scoreTileLabel { color: #c9a25f; }
+
+.scoreTileLow {
+  composes: scoreTile;
+  background: #fbeeee;
+  border-color: #ecd0d0;
+}
+.scoreTileLow .scoreTileNumber { color: #a33030; }
+.scoreTileLow .scoreTileLabel { color: #cf8f8f; }
+
+.articleTitle {
   font-size: 14px;
-  margin:0;
+  font-weight: 600;
+  color: #1a2133;
+  line-height: 1.45;
+  margin-bottom: 4px;
+  margin-top: 6px;
 }
 
-.feedbackItem strong {
-  margin-right: 3px;
+.articleAuthors {
+  font-size: 13px;
+  color: #5a6478;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.highlightAuthor {
+  color: #2563a8;
+  font-weight: 600;
+}
+
+.articleMeta {
+  font-size: 12px;
+  color: #8a94a6;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 0;
+}
+
+.articleMeta > span:not(:first-child)::before {
+  content: "\2022";
+  padding: 0 6px;
+  color: #ddd7ce;
+}
+
+.typeBadge {
+  display: inline-block;
+  background: #eeeae4;
+  border: none;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #5a6478;
+}
+
+/* Status chip for actioned cards (meta row) */
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.statusChipAccepted {
+  composes: statusChip;
+  color: #1D9E75;
+}
+
+.statusChipRejected {
+  composes: statusChip;
+  color: #c0392b;
+}
+
+.articleLinks {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #8a94a6;
+}
+
+.articleLinksLeft {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.articleLinksLeft > span:not(:first-child)::before {
+  content: "\2022";
+  padding: 0 6px;
+  color: var(--gray-300);
+}
+
+.articleLinks a {
+  color: #2563a8;
+  text-decoration: none;
+  font-size: 11.5px;
+}
+
+.articleLinks a:hover {
+  text-decoration: underline;
+}
+
+.evidenceBtn {
+  color: #2563a8;
+  cursor: pointer;
+  font-size: 11.5px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.evidenceBtn:hover {
+  text-decoration: underline;
+}
+
+.evidenceBtnPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-accent, #2563a8);
+  background: none;
+  border: none;
+  border-radius: 0;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.12s;
+}
+
+.evidenceBtnPrimary:hover {
+  text-decoration: underline;
+}
+
+.evidenceBtnPrimary svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Curation log popover ── */
+
+.curationWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.curationLogPopover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  /* Anchor to the right of the History link and extend leftward over the card.
+     The link sits at the end of the journal row, so a left-anchored panel could
+     run off the right edge of the viewport; right-anchoring keeps it on-screen. */
+  left: auto;
+  right: 0;
+  width: 380px;
+  max-width: min(380px, calc(100vw - 32px));
+  background: #fff;
+  border: 1px solid #e8e2d9;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(26, 33, 51, 0.12), 0 2px 8px rgba(26, 33, 51, 0.07);
+  z-index: 200;
+  /* Long histories scroll internally instead of dominating the page. */
+  max-height: min(70vh, 460px);
+  overflow: hidden auto;
+}
+
+/* Arrow pointing down, near the right edge under the History link */
+.curationLogPopover::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 16px;
+  border: 6px solid transparent;
+  border-top-color: #e8e2d9;
+}
+
+.curationLogPopover::before {
+  content: '';
+  position: absolute;
+  top: calc(100% - 1px);
+  right: 16px;
+  border: 6px solid transparent;
+  border-top-color: #fff;
+  z-index: 1;
+}
+
+.clogHead {
+  padding: 9px 14px;
+  background: #1a2133;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.clogEntry {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #ddd7ce;
+  font-size: 12px;
+}
+
+.clogEntry:last-child {
+  border-bottom: none;
+}
+
+.clogAction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clogDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.clogDotAccepted { background: #1a7a4a; }
+.clogDotRejected { background: #c0392b; }
+.clogDotUndone { background: #8a94a6; }
+
+.clogVerb {
+  font-weight: 600;
+  color: #1a2133;
+}
+
+.clogVerbAccepted { color: #1a7a4a; }
+.clogVerbRejected { color: #c0392b; }
+.clogVerbUndone { color: #8a94a6; }
+
+.clogWho {
+  font-size: 11px;
+  color: #8a94a6;
+}
+
+.clogDate {
+  font-size: 11px;
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.clogEmpty {
+  padding: 16px 14px;
+  font-size: 12px;
+  color: #8a94a6;
+  font-style: italic;
+}
+
+/* Hover/focus reveal for the History popover (provenance + curation) */
+.curationWrap:hover .curationLogPopover,
+.curationWrap:focus-within .curationLogPopover {
+  display: block;
+}
+
+/* Provenance block (top section of the History popover) */
+.provBlock {
+  padding: 8px 14px;
+}
+
+.provRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.provLabel {
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.provValue {
+  color: #1a2133;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ── Card right column (inline undo for actioned cards) ── */
+
+.cardRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 14px 16px;
+  flex-shrink: 0;
+}
+
+.btnUndoInline {
+  padding: 4px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: none;
+  color: var(--gray-500);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.btnUndoInline:hover {
+  background: #f5f3f0;
+  color: var(--gray-700);
+  border-color: var(--gray-400);
+}
+
+/* ── Card footer row — evidence link left, action cluster right ── */
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 20px;
+  padding: 12px 0 14px;
+  border-top: 0.5px solid #f0ece5;
+}
+
+/* Decided-state action cluster — compact (left-aligned; evidence sits right) */
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Evidence container spans full card width */
+.publicationShowEvidenceContainerOpen {
+  padding: 16px 20px;
+}
+
+.cardActions button {
+  padding: 7px 15px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  background: #ffffff;
+  border: 0.5px solid #ddd7ce;
+  color: #5a6478;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.cardActions button:hover {
+  background: #faf8f5;
+  border-color: #bbb5aa;
+}
+
+/* Decided opposite-action: colored text on neutral chrome */
+.btnAccept { color: #1a7a4a; }
+.btnReject { color: #c0392b; }
+.btnUndo   { color: #5a6478; }
+
+.cardActionsActioned {
+  /* compact cluster — no override needed */
+}
+
+/* ── Pending decision buttons — large + spaced, with a dead-zone gap.
+   Big targets (Fitts's law) but a fast click can't flip Accept <-> Reject.
+   Soft tint at rest, solid fill on hover: calm normally, confident on commit. ── */
+.bigActions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.bigActions button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  border-radius: var(--radius-md);
+  border: 0.5px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
+}
+
+.bigActions button:active { transform: scale(0.985); }
+.bigActions button svg { flex-shrink: 0; }
+
+/* dead-zone gap with a faint dashed centerline */
+.deadZone {
+  flex: 0 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deadZoneLine {
+  height: 58%;
+  border-left: 1px dashed #ddd7ce;
+}
+
+.btnAcceptBig {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #b7e4c7;
+}
+
+.btnAcceptBig:hover {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+}
+
+.btnRejectBig {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #f3c4c4;
+}
+
+.btnRejectBig:hover {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+/* Actioned card in Suggested tab */
+.actionedCard {
+  opacity: 0.7;
+}
+
+.actionedCard .articleTitle {
+  color: var(--gray-500);
+}
+
+/* ── Identity-based scores (single status icon, no rails/bars) ── */
+
+.identityTable {
+  margin-bottom: 0;
+  font-size: 13px;
+}
+
+.identityRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 16px;
+  align-items: baseline;
+  padding: 12px 18px;
+  border-bottom: 0.5px solid #f0ece5;
+  color: #1a2133;
+}
+
+.identityRow:last-of-type {
+  border-bottom: none;
+}
+
+/* Quiet uppercase column header on a subtle surface */
+.identityHeaderRow {
+  align-items: center;
+  padding: 8px 18px;
+  background: #faf8f5;
+  border-bottom: 0.5px solid #e8e2d9;
+}
+
+.identityHeaderRow > div {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a94a6;
+}
+
+.identityEvidence {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  min-width: 0;
+}
+
+.identityEvidence p {
+  margin: 2px 0;
+}
+
+.matchIcon {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.evName {
+  color: #1a2133;
+}
+
+.sourceLink {
+  font-size: 10px;
+  color: #8a94a6;
+  text-decoration: none;
+  margin-left: 2px;
+}
+
+.sourceLink:hover {
+  text-decoration: underline;
+}
+
+.evPoints {
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.evPointsNeg {
+  composes: evPoints;
+  color: #c0392b;
+}
+
+.identityData {
+  font-size: 13px;
+  color: #1a2133;
+  min-width: 0;
+}
+
+.identityDataSpan {
+  composes: identityData;
+  grid-column: 2 / 4;
+}
+
+.identityData p {
+  margin: 2px 0;
+}
+
+.zeroToggle {
+  background: #faf8f5;
+  border: none;
+  border-top: 0.5px solid #e8e2d9;
+  padding: 8px 18px;
+  font-size: 12px;
+  color: #8a94a6;
+  font-weight: 400;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.12s;
+}
+
+.zeroToggle:hover {
+  color: #5a6478;
+}
+
+.keyHint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.45;
 }
 
