@@ -21,7 +21,8 @@ declare module "next-auth" {
       }
       userRoles : Array,
       adminSettings : Array
-      
-    }
+
+    },
+    adminSettings?: string
   }
 }

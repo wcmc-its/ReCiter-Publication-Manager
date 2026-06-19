@@ -37,3 +37,5 @@ node_modules
 
 /config/local.js
 /config/certs
+.planning/
+.superpowers/

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Row, Container} from "react-bootstrap";
 import styles from "./NoAccess.module.css"; 
-import { useSession } from 'next-auth/client';
+import { useSession } from 'next-auth/react';
 
 
 
 const NoAccess: React.FC = () => {
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession(); const loading = status === "loading";
   const [noUserRoles, setNoUserRoles] = useState(false)
 
     useEffect(()=>{

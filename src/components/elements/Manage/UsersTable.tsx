@@ -1,12 +1,9 @@
 import React from 'react';
-import Table from 'react-bootstrap/Table';
 import styles from "./UsersTable.module.css";
-import Image from 'next/image'
-import Link from "next/link";
 import { useRouter } from 'next/router'
-import { Button } from 'react-bootstrap';
-import { notificationEmail, sendNotification } from '../../../redux/actions/actions';
+import { notificationEmail } from '../../../redux/actions/actions';
 import { useDispatch } from 'react-redux';
+import SplitDropdown from '../Dropdown/SplitDropdown';
 
 interface UsersTableProps {
   data: any,
@@ -15,69 +12,72 @@ interface UsersTableProps {
   isVisibleNotification?:boolean
 }
 
-const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications,nameOrcwidLabel, isVisibleNotification }) => {
+const UsersTable:React.FC<UsersTableProps> = ({ data, onSendNotifications, nameOrcwidLabel, isVisibleNotification }) => {
   const router = useRouter();
   const dispatch = useDispatch();
-  
 
-  const onClicked = ()=>{
-    sendNotification()
-  }
-
-  const redirectToNotifications  = (userID, email,nameFirst)=>{
-    let selectedUserInfo = {
-      email : email,
-      userName : nameFirst
-    }
-    dispatch(notificationEmail(selectedUserInfo));
-    router.push(`/notifications/${userID}`)
-  }
-
-  const redirectToManageProfile = (userID)=>{
-    router.push(`/manageprofile/${userID}`)
-  }
-
-  const redirectToManageUsers = (userID)=>{
+  const redirectToManageUsers = (userID) => {
     router.push(`/manageusers/${userID}`)
   }
 
+  const handleDropdownClick = (title: string, user: any) => {
+    if (title === 'Manage Profile') {
+      router.push(`/manageprofile/${user.personIdentifier}`)
+    } else if (title === 'Manage Notifications') {
+      dispatch(notificationEmail({ email: user.email, userName: user.nameFirst }));
+      router.push(`/notifications/${user.personIdentifier}`)
+    }
+  }
 
+  const listItems = isVisibleNotification
+    ? [{ title: 'Manage Profile', to: '' }, { title: 'Manage Notifications', to: '' }]
+    : [{ title: 'Manage Profile', to: '' }];
 
   return (
-    <Table striped hover>
-      <thead className={styles.tableHead}>
-        <tr className={styles.tableHeadRow}>
-          <th className={styles.tableHeadCell}>Name</th>
-          <th className={styles.tableHeadCell}>Department</th>
-          <th className={styles.tableHeadCell}>Email</th>
-          <th className={styles.tableHeadCell}>Actions</th>
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th style={{ textAlign: 'right' }}>Actions</th>
         </tr>
       </thead>
       <tbody>
-        {
-         data && data.length > 0 ? data.map((user, index) => {
-          const {nameFirst, nameLast, userID,personIdentifier,email, department, primaryOrganizationalUnit} = user;
-            return (
-              <tr key={index}>
-                <td><div>
-                  <p className="text-primary mb-0">{`${nameFirst || "" } ${nameLast || ""}`}</p>
-                  <p className="mb-0">{primaryOrganizationalUnit || ""}</p>
-                  <p className="mb-0">{nameOrcwidLabel || "Person ID "}: {personIdentifier || ""}</p>
-                  </div>
-                  </td>
-                <td>{department || ""}</td>
-                <td>{email || ""}</td>
-                <td> <div> 
-                  <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageUsers(userID)} size="sm">Manage User</Button>
-                  <Button   variant="outline-dark" className='fw-bold' onClick = {()=> redirectToManageProfile(personIdentifier)} size="sm">Manage Profile</Button>
-                  {isVisibleNotification && email && <Button size="sm" variant="outline-dark"  className='fw-bold' onClick={()=> redirectToNotifications(personIdentifier, email, nameFirst)}>Manage Notifications</Button> }</div>
-                </td>
-              </tr>
-            )
-          }) : <p className={styles.noRecordsFound}>No Records Found</p>
-        }
+        {data && data.length > 0 ? data.map((user, index) => {
+          const { nameFirst, nameLast, userID, personIdentifier, email, department, primaryOrganizationalUnit } = user;
+          return (
+            <tr key={index}>
+              <td>
+                <div className={styles.personName}>{`${nameFirst || ''} ${nameLast || ''}`}</div>
+                {(primaryOrganizationalUnit || department) && (
+                  <div className={styles.personDept}>{primaryOrganizationalUnit || department}</div>
+                )}
+                <div className={styles.personId}>
+                  <span className={styles.idLabel}>{nameOrcwidLabel || 'CWID'}:</span> {personIdentifier || ''}
+                </div>
+              </td>
+              <td><span className={styles.email}>{email || ''}</span></td>
+              <td style={{ textAlign: 'right' }}>
+                <SplitDropdown
+                  title="Manage User"
+                  onDropDownClick={() => redirectToManageUsers(userID)}
+                  id={`manage-user_${userID}`}
+                  listItems={listItems}
+                  secondary={true}
+                  onClick={(title) => handleDropdownClick(title, user)}
+                />
+              </td>
+            </tr>
+          )
+        }) : (
+          <tr>
+            <td colSpan={3}>
+              <p className={styles.noRecordsFound}>No Records Found</p>
+            </td>
+          </tr>
+        )}
       </tbody>
-    </Table>
+    </table>
   )
 }
 

@@ -175,6 +175,7 @@ export class AnalysisSummaryArticle extends Model<AnalysisSummaryArticleAttribut
   }, {
     sequelize,
     tableName: 'analysis_summary_article',
+    modelName: 'AnalysisSummaryArticle',
     timestamps: false,
     indexes: [
       {

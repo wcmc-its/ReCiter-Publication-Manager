@@ -1,0 +1,132 @@
+/* ── HEADER ── */
+.ddHeader {
+  padding: 8px 12px;
+  background: #eeeae4;
+  border-bottom: 1px solid #ddd7ce;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ddHeaderLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #8a94a6;
+}
+
+.ddClear {
+  font-size: 11px;
+  color: #8a94a6;
+  background: none;
+  border: none;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 0;
+}
+
+.ddClear:hover {
+  color: #c0392b;
+}
+
+/* ── DATE INPUTS ── */
+.dateInputs {
+  padding: 14px 14px 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dateField {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dateField label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a94a6;
+}
+
+.dateInput {
+  padding: 8px 10px;
+  border: 1px solid #ddd7ce;
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-family: 'DM Sans', sans-serif;
+  background: #eeeae4;
+  color: #8a94a6;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  width: 100%;
+}
+
+.dateInput:focus {
+  border-color: #2563a8;
+  background: #fff;
+  color: #1a2133;
+}
+
+.dateInputFilled {
+  composes: dateInput;
+  background: #fff;
+  color: #1a2133;
+  border-color: #e8e2d9;
+}
+
+/* ── DIVIDER ── */
+.divider {
+  height: 1px;
+  background: #ddd7ce;
+  margin: 0 14px 10px;
+}
+
+/* ── PRESETS ── */
+.presetsLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a94a6;
+  padding: 0 14px 6px;
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 0 14px 14px;
+}
+
+.presetBtn {
+  padding: 6px 8px;
+  background: #eeeae4;
+  border: 1px solid #ddd7ce;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #5a6478;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.presetBtn:hover {
+  background: #e4e0d8;
+  border-color: #c8c2b8;
+  color: #1a2133;
+}
+
+.presetBtnActive {
+  composes: presetBtn;
+  background: #1a2133;
+  color: #fff;
+  border-color: #1a2133;
+}

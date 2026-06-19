@@ -4,13 +4,13 @@
     clear: both;
     font-weight: 400;
     line-height: 1.4em;
-    font-size: 14px;
-    color: #333;
+    font-size: 13px;
+    color: #5a6478;
     white-space: nowrap;
     cursor: pointer;
 }
 .dropdownMenu span:hover {
-    background-color: #efefef;
+    background-color: #faf8f5;
 }
 .dropdownSortAsc::after {
     content: '\2191';
@@ -22,62 +22,146 @@
 }
 
 .dropdownButton button {
-  background: #337ab7;
-  border-color: #337ab7;
+  background: #c0392b;
+  border-color: #c0392b;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dropdownButton button:hover {
+  background: #a93226;
+  border-color: #a93226;
 }
 
 .dropdownButton a {
-  background: #337ab7;
-  border-color: #337ab7;
+  background: #c0392b;
+  border-color: #c0392b;
+}
+
+.dropdownButton a:hover {
+  background: #a93226;
+  border-color: #a93226;
 }
 
 .dropdownItem {
-  color: #212529;
+  color: #1a2133;
   background: white !important;
+  font-size: 13px;
 }
 
 .dropdownItem:hover {
-  background-color: #efefef;
+  background-color: #faf8f5 !important;
+}
+
+/* ── ACTIONS DROPDOWN (light card) ── */
+.actionsHeader {
+  padding: 7px 12px;
+  background: #eeeae4;
+  border-bottom: 1px solid #ddd7ce;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a94a6;
+}
+
+.actionsItem {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 9px 12px !important;
+  font-size: 12.5px !important;
+  color: #5a6478 !important;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+  background: white !important;
+}
+
+.actionsItem:hover {
+  background: #eeeae4 !important;
+  color: #1a2133 !important;
+  border-left-color: #2563a8;
+}
+
+.actionsItemPrimary {
+  composes: actionsItem;
+  font-weight: 500 !important;
+  color: #1a2133 !important;
+}
+
+.actionsItem svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.actionsDivider {
+  height: 1px;
+  background: #ddd7ce;
+  margin: 0;
+}
+
+/* Override the dropdown-menu within secondary button to be light card */
+.secondaryDropdownButton :global(.dropdown-menu) {
+  background: #fff !important;
+  border: 1px solid #e8e2d9 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(26,33,51,0.14), 0 1px 4px rgba(26,33,51,0.07) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  min-width: 180px !important;
 }
 
 .dropdownButton span {
   display: none;
 }
 
+/* Action buttons in table rows — dark style matching target */
 .secondaryDropdownButton button {
-  background-color: #efefef;
-  color: black;
-  border-color: #efefef;
+  background-color: #1a2133 !important;
+  color: #ffffff !important;
+  border-color: #1a2133 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  font-family: var(--font-sans) !important;
+  padding: 6px 12px !important;
+  white-space: nowrap;
+}
+
+.secondaryDropdownButton button:first-child {
+  border-radius: 5px 0 0 5px !important;
 }
 
 .secondaryDropdownButton button:hover {
-  background-color: #f3f3f3;
-  border-color: #efefef;
-  color: black;
+  background-color: #243050 !important;
+  border-color: #243050 !important;
+  color: #ffffff !important;
 }
 
 .secondaryDropdownButton button:active {
-  background-color: #f3f3f3 !important;
-  border-color: #efefef !important;
-  color: black !important;
+  background-color: #243050 !important;
+  border-color: #243050 !important;
+  color: #ffffff !important;
 }
 
 .secondaryDropdownButton button:focus {
-  background-color: #f3f3f3 !important;
-  border-color: #efefef !important;
-  color: black !important;
+  background-color: #1a2133 !important;
+  border-color: #1a2133 !important;
+  color: #ffffff !important;
 }
 
 .secondaryDropdownButton a {
-  background-color: #efefef;
-  color: black !important;
-  border-color: #efefef;
+  background-color: #243050 !important;
+  color: rgba(255,255,255,0.7) !important;
+  border-color: #1a2133 !important;
+  border-left: 1px solid rgba(255,255,255,0.12) !important;
 }
 
 .secondaryDropdownButton a:hover {
-  background-color: #f3f3f3;
-  border-color: #efefef;
-  color: black !important;
+  background-color: #2d3a52 !important;
+  color: #ffffff !important;
 }
 
 .secondaryDropdownButton span {

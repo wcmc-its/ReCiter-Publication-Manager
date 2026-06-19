@@ -8,6 +8,7 @@
   margin-left: 82px;
   padding: 20px 40px;
   width: -webkit-fill-available;
+  background: var(--color-warm-bg);
 }
 
 .containerFluid {
@@ -15,8 +16,12 @@
 }
 
 .expandedSideBarContent{
-  padding: 2em !important;
+  margin-left: 220px;
+  padding: 32px 36px !important;
+  min-height: calc(100vh - 52px);
 }
 .nonExpandedSideBarContent{
-  padding: 1em .5em 1em .5em !important;
+  margin-left: 73px;
+  padding: 16px 12px !important;
+  min-height: calc(100vh - 52px);
 }

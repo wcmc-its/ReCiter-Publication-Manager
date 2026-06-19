@@ -37,6 +37,7 @@ export class AnalysisTempArticle extends Model<AnalysisTempArticleAttributes, An
   }, {
     sequelize,
     tableName: 'analysis_temp_article',
+    modelName: 'AnalysisTempArticle',
     timestamps: false,
     indexes: [
       {

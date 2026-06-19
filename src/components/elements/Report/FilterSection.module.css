@@ -1,10 +1,13 @@
 .filterContainer {
-  background-color: #f5f5f5;
-  padding: 20px;
+  background-color: var(--color-warm-surface);
+  border: 1px solid var(--color-warm-border);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
 }
 
 .filterContainer button {
-  margin: 0 7px;
+  margin: 0 4px;
 }
 
 .filterContainer button:first-child {
@@ -12,9 +15,14 @@
 }
 
 .filterName {
-  margin-bottom: 0.5rem;
+  margin-bottom: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--gray-500);
 }
 
 .filtersContainer {
-  margin-bottom: 1rem;
+  margin-bottom: 12px;
 }

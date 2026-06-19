@@ -38,6 +38,7 @@ export class AnalysisTempHindex extends Model<AnalysisTempHindexAttributes, Anal
   }, {
     sequelize,
     tableName: 'analysis_temp_hindex',
+    modelName: 'AnalysisTempHindex',
     timestamps: false,
     indexes: [
       {

@@ -1,5 +1,5 @@
 # Install dependencies only when needed
-FROM node:14.16.0-alpine AS deps
+FROM node:20-alpine AS deps
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
@@ -21,11 +21,13 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 COPY package.json package-lock.json ./
-RUN npm install --frozen-lockfile
+# Committed lockfile is out of sync with package.json (missing entries
+# like string_decoder@1.1.1) and has range-specifier corruption from
+# old npm-force-resolutions. Regenerate fresh from package.json.
+RUN rm -f package-lock.json && npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
 # Rebuild the source code only when needed
-FROM node:14.16.0-alpine AS builder
-#FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules
@@ -46,11 +48,11 @@ ARG ASMS_USER_TRACKING_API_AUTHORIZATON
 ARG RECITER_API_BASE_URL
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
 RUN env
-RUN npm run build && npm install --production --ignore-scripts --prefer-offline
+# COPY . . brought back the corrupt committed lockfile; remove again.
+RUN rm -f package-lock.json && npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
 
 # Production image, copy all the files and run next
-FROM node:14.16.0-alpine AS runner
-#FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV production

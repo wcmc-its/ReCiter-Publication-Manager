@@ -43,6 +43,7 @@ export class AnalysisSpecialCharacter extends Model<AnalysisSpecialCharacterAttr
   }, {
     sequelize,
     tableName: 'analysis_special_characters',
+    modelName: 'AnalysisSpecialCharacter',
     timestamps: false,
     indexes: [
       {

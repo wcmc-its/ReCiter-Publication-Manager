@@ -7,6 +7,7 @@ import { SliderFilter } from "./SliderFilter";
 import { CheckList } from "./CheckList";
 import { CheckboxSelect } from "./CheckboxSelect";
 import * as utils from "../../../utils/reportFilters";
+import React from 'react';
 
 // given filter name which redux state object property should be updated
 const filterNameToState = {
@@ -24,14 +25,17 @@ const filterNameToState = {
 const Buttons = ({ clearFilters, searchResults }) => {
   return (
     <div className="d-flex align-items-center">
-      <Button variant="warning" onClick={searchResults}>Search</Button>
-      <Button className="m-3 text-button transparent-button" onClick={clearFilters}>Reset</Button>
+      <Button variant="danger" onClick={searchResults}>Search</Button>
+      <Button variant="outline-secondary" size="sm" className="ms-3" onClick={clearFilters}>Reset</Button>
     </div>
   )
 }
 
 const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterClear, filterOptions, filterUpdateOptions, onSetSearchFilters, filterName, onSetRangeFilters, selectedFilters }) => {
   let filterType = filter.filterType || undefined;
+  // Don't modify filterName - it should be a string or array as passed from filterNameToState
+  selectedFilters = selectedFilters || {}
+  
   switch (filterType) {
     case ("DateRange"):
       return (
@@ -81,7 +85,7 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           optionValue={filter.value}
           filterName={filterName}
           onUpdateFilter={onSetSearchFilters}
-          selectedOptions={selectedFilters[filterName]}
+          selectedOptions={selectedFilters[filterName] || []}
           authorsFilteredData = {filterOptions.authorFilterData}
           isFilterClear={isFilterClear}
           onLoadMore = {onLoadMore}
@@ -95,7 +99,7 @@ const DisplayFilter = ({reportFiltersLabes,onLoadMore, filter, index,isFilterCle
           options={filter.options}
           onUpdateFilter={onSetSearchFilters}
           filterName={filterName}
-          selectedOptions={selectedFilters[filterName]}
+          selectedOptions={selectedFilters[filterName] || []}
           reportFiltersLabes={reportFiltersLabes}
           isFilterClear={isFilterClear}
         />
@@ -145,8 +149,8 @@ export const FilterSection = ({reportFiltersLabes, onLoadMore, filterOptions,isF
     <div className={`d-flex flex-row flex-wrap ${styles.filterContainer}`}>
       {Object.keys(reportConfig).map((config, index) => {
         return (
-          <>
-            <FilterRow
+          <React.Fragment key={config}>
+            <FilterRow 
               title={reportConfig[config].name}
               filters={reportConfig[config].list}
               filterOptions={filterOptions}
@@ -159,7 +163,7 @@ export const FilterSection = ({reportFiltersLabes, onLoadMore, filterOptions,isF
               reportFiltersLabes={reportFiltersLabes}
               />
               {index < Object.keys(reportConfig).length - 1 && <div className="break"></div>}
-          </>
+         </React.Fragment>
         )
       })}
       <Buttons 

@@ -5,7 +5,7 @@ import { Footer } from "../Footer/Footer";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 import Router from "next/router"
 import Header from "../Header/Header"
-import { signIn,getSession } from "next-auth/client"
+import { signIn,getSession } from "next-auth/react"
 import { toast } from "react-toastify"
 import { allowedPermissions } from "../../../utils/constants";
 import { useRouter } from 'next/router'
@@ -19,19 +19,12 @@ const Login = () => {
     const session = getSession();
     const router = useRouter()
 
-    const validateForm = () => {
-        if(username === ''){
-            setIsShowButton(true)
-        } else if(password === '') {
-            setIsShowButton(true)
-        } else {
-            setIsShowButton(false)
-        }
-    }
+    useEffect(() => {
+        setIsShowButton(username === '' || password === '')
+    }, [username, password])
 
     const handleUserNameInput = e => {
         setUsername(e.target.value)
-        validateForm()
     }
 
     const handleSubmit = async(e) => {
@@ -77,7 +70,6 @@ const Login = () => {
 
     const handlePasswordInput = e => {
         setPassword(e.target.value)
-        validateForm()
     }
 
     return (

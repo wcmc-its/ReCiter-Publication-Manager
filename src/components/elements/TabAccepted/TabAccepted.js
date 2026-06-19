@@ -11,7 +11,7 @@ const TabAccepted = (props) => {
     const [sort, setSort] = useState("0")
     const [search, setSearch] = useState("")
     const [page, setPage] = useState(1)
-    const [count, setCount] = useState(20)
+    const [count, setCount] = useState(100)
 
     const dispatch = useDispatch()
 
