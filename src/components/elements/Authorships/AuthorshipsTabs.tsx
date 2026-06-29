@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import {Fragment, useCallback, useEffect, useState } from "react";
 import { reciterConfig } from "../../../../config/local";
-
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
   id: number;
@@ -183,7 +182,7 @@ const AuthorshipsTabs = () => {
                 try { alternates = JSON.parse(r.candidate_cwids_json); } catch { alternates = []; }
               }
               return (
-                <>
+               <Fragment key={r.id}>
                   <tr key={r.id} style={{ borderBottom: "1px solid #f2f4f7" }}>
                     <td style={{ padding: "10px 12px" }}>
                       <div style={{ fontWeight: 600, color: "#101828" }}>{r.wcm_author}</div>
@@ -234,7 +233,7 @@ const AuthorshipsTabs = () => {
                       </td>
                     </tr>
                   )}
-                </>
+                 </Fragment>
               );
             })}
           </tbody>
