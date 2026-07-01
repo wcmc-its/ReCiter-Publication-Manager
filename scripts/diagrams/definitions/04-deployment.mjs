@@ -3,7 +3,7 @@
  * Git push → CodePipeline → CodeBuild (Docker → ECR) → kubectl set image on EKS.
  *
  * Source: k8-buildspec.yml (pipeline, S3 certs, Secrets Manager, ECR, kubectl),
- * Dockerfile (node:18-alpine multi-stage), kubernetes/k8-deployment.yaml,
+ * Dockerfile (node:22-alpine multi-stage), kubernetes/k8-deployment.yaml,
  * kubernetes/k8-service.yaml, kubernetes/k8-secrets.yaml, README.md.
  */
 import { A } from "../lib.mjs";
@@ -15,7 +15,7 @@ const nodes = {
   pipeline:  { x: 270, y: 96,  w: 215, h: 78, kind: "aws", title: "AWS CodePipeline",
                sub: ["Source · ManualApproval", "· Build"] },
   build:     { x: 535, y: 96,  w: 210, h: 92, kind: "aws", title: "CodeBuild",
-               sub: ["Docker multi-stage", "node:18-alpine"] },
+               sub: ["Docker multi-stage", "node:22-alpine"] },
   ecr:       { x: 795, y: 96,  w: 175, h: 78, kind: "aws", title: "Amazon ECR",
                sub: ["container image :TAG"] },
   s3:        { x: 40,  y: 212, w: 200, h: 58, kind: "data", title: "S3 reciter-config",
@@ -83,7 +83,7 @@ export const meta = {
   blurb:
     "A push to a <code>master</code> or <code>*dev</code> branch drives <b>CodePipeline</b> " +
     "(Source → ManualApproval → Build). <b>CodeBuild</b> pulls SAML certs from S3 and Docker creds from " +
-    "Secrets Manager, builds the multi-stage <b>node:18-alpine</b> image, pushes it to <b>ECR</b>, then " +
+    "Secrets Manager, builds the multi-stage <b>node:22-alpine</b> image, pushes it to <b>ECR</b>, then " +
     "<code>kubectl set image</code> rolls it onto the <b>reciter-pm-prod</b> / <b>reciter-pm-dev</b> " +
     "Deployment. Traffic enters via an ALB Ingress → Service → Pod (:3000); the pod reads ReCiterDB and " +
     "calls the ReCiter / PubMed APIs.",

@@ -69,8 +69,8 @@ export function verifyFacts(items) {
 
   // (b) Container base image + port — Dockerfile / k8 deployment.
   const dockerfile = readSrc("Dockerfile", problems);
-  if (dockerfile && !/FROM node:18-alpine/.test(dockerfile)) problems.push(`image: Dockerfile no longer uses node:18-alpine`);
-  else if (dockerfile && !has("node:18-alpine")) problems.push(`image: "node:18-alpine" not shown in any diagram`);
+  if (dockerfile && !/FROM node:22-alpine/.test(dockerfile)) problems.push(`image: Dockerfile no longer uses node:22-alpine`);
+  else if (dockerfile && !has("node:22-alpine")) problems.push(`image: "node:22-alpine" not shown in any diagram`);
 
   const deployYaml = readSrc("kubernetes/k8-deployment.yaml", problems);
   if (deployYaml && !/containerPort:\s*3000/.test(deployYaml)) problems.push(`port: containerPort 3000 not found in k8-deployment.yaml`);

@@ -82,7 +82,7 @@ Publication Manager is part of the ReCiter suite of applications. In addition to
 |-----------|-----------|---------|
 | Framework | Next.js | 14.2.x |
 | UI | React | 18.x |
-| Runtime | Node.js | 18.x |
+| Runtime | Node.js | 22.x |
 | Auth | next-auth + SAML2-js | v4 |
 | Database | MySQL via Sequelize ORM | 6.x |
 | Styling | Bootstrap 5, Material-UI (MUI 5), CSS Modules | |
@@ -91,7 +91,7 @@ Publication Manager is part of the ReCiter suite of applications. In addition to
 
 > The deployed image is pinned to the versions in `package.json` (Next.js 12,
 > React 16, next-auth 3, saml2-js 3, Sequelize 6); the row above tracks the
-> in-progress Next 14 / Node 18 migration target.
+> in-progress Next 14 / Node 22 migration target.
 
 ## Architecture diagrams
 
