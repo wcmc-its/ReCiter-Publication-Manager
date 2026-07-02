@@ -34,9 +34,11 @@ export const generatePubsRtf = async (
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsRTF (:uids , :pmids, :limit)",
+        // generatePubsRTF takes 2 args (personIdentifierArray, pmidArray) — no limit.
+        // Passing :limit caused ER_SP_WRONG_NO_OF_ARGS (SequelizeDatabaseError).
+        "CALL generatePubsRTF (:uids , :pmids)",
         {
-          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(','), limit: apiBody.limit },
+          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(',') },
           raw: true,
         }
       );
