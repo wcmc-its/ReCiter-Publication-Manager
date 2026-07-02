@@ -582,6 +582,21 @@ const Search = () => {
     return false;
   }
   
+  // Per-row curate authorization for the Actions dropdown. Mirrors the backend
+  // checkCurationScope gate so the UI never offers "Curate Publications" for a
+  // person the user cannot actually curate: curate-all roles (Superuser /
+  // Curator_All / scoped, which set isCuratorAll) may curate anyone; a proxy
+  // holder may curate the people they proxy for; a self-only curator may curate
+  // only their own row. Everyone else (e.g. a pure Reporter_All) gets
+  // report/profile actions but no Curate Publications.
+  const canCuratePerson = (identity) => {
+    if (isSuperUser || isCuratorAll) return true;
+    const pid = identity?.personIdentifier;
+    if (isProxyFor(proxyPersonIds, pid)) return true;
+    if (isCuratorSelf) return pid === loggedInPersonIdentifier;
+    return false;
+  };
+
   const RoleSplitDropdown = (identity) => {
     
     if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser
@@ -639,6 +654,7 @@ const Search = () => {
   if (paginatedIdentities?.length > 0) {
     // setCurateIds(paginatedIdentities);
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
+      const rowCanCurate = canCuratePerson(identity);
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="34%">
         {
@@ -664,10 +680,10 @@ const Search = () => {
         <td key={`${identityIndex}__actions`} width="24%" className={styles.actionsCell}>
           <Dropdown className="d-inline-block">
             <Dropdown.Toggle variant="primary" id={`actions_${identity.personIdentifier}`}>
-              Curate Publications
+              {rowCanCurate ? "Curate Publications" : "Create Reports"}
             </Dropdown.Toggle>
             <Dropdown.Menu className={styles.actionMenu} popperConfig={{ strategy: 'fixed' }} renderOnMount>
-              <Dropdown.Item className={styles.actionMenuItem} onClick={() => onClickProfile(identity.personIdentifier)}>Curate Publications</Dropdown.Item>
+              {rowCanCurate && <Dropdown.Item className={styles.actionMenuItem} onClick={() => onClickProfile(identity.personIdentifier)}>Curate Publications</Dropdown.Item>}
               <Dropdown.Item className={styles.actionMenuItem} onClick={() => redirectToCurate("report", identity)}>Create Reports</Dropdown.Item>
               <Dropdown.Item className={styles.actionMenuItem} onClick={() => { setShowprofileID(identity.personIdentifier); handleShow(); }}>View Profile</Dropdown.Item>
             </Dropdown.Menu>
