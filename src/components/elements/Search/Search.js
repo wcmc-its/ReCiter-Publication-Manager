@@ -13,18 +13,28 @@ import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { styled } from '@mui/material/styles';
-import { Table,Button} from "react-bootstrap";
+import { Table,Button,Dropdown} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
-import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation } from "../../../utils/constants"
+import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItemsSuper, numberFormation,
+getCapabilities } from "../../../utils/constants"
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 import Profile from "../Profile/Profile";
+import ProxyBadge from './ProxyBadge';
+import ScopeFilterCheckbox from './ScopeFilterCheckbox';
+import { isProxyFor } from '../../../utils/scopeResolver';
 
 const Search = () => {
 
-  const { data: session, status } = useSession(); const loading = status === "loading";
+  const [session, loading] = useSession();
 
+  // Phase 9: Parse scope/proxy data and derive capabilities
+  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
+  const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
+  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  const caps = getCapabilities(userRoles);
+  const showScopeFilter = caps.canCurate.scoped && !caps.canCurate.all;
   const router = useRouter()
   const dispatch = useDispatch()
 
@@ -69,7 +79,7 @@ const Search = () => {
   const [headShot, setHeadShot] = useState([]);
   const [viewProfileLabels, setViewProfileLabels] = useState([])
   const [selectedAction, setSelectedAction] = useState("Curate Publications")
-  
+  const [scopeFilterChecked, setScopeFilterChecked] = useState(true); // Default checked for scoped curators (D-14)
   //ref
   const searchValue = useRef()
 
@@ -192,7 +202,15 @@ const Search = () => {
       setIsCuratorSelf(true);
       setIsCuratorAll(true)
       } 
-    else { // when CWID has more than 1 role or multiple roles
+	// Phase 9: Curator_Scoped handling -- same dropdown behavior as Curator_All
+    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Scoped)) {
+      setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorAll(true); // Scoped curators get same dropdown actions as Curator_All
+      setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
+    }
+	else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
       setDropdownMenuItems(dropDownMenuItems);
@@ -207,6 +225,51 @@ const Search = () => {
     fetchAllAdminSettings()
   }, [])
 
+  // Re-derive labels when admin settings arrive in Redux (async)
+  useEffect(() => {
+    if (updatedAdminSettings && updatedAdminSettings.length > 0) {
+      let updatedData = updatedAdminSettings.find(obj => obj.viewName === "findPeople")
+      if (updatedData) {
+        let viewAttributes = updatedData.viewAttributes;
+        let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
+        setNameOrcwidLabel(cwidLabel)
+        setFindPeopleLabels(viewAttributes)
+      }
+    }
+  }, [updatedAdminSettings])
+
+  // Phase 9: Re-trigger search when scope filter checkbox is toggled
+  const scopeFilterInitRef = useRef(true);
+  useEffect(() => {
+    // Skip the initial render (the main useEffect handles initial load)
+    if (scopeFilterInitRef.current) {
+      scopeFilterInitRef.current = false;
+      return;
+    }
+    // Build scope-aware filters and re-search
+    let updatedFilters = { ...filters };
+    if (showScopeFilter && scopeFilterChecked && scopeData) {
+      updatedFilters = {
+        ...updatedFilters,
+        scopeOrgUnits: scopeData.orgUnits || [],
+        scopePersonTypes: scopeData.personTypes || [],
+        proxyPersonIds: proxyPersonIds,
+      };
+    } else {
+      // Remove scope filters when unchecked
+      const { scopeOrgUnits, scopePersonTypes, proxyPersonIds: _p, ...rest } = updatedFilters;
+      updatedFilters = rest;
+    }
+    let request = {
+      filters: { ...updatedFilters },
+      limit: count,
+      offset: 0
+    };
+    dispatch(updateFilters(updatedFilters));
+    dispatch(identityFetchAllData(request));
+    setPage(1);
+  }, [scopeFilterChecked])
+  
   const fetchAllAdminSettings = () => {
     const request = {};
     fetch(`/api/db/admin/settings`, {
@@ -361,6 +424,15 @@ const Search = () => {
       updatedFilters = { ...updatedFilters, personTypes: [...personTypes] };
     }
 
+	// Phase 9: Add scope filter parameters when scope filter is active
+    if (showScopeFilter && scopeFilterChecked && scopeData) {
+      updatedFilters = {
+        ...updatedFilters,
+        scopeOrgUnits: scopeData.orgUnits || [],
+        scopePersonTypes: scopeData.personTypes || [],
+        proxyPersonIds: proxyPersonIds,
+      };
+    }
     let request = {
       filters: { ...updatedFilters },
       limit:count,
@@ -399,7 +471,7 @@ const Search = () => {
   }
 
   const handleClose = () => setShowprofile(false);
-  const handleShow = () => setShowprofile(false);
+  const handleShow = () => setShowprofile(true);
 
   const handleGoAction = () => {
     dispatch(updatePubFiltersFromSearch());
@@ -508,14 +580,31 @@ const Search = () => {
     return false;
   }
   
+	// Per-row curate authorization for the Actions dropdown. Mirrors the backend
+  // checkCurationScope gate so the UI never offers "Curate Publications" for a
+  // person the user cannot actually curate: curate-all roles (Superuser /
+  // Curator_All / scoped, which set isCuratorAll) may curate anyone; a proxy
+  // holder may curate the people they proxy for; a self-only curator may curate
+  // only their own row. Everyone else (e.g. a pure Reporter_All) gets
+  // report/profile actions but no Curate Publications.
+  const canCuratePerson = (identity) => {
+    if (isSuperUser || isCuratorAll) return true;
+    const pid = identity?.personIdentifier;
+    if (isProxyFor(proxyPersonIds, pid)) return true;
+    if (isCuratorSelf) return pid === loggedInPersonIdentifier;
+    return false;
+  };			 
   const RoleSplitDropdown = (identity) => {
     
-    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser && loggedInPersonIdentifier === identity.identity.personIdentifier) 
+    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser && (loggedInPersonIdentifier === identity.identity.personIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier))) 
     {
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
     }
     else if(dropdownTitle && dropdownTitle =='Create Report' && isReporterAll && !isCuratorAll && !isSuperUser && !isCuratorSelf)
     {
+		 if (isProxyFor(proxyPersonIds, identity.identity.personIdentifier)) {
+          return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
+        }
         return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("report", identity.identity)}>{"Create Reports"}</Button>
     }
     else if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorAll && !isReporterAll && !isSuperUser && !isCuratorSelf) 
@@ -524,13 +613,14 @@ const Search = () => {
     }
     else if(isCuratorSelf && isReporterAll && !isCuratorAll && !isSuperUser)
     {
+		const canCurateRow = identity && (identity.identity.personIdentifier === loggedInPersonIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier));			 
       return  <SplitDropdown
-        title={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? "Curate Publications" : "Create Reports"}
-        onDropDownClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
+        title={canCurateRow ? "Curate Publications" : "Create Reports"}
+        onDropDownClick={canCurateRow ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
         id={`curate-publications_${identity.identity.personIdentifier}`}
-        listItems={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? dropdownMenuItems : []} //{isUserRole && isUserRole === allowedPermissions.Superuser ? dropdownItemsSuper : dropdownItemsReport}
+        listItems={canCurateRow ? dropdownMenuItems : []}
         secondary={true}
-        onClick={identity && identity.identity.personIdentifier === loggedInPersonIdentifier ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
+        onClick={canCurateRow ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
     }
     else if((isCuratorAll && isReporterAll && isCuratorSelf) ||isSuperUser || (isCuratorAll && isReporterAll))
     {
@@ -560,21 +650,20 @@ const Search = () => {
   if (paginatedIdentities?.length > 0) {
     // setCurateIds(paginatedIdentities);
     tableBody = paginatedIdentities.map(function (identity, identityIndex) {
+	const rowCanCurate = canCuratePerson(identity);											 
       return <tr key={identityIndex}>
         <td key={`${identityIndex}__name`} width="30%">
         { 
           
           isCuratorSelf ?
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={identity && identity.personIdentifier === loggedInPersonIdentifier ? ()=> onClickProfile(identity.personIdentifier): () => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
           :
-          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)}></Name>
+          <Name identity={identity} nameOrcwidLabel={nameOrcwidLabel?.labelUserView} onClickProfile={ dropdownTitle && dropdownTitle === 'Curate Publications' ? () => onClickProfile(identity.personIdentifier) :() => redirectToCurate("report", identity)} proxyPersonIds={proxyPersonIds}></Name>
         }
         </td>
-        <td key={`${identityIndex}__orgUnit`} width="20%" className={styles.colOrg}>
-          {identity.primaryOrganizationalUnit && <div>{identity.primaryOrganizationalUnit}</div>}
-        </td>
-        <td key={`${identityIndex}__institution`} width="20%" className={styles.colInst}>
-          {identity.primaryInstitution && <div>{identity.primaryInstitution}</div>}
+        <td key={`${identityIndex}__affiliation`} width="32%" className={styles.colAffiliation}>
+          {identity.primaryOrganizationalUnit && <div className={styles.affilOrg}>{identity.primaryOrganizationalUnit}</div>}
+		  {identity.primaryInstitution && <div className={styles.affilInst}>{identity.primaryInstitution}</div>}
         </td>
         {isCuratorAll || isSuperUser  ?
         <td key={`${identityIndex}__pending`} width="10%" className={styles.colPending}>
@@ -584,18 +673,27 @@ const Search = () => {
           }
         </td>
          : ""}
-        <td key={`${identityIndex}__dropdown`} width="20%">
-          {
-            <RoleSplitDropdown identity = {identity}></RoleSplitDropdown>
-          }
+        <td key={`${identityIndex}__actions`} width="24%" className={styles.actionsCell}>
+          <Dropdown className="d-inline-block">
+            <Dropdown.Toggle variant="primary" id={`actions_${identity.personIdentifier}`}>
+              {rowCanCurate ? "Curate Publications" : "Create Reports"}
+            </Dropdown.Toggle>
+            <Dropdown.Menu className={styles.actionMenu} popperConfig={{ strategy: 'fixed' }} renderOnMount>
+              {rowCanCurate && <Dropdown.Item className={styles.actionMenuItem} onClick={() => onClickProfile(identity.personIdentifier)}>Curate Publications</Dropdown.Item>}
+              <Dropdown.Item className={styles.actionMenuItem} onClick={() => redirectToCurate("report", identity)}>Create Reports</Dropdown.Item>
+              <Dropdown.Item className={styles.actionMenuItem} onClick={() => { setShowprofileID(identity.personIdentifier); handleShow(); }}>View Profile</Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
         </td>
-      </tr>;
+      </tr>;;
     })
   } else {
     tableBody = (
       <tr>
-        <td colSpan="5">
+        <td colSpan={(isCuratorAll || isSuperUser) ? 4 : 3}>
           <p className={styles.noitemsList}>
+			 {showScopeFilter && scopeFilterChecked
+              ? 'No people found matching your scope. Try unchecking the scope filter to see all results.'									  
             No records found
           </p>
         </td>
@@ -610,6 +708,14 @@ const Search = () => {
         <div className={styles.searchBar}>
           <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Find People</h1>
           <SearchBar searchData={searchData} resetData={resetData} findPeopleLabels = {findPeopleLabels}/>
+		  {showScopeFilter && (
+            <ScopeFilterCheckbox
+              checked={scopeFilterChecked}
+              onChange={(checked) => {
+                setScopeFilterChecked(checked);
+              }}
+            />
+          )}					   
           {(isDisplayLoader()) ?
             (
               <Loader />
@@ -669,9 +775,9 @@ const Search = () => {
                         <thead>
                           <tr>
                             <th key="0">Name</th>
-                            <th key="1">Organization</th>
+                            <th key="1">Affiliation</th>
                             <th key="2">Institution</th>
-                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : ""}
+                            {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : null}
                             <th key="4">Actions</th>
                           </tr>
                         </thead>
