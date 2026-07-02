@@ -134,6 +134,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(fileBlob)
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
       setExportArticleLoading(false);
@@ -180,6 +181,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(fileBlob)
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
       setExportArticlePplLoading(false);
@@ -310,6 +312,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(blobFromBuffer);
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
     } catch (error) {
@@ -408,6 +411,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(blobFromBuffer);
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
     } catch (error) {
