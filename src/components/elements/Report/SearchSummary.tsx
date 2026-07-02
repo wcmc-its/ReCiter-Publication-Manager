@@ -454,6 +454,8 @@ const SearchSummary = ({
               const {labelName, keyName} = sortOption || {};
               const isActive = selected.type === keyName;
               const isDesc = selected.order === 'DESC';
+              // Date columns read oddly as "High → Low"; show newest/oldest instead.
+              const isDateSort = /date/i.test(keyName || '') || /date/i.test(labelName || '');
               return (
                 <button
                   type="button"
@@ -469,7 +471,7 @@ const SearchSummary = ({
                   style={{ width: '100%', background: 'none', border: 'none', fontFamily: 'inherit', textAlign: 'left' }}
                 >
                   <span className={styles.sortLabel}>{labelName}</span>
-                  {isActive && <span className={styles.sortDirection}>{isDesc ? 'High → Low' : 'Low → High'}</span>}
+                  {isActive && <span className={styles.sortDirection}>{isDateSort ? (isDesc ? 'Newest → Oldest' : 'Oldest → Newest') : (isDesc ? 'High → Low' : 'Low → High')}</span>}
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ opacity: isActive ? 1 : 0.3, flexShrink: 0 }}>
                     {(isActive && !isDesc) ? (
                       <path d="M7 11V3M7 3L4 6M7 3l3 3" stroke={isActive ? '#2563a8' : '#6b6560'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
