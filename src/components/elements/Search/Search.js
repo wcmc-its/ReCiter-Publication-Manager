@@ -19,6 +19,11 @@ import { allowedPermissions, allowedSettings, dropdownItemsReport, dropdownItems
 //import {RoleManagerHelper} from  "../../../utils/RoleManagerHelper"
 import Profile from "../Profile/Profile";
 
+// Guard against malformed/absent session claims so a bad JWT value can't white-screen the page.
+const safeParse = (value, fallback) => {
+  try { return value != null ? JSON.parse(value) : fallback; } catch { return fallback; }
+};
+
 const Search = () => {
 
   const [session, loading] = useSession();
@@ -74,7 +79,7 @@ const Search = () => {
   useEffect(() => {
     dispatch(showEvidenceByDefault(null))
     dispatch(clearFilters())
-    let adminSettings = JSON.parse(session.adminSettings);
+    let adminSettings = safeParse(session.adminSettings, []);
     var viewAttributes = [];
     if (updatedAdminSettings.length > 0) {
       // updated settings from manage settings page
@@ -86,7 +91,7 @@ const Search = () => {
     } else {
       // regular settings from session
       let data = adminSettings.find(obj => obj.viewName === "findPeople")
-      viewAttributes = JSON.parse(data.viewAttributes)
+      viewAttributes = data ? safeParse(data.viewAttributes, []) : []
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel)
     }
@@ -94,7 +99,7 @@ const Search = () => {
     // view attributes data from session or updated settings
     setFindPeopleLabels(viewAttributes)
 
-    let userPermissions = JSON.parse(session.data.userRoles);
+    let userPermissions = safeParse(session.data.userRoles, []);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
     if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
         setDropdownTitle("Create Report");
