@@ -1,0 +1,299 @@
+.card {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    border: 1px solid #e3e8ef;
+    border-radius: 8px;
+    background: #fff;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+
+.cardSuppressed {
+    opacity: 0.55;
+    background: #f7f8fa;
+}
+
+.main {
+    flex: 1;
+    min-width: 0;
+}
+
+.headerRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+
+.sourceBadge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #eef2ff;
+    color: #3538cd;
+    border: 1px solid #c7d2fe;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.noScoreBadge {
+    font-size: 11px;
+    color: #8a94a6;
+    font-style: italic;
+}
+
+.suppressedTag {
+    font-size: 11px;
+    font-weight: 600;
+    color: #b45309;
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 2px 8px;
+}
+
+.title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2733;
+    line-height: 1.35;
+    margin-bottom: 4px;
+}
+
+.authors {
+    font-size: 12.5px;
+    color: #55607a;
+    line-height: 1.4;
+    margin-bottom: 4px;
+}
+
+.meta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #55607a;
+    margin-bottom: 4px;
+}
+
+.venue {
+    font-weight: 500;
+    color: #384152;
+}
+
+.typeBadge {
+    font-size: 11px;
+    color: #55607a;
+    background: #f1f3f7;
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+
+.links {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: #55607a;
+}
+
+.links a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.links a:hover {
+    text-decoration: underline;
+}
+
+.actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+    justify-content: flex-start;
+    min-width: 96px;
+}
+
+.btnAdd {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: none;
+    background: #16a34a;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnAdd:hover {
+    background: #15803d;
+}
+
+.btnAdd:disabled {
+    background: #9fd8b4;
+    cursor: default;
+}
+
+.btnDelete {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid #e3a1a1;
+    background: #fff;
+    color: #b31b1b;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnDelete:hover {
+    background: #fdecec;
+}
+
+.btnAnyway {
+    border: 1px solid #d97706;
+    background: #fff;
+    color: #b45309;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnAnyway:hover {
+    background: #fffbeb;
+}
+
+.addedTag {
+    font-size: 12px;
+    font-weight: 600;
+    color: #16a34a;
+}
+
+/* 409 handling */
+.blockedBox {
+    margin-top: 8px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #991b1b;
+}
+
+.warningBox {
+    margin-top: 8px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #92400e;
+}
+
+.warningTitle {
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.matchRow {
+    padding: 4px 0;
+    border-top: 1px dashed #fcd34d;
+}
+
+.matchRow:first-of-type {
+    border-top: none;
+}
+
+.warningActions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* In PubMed — steer to the scored PubMed path instead of adding as external */
+.pubmedBox {
+    margin-top: 8px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #1e40af;
+}
+
+.pubmedTitle {
+    font-weight: 700;
+    margin-bottom: 2px;
+}
+
+.btnPubmed {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: none;
+    background: #1f4e79;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnPubmed:hover {
+    background: #163a5a;
+}
+
+.checkingTag {
+    font-size: 12px;
+    color: #55607a;
+    font-style: italic;
+}
+
+/* Already in this person's record (accepted) — inform, no add */
+.acceptedBox {
+    margin-top: 8px;
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #166534;
+}
+
+.recordTag {
+    font-size: 12px;
+    font-weight: 600;
+    color: #55607a;
+    white-space: nowrap;
+}
+
+.btnReject {
+    border: 1px solid #cbd3e0;
+    background: #fff;
+    color: #55607a;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnReject:hover {
+    background: #f1f3f7;
+}

@@ -100,6 +100,13 @@ export const reciterConfig = {
         reciterUpdateGoldStandardEndpoint:
                 process.env.RECITER_API_BASE_URL + '/reciter/goldstandard',
         /**
+         * PM#771 — external-source (OpenAlex/Scopus/WoS) manual-add publications.
+         * POST/GET/DELETE against the same Java ingress as the other /reciter/* calls,
+         * so RECITER_API_BASE_URL + the admin api-key are sufficient (no new env var).
+         */
+        reciterExternalArticleEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/external-article/by/uid',
+        /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */
@@ -116,6 +123,13 @@ export const reciterConfig = {
     reciterPubmed: {
         searchPubmedEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-complex/',
         searchPubmedCountEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-number-pubmed-articles/',
+    },
+    /**
+     * PM#771 — OpenAlex is a free, keyless public API. It is queried ONLY server-side
+     * (via the PM /api/reciter/search/openalex route), never from the browser.
+     */
+    openAlex: {
+        searchHost: 'https://api.openalex.org',
     },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
