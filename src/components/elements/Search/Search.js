@@ -693,8 +693,8 @@ const Search = () => {
         <td colSpan={(isCuratorAll || isSuperUser) ? 4 : 3}>
           <p className={styles.noitemsList}>
 			 {showScopeFilter && scopeFilterChecked
-              ? 'No people found matching your scope. Try unchecking the scope filter to see all results.'									  
-            No records found
+              ? 'No people found matching your scope. Try unchecking the scope filter to see all results.': 'No records found'}									  
+ 
           </p>
         </td>
       </tr>
