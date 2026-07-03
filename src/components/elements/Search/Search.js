@@ -27,7 +27,8 @@ import { isProxyFor } from '../../../utils/scopeResolver';
 
 const Search = () => {
 
-  const [session, loading] = useSession();
+  const { data: session, status } = useSession();
+  const loading = status === 'loading';
 
   // Phase 9: Parse scope/proxy data and derive capabilities
   const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
