@@ -13,6 +13,13 @@ interface AuthorshipRow {
   id: number;
   pmid: number;
   author_key: string;
+  // Scopus lane (source='scopus'): not-in-PubMed docs from the AF-ID sweep. pmid is null,
+  // top_fg_score/top_io_score are null (production never scored a non-PubMed doc), and the
+  // record is keyed by external_id (numeric Scopus id). PubMed rows leave these undefined.
+  source?: "pubmed" | "scopus";
+  external_id?: string;
+  pub_type?: string;
+  container_id?: string;
   wcm_author?: string;
   author_position_label?: string;
   author_affiliation?: string;
@@ -52,7 +59,12 @@ interface Candidate {
   affil_dept_match?: boolean;
 }
 
-interface Summary { total: number; single_candidate: number; classes: Record<string, number>; personTypes?: Array<{ type: string; n: number }>; }
+interface Summary {
+  total: number; single_candidate: number; classes: Record<string, number>;
+  personTypes?: Array<{ type: string; n: number }>;
+  bySource?: Record<string, number>;                 // { pubmed: n, scopus: n } — source-segment counts
+  pubTypes?: Array<{ type: string; n: number }>;      // scopus pub_type facet
+}
 
 const PAGE_SIZE = 20;
 const apiHeaders = {
@@ -165,6 +177,15 @@ const ioFgNote = (r: AuthorshipRow): string => {
   return `IO ${io} — name uniquely matches ${r.top_cwid || "this identity"} (${r.top_cohort_size ?? 1} WCM homonym); Authorship Score fell to ${fg} because the affiliation names an external institution, not WCM. Identity carries it.`;
 };
 
+// scopus lane note — no PubMed record, so no production/IO score; ranked by matcher confidence.
+const scopusNote = (r: AuthorshipRow): string => {
+  const cohort = r.top_cohort_size ?? 1;
+  const who = hasWcm(r.author_affiliation)
+    ? "The affiliation names Weill Cornell"
+    : `The surname matches ${cohort} WCM identit${cohort === 1 ? "y" : "ies"}`;
+  return `Not in PubMed — found via the Scopus AF-ID sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
+};
+
 const btn = (variant: "accept" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
   const base: CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 7, padding: "6px 12px",
@@ -195,18 +216,54 @@ const Chip = ({ kind, children }: { kind: "ok" | "warn" | "neutral"; children: R
   );
 };
 
+const outLinkStyle: CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600,
+  color: "#2563eb", textDecoration: "none",
+};
+
 // PMID outbound PubMed link — lead element of an evidence panel (Item 3).
 // stopPropagation so clicking it never toggles the card (Item 6).
 const PmidLink = ({ pmid }: { pmid: number }) => (
   <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
     onClick={(e) => e.stopPropagation()}
-    style={{
-      display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 9, fontSize: 12.5, fontWeight: 600,
-      color: "#2563eb", textDecoration: "none",
-    }}>
+    style={{ ...outLinkStyle, marginBottom: 9 }}>
     PMID {pmid} <IconExt size={13} />
   </a>
 );
+
+// ---- Scopus lane bits ----------------------------------------------------
+const scopusRecordUrl = (externalId?: string) =>
+  externalId ? `https://www.scopus.com/record/display.uri?eid=2-s2.0-${externalId}&origin=inward` : undefined;
+
+const scopusBadgeStyle: CSSProperties = {
+  display: "inline-flex", alignItems: "center", fontSize: 10.5, fontWeight: 700, letterSpacing: ".04em",
+  padding: "2px 7px", borderRadius: 5, background: "#eef2ff", color: "#4338ca", textTransform: "uppercase",
+};
+const notInPubmedPillStyle: CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 8px",
+  borderRadius: 20, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", whiteSpace: "nowrap",
+};
+
+// Scopus evidence lead: no PMID — Scopus record + DOI links (mirrors PmidLink's slot).
+const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
+  const scopusUrl = scopusRecordUrl(r.external_id);
+  return (
+    <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 9, flexWrap: "wrap" }}>
+      {scopusUrl && (
+        <a href={scopusUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={outLinkStyle}>
+          Scopus record <IconExt size={13} />
+        </a>
+      )}
+      {r.doi && (
+        <a href={`https://doi.org/${r.doi}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={outLinkStyle}>
+          doi.org/{r.doi} <IconExt size={13} />
+        </a>
+      )}
+      {r.container_id && <span style={{ fontSize: 12, color: "#94a3b8" }}>in book {r.container_id}</span>}
+      {!scopusUrl && !r.doi && <span style={{ fontSize: 12, color: "#94a3b8" }}>No external link</span>}
+    </div>
+  );
+};
 
 // ---- main component ------------------------------------------------------
 const AuthorshipsTabs = () => {
@@ -227,7 +284,12 @@ const AuthorshipsTabs = () => {
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed">("open");
+  const [source, setSource] = useState<"all" | "pubmed" | "scopus">("all");
+  const [selectedPubTypes, setSelectedPubTypes] = useState<string[]>([]);
   const [actingId, setActingId] = useState<number | null>(null);
+  // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
+  // it with force:"true". This holds the pending action so the curator can confirm "Force add".
+  const [forcePrompt, setForcePrompt] = useState<{ row: AuthorshipRow; action: string; extra?: Record<string, any>; message: string } | null>(null);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; row: AuthorshipRow } | null>(null);
   // F4: undo holds a BATCH of rows (single-row actions push a 1-element batch)
   const [undo, setUndo] = useState<{ rows: AuthorshipRow[]; label: string } | null>(null);
@@ -264,11 +326,13 @@ const AuthorshipsTabs = () => {
     classification,
     searchTextInput: search,
     personTypes: selectedTypes,
+    source,
+    pubTypes: source === "scopus" ? selectedPubTypes : [],   // pub-type facet only meaningful for scopus
     dateFrom,
     dateTo,
     sort,
     statusView,
-  }), [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView]);
+  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -331,6 +395,8 @@ const AuthorshipsTabs = () => {
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
   }, [search, dateFrom, dateTo, statusView]);
+  // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
+  // current status/search/date scope — no need to refetch it on source-segment changes.
 
   // live-filter: debounce the search box so the queue narrows as you type (no Enter needed)
   useEffect(() => {
@@ -359,7 +425,9 @@ const AuthorshipsTabs = () => {
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); },
-    [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView, page]);
+    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page]);
+  // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
+  useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
 
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure).
   // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
@@ -384,7 +452,7 @@ const AuthorshipsTabs = () => {
       body: JSON.stringify({ id: row.id, action, ...extra }),
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        if (!r.ok) { const err: any = new Error((await r.text()) || `HTTP ${r.status}`); err.status = r.status; throw err; }
         return true;
       })
       // settled (DB write committed on success, or failed): the id no longer needs guarding.
@@ -403,7 +471,10 @@ const AuthorshipsTabs = () => {
         fetchSummary();
       })
       .catch((e) => {
-        setErrorMsg(`Couldn't ${action} — ${String(e?.message || e)}`);
+        // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
+        const scopusDup = e?.status === 409 && row.source === "scopus" && (action === "accept" || action === "assign");
+        if (scopusDup) setForcePrompt({ row, action, extra, message: String(e?.message || e) });
+        else setErrorMsg(`Couldn't ${action} — ${String(e?.message || e)}`);
         fetchData(); // restore the optimistically-removed row
       })
       .finally(() => setActingId(null));
@@ -522,7 +593,13 @@ const AuthorshipsTabs = () => {
       else if (k === "n") { if (statusView === "open") { if (row.single_candidate) doAction?.(row, "reject"); else setErrorMsg("Use Pick one ▾ / None of these for a multi-candidate authorship"); } e.preventDefault(); }
       else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
       else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
-      else if (e.key === "Enter") { window.open(`https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`, "_blank", "noreferrer"); e.preventDefault(); }
+      else if (e.key === "Enter") {
+        const url = row.source === "scopus"
+          ? (row.doi ? `https://doi.org/${row.doi}` : scopusRecordUrl(row.external_id))
+          : `https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`;
+        if (url) window.open(url, "_blank", "noreferrer");
+        e.preventDefault();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -580,6 +657,24 @@ const AuthorshipsTabs = () => {
               boxShadow: statusView === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
             }}>{label}</button>
           ))}
+        </div>
+        {/* source segment: PubMed lane vs Scopus not-in-PubMed lane (counts from summary.bySource) */}
+        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
+          {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"]] as const).map(([key, label]) => {
+            const n = key === "all"
+              ? (summary?.bySource ? Object.values(summary.bySource).reduce((a, b) => a + b, 0) : undefined)
+              : summary?.bySource?.[key];
+            return (
+              <Tip key={key} title={key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)" : key === "pubmed" ? "Authorships from PubMed" : "Both sources"} placement="top" arrow>
+                <button onClick={() => setSource(key)} style={{
+                  border: "none", padding: "5px 12px", font: "inherit", fontSize: 13, fontWeight: 600, borderRadius: 5,
+                  cursor: "pointer", background: source === key ? "#fff" : "transparent",
+                  color: source === key ? (key === "scopus" ? "#4338ca" : "#0f172a") : "#475569",
+                  boxShadow: source === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
+                }}>{label}{n != null ? ` (${n.toLocaleString()})` : ""}</button>
+              </Tip>
+            );
+          })}
         </div>
         <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, color: "#94a3b8", fontSize: 12 }}>
           <IconInfo size={13} /> <kbd style={kbdStyle}>J</kbd><kbd style={kbdStyle}>K</kbd> move · <kbd style={kbdStyle}>Y</kbd> accept · <kbd style={kbdStyle}>N</kbd> reject · <kbd style={kbdStyle}>S</kbd> snooze
@@ -667,6 +762,23 @@ const AuthorshipsTabs = () => {
           </form>
         </div>
       </div>
+
+      {/* scopus pub-type facet (chips from summary.pubTypes) */}
+      {source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 14px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#94a3b8" }}>Type</span>
+          <button onClick={() => setSelectedPubTypes([])} style={pubChipStyle(selectedPubTypes.length === 0)}>All</button>
+          {(summary?.pubTypes || []).map((pt) => {
+            const on = selectedPubTypes.includes(pt.type);
+            return (
+              <button key={pt.type} style={pubChipStyle(on)}
+                onClick={() => setSelectedPubTypes((s) => s.includes(pt.type) ? s.filter((t) => t !== pt.type) : [...s, pt.type])}>
+                {pt.type} ({pt.n.toLocaleString()})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* F4: bulk bar (slim) */}
       {statusView === "open" && (
@@ -782,6 +894,19 @@ const AuthorshipsTabs = () => {
       {/* error */}
       <Snackbar open={!!errorMsg} autoHideDuration={6000} onClose={() => setErrorMsg("")}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }} message={errorMsg} />
+
+      {/* scopus Force-add prompt (409 likely-duplicate ExternalArticle) — confirm to retry with force */}
+      <Snackbar open={!!forcePrompt} onClose={() => setForcePrompt(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        message={forcePrompt ? `${forcePrompt.message} — add anyway?` : ""}
+        action={
+          <>
+            <button onClick={() => { if (forcePrompt) { doAction(forcePrompt.row, forcePrompt.action, { ...forcePrompt.extra, force: "true" }); setForcePrompt(null); } }}
+              style={{ color: "#7cc4ff", background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, marginRight: 8 }}>FORCE ADD</button>
+            <button onClick={() => setForcePrompt(null)}
+              style={{ color: "#cbd5e1", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>DISMISS</button>
+          </>
+        } />
     </div>
   );
 };
@@ -790,6 +915,12 @@ const kbdStyle: CSSProperties = {
   font: "inherit", fontSize: 11, background: "#eef2f7", border: "1px solid #dde3ea", borderBottomWidth: 2,
   borderRadius: 4, padding: "0 5px", color: "#475569",
 };
+
+const pubChipStyle = (active: boolean): CSSProperties => ({
+  border: `1px solid ${active ? "#c7d2fe" : "#dde3ea"}`, background: active ? "#eef2ff" : "#fff",
+  color: active ? "#4338ca" : "#475569", borderRadius: 16, padding: "3px 11px", fontSize: 12,
+  fontWeight: 600, cursor: "pointer", font: "inherit",
+});
 
 // ---- card ----------------------------------------------------------------
 interface CardProps {
@@ -875,6 +1006,15 @@ const AuthorshipCard = ({
             )}
           </div>
 
+          {/* Scopus source markers — this lane is not-in-PubMed, so no production/IO score exists */}
+          {r.source === "scopus" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+              <span style={scopusBadgeStyle}>Scopus</span>
+              <span style={notInPubmedPillStyle}>Not in PubMed</span>
+              {r.pub_type && <Chip kind="neutral">{r.pub_type}</Chip>}
+            </div>
+          )}
+
           {/* L3 — paper meta (quiet/truncated). PMID link now lives in the evidence panel. */}
           <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={stripHtml(r.title)}>
             <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} /> · <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>{r.entrez_date ? ` · ${r.entrez_date}` : ""}
@@ -957,10 +1097,12 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
     );
   }
   if (isAbsent) {
+    const scopus = r.source === "scopus";
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#fffbeb", color: "#b45309" }}>
-          Never retrieved
+        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap",
+          background: scopus ? "#eef2ff" : "#fffbeb", color: scopus ? "#4338ca" : "#b45309" }}>
+          {scopus ? "Not in PubMed" : "Never retrieved"}
         </span>
         <span style={{ display: "block", fontSize: 10.5, color: "#94a3b8", marginTop: 3, textAlign: "right", fontWeight: 500 }}>
           conf: {confBand(r.top_confidence)}
@@ -989,7 +1131,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
 // single-candidate / absent evidence panel
 const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: boolean; isAbsent: boolean }) => (
   <>
-    <div><PmidLink pmid={r.pmid} /></div>
+    <div>{r.source === "scopus" ? <ScopusLinks row={r} /> : <PmidLink pmid={r.pmid} />}</div>
     {/* absent → labeled facts, no score blocks (F10) */}
     {isAbsent && (
       <div style={{ display: "flex", gap: 22, marginBottom: 10 }}>
@@ -1007,13 +1149,16 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
         ? <Chip kind="neutral">Dept: {r.top_dept} ✓</Chip>
         : <Chip kind="neutral">Dept ≠ affiliation</Chip>}
     </div>
-    {/* inline IO/FG note (F8) */}
+    {/* inline note (F8) — scopus lane gets its own not-in-PubMed explanation */}
     <div style={{
       display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px",
-      background: isAbsent ? "#fffbeb" : "#eff6ff", color: isAbsent ? "#b45309" : "#475569",
+      background: r.source === "scopus" ? "#eef2ff" : isAbsent ? "#fffbeb" : "#eff6ff",
+      color: r.source === "scopus" ? "#4338ca" : isAbsent ? "#b45309" : "#475569",
     }}>
-      {isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "#b45309" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "#2563eb" }} />}
-      <span>{ioFgNote(r)}</span>
+      {r.source === "scopus"
+        ? <IconInfo size={15} style={{ marginTop: 1, color: "#4338ca" }} />
+        : isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "#b45309" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "#2563eb" }} />}
+      <span>{r.source === "scopus" ? scopusNote(r) : ioFgNote(r)}</span>
     </div>
   </>
 );
@@ -1041,7 +1186,7 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 
   return (
     <>
-      <div><PmidLink pmid={r.pmid} /></div>
+      <div>{r.source === "scopus" ? <ScopusLinks row={r} /> : <PmidLink pmid={r.pmid} />}</div>
       {!anyDeptMatch && (
         <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginBottom: 10 }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
