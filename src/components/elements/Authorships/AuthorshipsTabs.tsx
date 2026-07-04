@@ -1,5 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import Tooltip from "@mui/material/Tooltip";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Snackbar from "@mui/material/Snackbar";
+import Checkbox from "@mui/material/Checkbox";
 import { reciterConfig } from "../../../../config/local";
+import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
+
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
   id: number;
@@ -7,6 +15,7 @@ interface AuthorshipRow {
   author_key: string;
   wcm_author?: string;
   author_position_label?: string;
+  author_affiliation?: string;
   entrez_date?: string;
   title?: string;
   journal?: string;
@@ -25,69 +34,179 @@ interface AuthorshipRow {
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
+  pmid_sibling_count?: number;
   status?: string;
   snooze_until?: string;
   reviewer?: string;
   resolved_at?: string;
 }
 
-interface Summary { total: number; single_candidate: number; classes: Record<string, number>; }
+interface Candidate {
+  cwid: string;
+  name?: string;
+  person_type?: string;
+  dept?: string;
+  io_score?: number;
+  final_score?: number;
+  confidence?: number;
+  affil_dept_match?: boolean;
+}
 
-type StatusView = "open" | "snoozed" | "dismissed";
+interface Summary { total: number; single_candidate: number; classes: Record<string, number>; personTypes?: Array<{ type: string; n: number }>; }
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 20;
 const apiHeaders = {
   Accept: "application/json",
   "Content-Type": "application/json",
   Authorization: reciterConfig.backendApiKey,
 };
 
-// curator-action -> undo-bar label
-const ACTION_LABEL: Record<string, string> = {
-  accept: "Accepted", reject: "Rejected", snooze: "Snoozed for 90 days", dismiss: "Dismissed",
-};
+// case-insensitive WCM institution token matcher (F6) — longest variants first
+const WCM_RE = /Weill Cornell(?:\s+(?:Medicine|Medical College|Medical Cent(?:er|re)))?/i;
 
 const CLASS_META: Record<string, { label: string; color: string; hint: string }> = {
-  buried: { label: "Buried", color: "#b42318", hint: "Production buried it (final < 30)" },
+  buried: { label: "Buried", color: "#b42318", hint: "Production buried it (Authorship Score < 30)" },
   absent: { label: "Never retrieved", color: "#8a5a00", hint: "Production never scored this person" },
-  suggested: { label: "Suggested", color: "#475467", hint: "Already in a curator's pending queue (final ≥ 30)" },
+  suggested: { label: "Suggested", color: "#475467", hint: "Already in a curator's pending queue (Authorship Score ≥ 30)" },
   assigned: { label: "Assigned", color: "#067647", hint: "Accepted by a WCM person" },
 };
 
+const ACTION_LABEL: Record<string, string> = {
+  accept: "Accepted", reject: "Rejected", snooze: "Snoozed for 90 days", dismiss: "Dismissed", assign: "Assigned",
+};
+
+// noun for the summary total — the count is scoped to the active status view, so the label must
+// follow it (Snoozed/Dismissed counts aren't "unassigned").
+const SUMMARY_TOTAL_LABEL: Record<"open" | "snoozed" | "dismissed", string> = {
+  open: "unassigned", snoozed: "snoozed", dismissed: "dismissed",
+};
+
+// ---- inline Lucide SVG icons (no npm deps) -------------------------------
+type IconProps = { size?: number; style?: CSSProperties };
+const svgBase = (size: number, style?: CSSProperties): CSSProperties => ({
+  width: size, height: size, flex: "none", stroke: "currentColor", fill: "none",
+  strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", verticalAlign: -2, ...style,
+});
+const Icon = ({ size = 15, style, children }: IconProps & { children: ReactNode }) => (
+  <svg viewBox="0 0 24 24" aria-hidden style={svgBase(size, style)}>{children}</svg>
+);
+const IconCheck = (p: IconProps) => <Icon {...p}><path d="M20 6 9 17l-5-5" /></Icon>;
+const IconChecks = (p: IconProps) => <Icon {...p}><path d="M18 6 7 17l-5-5" /><path d="m22 10-7.5 7.5L13 16" /></Icon>;
+const IconX = (p: IconProps) => <Icon {...p}><path d="M18 6 6 18M6 6l12 12" /></Icon>;
+const IconChevR = (p: IconProps) => <Icon {...p}><path d="m9 18 6-6-6-6" /></Icon>;
+const IconChevD = (p: IconProps) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
+const IconExt = (p: IconProps) => <Icon {...p}><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></Icon>;
+const IconPin = (p: IconProps) => <Icon {...p}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></Icon>;
+const IconInfo = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></Icon>;
+const IconAlert = (p: IconProps) => <Icon {...p}><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z" /><path d="M12 9v4M12 17h.01" /></Icon>;
+const IconMore = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></Icon>;
+const IconUsers = (p: IconProps) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Icon>;
+
 // ---- small presentational bits -------------------------------------------
-const Badge = ({ text, color, title }: { text: string; color: string; title?: string }) => (
-  <span title={title} style={{
-    background: color, color: "#fff", borderRadius: 10, padding: "1px 8px",
-    fontSize: 11, fontWeight: 600, whiteSpace: "nowrap",
-  }}>{text}</span>
+// MUI Tooltip with a larger, more readable font (the default tooltip text is tiny).
+const Tip = ({ children, ...rest }: any) => (
+  <Tooltip {...rest}
+    componentsProps={{ tooltip: { style: { fontSize: 13, maxWidth: 380, lineHeight: 1.45, padding: "8px 10px" } } }}>
+    {children}
+  </Tooltip>
 );
 
-const Score = ({ value, kind }: { value?: number; kind: "fg" | "io" }) => {
-  if (value === null || value === undefined) return <span style={{ color: "#98a2b3" }}>—</span>;
-  // IO high = strong identity (green). FG low = buried (red), high = already suggested (grey).
-  let color = "#475467";
-  if (kind === "io") color = value >= 90 ? "#067647" : value >= 50 ? "#475467" : "#98a2b3";
-  if (kind === "fg") color = value < 30 ? "#b42318" : "#475467";
-  return <span style={{ color, fontWeight: 600 }}>{value.toFixed(1)}</span>;
+// ---- pure helpers --------------------------------------------------------
+const hasWcm = (aff?: string) => !!aff && WCM_RE.test(aff);
+
+// Wrap the WCM institution token in <mark>. Returns React nodes (one match).
+const highlightAffiliation = (text?: string): ReactNode => {
+  if (!text) return null;
+  const m = text.match(WCM_RE);
+  if (!m || m.index === undefined) return text;
+  const before = text.slice(0, m.index);
+  const matched = text.slice(m.index, m.index + m[0].length);
+  const after = text.slice(m.index + m[0].length);
+  return (
+    <>
+      {before}
+      <mark style={{ background: "#f0fdf4", color: "#15803d", padding: "0 3px", borderRadius: 3, fontWeight: 600 }}>{matched}</mark>
+      {after}
+    </>
+  );
 };
 
-// ---- action-control styles -----------------------------------------------
-const acceptBtn = (busy: boolean): React.CSSProperties => ({
-  border: "1px solid #067647", background: busy ? "#f2f4f7" : "#067647", color: busy ? "#98a2b3" : "#fff",
-  borderRadius: 6, padding: "3px 10px", fontSize: 12, fontWeight: 600, cursor: busy ? "default" : "pointer",
-});
-const ghostBtn = (busy: boolean): React.CSSProperties => ({
-  border: "1px solid #d0d5dd", background: "#fff", color: "#344054", borderRadius: 6,
-  padding: "3px 10px", fontSize: 12, fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1,
-});
-const kebabBtn: React.CSSProperties = {
-  border: "1px solid #d0d5dd", background: "#fff", color: "#475467", borderRadius: 6,
-  padding: "3px 8px", fontSize: 14, lineHeight: 1, cursor: "pointer",
+// IO color band (F2): >=90 green, 50-89 amber, <50 muted grey
+const ioColor = (v?: number) => (v == null ? "#94a3b8" : v >= 90 ? "#15803d" : v >= 50 ? "#b45309" : "#94a3b8");
+const fmtScore = (v?: number) => (v == null ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(1));
+// confidence band (F10): >=0.8 High, 0.5-0.79 Medium, <0.5 Low
+const confBand = (c?: number) => (c == null ? "—" : c >= 0.8 ? "High" : c >= 0.5 ? "Medium" : "Low");
+// days in a given month (0-indexed) — used to clamp the day when shifting date presets across months
+const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+
+const parseCandidates = (json?: string): Candidate[] => {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 };
-const menuItem = (color = "#344054"): React.CSSProperties => ({
-  display: "block", width: "100%", textAlign: "left", border: "none", background: "#fff", color,
-  padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+
+// inline IO/FG explanation (F8)
+const ioFgNote = (r: AuthorshipRow): string => {
+  if (r.top_io_score == null) {
+    const wcm = hasWcm(r.author_affiliation);
+    return wcm
+      ? `Never retrieved — no IO/Authorship Score. The affiliation names Weill Cornell${r.top_dept ? ` and the department (${r.top_dept})` : " and the surname is unique"}; production never scored this person.`
+      : `Never retrieved — no IO/Authorship Score. The surname is unique among WCM identities (${r.top_cohort_size ?? 1} homonym); production never scored this person.`;
+  }
+  const io = fmtScore(r.top_io_score);
+  const fg = fmtScore(r.top_fg_score);
+  if (hasWcm(r.author_affiliation)) {
+    return `IO ${io} — unique match; Authorship Score fell to ${fg} even though the affiliation names Weill Cornell — production under-scored a clear WCM authorship.`;
+  }
+  return `IO ${io} — name uniquely matches ${r.top_cwid || "this identity"} (${r.top_cohort_size ?? 1} WCM homonym); Authorship Score fell to ${fg} because the affiliation names an external institution, not WCM. Identity carries it.`;
+};
+
+const btn = (variant: "accept" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
+  const base: CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 7, padding: "6px 12px",
+    font: "inherit", fontSize: 13, fontWeight: 600, cursor: disabled ? "default" : "pointer",
+    border: "1px solid transparent", whiteSpace: "nowrap", opacity: disabled ? 0.5 : 1,
+  };
+  if (variant === "accept") return { ...base, background: "#16a34a", color: "#fff" };
+  if (variant === "soft") return { ...base, background: "#f0fdf4", color: "#15803d", borderColor: "#bbf7d0" };
+  return { ...base, background: "#fff", color: "#475569", borderColor: "#dde3ea" };
+};
+const iconBtn = (disabled?: boolean): CSSProperties => ({
+  background: "transparent", border: "none", color: "#94a3b8", padding: 6, borderRadius: 6,
+  cursor: disabled ? "default" : "pointer", display: "inline-flex", opacity: disabled ? 0.5 : 1,
 });
+
+// signal chips (F7)
+const Chip = ({ kind, children }: { kind: "ok" | "warn" | "neutral"; children: ReactNode }) => {
+  const styles: Record<string, CSSProperties> = {
+    ok: { background: "#f0fdf4", color: "#15803d", borderColor: "transparent" },
+    warn: { background: "#fffbeb", color: "#b45309", borderColor: "transparent" },
+    neutral: { background: "#fff", color: "#475569", borderColor: "#dde3ea" },
+  };
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, padding: "2px 9px",
+      borderRadius: 6, border: "1px solid #dde3ea", ...styles[kind],
+    }}>{children}</span>
+  );
+};
+
+// PMID outbound PubMed link — lead element of an evidence panel (Item 3).
+// stopPropagation so clicking it never toggles the card (Item 6).
+const PmidLink = ({ pmid }: { pmid: number }) => (
+  <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
+    onClick={(e) => e.stopPropagation()}
+    style={{
+      display: "inline-flex", alignItems: "center", gap: 5, marginBottom: 9, fontSize: 12.5, fontWeight: 600,
+      color: "#2563eb", textDecoration: "none",
+    }}>
+    PMID {pmid} <IconExt size={13} />
+  </a>
+);
 
 // ---- main component ------------------------------------------------------
 const AuthorshipsTabs = () => {
@@ -96,298 +215,891 @@ const AuthorshipsTabs = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [statusView, setStatusView] = useState<StatusView>("open");
   const [lane, setLane] = useState<"single" | "all">("single");
   const [classification, setClassification] = useState<"all" | "buried" | "absent" | "suggested">("all");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [sort, setSort] = useState("io"); // F3: default sort = IO
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [datePreset, setDatePreset] = useState("any"); // "any" | "30d" | "90d" | "6m" | "12m" | "custom"
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
-  // curator-action state
+  const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed">("open");
   const [actingId, setActingId] = useState<number | null>(null);
-  const [menuId, setMenuId] = useState<number | null>(null);
-  const [undo, setUndo] = useState<{ row: AuthorshipRow; label: string } | null>(null);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [menu, setMenu] = useState<{ anchor: HTMLElement; row: AuthorshipRow } | null>(null);
+  // F4: undo holds a BATCH of rows (single-row actions push a 1-element batch)
+  const [undo, setUndo] = useState<{ rows: AuthorshipRow[]; label: string } | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  // selection (bulk) — single-candidate rows only
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // multi-candidate: chosen cwid per row id
+  const [picked, setPicked] = useState<Record<number, string>>({});
+  // F13: keyboard focus
+  const [focusedId, setFocusedId] = useState<number | null>(null);
+  const cardRefs = useRef<Record<number, HTMLElement | null>>({});
+  // ids optimistically removed by a curator action whose server write may still be in flight.
+  // Guards the rolling-queue refill (topUp/fetchData) from resurrecting a just-actioned row when
+  // a sibling action hasn't committed yet (rapid-accept race). Cleared per-id once its POST settles.
+  const pendingRemoved = useRef<Set<number>>(new Set());
+  // Monotonic request-sequence guard shared by fetchData and topUp. Each list request captures the
+  // sequence at dispatch and discards its response if a newer request has since started — last-write-
+  // wins, so a stale-filter/offset response (e.g. an out-of-range offset returning {rows:[]}) can't
+  // clobber the current page or append rows from an abandoned filter.
+  const seqRef = useRef(0);
+  // Live mirrors of state the stable window-keydown listener and the focus-advance logic read
+  // without re-subscribing. Kept in sync below so the single keydown handler always sees current
+  // rows/focus/view rather than the values captured when it was registered.
+  const rowsRef = useRef<AuthorshipRow[]>([]);
+  const focusedIdRef = useRef<number | null>(null);
+  const statusViewRef = useRef(statusView);
+  // latest action handlers, so the stable keydown listener invokes the current closures
+  const doActionRef = useRef<(row: AuthorshipRow, action: string, extra?: Record<string, any>) => void>();
+  const toggleSelectRef = useRef<(row: AuthorshipRow) => void>();
 
   const filterBody = useCallback(() => ({
     feed: "unassigned",
-    statusView,
     precision: lane === "single" ? "single" : "all",
     classification,
     searchTextInput: search,
-    sort: "precision",
-  }), [statusView, lane, classification, search]);
+    personTypes: selectedTypes,
+    dateFrom,
+    dateTo,
+    sort,
+    statusView,
+  }), [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView]);
+
+  // keep the refs the (stable) keydown listener reads in sync with the latest render
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
+  useEffect(() => { focusedIdRef.current = focusedId; }, [focusedId]);
+  useEffect(() => { statusViewRef.current = statusView; }, [statusView]);
 
   const fetchData = useCallback(() => {
+    const myId = ++seqRef.current;
     setLoading(true);
     fetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
     })
       .then((r) => r.json())
-      .then((d) => { setRows(d.rows || []); setCount(d.count || 0); })
+      .then((d) => {
+        if (myId !== seqRef.current) return; // superseded by a newer request — drop this response
+        // never show a row whose removal is still in flight (race protection, same as topUp)
+        setRows((d.rows || []).filter((row: AuthorshipRow) => !pendingRemoved.current.has(row.id)));
+        setCount(d.count || 0);
+      })
       .catch((e) => console.error("[authorships]", e))
       .finally(() => setLoading(false));
+  }, [filterBody, page]);
+
+  // Rolling queue: silently refill the visible set back up to PAGE_SIZE after a curator action —
+  // NO loading flash (unlike fetchData) and, critically, ADDITIVE rather than a wholesale swap.
+  // The rows already on screen stay exactly where they are (no reflow of what the curator is
+  // reading at the top); only genuinely-new rows are appended into the freed slots at the bottom,
+  // out of the curator's focus area — so the late-arriving refill (gated on the slow gold-standard
+  // write) is invisible. Filtering against pendingRemoved stops a refetch from resurrecting a row
+  // a sibling action just removed but whose write hasn't committed yet (rapid-accept race). Steps
+  // back a page only when this offset is genuinely empty, so you're never stranded on a dead tail.
+  const topUp = useCallback(() => {
+    const myId = ++seqRef.current;
+    fetch("/api/db/authorships", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (myId !== seqRef.current) return; // a newer fetch/topUp started — don't merge stale rows
+        const fetched: AuthorshipRow[] = (d.rows || []).filter(
+          (row: AuthorshipRow) => !pendingRemoved.current.has(row.id),
+        );
+        setCount(d.count || 0);
+        if (fetched.length === 0 && page > 0) { setPage((p) => Math.max(0, p - 1)); return; }
+        setRows((current) => {
+          const visibleIds = new Set(current.map((r) => r.id));
+          const additions = fetched.filter((r) => !visibleIds.has(r.id));
+          return [...current, ...additions].slice(0, PAGE_SIZE);
+        });
+      })
+      .catch((e) => console.error("[authorships]", e));
   }, [filterBody, page]);
 
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", statusView, searchTextInput: search }),
+      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView }),
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [statusView, search]);
+  }, [search, dateFrom, dateTo, statusView]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // live-filter: debounce the search box so the queue narrows as you type (no Enter needed)
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // A filter/sort/status change must always show page 0. If we're already on a later page we
+  // synchronously snap back to 0 and skip the about-to-fire stale-offset fetch, so ONLY the
+  // offset-0 fetch runs (not both a stale-offset and an offset-0 request). pendingPageReset marks
+  // the one fetchData call that would otherwise dispatch at the stale offset. Keyed on filterBody
+  // (memoized on the same filter/sort/status values fetchData uses) so this reset can never drift
+  // out of lockstep with the fetch it guards.
+  const pendingPageReset = useRef(false);
+  useEffect(() => {
+    if (page !== 0) { pendingPageReset.current = true; setPage(0); }
+  }, [filterBody]);
+
+  useEffect(() => {
+    if (pendingPageReset.current) { pendingPageReset.current = false; return; } // offset-0 fetch follows
+    fetchData();
+  }, [fetchData]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
-  // reset to first page when filters change
-  useEffect(() => { setPage(0); }, [statusView, lane, classification, search]);
-  // auto-dismiss the undo bar and error toast
-  useEffect(() => { if (!undo) return; const t = setTimeout(() => setUndo(null), 6000); return () => clearTimeout(t); }, [undo]);
-  useEffect(() => { if (!errorMsg) return; const t = setTimeout(() => setErrorMsg(""), 6000); return () => clearTimeout(t); }, [errorMsg]);
+  // clear transient per-page UI state on deliberate navigation only (filter/sort/status/page) —
+  // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
+  // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
+  // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
+  useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); },
+    [lane, classification, search, selectedTypes, dateFrom, dateTo, sort, statusView, page]);
 
-  // ---- curator action: POST, then refetch the current view -----------------
-  // Resolved rows (accepted/rejected) appear in no view, so the undo bar is the only
-  // reversal path for accept/reject — reopen is also reachable in Snoozed/Dismissed.
-  const act = useCallback((row: AuthorshipRow, action: string, extra?: Record<string, any>) => {
-    setMenuId(null);
-    setActingId(row.id);
-    fetch("/api/db/authorships/action", {
+  // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure).
+  // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
+  const doActionAsync = useCallback((row: AuthorshipRow, action: string, extra?: Record<string, any>): Promise<boolean> => {
+    pendingRemoved.current.add(row.id);
+    // Keep the keyboard triage queue moving: if the row being removed is the focused one, advance
+    // focus to whatever now sits at the same index (the next row), falling back to the new last row,
+    // then the first remaining — or clear when nothing is left. Computed from the pre-removal index
+    // off the live rows mirror. Without this the next Y/N/S would resolve the now-gone focusedId to
+    // undefined and be silently swallowed.
+    setFocusedId((cur) => {
+      if (cur !== row.id) return cur;
+      const curRows = rowsRef.current;
+      const idx = curRows.findIndex((x) => x.id === row.id);
+      const remaining = curRows.filter((x) => x.id !== row.id);
+      return (remaining[idx] ?? remaining[remaining.length - 1] ?? remaining[0])?.id ?? null;
+    });
+    setRows((rs) => rs.filter((x) => x.id !== row.id));
+    setCount((c) => Math.max(0, c - 1));
+    return fetch("/api/db/authorships/action", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ id: row.id, action, ...extra }),
     })
-      .then(async (r) => { if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`); })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        return true;
+      })
+      // settled (DB write committed on success, or failed): the id no longer needs guarding.
+      // Runs before the caller's .then(topUp), so this row is clear while siblings stay guarded.
+      .finally(() => { pendingRemoved.current.delete(row.id); });
+  }, []);
+
+  // single-row action with its own optimistic remove + Undo (PR-1 behaviour, extended for assign)
+  const doAction = useCallback((row: AuthorshipRow, action: string, extra?: Record<string, any>) => {
+    setMenu(null);
+    setActingId(row.id);
+    doActionAsync(row, action, extra)
       .then(() => {
-        setUndo(action === "reopen" ? null : { row, label: ACTION_LABEL[action] || "Done" });
-        fetchData();
+        if (action !== "reopen") setUndo({ rows: [row], label: ACTION_LABEL[action] || "Done" });
+        topUp();      // refill so the next pending authorship slides into the freed slot
         fetchSummary();
       })
-      .catch((e) => setErrorMsg(`Couldn't ${action} — ${String(e?.message || e)}`))
+      .catch((e) => {
+        setErrorMsg(`Couldn't ${action} — ${String(e?.message || e)}`);
+        fetchData(); // restore the optimistically-removed row
+      })
       .finally(() => setActingId(null));
-  }, [fetchData, fetchSummary]);
+  }, [doActionAsync, fetchData, fetchSummary, topUp]);
 
+  // F5: bulk orchestration — accept a batch of rows, collect into one Undo batch
+  const doBulkAccept = useCallback((batch: AuthorshipRow[]) => {
+    if (batch.length === 0) return;
+    setMenu(null);
+    Promise.allSettled(batch.map((row) => doActionAsync(row, "accept")))
+      .then((results) => {
+        const failed = results.some((r) => r.status === "rejected");
+        const ok = batch.filter((_, i) => results[i].status === "fulfilled");
+        if (ok.length > 0) setUndo({ rows: ok, label: `Accepted ${ok.length}` });
+        // success: silently refill the queue to the next batch ("accept 20 → next 20").
+        // failure: full refresh (with loading) to restore the optimistically-removed rows.
+        if (failed) { setErrorMsg("Some accepts failed — refreshing"); fetchData(); }
+        else topUp();
+        fetchSummary();
+      });
+    setSelected(new Set());
+  }, [doActionAsync, fetchData, fetchSummary, topUp]);
+
+  // undo = reopen over the whole batch (F4: extends PR-1's single-row undo)
   const doUndo = useCallback(() => {
     if (!undo) return;
-    const row = undo.row;
+    const batch = undo.rows;
     setUndo(null);
-    act(row, "reopen");
-  }, [undo, act]);
+    Promise.allSettled(batch.map((row) =>
+      fetch("/api/db/authorships/action", {
+        credentials: "same-origin", method: "POST", headers: apiHeaders,
+        body: JSON.stringify({ id: row.id, action: "reopen" }),
+      }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+    )).then((results) => {
+      if (results.some((r) => r.status === "rejected")) setErrorMsg("Undo failed for one or more rows");
+    }).finally(() => { fetchData(); fetchSummary(); });
+  }, [undo, fetchData, fetchSummary]);
+
+  // F12: clicking "+N more" narrows the view to the pmid. The sibling count is scoped
+  // only to the status view (it deliberately ignores lane/classification/type/date), so to
+  // actually surface all N siblings we must relax those list filters too — otherwise the
+  // default single-candidate lane would hide multi-candidate siblings and "+2 more" could
+  // narrow to fewer than 2 cards. Lane→all + classification→all matches the count; the
+  // person-type/date filters are left intact (they aren't part of the sibling-count scope
+  // either, but relaxing lane+classification is what makes the primary mismatch go away).
+  const narrowToPmid = useCallback((pmid: number) => {
+    setLane("all");
+    setClassification("all");
+    setSearchInput(String(pmid));
+    setSearch(String(pmid));
+  }, []);
+
+  const toggleSelect = useCallback((row: AuthorshipRow) => {
+    if (!row.single_candidate || statusView !== "open") return; // multi rows aren't bulk-selectable
+    setSelected((s) => {
+      const next = new Set(s);
+      next.has(row.id) ? next.delete(row.id) : next.add(row.id);
+      return next;
+    });
+  }, [statusView]);
+
+  useEffect(() => { doActionRef.current = doAction; }, [doAction]);
+  useEffect(() => { toggleSelectRef.current = toggleSelect; }, [toggleSelect]);
+
+  // Item 8: date preset → sets dateFrom/dateTo client-side. entrez_date is DATEONLY;
+  // backend buildWhere already handles ranges, so no backend change. "Custom..." reveals
+  // the explicit From/To inputs and leaves whatever is there; "Any time" clears both.
+  const applyDatePreset = useCallback((preset: string) => {
+    setDatePreset(preset);
+    if (preset === "custom") return; // keep current From/To, just show the inputs
+    if (preset === "any") { setDateFrom(""); setDateTo(""); return; }
+    const fmt = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    const today = new Date();
+    const from = new Date(today);
+    if (preset === "30d") from.setDate(from.getDate() - 30);
+    else if (preset === "90d") from.setDate(from.getDate() - 90);
+    // Shift the month/year off day 1 then re-clamp the day, so Aug 31 − 6mo lands on the last day of
+    // February, not rolls forward into March (setMonth/setFullYear overflow on short target months).
+    else if (preset === "6m") { const day = from.getDate(); from.setDate(1); from.setMonth(from.getMonth() - 6); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
+    else if (preset === "12m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 1); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
+    setDateFrom(fmt(from));
+    setDateTo(fmt(today));
+  }, []);
+
+  // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open PubMed.
+  // Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so an optimistic action
+  // or a rolling-queue refill never swaps the listener (and the post-action focus-advance still sees
+  // current state through those same refs).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "select" || tag === "textarea") return;
+      const visible = rowsRef.current;
+      if (visible.length === 0) return;
+      const focusedId = focusedIdRef.current;
+      const statusView = statusViewRef.current;
+      const idx = focusedId == null ? -1 : visible.findIndex((r) => r.id === focusedId);
+      const focus = (i: number) => {
+        const r = visible[Math.max(0, Math.min(visible.length - 1, i))];
+        if (r) { setFocusedId(r.id); cardRefs.current[r.id]?.scrollIntoView({ block: "nearest" }); }
+      };
+      const k = e.key.toLowerCase();
+      if (k === "j") { focus(idx + 1); e.preventDefault(); return; }
+      if (k === "k") { focus(idx < 0 ? 0 : idx - 1); e.preventDefault(); return; }
+      if (focusedId == null) return;
+      const row = visible.find((r) => r.id === focusedId);
+      if (!row) return;
+      const doAction = doActionRef.current;
+      const toggleSelect = toggleSelectRef.current;
+      if (k === "y") { if (row.single_candidate && statusView === "open") doAction?.(row, "accept"); else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship"); e.preventDefault(); }
+      else if (k === "n") { if (statusView === "open") { if (row.single_candidate) doAction?.(row, "reject"); else setErrorMsg("Use Pick one ▾ / None of these for a multi-candidate authorship"); } e.preventDefault(); }
+      else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
+      else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
+      else if (e.key === "Enter") { window.open(`https://pubmed.ncbi.nlm.nih.gov/${row.pmid}/`, "_blank", "noreferrer"); e.preventDefault(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
-  const statusTabs: Array<[StatusView, string]> = [["open", "Open"], ["snoozed", "Snoozed"], ["dismissed", "Dismissed"]];
+
+  // F4: near-certain bulk = visible single-candidate rows with IO >= 95
+  const nearCertain = rows.filter((r) => r.single_candidate && (r.top_io_score ?? 0) >= 95);
+  const selectedRows = rows.filter((r) => selected.has(r.id));
+  // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
+  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate) : [];
+  const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
+  const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
+  const toggleSelectAllEligible = useCallback(() => {
+    setSelected((s) => {
+      const next = new Set(s);
+      const allSel = eligibleRows.length > 0 && eligibleRows.every((r) => next.has(r.id));
+      if (allSel) eligibleRows.forEach((r) => next.delete(r.id));
+      else eligibleRows.forEach((r) => next.add(r.id));
+      return next;
+    });
+  }, [eligibleRows]);
 
   return (
-    <div style={{ padding: "24px 28px", fontFamily: "inherit" }}>
-      <h2 style={{ margin: 0, fontSize: 22 }}>Authorships</h2>
-      <p style={{ color: "#475467", marginTop: 4, maxWidth: 760 }}>
-        WCM-affiliated authorships not yet assigned to any identity. The high-precision lane
-        shows authorships where exactly one WCM identity matches the name — near-certain matches.
-        <strong> FG</strong> is the production score; <strong> IO</strong> is the identity-only score.
+    <div style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a" }}>
+      <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Authorships</h1>
+      <p style={{ color: "#475569", marginTop: 4, marginBottom: 20, maxWidth: 760, fontSize: 14, lineHeight: 1.45 }}>
+        WCM-affiliated authorships not yet assigned to an identity. Each card is one decision: is this author the
+        proposed WCM person? <strong style={{ color: "#0f172a", fontWeight: 600 }}>IO</strong> (identity-only, the trusted
+        signal) leads; <strong style={{ color: "#0f172a", fontWeight: 600 }}>Authorship Score</strong> (production) is shown
+        small as the diagnosis. Expand a card for the affiliation and evidence.
       </p>
-
-      {/* status view */}
-      <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 8, padding: 2, margin: "14px 0 6px" }}>
-        {statusTabs.map(([key, label]) => (
-          <button key={key} onClick={() => setStatusView(key)} style={{
-            border: "none", padding: "6px 14px", font: "inherit", fontSize: 13, fontWeight: 600,
-            borderRadius: 6, cursor: "pointer",
-            background: statusView === key ? "#fff" : "transparent",
-            color: statusView === key ? "#101828" : "#475467",
-            boxShadow: statusView === key ? "0 1px 2px rgba(16,24,40,.1)" : "none",
-          }}>{label}</button>
-        ))}
-      </div>
 
       {/* summary */}
       {summary && (
-        <div style={{ display: "flex", gap: 18, margin: "12px 0 18px", color: "#475467", fontSize: 13 }}>
-          <span><strong style={{ color: "#101828" }}>{summary.total.toLocaleString()}</strong> {statusView}</span>
-          <span><strong style={{ color: "#101828" }}>{summary.single_candidate.toLocaleString()}</strong> single-candidate</span>
+        <div style={{ display: "flex", gap: 18, margin: "12px 0 18px", color: "#475569", fontSize: 13, flexWrap: "wrap" }}>
+          <span><strong style={{ color: "#0f172a" }}>{summary.total.toLocaleString()}</strong> {SUMMARY_TOTAL_LABEL[statusView]}</span>
+          <span><strong style={{ color: "#0f172a" }}>{summary.single_candidate.toLocaleString()}</strong> single-candidate</span>
           {Object.entries(summary.classes).map(([k, v]) => (
-            <span key={k}>{CLASS_META[k]?.label || k}: <strong style={{ color: "#101828" }}>{v.toLocaleString()}</strong></span>
+            <span key={k}>{CLASS_META[k]?.label || k}: <strong style={{ color: "#0f172a" }}>{v.toLocaleString()}</strong></span>
           ))}
         </div>
       )}
 
-      {/* lane toggle */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {([["single", "High-precision (single candidate)"], ["all", "All unassigned"]] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setLane(key)} style={{
-            padding: "6px 14px", borderRadius: 8, border: "1px solid #d0d5dd", cursor: "pointer",
-            background: lane === key ? "#1570ef" : "#fff", color: lane === key ? "#fff" : "#344054",
-            fontWeight: 600, fontSize: 13,
-          }}>{label}</button>
-        ))}
-      </div>
-
-      {/* classification chips + search */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        {classChips.map((c) => (
-          <button key={c} onClick={() => setClassification(c)} style={{
-            padding: "4px 12px", borderRadius: 16, border: "1px solid #d0d5dd", cursor: "pointer",
-            background: classification === c ? "#eff8ff" : "#fff",
-            color: classification === c ? "#175cd3" : "#475467", fontSize: 12, fontWeight: 600,
-          }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
-        ))}
-        <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }} style={{ marginLeft: "auto" }}>
-          <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search name, CWID, or PMID"
-            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #d0d5dd", width: 240, fontSize: 13 }} />
-        </form>
-      </div>
-
-      {/* table */}
-      <div style={{ border: "1px solid #eaecf0", borderRadius: 10, overflow: "visible" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: "#f9fafb", textAlign: "left", color: "#475467" }}>
-              {["WCM author", "Proposed identity", "FG", "IO", "Class", "Cand.", "Conf.", "Article", "", "Actions"].map((h, i) => (
-                <th key={i} style={{ padding: "10px 12px", fontWeight: 600, borderBottom: "1px solid #eaecf0", whiteSpace: "nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={10} style={{ padding: 24, textAlign: "center", color: "#98a2b3" }}>Loading…</td></tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr><td colSpan={10} style={{ padding: 24, textAlign: "center", color: "#98a2b3" }}>No authorships match these filters.</td></tr>
-            )}
-            {!loading && rows.map((r) => {
-              const meta = CLASS_META[r.classification || "absent"];
-              const isOpen = expanded === r.id;
-              const acting = actingId === r.id;
-              let alternates: any[] = [];
-              if (isOpen && r.candidate_cwids_json) {
-                try { alternates = JSON.parse(r.candidate_cwids_json); } catch { alternates = []; }
-              }
-              return (
-               <React.Fragment key={r.id}>
-                  <tr key={r.id} style={{ borderBottom: "1px solid #f2f4f7" }}>
-                    <td style={{ padding: "10px 12px" }}>
-                      <div style={{ fontWeight: 600, color: "#101828" }}>{r.wcm_author}</div>
-                      <div style={{ color: "#98a2b3", fontSize: 11 }}>{r.author_position_label} author</div>
-                    </td>
-                    <td style={{ padding: "10px 12px" }}>
-                      <div style={{ color: "#101828" }}>{r.top_name} <span style={{ color: "#1570ef" }}>({r.top_cwid})</span></div>
-                      <div style={{ color: "#667085", fontSize: 11 }}>{r.top_person_type}{r.top_dept ? ` · ${r.top_dept}` : ""}</div>
-                    </td>
-                    <td style={{ padding: "10px 12px" }}><Score value={r.top_fg_score} kind="fg" /></td>
-                    <td style={{ padding: "10px 12px" }}><Score value={r.top_io_score} kind="io" /></td>
-                    <td style={{ padding: "10px 12px" }}><Badge text={meta.label} color={meta.color} title={meta.hint} /></td>
-                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
-                      {r.single_candidate
-                        ? <Badge text="1 ✓" color="#067647" title="Single candidate — near-certain" />
-                        : <button onClick={() => setExpanded(isOpen ? null : r.id)} style={{
-                            border: "1px solid #d0d5dd", background: "#fff", borderRadius: 6, padding: "2px 8px",
-                            cursor: "pointer", color: "#475467", fontSize: 12,
-                          }}>{r.n_candidates} ▾</button>}
-                    </td>
-                    <td style={{ padding: "10px 12px", color: "#475467" }}>{r.top_confidence?.toFixed(2)}</td>
-                    <td style={{ padding: "10px 12px", maxWidth: 360 }}>
-                      <div style={{ color: "#101828", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 360 }} title={r.title}>{r.title}</div>
-                      <div style={{ color: "#667085", fontSize: 11 }}>{r.journal}{r.entrez_date ? ` · ${r.entrez_date}` : ""}</div>
-                      {r.status === "snoozed" && r.snooze_until && (
-                        <div style={{ color: "#98a2b3", fontSize: 11 }}>Wakes {r.snooze_until}</div>
-                      )}
-                    </td>
-                    <td style={{ padding: "10px 12px" }}>
-                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`} target="_blank" rel="noreferrer"
-                        style={{ color: "#1570ef", textDecoration: "none", fontSize: 12 }}>{r.pmid} ↗</a>
-                    </td>
-                    {/* curator actions */}
-                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
-                      {statusView === "open" ? (
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", position: "relative" }}>
-                          {r.single_candidate && (
-                            <button disabled={acting} onClick={() => act(r, "accept")} style={acceptBtn(acting)}>Accept</button>
-                          )}
-                          <button onClick={() => setMenuId(menuId === r.id ? null : r.id)} style={kebabBtn} title="More actions">⋯</button>
-                          {menuId === r.id && (
-                            <>
-                              <div onClick={() => setMenuId(null)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-                              <div style={{
-                                position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 11,
-                                background: "#fff", border: "1px solid #eaecf0", borderRadius: 8,
-                                boxShadow: "0 4px 12px rgba(16,24,40,.12)", overflow: "hidden", minWidth: 150,
-                              }}>
-                                {r.single_candidate && (
-                                  <button style={menuItem("#b42318")} onClick={() => act(r, "reject")}>Reject</button>
-                                )}
-                                <button style={menuItem()} onClick={() => act(r, "snooze")}>Snooze 90 days</button>
-                                <button style={menuItem()} onClick={() => act(r, "dismiss")}>Dismiss</button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <button disabled={acting} onClick={() => act(r, "reopen")} style={ghostBtn(acting)}>Reopen</button>
-                      )}
-                    </td>
-                  </tr>
-                  {isOpen && alternates.length > 0 && (
-                    <tr key={`${r.id}-exp`} style={{ background: "#fcfcfd" }}>
-                      <td colSpan={10} style={{ padding: "8px 12px 12px 24px" }}>
-                        <div style={{ color: "#475467", fontSize: 12, marginBottom: 4 }}>Candidate identities (pick one when assigning):</div>
-                        <table style={{ fontSize: 12, borderCollapse: "collapse" }}>
-                          <tbody>
-                            {alternates.map((c, i) => (
-                              <tr key={i}>
-                                <td style={{ padding: "2px 12px 2px 0", color: "#101828" }}>{c.name} <span style={{ color: "#1570ef" }}>({c.cwid})</span></td>
-                                <td style={{ padding: "2px 12px", color: "#667085" }}>{c.person_type}{c.dept ? ` · ${c.dept}` : ""}</td>
-                                <td style={{ padding: "2px 12px" }}>IO <Score value={c.io_score} kind="io" /></td>
-                                <td style={{ padding: "2px 12px" }}>FG <Score value={c.final_score} kind="fg" /></td>
-                                <td style={{ padding: "2px 12px", color: "#667085" }}>conf {Number(c.confidence).toFixed(2)}{c.affil_dept_match ? " · affil✓" : ""}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  )}
-                 </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* pagination */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, color: "#475467", fontSize: 13 }}>
-        <span>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
-        <span style={{ display: "flex", gap: 8 }}>
-          <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}
-            style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #d0d5dd", background: "#fff", cursor: page === 0 ? "default" : "pointer", opacity: page === 0 ? 0.5 : 1 }}>Previous</button>
-          <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}
-            style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #d0d5dd", background: "#fff", cursor: page + 1 >= totalPages ? "default" : "pointer", opacity: page + 1 >= totalPages ? 0.5 : 1 }}>Next</button>
+      {/* row 1: status view + sort + keyboard help */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
+          {([["open", "Open"], ["snoozed", "Snoozed"], ["dismissed", "Dismissed"]] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setStatusView(key)} style={{
+              border: "none", padding: "5px 12px", font: "inherit", fontSize: 13, fontWeight: 600, borderRadius: 5,
+              cursor: "pointer", background: statusView === key ? "#fff" : "transparent",
+              color: statusView === key ? "#0f172a" : "#475569",
+              boxShadow: statusView === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
+            }}>{label}</button>
+          ))}
+        </div>
+        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, color: "#94a3b8", fontSize: 12 }}>
+          <IconInfo size={13} /> <kbd style={kbdStyle}>J</kbd><kbd style={kbdStyle}>K</kbd> move · <kbd style={kbdStyle}>Y</kbd> accept · <kbd style={kbdStyle}>N</kbd> reject · <kbd style={kbdStyle}>S</kbd> snooze
         </span>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#475569" }}>
+          Sort
+          <select value={sort} onChange={(e) => setSort(e.target.value)}
+            style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", font: "inherit", fontSize: 13, color: "#0f172a", padding: "0 10px", cursor: "pointer" }}>
+            <option value="io">Identity-only (IO) — strongest first</option>
+            <option value="date">Newest</option>
+            <option value="confidence">Confidence</option>
+            <option value="precision">Best match</option>
+            <option value="fg">Authorship Score</option>
+          </select>
+        </label>
       </div>
 
-      {/* undo bar */}
-      {undo && (
-        <div style={{
-          position: "fixed", bottom: 24, left: 24, zIndex: 20, display: "flex", alignItems: "center", gap: 14,
-          background: "#101828", color: "#fff", borderRadius: 10, padding: "10px 16px",
-          boxShadow: "0 8px 24px rgba(16,24,40,.22)", fontSize: 13,
-        }}>
-          <span>{undo.label}</span>
-          <button onClick={doUndo} style={{ background: "none", border: "none", color: "#7cc4ff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>UNDO</button>
+      {/* row 2: lane + classification chips + type + dates + search */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
+          {([["single", "High-precision"], ["all", "All unassigned"]] as const).map(([key, label]) => (
+            <Tip key={key} title={key === "single" ? "Only authorships where exactly one WCM identity matches the name" : "Every unassigned authorship"} placement="top" arrow>
+              <button onClick={() => setLane(key)} style={{
+                border: "none", padding: "5px 11px", font: "inherit", fontSize: 13, fontWeight: 500, borderRadius: 5,
+                cursor: "pointer", background: lane === key ? "#fff" : "transparent",
+                color: lane === key ? "#2563eb" : "#475569",
+                boxShadow: lane === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
+              }}>{label}</button>
+            </Tip>
+          ))}
+        </div>
+        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
+          {classChips.map((c) => (
+            <Tip key={c} title={c === "all" ? "Show every classification" : CLASS_META[c].hint} placement="top" arrow>
+              <button onClick={() => setClassification(c)} style={{
+                border: "none", padding: "5px 11px", font: "inherit", fontSize: 13, fontWeight: 500, borderRadius: 5,
+                cursor: "pointer", background: classification === c ? "#fff" : "transparent",
+                color: classification === c ? "#2563eb" : "#475569",
+                boxShadow: classification === c ? "0 1px 2px rgba(15,23,42,.08)" : "none",
+              }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
+            </Tip>
+          ))}
+        </div>
+        <button type="button" onClick={(e) => setTypeAnchor(e.currentTarget)}
+          style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `Type: ${selectedTypes.length}`} <IconChevD size={13} />
+        </button>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date">
+            Date
+            <select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)}
+              style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", font: "inherit", fontSize: 13, color: "#0f172a", padding: "0 8px", cursor: "pointer" }}>
+              <option value="any">Any time</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 90 days</option>
+              <option value="6m">Last 6 months</option>
+              <option value="12m">Last 12 months</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </label>
+          {datePreset === "custom" && (
+            <>
+              <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (from)">
+                From
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (to)">
+                To
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
+              </label>
+              {(dateFrom || dateTo) && (
+                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #dde3ea", background: "#fff", cursor: "pointer", color: "#475569", fontSize: 12 }}>
+                  Clear dates
+                </button>
+              )}
+            </>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
+            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Filter by name, CWID, or PMID"
+              style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #dde3ea", width: 220, fontSize: 13 }} />
+          </form>
+        </div>
+      </div>
+
+      {/* F4: bulk bar (slim) */}
+      {statusView === "open" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 18px", fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
+          <Tip title="Select every single-candidate row on this page for bulk action" placement="top" arrow>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: eligibleRows.length === 0 ? "default" : "pointer", color: eligibleRows.length === 0 ? "#94a3b8" : "#475569" }}>
+              <Checkbox size="small" disabled={eligibleRows.length === 0}
+                checked={allEligibleSelected}
+                indeterminate={someEligibleSelected && !allEligibleSelected}
+                onChange={toggleSelectAllEligible}
+                style={{ padding: 0 }} />
+              Select all single-candidate (this page)
+            </label>
+          </Tip>
+          <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
+            <button disabled={nearCertain.length === 0} style={btn("soft", nearCertain.length === 0)}
+              onClick={() => doBulkAccept(nearCertain)}>
+              <IconChecks /> Accept near-certain · IO ≥ 95 <strong style={{ fontVariantNumeric: "tabular-nums" }}>({nearCertain.length})</strong>
+            </button>
+          </Tip>
+          {selectedRows.length > 0 && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              — <strong>{selectedRows.length}</strong> selected
+              <button style={{ ...btn("accept"), padding: "4px 10px" }} onClick={() => doBulkAccept(selectedRows)}>
+                <IconCheck /> Accept selected
+              </button>
+            </span>
+          )}
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>Bulk acts on single-candidate rows on this page</span>
         </div>
       )}
 
-      {/* error toast */}
-      {errorMsg && (
-        <div style={{
-          position: "fixed", bottom: 24, right: 24, zIndex: 20, display: "flex", alignItems: "center", gap: 14,
-          background: "#b42318", color: "#fff", borderRadius: 10, padding: "10px 16px",
-          boxShadow: "0 8px 24px rgba(16,24,40,.22)", fontSize: 13, maxWidth: 420,
-        }}>
-          <span>{errorMsg}</span>
-          <button onClick={() => setErrorMsg("")} style={{ background: "none", border: "none", color: "#fecdca", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✕</button>
+      {/* card queue */}
+      <div>
+        {loading && <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Loading…</div>}
+        {!loading && rows.length === 0 && (
+          <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>No authorships match these filters.</div>
+        )}
+        {!loading && rows.map((r) => (
+          <AuthorshipCard
+            key={r.id}
+            row={r}
+            statusView={statusView}
+            isExpanded={expanded === r.id}
+            isSelected={selected.has(r.id)}
+            isFocused={focusedId === r.id}
+            acting={actingId === r.id}
+            pickedCwid={picked[r.id]}
+            registerRef={(el) => { cardRefs.current[r.id] = el; }}
+            onFocus={() => setFocusedId(r.id)}
+            onToggleExpand={() => setExpanded((e) => (e === r.id ? null : r.id))}
+            onToggleSelect={() => toggleSelect(r)}
+            onPick={(cwid) => setPicked((p) => ({ ...p, [r.id]: cwid }))}
+            onAction={(action, extra) => doAction(r, action, extra)}
+            onMenu={(anchor) => setMenu({ anchor, row: r })}
+            onNarrowPmid={() => narrowToPmid(r.pmid)}
+          />
+        ))}
+      </div>
+
+      {/* pagination */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18, color: "#475569", fontSize: 13 }}>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
+        <span style={{ display: "flex", gap: 8 }}>
+          <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} style={btn("ghost", page === 0)}>Previous</button>
+          <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} style={btn("ghost", page + 1 >= totalPages)}>Next</button>
+        </span>
+      </div>
+
+      {/* overflow menu: Reject / Snooze / Dismiss.
+          Reject writes a "rejected" gold-standard entry against top_cwid — valid only for
+          single-candidate rows (the backend 409s on multi). For multi-candidate rows the
+          equivalent "this isn't any of them" action is None of these → dismiss. */}
+      <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
+        {menu?.row.single_candidate ? (
+          <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
+            <IconX size={14} style={{ marginRight: 8 }} /> Reject
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")} style={{ color: "#b91c1c" }}>
+            <IconX size={14} style={{ marginRight: 8 }} /> None of these
+          </MenuItem>
+        )}
+        <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
+        <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
+      </Menu>
+
+      {/* person-type multiselect menu */}
+      <Menu anchorEl={typeAnchor} open={!!typeAnchor} onClose={() => setTypeAnchor(null)}>
+        {(summary?.personTypes || []).length === 0 && <MenuItem disabled>No types</MenuItem>}
+        {(summary?.personTypes || []).map((pt) => (
+          <MenuItem key={pt.type} dense onClick={() =>
+            setSelectedTypes((s) => s.includes(pt.type) ? s.filter((t) => t !== pt.type) : [...s, pt.type])
+          }>
+            <Checkbox checked={selectedTypes.includes(pt.type)} size="small" style={{ padding: "0 8px 0 0" }} />
+            {pt.type} ({pt.n.toLocaleString()})
+          </MenuItem>
+        ))}
+        {selectedTypes.length > 0 && (
+          <MenuItem dense onClick={() => setSelectedTypes([])} style={{ color: "#b42318", fontWeight: 600 }}>Clear selection</MenuItem>
+        )}
+      </Menu>
+
+      {/* undo (immediate reversal, batched) */}
+      <Snackbar open={!!undo} autoHideDuration={6000} onClose={() => setUndo(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        message={undo ? undo.label : ""}
+        action={
+          <button onClick={doUndo}
+            style={{ color: "#7cc4ff", background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>UNDO</button>
+        } />
+
+      {/* error */}
+      <Snackbar open={!!errorMsg} autoHideDuration={6000} onClose={() => setErrorMsg("")}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} message={errorMsg} />
+    </div>
+  );
+};
+
+const kbdStyle: CSSProperties = {
+  font: "inherit", fontSize: 11, background: "#eef2f7", border: "1px solid #dde3ea", borderBottomWidth: 2,
+  borderRadius: 4, padding: "0 5px", color: "#475569",
+};
+
+// ---- card ----------------------------------------------------------------
+interface CardProps {
+  row: AuthorshipRow;
+  statusView: "open" | "snoozed" | "dismissed";
+  isExpanded: boolean;
+  isSelected: boolean;
+  isFocused: boolean;
+  acting: boolean;
+  pickedCwid?: string;
+  registerRef: (el: HTMLElement | null) => void;
+  onFocus: () => void;
+  onToggleExpand: () => void;
+  onToggleSelect: () => void;
+  onPick: (cwid: string) => void;
+  onAction: (action: string, extra?: Record<string, any>) => void;
+  onMenu: (anchor: HTMLElement) => void;
+  onNarrowPmid: () => void;
+}
+
+const AuthorshipCard = ({
+  row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
+  registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onNarrowPmid,
+}: CardProps) => {
+  const isMulti = !r.single_candidate && (r.n_candidates ?? 0) > 1;
+  const isAbsent = r.top_io_score == null;
+  const wcm = hasWcm(r.author_affiliation);
+  const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
+  const meta = CLASS_META[r.classification || "absent"];
+
+  const cardStyle: CSSProperties = {
+    background: isSelected ? "#eff6ff" : "#fff",
+    border: "1px solid #e8edf2",
+    borderRadius: 10,
+    marginBottom: 11,
+    boxShadow: isFocused ? "0 0 0 2px #2563eb" : "0 1px 2px rgba(15,23,42,.04)",
+    transition: "box-shadow 150ms, background 150ms",
+    cursor: "pointer",
+  };
+
+  return (
+    <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
+        {/* selection checkbox — single-candidate open rows only */}
+        <input type="checkbox" disabled={!r.single_candidate || statusView !== "open"}
+          checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
+          aria-label={`select ${r.wcm_author || ""}`}
+          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && statusView === "open" ? 1 : 0.3 }} />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* L1 — WCM author + position */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>{r.wcm_author}</span>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>{r.author_position_label} author</span>
+            {(r.pmid_sibling_count ?? 1) > 1 && (
+              <Tip title="Show all WCM authorships on this paper" placement="top" arrow>
+                <button onClick={(e) => { e.stopPropagation(); onNarrowPmid(); }} style={{
+                  display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid #e2e9f3", background: "#f4f7fc",
+                  color: "#2563eb", borderRadius: 12, padding: "1px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                }}>
+                  <IconUsers size={12} /> +{(r.pmid_sibling_count as number) - 1} more WCM authors on this paper
+                </button>
+              </Tip>
+            )}
+          </div>
+
+          {/* L2 — proposed identity */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
+            <span style={{ color: "#94a3b8" }}>→</span>
+            {isMulti ? (
+              <span style={{ color: "#94a3b8" }}>choose among {r.n_candidates} WCM homonyms</span>
+            ) : (
+              <>
+                <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
+                {r.top_cwid && (
+                  <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
+                    style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
+                )}
+                <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
+              </>
+            )}
+          </div>
+
+          {/* L3 — paper meta (quiet/truncated). PMID link now lives in the evidence panel. */}
+          <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={stripHtml(r.title)}>
+            <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} /> · <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>{r.entrez_date ? ` · ${r.entrez_date}` : ""}
+          </div>
+
+          {/* L4 — full affiliation (WCM highlighted), wraps to multiple lines + disclosure */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 7, fontSize: 12.5, color: "#475569" }}>
+            <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 6, minWidth: 0, flex: 1 }}>
+              <IconPin size={15} style={{ color: "#94a3b8", marginTop: 2 }} />
+              <span>
+                {r.author_affiliation ? highlightAffiliation(r.author_affiliation) : "—"}
+              </span>
+            </span>
+            <button onClick={(e) => { e.stopPropagation(); onToggleExpand(); }} aria-expanded={isExpanded} style={{
+              display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto", background: "none", border: "none",
+              font: "inherit", fontSize: 12, fontWeight: 600, color: isExpanded ? "#2563eb" : "#475569", cursor: "pointer",
+              padding: "2px 4px", borderRadius: 5, flex: "none",
+            }}>
+              {isMulti ? "Pick one" : "Evidence"} {isExpanded ? <IconChevD size={13} /> : <IconChevR size={13} />}
+            </button>
+          </div>
         </div>
+
+        {/* right rail: score block + primary action + overflow */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>
+          <ScoreRail row={r} isMulti={isMulti} isAbsent={isAbsent} candidates={candidates} />
+          {statusView === "open" ? (
+            isMulti ? (
+              <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
+            ) : (
+              <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
+                <IconCheck /> Accept
+              </button>
+            )
+          ) : (
+            <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}>Reopen</button>
+          )}
+          {statusView === "open" && (
+            <button style={iconBtn(acting)} disabled={acting} aria-label="More actions"
+              onClick={(e) => { e.stopPropagation(); onMenu(e.currentTarget); }}><IconMore /></button>
+          )}
+        </div>
+      </div>
+
+      {/* snoozed wake-time hint */}
+      {statusView === "snoozed" && r.snooze_until && (
+        <div style={{ padding: "0 15px 10px 43px", fontSize: 11, color: "#94a3b8" }}>Wakes {r.snooze_until}</div>
+      )}
+
+      {/* expanded evidence / pick-one */}
+      {isExpanded && (
+        <div style={{ padding: "0 15px 14px 43px", fontSize: 13, color: "#475569" }}>
+          {isMulti ? (
+            <MultiEvidence row={r} candidates={candidates} pickedCwid={pickedCwid} acting={acting}
+              onPick={onPick} onAction={onAction} />
+          ) : (
+            <SingleEvidence row={r} wcm={wcm} isAbsent={isAbsent} />
+          )}
+        </div>
+      )}
+    </article>
+  );
+};
+
+// right-rail score block
+const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipRow; isMulti: boolean; isAbsent: boolean; candidates: Candidate[] }) => {
+  if (isMulti) {
+    const total = r.n_candidates ?? candidates.length;
+    return (
+      <div style={{ textAlign: "right", minWidth: 46 }}>
+        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#fffbeb", color: "#b45309" }}>
+          {total} candidates
+        </span>
+        {r.top_io_score != null && (
+          <span style={{ display: "block", fontSize: 10.5, color: "#94a3b8", marginTop: 3, textAlign: "right", fontWeight: 500 }}>
+            top IO {fmtScore(r.top_io_score)}
+          </span>
+        )}
+      </div>
+    );
+  }
+  if (isAbsent) {
+    return (
+      <div style={{ textAlign: "right", minWidth: 46 }}>
+        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#fffbeb", color: "#b45309" }}>
+          Never retrieved
+        </span>
+        <span style={{ display: "block", fontSize: 10.5, color: "#94a3b8", marginTop: 3, textAlign: "right", fontWeight: 500 }}>
+          conf: {confBand(r.top_confidence)}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ textAlign: "right", minWidth: 78 }}>
+      <Tip title="Identity-Only score — authorship likelihood from identity evidence alone (name, affiliation, cohort), ignoring curator feedback (0-100)." placement="left" arrow>
+        <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: ioColor(r.top_io_score), cursor: "help" }}>
+          {fmtScore(r.top_io_score)}
+        </div>
+      </Tip>
+      {r.top_fg_score != null && (
+        <Tip title="Authorship Score — ReCiter production authorship-likelihood score (0-100); below 30 means production buried this person." placement="left" arrow>
+          <div style={{ fontSize: 11, color: "#c2410c", marginTop: 3, fontWeight: 600, fontVariantNumeric: "tabular-nums", cursor: "help" }}>
+            Auth. Score {fmtScore(r.top_fg_score)}
+          </div>
+        </Tip>
       )}
     </div>
   );
 };
+
+// single-candidate / absent evidence panel
+const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: boolean; isAbsent: boolean }) => (
+  <>
+    <div><PmidLink pmid={r.pmid} /></div>
+    {/* absent → labeled facts, no score blocks (F10) */}
+    {isAbsent && (
+      <div style={{ display: "flex", gap: 22, marginBottom: 10 }}>
+        <div><div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{confBand(r.top_confidence)}</div><div style={factLabel}>Confidence</div></div>
+        <div><div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{r.top_cohort_size ?? "—"}</div><div style={factLabel}>WCM homonym</div></div>
+        <div><div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{r.top_given_match || "—"}</div><div style={factLabel}>Given name</div></div>
+      </div>
+    )}
+    {/* signal chips (F7) */}
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
+      {wcm
+        ? <Chip kind="ok"><IconCheck size={13} /> WCM affiliation match</Chip>
+        : <Chip kind="warn"><IconAlert size={13} /> No WCM string in affiliation</Chip>}
+      {r.top_affil_match
+        ? <Chip kind="neutral">Dept: {r.top_dept} ✓</Chip>
+        : <Chip kind="neutral">Dept ≠ affiliation</Chip>}
+    </div>
+    {/* inline IO/FG note (F8) */}
+    <div style={{
+      display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px",
+      background: isAbsent ? "#fffbeb" : "#eff6ff", color: isAbsent ? "#b45309" : "#475569",
+    }}>
+      {isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "#b45309" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "#2563eb" }} />}
+      <span>{ioFgNote(r)}</span>
+    </div>
+  </>
+);
+
+// multi-candidate disambiguation panel (F11)
+const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onAction }: {
+  row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
+  onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
+}) => {
+  // rank by IO desc; null IO sinks last
+  const ranked = [...candidates].sort((a, b) => (b.io_score ?? -1) - (a.io_score ?? -1));
+  const scored = ranked.filter((c) => c.io_score != null);
+  const unscored = ranked.filter((c) => c.io_score == null);
+  const [showAll, setShowAll] = useState(false);
+  const anyDeptMatch = candidates.some((c) => c.affil_dept_match);
+  const lead = scored[0];
+  // The Assign button writes the PRODUCTION gold standard, so it must reflect an
+  // EXPLICIT curator pick — never a silent default. We highlight the highest-IO
+  // candidate (lead) as a visual hint only; selectedCwid drives the radio state but
+  // Assign is gated on pickedCwid below so opening/mis-clicking a card can't write GS.
+  const selectedCwid = pickedCwid;
+  // when no candidate has an IO score, there is nothing to show in the default view —
+  // auto-expand the unscored list so the curator always has a visible choice to pick.
+  const visible = showAll || scored.length === 0 ? ranked : scored;
+
+  return (
+    <>
+      <div><PmidLink pmid={r.pmid} /></div>
+      {!anyDeptMatch && (
+        <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginBottom: 10 }}>
+          <IconAlert size={15} style={{ marginTop: 1 }} />
+          <span>The affiliation names Weill Cornell but no department — ranked by identity-only (IO).</span>
+        </div>
+      )}
+      <div>
+        {visible.map((c, i) => {
+          const isLead = c.cwid === lead?.cwid;
+          const checked = c.cwid === selectedCwid;
+          return (
+            <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
+              display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
+              border: `1px solid ${isLead ? "#bbf7d0" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7, cursor: "pointer",
+              background: isLead ? "#f0fdf4" : "#fff",
+            }}>
+              <input type="radio" name={`m${r.id}`} checked={checked} onChange={() => onPick(c.cwid)}
+                onClick={(e) => e.stopPropagation()}
+                style={{ accentColor: "#2563eb", flex: "none" }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
+                  {c.name}{" "}
+                  {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
+                </span>
+                <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
+                  {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{c.affil_dept_match ? " · dept✓" : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
+                </span>
+              </span>
+              <span style={{ textAlign: "right" }}>
+                <span style={{ display: "block", fontSize: 16, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: ioColor(c.io_score) }}>
+                  {fmtScore(c.io_score)}
+                </span>
+                {c.final_score != null && (
+                  <span style={{ display: "block", fontSize: 10.5, color: "#c2410c", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>Auth. Score {fmtScore(c.final_score)}</span>
+                )}
+              </span>
+            </label>
+          );
+        })}
+        {!showAll && scored.length > 0 && unscored.length > 0 && (
+          <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
+            Show all {ranked.length} ({unscored.length} never retrieved, IO unavailable)
+          </button>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <button style={btn("accept", acting || !pickedCwid)} disabled={acting || !pickedCwid}
+          onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
+          <IconCheck /> Assign selected
+        </button>
+        <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("dismiss"); }}>
+          <IconX /> None of these
+        </button>
+      </div>
+    </>
+  );
+};
+
+const factLabel: CSSProperties = { fontSize: 10.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".04em", marginTop: 1 };
 
 export default AuthorshipsTabs;
