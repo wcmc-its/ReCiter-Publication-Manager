@@ -4,6 +4,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 import Checkbox from "@mui/material/Checkbox";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
@@ -202,7 +203,7 @@ const iconBtn = (disabled?: boolean): CSSProperties => ({
 });
 
 // signal chips (F7)
-const Chip = ({ kind, children }: { kind: "ok" | "warn" | "neutral"; children: ReactNode }) => {
+const Chip = ({ kind, children, style }: { kind: "ok" | "warn" | "neutral"; children: ReactNode; style?: CSSProperties }) => {
   const styles: Record<string, CSSProperties> = {
     ok: { background: "#f0fdf4", color: "#15803d", borderColor: "transparent" },
     warn: { background: "#fffbeb", color: "#b45309", borderColor: "transparent" },
@@ -211,7 +212,7 @@ const Chip = ({ kind, children }: { kind: "ok" | "warn" | "neutral"; children: R
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, padding: "2px 9px",
-      borderRadius: 6, border: "1px solid #dde3ea", ...styles[kind],
+      borderRadius: 6, border: "1px solid #dde3ea", ...styles[kind], ...style,
     }}>{children}</span>
   );
 };
@@ -474,7 +475,7 @@ const AuthorshipsTabs = () => {
         // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
         const scopusDup = e?.status === 409 && row.source === "scopus" && (action === "accept" || action === "assign");
         if (scopusDup) setForcePrompt({ row, action, extra, message: String(e?.message || e) });
-        else setErrorMsg(`Couldn't ${action} — ${String(e?.message || e)}`);
+        else setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}. The row is back in the list — nothing was saved.`);
         fetchData(); // restore the optimistically-removed row
       })
       .finally(() => setActingId(null));
@@ -892,8 +893,12 @@ const AuthorshipsTabs = () => {
         } />
 
       {/* error */}
-      <Snackbar open={!!errorMsg} autoHideDuration={6000} onClose={() => setErrorMsg("")}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} message={errorMsg} />
+      <Snackbar open={!!errorMsg} autoHideDuration={10000} onClose={() => setErrorMsg("")}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}>
+        <Alert severity="error" variant="filled" onClose={() => setErrorMsg("")} sx={{ maxWidth: 460 }}>
+          {errorMsg}
+        </Alert>
+      </Snackbar>
 
       {/* scopus Force-add prompt (409 likely-duplicate ExternalArticle) — confirm to retry with force */}
       <Snackbar open={!!forcePrompt} onClose={() => setForcePrompt(null)}
@@ -1011,7 +1016,7 @@ const AuthorshipCard = ({
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
               <span style={scopusBadgeStyle}>Scopus</span>
               <span style={notInPubmedPillStyle}>Not in PubMed</span>
-              {r.pub_type && <Chip kind="neutral">{r.pub_type}</Chip>}
+              {r.pub_type && <Chip kind="neutral" style={{ fontSize: 10, padding: "1px 7px" }}>{r.pub_type}</Chip>}
             </div>
           )}
 
