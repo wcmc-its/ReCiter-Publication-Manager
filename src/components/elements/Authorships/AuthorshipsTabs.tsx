@@ -277,10 +277,13 @@ const AuthorshipsTabs = () => {
   const [classification, setClassification] = useState<"all" | "buried" | "absent" | "suggested">("all");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [sort, setSort] = useState("io"); // F3: default sort = IO
+  const [sort, setSort] = useState("confidence"); // default sort = Confidence (desc)
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [datePreset, setDatePreset] = useState("any"); // "any" | "30d" | "90d" | "6m" | "12m" | "custom"
+  const [datePreset, setDatePreset] = useState("24m"); // default = Last 2 years; "any"|"30d"|"90d"|"6m"|"12m"|"24m"|"custom"
+  // The default window is applied on mount (client-side, below) so the statically-prerendered
+  // initial render stays date-free and hydrates cleanly; the first list fetch waits on this.
+  const [datesReady, setDatesReady] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -417,9 +420,10 @@ const AuthorshipsTabs = () => {
   }, [filterBody]);
 
   useEffect(() => {
+    if (!datesReady) return;                                                    // hold the first fetch for the default window
     if (pendingPageReset.current) { pendingPageReset.current = false; return; } // offset-0 fetch follows
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, datesReady]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   // clear transient per-page UI state on deliberate navigation only (filter/sort/status/page) —
   // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
@@ -561,9 +565,15 @@ const AuthorshipsTabs = () => {
     // February, not rolls forward into March (setMonth/setFullYear overflow on short target months).
     else if (preset === "6m") { const day = from.getDate(); from.setDate(1); from.setMonth(from.getMonth() - 6); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
     else if (preset === "12m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 1); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
+    else if (preset === "24m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 2); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
     setDateFrom(fmt(from));
     setDateTo(fmt(today));
   }, []);
+
+  // Apply the default "recent" window (Last 2 years) on mount — client-only so the statically
+  // prerendered initial render (empty dates) hydrates cleanly. datesReady then releases the first
+  // list fetch, so curators land on the windowed view instead of flashing the full backlog.
+  useEffect(() => { applyDatePreset("24m"); setDatesReady(true); }, [applyDatePreset]);
 
   // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open PubMed.
   // Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so an optimistic action
@@ -733,6 +743,7 @@ const AuthorshipsTabs = () => {
               <option value="90d">Last 90 days</option>
               <option value="6m">Last 6 months</option>
               <option value="12m">Last 12 months</option>
+              <option value="24m">Last 2 years</option>
               <option value="custom">Custom…</option>
             </select>
           </label>
