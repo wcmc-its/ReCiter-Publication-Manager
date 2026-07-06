@@ -1,0 +1,15 @@
+.scopeFilter {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 0;
+}
+.switchControl {
+    font-size: 13px;
+    color: #5a6478;
+}
+.hint {
+    font-size: 11px;
+    color: #8a94a6;
+    padding-left: 44px; /* align with switch label */
+}

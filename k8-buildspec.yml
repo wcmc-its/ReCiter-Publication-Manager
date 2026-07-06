@@ -45,6 +45,14 @@ phases:
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
             aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.key ./config/certs/reciter-saml.key
           fi
+        - |
+          if expr "${BRANCH}" : ".*master_Next14" >/dev/null; then
+            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-prod"'@'  config/local.js;
+            aws s3 cp s3://reciter-config/config/prod/saml/idp.crt ./config/certs/idp.crt
+            aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.crt ./config/certs/reciter-saml.crt
+            aws s3 cp s3://reciter-config/config/prod/saml/reciter-saml.key ./config/certs/reciter-saml.key
+          fi
+        
         #- $(aws ecr get-login --no-include-email)
         - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
         # - sed -i -e "s/ADMIN_API_KEY/$ADMIN_API_KEY/g" config/local.js
@@ -63,7 +71,8 @@ phases:
       - |
         if expr "${BRANCH}" : ".*master" >/dev/null || \
            expr "${BRANCH}" : ".*dev" >/dev/null || \
-           expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null; then
+           expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null || \
+           expr "${BRANCH}" : ".*master_Next14" >/dev/null;then
           docker build --build-arg NEXT_PUBLIC_RECITER_API_KEY=$ADMIN_API_KEY --build-arg NEXT_PUBLIC_RECITER_TOKEN_SECRET=$TOKEN_SECRET --tag $REPOSITORY_URI:$TAG .
         fi
 
@@ -71,7 +80,7 @@ phases:
   post_build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null || expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*master_Next14" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null || expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
           docker push $REPOSITORY_URI:$TAG
           # Log out from the Docker registry to clear credentials
           docker logout $REPOSITORY_URI
@@ -82,4 +91,7 @@ phases:
         fi
         if expr "${BRANCH}" : ".*dev" >/dev/null ||  expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
           kubectl set image deployment/reciter-pm-dev reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
+        fi
+        if expr "${BRANCH}" : ".*master_Next14" >/dev/null; then
+          kubectl set image deployment/reciter-pm-prod reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
         fi
