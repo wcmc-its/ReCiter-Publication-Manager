@@ -264,6 +264,11 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
                 payload: data
             })
 
+            // NEW: clear any stale identity/feature-gen error flag on a successful fetch
+            dispatch({
+                type: methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR
+            })
+
             dispatch({
                 type: methods.RECITER_CANCEL_FETCHING
             })
