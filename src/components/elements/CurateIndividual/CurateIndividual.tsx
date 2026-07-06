@@ -136,7 +136,7 @@ const CurateIndividual = () => {
     )
   }
 
-  if (identityORFeatureGenError) {
+ if (identityORFeatureGenError && identityORFeatureGenError.length > 0) {
     return (
       <div className={appStyles.mainContainer}>
         <ToastContainerWrapper />

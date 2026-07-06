@@ -833,6 +833,8 @@ export const identityORFeatureGenError = (state=[], action) => {
               ...state,
               action.payload
           ]
+      case methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR :   // <-- ADD THIS
+          return []                                      // <-- ADD THIS
       default:
           return state
   }
