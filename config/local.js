@@ -135,7 +135,7 @@ export const reciterConfig = {
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
      * Make sure its a good secret with good mix of alpha numeric characters.
      */
-    tokenSecret:  process.env.NEXT_PUBLIC_RECITER_TOKEN_SECRET,
+    tokenSecret:  process.env.RECITER_TOKEN_SECRET,
     backendApiKey: process.env.NEXT_PUBLIC_RECITER_BACKEND_API_KEY,
 
     asms: {
