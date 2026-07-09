@@ -18,6 +18,7 @@ WORKDIR /app
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 ARG NEXT_PUBLIC_LOGIN_PROVIDER
+ARG NEXT_PUBLIC_RECITER_BACKEND_API_KEY=tests
 RUN env
 # COPY . . brought back the corrupt committed lockfile; remove again.
 RUN rm -f package-lock.json && npm run build && npm install --production --ignore-scripts --prefer-offline --legacy-peer-deps
