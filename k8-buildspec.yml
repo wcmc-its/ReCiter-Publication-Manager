@@ -66,14 +66,14 @@ phases:
         if expr "${BRANCH}" : ".*master" >/dev/null || \
            expr "${BRANCH}" : ".*dev" >/dev/null || \
            expr "${BRANCH}" : ".*master_Next14" >/dev/null;then
-          docker build --tag $REPOSITORY_URI:$TAG .
+          docker build --build-arg NEXT_PUBLIC_RECITER_BACKEND_API_KEY=$NEXT_PUBLIC_RECITER_BACKEND_API_KEY --tag $REPOSITORY_URI:$TAG .
         fi
 
 
   post_build:
     commands:
       - |
-        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*master_Next14" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null || expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
+        if expr "${BRANCH}" : ".*master" >/dev/null || expr "${BRANCH}" : ".*master_Next14" >/dev/null || expr "${BRANCH}" : ".*dev" >/dev/null; then
           docker push $REPOSITORY_URI:$TAG
           # Log out from the Docker registry to clear credentials
           docker logout $REPOSITORY_URI
