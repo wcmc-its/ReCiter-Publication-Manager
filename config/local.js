@@ -6,7 +6,7 @@ export const reciterConfig = {
         /*
          * Admin api key to access all the reciter endpoint. If you did not setup security in your reciter APIs then leave it empty.
          */
-        adminApiKey: process.env.NEXT_PUBLIC_RECITER_API_KEY,
+        adminApiKey: process.env.RECITER_API_KEY,
         /**
          * Reciter API EndPoint Base Url. It reads values from environment variables.
          */

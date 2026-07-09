@@ -26,12 +26,6 @@ phases:
         - echo "${BRANCH}"
         - echo "${AWS_REGION}"
         - |
-          if expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
-            sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
-            aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/reciter-boxyhqsaml.crt ./config/certs/reciter-boxyhqsaml.crt
-            aws s3 cp s3://reciter-config/config/upgradation/BoxyHQSAML/metadata.xml ./config/certs/metadata.xml
-          fi
-        - |
           if expr "${BRANCH}" : ".*dev" >/dev/null; then
             sed -i.bak -e 's@RECITER-SERVICE@'"reciter-prod"'@' -e 's@RECITER-PUBMED-SERVICE@'"reciter-pubmed-dev"'@'  config/local.js;
             aws s3 cp s3://reciter-config/config/dev/saml/idp.crt ./config/certs/idp.crt
@@ -71,9 +65,8 @@ phases:
       - |
         if expr "${BRANCH}" : ".*master" >/dev/null || \
            expr "${BRANCH}" : ".*dev" >/dev/null || \
-           expr "${BRANCH}" : ".*dev_Upd_NextJS14SNode18" >/dev/null || \
            expr "${BRANCH}" : ".*master_Next14" >/dev/null;then
-          docker build --build-arg NEXT_PUBLIC_RECITER_API_KEY=$ADMIN_API_KEY --build-arg NEXT_PUBLIC_RECITER_TOKEN_SECRET=$TOKEN_SECRET --tag $REPOSITORY_URI:$TAG .
+          docker build --tag $REPOSITORY_URI:$TAG .
         fi
 
 
