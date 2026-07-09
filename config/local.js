@@ -6,7 +6,7 @@ export const reciterConfig = {
         /*
          * Admin api key to access all the reciter endpoint. If you did not setup security in your reciter APIs then leave it empty.
          */
-        adminApiKey: process.env.NEXT_PUBLIC_RECITER_API_KEY,
+        adminApiKey: process.env.RECITER_API_KEY,
         /**
          * Reciter API EndPoint Base Url. It reads values from environment variables.
          */
@@ -54,7 +54,7 @@ export const reciterConfig = {
                  * This flag specifies if reciter will re-compute suggestions. Use if you want to re-compute. This will take more time and resources.
                  * Type: Boolean
                  */
-                analysisRefreshFlag: "TRUE",
+                analysisRefreshFlag: "FALSE",
                 /**
                  * This flag specifies if reciter will re-retrieve all publication from upstream sources. Specify to refresh all retrieval.
                  * Type: String
@@ -121,7 +121,7 @@ export const reciterConfig = {
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.
      * Make sure its a good secret with good mix of alpha numeric characters.
      */
-    tokenSecret:  process.env.NEXT_PUBLIC_RECITER_TOKEN_SECRET,
+    tokenSecret:  process.env.RECITER_TOKEN_SECRET,
     backendApiKey: process.env.NEXT_PUBLIC_RECITER_BACKEND_API_KEY,
 
     asms: {
