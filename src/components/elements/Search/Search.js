@@ -25,6 +25,11 @@ import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
 import { isProxyFor } from '../../../utils/scopeResolver';
 
+// Guard against malformed/absent session claims so a bad JWT value can't white-screen the page.
+const safeParse = (value, fallback) => {
+  try { return value != null ? JSON.parse(value) : fallback; } catch { return fallback; }
+};
+
 const Search = () => {
 
   const { data: session, status } = useSession();
@@ -97,9 +102,9 @@ const Search = () => {
       setNameOrcwidLabel(cwidLabel)
     } else if (session?.adminSettings) {
       // regular settings from session
-      let adminSettings = JSON.parse(session.adminSettings);
+      let adminSettings = safeParse(session.adminSettings, []);
       let data = adminSettings.find(obj => obj.viewName === "findPeople")
-      viewAttributes = JSON.parse(data.viewAttributes)
+      viewAttributes = data ? safeParse(data.viewAttributes, []) : []
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel)
     }
@@ -107,7 +112,7 @@ const Search = () => {
     // view attributes data from session or updated settings
     setFindPeopleLabels(viewAttributes)
 
-    let userPermissions = JSON.parse(session.data.userRoles);
+    let userPermissions = safeParse(session.data.userRoles, []);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
     if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
         setDropdownTitle("Create Report");
