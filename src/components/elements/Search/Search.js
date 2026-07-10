@@ -782,7 +782,6 @@ const Search = () => {
                           <tr>
                             <th key="0">Name</th>
                             <th key="1">Affiliation</th>
-                            <th key="2">Institution</th>
                             {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : null}
                             <th key="4">Actions</th>
                           </tr>
