@@ -1,25 +1,19 @@
 // PM#772 — Scopus author-search proxy for the Scopus Authorships tab. Two modes:
 //   - authors:   resolve a person's Scopus Author ID from their name + WCM affiliation
-//   - documents: list a Scopus Author ID's documents (AU-ID query)
-// Server-side only; uses the Scopus API key + inst token from the environment (the
-// inst token is required — key alone 401s). Docs are normalized into the same shape
-// the external-article POST expects, so accept flows reuse the #771 add pipeline.
-// ponytail: proxies Scopus directly from PM for the local build; rewire to the Java
-// Scopus retrieval tool's author-search endpoint (ScopusTool#26) after the freeze.
+//   - documents: list a Scopus Author ID's documents (AU-ID query), or search by keyword/DOI
+//
+// Server-side only. Routed through the ReCiter Scopus Retrieval Tool's /scopus/search/*
+// endpoints (ScopusTool#31) rather than calling api.elsevier.com directly: the tool holds
+// the Elsevier API key + inst token, so PM no longer needs them. The tool returns the
+// Elsevier search-results JSON verbatim, so the normalization below is unchanged — docs
+// are shaped into the external-article POST body so accept flows reuse the #771 pipeline.
 
-const SCOPUS_SEARCH = 'https://api.elsevier.com/content/search/scopus'
-const SCOPUS_AUTHOR = 'https://api.elsevier.com/content/search/author'
-
-function scopusHeaders() {
-    return {
-        'X-ELS-APIKey': process.env.SCOPUS_API_KEY || '',
-        'X-ELS-Insttoken': process.env.SCOPUS_INST_TOKEN || '',
-        'Accept': 'application/json',
-    }
-}
+import { reciterConfig } from '../config/local'
 
 export function scopusConfigured(): boolean {
-    return !!(process.env.SCOPUS_API_KEY && process.env.SCOPUS_INST_TOKEN)
+    // The Elsevier credentials now live in the Scopus Retrieval Tool; here we only need the
+    // tool endpoint to be configured. A missing key in the tool surfaces as a 5xx below.
+    return !!(process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL)
 }
 
 // One Scopus Search entry -> external-article POST body (minus addedBy, set server-side).
@@ -44,14 +38,14 @@ function normalizeScopusDoc(entry: any) {
     }
 }
 
-// Resolve candidate Scopus Author IDs for a person by name + WCM affiliation.
+// Resolve candidate Scopus Author IDs for a person by name (tool scopes to WCM affiliation).
 export async function searchScopusAuthors(lastName: string, firstName: string) {
     if (!lastName) return []
-    const parts = [`authlast(${lastName})`]
-    if (firstName) parts.push(`authfirst(${firstName})`)
-    parts.push('affil(Weill Cornell)')
-    const q = encodeURIComponent(parts.join(' AND '))
-    const res = await fetch(`${SCOPUS_AUTHOR}?query=${q}&count=10`, { headers: scopusHeaders() })
+    const params = new URLSearchParams({ lastName })
+    if (firstName) params.set('firstName', firstName)
+    const res = await fetch(`${reciterConfig.reciterScopus.searchAuthorsEndpoint}?${params.toString()}`, {
+        headers: { 'User-Agent': 'reciter-pub-manager-server' },
+    })
     if (!res.ok) throw new Error(`Scopus author search HTTP ${res.status}`)
     const data: any = await res.json()
     const entries = (data['search-results'] && data['search-results'].entry) || []
@@ -66,20 +60,15 @@ export async function searchScopusAuthors(lastName: string, firstName: string) {
         .filter((a: any) => a.authorId)
 }
 
-// Scopus returns up to this many docs per request; totalResults reports the real count.
-const SCOPUS_PAGE_CAP = 200
-
 // Search Scopus documents by author id, keyword, or doi. Returns the normalized page
 // plus the true total so the UI can tell the curator when there is more than we fetched.
 export async function searchScopusDocuments(by: string, term: string): Promise<{ results: any[], total: number }> {
     const t = (term || '').trim()
     if (!t) return { results: [], total: 0 }
-    let query: string
-    let sort = '&sort=-coverDate'
-    if (by === 'keyword') { query = `TITLE-ABS-KEY(${t})`; sort = '' }            // relevance order
-    else if (by === 'doi') { query = `DOI(${t})` }
-    else { query = `AU-ID(${t.replace(/^AUTHOR_ID:/i, '')})` }                    // default: author id
-    const res = await fetch(`${SCOPUS_SEARCH}?query=${encodeURIComponent(query)}&count=${SCOPUS_PAGE_CAP}${sort}`, { headers: scopusHeaders() })
+    const params = new URLSearchParams({ by: by || 'author', term: t })
+    const res = await fetch(`${reciterConfig.reciterScopus.searchDocumentsEndpoint}?${params.toString()}`, {
+        headers: { 'User-Agent': 'reciter-pub-manager-server' },
+    })
     if (!res.ok) throw new Error(`Scopus doc search HTTP ${res.status}`)
     const data: any = await res.json()
     const sr = data['search-results'] || {}

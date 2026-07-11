@@ -131,6 +131,17 @@ export const reciterConfig = {
         searchPubmedCountEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-number-pubmed-articles/',
     },
     /**
+     * Scopus search via the ReCiter Scopus Retrieval Tool. The tool holds the Elsevier
+     * SCOPUS_API_KEY / SCOPUS_INST_TOKEN, so PM no longer needs them. Like PubMed, on dev
+     * the Scopus tool is a separate service (reciter-scopus-dev), so RECITER_SCOPUS_API_URL
+     * overrides just these routes; it falls back to RECITER_API_BASE_URL when unset.
+     * See https://github.com/wcmc-its/ReCiter-Scopus-Retrieval-Tool.git.
+     */
+    reciterScopus: {
+        searchDocumentsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/documents',
+        searchAuthorsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/authors',
+    },
+    /**
      * PM#771 — OpenAlex is a free, keyless public API. It is queried ONLY server-side
      * (via the PM /api/reciter/search/openalex route), never from the browser.
      */
