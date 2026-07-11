@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: reciter-pm-dev
+  name: reciter-pm-prod
   namespace: reciter
   annotations:
     alb.ingress.kubernetes.io/healthcheck-path: /login
@@ -11,7 +11,7 @@ metadata:
     alb.ingress.kubernetes.io/healthcheck-port: traffic-port
     alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
   labels:
-    app: reciter-pm
+    app: reciter-pm-prod
     environment: prod
     tier: frontend
     owner: szd2013
@@ -22,6 +22,6 @@ spec:
       targetPort: 3000
       protocol: TCP
   selector:
-    app: reciter-pm
+    app: reciter-pm-prod
     tier: frontend
   type: NodePort

@@ -1,176 +1,226 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: reciter-pm
+  name: reciter-pm-prod
   namespace: reciter
   labels:
-    app: reciter-pm
+    app: reciter-pm-prod
     environment: prod
     owner: szd2013
     tier: frontend
 spec:
   selector:
     matchLabels:
-      app: reciter-pm
+      app: reciter-pm-prod
       tier: frontend
   strategy:
+    type: RollingUpdate
     rollingUpdate:
+      maxSurge: 25%
       maxUnavailable: 0
   replicas: 1
   template:
     metadata:
       labels:
-        app: reciter-pm
+        app: reciter-pm-prod
         environment: prod
         tier: frontend
         owner: szd2013
     spec:
       containers:
-      - image: reciter-publication-manager:prod
-        name: reciter-pm-prod
-        imagePullPolicy: IfNotPresent
-        env:
-          - name: NEXTAUTH_URL_INTERNAL
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: NEXTAUTH_URL_INTERNAL
-          - name: NEXTAUTH_URL
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: NEXTAUTH_URL
-          - name: RECITER_DB_NAME
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: RECITER_DB_NAME
-          - name: RECITER_DB_USERNAME
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: RECITER_DB_USERNAME
-          - name: RECITER_DB_PASSWORD
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: RECITER_DB_PASSWORD
-          - name: RECITER_DB_HOST
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: RECITER_DB_HOST
-           - name: RECITER_API_BASE_URL
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: RECITER_API_BASE_URL                           
-         - name: LOGIN_PROVIDER
-            value: SAML
-          - name : ENTITY_ID
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: ENTITY_ID
-          - name: ASSERT_ENDPOINT
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key:  ASSERT_ENDPOINT
-          - name: SSO_LOGIN_URL
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key : SSO_LOGIN_URL
-          - name: SSO_LOGOUT_URL
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key : SSO_LOGOUT_URL   
-          - name: SMTP_HOST_NAME
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key : SMTP_HOST_NAME
-          - name: SMTP_USER
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key : SMTP_USER 
-          - name: SMTP_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key : SMTP_PASSWORD 
-          - name: SMTP_ADMIN_EMAIL
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key : SMTP_ADMIN_EMAIL 
-           - name: ASMS_API_BASE_URL
-            valueFrom: 
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key: ASMS_API_BASE_URL        
-          - name: ASMS_USER_TRACKING_API_AUTHORIZATON
-            valueFrom:
-              secretKeyRef:
-                name: reciter-pm-secrets
-                key : ASMS_USER_TRACKING_API_AUTHORIZATON           
-        ports:
-          - containerPort: 3000
-            name: reciter-pm
-        resources:
-          requests:
-            memory: 1500m
-            cpu: '0.7'
-          limits:
-            memory: 2G
-            cpu: '0.8'
-        livenessProbe:
-          httpGet:
-            path: "/api/healthcheck"
-            port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          failureThreshold: 3
-          timeoutSeconds: 5
-        readinessProbe:
-          httpGet:
-            path: "/api/healthcheck"
-            port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          failureThreshold: 3
-          timeoutSeconds: 5
-      nodeSelector:
-          lifecycle: Ec2Spot
+        # ponytail: the pipeline owns the real tag via `kubectl set image`; ":prod" is a
+        # placeholder so a deliberate `kubectl apply` doesn't clobber the running image.
+        - image: 665083158573.dkr.ecr.us-east-1.amazonaws.com/wcmc/reciter/reciter-publication-manager:prod
+          name: reciter-pm
+          imagePullPolicy: Always
+          env:
+            - name: NEXTAUTH_URL_INTERNAL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: NEXTAUTH_URL_INTERNAL
+            - name: NEXTAUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: NEXTAUTH_URL
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: NEXTAUTH_SECRET
+            - name: RECITER_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_DB_NAME
+            - name: RECITER_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_DB_USERNAME
+            - name: RECITER_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_DB_PASSWORD
+            - name: RECITER_DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_DB_HOST
+            - name: RECITER_API_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_API_BASE_URL
+            - name: NEXT_PUBLIC_LOGIN_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: NEXT_PUBLIC_LOGIN_PROVIDER
+            - name: ENTITY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: ENTITY_ID
+            - name: ASSERT_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: ASSERT_ENDPOINT
+            - name: SSO_LOGIN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: SSO_LOGIN_URL
+            - name: SSO_LOGOUT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: SSO_LOGOUT_URL
+            - name: SMTP_HOST_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: SMTP_HOST_NAME
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: SMTP_USER
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: SMTP_PASSWORD
+            - name: SMTP_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: SMTP_ADMIN_EMAIL
+            - name: ASMS_API_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: ASMS_API_BASE_URL
+            - name: ASMS_USER_TRACKING_API_AUTHORIZATON
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: ASMS_USER_TRACKING_API_AUTHORIZATON
+            - name: ACS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: ACS_URL
+            - name: NEXT_PUBLIC_RECITER_BACKEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: NEXT_PUBLIC_RECITER_BACKEND_API_KEY
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=1792"
+            - name: RECITER_PUBMED_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_PUBMED_API_URL
+                  optional: true
+            # ponytail: prod PM still calls Elsevier directly (#797 hasn't reached master);
+            # when it does, drop these two and add RECITER_SCOPUS_API_URL=http://reciter-scopus-prod.
+            - name: SCOPUS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scopus-secret
+                  key: SCOPUS_API_KEY
+            - name: SCOPUS_INST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scopus-secret
+                  key: SCOPUS_INST_TOKEN
+            - name: RECITER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_API_KEY
+            - name: RECITER_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-secrets
+                  key: RECITER_TOKEN_SECRET
+          ports:
+            - containerPort: 3000
+              name: reciter-pm
+          resources:
+            requests:
+              memory: 1500M
+              cpu: 700m
+            limits:
+              memory: 2Gi
+              cpu: 800m
+          livenessProbe:
+            httpGet:
+              path: "/api/healthcheck"
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 45
+            failureThreshold: 3
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: "/api/healthcheck"
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 60
+            failureThreshold: 3
+            timeoutSeconds: 5
 ---
-apiVersion: autoscaling/v2beta2
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: hpa-reciter-pm
+  name: hpa-reciter-pm-prod
   namespace: reciter
   labels:
-    app: reciter-pm
+    app: reciter-pm-prod
     environment: prod
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: reciter-pm-dev
+    name: reciter-pm-prod
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 2
   metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 80
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
           averageUtilization: 85
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
