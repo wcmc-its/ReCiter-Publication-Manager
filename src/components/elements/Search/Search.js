@@ -500,7 +500,7 @@ const Search = () => {
       borderRadius: '0 !important',
       fontSize: '12px',
       fontWeight: 600,
-      fontFamily: '"DM Sans", sans-serif',
+      fontFamily: '"Inter", sans-serif',
       padding: '5px 12px',
       minHeight: 'auto',
       lineHeight: 'normal',

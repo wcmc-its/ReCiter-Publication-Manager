@@ -18,7 +18,7 @@
   border: none;
   background: transparent;
   font-size: 12.5px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   color: #1a2133;
   outline: none;
 }
@@ -151,7 +151,7 @@
   cursor: pointer;
   background: none;
   border: none;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   transition: color 0.15s;
   padding: 0;
 }

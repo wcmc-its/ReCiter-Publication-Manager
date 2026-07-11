@@ -60,7 +60,7 @@
 }
 
 .title {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: 'Inter', var(--font-serif), sans-serif;
   font-weight: 500;
   font-size: 17px;
   letter-spacing: -0.02em;
@@ -116,7 +116,7 @@
 }
 
 .statNum {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: 'Inter', var(--font-serif), sans-serif;
   font-weight: 500;
   font-size: 22px;
   letter-spacing: -0.02em;
@@ -217,7 +217,7 @@
   border-radius: 5px;
   font-size: 12.5px;
   font-weight: 600;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: background 0.15s;
   white-space: nowrap;
@@ -264,7 +264,7 @@
   border: 1px solid #ddd7ce;
   border-radius: 5px;
   font-size: 12.5px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;

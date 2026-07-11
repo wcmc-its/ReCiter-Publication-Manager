@@ -179,7 +179,7 @@ const StyledList = styled(List)({
   '& .MuiListItemText-primary': {
     fontSize: '13px',
     lineHeight: 'normal',
-    fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
   '& .MuiBox-root': {
     '.MuiListItem-root': {
