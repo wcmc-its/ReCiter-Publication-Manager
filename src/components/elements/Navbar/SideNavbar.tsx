@@ -203,6 +203,15 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   const userPermissions = JSON.parse(session.data.userRoles);
   const isSuperuser = userPermissions.some((role: any) => role.roleLabel === "Superuser");
 
+  // A user "has their own profile" when they hold a Curator_Self role carrying a
+  // personIdentifier (faculty/postdoc who can curate themselves). Those users may open
+  // Curate Publications directly; everyone else (e.g. a Superuser with no profile of
+  // their own) must first pick a person from Find People, so the link stays disabled
+  // until a search is active.
+  const hasOwnProfile = userPermissions.some(
+    (role: any) => role.roleLabel === "Curator_Self" && role.personIdentifier
+  );
+
   const menuItems: Array<MenuItem> = [
     {
       title: 'Find People',
@@ -220,7 +229,10 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrl: SettingsIconTools,
       imgUrlActive: settingsIconActive,
       muiIcon: <IconCurate />,
-      disabled: isSuperuser ? false : (Object.keys(filters).length === 0),
+      // Hidden-until-context: greyed out unless a Find People search is active, so a
+      // user with no profile of their own (e.g. Superuser) can't jump straight here.
+      // Users who have their own profile keep it enabled to curate themselves.
+      disabled: (Object.keys(filters).length === 0) && !hasOwnProfile,
       allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
       isRequired:true
     },
