@@ -11,6 +11,7 @@ import { RootStateOrAny } from "../../../types/redux";
 import HistoryModal from "./HistoryModal";
 import { showEvidenceByDefault } from "../../../redux/actions/actions";
 import { reciterConfig } from "../../../../config/local";
+import { sanitizeInlineHtml } from "../../../utils/htmlText";
 
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
@@ -827,7 +828,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                     </span>
                   )}
                 </span>
-                <div className={styles.articleTitle}>{reciterArticle.articleTitle}</div>
+                <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml((reciterArticle as any).articleTitleRTF || reciterArticle.articleTitle) }} />
               </div>
               <div className={styles.articleAuthors}>
                 {reciterArticle.reCiterArticleAuthorFeatures?.length > 0 &&
@@ -879,7 +880,6 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                 </div>
                 {reciterArticle.evidence !== undefined && (
                   <button className={styles.evidenceBtnPrimary} data-evidence-toggle onClick={() => toogleEvidence(props.index)}>
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="11" height="11"><rect x="2" y="9" width="3" height="5"/><rect x="6.5" y="5" width="3" height="9"/><rect x="11" y="2" width="3" height="12"/></svg>
                     Supporting evidence
                   </button>
                 )}
