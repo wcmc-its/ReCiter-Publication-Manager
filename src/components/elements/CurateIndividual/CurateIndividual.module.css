@@ -233,7 +233,7 @@
 .kwTag {
   position: relative;
   display: inline-block;
-  background: #eeeae4;
+  background: #faf8f5;
   border: 1px solid #ddd7ce;
   border-radius: 20px;
   padding: 2px 8px;
@@ -245,7 +245,7 @@
 }
 
 .kwTag:hover {
-  background: #e4e0d8;
+  background: #f2ede6;
   border-color: #ccc6bc;
   color: #1a2133;
 }
