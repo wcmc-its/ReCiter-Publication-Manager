@@ -11,6 +11,7 @@
     "generate-models": "node ./src/db/scripts/generateModels.js"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.726.0",
     "@babel/runtime": "^7.17.8",
     "@emotion/react": "^11.5.0",
     "@emotion/styled": "^11.3.0",

@@ -1094,6 +1094,30 @@
   font-style: italic;
 }
 
+/* Provenance block (top section of the History popover) */
+.provBlock {
+  padding: 8px 14px;
+}
+
+.provRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.provLabel {
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.provValue {
+  color: #1a2133;
+  font-weight: 600;
+  text-align: right;
+}
+
 /* ── Card right column (inline undo for actioned cards) ── */
 
 .cardRight {
