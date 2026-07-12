@@ -67,9 +67,11 @@
   --font-display: 'Inter', sans-serif;
   /* --font-serif is a legacy alias of --font-display (kept so existing references resolve). */
   --font-serif: var(--font-display);
-  /* Bootstrap's reboot is imported after globals.css and sets body font from this var;
-     point it at our stack so Inter actually reaches body text app-wide. */
-  --bs-body-font-family: var(--font-sans);
+  /* Bootstrap's reboot is imported AFTER globals.css and re-declares this var on :root,
+     so a plain override loses the cascade and body text (plus everything that inherits
+     it — keyword pills, etc.) falls back to Bootstrap's system-ui stack. !important wins
+     regardless of import order, so Inter actually reaches body text app-wide. */
+  --bs-body-font-family: var(--font-sans) !important;
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-base: 16px;
