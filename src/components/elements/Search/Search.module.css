@@ -47,7 +47,7 @@
 }
 
 .resultsCountNumber {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: 'Inter', var(--font-serif), sans-serif;
   font-weight: 500;
   font-size: 22px;
   color: #c0392b;
