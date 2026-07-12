@@ -932,7 +932,17 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                               );
                             })
                           ) : (
-                            <div className={styles.clogEmpty}>No curation events yet</div>
+                            // A curated article with no FeedbackLog rows was accepted/rejected
+                            // before per-action history was logged (rows only go back so far).
+                            // Say so honestly rather than imply it was never curated; the real
+                            // curator/date for those pre-logging actions was never recorded.
+                            <div className={styles.clogEmpty}>
+                              {userAssertion === 'ACCEPTED'
+                                ? 'Accepted before curation history was recorded'
+                                : userAssertion === 'REJECTED'
+                                ? 'Rejected before curation history was recorded'
+                                : 'No curation events yet'}
+                            </div>
                           )}
                         </div>
                       )}

@@ -51,6 +51,40 @@ function normalizeWork(work: any) {
     }
 }
 
+// PM curate-iteration: OpenAlex often returns the same paper as two "works" — one
+// carrying a PMID (flagged "in PubMed") and one without (offered as a fresh "Add"),
+// which lets a curator add a duplicate of the PubMed record. Collapse siblings before
+// they reach the client: group by DOI, else by a distinctive normalized title, and keep
+// the copy that carries a PMID, merging the group's pmid/doi onto the survivor.
+const normalizeTitle = (t: string): string =>
+    String(t || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+
+function dedupeWorks(rows: any[]): any[] {
+    const groups = new Map<string, any>()
+    const order: string[] = []
+    for (const row of rows) {
+        const title = normalizeTitle(row.title)
+        // ponytail: only collapse by title when it's distinctive (>=10 chars) so generic
+        // stubs ("Reply", "Correction") don't merge distinct works. DOI match is always safe.
+        const key = row.doi
+            ? 'doi:' + String(row.doi).toLowerCase().trim()
+            : (title.length >= 10 ? 'title:' + title : 'id:' + row.articleId)
+        const kept = groups.get(key)
+        if (!kept) {
+            groups.set(key, row)
+            order.push(key)
+            continue
+        }
+        // Prefer the sibling that carries a PMID as the base, then backfill the other's ids.
+        const base = kept.pmid !== undefined ? kept : (row.pmid !== undefined ? row : kept)
+        const other = base === kept ? row : kept
+        base.pmid = base.pmid !== undefined ? base.pmid : other.pmid
+        base.doi = base.doi || other.doi
+        groups.set(key, base)
+    }
+    return order.map((k) => groups.get(k))
+}
+
 export async function searchOpenAlex(req: NextApiRequest) {
     const rawQuery: string = (req.body && (req.body.query || req.body.search) || '').toString().trim()
     if (!rawQuery) {
@@ -77,9 +111,11 @@ export async function searchOpenAlex(req: NextApiRequest) {
                 return { statusCode: res.status, statusText: responseText }
             }
             const data: any = await res.json()
-            const results = (Array.isArray(data.results) ? data.results : [])
-                .map(normalizeWork)
-                .filter(Boolean)
+            const results = dedupeWorks(
+                (Array.isArray(data.results) ? data.results : [])
+                    .map(normalizeWork)
+                    .filter(Boolean)
+            )
             return { statusCode: 200, statusText: results }
         })
         .catch((error) => {
