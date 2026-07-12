@@ -193,7 +193,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                 {refreshState === 'loading' ? 'Refreshing\u2026' : refreshState === 'done' ? 'Done' : 'Refresh Suggestions'}
               </span>
               {refreshState === 'idle' && netChangedCount > 0 && (
-                <span className={styles.unsavedBadge} title={`${netChangedCount} unsaved change(s) will be submitted`}>
+                <span className={styles.unsavedBadge} title={`${netChangedCount} change(s) saved — refresh to regenerate suggestions`}>
                   {netChangedCount}
                 </span>
               )}
