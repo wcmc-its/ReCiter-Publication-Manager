@@ -108,6 +108,16 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
         lastActioned.current = { pmid, prevState: 'NULL' };
       }
       props.onAssertionChange?.(pmid, userAssertion);
+      // ...and persist it. The card deliberately stays put here, but the accept/reject
+      // still has to reach the goldstandard. Without this the action lived only in local
+      // state and was silently discarded by the next Refresh/re-run — nothing was saved.
+      dispatch(reciterUpdatePublication(uid, {
+        publications: [pmid],
+        userAssertion: userAssertion,
+        manuallyAddedFlag: false,
+        userID: session?.data?.databaseUser?.userID,
+        personIdentifier: uid,
+      }));
       return;
     }
 
@@ -149,6 +159,17 @@ const ReciterTabContent: React.FC<TabContentProps> = (props) => {
     if (isSuggested) {
       publications.forEach((p: any) => props.onAssertionChange?.(p.pmid, userAssertion));
       setPublications(prev => prev.map((p: any) => ({ ...p, userAssertion })));
+      // ...and persist them, same reason as the single-article path above.
+      const suggestedPmids = publications.map((p: any) => p.pmid);
+      if (suggestedPmids.length) {
+        dispatch(reciterUpdatePublication(props.personIdentifier, {
+          publications: suggestedPmids,
+          userAssertion: userAssertion,
+          manuallyAddedFlag: false,
+          userID: session?.data?.databaseUser?.userID,
+          personIdentifier: props.personIdentifier,
+        }));
+      }
       return;
     }
 

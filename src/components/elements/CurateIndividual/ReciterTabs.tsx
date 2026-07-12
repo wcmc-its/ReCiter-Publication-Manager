@@ -214,7 +214,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
                 <path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3" />
               </svg>
               <span>Refresh Suggestions</span>
-              <span className={styles.unsavedBadge} title={`${netChangedCount} unsaved change(s) will be submitted`}>
+              <span className={styles.unsavedBadge} title={`${netChangedCount} change(s) saved — refresh to regenerate suggestions`}>
                 {netChangedCount}
               </span>
             </button>
