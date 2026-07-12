@@ -100,6 +100,11 @@ export const reciterConfig = {
         reciterUpdateGoldStandardEndpoint:
                 process.env.RECITER_API_BASE_URL + '/reciter/goldstandard',
         /**
+         * Read-only curation audit history (FeedbackLog + ArticleProvenance) by uid.
+         */
+        reciterFeedbackLogEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/feedback-log/',
+        /**
          * PM#771 — external-source (OpenAlex/Scopus/WoS) manual-add publications.
          * POST/GET/DELETE against the same Java ingress as the other /reciter/* calls,
          * so RECITER_API_BASE_URL + the admin api-key are sufficient (no new env var).

@@ -16,6 +16,50 @@ import { sanitizeInlineHtml } from "../../../utils/htmlText";
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/';
 const doiUrl = 'https://doi.org/';
 
+// Friendly labels for ReCiter ArticleProvenance fields (src = source, rs = retrieval strategy).
+// Unmapped values fall back to a cleaned raw value, so nothing is ever hidden.
+const PROV_SOURCE_LABELS: Record<string, string> = {
+  GS: 'Gold standard',
+  PM: 'Publication Manager',
+  CTSC: 'CTSC',
+  MAN: 'Manual',
+  MAN_FROM_PM: 'Manual (via Publication Manager)',
+  MAN_FROM_CTSC: 'Manual (via CTSC)',
+};
+// ArticleProvenance.rs stores either a legacy short code (FNI, EMAIL, …) or the
+// full retrieval-strategy class name (FirstNameInitialRetrievalStrategy, …),
+// depending on when the row was written. Map both forms to one spelled-out label.
+const PROV_STRATEGY_LABELS: Record<string, string> = {
+  // legacy short codes (production data)
+  FNI: 'First-name initial',
+  SI: 'Second initial',
+  FN: 'Full name',
+  EMAIL: 'Email',
+  ORC: 'ORCID',
+  AFF: 'Affiliation',
+  AFFD: 'Affiliation (in database)',
+  DEP: 'Department',
+  REL: 'Known relationship',
+  GR: 'Grant',
+  GS: 'Gold standard',
+  // full strategy class names (current ReCiter)
+  FirstNameInitialRetrievalStrategy: 'First-name initial',
+  SecondInitialRetrievalStrategy: 'Second initial',
+  FullNameRetrievalStrategy: 'Full name',
+  EmailRetrievalStrategy: 'Email',
+  OrcidRetrievalStrategy: 'ORCID',
+  AffiliationRetrievalStrategy: 'Affiliation',
+  AffiliationInDbRetrievalStrategy: 'Affiliation (in database)',
+  DepartmentRetrievalStrategy: 'Department',
+  KnownRelationshipRetrievalStrategy: 'Known relationship',
+  GrantRetrievalStrategy: 'Grant',
+  GoldStandardRetrievalStrategy: 'Gold standard',
+};
+const friendlyProvSource = (v?: string | null): string | null =>
+  v ? (PROV_SOURCE_LABELS[v] || v) : null;
+const friendlyProvStrategy = (v?: string | null): string | null =>
+  v ? (PROV_STRATEGY_LABELS[v] || v.replace(/RetrievalStrategy$/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim()) : null;
+
 //TEMP: update to required
 interface FuncProps {
     onAccept?(pmid: number, id: number): void,
@@ -174,6 +218,7 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const { reciterArticle } = props;
     const clogEntries = feedbacklog[reciterArticle.pmid] || [];
+    const hasProvenance = !!(reciterArticle.firstRetrievalDate || reciterArticle.retrievalStrategy || reciterArticle.retrievalSource);
 
     const CardFooter = ({pmid, userAssertion} : {
       pmid: number,
@@ -847,18 +892,34 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                 <div className={styles.articleLinksLeft}>
                   <span>PMID: <a href={`${pubMedUrl}${reciterArticle.pmid}`} target="_blank" rel="noreferrer">{reciterArticle.pmid}</a></span>
                   {reciterArticle.doi && <span><a href={`${doiUrl}${reciterArticle.doi}`} target="_blank" rel="noreferrer">DOI ↗</a></span>}
-                  {Object.keys(feedbacklog).length > 0 && (
+                  {(hasProvenance || clogEntries.length > 0) && (
                     <span className={styles.curationWrap} ref={curationLogRef}>
-                      <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>Curation log</button>
+                      <button className={styles.evidenceBtn} onClick={(e) => { e.stopPropagation(); setShowCurationLog(!showCurationLog); }}>History</button>
                       {showCurationLog && (
                         <div className={styles.curationLogPopover}>
+                          <div className={styles.clogHead}>Provenance</div>
+                          {hasProvenance ? (
+                            <div className={styles.provBlock}>
+                              {reciterArticle.firstRetrievalDate && (
+                                <div className={styles.provRow}><span className={styles.provLabel}>First retrieved</span><span className={styles.provValue}>{reciterArticle.firstRetrievalDate}</span></div>
+                              )}
+                              {reciterArticle.retrievalStrategy && (
+                                <div className={styles.provRow}><span className={styles.provLabel}>Strategy</span><span className={styles.provValue}>{friendlyProvStrategy(reciterArticle.retrievalStrategy)}</span></div>
+                              )}
+                              {reciterArticle.retrievalSource && (
+                                <div className={styles.provRow}><span className={styles.provLabel}>Source</span><span className={styles.provValue}>{friendlyProvSource(reciterArticle.retrievalSource)}</span></div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className={styles.clogEmpty}>Retrieval details unavailable</div>
+                          )}
                           <div className={styles.clogHead}>Curation history</div>
                           {clogEntries.length > 0 ? (
                             clogEntries.map((entry: any, i: number) => {
                               const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
                               const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
-                              const who = entry.AdminUser?.personIdentifier || '';
-                              const date = formatClogDate(entry.modifyTimestamp);
+                              const who = entry.curatorName || 'Unknown';
+                              const date = entry.modifyTimestamp ? formatClogDate(entry.modifyTimestamp) : '';
                               return (
                                 <div className={styles.clogEntry} key={entry.feedbackID || i}>
                                   <div className={styles.clogAction}>

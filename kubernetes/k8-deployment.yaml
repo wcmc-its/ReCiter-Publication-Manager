@@ -27,6 +27,10 @@ spec:
         tier: frontend
         owner: szd2013
     spec:
+      # IRSA: grants read-only DynamoDB access to ArticleProvenance (PM #737).
+      # The reciter-pm service account is bound to an IAM role via eksctl; the
+      # buildspec's `kubectl apply` must keep this or the provenance read loses creds.
+      serviceAccountName: reciter-pm
       containers:
         # ponytail: the pipeline owns the real tag via `kubectl set image`; ":dev" is a
         # placeholder so a deliberate `kubectl apply` doesn't clobber the running image.
