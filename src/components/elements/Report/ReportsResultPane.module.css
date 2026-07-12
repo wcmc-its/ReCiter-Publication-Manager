@@ -25,15 +25,15 @@
 }
 
 .typeBadge {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 2px 7px;
-  border-radius: 3px;
-  background: #f0ece6;
-  border: 1px solid #ddd8d0;
-  color: #8a95a3;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: #eeeae4;
+  border: none;
+  color: #5a6478;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -66,8 +66,8 @@
 }
 
 .articleIds a {
-  color: var(--link-blue);
-  text-decoration: none;
+  color: #2563a8;
+  text-decoration: underline;
 }
 
 .articleIds a:hover {

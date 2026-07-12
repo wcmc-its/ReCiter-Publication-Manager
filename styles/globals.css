@@ -37,6 +37,11 @@
   --color-chrome-text: #a0aec0;
   --color-chrome-text-bright: #e2e8f0;
 
+  /* Accent blue — canonical accent token (reconciles STYLEGUIDE drift #4).
+     Use for content/curator links, focus rings, selected state, ProxyBadge.
+     The global <a> color uses this accent token; WCM red is reserved for brand chrome. */
+  --color-accent: #2563a8;
+
   /* Warm content */
   --color-warm-bg: #f5f2ee;
   --color-warm-surface: #ffffff;
@@ -101,15 +106,15 @@ body {
 
 .btn-warning {
   background-color: #ffffff !important;
-  color: var(--gray-700) !important;
-  border: 1px solid var(--gray-300) !important;
+  color: #5a6478 !important;
+  border: 1px solid #ddd7ce !important;
   border-radius: var(--radius-md) !important;
   font-size: 14px !important;
 }
 .btn-warning:hover {
-  background-color: var(--gray-50) !important;
-  border-color: var(--gray-400) !important;
-  color: var(--gray-800) !important;
+  background-color: #faf8f5 !important;
+  border-color: #bbb5aa !important;
+  color: #1a2133 !important;
 }
 
 /* Form controls — warm input style */
@@ -152,13 +157,14 @@ h3 strong {
 }
 
 a {
-  color: var(--wcm-red);
+  color: var(--color-accent);
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
 a:hover {
-  color: var(--wcm-red-dark);
+  color: var(--color-accent);
+  text-decoration: underline;
 }
 
 * {
@@ -244,7 +250,7 @@ h1 {
 .table {
   vertical-align: middle !important;
   border-radius: var(--radius-md);
-  border-color: var(--gray-200);
+  border-color: var(--color-warm-border);
 }
 
 .wcm-primary-lg.btn {
@@ -329,7 +335,7 @@ h1 {
 }
 
 .border-grey {
-  border: 1px solid #ced4da;
+  border: 1px solid #ddd7ce;
 }
 
 .rounded-right {
@@ -339,11 +345,12 @@ h1 {
 
 .search-summary-buttons .dropdown .btn-primary,
 .d-inline-block.dropdown .btn-primary {
-  background-color: var(--color-chrome) !important;
-  border-color: var(--color-chrome) !important;
+  background-color: #e8e4dc !important;
+  border-color: #b0aca4 !important;
   border-radius: var(--radius-pill) !important;
-  font-size: 12.5px;
-  padding: 5px 12px;
+  color: #2c2a27 !important;
+  font-size: 14px;
+  padding: 6px 12px 6px 14px;
 }
 
 .search-summary-buttons .dropdown .btn-primary:hover,
@@ -352,8 +359,8 @@ h1 {
 .d-inline-block.dropdown .btn-primary:hover,
 .d-inline-block.dropdown .btn-primary:focus,
 .d-inline-block.dropdown .btn-primary:active {
-  background-color: var(--color-chrome-hover) !important;
-  border-color: var(--color-chrome-hover) !important;
+  background-color: #e0dcd4 !important;
+  border-color: #a09c94 !important;
 }
 
 .dropdown .btn-white {
@@ -361,11 +368,11 @@ h1 {
 }
 
 .dropdown .btn-white {
-  background-color: #eeeae4 !important;
-  border: 1px solid #ddd7ce !important;
-  color: var(--gray-700) !important;
-  font-size: 12.5px;
-  padding: 5px 12px;
+  background-color: #f3f1ed !important;
+  border: 1px solid #d6d0c4 !important;
+  color: #2c2a27 !important;
+  font-size: 14px;
+  padding: 6px 12px 6px 14px;
 }
 
 .btn-danger {
@@ -391,13 +398,13 @@ h1 {
 }
 
 .btn-outline-secondary:hover {
-  background-color: var(--gray-100) !important;
-  border-color: var(--gray-400) !important;
-  color: var(--gray-800) !important;
+  background-color: #faf8f5 !important;
+  border-color: #bbb5aa !important;
+  color: #1a2133 !important;
 }
 
 .dropdown-menu {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--color-warm-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 12px 0;
