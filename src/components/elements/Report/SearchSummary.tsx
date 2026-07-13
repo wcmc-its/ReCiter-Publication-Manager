@@ -16,6 +16,15 @@ import { ArrowLeft, ArrowRight } from "@mui/icons-material";
 import { setReportFilterDisplayRank, setReportFilterLabels,setIsVisible, setReportFilterKeyNames } from "../../../utils/constants";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
+import { stripHtml } from "../../../utils/htmlText";
+
+// Title/journal fields can carry PubMed inline markup (<i>, <sub>, …); strip to
+// plain text for spreadsheet cells, which can't render HTML.
+const HTML_BEARING_FIELDS = ['articleTitle', 'articleTitleRTF', 'journalTitleVerbose'];
+const stripHtmlFields = (row: any): any => {
+  HTML_BEARING_FIELDS.forEach((k) => { if (row && row[k]) row[k] = stripHtml(row[k]); });
+  return row;
+};
 
 
 const SearchSummary = ({
@@ -126,6 +135,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(fileBlob)
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
       setExportArticleLoading(false);
@@ -172,6 +182,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(fileBlob)
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
       setExportArticlePplLoading(false);
@@ -292,7 +303,7 @@ const SearchSummary = ({
         })
         itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
         itemRow = {...itemRow, authorPosition: item.authorPosition?.replace(/[\])}[{(]/g, '')};
-        worksheet.addRow(itemRow);
+        worksheet.addRow(stripHtmlFields(itemRow));
       })
 
       // write the content using writeBuffer
@@ -302,6 +313,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(blobFromBuffer);
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
     } catch (error) {
@@ -390,7 +402,7 @@ const SearchSummary = ({
         })
         itemRow = {...itemRow, authors: item.authors?.replace(/[\])}[{(]/g, '')};
         itemRow = {...itemRow, authorPosition: item.authorPosition?.replace(/[\])}[{(]/g, '')};
-        worksheet.addRow(itemRow);
+        worksheet.addRow(stripHtmlFields(itemRow));
       })
 
       // write the content using writeBuffer
@@ -400,6 +412,7 @@ const SearchSummary = ({
       var link = document.createElement('a')  // once we have the file buffer BLOB from the post request we simply need to send a GET request to retrieve the file data
       link.href = window.URL.createObjectURL(blobFromBuffer);
       link.download = fileName;
+      document.body.appendChild(link); // Chrome honors the download filename only for an anchor in the DOM; detached anchors save as a blob UUID.
       link.click()
       link.remove();
     } catch (error) {
@@ -445,6 +458,8 @@ const SearchSummary = ({
             formattedSortOptions.map((sortOption, index) => {
               const {labelName, keyName} = sortOption || {};
               const isActive = selected.type === keyName;
+              // Date columns read oddly as "High → Low"; show newest/oldest instead.
+              const isDateSort = /date/i.test(keyName || '') || /date/i.test(labelName || '');
               return (
                 <div key={index} className={`${styles.sortItem} ${isActive ? styles.sortItemActive : ''}`}>
                   <span className={styles.sortLabel}>{labelName}</span>
@@ -452,11 +467,11 @@ const SearchSummary = ({
                     <button
                       className={`${styles.sortToggleBtn} ${isActive && selected.order === 'DESC' ? styles.sortToggleBtnActive : ''}`}
                       onClick={() => onClick(keyName, 'DESC')}
-                    >↓ High</button>
+                    >↓ {isDateSort ? 'Newest' : 'High'}</button>
                     <button
                       className={`${styles.sortToggleBtn} ${isActive && selected.order === 'ASC' ? styles.sortToggleBtnActive : ''}`}
                       onClick={() => onClick(keyName, 'ASC')}
-                    >↑ Low</button>
+                    >↑ {isDateSort ? 'Oldest' : 'Low'}</button>
                   </div>
                 </div>
               )

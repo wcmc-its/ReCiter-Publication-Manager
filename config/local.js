@@ -100,6 +100,18 @@ export const reciterConfig = {
         reciterUpdateGoldStandardEndpoint:
                 process.env.RECITER_API_BASE_URL + '/reciter/goldstandard',
         /**
+         * Read-only curation audit history (FeedbackLog + ArticleProvenance) by uid.
+         */
+        reciterFeedbackLogEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/feedback-log/',
+        /**
+         * PM#771 — external-source (OpenAlex/Scopus/WoS) manual-add publications.
+         * POST/GET/DELETE against the same Java ingress as the other /reciter/* calls,
+         * so RECITER_API_BASE_URL + the admin api-key are sufficient (no new env var).
+         */
+        reciterExternalArticleEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/external-article/by/uid',
+        /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */
@@ -112,10 +124,34 @@ export const reciterConfig = {
     /**
      * This endpoint is used to search pubmed. You need to have ReCiter-Pubmed-Retrieval tool conifgured. See https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool.git
      * for details.
+     *
+     * On prod these /pubmed/query-* routes live behind the same ingress as the
+     * ReCiter Spring Boot service, so RECITER_API_BASE_URL is sufficient. On
+     * dev the two services are separate (reciter-dev vs reciter-pubmed-dev),
+     * so RECITER_PUBMED_API_URL can override just these routes. Falls back to
+     * RECITER_API_BASE_URL when unset.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-complex/',
-        searchPubmedCountEndpoint: process.env.RECITER_API_BASE_URL + '/pubmed/query-number-pubmed-articles/',
+        searchPubmedEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-complex/',
+        searchPubmedCountEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-number-pubmed-articles/',
+    },
+    /**
+     * Scopus search via the ReCiter Scopus Retrieval Tool. The tool holds the Elsevier
+     * SCOPUS_API_KEY / SCOPUS_INST_TOKEN, so PM no longer needs them. Like PubMed, on dev
+     * the Scopus tool is a separate service (reciter-scopus-dev), so RECITER_SCOPUS_API_URL
+     * overrides just these routes; it falls back to RECITER_API_BASE_URL when unset.
+     * See https://github.com/wcmc-its/ReCiter-Scopus-Retrieval-Tool.git.
+     */
+    reciterScopus: {
+        searchDocumentsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/documents',
+        searchAuthorsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/authors',
+    },
+    /**
+     * PM#771 — OpenAlex is a free, keyless public API. It is queried ONLY server-side
+     * (via the PM /api/reciter/search/openalex route), never from the browser.
+     */
+    openAlex: {
+        searchHost: 'https://api.openalex.org',
     },
     /**
      * ReCiter-Publication-Manager uses Json web token for session management and validating a valid sesssion. This secret will be used to sign the web token.

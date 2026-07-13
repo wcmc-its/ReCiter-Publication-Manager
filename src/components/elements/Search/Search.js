@@ -112,7 +112,7 @@ const Search = () => {
     // view attributes data from session or updated settings
     setFindPeopleLabels(viewAttributes)
 
-   let userPermissions = safeParse(session.data.userRoles, []);
+    let userPermissions = safeParse(session.data.userRoles, []);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
     if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
         setDropdownTitle("Create Report");
@@ -500,7 +500,7 @@ const Search = () => {
       borderRadius: '0 !important',
       fontSize: '12px',
       fontWeight: 600,
-      fontFamily: '"DM Sans", sans-serif',
+      fontFamily: '"Inter", sans-serif',
       padding: '5px 12px',
       minHeight: 'auto',
       lineHeight: 'normal',
@@ -782,7 +782,6 @@ const Search = () => {
                           <tr>
                             <th key="0">Name</th>
                             <th key="1">Affiliation</th>
-                            <th key="2">Institution</th>
                             {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : null}
                             <th key="4">Actions</th>
                           </tr>

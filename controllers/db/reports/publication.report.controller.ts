@@ -34,19 +34,28 @@ export const generatePubsRtf = async (
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsRTF (:uids , :pmids, :limit)",
+        // generatePubsRTF takes 2 args (personIdentifierArray, pmidArray) — no limit.
+        // Passing :limit caused ER_SP_WRONG_NO_OF_ARGS (SequelizeDatabaseError).
+        "CALL generatePubsRTF (:uids , :pmids)",
         {
-          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(','), limit: apiBody.limit },
+          replacements: { uids: apiBody.personIdentifiers.join(','), pmids: apiBody.pmids.join(',') },
           raw: true,
         }
       );
     } else {
 
 																	   
+      // Stored procedure reciterdb.generatePubsNoPeopleRTF accepts a single
+      // arg (pmids); apiBody.limit is not honored here because the procedure
+      // signature was never updated to accept it. Caller applies a limit when
+      // staging the pmid list if it cares about cap.
+      const cappedPmids = typeof apiBody.limit === 'number' && apiBody.limit > 0
+        ? apiBody.pmids.slice(0, apiBody.limit)
+        : apiBody.pmids;
       generatePubsRtfOutput = await sequelize.query(
-        "CALL generatePubsNoPeopleRTF ( :pmids, :limit)",
+        "CALL generatePubsNoPeopleRTF ( :pmids )",
         {
-          replacements: { pmids: apiBody.pmids.join(','), limit: apiBody.limit },
+          replacements: { pmids: cappedPmids.join(',') },
           raw: true,
         }
       );
