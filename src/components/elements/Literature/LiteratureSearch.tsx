@@ -60,10 +60,17 @@ export default function LiteratureSearch() {
     const [busy, setBusy] = useState(false)
     const [result, setResult] = useState<DbResult | null>(null)
     const [experts, setExperts] = useState<{ experts: Expert[]; total: number } | null>(null)
+    // ponytail: inline error state, not a toast. This page's failure paths (403 not-on-the-
+    // allowlist, 503 unconfigured, 502 model error) were all routed through toast.error, but
+    // no ToastContainer is ever mounted here and the AppLayout fallback is gated on a config
+    // key that does not exist -- so every failure rendered as NOTHING and the button just
+    // looked dead. An inline div depends on no config and cannot be silently disabled.
+    const [err, setErr] = useState('')
 
     const run = async () => {
         if (!question.trim() || busy) return
         setBusy(true)
+        setErr('')
         try {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
@@ -72,13 +79,13 @@ export default function LiteratureSearch() {
             })
             const data = await res.json()
             if (!res.ok) {
-                toast.error(data?.message || 'Could not build the strategy.')
+                setErr(data?.message || 'Could not build the strategy.')
                 return
             }
             setResult(data.databases[0])
             setExperts(data.experts)
         } catch {
-            toast.error('Could not reach the server.')
+            setErr('Could not reach the server.')
         } finally {
             setBusy(false)
         }
@@ -196,6 +203,12 @@ export default function LiteratureSearch() {
                     No result cap: a systematic-review search is designed to over-retrieve. A yield in the
                     thousands is a success, not an error.
                 </div>
+
+                {err && (
+                    <div role="alert" style={{ fontSize: 12, background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '8px 12px' }}>
+                        {err}
+                    </div>
+                )}
             </div>
 
             {result && (

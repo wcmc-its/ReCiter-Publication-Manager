@@ -20,10 +20,15 @@ const fs = require('fs')
 const path = require('path')
 const assert = require('assert')
 const { execSync } = require('child_process')
-const os = require('os')
 
-const ROOT = __dirname + '/..'
-const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'litcheck-'))
+const ROOT = path.resolve(__dirname, '..')
+// Compile INSIDE the worktree, not os.tmpdir(). The controller now imports
+// @aws-sdk/client-bedrock-runtime at module scope, and node resolves node_modules by walking
+// UP from the required file — from /var/folders/... it never reaches the repo and the require
+// dies with MODULE_NOT_FOUND. (The check still makes no model call; the import just has to
+// resolve.) .litcheck/ is gitignored.
+const OUT = path.join(ROOT, '.litcheck')
+fs.rmSync(OUT, { recursive: true, force: true })
 
 for (const line of fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8').split('\n')) {
     const m = line.match(/^([A-Z_]+)\s*=\s*(.*)$/)

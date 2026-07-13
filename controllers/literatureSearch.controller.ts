@@ -17,6 +17,7 @@
 // filter. PubMed's automatic term mapping only rewrites UNTAGGED terms, and the
 // strategies we emit are fully tagged by construction.
 
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime'
 import { reciterConfig } from '../config/local'
 
 export type Concept = {
@@ -138,17 +139,20 @@ export async function runStrategy(s: Strategy, seedPmids: string[]): Promise<Str
 // ---------------------------------------------------------------------------
 // The LLM call — the repo's first.
 //
-// ponytail: raw fetch, not @anthropic-ai/sdk. Mode 1 is ONE non-streaming POST, so the
-// SDK would buy nothing and cost a dependency. Add it when Modes 2-3 need streaming.
+// ponytail: InvokeModel, not ConverseCommand. Bedrock's InvokeModel passes the native
+// Anthropic Messages body straight through, so SYSTEM_PROMPT, STRATEGY_TOOL and the forced
+// tool_choice below survive VERBATIM and the response parse is unchanged. Converse would
+// force all three to be rewritten into toolConfig/toolSpec/inputSchema.json and re-key usage
+// as inputTokens/outputTokens — churn for zero gain on one non-streaming call.
 //
-// The key is server-side process.env ONLY, never NEXT_PUBLIC_ — this route spends
-// institutional money per call, and NEXT_PUBLIC_ vars are compiled into the browser bundle.
+// No API key anywhere: credentials come from the default AWS chain (SSO/profile locally,
+// IRSA on EKS), per the standing rule against hardcoded keys. modelId is a COMMAND
+// PARAMETER, never a body field — putting it in the body is the classic porting mistake.
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-opus-4-8'
+const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' })
 
-export function anthropicConfigured(): boolean {
-    return !!process.env.ANTHROPIC_API_KEY
+export function bedrockConfigured(): boolean {
+    return !!process.env.BEDROCK_MODEL_ID
 }
 
 // Mode 1's retrieval objective is RECALL, and that is the opposite of what a model will
@@ -207,36 +211,30 @@ export async function buildStrategy(
     criteria?: string,
     filters?: string,
 ): Promise<{ strategy: Strategy; usage: UsageLog }> {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured')
+    const modelId = process.env.BEDROCK_MODEL_ID
+    if (!modelId) throw new Error('BEDROCK_MODEL_ID is not configured')
 
     const parts = [`Research question: ${question}`]
     if (criteria) parts.push(`Inclusion/exclusion criteria: ${criteria}`)
     if (filters) parts.push(`Requested limits: ${filters}`)
 
-    const res = await fetch(ANTHROPIC_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-        },
+    const res = await bedrock.send(new InvokeModelCommand({
+        modelId,                                    // command parameter, NOT a body field
+        contentType: 'application/json',
+        accept: 'application/json',
         body: JSON.stringify({
-            model: MODEL,
+            anthropic_version: 'bedrock-2023-05-31',    // replaces `model` + the version header
             max_tokens: 2000,
-            system: SYSTEM_PROMPT,
+            system: SYSTEM_PROMPT,                      // verbatim: the field-tag rule is load-bearing
             tools: [STRATEGY_TOOL],
             tool_choice: { type: 'tool', name: 'submit_strategy' },
             messages: [{ role: 'user', content: parts.join('\n\n') }],
         }),
-    })
+    }))
 
-    if (!res.ok) {
-        const detail = await res.text()
-        throw new Error(`anthropic HTTP ${res.status}: ${detail.slice(0, 200)}`)
-    }
-
-    const data: any = await res.json()
+    // The SDK throws on non-2xx (ValidationException / AccessDeniedException / Throttling),
+    // so there is no !res.ok branch to keep; search.ts's try/catch turns a throw into a 502.
+    const data: any = JSON.parse(new TextDecoder().decode(res.body))
     const block = (data.content || []).find((c: any) => c.type === 'tool_use')
     if (!block?.input?.concepts?.length) {
         throw new Error('model did not return a strategy')

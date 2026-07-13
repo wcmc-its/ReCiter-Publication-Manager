@@ -23,7 +23,7 @@ import { getToken } from 'next-auth/jwt'
 import {
     buildStrategy,
     runStrategy,
-    anthropicConfigured,
+    bedrockConfigured,
 } from '../../../../controllers/literatureSearch.controller'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
 
@@ -37,12 +37,20 @@ function allowlist(): string[] {
 // The MeSH descriptors the strategy targets, for the "At Weill Cornell" panel. Pulled
 // straight out of the concept blocks the model wrote — the join key is free because
 // person_article_keyword is itself keyed on MeSH.
+//
+// Both quoted and UNQUOTED descriptors are valid PubMed, and the model emits both --
+// "Gastrointestinal Microbiome"[MeSH] and Probiotics[MeSH]. An earlier regex here required
+// the quotes, so a strategy written in the unquoted style extracted zero MeSH terms and the
+// panel silently rendered empty while the strategy itself looked perfect. Split on OR and
+// take the descriptor off each [MeSH]-tagged token instead; [tiab] free-text terms are
+// skipped because the join key is MeSH.
 function meshFromConcepts(concepts: { terms: string }[]): string[] {
     const found = new Set<string>()
     for (const c of concepts) {
-        const re = /"([^"]+)"\[MeSH[^\]]*\]/gi
-        let m
-        while ((m = re.exec(c.terms)) !== null) found.add(m[1])
+        for (const token of c.terms.split(/\s+OR\s+/i)) {
+            const m = token.match(/^\s*\(?\s*"?([^"[\]]+?)"?\s*\[MeSH/i)
+            if (m) found.add(m[1].trim())
+        }
     }
     return Array.from(found)
 }
@@ -73,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
     }
 
-    if (!anthropicConfigured()) {
+    if (!bedrockConfigured()) {
         return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
     }
 
@@ -107,10 +115,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // question text is deliberately NOT logged — see the data-handling section of the
         // spec. Never show this figure to the librarian: query iteration is the behaviour
         // we want, and a running meter teaches them to ration it.
-        const cost = (usage.inputTokens / 1e6) * 5 + (usage.outputTokens / 1e6) * 25
+        //
+        // ponytail: env-driven rates, not a constant. Bedrock's per-Mtok price is a function
+        // of BEDROCK_MODEL_ID and region, so a baked-in number silently becomes a lie the
+        // moment the model changes. The 5/25 default is Anthropic's FIRST-PARTY list price
+        // for Opus 4.8 and is NOT a verified Bedrock rate — set these two vars from the AWS
+        // pricing page for the profile actually in use before anyone trusts estUsd.
+        const inRate = Number(process.env.BEDROCK_USD_PER_MTOK_IN || 5)
+        const outRate = Number(process.env.BEDROCK_USD_PER_MTOK_OUT || 25)
+        const cost = (usage.inputTokens / 1e6) * inRate + (usage.outputTokens / 1e6) * outRate
         console.log(JSON.stringify({
             tag: 'literature-search',
             mode: 'search-strategy',
+            model: process.env.BEDROCK_MODEL_ID,    // so estUsd can be reconciled to a rate later
             cwid,
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,

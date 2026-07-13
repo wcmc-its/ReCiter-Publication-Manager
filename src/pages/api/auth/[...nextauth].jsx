@@ -27,9 +27,25 @@ export const authOptions = {
         console.log('Direct login authorize called with username:', credentials?.username);
         if (!credentials?.username || !credentials?.password) return null;
 
-        const user = await authenticate(credentials);
-        console.log('Direct login authenticate result:', user?.statusCode);
-        if (user?.statusCode !== 200) return null;
+        // ponytail: local dev short-circuit, not a new auth mode. It cannot fire in a
+        // deployed env -- `next start` sets NODE_ENV=production, and no deployment injects
+        // a server-side LOGIN_PROVIDER (k8-deployment.yaml sets only NEXT_PUBLIC_LOGIN_PROVIDER).
+        // This is what LOGIN_PROVIDER=LOCAL was always meant to mean; it also removes the last
+        // reciter-dev dependency from the auth path.
+        const isLocalLogin =
+          process.env.NODE_ENV !== 'production' &&
+          process.env.LOGIN_PROVIDER === 'LOCAL' &&
+          !!process.env.LOCAL_DEV_PASSWORD;
+
+        let user;
+        if (isLocalLogin) {
+          if (credentials.password !== process.env.LOCAL_DEV_PASSWORD) return null;
+          user = { statusCode: 200, statusMessage: 'local dev login' };
+        } else {
+          user = await authenticate(credentials);
+          console.log('Direct login authenticate result:', user?.statusCode);
+          if (user?.statusCode !== 200) return null;
+        }
 
         const adminUser = await findOrcreateAdminUser(
           credentials.username,
@@ -39,9 +55,14 @@ export const authOptions = {
         );
 
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+        // The login form collects no email, but findUserPermissions' WHERE requires
+        // (personIdentifier AND email) to match, so an empty email returned zero roles and
+        // sent every direct login to /noaccess. Key off the admin_users row we just resolved
+        // -- the same pattern grantDefaultRolesToAdminUser already uses. Roles still come
+        // only from admin_users_roles; nothing is granted that the DB does not already say.
         const userRoles = await findUserPermissions(
           ["personIdentifier", "email"],
-          [credentials.username, credentials.email || ""]
+          [adminUser?.personIdentifier || credentials.username, adminUser?.email || credentials.email || ""]
         );
 
         if (process.env.ASMS_API_BASE_URL)
