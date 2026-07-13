@@ -80,7 +80,7 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ reportFiltersLabes, 
               value={currentValues[0] ?? min}
               style={{
                 width: '100%', padding: '6px 8px', border: '1px solid #ddd7ce', borderRadius: 5,
-                fontSize: 12, fontFamily: "'DM Sans', sans-serif", background: '#eeeae4', color: '#1a2133',
+                fontSize: 12, fontFamily: "'Inter', sans-serif", background: '#eeeae4', color: '#1a2133',
                 outline: 'none', textAlign: 'center'
               }}
             />
@@ -94,7 +94,7 @@ export const SliderFilter: React.FC<SliderFilterProps> = ({ reportFiltersLabes, 
               value={currentValues[1] ?? max}
               style={{
                 width: '100%', padding: '6px 8px', border: '1px solid #ddd7ce', borderRadius: 5,
-                fontSize: 12, fontFamily: "'DM Sans', sans-serif", background: '#eeeae4', color: '#1a2133',
+                fontSize: 12, fontFamily: "'Inter', sans-serif", background: '#eeeae4', color: '#1a2133',
                 outline: 'none', textAlign: 'center'
               }}
             />

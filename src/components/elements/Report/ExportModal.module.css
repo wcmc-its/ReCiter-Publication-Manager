@@ -60,7 +60,7 @@
 }
 
 .title {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: 'Inter', var(--font-serif), sans-serif;
   font-weight: 500;
   font-size: 17px;
   letter-spacing: -0.02em;
@@ -106,17 +106,17 @@
 
 .statBlock {
   flex: 1;
-  padding: 12px 14px;
-  background: #eeeae4;
-  border: 1px solid #ddd7ce;
-  border-radius: 5px;
+  padding: 16px;
+  background: #f7f5f1;
+  border: none;
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .statNum {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: 'Inter', var(--font-serif), sans-serif;
   font-weight: 500;
   font-size: 22px;
   letter-spacing: -0.02em;
@@ -146,12 +146,12 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.03em;
 }
 
 .badgeRtf {
@@ -217,7 +217,7 @@
   border-radius: 5px;
   font-size: 12.5px;
   font-weight: 600;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: background 0.15s;
   white-space: nowrap;
@@ -264,7 +264,7 @@
   border: 1px solid #ddd7ce;
   border-radius: 5px;
   font-size: 12.5px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;

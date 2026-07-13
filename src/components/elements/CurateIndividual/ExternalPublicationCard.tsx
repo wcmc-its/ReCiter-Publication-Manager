@@ -19,6 +19,23 @@ const SOURCE_LABELS: Record<string, string> = {
     WOS: 'Web of Science',
 }
 
+// The source id lives in the `SOURCE:<id>` prefix of articleId. Turn it into an outbound
+// link where we can build a stable URL: OpenAlex works always resolve; Scopus only when
+// the id is a 2-s2.0 EID. Otherwise leave it as plain text.
+const idLinkFor = (articleId?: string): string | undefined => {
+    if (!articleId) return undefined
+    const idx = articleId.indexOf(':')
+    if (idx < 0) return undefined
+    const src = articleId.slice(0, idx)
+    const id = articleId.slice(idx + 1)
+    if (!id) return undefined
+    if (src === 'OPENALEX') return `https://openalex.org/${id}`
+    if (src === 'SCOPUS' && /^2-s2\.0-/.test(id)) {
+        return `https://www.scopus.com/record/display.uri?eid=${encodeURIComponent(id)}&origin=resultslist`
+    }
+    return undefined
+}
+
 export type AddState = {
     status: 'idle' | 'adding' | 'checking' | 'blocked' | 'warning' | 'inPubmed' | 'added',
     message?: string,
@@ -112,7 +129,11 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                 <div className={styles.links}>
                     {doi && <span><a href={`${doiUrl}${doi}`} target="_blank" rel="noreferrer">DOI &#8599;</a></span>}
                     {pmid && <span>PMID: <a href={`${pubMedUrl}${pmid}`} target="_blank" rel="noreferrer">{pmid}</a></span>}
-                    {item.articleId && <span>ID: {item.articleId}</span>}
+                    {item.articleId && (
+                        <span>ID: {idLinkFor(item.articleId)
+                            ? <a href={idLinkFor(item.articleId)} target="_blank" rel="noreferrer">{item.articleId} &#8599;</a>
+                            : item.articleId}</span>
+                    )}
                 </div>
 
                 {/* Already in this person's record — inform, no add */}

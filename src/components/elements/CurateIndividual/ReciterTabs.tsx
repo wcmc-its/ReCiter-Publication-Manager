@@ -25,7 +25,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
   const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
   const [pubSearchFilters, setPubSearchFilters] = useState<any>();
-  const [refreshState, setRefreshState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const reciterFetching = useSelector((state: RootStateOrAny) => state.reciterFetching)
   // Single "+ Add publication" dropdown (PubMed / OpenAlex / …) — keeps the tab-bar
   // compact as more external sources (Scopus, WoS) are added.
   const [addMenuAnchor, setAddMenuAnchor] = useState<null | HTMLElement>(null);
@@ -155,16 +155,15 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     return null;
   }
 
+  // Re-run ReCiter for this person. Accept/reject already persist per-click via the
+  // goldstandard write, so this just triggers a fresh feature-generator analysis
+  // (analysisRefreshFlag=true). While it runs, reciterFetching flips true and
+  // CurateIndividual shows its "Loading publications…" skeleton; the tabs remount
+  // with the new suggestions (and reset change tracking) on completion.
   const handleRefresh = () => {
-    if (refreshState !== 'idle') return;
-    setRefreshState('loading');
-    // In production: dispatch(reciterFetchData(reciterData.reciter?.personIdentifier, true));
-    // For now, simulate the network call with animation states
-    setTimeout(() => {
-      setRefreshState('done');
-      setChangedAssertions(new Map()); // Changes submitted — reset tracking
-      setTimeout(() => setRefreshState('idle'), 2000);
-    }, 2500);
+    if (reciterFetching) return;
+    const uid = reciterData?.reciter?.personIdentifier;
+    if (uid) dispatch(reciterFetchData(uid, true));
   };
 
   const countBadgeClass = (value: string) => {
@@ -202,29 +201,22 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
         })}
         <div className={styles.tabSpacer} />
         <div className={styles.tabBarActions}>
-          {(netChangedCount > 0 || refreshState !== 'idle') && (
+          {netChangedCount > 0 && (
             <button
-              className={`${styles.refreshBtn} ${refreshState === 'loading' ? styles.refreshBtnLoading : ''} ${refreshState === 'done' ? styles.refreshBtnDone : ''}`}
+              className={styles.refreshBtn}
               onClick={handleRefresh}
               title="Re-run ReCiter to generate new suggestions"
             >
               <svg
-                className={`${styles.refreshIcon} ${refreshState === 'loading' ? styles.refreshIconSpin : ''}`}
+                className={styles.refreshIcon}
                 viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" width="11" height="11"
               >
-                {refreshState === 'done'
-                  ? <path d="M2 8l4 4 8-8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  : <path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3" />
-                }
+                <path d="M13.5 8a5.5 5.5 0 11-1.1-3.3M13.5 2v3h-3" />
               </svg>
-              <span className={refreshState === 'loading' ? styles.refreshLabelPulse : ''}>
-                {refreshState === 'loading' ? 'Refreshing\u2026' : refreshState === 'done' ? 'Done' : 'Refresh Suggestions'}
+              <span>Refresh Suggestions</span>
+              <span className={styles.unsavedBadge} title={`${netChangedCount} change(s) saved — refresh to regenerate suggestions`}>
+                {netChangedCount}
               </span>
-              {refreshState === 'idle' && netChangedCount > 0 && (
-                <span className={styles.unsavedBadge} title={`${netChangedCount} unsaved change(s) will be submitted`}>
-                  {netChangedCount}
-                </span>
-              )}
             </button>
           )}
           {(key === 'AddPub' || key === 'External' || key === 'ScopusAuth') ? (

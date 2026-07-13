@@ -3,18 +3,31 @@
 // PubMed; if it is, the curator is steered to the PubMed accept path so the article
 // becomes scored evidence. OpenAlex's own PMID field is incomplete (~21% of
 // PubMed-indexed works lack it), so we ask PubMed directly by DOI.
-// ponytail: keyless eutils, fine at per-click volume; add an NCBI key if rate-limited.
+//
+// Routed through the ReCiter PubMed Retrieval Tool (query-complex) rather than a raw
+// eutils call: the tool holds PUBMED_API_KEY and the retry/backoff, so this DOI check
+// no longer risks unkeyed 429s from PM's server. The matching term is still `<doi>[AID]`
+// (Article Identifier), identical to the previous direct query.
 
-const EUTILS = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi'
+import { reciterConfig } from '../config/local'
 
 // Returns the PMID if the DOI resolves to a PubMed record, else null.
 export async function findPubmedByDoi(doi: string): Promise<number | null> {
     if (!doi) return null
-    const term = encodeURIComponent(`${doi}[AID]`)
-    const url = `${EUTILS}?db=pubmed&retmode=json&term=${term}`
-    const res = await fetch(url, { headers: { 'User-Agent': 'reciter-pub-manager-server' } })
-    if (!res.ok) throw new Error(`eutils HTTP ${res.status}`)
+    // strategy-query is concatenated raw into the PubMed term by the tool's PubMedQuery,
+    // so the [AID] tag survives the POST body unchanged.
+    const res = await fetch(reciterConfig.reciterPubmed.searchPubmedEndpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'reciter-pub-manager-server',
+        },
+        body: JSON.stringify({ 'strategy-query': `${doi}[AID]` }),
+    })
+    if (!res.ok) throw new Error(`pubmed retrieval tool HTTP ${res.status}`)
     const data: any = await res.json()
-    const idlist = (data && data.esearchresult && data.esearchresult.idlist) || []
-    return idlist.length ? Number(idlist[0]) : null
+    // query-complex returns an array of PubMedArticle; PMID lives at
+    // medlinecitation.medlinecitationpmid.pmid.
+    const pmid = data?.[0]?.medlinecitation?.medlinecitationpmid?.pmid
+    return pmid ? Number(pmid) : null
 }

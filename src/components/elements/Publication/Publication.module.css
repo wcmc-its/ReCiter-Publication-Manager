@@ -133,7 +133,7 @@
 }
 
 .publicationAuthorHighlighted {
-    background-color: #fef3c7;
+    background-color: #f5f0c8;
     border-radius: 3px;
     padding: 1px 3px;
 }
@@ -145,19 +145,19 @@
 
 .reciterType {
   display: inline-block;
-  background: var(--gray-200);
-  border-radius: var(--radius-pill);
+  background: #e6eef7;
+  border-radius: 20px;
   text-align: center;
-  padding: 4px 10px;
+  padding: 3px 10px;
   line-height: 1em;
   margin-top: 8px;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   font-stretch: normal;
   font-style: normal;
   line-height: normal;
-  letter-spacing: .11px;
-  color: var(--gray-700);
+  letter-spacing: 0.03em;
+  color: #2c4a7c;
   margin-left: 6px;
 }
 
@@ -302,7 +302,7 @@
 }
 
 .highlightedAuthor {
-  color: #2563eb;
+  color: var(--color-accent, #2563a8);
   background-color: transparent;
   font-weight: 600;
 }
@@ -312,23 +312,19 @@
 /* ── Feedback bar chart ── */
 
 .sectionPanel {
-  background: #fff;
-  border: 1px solid #e8e2d9;
-  border-radius: 8px;
+  background: transparent;
+  border: none;
   overflow: visible;
   margin-bottom: 16px;
 }
 
 .sectionHeader {
   padding: 0 16px;
-  min-height: 38px;
-  border-bottom: 1px solid #e8e2d9;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  background: #1a2133;
-  border-radius: 8px 8px 0 0;
+  margin-bottom: 6px;
 }
 
 .sectionTitleGroup {
@@ -338,20 +334,21 @@
 }
 
 .sectionTitle {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
-  color: #fff;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a94a6;
 }
 
 .sectionSubtitle {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: #8a94a6;
   font-weight: 400;
 }
 
 .sectionBody {
   padding: 6px 16px 8px;
-  border-radius: 0 0 8px 8px;
 }
 
 /* Learn more popover */
@@ -365,14 +362,15 @@
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.55);
+  font-weight: 400;
+  color: #8a94a6;
   background: none;
   border: none;
   cursor: pointer;
   font-family: inherit;
   padding: 0;
-  transition: opacity 0.12s;
+  text-decoration: none;
+  transition: color 0.12s;
 }
 
 .learnMoreBtn:hover {
@@ -518,7 +516,7 @@
 .chartVal {
   font-size: 12px;
   font-weight: 700;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Inter', sans-serif;
   white-space: nowrap;
 }
 
@@ -643,9 +641,9 @@
 
 .articleCard {
   background: #fff;
-  border: 1px solid #e8e2d9;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
+  border: 0.5px solid #e8e2d9;
+  border-radius: 6px;
+  box-shadow: none;
   display: flex;
   flex-direction: row;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -658,19 +656,19 @@
 
 /* Status strip for accepted/rejected cards */
 .statusStrip {
-  width: 4px;
+  width: 3px;
   flex-shrink: 0;
-  border-radius: 8px 0 0 8px;
+  border-radius: 6px 0 0 6px;
 }
 
 .statusStripAccepted {
   composes: statusStrip;
-  background: #22c55e;
+  background: #1D9E75;
 }
 
 .statusStripRejected {
   composes: statusStrip;
-  background: #ef4444;
+  background: #c0392b;
 }
 
 .cardMain {
@@ -812,7 +810,7 @@
 }
 
 .stVal {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
   color: #fff;
@@ -834,7 +832,7 @@
 }
 
 .scoreInline {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 16px;
   letter-spacing: -0.01em;
@@ -905,14 +903,14 @@
 .typeBadge {
   display: inline-block;
   background: #eeeae4;
-  border: 1px solid #ddd7ce;
-  border-radius: 3px;
-  padding: 1px 7px;
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #8a94a6;
+  border: none;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #5a6478;
   margin-left: 6px;
 }
 
@@ -1094,6 +1092,30 @@
   font-style: italic;
 }
 
+/* Provenance block (top section of the History popover) */
+.provBlock {
+  padding: 8px 14px;
+}
+
+.provRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.provLabel {
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.provValue {
+  color: #1a2133;
+  font-weight: 600;
+  text-align: right;
+}
+
 /* ── Card right column (inline undo for actioned cards) ── */
 
 .cardRight {
@@ -1255,20 +1277,19 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.7);
-  background: #3a4a6b;
-  border-bottom: none;
-  border-radius: 0;
+  color: #8a94a6;
+  background: #faf8f5;
+  border-bottom: 0.5px solid #e8e2d9;
 }
 
 .identityHeaderRow div {
-  color: rgba(255, 255, 255, 0.6);
+  color: #8a94a6;
   padding-top: 7px;
   padding-bottom: 7px;
 }
 
 .identityHeaderRow:hover {
-  background: #3a4a6b;
+  background: #faf8f5;
 }
 
 .identityStrip {
@@ -1330,7 +1351,7 @@
 }
 
 .pointsValue {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 500;
   font-size: 12px;
   color: var(--gray-600);
@@ -1464,7 +1485,7 @@
 }
 
 .stVal {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
   color: #fff;

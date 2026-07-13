@@ -1,6 +1,6 @@
 /* ── PAGE HEADER ── */
 .header {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: 'Inter', var(--font-serif), sans-serif;
   font-weight: 500;
   font-size: 28px;
   letter-spacing: -0.02em;
@@ -187,7 +187,7 @@
 }
 
 .sliderValueNum {
-  font-family: 'Space Grotesk', var(--font-serif), sans-serif;
+  font-family: 'Inter', var(--font-serif), sans-serif;
   font-weight: 500;
   font-size: 24px;
   color: #1a2133;
@@ -279,7 +279,7 @@
   border: 1px solid #ddd7ce;
   border-radius: 5px;
   font-size: 13px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   background: #eeeae4;
   color: #1a2133;
   cursor: pointer;
@@ -345,7 +345,7 @@
   border-radius: 5px;
   font-size: 13px;
   font-weight: 600;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: background 0.15s;
   display: flex;
@@ -374,7 +374,7 @@
   border: 1px solid #ddd7ce;
   border-radius: 5px;
   font-size: 13px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: all 0.15s;
 }

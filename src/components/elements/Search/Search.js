@@ -500,7 +500,7 @@ const Search = () => {
       borderRadius: '0 !important',
       fontSize: '12px',
       fontWeight: 600,
-      fontFamily: '"DM Sans", sans-serif',
+      fontFamily: '"Inter", sans-serif',
       padding: '5px 12px',
       minHeight: 'auto',
       lineHeight: 'normal',
@@ -782,7 +782,6 @@ const Search = () => {
                           <tr>
                             <th key="0">Name</th>
                             <th key="1">Affiliation</th>
-                            <th key="2">Institution</th>
                             {isCuratorAll || isSuperUser  ? <th key="3">Pending</th> : null}
                             <th key="4">Actions</th>
                           </tr>
