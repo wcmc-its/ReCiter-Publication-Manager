@@ -129,14 +129,15 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
 
   const handleRefresh = () => {
     if (refreshState !== 'idle') return;
+    const uid = reciterData?.reciter?.personIdentifier;
+    if (!uid) return;
     setRefreshState('loading');
-    // In production: dispatch(reciterFetchData(reciterData.reciter?.personIdentifier, true));
-    // For now, simulate the network call with animation states
-    setTimeout(() => {
-      setRefreshState('done');
-      setChangedAssertions(new Map()); // Changes submitted — reset tracking
-      setTimeout(() => setRefreshState('idle'), 2000);
-    }, 2500);
+    // Actually re-run ReCiter. This previously only simulated the call with a setTimeout,
+    // so the Analysis was never regenerated: an article the curator had accepted kept
+    // showing up under Suggested even though the GoldStandard had been updated.
+    // CurateIndividual renders its loading skeleton while reciterFetching is true and the
+    // tabs remount with fresh data on completion, which resets the change counter.
+    dispatch(reciterFetchData(uid, true));
   };
 
   const countBadgeClass = (value: string) => {
