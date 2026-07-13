@@ -35,6 +35,13 @@
   --danger: #991b1b;
   --danger-bg: #fee2e2;
 
+  /* The mockup's amber, and the only pair on this page that had no token: the synthesis caveat
+     is not an error (nothing failed) and it is not a success, so neither of the pairs above can
+     carry it. Measured the same way as the success pair at :28-32 — #92400e on #fef3c7 is
+     6.4:1, AA at the 13px the caveat actually renders at. */
+  --warning: #92400e;
+  --warning-bg: #fef3c7;
+
   --card-shadow: 0 1px 2px rgba(26, 33, 51, 0.03);
 
   max-width: 1080px;
@@ -271,6 +278,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.summaryN {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /* ---------- The strategy (the deliverable) ---------- */
 .panel {
@@ -321,6 +334,8 @@
   background: #fafaf8;
 }
 .line { display: flex; gap: 9px; align-items: baseline; }
+/* A derived line has no checkbox, but it still has to sit on the same left edge as one. */
+.lineGutter { width: 16px; flex-shrink: 0; }
 .lineCheck {
   width: 16px;
   flex-shrink: 0;
@@ -524,11 +539,303 @@
   padding: 10px 14px;
 }
 
+/* ==========================================================================
+   ISSUE REVIEW (Mode 2) — candidates, screening, synthesis.
+   Same vocabulary as everything above: same surfaces, same borders, same type
+   scale. Nothing here is a new visual language, and the pieces that already had
+   a treatment (.why for the exclusion reason, .btnSecondary for the row actions,
+   .eyebrow for the section labels) reuse it rather than growing a twin.
+   ========================================================================== */
+
+/* ---------- The wait ----------
+   Screening 50 abstracts takes ~29s and the synthesis ~47s. Those are long enough that a bare
+   spinner reads as "hung", so the wait states carry a real label, a real elapsed count, and the
+   measured median as a bar. The bar stops at 95%: it is an estimate, and finishing early would
+   be a lie about a call that has not returned. */
+.progress {
+  margin-top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  box-shadow: var(--card-shadow);
+}
+.progLine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-strong);
+}
+.progLine b { font-weight: 600; }
+.progElapsed {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.bar {
+  height: 6px;
+  background: #eef1f5;
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+  max-width: 340px;
+}
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width .9s linear;
+}
+
+/* ---------- The query, read-only ----------
+   The librarian did not write this query, so they have to be able to see it. Same off-white
+   surface as the strategy's .lines block — it is the same artifact, just not editable here. */
+.queryCard { gap: 12px; }
+.query {
+  background: #fafaf8;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 6px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.queryCode {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.queryActs { display: flex; gap: 8px; flex-wrap: wrap; }
+.counts { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.counts b { color: var(--text-strong); font-weight: 600; }
+
+/* ---------- The narrowing gate ----------
+   NOT A NEW VISUAL LANGUAGE, and deliberately not a dialog. The gate is a .card like every other
+   panel on this page; its warning is the .caveat that already carries the synthesis disclaimer;
+   its settled state is the .recallLine + .dot that already says "every known include came back";
+   its checkbox is .lineCheck, the same control the strategy's term lines use — which is the point,
+   because a narrowing IS a strategy line, arriving unticked and priced.
+
+   The only genuinely new thing here is the row grid, because a price has to line up under a price
+   for "1,391 -> 118" to be readable as a column at a glance. */
+.narrowCard { margin-top: 14px; gap: 16px; }
+/* .caveat carries a 14px top margin for when it sits between cards. As the first child INSIDE one,
+   that margin lands on top of the card's own padding. Same class of positional reset as .flagline. */
+.narrowCard .caveat { margin-top: 0; }
+
+.narrowList { display: flex; flex-direction: column; }
+.narrow {
+  display: grid;
+  grid-template-columns: 16px minmax(140px, auto) auto minmax(0, 1.4fr);
+  gap: 5px 14px;
+  align-items: baseline;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.narrow:last-child { border-bottom: 0; }
+.narrowLabel { font-size: 13px; font-weight: 600; color: var(--text-strong); }
+.narrowOn .narrowLabel { color: var(--accent); }
+/* The price. Tabular figures so the arrows and the yields stack into a column. */
+.narrowPrice {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.narrowPrice b { color: var(--text-strong); font-weight: 600; }
+.narrowArrow { padding: 0 5px; color: var(--placeholder); }
+.narrowWhy { font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+/* The block that will be AND-ed into the query, in the query's own typeface. Spans from the label
+   to the end of the row: it is the evidence for everything else on the line. */
+.narrowTerms {
+  grid-column: 2 / -1;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+.narrowFoot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Screening bar ----------
+   The tally counts the HUMAN's checkboxes, never the model's flags. */
+.screenBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tally { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tally b { color: var(--text-strong); font-weight: 600; }
+.tallyInc { color: var(--success); }
+
+/* ---------- Candidate rows ----------
+   Restyled from .seed (:428-448): same row rhythm, same divider, same PMID treatment. */
+.rows { display: flex; flex-direction: column; }
+.rec {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  transition: opacity .12s;
+}
+.rec:last-child { border-bottom: 0; }
+/* The de-emphasis of an unticked row. It follows the HUMAN's checkbox, not the model's flag —
+   re-ticking something the AI excluded restores it fully, and the AI's reason stays on the row
+   regardless. Nothing is ever hidden or collapsed: that visibility IS the integrity argument. */
+.recOff { opacity: .62; }
+.recCheck {
+  width: 16px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.recCheck:disabled { cursor: progress; }
+.recBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cite { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+.who { font-weight: 600; color: var(--text-strong); }
+.jrnl { color: var(--text-muted); }
+.recPmid {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.recPmid:hover { color: var(--accent); text-decoration: underline; }
+.recTitle { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 5px);
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+/* 5.4:1 and 5.3:1 on their own backgrounds — AA at 11px bold, which "large text" does not cover. */
+.tagDesign { background: var(--accent-soft); color: var(--accent); }
+.tagOther { background: #eef1f5; color: var(--text-muted); }
+/* The NIH percentile. Deliberately the QUIETEST chip on the row: it is context, not a verdict, and
+   it must never out-shout the design tag, which IS a claim about the evidence. Outlined rather than
+   filled, and normal weight, so it reads as an annotation. 5.1:1 on the surface — AA at 11px. */
+.tagCite {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong, #d8d2c8);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The exclusion reason. .why (:449-458) already IS this treatment, so .flagline only undoes the
+   two properties .why sets for its position inside the seed row: in .recBody's column flex,
+   flex-basis: 100% would have set its HEIGHT, not its width. */
+.flagline {
+  flex-basis: auto;
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 4px 0 0;
+}
+.flagline b { font-weight: 600; }
+
+/* ---------- Synthesis ---------- */
+.caveat {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-radius: var(--radius-md, 6px);
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.caveat b { font-weight: 600; }
+
+.synthCard { margin-top: 14px; gap: 14px; }
+.tblScroll { overflow-x: auto; }
+.sum { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sum th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.sum td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-body);
+  vertical-align: top;
+}
+.sum tbody tr:last-child td { border-bottom: 0; }
+.sum td:first-child { color: var(--text-strong); font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; }
+
+.prose { font-size: 14px; line-height: 1.65; color: var(--text-strong); max-width: 68ch; }
+.prose p { margin: 0 0 10px; }
+.prose p:last-child { margin-bottom: 0; }
+/* An inline citation chip. A claim you cannot get back to the abstract for is a claim you
+   cannot check — so every one of them is a link, and it opens the source. */
+.pmid {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm, 5px);
+  padding: 1px 5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pmid:hover { color: var(--accent); text-decoration: underline; }
+
+.provenance {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.provenance b { color: var(--text-strong); font-weight: 600; }
+
 @media (max-width: 820px) {
   .page { padding: 24px 20px 48px; }
   .card { padding: 22px 18px; }
+  .recPmid { margin-left: 0; }
+  /* The narrowing row stacks: the price column cannot hold its own next to a reason on a phone,
+     and the label is what you scan for. */
+  .narrow { grid-template-columns: 16px minmax(0, 1fr); }
+  .narrowPrice, .narrowWhy, .narrowTerms { grid-column: 2 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .panel { animation: none; }
-  .mode, .input, .btn, .btnSecondary, .seedCount { transition: none; }
+  .mode, .input, .btn, .btnSecondary, .seedCount, .rec { transition: none; }
+  .barFill { transition: none; }
 }

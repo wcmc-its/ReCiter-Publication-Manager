@@ -1,6 +1,8 @@
-// POST /api/literature/search — Mode 1 ("Search strategy").
+// POST /api/literature/search — Modes 1 ("Search strategy") and 2 ("Issue review").
 //
-// TWO PATHS, ONE ROUTE:
+// FIVE PATHS, ONE ROUTE, branched on `phase` and `mode`:
+//
+//   MODE 1
 //   - no `strategy` in the body  -> BUILD. Calls the model once, counts, validates the seeds,
 //     and proposes a verified+priced widening for anything it missed.
 //   - a `strategy` in the body   -> RE-COUNT. The librarian ticked, unticked or edited a line.
@@ -9,8 +11,31 @@
 //     a librarian can work on it all afternoon for free, which is the entire point of the
 //     checkboxes.
 //
-// ponytail: a branch, not a second route. The two paths differ by four lines; a separate
-// /recount endpoint would have duplicated all of the auth below to save nothing.
+//   MODE 2 — three POSTs, because there is a human between each pair of them.
+//   - mode:'issue-review'  -> BUILD + FETCH. Precision strategy, count, then up to 50 records —
+//     UNLESS the count says the 50 would be a thin slice of the yield (NARROW_ABOVE), in which case
+//     it comes back with priced narrowings and no records, for the librarian to choose from. Two
+//     ways in, and they differ by ONE field:
+//       * no `strategy`                    -> the model drafts one. The only model call in phase 1.
+//       * `strategy` + `proceed: true`     -> NO MODEL. Runs the strategy the librarian is looking
+//         at, skips the gate, and retrieves the top 50 whatever the count. That is the escape
+//         hatch: "retrieve the top 50 anyway", and it must ALWAYS work. A tool that refuses to run
+//         is worse than one that warns. (A `strategy` WITHOUT `proceed` is a re-count — see below.
+//         `proceed` is the discriminator, and it has to be, because both paths post a strategy.)
+//   - phase:'screen'       -> SCREEN the records, one model call over all 50.
+//   - phase:'synthesize'   -> SYNTHESIZE the records the human ticked.
+//     Phases 2 and 3 take PMIDs and RE-FETCH the abstracts server-side. They never accept record
+//     text from the browser: that would be a client-controlled text-injection surface into a paid
+//     model call, and it would let a tampered page produce a synthesis of abstracts PubMed never
+//     published — while the page still showed the real PMIDs next to it.
+//
+// THREE PLAIN POSTS, NO STREAMING. The long call (synthesis, measured 47s) blocks, and that is
+// fine: the ALB idle timeout is a live-verified 500s. SSE/InvokeModelWithResponseStream was
+// considered and rejected — it buys a progress bar and costs a state machine on both sides.
+//
+// ponytail: a branch, not five routes. The paths differ by a handful of lines each; separate
+// endpoints would have duplicated the session auth below — the only auth of its kind in RPM —
+// five times, and every copy is a chance to forget it on a route that spends money.
 //
 // AUTH IS DIFFERENT HERE, DELIBERATELY. Every other API route in this repo compares
 // req.headers.authorization to reciterConfig.backendApiKey, which resolves to
@@ -35,11 +60,18 @@ import { getToken } from 'next-auth/jwt'
 import {
     buildStrategy,
     runStrategy,
+    runReview,
     suggestFixes,
     seedRecords,
+    fetchByPmids,
+    screenRecords,
+    synthesize,
     bedrockConfigured,
+    RECORD_CAP,
     Strategy,
     Concept,
+    Sort,
+    UsageLog,
 } from '../../../../controllers/literatureSearch.controller'
 import { buildLimits } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
@@ -49,6 +81,50 @@ function allowlist(): string[] {
         .split(',')
         .map(s => s.trim().toLowerCase())
         .filter(Boolean)
+}
+
+// Cost visibility. One structured line per model call; grep the pod logs.
+//
+// NOTE: the question text is deliberately NOT logged — see the data-handling section of the spec.
+// Never show this figure to the librarian either: iteration is the behaviour we want, and a
+// running meter teaches them to ration it.
+//
+// It matters MORE in Mode 2, not less. A Mode 1 run is ~$0.03 because the model only ever sees the
+// question; a Mode 2 run is ~$0.49 because 50 abstracts go through a context window three times.
+// That is the number that will be asked about when this scales past a pilot, so log every call.
+//
+// ponytail: env-driven rates, not a constant. Bedrock's per-Mtok price is a function of
+// BEDROCK_MODEL_ID and region, so a baked-in number silently becomes a lie the moment the model
+// changes. The 5/25 default is Anthropic's FIRST-PARTY list price for Opus 4.8 and is NOT a
+// verified Bedrock rate — set these two vars from the AWS pricing page for the profile actually
+// in use before anyone trusts estUsd.
+function logCost(mode: string, cwid: string, usage: UsageLog, extra: Record<string, any> = {}) {
+    const inRate = Number(process.env.BEDROCK_USD_PER_MTOK_IN || 5)
+    const outRate = Number(process.env.BEDROCK_USD_PER_MTOK_OUT || 25)
+    const cost = (usage.inputTokens / 1e6) * inRate + (usage.outputTokens / 1e6) * outRate
+    console.log(JSON.stringify({
+        tag: 'literature-search',
+        mode,
+        model: process.env.BEDROCK_MODEL_ID,    // so estUsd can be reconciled to a rate later
+        cwid,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        estUsd: Number(cost.toFixed(4)),
+        ...extra,
+    }))
+}
+
+// The PMIDs the browser sends back on phases 2 and 3. They go straight into a PubMed query, so
+// they are validated to digits — and they are capped at RECORD_CAP, because the cap is what bounds
+// the context window and therefore the bill. A page that asks us to screen 500 records is not a
+// page we wrote.
+function parsePmids(raw: any): string[] {
+    const ids = (Array.isArray(raw) ? raw : [])
+        .map((p: any) => String(p ?? '').trim())
+        .filter((p: string) => /^\d+$/.test(p))
+    if (!ids.length) throw new Error('No records were selected.')
+    if (ids.length > RECORD_CAP) throw new Error(`At most ${RECORD_CAP} records can be processed at once.`)
+    return Array.from(new Set(ids))
 }
 
 // The re-count path takes a strategy straight from the browser and puts its text into a PubMed
@@ -94,13 +170,27 @@ function parseStrategy(raw: any): Strategy {
 // panel silently rendered empty while the strategy itself looked perfect. Split on OR and
 // take the descriptor off each [MeSH]-tagged token instead; [tiab] free-text terms are
 // skipped because the join key is MeSH.
+// NOT EVERY MeSH DESCRIPTOR IS A TOPIC. "Humans"[MeSH] is a FILTER — Mode 2 emits it as its own
+// AND-ed block (see hoistFilters), and every clinical paper ever indexed carries it. Harvest it as
+// a topic and the "At Weill Cornell" panel stops answering "who here works on probiotics?" and
+// starts answering "who here publishes on humans?" — which is everyone, ranked by output. The
+// panel would still render, still look plausible, and be worthless. Caught in a live run:
+//   WHERE k.keyword IN ('Probiotics', 'Lactobacillus', 'Bifidobacterium', 'Humans')
+//
+// Same for Animals, Male, Female, Adult, Aged, Adolescent, Child — the MEDLINE "check tags", which
+// are applied to nearly every record by definition and are therefore never what the panel means.
+const NOT_A_TOPIC = new Set([
+    'humans', 'human', 'animals', 'male', 'female',
+    'adult', 'adolescent', 'aged', 'child', 'infant', 'middle aged', 'young adult',
+])
+
 function meshFromConcepts(concepts: Concept[]): string[] {
     const found = new Set<string>()
     for (const c of concepts) {
         for (const line of c.lines) {
             for (const token of line.terms.split(/\s+OR\s+/i)) {
-                const m = token.match(/^\s*\(?\s*"?([^"[\]]+?)"?\s*\[MeSH/i)
-                if (m) found.add(m[1].trim())
+                const m = token.match(/^\s*\(?\s*"?([^"[\]]+?)"?\s*\[(?:MeSH|majr)/i)
+                if (m && !NOT_A_TOPIC.has(m[1].trim().toLowerCase())) found.add(m[1].trim())
             }
         }
     }
@@ -134,14 +224,84 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
     }
 
-    const { question, criteria, seeds, dateId, typeId, strategy: edited } = req.body || {}
+    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, strategy: edited } = req.body || {}
 
     const seedPmids: string[] = Array.isArray(seeds)
         ? seeds
         : String(seeds || '').split(/[\s,]+/).filter(Boolean)
 
+    // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
+    if (phase === 'screen') {
+        if (!bedrockConfigured()) {
+            return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+        }
+        if (!question || !String(question).trim()) {
+            return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
+        }
+        try {
+            const ids = parsePmids(pmids)
+            // RE-FETCHED, never taken from the client. If PubMed will not give us the records back
+            // there is nothing honest to screen, so this one IS fatal — unlike Mode 1's seed
+            // records, where a miss costs a label and the strategy still stands.
+            const records = await fetchByPmids(ids)
+            if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
+
+            const { flags, usage } = await screenRecords(String(question), String(criteria || ''), records)
+            logCost('issue-review:screen', cwid, usage, {
+                records: records.length,
+                included: flags.filter(f => f.include).length,
+            })
+            return res.status(200).send({ statusCode: 200, flags })
+        } catch (err: any) {
+            console.error('[literature] screening failed:', err)
+            return res.status(502).send({ statusCode: 502, message: err?.message || 'Screening failed.' })
+        }
+    }
+
+    // ---- SYNTHESIZE (Mode 2, phase 3). ---------------------------------------------------------
+    if (phase === 'synthesize') {
+        if (!bedrockConfigured()) {
+            return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+        }
+        if (!question || !String(question).trim()) {
+            return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
+        }
+        try {
+            const ids = parsePmids(pmids)
+            const records = await fetchByPmids(ids)
+            if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
+
+            const { synthesis, usage } = await synthesize(String(question), records)
+            logCost('issue-review:synthesize', cwid, usage, {
+                records: records.length,
+                tableRows: synthesis.table.length,
+            })
+            // cwid + date are returned so the page can stamp the synthesis with who ran it and
+            // when. An AI-assisted paragraph that ends up pasted into a document needs to say
+            // where it came from, and the client cannot be trusted to know the server's date.
+            return res.status(200).send({
+                statusCode: 200,
+                synthesis,
+                cwid,
+                date: new Date().toISOString().slice(0, 10),
+            })
+        } catch (err: any) {
+            console.error('[literature] synthesis failed:', err)
+            return res.status(502).send({ statusCode: 502, message: err?.message || 'Synthesis failed.' })
+        }
+    }
+
     // ---- RE-COUNT. No model, no cost log, no expert panel (none of them changed). -----------
-    if (edited) {
+    //
+    // This is the path a toggle takes, in BOTH modes: untick a line, tick a suggested widening,
+    // tick a priced narrowing — all of them post the strategy and get back a count. That is what
+    // makes iterating free, and it is why a narrowing is a concept block and not a new endpoint.
+    //
+    // `!proceed` is what keeps this branch from swallowing the escape hatch. Mode 2's "retrieve the
+    // top 50 anyway" ALSO posts a strategy, and it must reach the issue-review branch below and
+    // come back with RECORDS. A re-count that quietly returned zero records to a librarian who
+    // pressed Retrieve would look exactly like a search that found nothing.
+    if (edited && !proceed) {
         try {
             const result = await runStrategy(parseStrategy({ ...edited, dateId, typeId }), seedPmids)
             return res.status(200).send({ statusCode: 200, databases: [result] })
@@ -151,7 +311,78 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
     }
 
-    // ---- BUILD. -----------------------------------------------------------------------------
+    // ---- BUILD + FETCH (Mode 2, phase 1). -----------------------------------------------------
+    if (mode === 'issue-review') {
+        try {
+            const limits = buildLimits(String(dateId ?? ''), String(typeId ?? ''))
+            // An unknown sort resolves to relevance, never to a guess — same rule as buildLimits.
+            // Relevance is the default because it is what makes a 50-cap defensible: the top 50 of
+            // a 300-hit precision search by PubMed's Best Match is a reading list; the newest 50
+            // is an accident of the calendar.
+            const order: Sort = sort === 'date' ? 'date' : 'relevance'
+
+            // TWO WAYS IN, and only one of them spends money.
+            //
+            // A fresh question BUILDS a strategy — PRECISION, not recall, a different prompt,
+            // deliberately (see REVIEW_PROMPT). "Retrieve the top 50 anyway" posts the strategy the
+            // librarian is ALREADY LOOKING AT — narrowings ticked, lines edited — and that path
+            // calls NO MODEL: the strategy exists, and re-drafting it would spend a call to throw
+            // the librarian's own edits away and probably hand back a different query than the one
+            // on their screen. The strategy is re-parsed and its limits re-resolved server-side
+            // (parseStrategy), so this is not a trust hole: it is the same guard the re-count uses.
+            let strategy: Strategy
+            let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+
+            if (edited) {
+                strategy = parseStrategy({ ...edited, dateId, typeId })
+            } else {
+                if (!bedrockConfigured()) {
+                    return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+                }
+                if (!question || !String(question).trim()) {
+                    return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
+                }
+                const built = await buildStrategy(String(question), limits, criteria, 'precision')
+                strategy = built.strategy
+                usage = built.usage
+            }
+
+            // Count first, fetch second — but the count no longer decides whether we CAN fetch (the
+            // retrieval tool takes a retmax), it decides whether we SHOULD do so silently. Above
+            // NARROW_ABOVE, runReview hands back the strategy, the number, and priced narrowings
+            // instead of a top-50 nobody was told was a top-50. A 200, not a 4xx: it is not an
+            // error, it is a draft. `proceed` walks through the gate and always retrieves.
+            const result = await runReview(strategy, order, proceed === true)
+
+            let experts = { experts: [], total: 0 }
+            try {
+                const mesh = meshFromConcepts(strategy.concepts)
+                if (mesh.length) experts = await findWcmExperts(mesh, 5) as any
+            } catch (e) {
+                // The panel is a bonus, not the deliverable. Never fail the search over it.
+                console.error('[literature] expert panel failed:', e)
+            }
+
+            // Logged even when no model was called, and the zeros are the POINT: they are the proof
+            // that narrowing, re-running and taking the top 50 anyway cost nothing. If this line
+            // ever shows tokens on a `proceed` run, someone has put the model back in the loop.
+            logCost('issue-review:build', cwid, usage, {
+                hits: result.hits,
+                records: result.records.length,
+                needsNarrowing: !!result.needsNarrowing,
+                narrowings: result.narrowings?.length ?? 0,
+                proceed: proceed === true,
+                fromEditedStrategy: !!edited,
+            })
+
+            return res.status(200).send({ statusCode: 200, databases: [result], experts })
+        } catch (err: any) {
+            console.error('[literature] issue review failed:', err)
+            return res.status(502).send({ statusCode: 502, message: err?.message || 'Search failed.' })
+        }
+    }
+
+    // ---- BUILD (Mode 1). ----------------------------------------------------------------------
     if (!bedrockConfigured()) {
         return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
     }
@@ -192,34 +423,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.error('[literature] expert panel failed:', e)
         }
 
-        // Cost visibility. One structured line per call; grep the pod logs. NOTE: the
-        // question text is deliberately NOT logged — see the data-handling section of the
-        // spec. Never show this figure to the librarian: query iteration is the behaviour
-        // we want, and a running meter teaches them to ration it. (Iteration is now free
-        // anyway — every toggle after this call takes the no-model path above.)
-        //
-        // ponytail: env-driven rates, not a constant. Bedrock's per-Mtok price is a function
-        // of BEDROCK_MODEL_ID and region, so a baked-in number silently becomes a lie the
-        // moment the model changes. The 5/25 default is Anthropic's FIRST-PARTY list price
-        // for Opus 4.8 and is NOT a verified Bedrock rate — set these two vars from the AWS
-        // pricing page for the profile actually in use before anyone trusts estUsd.
-        const inTok = usage.inputTokens + fixed.usage.inputTokens
-        const outTok = usage.outputTokens + fixed.usage.outputTokens
-        const inRate = Number(process.env.BEDROCK_USD_PER_MTOK_IN || 5)
-        const outRate = Number(process.env.BEDROCK_USD_PER_MTOK_OUT || 25)
-        const cost = (inTok / 1e6) * inRate + (outTok / 1e6) * outRate
-        console.log(JSON.stringify({
-            tag: 'literature-search',
-            mode: 'search-strategy',
-            model: process.env.BEDROCK_MODEL_ID,    // so estUsd can be reconciled to a rate later
-            cwid,
-            inputTokens: inTok,
-            outputTokens: outTok,
-            estUsd: Number(cost.toFixed(4)),
+        // The build and the fixes are one run from the librarian's point of view, so they are one
+        // cost line. Iteration after this call is free anyway — every toggle takes the no-model
+        // re-count path above.
+        logCost('search-strategy', cwid, {
+            inputTokens: usage.inputTokens + fixed.usage.inputTokens,
+            outputTokens: usage.outputTokens + fixed.usage.outputTokens,
+        }, {
             hits: result.hits,
             seeds: result.seeds.length,
             seedsRetrieved: result.seeds.filter(s => s.retrieved).length,
-        }))
+        })
 
         return res.status(200).send({ statusCode: 200, databases: [result], experts })
     } catch (err: any) {
