@@ -8,7 +8,6 @@
 // Styling uses the calm tokens from styles/globals.css. No new visual vocabulary.
 
 import { useState } from 'react'
-import { toast } from 'react-toastify'
 
 type Concept = { label: string; terms: string }
 type Seed = {
@@ -52,6 +51,21 @@ const sec: React.CSSProperties = {
 }
 const mono = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
+// Only Search strategy is built. Issue review and Clinical question end in a synthesis over
+// retrieved abstracts, so they need the streaming question answered first (and Clinical
+// question carries the highest PHI surface -- PICO invites someone to paste a case).
+const MODES = [
+    { id: 'search-strategy', label: 'Search strategy', hint: 'recall · no cap · ends in a handoff', ready: true },
+    { id: 'issue-review', label: 'Issue review', hint: 'precision · 50 · ends in a synthesis', ready: false },
+    { id: 'clinical-question', label: 'Clinical question', hint: 'precision · 50 · ends in an answer', ready: false },
+]
+
+const DATABASES = [
+    { id: 'pubmed', label: 'PubMed', ready: true },
+    { id: 'embase', label: 'Embase', ready: false },
+    { id: 'scopus', label: 'Scopus', ready: false },
+]
+
 export default function LiteratureSearch() {
     const [question, setQuestion] = useState('')
     const [criteria, setCriteria] = useState('')
@@ -66,6 +80,7 @@ export default function LiteratureSearch() {
     // key that does not exist -- so every failure rendered as NOTHING and the button just
     // looked dead. An inline div depends on no config and cannot be silently disabled.
     const [err, setErr] = useState('')
+    const [copied, setCopied] = useState('')
 
     const run = async () => {
         if (!question.trim() || busy) return
@@ -91,9 +106,19 @@ export default function LiteratureSearch() {
         }
     }
 
+    // Same reason as the error state above: toast.success was a silent no-op here, so Copy
+    // worked but never said so. Confirm on the button itself -- nothing to mount, nothing to
+    // configure, and the feedback lands where the user is already looking.
     const copy = (text: string, what: string) => {
-        navigator.clipboard.writeText(text)
-        toast.success(`${what} copied`)
+        navigator.clipboard.writeText(text).then(
+            () => {
+                setCopied(what)
+                setTimeout(() => setCopied(c => (c === what ? '' : c)), 1800)
+            },
+            // writeText rejects outside a secure context (plain-http over an IP). Say so
+            // rather than looking like a dead button.
+            () => setErr('Could not copy to the clipboard.'),
+        )
     }
 
     // The PRISMA-S methods block — what goes in the manuscript. This, not a record export,
@@ -128,6 +153,75 @@ export default function LiteratureSearch() {
             </h1>
 
             <div style={card}>
+                {/*
+                  * The mode is a RETRIEVAL OBJECTIVE, not a template: Search strategy chases
+                  * recall and ends in a handoff, the other two chase precision and end in a
+                  * synthesis. Only Search strategy is built. The other two are shown DISABLED
+                  * rather than hidden, so the scope of what this page does (and does not yet
+                  * do) is legible instead of being a silent omission. No branching behind
+                  * them -- there is nothing to branch to yet.
+                  */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <span style={sec}>Mode</span>
+                    <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
+                        {MODES.map(m => (
+                            <label
+                                key={m.id}
+                                htmlFor={`lit-mode-${m.id}`}
+                                style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: 7,
+                                    cursor: m.ready ? 'pointer' : 'not-allowed',
+                                    opacity: m.ready ? 1 : 0.45,
+                                }}
+                            >
+                                <input
+                                    id={`lit-mode-${m.id}`}
+                                    type="radio"
+                                    name="lit-mode"
+                                    checked={m.ready}
+                                    disabled={!m.ready}
+                                    readOnly
+                                    style={{ marginTop: 2, accentColor: '#2563a8' }}
+                                />
+                                <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span style={{ fontSize: 13, fontWeight: m.ready ? 600 : 400 }}>
+                                        {m.label}{!m.ready && <span style={{ fontWeight: 400, color: '#8a94a6' }}> — soon</span>}
+                                    </span>
+                                    <span style={{ fontSize: 11, color: '#8a94a6' }}>{m.hint}</span>
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                {/*
+                  * Embase and Scopus are visible-but-disabled on purpose. It sets the
+                  * expectation, and it keeps the query artifact an ARRAY of per-database
+                  * results rather than letting a scalar sneak in -- adding a database should
+                  * push an element, not change every consumer.
+                  */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, flexWrap: 'wrap' }}>
+                    <span style={sec}>Databases</span>
+                    {DATABASES.map(d => (
+                        <label
+                            key={d.id}
+                            htmlFor={`lit-db-${d.id}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, opacity: d.ready ? 1 : 0.45, cursor: d.ready ? 'default' : 'not-allowed' }}
+                        >
+                            <input
+                                id={`lit-db-${d.id}`}
+                                type="checkbox"
+                                checked={d.ready}
+                                disabled
+                                readOnly
+                                style={{ accentColor: '#2563a8' }}
+                            />
+                            {d.label}
+                            {!d.ready && <span style={{ color: '#8a94a6' }}>(soon)</span>}
+                        </label>
+                    ))}
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label style={sec} htmlFor="lit-q">What do you want to know?</label>
                     <textarea
@@ -244,9 +338,10 @@ export default function LiteratureSearch() {
                             <span style={{ flex: 1 }} />
                             <button
                                 onClick={() => copy(result.query, 'Boolean query')}
-                                style={{ font: 'inherit', fontSize: 12, fontWeight: 600, background: 'rgba(37,99,168,0.1)', color: '#2563a8', border: 0, borderRadius: 6, padding: '5px 11px', cursor: 'pointer' }}
+                                aria-live="polite"
+                                style={{ font: 'inherit', fontSize: 12, fontWeight: 600, background: copied === 'Boolean query' ? '#dcfce7' : 'rgba(37,99,168,0.1)', color: copied === 'Boolean query' ? '#166534' : '#2563a8', border: 0, borderRadius: 6, padding: '5px 11px', cursor: 'pointer' }}
                             >
-                                Copy query
+                                {copied === 'Boolean query' ? '✓ Copied' : 'Copy query'}
                             </button>
                         </div>
                     </div>
@@ -332,9 +427,10 @@ export default function LiteratureSearch() {
                         <span style={{ flex: 1 }} />
                         <button
                             onClick={() => copy(prismaBlock(result), 'PRISMA-S methods block')}
-                            style={{ font: 'inherit', fontSize: 13, fontWeight: 600, background: '#1a2133', color: '#fff', border: 0, borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}
+                            aria-live="polite"
+                            style={{ font: 'inherit', fontSize: 13, fontWeight: 600, background: copied === 'PRISMA-S methods block' ? '#166534' : '#1a2133', color: '#fff', border: 0, borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}
                         >
-                            Copy PRISMA-S methods block
+                            {copied === 'PRISMA-S methods block' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
                         </button>
                     </div>
                 </>
