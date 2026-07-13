@@ -49,13 +49,15 @@ import {
     Line,
     Concept,
     Strategy,
+    RECORD_CAP,
+    NARROW_ABOVE,
     assembleQuery,
     conceptQuery,
     numberStrategy,
 } from './literatureSearch.strategy'
 
 // Re-exported so the check script and the API route have one import site.
-export { assembleQuery, conceptQuery, numberStrategy }
+export { assembleQuery, conceptQuery, numberStrategy, RECORD_CAP, NARROW_ABOVE }
 export type { Line, Concept, Strategy }
 
 export type SeedResult = {
@@ -324,29 +326,8 @@ export async function seedRecords(pmids: string[]): Promise<Record<string, SeedR
 
 export type Sort = 'relevance' | 'date'
 
-// The cap. NOT a setting — see the header. 50 abstracts is ~40k input tokens, which is what a
-// single screening call was measured at; it is also about as many as a human will actually read.
-export const RECORD_CAP = 50
-
-// THE BAND WHERE THE SLICE STOPS BEING DEFENSIBLE.
-//
-// Retrieval is ranked by relevance and cut at RECORD_CAP, so what the reader actually gets is
-// always "the top 50 of N". Three bands, and only the third one needs a conversation:
-//
-//   hits <= 50          all N retrieved. There is no slice, so there is nothing to warn about.
-//   50 < hits <= 200    the top 50 of N. A defensible slice — retrieve it, and SAY THE RATIO.
-//   hits > 200          the 50 is a thin slice of the yield. Do not retrieve yet: price the
-//                       narrowings and let the librarian choose (suggestNarrowings, below).
-//
-// This REPLACES a hard refusal above 2,000 hits, and that refusal was never ours to make — it was
-// the retrieval tool's own fetch limit, and the tool now takes a retmax (see fetchArticles). Both
-// halves of the old behaviour were wrong: a yield of 80 needed no ceremony, and a yield of 1,391
-// was not an error, it was a thin slice taken SILENTLY.
-//
-// So this is a gate, never a wall. `proceed` walks straight through it and retrieves the 50 anyway
-// (see runReview): the librarian may know exactly what they are doing, and a tool that refuses to
-// run is worse than one that warns.
-export const NARROW_ABOVE = 200
+// RECORD_CAP and NARROW_ABOVE now live in literatureSearch.strategy.ts (re-exported above), because
+// the browser needs their VALUES and that file is the only one it can take a value import from.
 
 export type PubRecord = {
     pmid: string

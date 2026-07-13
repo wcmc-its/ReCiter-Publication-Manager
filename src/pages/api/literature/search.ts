@@ -75,13 +75,7 @@ import {
 } from '../../../../controllers/literatureSearch.controller'
 import { buildLimits } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
-
-function allowlist(): string[] {
-    return (process.env.LITERATURE_SEARCH_CWIDS || '')
-        .split(',')
-        .map(s => s.trim().toLowerCase())
-        .filter(Boolean)
-}
+import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
 
 // Cost visibility. One structured line per model call; grep the pod logs.
 //
@@ -95,12 +89,37 @@ function allowlist(): string[] {
 //
 // ponytail: env-driven rates, not a constant. Bedrock's per-Mtok price is a function of
 // BEDROCK_MODEL_ID and region, so a baked-in number silently becomes a lie the moment the model
-// changes. The 5/25 default is Anthropic's FIRST-PARTY list price for Opus 4.8 and is NOT a
-// verified Bedrock rate — set these two vars from the AWS pricing page for the profile actually
-// in use before anyone trusts estUsd.
+// changes.
+//
+// The defaults below are the VERIFIED us-east-1 on-demand rate for us.anthropic.claude-opus-4-8,
+// read on 2026-07-13 from the AWS Price List API — the billing source of truth, not a pricing page:
+//
+//   aws pricing get-products --region us-east-1 --service-code AmazonBedrockFoundationModels \
+//     --filters 'Type=TERM_MATCH,Field=regionCode,Value=us-east-1'
+//   # then: product.attributes.servicename == "Claude Opus 4.8 (Amazon Bedrock Edition)"
+//
+// TWO TRAPS, both of which produce a confident wrong number:
+//   - The service code is AmazonBedrockFoundationModels, NOT AmazonBedrock. The latter carries only
+//     legacy Claude models (2.x, 3 Haiku/Sonnet) and returns NOTHING for Opus — an empty result,
+//     not an error.
+//   - aws.amazon.com/bedrock/pricing says $6.00/$30.00 for Opus 4.8. That is the GovCloud table;
+//     the commercial-region tables on that page are rendered client-side and don't fetch.
+//
+// 5.50/27.50 is the "Standard" (geography-scoped) tier, which is what a `us.` inference profile
+// bills at. A `global.` profile is 10% cheaper (5.00/25.00) but routes to any commercial AWS
+// region — a data-residency call, not a code one. The previous 5/25 default WAS the global rate,
+// so every estUsd logged before this commit understated the real bill by exactly 10%.
+//
+// If anyone ever sets cache_control on these calls, this undercounts: Bedrock bills cache read and
+// cache write as separate line items, and input_tokens excludes them. Nothing caches today.
+function rate(v: string | undefined, fallback: number): number {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? n : fallback   // a typo'd rate must not log estUsd: null
+}
+
 function logCost(mode: string, cwid: string, usage: UsageLog, extra: Record<string, any> = {}) {
-    const inRate = Number(process.env.BEDROCK_USD_PER_MTOK_IN || 5)
-    const outRate = Number(process.env.BEDROCK_USD_PER_MTOK_OUT || 25)
+    const inRate = rate(process.env.BEDROCK_USD_PER_MTOK_IN, 5.5)
+    const outRate = rate(process.env.BEDROCK_USD_PER_MTOK_OUT, 27.5)
     const cost = (usage.inputTokens / 1e6) * inRate + (usage.outputTokens / 1e6) * outRate
     console.log(JSON.stringify({
         tag: 'literature-search',
@@ -216,8 +235,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 2. Pilot allowlist. It applies to the re-count path too: that path spends no model tokens,
     //    but it still queries PubMed on our shared NCBI key.
-    const allowed = allowlist()
-    if (allowed.length === 0 || !allowed.includes(cwid)) {
+    //
+    //    THIS IS THE GATE. The sidebar hides the link from anyone this would reject, but the
+    //    sidebar is cosmetic — /literature is still reachable by URL, and this is what stops it.
+    if (!isAllowlisted(cwid)) {
         return res.status(403).send({
             statusCode: 403,
             message: 'Literature Search is in a limited pilot. Contact the ReCiter team for access.',

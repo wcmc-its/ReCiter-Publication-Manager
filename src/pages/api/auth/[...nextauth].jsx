@@ -5,6 +5,7 @@ import { findUserPermissions } from '../../../../controllers/db/userroles.contro
 import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
+import { isAllowlisted } from "../../../../controllers/literatureAllowlist";
 
 /*const authHandler = async (req, res) => {
     console.log('NextAuth handler called - Method:', req.method, 'URL:', req.url);
@@ -190,6 +191,15 @@ export const authOptions = {
         token.picture = user.image || user.databaseUser?.profilePicture;
         console.log('JWT callback - final token created with username:', token.username);
       }
+
+      // One bit, so the sidebar can hide a link that would only dead-end in a 403. The LIST never
+      // leaves the server — only this boolean about the requesting user does. The API route is
+      // still the real gate (see controllers/literatureAllowlist.ts).
+      //
+      // Deliberately OUTSIDE the `if (user)` block: this recomputes on every token refresh, so
+      // adding someone to the pilot takes effect without making them log out and back in.
+      token.literatureAccess = isAllowlisted(token.username);
+
       return token;
     },
 

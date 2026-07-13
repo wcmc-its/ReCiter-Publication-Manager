@@ -269,7 +269,13 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       muiIcon: <IconLiterature />,
       disabled: false,
       allowedRoleNames: ["Superuser", "Curator_All", "Reporter_All"],
-      isRequired: true
+      // The role check is necessary but NOT sufficient: the API gates on the LITERATURE_SEARCH_CWIDS
+      // pilot allowlist, which is server-only. Without this the link renders for every Superuser /
+      // Curator_All / Reporter_All at WCM and dead-ends in a 403 — but only after they have typed a
+      // question and clicked Run. `literatureAccess` is one boolean set on the JWT at token time;
+      // the roster itself never reaches the browser. Hiding the link is cosmetic — the 403 is the
+      // control, because /literature is still reachable by URL.
+      isRequired: !!session.data?.literatureAccess
     },
     {
       title: 'Manage Notifications',

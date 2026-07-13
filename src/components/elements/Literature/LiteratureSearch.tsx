@@ -51,6 +51,8 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import {
     Strategy,
     Concept,
+    RECORD_CAP as CAP,   // a property of the mode, not a setting
+    NARROW_ABOVE,        // the narrowing gate; the server enforces this same number
     numberStrategy,
     buildLimits,
     dateLimits,
@@ -124,19 +126,6 @@ const SORTS = [
     { id: 'relevance', label: 'Most relevant' },
     { id: 'date', label: 'Most recent' },
 ]
-
-// A property of the mode, not a setting.
-const CAP = 50
-
-// The boundary above which we stop retrieving silently and put the narrowing gate up. Below it,
-// a top-50 slice is defensible and we just say the ratio; above it, 50 is a thin enough slice of
-// the yield that handing it over without a word would be a lie of omission.
-//
-// MIRRORED from the server's NARROW_ABOVE rather than imported, for exactly the reason CAP mirrors
-// RECORD_CAP: the `import type` above is erased at transpile and costs the bundle nothing, but a
-// *value* import from that module would drag the controller — and its Bedrock SDK — into the
-// browser. Keep the two numbers in step by hand; the server is the one that enforces it.
-const NARROW_ABOVE = 200
 
 // The measured shape of each wait, so the screen can show a REAL number instead of a barber
 // pole. Screening 50 abstracts in one call takes ~29s and the synthesis ~47s: those are long

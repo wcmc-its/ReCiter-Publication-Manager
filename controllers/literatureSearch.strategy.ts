@@ -125,3 +125,32 @@ export function numberStrategy(s: Strategy): { rows: Row[]; conceptLines: number
 
     return { rows, conceptLines }
 }
+
+// THE TWO NUMBERS BOTH SIDES HAVE TO AGREE ON, and they live here for the same reason the line
+// numbering does: the browser needs their VALUES, and a *value* import from the controller would
+// drag the Bedrock SDK into the client bundle. This file is pure, so the client can import the
+// same constant the server enforces instead of keeping a hand-copied mirror in step.
+
+// The cap. NOT a setting — see the controller header. 50 abstracts is ~40k input tokens, which is
+// what a single screening call was measured at; it is also about as many as a human will read.
+export const RECORD_CAP = 50
+
+// THE BAND WHERE THE SLICE STOPS BEING DEFENSIBLE.
+//
+// Retrieval is ranked by relevance and cut at RECORD_CAP, so what the reader actually gets is
+// always "the top 50 of N". Three bands, and only the third one needs a conversation:
+//
+//   hits <= 50          all N retrieved. There is no slice, so there is nothing to warn about.
+//   50 < hits <= 200    the top 50 of N. A defensible slice — retrieve it, and SAY THE RATIO.
+//   hits > 200          the 50 is a thin slice of the yield. Do not retrieve yet: price the
+//                       narrowings and let the librarian choose (suggestNarrowings, controller).
+//
+// This REPLACES a hard refusal above 2,000 hits, and that refusal was never ours to make — it was
+// the retrieval tool's own fetch limit, and the tool now takes a retmax (see fetchArticles). Both
+// halves of the old behaviour were wrong: a yield of 80 needed no ceremony, and a yield of 1,391
+// was not an error, it was a thin slice taken SILENTLY.
+//
+// So this is a gate, never a wall. `proceed` walks straight through it and retrieves the 50 anyway
+// (see runReview): the librarian may know exactly what they are doing, and a tool that refuses to
+// run is worse than one that warns.
+export const NARROW_ABOVE = 200
