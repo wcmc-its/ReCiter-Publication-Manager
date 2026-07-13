@@ -43,9 +43,76 @@ on reciter-dev, which rejects our API key (`Invalid API key`). Literature Search
 
 `npm run check:literature` passes and needs no LLM. Keep it green.
 
+## THE BIG ONE — make the strategy TOGGLEABLE (Paul's idea, 2026-07-13)
+
+**Put a checkbox on every term bundle. This is now the centrepiece of the next build, and it
+partly supersedes the mockup.** It is also *less* work than what the mockup asked for, for one
+reason the code makes concrete:
+
+> **`runStrategy()` calls no model.** It is `assembleQuery` → `countPubmed` → `validateSeeds`,
+> and nothing else (`literatureSearch.controller.ts:124`). The expensive step — *writing* the
+> strategy — has already happened. Everything downstream is arithmetic over PubMed counts.
+
+So re-counting a toggled strategy costs **one count call for the yield plus one per seed**. Zero
+inference. **A librarian can iterate the strategy all afternoon for free.**
+
+### Why this is better than the mockup, not just different
+
+**It dissolves the "Adults block" methods question (open decision A).** We were about to ask
+librarians whether the system prompt should forbid population concept blocks, and to guess an
+answer on their behalf. With checkboxes they simply untick the Adults bundle and watch 1-of-4 seeds
+become 4-of-4 while the yield climbs. **The methods judgment moves out of our prompt and into the
+hands of the person qualified to make it.** That is the whole ethic of this feature — we hand off,
+we do not decide.
+
+**It turns the mockup's "+426 records" from an assertion into live feedback.** The mockup could
+only *state* the price of widening. Toggling *shows* it, on every change.
+
+**It is safer than free-text "Edit & re-run"** (drift 3) for the dominant case. A structured toggle
+cannot produce an unparseable Boolean; a free-text edit can. Keep Edit & re-run for power users,
+but it stops being the primary loop.
+
+### Checkboxes subtract; the model's suggested fix must be a line you can ADD
+
+The mockup's actual remedy was **additive** — add `"Emotions"[MeSH] OR mood[tiab]` to line 4. A
+checkbox can only remove. So render the model's proposed fix **as a pre-made, UNCHECKED line in the
+strategy itself**, not as prose in the miss panel:
+
+```
+  4  ☑  "Depression"[MeSH] OR "Depressive Disorder"[MeSH]
+  5  ☑  depress*[tiab]
+  5b ☐  "Emotions"[MeSH] OR mood[tiab]        ← suggested: retrieves Sarkar (2016)  · +426 records
+  6      4 OR 5
+```
+
+Tick it on: the count updates, and the seed flips to ✓ in front of them. One interaction now covers
+both directions, and the model's suggestion becomes **auditable** — a line you can inspect and
+reject — instead of advice buried in a paragraph.
+
+### Shape
+
+- **Checkboxes on the ATOMIC term lines only.** Combination lines (`6 = 4 OR 5`, `7 = 3 AND 6`) are
+  *derived* and recompute — they are not independently toggleable.
+- **A concept whose lines are all unchecked drops out of the AND entirely.** It must never emit
+  `3 AND ()`. This is the one piece of real logic here; give it the runnable check.
+- Backend is **one new endpoint that takes an edited strategy and returns `runStrategy()` on it** —
+  no `buildStrategy`, no Bedrock, no cost log. It already exists in all but the route.
+- **Debounce the recount** (~300ms). Each toggle is 1 + N seed counts (≈6 with 5 seeds), and
+  unkeyed NCBI is **3 requests/second** — rapid toggling will trip it. Set `PUBMED_API_KEY` on the
+  retrieval tool; it lifts the limit to 10/s and is free.
+
+### The trap: reproducibility is the whole promise
+
+**The PRISMA-S block and the CSV must export the TOGGLED state that was actually run — never the
+model's original strategy.** Mode 1 exists to guarantee that the published strategy reproduces the
+published count. If a librarian unticks two bundles and then copies a methods block describing the
+un-toggled query, we have broken the single thing this feature is for. The exported artifact, the
+displayed hit count, and the seed validation must all derive from one object: the current
+selection.
+
 ## THE DRIFT — built page vs `docs/literature-search-mockup.html`
 
-### 1. The strategy is not PRESS-numbered (P0 — this is the big one)
+### 1. The strategy is not PRESS-numbered (P0 — and the toggles depend on it)
 
 **Mockup** numbers every line the way a published SR strategy is written and peer-reviewed:
 
@@ -67,6 +134,10 @@ claim of this mode is that the output is peer-reviewable and publishable as the 
 This is not cosmetic — **it changes `STRATEGY_TOOL`**. The model must return each concept as a
 *pair* of lines (MeSH line, free-text line) plus explicit combination lines, rather than one
 `terms` string per concept. `assembleQuery` and the PRISMA-S block change with it.
+
+**Do this first: the toggles need it.** A checkbox needs a line to sit on, and the numbering is
+what lets the miss panel say "line 4" instead of naming a block that appears nowhere on screen.
+One schema change buys the PRESS format, the toggles, and the line references together.
 
 ### 2. The miss explanation is missing its two most valuable halves (P0)
 
@@ -145,20 +216,21 @@ this is purely presentational.
 
 ## Open decisions (judgment, not code)
 
-### A. The "Adults" concept block — highest value, needs a librarian
+### A. The "Adults" concept block — LARGELY ANSWERED by the toggles
 
 Ask "…in adults?" and the model emits a **third "Adults" concept block** (`Adult[MeSH] OR Middle
 Aged[MeSH] OR Aged[MeSH] OR adult*[tiab]…`) and ANDs it in. In a live run this excluded **3 of 4
-known-item seeds**.
+known-item seeds**. Classic SR search error — a population descriptor belongs in the limits, not as
+an AND-ed concept, because many trials in adults are simply not indexed with those terms.
 
-Classic SR search error — a population descriptor belongs in the limits, not as an AND-ed concept,
-because many trials in adults are simply not indexed with those terms. It silently guts recall.
-**The known-item validation caught it and named it, which is the feature working exactly as
-designed** — but the strategy the model wrote is one a real SR team would reject.
+**With toggleable bundles this stops being a decision we have to make.** The librarian unticks the
+Adults lines and immediately sees the seeds return. We do not have to guess the right methodology,
+bake it into a prompt, and be wrong for somebody's review.
 
-Probably one line in `SYSTEM_PROMPT` ("never make a concept block from a population descriptor;
-express it as a limit"). **Do not change the prompt unilaterally** — it is load-bearing for count
-reproducibility, and this is a methods call.
+**Still worth asking the librarians one narrower question:** should the *default* strategy include
+a population block at all — i.e. should it arrive ticked, unticked, or not emitted? That is a
+defaults question, and it is much cheaper to get wrong than the original one. Do **not** change
+`SYSTEM_PROMPT` unilaterally either way: it is load-bearing for count reproducibility.
 
 ### B. `estUsd` is not trustworthy
 
@@ -212,14 +284,21 @@ Every one of these passed typecheck, and three would have passed any test suite 
 
 ## Suggested order
 
-1. **PRESS line-numbering (drift 1)** — schema change; everything else on this list assumes it.
-2. **Miss explanation: proposed terms + record cost (drift 2)** — one extra count call. This is the
-   feature's whole value proposition and it is currently half-delivered.
-3. **Edit & re-run + seed re-validation (drift 3)** — the librarian's loop.
-4. **Ask the SR librarians** about the Adults block (A). Longer lead time than the code — start it
-   in parallel with 1–3, not after.
-5. Seed author/year (4), summary bar (5), the two dropdowns (6), Export CSV (7), Embase card (8).
-6. Verify the Bedrock cost rate (B), then push and open PRs.
+1. **PRESS line-numbering (drift 1).** One `STRATEGY_TOOL` schema change. Everything below assumes
+   it — the checkbox needs a line to sit on.
+2. **Toggleable term bundles** (the section at the top). Checkbox per atomic line, derived
+   combination lines, empty concept drops out of the AND, debounced recount through a new
+   no-model endpoint. **Export the toggled state, not the original.**
+3. **The model's suggested fix as a pre-made unchecked line**, with its `+N records` price
+   computed by counting it. This completes drift 2 and makes the miss panel actionable.
+4. **Ask the SR librarians** the narrowed defaults question (A) — should a population block arrive
+   ticked, unticked, or not at all? Longer lead time than the code; start it in **parallel** with
+   1–3, not after.
+5. Edit & re-run for power users (drift 3), seed author/year (4), summary bar (5), the two
+   dropdowns (6), Export CSV (7), Embase card (8).
+6. Verify the Bedrock cost rate (B). Set `PUBMED_API_KEY` on the retrieval tool before anyone
+   toggles in anger — unkeyed NCBI is 3 req/s.
+7. Push and open PRs.
 
 ## Do NOT build
 
