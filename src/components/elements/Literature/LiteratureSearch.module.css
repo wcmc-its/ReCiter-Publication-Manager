@@ -904,3 +904,72 @@
   line-height: 1.5;
   color: var(--text-muted);
 }
+
+/* ---------- The citation chip, and its hover card ---------- */
+/* The number is CONTEXT, not a verdict — and the chip has to say so, because a bare "80th pct"
+   next to a paper reads exactly like a score we assigned it. Hence the hover card: it explains what
+   the percentile is, and states plainly that it never sorted, filtered, or reached the model. */
+.meter {
+  display: inline-block;
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-line);
+  position: relative;
+  overflow: hidden;
+}
+.meter::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pct, 0%);
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* Hover AND focus — a tooltip only a mouse can reach is not a tooltip. */
+.hint {
+  position: relative;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;              /* the meter must not collide with the number it describes */
+}
+
+.hintBox {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: 300px;
+  max-width: min(300px, 78vw);
+  padding: 10px 12px;
+  background: #1a2133;
+  color: #f2f5f9;
+  border-radius: var(--radius-md, 6px);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.28);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;      /* the chip is nowrap; the card must not inherit it */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.hintBox b { color: #ffffff; font-weight: 600; }
+
+.hint:hover .hintBox,
+.hint:focus-visible .hintBox { opacity: 1; visibility: visible; }
+
+/* ...except on the last two records, where downward would run off the end of the list. */
+.rows .rec:nth-last-child(-n + 2) .hintBox { top: auto; bottom: calc(100% + 8px); }
+
+/* An EXCLUDED record is dimmed to .62, and opacity on an ancestor cannot be escaped by a child —
+   so the hover card inherited the dimming and rendered as a translucent smear with the page text
+   bleeding through it. Un-dim the row while its card is open, which is what the reader wants
+   anyway: they are inspecting that record precisely because they are reconsidering it. */
+.recOff:has(.hint:hover),
+.recOff:has(.hint:focus-visible) { opacity: 1; }

@@ -48,6 +48,7 @@
 // style objects: the page has a design system now, and it should be edited in one place.
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useSession } from 'next-auth/react'
 import {
     Strategy,
     Concept,
@@ -68,6 +69,9 @@ import {
 // second, hand-copied copy of these four shapes is exactly how a UI ends up reading a field the
 // server stopped sending.
 import type { PubRecord, Screened, Synthesis, Narrowing } from '../../../../controllers/literatureSearch.controller'
+import { strategyDoc, synthesisDoc, recordSheets } from '../../../../controllers/literatureExport'
+import type { Block, RunFacts } from '../../../../controllers/literatureExport'
+import { saveRtf, saveText, saveXlsx, stamp } from './download'
 import s from './LiteratureSearch.module.css'
 
 type Seed = {
@@ -208,6 +212,7 @@ function Prose({ text }: { text: string }) {
 }
 
 export default function LiteratureSearch() {
+    const session = useSession().data as any
     const [mode, setMode] = useState('search-strategy')
     const [question, setQuestion] = useState('')
     // Mode 3's question, as four fields. The SERVER assembles them into the sentence that is
@@ -391,7 +396,22 @@ export default function LiteratureSearch() {
 
             const recs = r.records || []
             setRecords(recs)
-            if (!recs.length) { setStage('idle'); return }
+
+            // A COUNT WITHOUT RECORDS IS NOT AN EMPTY SEARCH. If PubMed says 275 papers match and
+            // then hands back none of them, the retrieval was throttled — the count and the fetch
+            // are different endpoints, and only one of them failed. Both `countPubmed` and
+            // `fetchArticles` already retry once; when even the retry comes back empty, the honest
+            // thing is to SAY the retrieval failed. Rendering an empty candidate list under a
+            // 275-record count reads as "your search found nothing", which is the exact quiet lie
+            // the rest of this page exists to prevent. Seen for real, 2026-07-13.
+            if (!recs.length) {
+                setStage('idle')
+                if (r.hits > 0) {
+                    setErr(`PubMed counted ${r.hits.toLocaleString()} records for this query but returned none of them. `
+                        + `That is a rate limit, not an empty result — try again in a moment.`)
+                }
+                return
+            }
 
             // Hand the question DOWN rather than letting screen() read it back out of state — for
             // Mode 3 the state was set two lines ago and has not applied yet. See screen().
@@ -675,19 +695,69 @@ export default function LiteratureSearch() {
         ].join('\n')
     }
 
-    const exportCsv = () => {
+    // ---- DOWNLOADS. --------------------------------------------------------------------------
+    //
+    // Each section carries its own button, because that is where someone is standing when they
+    // decide they want it. The FORMAT is chosen per section rather than offered as a menu: a
+    // strategy destined for a manuscript appendix wants Word; fifty records destined for Covidence
+    // or a filter want a spreadsheet; the query itself wants to be pasted straight back into
+    // PubMed, so it wants plain text and nothing else.
+    //
+    // EVERY ONE OF THEM CARRIES THE QUERY, THE COUNT AND THE DATE. See literatureExport.ts.
+
+    // Built from `result`, NEVER from the live `strategy` — the export must describe the toggled
+    // state that produced the count printed beside it.
+    // WHO RAN IT. `provenance` is the server's word for it, but it only arrives with the synthesis —
+    // so a strategy or a records export taken BEFORE the synthesis would have gone out unattributed,
+    // and an export nobody can be traced to is one nobody has to stand behind. The session knows
+    // who this is from the moment the page loads.
+    const runBy = provenance?.cwid || (session?.data?.username as string | undefined)
+
+    const runFacts = (r: DbResult): RunFacts => ({
+        query: r.query,
+        hits: r.hits,
+        runDate: r.runDate,
+        cwid: runBy,
+        limits: r.limits,
+        sort: r.records?.length ? sortLabel : undefined,
+    })
+
+    const dlStrategy = (r: DbResult) =>
+        saveRtf(strategyDoc(r, question, runBy), `${stamp('search-strategy', r.runDate)}.rtf`)
+
+    const dlQuery = (r: DbResult) =>
+        saveText(r.query, `${stamp('pubmed-query', r.runDate)}.txt`)
+
+    const dlRecords = (r: DbResult) =>
+        saveXlsx(recordSheets(records, flags, picked, runFacts(r)), `${stamp('records', r.runDate)}.xlsx`)
+            .catch(() => setErr('Could not build the spreadsheet.'))
+
+    const dlSynthesis = (r: DbResult) => {
         if (!synthesis) return
-        const cell = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`
-        const csv = [
-            ['Study', 'Year', 'Journal', 'Design', 'Intervention', 'PMID'].map(cell).join(','),
-            ...synthesis.table.map(r => [r.study, r.year, r.journal, r.design, r.intervention, r.pmid].map(cell).join(',')),
-        ].join('\n')
-        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'literature-synthesis.csv'
-        a.click()
-        URL.revokeObjectURL(url)
+        saveRtf(
+            synthesisDoc(synthesis, runFacts(r), question,
+                { pico: isPico, screenedIn: included.length, screenedOf: records.length }),
+            `${stamp(isPico ? 'clinical-answer' : 'issue-review', r.runDate)}.rtf`,
+        )
+    }
+
+    // THE PACKET: the whole run as one Word file plus one spreadsheet, for the co-author who was
+    // not in the room, or for a manuscript submission where the search has to travel as a single
+    // artifact. Same builders, concatenated — there is no second source of truth.
+    const dlPacket = (r: DbResult) => {
+        const facts = runFacts(r)
+        const blocks: Block[] = [
+            ...strategyDoc(r, question, provenance?.cwid),
+            ...(synthesis
+                ? synthesisDoc(synthesis, facts, question,
+                    { pico: isPico, screenedIn: included.length, screenedOf: records.length })
+                : []),
+        ]
+        saveRtf(blocks, `${stamp('literature-search', r.runDate)}.rtf`)
+        if (records.length) {
+            saveXlsx(recordSheets(records, flags, picked, facts), `${stamp('literature-search', r.runDate)}.xlsx`)
+                .catch(() => setErr('Could not build the spreadsheet.'))
+        }
     }
 
     // The wait, with a real number on it. `expect` is the MEASURED median, so the bar is an
@@ -1120,6 +1190,16 @@ export default function LiteratureSearch() {
                             >
                                 {copied === 'query' ? '✓ Copied' : 'Copy query'}
                             </button>
+                            {/* The strategy is the deliverable, so it downloads FROM the strategy —
+                                not from a menu somewhere else. Word for the appendix, plain text for
+                                the query, because a query wants to be pasted back into PubMed and
+                                nothing else. Both describe the TOGGLED state, never the draft. */}
+                            <button className={s.btnSecondary} onClick={() => dlQuery(result)} disabled={!result.query}>
+                                Query (.txt)
+                            </button>
+                            <button className={s.btnSecondary} onClick={() => dlStrategy(result)} disabled={recounting || !result.query}>
+                                Word (.rtf)
+                            </button>
                         </div>
                     </section>
 
@@ -1246,6 +1326,13 @@ export default function LiteratureSearch() {
                             disabled={recounting || !result.query}
                         >
                             {copied === 'prisma' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
+                        </button>
+                        <button
+                            className={s.btnSecondary}
+                            onClick={() => dlPacket(result)}
+                            disabled={recounting || !result.query}
+                        >
+                            Download everything
                         </button>
                     </div>
                 </>
@@ -1409,6 +1496,17 @@ export default function LiteratureSearch() {
                                     <div className={s.tally}>{records.length} record{records.length === 1 ? '' : 's'}</div>
                                 )}
                                 <span className={s.spacer} />
+                                {/* The records are DATA, so they leave as a spreadsheet: 50 rows with the
+                                    screening decision, the reason, the design and the link, plus a second
+                                    sheet carrying the query that produced them. That is what goes into
+                                    Covidence, or into a filter, or to a co-author. */}
+                                <button
+                                    className={s.btnSecondary}
+                                    onClick={() => dlRecords(result)}
+                                    disabled={!records.length || inFlight}
+                                >
+                                    Records (.xlsx)
+                                </button>
                                 {/* Gated on the HUMAN's selection, and on nothing else. In particular it is
                                     NOT gated on the screening having succeeded: if the model call fails, the
                                     records are still on the page and still tickable, and a librarian who has
@@ -1472,10 +1570,26 @@ export default function LiteratureSearch() {
                                                         blank reads as "not yet scored", a zero would read as "ignored". */}
                                                     {typeof r.nihPercentile === 'number' && (
                                                         <span
-                                                            className={`${s.tag} ${s.tagCite}`}
-                                                            title="NIH percentile (iCite): how this paper's citation rate compares with others in its field and year. Context only — it is not a measure of study quality, and it played no part in the screening."
+                                                            className={`${s.tag} ${s.tagCite} ${s.hint}`}
+                                                            tabIndex={0}
+                                                            aria-describedby={`cite-${r.pmid}`}
                                                         >
-                                                            NIH {Math.round(r.nihPercentile)}th pct
+                                                            <span
+                                                                className={s.meter}
+                                                                aria-hidden="true"
+                                                                style={{ ['--pct' as any]: `${Math.max(2, Math.min(100, Math.round(r.nihPercentile)))}%` }}
+                                                            />
+                                                            Cited {Math.round(r.nihPercentile)}th pct
+                                                            <span role="tooltip" id={`cite-${r.pmid}`} className={s.hintBox}>
+                                                                <b>NIH citation percentile (iCite).</b> This paper is cited more often
+                                                                than {Math.round(r.nihPercentile)}% of NIH-funded papers of the same
+                                                                field and year.
+                                                                <br />
+                                                                It is <b>not a measure of study quality</b>, and it did nothing here: it
+                                                                never sorted these records, never filtered them, and never reached the
+                                                                model. Citation counts favour older papers and reviews &mdash; the exact
+                                                                bias this mode removes.
+                                                            </span>
                                                         </span>
                                                     )}
                                                 </div>
@@ -1592,13 +1706,25 @@ export default function LiteratureSearch() {
                         <button className={s.btnSecondary} onClick={() => setPhase('candidates')}>
                             Back to candidates
                         </button>
-                        <button className={s.btnSecondary} onClick={exportCsv}>Export CSV</button>
                         <button
                             className={`${s.btnSecondary} ${copied === 'md' ? s.btnSecondaryDone : ''}`}
                             onClick={() => copy(markdown(), 'md')}
                         >
                             {copied === 'md' ? '✓ Copied' : 'Copy Markdown'}
                         </button>
+                        {/* The answer is PROSE, so it leaves as Word — headings, the evidence table, the
+                            caveat, and the query that produced it, all in one file someone can put in
+                            front of a co-author. "Everything" adds the records spreadsheet beside it. */}
+                        {result && (
+                            <>
+                                <button className={s.btnSecondary} onClick={() => dlSynthesis(result)}>
+                                    {isPico ? 'Answer' : 'Synthesis'} (.rtf)
+                                </button>
+                                <button className={s.btn} onClick={() => dlPacket(result)}>
+                                    Download everything
+                                </button>
+                            </>
+                        )}
                     </div>
                 </>
             )}
