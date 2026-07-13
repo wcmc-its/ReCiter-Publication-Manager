@@ -49,16 +49,19 @@ import {
     Line,
     Concept,
     Strategy,
+    Pico,
     RECORD_CAP,
     NARROW_ABOVE,
     assembleQuery,
     conceptQuery,
     numberStrategy,
+    picoQuestion,
+    picoComplete,
 } from './literatureSearch.strategy'
 
 // Re-exported so the check script and the API route have one import site.
-export { assembleQuery, conceptQuery, numberStrategy, RECORD_CAP, NARROW_ABOVE }
-export type { Line, Concept, Strategy }
+export { assembleQuery, conceptQuery, numberStrategy, picoQuestion, picoComplete, RECORD_CAP, NARROW_ABOVE }
+export type { Line, Concept, Strategy, Pico }
 
 export type SeedResult = {
     pmid: string
@@ -335,7 +338,14 @@ export type PubRecord = {
     journal: string
     year: string
     authors: string      // "Nikolova et al."
-    design: string       // derived — see designOf()
+    design: string       // derived — see designOf(). Same string as tier.label.
+    // The evidence tier, derived from `types` below. Mode 3 SORTS on rank; Mode 2 just shows the
+    // label. Never asked of the model — see tierOf().
+    tier: Tier
+    // The RAW publication types PubMed indexed, kept so the tier is AUDITABLE. `design` collapses
+    // them to one word; when someone asks "why is this a Guideline?", this is the answer. It used
+    // to be thrown away at parse time.
+    types: string[]
     abstract: string
     mesh: string[]
     // NIH percentile from iCite. DISPLAY ONLY — see withCitationMetrics(). Often absent, by design.
@@ -420,14 +430,92 @@ export async function withCitationMetrics(records: PubRecord[]): Promise<PubReco
 // startsWith, not equality, because PubMed has qualified variants ("Randomized Controlled Trial,
 // Veterinary"). "Other" is honest: PubMed tags a great many real observational studies as nothing
 // but "Journal Article", and inventing "Observational" for them would be exactly the lie above.
-export function designOf(types: string[]): string {
+//
+// THE TIER IS THE MODE-3 PRODUCT. In Mode 2 the design chip is informational and a wrong rung is
+// cosmetic. In Mode 3 the ORDER IS THE ANSWER, so the rungs are spelled out and ordered here, once,
+// derived from NLM's indexing and nothing else.
+//
+// Tiers, strongest first. Every entry is a real PubMed [pt] that arrives on the record:
+//
+//   1  Practice Guideline / Guideline / Consensus Development Conference
+//   2  Meta-Analysis / Systematic Review
+//   3  Randomized Controlled Trial
+//   4  Clinical Trial (incl. phases) / Controlled Clinical Trial   -- interventional, not randomized
+//   5  Observational Study
+//   6  Case Reports
+//   7  Review (narrative) / Editorial / Comment / Letter           -- near expert opinion
+//   8  Other
+//
+// TWO THINGS THIS FIXES, both of which were harmless in Mode 2 and are not in Mode 3:
+//   - There was NO GUIDELINE TIER. A practice guideline landed in "Review" or "Other" — while the
+//     spec's one substantive sentence about this mode is "Guidelines and SRs before primary trials".
+//   - `any('systematic review') || any('review')` was ONE bucket, tested AFTER RCT. So a systematic
+//     review sorted BELOW an RCT, and a narrative review sorted EQUAL to a systematic one. Both are
+//     inversions of the hierarchy, and in a clinical answer they are the whole ballgame.
+//
+// NOT DERIVED HERE, on purpose: cohort / case-control / case-series. Those are MeSH headings, not
+// publication types. We hold the MeSH, so it could be done — but it is a second, weaker source, and
+// coarse-and-honest beats granular-and-wrong. "Other" stays honest.
+export type Tier = { rank: number; label: string; phrase: string }
+
+// `phrase` is how the tier reads inside a sentence — the evidence floor is prose, not a chip.
+const TIERS: Array<{ rank: number; label: string; phrase: string; pts: string[] }> = [
+    { rank: 1, label: 'Guideline',         phrase: 'a clinical guideline',           pts: ['practice guideline', 'guideline', 'consensus development conference'] },
+    { rank: 2, label: 'Meta-analysis',     phrase: 'a meta-analysis',                pts: ['meta-analysis'] },
+    { rank: 2, label: 'Systematic review', phrase: 'a systematic review',            pts: ['systematic review'] },
+    { rank: 3, label: 'RCT',               phrase: 'a randomized controlled trial',  pts: ['randomized controlled trial'] },
+    { rank: 4, label: 'Clinical trial',    phrase: 'a non-randomized clinical trial', pts: ['controlled clinical trial', 'clinical trial'] },
+    { rank: 5, label: 'Observational',     phrase: 'an observational study',         pts: ['observational study'] },
+    { rank: 6, label: 'Case report',       phrase: 'a case report',                  pts: ['case reports'] },
+    { rank: 7, label: 'Review',            phrase: 'a narrative review',             pts: ['review', 'editorial', 'comment', 'letter'] },
+]
+
+const OTHER: Tier = { rank: 8, label: 'Other', phrase: 'not indexed with a study design' }
+
+// First match wins, and the table is ordered strongest-first, because the types OVERLAP by design:
+// a meta-analysis is also tagged "Systematic Review" and "Review"; an RCT is also tagged "Clinical
+// Trial" and "Journal Article". The strongest TRUE label is the one that shows.
+export function tierOf(types: string[]): Tier {
     const t = (types || []).map(x => String(x || '').trim().toLowerCase())
-    const any = (p: string) => t.some(x => x.startsWith(p))
-    if (any('meta-analysis')) return 'Meta-analysis'
-    if (any('randomized controlled trial')) return 'RCT'
-    if (any('systematic review') || any('review')) return 'Review'
-    if (any('observational study')) return 'Observational'
-    return 'Other'
+    for (const tier of TIERS) {
+        if (tier.pts.some(p => t.some(x => x.startsWith(p)))) {
+            return { rank: tier.rank, label: tier.label, phrase: tier.phrase }
+        }
+    }
+    return OTHER
+}
+
+// The label Mode 2 has always shown. Unchanged in meaning for the chip; now sourced from the tiers
+// so there is exactly one place where a publication type becomes a claim about evidence.
+export function designOf(types: string[]): string {
+    return tierOf(types).label
+}
+
+// THE EVIDENCE FLOOR — derived, free, and often the true clinical answer.
+//
+// A clinician reading a confident synthesis has no way to know the whole thing rests on case
+// series. This says so, in one sentence, computed from the tier of the strongest record retrieved.
+// It costs no inference and it cannot be wrong.
+export function evidenceFloor(records: PubRecord[]): string {
+    if (!records.length) return 'No records were retrieved, so there is no evidence to weigh.'
+
+    const best = records.reduce((a, r) => (r.tier.rank < a.rank ? r.tier : a), OTHER)
+    const has = (rank: number) => records.some(r => r.tier.rank === rank)
+
+    // Name what is ABSENT, not just what is present: "there is no RCT here" is the sentence that
+    // changes what a clinician does next.
+    const missing: string[] = []
+    if (!has(1)) missing.push('no clinical guideline')
+    if (!has(2)) missing.push('no systematic review or meta-analysis')
+    if (!has(3)) missing.push('no randomized trial')
+
+    const lead = best.rank >= 8
+        ? 'PubMed does not index a study design for any of the records retrieved'
+        : `The strongest evidence retrieved is ${best.phrase}`
+
+    return missing.length
+        ? `${lead}. In this set there is ${missing.join(', and ')}.`
+        : `${lead}.`
 }
 
 // THE FIELD PATH THAT COST AN AFTERNOON. The abstract is at
@@ -501,6 +589,14 @@ function toRecord(a: any): PubRecord | null {
     const authors: any[] = Array.isArray(art.authorlist) ? art.authorlist : []
     const first = authors[0]?.lastname
 
+    // Keep the raw list. Collapsing it straight to a `design` string threw away the evidence for
+    // the claim the chip makes — and Mode 3 needs to sort on it, not just print it.
+    const types: string[] = (Array.isArray(art.publicationtypelist) ? art.publicationtypelist : [])
+        .map((p: any) => p?.publicationtype)
+        .filter(Boolean)
+        .map(String)
+    const tier = tierOf(types)
+
     return {
         pmid: String(pmid),
         title: plainText(art.articletitle),
@@ -509,8 +605,9 @@ function toRecord(a: any): PubRecord | null {
         journal: String(art.journal?.isoAbbreviation || art.journal?.title || ''),
         year: String(art.journal?.journalissue?.pubdate?.year || ''),
         authors: first ? (authors.length > 1 ? `${first} et al.` : String(first)) : '',
-        design: designOf((Array.isArray(art.publicationtypelist) ? art.publicationtypelist : [])
-            .map((p: any) => p?.publicationtype)),
+        design: tier.label,
+        tier,
+        types,
         abstract: joinAbstract(art.publicationAbstract?.abstractTexts),
         mesh: (Array.isArray(cit.meshheadinglist) ? cit.meshheadinglist : [])
             .map((m: any) => m?.descriptorname?.descriptorname)
@@ -759,8 +856,30 @@ export async function buildStrategy(
     limits: string,
     criteria?: string,
     objective: 'recall' | 'precision' = 'recall',
+    pico?: Pico,
 ): Promise<{ strategy: Strategy; usage: UsageLog }> {
     const parts = [`Research question: ${question}`]
+
+    // PICO reuses REVIEW_PROMPT rather than getting a system prompt of its own, DELIBERATELY: the
+    // field-tag rule lives in there and it is what makes the count reproducible against PubMed. A
+    // second copy of that prompt is a second chance to relax the one rule that must never be
+    // relaxed. So the PICO structure is carried in the USER message instead.
+    if (pico) {
+        const elements = [
+            `Population: ${pico.population}`,
+            `Intervention: ${pico.intervention}`,
+            ...(pico.comparison?.trim() ? [`Comparison: ${pico.comparison}`] : []),
+            `Outcome: ${pico.outcome}`,
+        ]
+        parts.push(
+            `This question was asked as PICO. Build ONE concept block per element below, labelled ` +
+            `exactly as shown, and in this order:\n\n${elements.join('\n')}\n\n` +
+            `Each block is AND-ed with the others, so an element that is rarely stated in a title or ` +
+            `abstract will silently cost you recall. Build the Outcome block from the terms an author ` +
+            `would actually use, and keep it broad; do not narrow it with the trial's endpoint jargon.`,
+        )
+    }
+
     if (criteria) parts.push(`Inclusion/exclusion criteria: ${criteria}`)
     parts.push(limits
         ? `Limits already applied by the caller (do NOT repeat these inside a concept block): ${limits}`
@@ -1075,8 +1194,19 @@ export async function screenRecords(
 // ---------------------------------------------------------------------------
 // Synthesis. THIS is the call the whole feature exists to keep honest.
 
-export type SynthRow = { pmid: string; study: string; year: string; journal: string; design: string; intervention: string }
-export type Synthesis = { table: SynthRow[]; prose: string }
+export type SynthRow = { pmid: string; study: string; year: string; journal: string; design: string; intervention: string; rank: number }
+export type Synthesis = { table: SynthRow[]; prose: string; floor?: string }
+
+// Mode 3 orders the evidence; Mode 2 does not. The sort is STABLE, so within a tier PubMed's
+// relevance order survives — we are re-ordering by design, not re-scoring by relevance.
+export type SynthMode = 'issue-review' | 'clinical-question'
+
+export function byTier(records: PubRecord[]): PubRecord[] {
+    return records
+        .map((r, i) => ({ r, i }))                                  // index = PubMed's relevance order
+        .sort((a, b) => a.r.tier.rank - b.r.tier.rank || a.i - b.i)  // tier first, relevance as tiebreak
+        .map(x => x.r)
+}
 
 const SYNTH_TOOL = {
     name: 'submit_synthesis',
@@ -1118,27 +1248,67 @@ const SYNTH_TOOL = {
 // read exactly like the sentences around them, and any one of which could end up in a grand
 // rounds slide. Hence: no number that is not on the page in front of it, and a PMID on every
 // claim so a reader can check any sentence in one click.
+// Rules 1-4 and 6 are IDENTICAL for both synthesis modes and are therefore written ONCE. A
+// paraphrase in a second prompt would drift, and rule 2 is the sentence standing between this
+// feature and an invented effect size on a grand rounds slide. Only rule 5 differs — see below.
+const SYNTH_RULES_HEAD = `1. EVERY claim cites the paper it came from, inline, as [PMID 12345678]. A sentence that makes a claim and carries no PMID is a sentence you may not write. Cite multiple PMIDs when several papers support the same point.
+2. NEVER state a number that is not written in the abstract you were given. No effect sizes, no risk ratios, no confidence intervals, no p values, no sample sizes, no percentages — unless that exact figure appears in the abstract, in which case state it and cite it. If the abstracts do not report an effect size, SAY that they do not. Do not estimate it, pool it, average it, or infer it from the direction of the findings.
+3. NEVER mention a paper you were not given, and never a PMID that is not in the list supplied. You have no other sources.
+4. Where the papers disagree, say so plainly and cite both sides. Do not resolve a disagreement the evidence does not resolve, and do not smooth it into a consensus.`
+
+const SYNTH_RULE_TAIL = `6. Say what is missing. If the selected papers do not answer part of the question — no long-term follow-up, no head-to-head comparison, one population only — say that in plain words.`
+
+// Mode 2: the model must not rank, because nothing has ranked.
+const RULE_5_NARRATIVE = `5. This is a NARRATIVE synthesis, not a meta-analysis. Do not pool results, do not rank the papers by quality, and do not compute anything.`
+
+// Mode 3: the model must not rank, because THE SERVER ALREADY DID — from PubMed's publication
+// types. This is the amendment, not a deletion: Mode 3 ranks, but the ranking is derived and
+// auditable, and a model reordering it would replace a fact with an opinion.
+const RULE_5_PICO = `5. This is a NARRATIVE synthesis, not a meta-analysis. Do not pool results and do not compute anything. DO NOT RE-RANK the papers: they are given to you ALREADY ORDERED by study design — guidelines and systematic reviews first, then randomized trials, then weaker designs — from PubMed's own indexing of each paper. That order is a fact about how the evidence was produced, not a judgment you are being asked to make. Keep it. Lead with the strongest design present, and if the strongest design present is a weak one, SAY SO in your first sentence.`
+
 const SYNTH_PROMPT = `You are writing a short narrative synthesis of the papers a clinician has SELECTED. They have already read the titles and abstracts and chosen these. You are given the same abstracts they saw, and nothing else.
 
 THESE RULES ARE ABSOLUTE. They are the reason this tool exists:
-1. EVERY claim cites the paper it came from, inline, as [PMID 12345678]. A sentence that makes a claim and carries no PMID is a sentence you may not write. Cite multiple PMIDs when several papers support the same point.
-2. NEVER state a number that is not written in the abstract you were given. No effect sizes, no risk ratios, no confidence intervals, no p values, no sample sizes, no percentages — unless that exact figure appears in the abstract, in which case state it and cite it. If the abstracts do not report an effect size, SAY that they do not. Do not estimate it, pool it, average it, or infer it from the direction of the findings.
-3. NEVER mention a paper you were not given, and never a PMID that is not in the list supplied. You have no other sources.
-4. Where the papers disagree, say so plainly and cite both sides. Do not resolve a disagreement the evidence does not resolve, and do not smooth it into a consensus.
-5. This is a NARRATIVE synthesis, not a meta-analysis. Do not pool results, do not rank the papers by quality, and do not compute anything.
-6. Say what is missing. If the selected papers do not answer part of the question — no long-term follow-up, no head-to-head comparison, one population only — say that in plain words.
+${SYNTH_RULES_HEAD}
+${RULE_5_NARRATIVE}
+${SYNTH_RULE_TAIL}
 
 Style: 3-5 short paragraphs of plain clinical prose. No headings, no bullet points, no markdown, no bold. Lead with what the strongest evidence shows. Write for a clinician who will check your citations.`
+
+// MODE 3. Same absolute rules, a different job: this ANSWERS a question rather than surveying a
+// literature. The danger is correspondingly higher — a clinical answer is exactly where a model is
+// most tempted to supply the confident, quotable number nobody wrote down.
+const PICO_SYNTH_PROMPT = `You are answering a specific clinical question for a clinician, from the papers they have SELECTED. You are given the same abstracts they saw, and nothing else. They will act on what you write, so a hedge you can support is worth more than a claim you cannot.
+
+THESE RULES ARE ABSOLUTE. They are the reason this tool exists:
+${SYNTH_RULES_HEAD}
+${RULE_5_PICO}
+${SYNTH_RULE_TAIL}
+
+Structure: open with the BOTTOM LINE in one or two sentences — the direct answer to the question asked, with its citations. Then the supporting evidence, strongest design first. Then, in plain words, what this evidence does NOT establish.
+
+If the papers do not answer the question, your first sentence says so. "These papers do not answer this question" is a complete and useful answer, and it is far better than an answer assembled out of adjacent findings.
+
+Style: 3-5 short paragraphs of plain clinical prose. No headings, no bullet points, no markdown, no bold. Write for a clinician who will check your citations.`
 
 export async function synthesize(
     question: string,
     records: PubRecord[],
+    mode: SynthMode = 'issue-review',
 ): Promise<{ synthesis: Synthesis; usage: UsageLog }> {
-    const byPmid = new Map(records.map(r => [r.pmid, r]))
+    const pico = mode === 'clinical-question'
+
+    // THE SERVER RANKS; THE MODEL NEVER DOES. For Mode 3 the records are sorted by their derived
+    // tier BEFORE the model sees them, so the order it reads — and the order it is told to keep —
+    // is PubMed's indexing, not its own opinion of what looks convincing.
+    const ordered = pico ? byTier(records) : records
+    const byPmid = new Map(ordered.map(r => [r.pmid, r]))
 
     const { input, usage } = await invoke(
-        SYNTH_PROMPT, SYNTH_TOOL,
-        `Question: ${question}\n\nThe ${records.length} papers the clinician selected:\n\n${renderRecords(records)}`,
+        pico ? PICO_SYNTH_PROMPT : SYNTH_PROMPT, SYNTH_TOOL,
+        pico
+            ? `Clinical question: ${question}\n\nThe ${ordered.length} papers the clinician selected, ALREADY ORDERED by study design (strongest first). The design shown on each is PubMed's own, not yours:\n\n${renderRecords(ordered)}`
+            : `Question: ${question}\n\nThe ${ordered.length} papers the clinician selected:\n\n${renderRecords(ordered)}`,
         LONG_MAX_TOKENS,
     )
 
@@ -1164,9 +1334,19 @@ export async function synthesize(
             year: rec.year,
             journal: rec.journal,
             design: rec.design,
+            rank: rec.tier.rank,
             intervention: String(row?.intervention ?? '').trim(),
         })
     }
+
+    // Mode 3: re-impose the derived order on the TABLE too. The model was told to keep it, but a
+    // prompt is not a guarantee — and unlike the prose, the table is structured enough to simply
+    // fix. Stable, so a model's within-tier reading order survives.
+    if (pico) {
+        const pos = new Map(ordered.map((r, i) => [r.pmid, i]))
+        table.sort((a, b) => a.rank - b.rank || (pos.get(a.pmid)! - pos.get(b.pmid)!))
+    }
+
     const dropped = records.filter(r => !seen.has(r.pmid)).map(r => r.pmid)
     if (dropped.length) {
         console.error(JSON.stringify({
@@ -1190,7 +1370,9 @@ export async function synthesize(
         }))
     }
 
-    return { synthesis: { table, prose }, usage }
+    // The floor is computed, never asked for. If the model's prose disagrees with it, the floor is
+    // the one that is right.
+    return { synthesis: { table, prose, ...(pico ? { floor: evidenceFloor(ordered) } : {}) }, usage }
 }
 
 // What the model is shown. One block per record: the PubMed facts on a header line, then the

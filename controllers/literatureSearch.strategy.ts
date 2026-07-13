@@ -135,6 +135,41 @@ export function numberStrategy(s: Strategy): { rows: Row[]; conceptLines: number
 // what a single screening call was measured at; it is also about as many as a human will read.
 export const RECORD_CAP = 50
 
+// ---------------------------------------------------------------------------
+// PICO — Mode 3's input.
+//
+// FOUR FIELDS, NOT A TEXTAREA, AND THAT IS THE WHOLE PHI ARGUMENT. A box that says "describe the
+// case" invites a case history; a field labelled Population, placeheld with "adults with type 2
+// diabetes and CKD", teaches that Population is a CLINICAL CLASS. The hazard is removed at the
+// affordance rather than policed by a detector afterwards — and a detector was explicitly ruled
+// out, because the obvious MRN heuristic ("a 7-10 digit number") fires on every PMID in the seeds
+// field.
+//
+// Comparison is OPTIONAL. Plenty of real clinical questions have no comparator, and a required C
+// field would invite someone to invent one.
+export type Pico = { population: string; intervention: string; comparison?: string; outcome: string }
+
+export const PICO_FIELDS: Array<{ id: keyof Pico; label: string; placeholder: string; required: boolean }> = [
+    { id: 'population',   label: 'Population',   placeholder: 'adults with type 2 diabetes and CKD', required: true },
+    { id: 'intervention', label: 'Intervention', placeholder: 'SGLT2 inhibitor',                     required: true },
+    { id: 'comparison',   label: 'Comparison',   placeholder: 'metformin',                           required: false },
+    { id: 'outcome',      label: 'Outcome',      placeholder: 'cardiovascular mortality',            required: true },
+]
+
+// The question the clinician actually asked, reassembled into one sentence. It is what the model is
+// asked to answer and what the run is labelled with — so the client renders THIS, not the four
+// boxes, and the reader can see the question that was really put.
+export function picoQuestion(p: Pico): string {
+    const c = (p.comparison || '').trim()
+    return `In ${p.population.trim()}, does ${p.intervention.trim()}` +
+        (c ? `, compared with ${c},` : '') +
+        ` affect ${p.outcome.trim()}?`
+}
+
+export function picoComplete(p: Partial<Pico>): boolean {
+    return PICO_FIELDS.filter(f => f.required).every(f => String(p[f.id] || '').trim().length > 0)
+}
+
 // THE BAND WHERE THE SLICE STOPS BEING DEFENSIBLE.
 //
 // Retrieval is ranked by relevance and cut at RECORD_CAP, so what the reader actually gets is

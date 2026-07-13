@@ -73,7 +73,7 @@ import {
     Sort,
     UsageLog,
 } from '../../../../controllers/literatureSearch.controller'
-import { buildLimits } from '../../../../controllers/literatureSearch.strategy'
+import { buildLimits, picoQuestion, picoComplete, Pico } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
 import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
 
@@ -225,7 +225,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
     }
 
-    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, strategy: edited } = req.body || {}
+    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, strategy: edited } = req.body || {}
 
     const seedPmids: string[] = Array.isArray(seeds)
         ? seeds
@@ -247,8 +247,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const records = await fetchByPmids(ids)
             if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
 
+            // Screening is screening in both modes — an abstract either meets the criteria or it
+            // does not, and the mode does not change that. Only the cost label differs.
             const { flags, usage } = await screenRecords(String(question), String(criteria || ''), records)
-            logCost('issue-review:screen', cwid, usage, {
+            logCost(`${mode === 'clinical-question' ? 'clinical-question' : 'issue-review'}:screen`, cwid, usage, {
                 records: records.length,
                 included: flags.filter(f => f.include).length,
             })
@@ -272,8 +274,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const records = await fetchByPmids(ids)
             if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
 
-            const { synthesis, usage } = await synthesize(String(question), records)
-            logCost('issue-review:synthesize', cwid, usage, {
+            // THIS is where Mode 3 diverges: a PICO answer instead of a survey, over records the
+            // server has ordered by their derived evidence tier. The model never ranks.
+            const synthMode = mode === 'clinical-question' ? 'clinical-question' : 'issue-review'
+            const { synthesis, usage } = await synthesize(String(question), records, synthMode)
+            logCost(`${synthMode}:synthesize`, cwid, usage, {
                 records: records.length,
                 tableRows: synthesis.table.length,
             })
@@ -312,8 +317,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
     }
 
-    // ---- BUILD + FETCH (Mode 2, phase 1). -----------------------------------------------------
-    if (mode === 'issue-review') {
+    // ---- BUILD + FETCH (Modes 2 AND 3, phase 1). ----------------------------------------------
+    //
+    // Mode 3 shares this branch on purpose. Its phase 1 IS Mode 2's phase 1 — same precision
+    // strategy, same count-before-fetch, same narrowing gate, same escape hatch, same expert
+    // panel. The ONLY differences are that the question arrives as four PICO fields, and that the
+    // divergence proper happens at synthesis. Forking 60 lines to change two would just be two
+    // copies of the narrowing gate to keep in step.
+    if (mode === 'issue-review' || mode === 'clinical-question') {
+        const isPico = mode === 'clinical-question'
         try {
             const limits = buildLimits(String(dateId ?? ''), String(typeId ?? ''))
             // An unknown sort resolves to relevance, never to a guess — same rule as buildLimits.
@@ -334,16 +346,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             let strategy: Strategy
             let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
 
+            // Mode 3's question is ASSEMBLED SERVER-SIDE from the PICO fields, never taken as prose
+            // from the client — so the sentence the model is asked to answer is provably the one
+            // built from the four boxes the clinician filled in.
+            let asked = String(question || '')
+            if (isPico && !edited) {
+                if (!picoComplete(pico || {})) {
+                    return res.status(400).send({
+                        statusCode: 400,
+                        message: 'Population, Intervention and Outcome are required. Comparison is optional.',
+                    })
+                }
+                asked = picoQuestion(pico as Pico)
+            }
+
             if (edited) {
                 strategy = parseStrategy({ ...edited, dateId, typeId })
             } else {
                 if (!bedrockConfigured()) {
                     return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
                 }
-                if (!question || !String(question).trim()) {
+                if (!asked.trim()) {
                     return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
                 }
-                const built = await buildStrategy(String(question), limits, criteria, 'precision')
+                const built = await buildStrategy(
+                    asked, limits, criteria, 'precision',
+                    isPico ? (pico as Pico) : undefined,
+                )
                 strategy = built.strategy
                 usage = built.usage
             }
@@ -367,7 +396,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // Logged even when no model was called, and the zeros are the POINT: they are the proof
             // that narrowing, re-running and taking the top 50 anyway cost nothing. If this line
             // ever shows tokens on a `proceed` run, someone has put the model back in the loop.
-            logCost('issue-review:build', cwid, usage, {
+            logCost(`${isPico ? 'clinical-question' : 'issue-review'}:build`, cwid, usage, {
                 hits: result.hits,
                 records: result.records.length,
                 needsNarrowing: !!result.needsNarrowing,
@@ -376,7 +405,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 fromEditedStrategy: !!edited,
             })
 
-            return res.status(200).send({ statusCode: 200, databases: [result], experts })
+            // `question` goes back for Mode 3 so the page shows the sentence that was actually put
+            // to PubMed -- assembled from the four fields by the server, not retyped by the client.
+            return res.status(200).send({
+                statusCode: 200,
+                databases: [result],
+                experts,
+                ...(isPico && asked ? { question: asked } : {}),
+            })
         } catch (err: any) {
             console.error('[literature] issue review failed:', err)
             return res.status(502).send({ statusCode: 502, message: err?.message || 'Search failed.' })

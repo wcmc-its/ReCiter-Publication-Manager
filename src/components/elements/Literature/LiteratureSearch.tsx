@@ -51,9 +51,13 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import {
     Strategy,
     Concept,
+    Pico,
+    PICO_FIELDS,
     RECORD_CAP as CAP,   // a property of the mode, not a setting
     NARROW_ABOVE,        // the narrowing gate; the server enforces this same number
     numberStrategy,
+    picoQuestion,
+    picoComplete,
     buildLimits,
     dateLimits,
     pubTypes,
@@ -104,14 +108,15 @@ type Expert = {
     pubs: number
 }
 
-// Clinical question stays disabled: it is gated on an InfoSec review that has not happened, and
-// it carries the highest PHI surface on the page (a PICO box invites someone to paste a case).
-// Disabled-but-visible, so the scope of what this page does and does not do is legible instead
-// of being a silent omission.
+// Clinical question is LIVE as of 2026-07-13: InfoSec cleared it, and the PHI surface that worried
+// them is gone — the mode takes four structured PICO fields, not a "describe the case" textarea.
+// The hazard was removed at the affordance rather than policed by a detector afterwards. (A
+// detector remains forbidden: the obvious MRN heuristic, "a 7-10 digit number", fires on every
+// 8-digit PMID in the seeds field.)
 const MODES = [
     { id: 'search-strategy', label: 'Search strategy', desc: 'Recall · uncapped · produces a strategy, not a synthesis', ready: true },
     { id: 'issue-review', label: 'Issue review', desc: 'Precision · top 50 · narrative synthesis', ready: true },
-    { id: 'clinical-question', label: 'Clinical question', desc: 'Precision · top 50 · PICO answer', ready: false },
+    { id: 'clinical-question', label: 'Clinical question', desc: 'Precision · top 50 · PICO answer', ready: true },
 ]
 
 const DATABASES = [
@@ -205,6 +210,10 @@ function Prose({ text }: { text: string }) {
 export default function LiteratureSearch() {
     const [mode, setMode] = useState('search-strategy')
     const [question, setQuestion] = useState('')
+    // Mode 3's question, as four fields. The SERVER assembles them into the sentence that is
+    // actually asked (picoQuestion) and hands it back, so what the page displays is provably the
+    // question that was put to PubMed rather than one the client retyped.
+    const [pico, setPico] = useState<Partial<Pico>>({})
     const [criteria, setCriteria] = useState('')
     const [seeds, setSeeds] = useState('')
     const [dateId, setDateId] = useState('any')
@@ -266,10 +275,14 @@ export default function LiteratureSearch() {
     const types = useMemo(pubTypes, [])
 
     const isSR = mode === 'search-strategy'
+    const isPico = mode === 'clinical-question'
     const seedList = parseSeeds(seeds)
     const inFlight = busy || stage !== 'idle'
-    // The mockup's gate: a question shorter than 8 characters is not a question.
-    const canBuild = question.trim().length >= 8 && !inFlight
+    // The mockup's gate: a question shorter than 8 characters is not a question. Mode 3 has no one
+    // question box, so its gate is the required PICO fields instead — P, I and O. Comparison is
+    // optional, because plenty of real clinical questions have no comparator and demanding one
+    // invites people to invent it.
+    const canBuild = (isPico ? picoComplete(pico) : question.trim().length >= 8) && !inFlight
 
     // The elapsed counter. It exists so a 47-second wait can prove it is still alive.
     useEffect(() => {
@@ -331,7 +344,11 @@ export default function LiteratureSearch() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    mode: 'issue-review', question, criteria, dateId, typeId, sort,
+                    mode, criteria, dateId, typeId, sort,
+                    // Mode 3 sends the four fields; the server assembles the question. Mode 2
+                    // sends the question. On a narrowed re-run BOTH send the question the server
+                    // already handed back, because by then the sentence exists.
+                    ...(isPico ? { pico, question } : { question }),
                     ...(narrowed ? { strategy: narrowed, proceed: true } : {}),
                 }),
             })
@@ -342,6 +359,10 @@ export default function LiteratureSearch() {
                 return
             }
             const r: DbResult = data.databases[0]
+            // Mode 3: adopt the sentence the SERVER assembled from the PICO fields. Everything
+            // downstream — the summary bar, the screen call, the synthesis call — then carries the
+            // question that was really asked, not one the client reconstructed and hoped matched.
+            if (data.question) setQuestion(data.question)
             setResult(r)
             setExperts(data.experts)
             setPhase('candidates')
@@ -372,7 +393,9 @@ export default function LiteratureSearch() {
             setRecords(recs)
             if (!recs.length) { setStage('idle'); return }
 
-            await screen(recs)
+            // Hand the question DOWN rather than letting screen() read it back out of state — for
+            // Mode 3 the state was set two lines ago and has not applied yet. See screen().
+            await screen(recs, data.question || question)
         } catch {
             setErr('Could not reach the server.')
             setStage('idle')
@@ -410,13 +433,19 @@ export default function LiteratureSearch() {
     // The server re-fetches the abstracts by PMID. It never accepts abstract text from this
     // client, and it should not: that would be a client-controlled text-injection surface into
     // a paid model call.
-    const screen = async (recs: PubRecord[]) => {
+    // `asked` is THREADED, not read from state, and that is not fussiness — it is a bug that has
+    // already happened. Mode 3's question is assembled by the SERVER from the PICO fields, so the
+    // client learns it from the build response and immediately chains into screening. `question`
+    // is React state: the setter has not applied by the time this closure runs, so reading it here
+    // sent an EMPTY question and the screen call 400'd — after the build had already been paid for.
+    const screen = async (recs: PubRecord[], asked?: string) => {
+        const q = asked || question
         setStage('screening')
         try {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phase: 'screen', question, criteria, pmids: recs.map(r => r.pmid) }),
+                body: JSON.stringify({ phase: 'screen', mode, question: q, criteria, pmids: recs.map(r => r.pmid) }),
             })
             const data = await res.json()
             if (!res.ok) {
@@ -450,7 +479,12 @@ export default function LiteratureSearch() {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phase: 'synthesize', question, pmids }),
+                // `mode` is what makes this a PICO ANSWER rather than a narrative survey: it picks
+                // the prompt, tier-sorts the records server-side, and returns the evidence floor.
+                // Omit it and Mode 3 silently degrades into Mode 2 — same records, wrong deliverable,
+                // no error anywhere. (Safe to read `question` from state here, unlike in screen():
+                // this one is triggered by a user click, so the render has long since landed.)
+                body: JSON.stringify({ phase: 'synthesize', mode, question, pmids }),
             })
             const data = await res.json()
             if (!res.ok) {
@@ -778,6 +812,13 @@ export default function LiteratureSearch() {
                                     Search strategy produces a reproducible, peer-reviewable query. Screen and synthesize
                                     the results in Covidence.
                                 </>
+                            ) : isPico ? (
+                                <>
+                                    Clinical question answers a PICO question from the top {CAP} records, ordered by
+                                    study design &mdash; guidelines and systematic reviews before trials, using
+                                    PubMed&rsquo;s own indexing. <b>It tells you how strong that evidence is, including
+                                    when it is weak.</b> Verify every claim against the sources.
+                                </>
                             ) : (
                                 <>
                                     Issue review retrieves the top {CAP} records, flags each one against your criteria and
@@ -788,20 +829,62 @@ export default function LiteratureSearch() {
                         </p>
                     </div>
 
-                    <div className={s.field}>
-                        <label className={s.eyebrow} htmlFor="lit-q">What do you want to know?</label>
-                        <textarea
-                            id="lit-q"
-                            className={s.input}
-                            rows={2}
-                            value={question}
-                            onChange={e => setQuestion(e.target.value)}
-                            placeholder="Do probiotics reduce symptoms of depression in adults?"
-                        />
-                        <p className={s.help}>
-                            Your question is sent to an external AI service &mdash; do not include patient identifiers.
-                        </p>
-                    </div>
+                    {/*
+                      * MODE 3 ASKS FOR FOUR FIELDS, NOT A TEXTAREA, AND THAT IS THE WHOLE PHI
+                      * ARGUMENT. A box that says "describe the case" invites a case history; a
+                      * field labelled Population, placeheld with "adults with type 2 diabetes and
+                      * CKD", teaches that Population is a clinical CLASS. The hazard is designed
+                      * out at the affordance instead of being policed by a detector afterwards —
+                      * and a detector was ruled out, because the obvious MRN heuristic ("a 7-10
+                      * digit number") fires on every 8-digit PMID in the seeds field.
+                      *
+                      * The placeholders are load-bearing. They are the instruction.
+                      */}
+                    {isPico ? (
+                        <div className={s.field}>
+                            <label className={s.eyebrow}>The clinical question</label>
+                            <div className={s.pico}>
+                                {PICO_FIELDS.map(f => (
+                                    <div key={f.id} className={s.picoField}>
+                                        <label className={s.picoLabel} htmlFor={`lit-${f.id}`}>
+                                            {f.label}
+                                            {!f.required && <span className={s.picoOptional}> — optional</span>}
+                                        </label>
+                                        <input
+                                            id={`lit-${f.id}`}
+                                            type="text"
+                                            className={s.input}
+                                            value={pico[f.id] || ''}
+                                            onChange={e => setPico(p => ({ ...p, [f.id]: e.target.value }))}
+                                            placeholder={f.placeholder}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            {picoComplete(pico) && (
+                                <p className={s.picoEcho}>{picoQuestion(pico as Pico)}</p>
+                            )}
+                            <p className={s.help}>
+                                Population is a clinical class, not a person. Your question is sent to an
+                                external AI service &mdash; do not include patient identifiers.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className={s.field}>
+                            <label className={s.eyebrow} htmlFor="lit-q">What do you want to know?</label>
+                            <textarea
+                                id="lit-q"
+                                className={s.input}
+                                rows={2}
+                                value={question}
+                                onChange={e => setQuestion(e.target.value)}
+                                placeholder="Do probiotics reduce symptoms of depression in adults?"
+                            />
+                            <p className={s.help}>
+                                Your question is sent to an external AI service &mdash; do not include patient identifiers.
+                            </p>
+                        </div>
+                    )}
 
                     {/*
                       * Embase and Scopus are visible-but-disabled on purpose. It sets the
@@ -920,7 +1003,8 @@ export default function LiteratureSearch() {
                             </>
                         ) : (
                             <>
-                                <b>The top {CAP} records, and that is the mode.</b> Issue review reads every abstract it
+                                <b>The top {CAP} records, and that is the mode.</b>{' '}
+                                {isPico ? 'Clinical question' : 'Issue review'} reads every abstract it
                                 screens, so the cap is what fits in one pass &mdash; it is a property of the mode, not a
                                 setting you can raise. If the yield runs past {NARROW_ABOVE.toLocaleString()} we will not
                                 quietly hand you a slice of it: we will show you the count and offer narrowings, each one
@@ -1225,7 +1309,7 @@ export default function LiteratureSearch() {
                                 <div className={s.caveat}>
                                     <span aria-hidden="true">&#9888;</span>
                                     <span>
-                                        <b>{result.hits.toLocaleString()} records match.</b> Issue review reads only the
+                                        <b>{result.hits.toLocaleString()} records match.</b> {isPico ? 'Clinical question' : 'Issue review'} reads only the
                                         top {CAP}, so that is a thin slice of them. Narrow it &mdash; each option below
                                         shows what you would be left with.
                                     </span>
@@ -1441,8 +1525,29 @@ export default function LiteratureSearch() {
                         </span>
                     </div>
 
+                    {/*
+                      * THE EVIDENCE FLOOR. Derived server-side from PubMed's publication types —
+                      * no inference, no model, and therefore incapable of being wrong.
+                      *
+                      * It is here because a clinician reading a confident synthesis has no way to
+                      * know the whole thing rests on case series. "There is no randomized trial in
+                      * this set" is frequently the true answer to the question, and it is the one
+                      * sentence on this screen that changes what someone does next.
+                      */}
+                    {synthesis.floor && (
+                        <div className={s.floor}>
+                            <span className={s.floorLabel}>Strength of this evidence</span>
+                            <p className={s.floorText}>{synthesis.floor}</p>
+                            <p className={s.floorHelp}>
+                                Study designs are PubMed&rsquo;s own indexing, not the AI&rsquo;s reading of the
+                                abstracts. The table below is ordered by them &mdash; guidelines and systematic
+                                reviews first, then randomized trials.
+                            </p>
+                        </div>
+                    )}
+
                     <div className={`${s.card} ${s.synthCard}`}>
-                        <span className={s.eyebrow}>Summary table</span>
+                        <span className={s.eyebrow}>{isPico ? 'The evidence' : 'Summary table'}</span>
                         <div className={s.tblScroll}>
                             <table className={s.sum}>
                                 <thead>
@@ -1470,7 +1575,7 @@ export default function LiteratureSearch() {
                     </div>
 
                     <div className={`${s.card} ${s.synthCard}`}>
-                        <span className={s.eyebrow}>Synthesis</span>
+                        <span className={s.eyebrow}>{isPico ? 'Answer' : 'Synthesis'}</span>
                         <Prose text={synthesis.prose} />
                     </div>
 

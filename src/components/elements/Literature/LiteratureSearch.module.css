@@ -839,3 +839,68 @@
   .mode, .input, .btn, .btnSecondary, .seedCount, .rec { transition: none; }
   .barFill { transition: none; }
 }
+
+/* ---------- PICO (Mode 3) ---------- */
+/* Four fields on one row at desktop, stacking on narrow. The labels and placeholders ARE the
+   PHI control: "Population / adults with type 2 diabetes and CKD" teaches that this is a clinical
+   class, not a person. Do not soften them into one "describe the case" box. */
+.pico {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.picoField { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.picoLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.picoOptional { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+/* The question the SERVER will actually ask, echoed back as it is typed. The clinician should see
+   the sentence, not just the boxes. */
+.picoEcho {
+  margin: 2px 0 0;
+  padding: 9px 12px;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-md, 6px);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+
+/* ---------- Evidence floor (Mode 3) ---------- */
+/* Derived from PubMed's publication types. No inference, so it cannot be wrong — and it is often
+   the true answer to the question. Given real weight on the page for that reason. */
+.floor {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md, 6px);
+}
+.floorLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.floorText {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-body);
+  font-weight: 500;
+}
+.floorHelp {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
