@@ -33,21 +33,44 @@ type Expert = {
     pubs: number
 }
 
+// CONTRAST. The calm palette's hint gray #8a94a6 measures 3.06:1 on white -- it fails WCAG AA
+// for body text (4.5:1) and, at 11-12px, fails the large-text exception too. Every helper line
+// on this page used it, INCLUDING the "do not include patient identifiers" warning, which made
+// the one line that most needs reading the least legible thing on the screen. Descriptive text
+// now uses the muted token #5a6478 (5.95:1, passes AA). Nothing on this page uses #8a94a6 for
+// text any more -- notably NOT the concept-block line numbers, which look decorative but are
+// how a PRESS peer reviewer cites the strategy ("line 3 AND line 6"). They are content.
+//
+// NOTE: #8a94a6 is the house hint color app-wide (see STYLEGUIDE), so it fails AA on /curate and
+// /authorships too. Fixing it properly is a one-token change in globals.css -- not this page's
+// call to make unilaterally.
+const INK = '#1a2133'      // 16.0:1
+const MUTED = '#5a6478'    //  5.95:1 -- AA for body
+
 const card: React.CSSProperties = {
     background: 'var(--color-surface, #fff)',
     border: '0.5px solid #e8e2d9',
     borderRadius: 'var(--radius-md, 6px)',
-    padding: '20px 28px',
+    padding: '24px 28px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 16,
+    gap: 20,
 }
+// The uppercase/600/tracked treatment is what marks these as section labels -- the color is not
+// doing that work, so darkening it costs nothing and buys legibility.
 const sec: React.CSSProperties = {
     fontSize: 11,
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.1em',
-    color: '#8a94a6',
+    color: MUTED,
+}
+// Helper text is CONTENT, not chrome: it carries the PHI warning and the known-item rationale.
+// 13px/1.5 at AA contrast, rather than 12px of the faintest gray in the palette.
+const hint: React.CSSProperties = {
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: MUTED,
 }
 const mono = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 
@@ -147,7 +170,7 @@ export default function LiteratureSearch() {
     const allFound = result && result.seeds.length > 0 && retrieved === result.seeds.length
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '24px 28px 40px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '28px 32px 48px' }}>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em' }}>
                 Literature Search
             </h1>
@@ -163,7 +186,7 @@ export default function LiteratureSearch() {
                   */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <span style={sec}>Mode</span>
-                    <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                         {MODES.map(m => (
                             <label
                                 key={m.id}
@@ -185,9 +208,9 @@ export default function LiteratureSearch() {
                                 />
                                 <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                     <span style={{ fontSize: 13, fontWeight: m.ready ? 600 : 400 }}>
-                                        {m.label}{!m.ready && <span style={{ fontWeight: 400, color: '#8a94a6' }}> — soon</span>}
+                                        {m.label}{!m.ready && <span style={{ fontWeight: 400, color: MUTED }}> — soon</span>}
                                     </span>
-                                    <span style={{ fontSize: 11, color: '#8a94a6' }}>{m.hint}</span>
+                                    <span style={{ fontSize: 12, lineHeight: 1.4, color: MUTED }}>{m.hint}</span>
                                 </span>
                             </label>
                         ))}
@@ -200,7 +223,7 @@ export default function LiteratureSearch() {
                   * results rather than letting a scalar sneak in -- adding a database should
                   * push an element, not change every consumer.
                   */}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 20, flexWrap: 'wrap' }}>
                     <span style={sec}>Databases</span>
                     {DATABASES.map(d => (
                         <label
@@ -217,12 +240,12 @@ export default function LiteratureSearch() {
                                 style={{ accentColor: '#2563a8' }}
                             />
                             {d.label}
-                            {!d.ready && <span style={{ color: '#8a94a6' }}>(soon)</span>}
+                            {!d.ready && <span style={{ color: MUTED }}>(soon)</span>}
                         </label>
                     ))}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <label style={sec} htmlFor="lit-q">What do you want to know?</label>
                     <textarea
                         id="lit-q"
@@ -230,15 +253,15 @@ export default function LiteratureSearch() {
                         value={question}
                         onChange={e => setQuestion(e.target.value)}
                         placeholder="Do probiotics reduce symptoms of depression in adults?"
-                        style={{ font: 'inherit', padding: '10px 12px', border: '0.5px solid #e8e2d9', borderRadius: 5, resize: 'vertical' }}
+                        style={{ font: 'inherit', padding: '12px', border: '0.5px solid #e8e2d9', borderRadius: 5, resize: 'vertical' }}
                     />
-                    <div style={{ fontSize: 12, color: '#8a94a6' }}>
+                    <div style={hint}>
                         Produces a reproducible, peer-reviewable search strategy. Screen and synthesize it in Covidence.
                         Your question is sent to an external AI service &mdash; do not include patient identifiers.
                     </div>
                 </div>
 
-                <div style={{ borderLeft: '2px solid rgba(37,99,168,0.1)', paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ borderLeft: '2px solid rgba(37,99,168,0.1)', paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <label style={sec} htmlFor="lit-seeds">Known-item seeds</label>
                     <textarea
                         id="lit-seeds"
@@ -246,15 +269,15 @@ export default function LiteratureSearch() {
                         value={seeds}
                         onChange={e => setSeeds(e.target.value)}
                         placeholder="PMIDs, one per line &mdash; papers this search MUST retrieve"
-                        style={{ font: 'inherit', fontFamily: mono, fontSize: 13, padding: '10px 12px', border: '0.5px solid #e8e2d9', borderRadius: 5, resize: 'vertical' }}
+                        style={{ font: 'inherit', fontFamily: mono, fontSize: 13, padding: '12px', border: '0.5px solid #e8e2d9', borderRadius: 5, resize: 'vertical' }}
                     />
-                    <div style={{ fontSize: 12, color: '#8a94a6' }}>
+                    <div style={hint}>
                         We run the strategy and report whether each one came back. A strategy that misses a known
                         include is broken.
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <label style={sec} htmlFor="lit-crit">Inclusion / exclusion criteria &mdash; optional</label>
                     <textarea
                         id="lit-crit"
@@ -262,7 +285,7 @@ export default function LiteratureSearch() {
                         value={criteria}
                         onChange={e => setCriteria(e.target.value)}
                         placeholder="e.g. RCTs only; adults; validated depression scales"
-                        style={{ font: 'inherit', padding: '10px 12px', border: '0.5px solid #e8e2d9', borderRadius: 5, resize: 'vertical' }}
+                        style={{ font: 'inherit', padding: '12px', border: '0.5px solid #e8e2d9', borderRadius: 5, resize: 'vertical' }}
                     />
                 </div>
 
@@ -275,7 +298,7 @@ export default function LiteratureSearch() {
                             value={filters}
                             onChange={e => setFilters(e.target.value)}
                             placeholder="e.g. 2021-2026, RCTs and meta-analyses only"
-                            style={{ font: 'inherit', padding: '7px 10px', border: '0.5px solid #e8e2d9', borderRadius: 5 }}
+                            style={{ font: 'inherit', padding: '8px 12px', border: '0.5px solid #e8e2d9', borderRadius: 5 }}
                         />
                     </div>
                     <button
@@ -284,7 +307,7 @@ export default function LiteratureSearch() {
                         style={{
                             font: 'inherit', fontSize: 13, fontWeight: 600,
                             background: busy ? '#5a6478' : '#1a2133',
-                            color: '#fff', border: 0, borderRadius: 6, padding: '8px 16px',
+                            color: '#fff', border: 0, borderRadius: 6, padding: '10px 20px',
                             cursor: busy || !question.trim() ? 'default' : 'pointer',
                             opacity: !question.trim() ? 0.5 : 1,
                         }}
@@ -293,7 +316,7 @@ export default function LiteratureSearch() {
                     </button>
                 </div>
 
-                <div style={{ fontSize: 12, color: '#8a94a6' }}>
+                <div style={hint}>
                     No result cap: a systematic-review search is designed to over-retrieve. A yield in the
                     thousands is a success, not an error.
                 </div>
@@ -309,8 +332,8 @@ export default function LiteratureSearch() {
                 <>
                     {/* THE DELIVERABLE — numbered concept blocks, the form strategies are peer-reviewed in. */}
                     <div style={{ border: '0.5px solid #e8e2d9', borderRadius: 6, overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 16px', background: '#faf8f5', borderBottom: '0.5px solid #e8e2d9' }}>
-                            <span style={{ ...sec, color: '#1a2133' }}>PubMed</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '12px 16px', background: '#faf8f5', borderBottom: '0.5px solid #e8e2d9' }}>
+                            <span style={{ ...sec, color: INK }}>PubMed</span>
                             <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                                 {result.hits.toLocaleString()} <span style={{ fontWeight: 400, color: '#5a6478' }}>records</span>
                             </span>
@@ -319,13 +342,13 @@ export default function LiteratureSearch() {
                         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2, overflowX: 'auto' }}>
                             {result.concepts.map((c, i) => (
                                 <div key={i} style={{ display: 'flex', gap: 12, fontFamily: mono, fontSize: 12.5, lineHeight: 1.7, whiteSpace: 'nowrap' }}>
-                                    <span style={{ color: '#8a94a6', minWidth: 16, textAlign: 'right' }}>{i + 1}</span>
+                                    <span style={{ color: MUTED, minWidth: 16, textAlign: 'right' }}>{i + 1}</span>
                                     <span>{c.terms}</span>
                                 </div>
                             ))}
                             {result.limits && (
                                 <div style={{ display: 'flex', gap: 12, fontFamily: mono, fontSize: 12.5, lineHeight: 1.7, whiteSpace: 'nowrap' }}>
-                                    <span style={{ color: '#8a94a6', minWidth: 16, textAlign: 'right' }}>{result.concepts.length + 1}</span>
+                                    <span style={{ color: MUTED, minWidth: 16, textAlign: 'right' }}>{result.concepts.length + 1}</span>
                                     <span style={{ color: '#5a6478' }}>
                                         {result.concepts.map((_, i) => i + 1).join(' AND ')} AND {result.limits}
                                     </span>
@@ -333,13 +356,13 @@ export default function LiteratureSearch() {
                             )}
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 16px', borderTop: '1px solid #f0ece5', fontSize: 12, color: '#8a94a6' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px', borderTop: '1px solid #f0ece5', fontSize: 12, color: MUTED }}>
                             <span>Run {result.runDate}{result.limits ? ` · limits: ${result.limits}` : ''}</span>
                             <span style={{ flex: 1 }} />
                             <button
                                 onClick={() => copy(result.query, 'Boolean query')}
                                 aria-live="polite"
-                                style={{ font: 'inherit', fontSize: 12, fontWeight: 600, background: copied === 'Boolean query' ? '#dcfce7' : 'rgba(37,99,168,0.1)', color: copied === 'Boolean query' ? '#166534' : '#2563a8', border: 0, borderRadius: 6, padding: '5px 11px', cursor: 'pointer' }}
+                                style={{ font: 'inherit', fontSize: 12, fontWeight: 600, background: copied === 'Boolean query' ? '#dcfce7' : 'rgba(37,99,168,0.1)', color: copied === 'Boolean query' ? '#166534' : '#2563a8', border: 0, borderRadius: 6, padding: '8px 14px', cursor: 'pointer' }}
                             >
                                 {copied === 'Boolean query' ? '✓ Copied' : 'Copy query'}
                             </button>
@@ -362,7 +385,7 @@ export default function LiteratureSearch() {
 
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 {result.seeds.map(s => (
-                                    <div key={s.pmid} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderBottom: '1px solid #f0ece5', flexWrap: 'wrap', fontSize: 13 }}>
+                                    <div key={s.pmid} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: '1px solid #f0ece5', flexWrap: 'wrap', fontSize: 13 }}>
                                         <span style={{ width: 16, fontWeight: 600, textAlign: 'center', color: s.retrieved ? '#166534' : '#991b1b' }}>
                                             {s.retrieved ? '✓' : '✗'}
                                         </span>
@@ -377,7 +400,7 @@ export default function LiteratureSearch() {
                                         {/* The reason is DERIVED by re-counting the seed against each block, never
                                             guessed by the model. A hallucinated reason would be worse than none. */}
                                         {!s.retrieved && (
-                                            <span style={{ flexBasis: '100%', marginLeft: 26, marginTop: 5, fontSize: 12, background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '6px 10px' }}>
+                                            <span style={{ flexBasis: '100%', marginLeft: 26, marginTop: 5, fontSize: 12, background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '8px 12px' }}>
                                                 {s.failsLimitsOnly
                                                     ? <>It matches every concept block, so your <b>limits</b> are what exclude it. Check the date range and publication type.</>
                                                     : <>Excluded by the <b>{(s.failingConcepts || []).join(' and ')}</b> block{(s.failingConcepts?.length || 0) > 1 ? 's' : ''}. Widen {(s.failingConcepts?.length || 0) > 1 ? 'those concepts' : 'that concept'} to retrieve it.</>}
@@ -407,11 +430,11 @@ export default function LiteratureSearch() {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', padding: '4px 20px 8px' }}>
                                 {experts.experts.map(e => (
-                                    <div key={e.personIdentifier} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '9px 0', borderBottom: '1px solid #f0ece5' }}>
+                                    <div key={e.personIdentifier} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '8px 0', borderBottom: '1px solid #f0ece5' }}>
                                         <span style={{ fontWeight: 600, fontSize: 13, color: '#2563a8' }}>
                                             {e.firstName} {e.lastName}
                                         </span>
-                                        <span style={{ fontSize: 12, color: e.primaryOrganizationalUnit ? '#5a6478' : '#8a94a6', fontStyle: e.primaryOrganizationalUnit ? 'normal' : 'italic' }}>
+                                        <span style={{ fontSize: 12, color: MUTED, fontStyle: e.primaryOrganizationalUnit ? 'normal' : 'italic' }}>
                                             {e.primaryOrganizationalUnit || 'department not recorded'}
                                         </span>
                                         <span style={{ marginLeft: 'auto', fontSize: 12, color: '#5a6478', fontVariantNumeric: 'tabular-nums' }}>
@@ -428,7 +451,7 @@ export default function LiteratureSearch() {
                         <button
                             onClick={() => copy(prismaBlock(result), 'PRISMA-S methods block')}
                             aria-live="polite"
-                            style={{ font: 'inherit', fontSize: 13, fontWeight: 600, background: copied === 'PRISMA-S methods block' ? '#166534' : '#1a2133', color: '#fff', border: 0, borderRadius: 6, padding: '8px 16px', cursor: 'pointer' }}
+                            style={{ font: 'inherit', fontSize: 13, fontWeight: 600, background: copied === 'PRISMA-S methods block' ? '#166534' : '#1a2133', color: '#fff', border: 0, borderRadius: 6, padding: '10px 20px', cursor: 'pointer' }}
                         >
                             {copied === 'PRISMA-S methods block' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
                         </button>
