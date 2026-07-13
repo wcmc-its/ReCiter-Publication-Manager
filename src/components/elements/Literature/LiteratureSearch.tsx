@@ -69,9 +69,9 @@ import {
 // second, hand-copied copy of these four shapes is exactly how a UI ends up reading a field the
 // server stopped sending.
 import type { PubRecord, Screened, Synthesis, Narrowing } from '../../../../controllers/literatureSearch.controller'
-import { strategyDoc, synthesisDoc, recordSheets } from '../../../../controllers/literatureExport'
+import { strategyDoc, synthesisDoc, recordSheets, modelLabel } from '../../../../controllers/literatureExport'
 import type { Block, RunFacts } from '../../../../controllers/literatureExport'
-import { saveRtf, saveText, saveXlsx, stamp } from './download'
+import { saveDocx, saveText, saveXlsx, stamp } from './download'
 import s from './LiteratureSearch.module.css'
 
 type Seed = {
@@ -249,6 +249,13 @@ export default function LiteratureSearch() {
     const [synthesis, setSynthesis] = useState<Synthesis | null>(null)
     const [provenance, setProvenance] = useState<{ cwid: string; date: string } | null>(null)
 
+    // WHICH MODEL. The server sends its Bedrock profile id back on every response that spent a model
+    // call, because until now the only place it appeared was the pod logs — and a journal asking for
+    // an AI declaration wants the tool AND its version, which "AI-assisted" does not give them.
+    // It survives a re-count deliberately: a re-count spends no tokens, but the strategy it is
+    // re-counting is still the one the model drafted.
+    const [model, setModel] = useState('')
+
     // ---- Mode 2, THE NARROWING GATE ----
     //
     // REUSE, NOT A NEW MACHINE. A narrowing is just a CONCEPT BLOCK that arrives UNTICKED and
@@ -318,6 +325,7 @@ export default function LiteratureSearch() {
             setStrategy({ db: 'pubmed', concepts: r.concepts, limits: r.limits })
             setResult(r)
             setExperts(data.experts)
+            setModel(data.model || '')
         } catch {
             setErr('Could not reach the server.')
         } finally {
@@ -370,6 +378,7 @@ export default function LiteratureSearch() {
             if (data.question) setQuestion(data.question)
             setResult(r)
             setExperts(data.experts)
+            setModel(data.model || '')
             setPhase('candidates')
 
             // THE GATE. Nothing was retrieved — not because we could not (the retrieval tool takes
@@ -513,6 +522,7 @@ export default function LiteratureSearch() {
             }
             setSynthesis(data.synthesis)
             setProvenance({ cwid: data.cwid, date: data.date })
+            setModel(data.model || '')
             setPhase('synthesis')
         } catch {
             setErr('Could not reach the server.')
@@ -691,7 +701,7 @@ export default function LiteratureSearch() {
             provenance
                 ? `${included.length} of ${records.length} records screened in by ${provenance.cwid} on ${provenance.date}.`
                 : ``,
-            `AI-assisted synthesis over the records selected above. Verify every claim against the source.`,
+            `AI-assisted synthesis, drafted by ${model ? `${modelLabel(model)} (${model})` : 'a language model'}, over the records selected above. Verify every claim against the source.`,
         ].join('\n')
     }
 
@@ -713,6 +723,8 @@ export default function LiteratureSearch() {
     // who this is from the moment the page loads.
     const runBy = provenance?.cwid || (session?.data?.username as string | undefined)
 
+    // WHICH MODEL. Carried on the facts so that every builder discloses it without having to be
+    // told twice — the synthesis, the strategy appendix and the spreadsheet all read it from here.
     const runFacts = (r: DbResult): RunFacts => ({
         query: r.query,
         hits: r.hits,
@@ -720,10 +732,14 @@ export default function LiteratureSearch() {
         cwid: runBy,
         limits: r.limits,
         sort: r.records?.length ? sortLabel : undefined,
+        model,
     })
 
+    const docxFailed = () => setErr('Could not build the Word document.')
+
     const dlStrategy = (r: DbResult) =>
-        saveRtf(strategyDoc(r, question, runBy), `${stamp('search-strategy', r.runDate)}.rtf`)
+        saveDocx(strategyDoc(r, question, runBy, model), `${stamp('search-strategy', r.runDate)}.docx`)
+            .catch(docxFailed)
 
     const dlQuery = (r: DbResult) =>
         saveText(r.query, `${stamp('pubmed-query', r.runDate)}.txt`)
@@ -734,11 +750,11 @@ export default function LiteratureSearch() {
 
     const dlSynthesis = (r: DbResult) => {
         if (!synthesis) return
-        saveRtf(
+        saveDocx(
             synthesisDoc(synthesis, runFacts(r), question,
                 { pico: isPico, screenedIn: included.length, screenedOf: records.length }),
-            `${stamp(isPico ? 'clinical-answer' : 'issue-review', r.runDate)}.rtf`,
-        )
+            `${stamp(isPico ? 'clinical-answer' : 'issue-review', r.runDate)}.docx`,
+        ).catch(docxFailed)
     }
 
     // THE PACKET: the whole run as one Word file plus one spreadsheet, for the co-author who was
@@ -747,13 +763,13 @@ export default function LiteratureSearch() {
     const dlPacket = (r: DbResult) => {
         const facts = runFacts(r)
         const blocks: Block[] = [
-            ...strategyDoc(r, question, provenance?.cwid),
+            ...strategyDoc(r, question, runBy, model),
             ...(synthesis
                 ? synthesisDoc(synthesis, facts, question,
                     { pico: isPico, screenedIn: included.length, screenedOf: records.length })
                 : []),
         ]
-        saveRtf(blocks, `${stamp('literature-search', r.runDate)}.rtf`)
+        saveDocx(blocks, `${stamp('literature-search', r.runDate)}.docx`).catch(docxFailed)
         if (records.length) {
             saveXlsx(recordSheets(records, flags, picked, facts), `${stamp('literature-search', r.runDate)}.xlsx`)
                 .catch(() => setErr('Could not build the spreadsheet.'))
@@ -1180,7 +1196,14 @@ export default function LiteratureSearch() {
                         </div>
 
                         <div className={s.panelFoot}>
-                            <span>Run {result.runDate}{result.limits ? ` · limits: ${result.limits}` : ' · no limits'}</span>
+                            {/* The QUERY is model-drafted too, not just the prose — so the strategy screen
+                                names the model exactly like the synthesis does, and the export says so in
+                                its repro header. A PRISMA-S appendix that does not disclose that the
+                                strategy was AI-drafted and human-reviewed is incomplete. */}
+                            <span>
+                                Run {result.runDate}{result.limits ? ` · limits: ${result.limits}` : ' · no limits'}
+                                {model ? ` · drafted by ${modelLabel(model)}` : ''}
+                            </span>
                             <span className={s.spacer} />
                             <span>Tick, untick or edit any line &mdash; it re-counts for free.</span>
                             <button
@@ -1198,7 +1221,7 @@ export default function LiteratureSearch() {
                                 Query (.txt)
                             </button>
                             <button className={s.btnSecondary} onClick={() => dlStrategy(result)} disabled={recounting || !result.query}>
-                                Word (.rtf)
+                                Word (.docx)
                             </button>
                         </div>
                     </section>
@@ -1630,12 +1653,14 @@ export default function LiteratureSearch() {
             {/* ============ MODE 2, SCREEN 4 — SYNTHESIS ============ */}
             {!isSR && phase === 'synthesis' && synthesis && (
                 <>
+                    {/* The model is NAMED, on screen and in every export. A journal asking for an AI
+                        declaration wants the tool and its version; "AI-assisted" alone is not one. */}
                     <div className={s.caveat}>
                         <span aria-hidden="true">&#9888;</span>
                         <span>
-                            <b>AI-assisted synthesis over the records you selected.</b> Verify it against the sources.
-                            Every claim links to the PMID it came from &mdash; if a claim carries no PMID, treat it as
-                            unsupported.
+                            <b>AI-assisted synthesis over the records you selected{model ? `, drafted by ${modelLabel(model)}` : ''}.</b>{' '}
+                            Verify it against the sources. Every claim links to the PMID it came from &mdash; if a claim
+                            carries no PMID, treat it as unsupported.
                         </span>
                     </div>
 
@@ -1718,7 +1743,7 @@ export default function LiteratureSearch() {
                         {result && (
                             <>
                                 <button className={s.btnSecondary} onClick={() => dlSynthesis(result)}>
-                                    {isPico ? 'Answer' : 'Synthesis'} (.rtf)
+                                    {isPico ? 'Answer' : 'Synthesis'} (.docx)
                                 </button>
                                 <button className={s.btn} onClick={() => dlPacket(result)}>
                                     Download everything

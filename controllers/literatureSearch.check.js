@@ -45,7 +45,8 @@ for (const line of fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8').split(
 }
 
 execSync(
-    `npx tsc controllers/literatureSearch.controller.ts controllers/literatureExport.ts --outDir ${OUT} ` +
+    `npx tsc controllers/literatureSearch.controller.ts controllers/literatureExport.ts ` +
+    `controllers/literatureDocx.ts --outDir ${OUT} ` +
     `--module commonjs --target es2020 --esModuleInterop --skipLibCheck --allowJs`,
     { cwd: ROOT, stdio: 'inherit' },
 )
@@ -539,51 +540,76 @@ const untickConcept = (s, ci) => ({
     console.log(`guideline:    PMID ${g.pmid} -> tier ${g.tier.rank} (${g.design}) from ${JSON.stringify(g.types)}`)
 
     // =======================================================================================
-    // EXPORTS. An export that cannot be re-run is not evidence — so the thing worth pinning is
-    // that every document carries the query, the count and the date, and that RTF's three syntax
-    // characters cannot escape into a manuscript.
+    // EXPORTS. An export that cannot be re-run is not evidence — so the thing worth pinning is that
+    // every document carries the query, the count, the date, who ran it, and WHICH MODEL DRAFTED IT.
+    //
+    // Asserted over the BLOCKS, not over the rendered bytes. The blocks are what a document SAYS;
+    // .docx is a zip, and grepping a zip for a PubMed query proves nothing. The renderer that turns
+    // blocks into that zip is a different question and gets its own smoke test, below.
 
     const xp = require(path.join(OUT, 'controllers/literatureExport.js'))
 
-    // RTF is a 7-bit format with three syntax characters. A PubMed query is FULL of braces and
-    // backslashes in author names and MeSH qualifiers; an unescaped one silently corrupts the rest
-    // of the document, and Word renders the damage without complaining.
-    assert.strictEqual(xp.rtfEscape('a{b}c\\d'), 'a\\{b\\}c\\\\d')
-    // Journal titles and paper titles are full of en-dashes, primes and Greek. Unescaped, they
-    // arrive in Word as mojibake — which looks like OUR bug, in the reader's manuscript.
-    assert.strictEqual(xp.rtfEscape('IL‐6–TNFα'), 'IL\\u8208?6\\u8211?TNF\\u945?')
-    assert.ok(!/[-￿]/.test(xp.rtfEscape('Müller & Søren — “quoted”')), 'no raw non-ASCII may survive into RTF')
+    // Everything a document says, flattened — table cells INCLUDED, because the query, the count and
+    // the model all live in the repro TABLE, not in a paragraph. Flatten only the paragraphs and
+    // this whole section would pass while asserting nothing.
+    const said = blocks => blocks.flatMap(b =>
+        b.kind === 'table' ? [...b.head, ...b.rows.flat()] : [b.text]
+    ).join('\n')
 
-    // THE REPRODUCIBILITY INVARIANT. Every document must carry the query, the count and the date.
-    // A synthesis pasted into a manuscript without the query behind it is an anecdote with
-    // citations, and this is the assertion that says so out loud.
-    const facts = { query: 'probiotics[tiab] AND depression[tiab]', hits: 122, runDate: '2026-07-13', cwid: 'paa2013' }
-    const doc = xp.rtf(xp.synthesisDoc(
+    // Prettified for the reader, but the PROFILE ID survives verbatim: the id pins the weights and
+    // agrees with the Bedrock bill, the pretty name is what a reader understands, and a journal's AI
+    // declaration wants both. An id this cannot parse must fall through UNCHANGED rather than vanish
+    // — a missing model name beats a wrong one.
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-opus-4-8'), 'Claude Opus 4.8, via AWS Bedrock')
+    assert.strictEqual(xp.modelLabel('anthropic.claude-sonnet-4-5'), 'Claude Sonnet 4.5, via AWS Bedrock')
+    assert.strictEqual(xp.modelLabel('some-model-we-have-never-seen'), 'some-model-we-have-never-seen')
+    assert.strictEqual(xp.modelLabel(''), '')
+
+    // THE REPRODUCIBILITY INVARIANT. A synthesis pasted into a manuscript without the query behind
+    // it is an anecdote with citations — and "AI-assisted" with no model version is not a
+    // declaration. This is the assertion that says both out loud.
+    const facts = {
+        query: 'probiotics[tiab] AND depression[tiab]', hits: 122, runDate: '2026-07-13',
+        cwid: 'paa2013', model: 'us.anthropic.claude-opus-4-8',
+    }
+    const doc = said(xp.synthesisDoc(
         { table: [{ pmid: '37314797', study: 'Nikolova et al.', year: '2023', journal: 'JAMA Psychiatry', design: 'RCT', intervention: 'Probiotic vs placebo' }],
           prose: 'Probiotics reduced symptoms [PMID 37314797].', floor: 'The strongest evidence retrieved is a randomized controlled trial.' },
         facts, 'Do probiotics help depression?', { pico: true, screenedIn: 1, screenedOf: 50 },
     ))
-    for (const must of ['probiotics\\[tiab\\] AND depression\\[tiab\\]', '122', '2026-07-13', '37314797', 'paa2013']) {
-        assert.ok(doc.includes(must.replace(/\\/g, '')) || doc.includes(must),
+    for (const must of ['probiotics[tiab] AND depression[tiab]', '122', '2026-07-13', '37314797', 'paa2013',
+                        'Claude Opus 4.8', 'us.anthropic.claude-opus-4-8']) {
+        assert.ok(doc.includes(must),
             `the exported document must carry "${must}" — an export that cannot be re-run is not evidence`)
     }
-    assert.ok(doc.startsWith('{\\rtf1'), 'RTF must open with the magic header or Word will not read it')
-    // Braces must BALANCE, or Word silently truncates the document at the imbalance.
-    const braces = (doc.match(/(?<!\\)\{/g) || []).length - (doc.match(/(?<!\\)\}/g) || []).length
-    assert.strictEqual(braces, 0, 'unbalanced RTF braces truncate the document in Word')
 
-    // The strategy export must describe the TOGGLED state, never the model's draft: an unticked
-    // line was not searched, so it must not appear in a methods section that claims it was.
-    const sDoc = xp.rtf(xp.strategyDoc({
+    // The strategy export must describe the TOGGLED state, never the model's draft: an unticked line
+    // was not searched, so it must not appear in a methods section that claims it was.
+    const strategyBlocks = xp.strategyDoc({
         concepts: [
             { label: 'Probiotics', lines: [{ terms: 'probiotics[tiab]', on: true }, { terms: 'SHOULD-NOT-APPEAR[tiab]', on: false }] },
             { label: 'Depression', lines: [{ terms: 'depression[tiab]', on: true }] },
         ],
         limits: '', query: 'q', hits: 5, runDate: '2026-07-13',
         seeds: [{ pmid: '1', retrieved: false, label: 'Smith 2020', missReason: 'Depression block' }],
-    }, 'Q?', 'paa2013'))
+    }, 'Q?', 'paa2013', 'us.anthropic.claude-opus-4-8')
+    const sDoc = said(strategyBlocks)
     assert.ok(!sDoc.includes('SHOULD-NOT-APPEAR'), 'an UNTICKED line was never searched and must not appear in the methods')
     assert.ok(sDoc.includes('Depression block'), 'a missed seed must carry its derived reason into the appendix')
+    // THE DISCLOSURE PEOPLE FORGET. Mode 1's QUERY is model-drafted too, not only Mode 2's prose —
+    // and this export IS the PRISMA-S appendix, so if the disclosure is not here it is nowhere.
+    assert.ok(sDoc.includes('us.anthropic.claude-opus-4-8'),
+        'the SEARCH STRATEGY export must disclose the model that drafted the query, not only the synthesis')
+
+    // THE RENDERER. Word is the delivery format, so a Block[] it cannot render is a download button
+    // that throws in a librarian's face. Packer really zips it — a .docx is a zip, so it opens PK.
+    const { Packer } = require('docx')
+    const { docxDoc } = require(path.join(OUT, 'controllers/literatureDocx.js'))
+    const buf = await Packer.toBuffer(docxDoc([...strategyBlocks, ...xp.synthesisDoc(
+        { table: [], prose: 'p' }, facts, 'Q?', { pico: false, screenedIn: 0, screenedOf: 0 },
+    ), { kind: 'spacer' }]))
+    assert.ok(buf.length > 1000 && buf[0] === 0x50 && buf[1] === 0x4b,
+        'a .docx is a zip and must open with PK — Word will not read anything else')
 
     // The spreadsheet: a null iCite percentile is NOT a zero. Number(null) === 0, and a confident
     // "0" against a brand-new trial is a scarlet letter we invented.
@@ -594,7 +620,7 @@ const untickConcept = (s, ci) => ({
     const pctCol = sheets[0].head.indexOf('NIH percentile')
     assert.strictEqual(sheets[0].rows[0][pctCol], '', 'an absent percentile exports as blank, never as 0')
     assert.ok(sheets.some(s => s.name === 'Search'), 'the data file carries the query with it, or it cannot be accounted for later')
-    console.log('exports:      RTF escaped + balanced; query/count/date carried; unticked lines excluded; null pct stays blank')
+    console.log('exports:      query/count/date/who/MODEL carried (strategy too); unticked lines excluded; null pct stays blank; .docx renders')
 
     fs.rmSync(OUT, { recursive: true, force: true })
     console.log('\nOK - Mode 1 (assembleQuery, numberStrategy, the empty-concept rule, the derived miss-diagnosis)'

@@ -2,7 +2,7 @@
 // pure and therefore testable (npm run check:literature); this file only knows how to hand a blob
 // to a browser.
 
-import { rtf, Block, Sheet } from '../../../../controllers/literatureExport'
+import type { Block, Sheet } from '../../../../controllers/literatureExport'
 
 function save(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob)
@@ -13,10 +13,19 @@ function save(blob: Blob, filename: string) {
     URL.revokeObjectURL(url)
 }
 
-// Word opens RTF natively, with the headings, bold and tables intact. `application/rtf` is what
-// this repo already serves for the bibliometric report.
-export function saveRtf(blocks: Block[], filename: string) {
-    save(new Blob([rtf(blocks)], { type: 'application/rtf' }), filename)
+// A real .docx, not an RTF wearing Word's clothes. RTF was cheaper — Word opens it, and it cost no
+// dependency — but the file still says .rtf, and a journal submission portal that rejects .rtf
+// rejects the appendix, which is the one moment this feature exists for.
+//
+// Both imports are dynamic and both are inside the click: `docx` and the renderer that uses it are
+// fetched the first time someone actually downloads a document, and cost the page nothing before
+// that. Same bargain as exceljs below.
+export async function saveDocx(blocks: Block[], filename: string) {
+    const [{ docxDoc }, { Packer }] = await Promise.all([
+        import('../../../../controllers/literatureDocx'),
+        import('docx'),
+    ])
+    save(await Packer.toBlob(docxDoc(blocks)), filename)
 }
 
 export function saveText(text: string, filename: string) {

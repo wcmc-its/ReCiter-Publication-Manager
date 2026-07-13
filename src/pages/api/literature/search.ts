@@ -290,6 +290,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 synthesis,
                 cwid,
                 date: new Date().toISOString().slice(0, 10),
+                model: process.env.BEDROCK_MODEL_ID,
             })
         } catch (err: any) {
             console.error('[literature] synthesis failed:', err)
@@ -411,6 +412,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 statusCode: 200,
                 databases: [result],
                 experts,
+                model: process.env.BEDROCK_MODEL_ID,
                 ...(isPico && asked ? { question: asked } : {}),
             })
         } catch (err: any) {
@@ -472,7 +474,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             seedsRetrieved: result.seeds.filter(s => s.retrieved).length,
         })
 
-        return res.status(200).send({ statusCode: 200, databases: [result], experts })
+        return res.status(200).send({ statusCode: 200, databases: [result], experts, model: process.env.BEDROCK_MODEL_ID })
     } catch (err: any) {
         console.error('[literature] strategy failed:', err)
         return res.status(502).send({ statusCode: 502, message: err?.message || 'Strategy build failed.' })

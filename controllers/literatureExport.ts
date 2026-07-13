@@ -2,11 +2,11 @@
 //
 // THE ONE RULE: AN EXPORT THAT CANNOT BE RE-RUN IS NOT EVIDENCE.
 //
-// Every document produced here carries the same five facts, at the top, without exception:
-// the database, the exact Boolean query, the date it was run, the number of records it returned,
-// and who ran it. That is the difference between a search someone can reproduce and a claim they
-// have to take on faith — and reproducibility is the entire reason this feature exists. A synthesis
-// pasted into a manuscript without the query behind it is an anecdote with citations.
+// Every document produced here carries the same facts, at the top, without exception: the database,
+// the exact Boolean query, the date it was run, the number of records it returned, who ran it, and
+// which model drafted it. That is the difference between a search someone can reproduce and a claim
+// they have to take on faith — and reproducibility is the entire reason this feature exists. A
+// synthesis pasted into a manuscript without the query behind it is an anecdote with citations.
 //
 // THE TRAP, and it is the one that would quietly ruin this: the exported strategy must describe the
 // TOGGLED state that was ACTUALLY RUN, never the model's original draft. A librarian who unticks
@@ -15,30 +15,12 @@
 // builder below takes its numbers from the RESULT (what the server counted), never from the
 // in-progress strategy on screen.
 //
-// ponytail: RTF, not .docx. Word opens RTF natively with real headings, bold and tables, this repo
-// already serves `application/rtf` elsewhere (src/pages/api/db/reports/bibliometric-analysis), and
-// it costs ZERO dependencies — a .docx builder is a library and a build step to emit a format Word
-// will read either way. Ceiling: RTF has no styles pane and no track-changes; if a journal demands
-// a real .docx, add the `docx` package and keep these same block builders.
+// This file is FORMAT-AGNOSTIC and PURE. It emits `Block[]`; the renderers live elsewhere —
+// literatureDocx.ts turns blocks into a .docx and download.ts turns Sheets into an .xlsx, both
+// loaded only from inside a click. Keeping the documents here and the file formats there is what
+// lets `npm run check:literature` assert what a document SAYS with no dependency and no model call.
 
 import { numberStrategy, Concept } from './literatureSearch.strategy'
-
-// ---------------------------------------------------------------------------
-// RTF.
-
-// RTF is a 7-bit format. Three characters are syntax and must be escaped, and anything outside
-// ASCII has to be spelled as a signed 16-bit code point — an em-dash pasted from a title will
-// otherwise arrive in Word as mojibake, and journal titles are full of them.
-export function rtfEscape(s: string): string {
-    return String(s ?? '')
-        .replace(/[\\{}]/g, m => '\\' + m)          // \ { } are RTF syntax
-        .replace(/\r?\n/g, '\\line ')
-        .replace(/[\u0080-\uFFFF]/g, m => {
-            // RTF wants a SIGNED 16-bit integer, so anything above 0x7FFF goes negative.
-            const c = m.charCodeAt(0)
-            return `\\u${c > 32767 ? c - 65536 : c}?`
-        })
-}
 
 export type Block =
     | { kind: 'h1'; text: string }
@@ -49,47 +31,33 @@ export type Block =
     | { kind: 'table'; head: string[]; rows: string[][] }
     | { kind: 'spacer' }
 
-const TWIPS_PER_INCH = 1440
-const PAGE_WIDTH = Math.round(6.5 * TWIPS_PER_INCH)   // Letter, 1" margins
-
-function tableRtf(head: string[], rows: string[][]): string {
-    const cols = head.length
-    // Even columns. Good enough for an appendix, and it means no column can collapse to nothing.
-    const edges = Array.from({ length: cols }, (_, i) => Math.round((PAGE_WIDTH / cols) * (i + 1)))
-    const rowRtf = (cells: string[], bold: boolean) =>
-        '\\trowd\\trgaph108\\trleft0' +
-        edges.map(e => `\\clbrdrb\\brdrs\\brdrw10\\cellx${e}`).join('') +
-        cells.map(c => `\\intbl${bold ? '\\b' : ''} ${rtfEscape(c)}${bold ? '\\b0' : ''}\\cell`).join('') +
-        '\\row'
-    return [rowRtf(head, true), ...rows.map(r => rowRtf(padTo(r, cols), false))].join('\n')
+// ---------------------------------------------------------------------------
+// WHICH MODEL WROTE THIS.
+//
+// Journals increasingly require an AI declaration to name the tool AND ITS VERSION. "AI-assisted",
+// with no model named, is not a declaration. So every document carries both halves:
+//
+//   the PRETTY name — what a reader understands.
+//   the PROFILE ID  — what makes the run reproducible. The id, not the name, pins the weights, and
+//                     the id is what the pod logs and the Bedrock bill agree on. Never drop it for
+//                     being ugly.
+//
+// It is not a secret: BEDROCK_MODEL_ID is already on every log line this feature emits.
+//
+// ponytail: derived from the id, not a lookup table. A table of model names goes stale the day AWS
+// ships the next one, and a stale pretty name sitting next to a correct id is worse than no pretty
+// name at all. Ceiling: it reads the `family-version` id shape (claude-opus-4-8); an id it cannot
+// parse falls through to the raw id — which is the half that had to be right anyway.
+export function modelLabel(id: string): string {
+    const m = String(id || '').match(/^(?:[a-z]+\.)?anthropic\.claude-([a-z]+)-([\d-]+)/i)
+    if (!m) return String(id || '')
+    return `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2].replace(/-/g, '.')}, via AWS Bedrock`
 }
 
-// A short row would silently shift every later cell one column left, which reads as corrupted data
-// rather than as a missing value.
-const padTo = (r: string[], n: number) => Array.from({ length: n }, (_, i) => r[i] ?? '')
-
-export function rtf(blocks: Block[]): string {
-    const body = blocks.map(b => {
-        switch (b.kind) {
-            case 'h1':     return `\\pard\\sa180\\b\\fs32 ${rtfEscape(b.text)}\\b0\\fs22\\par`
-            case 'h2':     return `\\pard\\sb240\\sa120\\b\\fs26 ${rtfEscape(b.text)}\\b0\\fs22\\par`
-            case 'p':      return `\\pard\\sa120\\fs22 ${rtfEscape(b.text)}\\par`
-            case 'small':  return `\\pard\\sa120\\fs18\\i ${rtfEscape(b.text)}\\i0\\fs22\\par`
-            case 'mono':   return `\\pard\\sa120\\f1\\fs18 ${rtfEscape(b.text)}\\f0\\fs22\\par`
-            case 'table':  return `\\pard\n${tableRtf(b.head, b.rows)}\n\\pard\\sa120\\par`
-            case 'spacer': return '\\pard\\par'
-        }
-    }).join('\n')
-
-    return `{\\rtf1\\ansi\\ansicpg1252\\deff0
-{\\fonttbl{\\f0\\fswiss Calibri;}{\\f1\\fmodern Consolas;}}
-\\fs22
-${body}
-}`
-}
+const modelDisclosure = (id: string) => `${modelLabel(id)} (${id})`
 
 // ---------------------------------------------------------------------------
-// The five facts. Every document opens with these, and this is the only place they are assembled.
+// The facts. Every document opens with these, and this is the only place they are assembled.
 
 export type RunFacts = {
     query: string
@@ -98,6 +66,7 @@ export type RunFacts = {
     cwid?: string
     limits?: string
     sort?: string
+    model?: string        // the Bedrock profile id, verbatim
 }
 
 export function reproHeader(f: RunFacts): Block[] {
@@ -110,6 +79,13 @@ export function reproHeader(f: RunFacts): Block[] {
             ...(f.limits ? [['Limits', f.limits]] : []),
             ...(f.sort ? [['Ranking', f.sort]] : []),
             ...(f.cwid ? [['Searched by', f.cwid]] : []),
+            // THE DISCLOSURE PEOPLE FORGET. The QUERY is model-drafted too, not just the prose — so
+            // it belongs in the STRATEGY export, not only in the synthesis. A PRISMA-S appendix that
+            // does not say the strategy was AI-drafted and human-reviewed is incomplete, and this
+            // header is the only thing in a strategy export that could ever say it.
+            ...(f.model
+                ? [['Strategy drafted by', `${modelDisclosure(f.model)}, then reviewed and edited by the person named above`]]
+                : []),
         ] },
         { kind: 'p', text: 'Full Boolean query — paste this into PubMed to reproduce the count above:' },
         { kind: 'mono', text: f.query },
@@ -126,6 +102,7 @@ export function strategyDoc(
     r: { concepts: Concept[]; limits: string; query: string; hits: number; runDate: string; seeds: SeedLike[] },
     question: string,
     cwid?: string,
+    model?: string,
 ): Block[] {
     // Numbered from the RESULT's concepts — the toggled state that was actually counted. An
     // unticked line was not searched, so it does not appear in the methods.
@@ -135,7 +112,7 @@ export function strategyDoc(
     return [
         { kind: 'h1', text: 'PubMed search strategy' },
         { kind: 'p', text: question },
-        ...reproHeader({ query: r.query, hits: r.hits, runDate: r.runDate, cwid, limits: r.limits }),
+        ...reproHeader({ query: r.query, hits: r.hits, runDate: r.runDate, cwid, limits: r.limits, model }),
 
         { kind: 'h2', text: 'Search strategy, line by line' },
         { kind: 'small', text: 'Numbered as published search strategies are peer-reviewed (PRESS): each line is searched, and the combining lines show how the blocks were AND-ed and OR-ed together.' },
@@ -174,7 +151,10 @@ export function synthesisDoc(
         { kind: 'h1', text: opts.pico ? 'Clinical question' : 'Issue review' },
         { kind: 'p', text: question },
 
-        { kind: 'p', text: 'AI-ASSISTED. This text was drafted by a language model over the records listed below, which a human selected. Every claim carries the PMID it came from — verify each one against the source. A claim with no PMID is unsupported.' },
+        { kind: 'p', text:
+            `AI-ASSISTED. This text was drafted by ${facts.model ? modelDisclosure(facts.model) : 'a language model'} `
+            + 'over the records listed below, which a human selected. Every claim carries the PMID it came from — '
+            + 'verify each one against the source. A claim with no PMID is unsupported.' },
 
         ...(syn.floor ? [
             { kind: 'h2' as const, text: 'Strength of this evidence' },
@@ -231,7 +211,9 @@ export function recordSheets(
         },
         {
             // The reproducibility facts travel WITH the data, in the same file. A spreadsheet of
-            // PMIDs with no query attached is a list someone will later be unable to account for.
+            // PMIDs with no query attached is a list someone will later be unable to account for —
+            // and the "AI suggested" column above is a model's opinion, so the sheet has to name
+            // the model that held it.
             name: 'Search',
             head: ['Field', 'Value'],
             rows: [
@@ -241,6 +223,8 @@ export function recordSheets(
                 ...(facts.limits ? [['Limits', facts.limits]] : []),
                 ...(facts.sort ? [['Ranking', facts.sort]] : []),
                 ...(facts.cwid ? [['Searched by', facts.cwid]] : []),
+                ...(facts.model ? [['Strategy drafted by', modelDisclosure(facts.model)]] : []),
+                ...(facts.model ? [['AI suggestions by', modelDisclosure(facts.model)]] : []),
                 ['Boolean query', facts.query],
             ] as Array<Array<string | number>>,
         },
