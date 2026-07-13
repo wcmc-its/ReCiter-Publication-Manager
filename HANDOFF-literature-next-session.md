@@ -74,66 +74,67 @@ what makes the run reproducible and the pretty name is what a reader understands
 **Do NOT show a cost.** That remains deliberate: iteration is the behaviour we want, and a running
 meter teaches a librarian to ration it.
 
-### 3. Scopus and Embase — READ THIS BEFORE PROMISING EITHER
+### 3. Scopus — GO. (Embase is parked; see below.)
 
-**These are not two variants of one task and must not be planned as one.** Recon'd this session
-against the actual Java source and Elsevier's official docs.
+**Paul, 2026-07-13: "We probably don't have EMBASE access. We do however have Scopus access. This app
+uses the Scopus Retrieval Tool service."** So: **build Scopus, park Embase.**
 
-#### Scopus: reachable, but the tool cannot do it today
+#### Every blocking unknown is now ANSWERED — probed live against api.elsevier.com with WCM's own key
 
-`ReCiter-Scopus-Retrieval-Tool` is a **credentialed Elsevier proxy with a fixed query template, not a
-query engine.** Do not be misled by the name.
+I ran the real API with `SCOPUS_API_KEY` + `SCOPUS_INST_TOKEN` (both already in the shell env; the
+Scopus tool reads them from `System.getenv`). **These are measurements, not assumptions:**
 
-- `GET /scopus/search/documents?by=keyword&term=…` **force-wraps** the term:
-  `ScopusSearchService.java:78-85` → `TITLE-ABS-KEY(<term>)`. The caller never controls the field.
-  Booleans *do* survive inside the wrap, so a concept block works **by accident** — but anything
-  field-qualified at the top level (`PUBYEAR`, `DOCTYPE`, `LANGUAGE`) gets nested inside
-  `TITLE-ABS-KEY()` and becomes invalid. **Our `limits` half breaks.**
-- **Every search runs in STANDARD view.** `view=` / `COMPLETE` / `abstract` / `dc:description` have
-  **zero occurrences** in the tool's Java source. STANDARD returns **no abstract**, and `dc:creator` =
-  **first author only** (RPM already concedes this at `scopusSearch.controller.ts:32`). Screening and
-  synthesis need abstracts. **This is the blocking gap, not the query syntax.**
-- The count is free: the response carries `opensearch:totalResults`, which already passes through
-  verbatim. Mode 1's shape works unchanged.
-- The search controller exists **only on `origin/dev`** of that repo; **prod builds from `master`**.
+| Question | Answer | Evidence |
+|---|---|---|
+| Does our insttoken entitle **`view=COMPLETE`**? | **YES.** | HTTP 200, **abstract 2,128 chars**, **full author list**. STANDARD returns neither. This was THE blocker and it is gone. |
+| Is there a **cheap count** (Mode 1 is count-only)? | **YES — use `count=1`.** | Returns the true `opensearch:totalResults` (2,981) for a one-record payload. **`count=0` is IGNORED and silently gives you 25 records** — do not use it. |
+| Do **top-level limits** work? | **YES, if the query is passed RAW.** | `…` = 2,981 → `AND PUBYEAR > 2020` = 2,019 → `AND DOCTYPE(ar)` = 1,423 → both = 975. |
+| Does the tool's **force-wrap** corrupt a limited query? | It **fails loudly**, which is the good news. | Nesting `PUBYEAR` inside `TITLE-ABS-KEY()` → **HTTP 400 `"Error translating query"`**. It cannot silently produce a wrong count. |
 
-**Work:** one new endpoint (raw query + `count`/`start`/`view`), a `view=COMPLETE` flip, a dev→master
-merge, then `ready: false → true` at `LiteratureSearch.tsx:129` and a Scopus count/retrieve pair in
-`config/local.js` mirroring `reciterPubmed` (`:134-137`). Days, not weeks. RPM already reaches the
-tool via `RECITER_SCOPUS_API_URL` (PR #797 moved the Elsevier creds into it).
+#### So the work is exactly this
 
-**THE ONE UNKNOWN: does WCM's Scopus insttoken entitle `view=COMPLETE`?** If not, abstracts require
-the Abstract Retrieval API and the job gets materially bigger. **Verify with Elsevier — do not
-assume.**
+**In `ReCiter-Scopus-Retrieval-Tool` (NOT in RPM — see the warning below):** add ONE endpoint that
+passes the query **verbatim** and exposes `count` / `start` / `view`. Today
+`ScopusSearchService.java:78-85` force-wraps every term as `TITLE-ABS-KEY(<term>)`, so the caller can
+never write a top-level limit — that is the whole gap. Then set `view=COMPLETE` (now known-entitled),
+and **merge dev → master**: the search controller exists only on `origin/dev`, and **prod builds from
+`master`**.
 
-**And be honest with the librarians: Scopus is the EASY database and the LESS VALUABLE one.** It has
-**no controlled vocabulary** — nothing to explode, no MeSH analogue — so a concept block loses its
-entire controlled-vocab recall arm and is systematically *less sensitive* than in PubMed. For a
-systematic review, where recall is the cardinal virtue, that is a **methodological cost no engineering
-can remove**. Do Scopus to *earn the schema* (below), not because Scopus is the prize.
+**In RPM:** a Scopus count/retrieve pair in `config/local.js` mirroring `reciterPubmed` (`:134-137`),
+and `ready: false → true` at `LiteratureSearch.tsx:129`.
 
-#### Embase: a procurement problem, not an engineering one
+**⚠️ THE CREDS STAY IN THE TOOL.** PR #797 (`feat(scopus): search via the Scopus Retrieval Tool, drop
+PM's Elsevier creds`) deliberately moved the Elsevier key OUT of RPM. **Do not let RPM re-acquire an
+Elsevier credential** — route everything through `RECITER_SCOPUS_API_URL`, exactly as PubMed goes
+through `RECITER_PUBMED_API_URL`. This is also what Paul confirmed the app does.
 
-**Elsevier explicitly excludes the Embase API from free academic access, "regardless of institutional
-type"** (stated on two separate Elsevier support pages; Scopus and ScienceDirect *are* in the free
-tier). **An Embase.com web subscription does NOT convey API access** — the API is a separately-priced
-Data-as-a-Service product sold through an Account Manager. Our existing Elsevier key almost certainly
-carries no Embase entitlement. **Nothing anyone can do in this repo moves this one inch.**
+#### Be honest with the librarians about what Scopus IS
 
-And there is a genuine chicken-and-egg: **the single fact that decides whether Embase is even usable
-for Mode 1 — does the search response return a total hit count without paging? — is not documented in
-the 44-page official guide or in the WADL, and can only be settled with a live call using a key you
-can only get by buying the subscription.** Mode 1 is count-only by design; if there is no cheap count,
-counting a 15,000-hit strategy means ~75 paged requests at 6 req/s, and the design needs rework.
+**Scopus has no controlled vocabulary.** Nothing to explode; no MeSH analogue. A concept block in
+PubMed is `(exploded MeSH) OR (free-text)` — in Scopus the controlled-vocab arm **has no equivalent**,
+so the same concept is faithfully expressed and *systematically less sensitive*. For a systematic
+review, where recall is the cardinal virtue, that is a **methodological cost no engineering can
+remove**, and a librarian will say so. Scopus is a **supplementary** database here, not a
+PubMed-equivalent one. Its real payoff is that it forces and proves the Concept/Rendering split below,
+which is the genuinely hard, database-agnostic part.
 
-**THE ONE ACTION — send the Elsevier Account Manager exactly two questions before scheduling any
-Embase work:**
-1. Can our existing Elsevier API key + institutional token be granted **Embase API** entitlement, and
-   at what cost?
-2. Does the Embase search response (`/content/embase/article`) return a **total result count** without
-   paging through records?
+#### Embase — PARKED. Do not schedule it.
 
-**Do not commit to an Embase date before those are answered.** Scopus proceeds independently.
+Paul: we probably don't have access, and the recon agrees. **Elsevier explicitly excludes the Embase
+API from free academic access "regardless of institutional type"** (Scopus and ScienceDirect *are* in
+the free tier), and **an Embase.com web subscription does NOT convey API access** — it is a
+separately-priced Data-as-a-Service product sold through an Account Manager. **Nothing in this repo
+moves that.**
+
+Leave the Embase checkbox disabled and the "not searched" card honest. **If it ever gets revived, two
+questions go to the Elsevier Account Manager BEFORE any engineering:** (1) can our key be granted
+Embase entitlement, at what cost; (2) **does the Embase search response return a total hit count
+without paging?** — undocumented in both the 44-page guide and the WADL, and Mode 1 is count-only by
+design, so it can only be settled with a key you can only get by buying first. **Do not commit to an
+Embase date before that is answered.**
+
+Keep the honesty in the UI meanwhile: a Cochrane-compliant search *does* need Embase and CENTRAL, and
+the card should keep saying so. Scopus does not change that.
 
 #### The schema change both of them force — and the line to HOLD
 
