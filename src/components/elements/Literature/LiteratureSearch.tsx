@@ -263,9 +263,11 @@ export default function LiteratureSearch() {
 
                 <div style={{ borderLeft: '2px solid rgba(37,99,168,0.1)', paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <label style={sec} htmlFor="lit-seeds">Known-item seeds</label>
+                    {/* 5 rows, not 2: the librarian names 3-5 seeds, and at 2 rows the first PMID
+                        scrolled out of its own box the moment a fourth was added. */}
                     <textarea
                         id="lit-seeds"
-                        rows={2}
+                        rows={5}
                         value={seeds}
                         onChange={e => setSeeds(e.target.value)}
                         placeholder="PMIDs, one per line &mdash; papers this search MUST retrieve"
@@ -339,17 +341,25 @@ export default function LiteratureSearch() {
                             </span>
                         </div>
 
-                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2, overflowX: 'auto' }}>
+                        {/*
+                          * WRAP, do not scroll. A concept block is routinely 600+ characters; on
+                          * one nowrap line it rendered ~4,500px wide inside a ~980px card, so the
+                          * strategy — the entire deliverable of this mode — was unreadable past
+                          * its first few terms. Horizontal scrolling is not a real answer either:
+                          * a PRESS reviewer reads the Boolean, they do not drag it. Wrapping on
+                          * the OR boundaries keeps each numbered block intact and legible.
+                          */}
+                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {result.concepts.map((c, i) => (
-                                <div key={i} style={{ display: 'flex', gap: 12, fontFamily: mono, fontSize: 12.5, lineHeight: 1.7, whiteSpace: 'nowrap' }}>
-                                    <span style={{ color: MUTED, minWidth: 16, textAlign: 'right' }}>{i + 1}</span>
-                                    <span>{c.terms}</span>
+                                <div key={i} style={{ display: 'flex', gap: 12, fontFamily: mono, fontSize: 12.5, lineHeight: 1.7 }}>
+                                    <span style={{ color: MUTED, minWidth: 16, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+                                    <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', minWidth: 0 }}>{c.terms}</span>
                                 </div>
                             ))}
                             {result.limits && (
-                                <div style={{ display: 'flex', gap: 12, fontFamily: mono, fontSize: 12.5, lineHeight: 1.7, whiteSpace: 'nowrap' }}>
-                                    <span style={{ color: MUTED, minWidth: 16, textAlign: 'right' }}>{result.concepts.length + 1}</span>
-                                    <span style={{ color: '#5a6478' }}>
+                                <div style={{ display: 'flex', gap: 12, fontFamily: mono, fontSize: 12.5, lineHeight: 1.7 }}>
+                                    <span style={{ color: MUTED, minWidth: 16, textAlign: 'right', flexShrink: 0 }}>{result.concepts.length + 1}</span>
+                                    <span style={{ color: MUTED, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', minWidth: 0 }}>
                                         {result.concepts.map((_, i) => i + 1).join(' AND ')} AND {result.limits}
                                     </span>
                                 </div>
