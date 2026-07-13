@@ -22,47 +22,47 @@ error anywhere. **Deploy the retrieval tool first, or not at all.**
 
 `npm run check:literature` is green, needs no LLM, and must stay that way. Keep it green.
 
-## THE ONE THING TO DO BEFORE ANYONE TRUSTS A COST NUMBER
+## THE COST NUMBER IS NOW REAL (done — `5656230`)
 
-**`estUsd` in the logs is currently fiction.** `BEDROCK_USD_PER_MTOK_IN` / `_OUT` default to **5 /
-25**, which is Anthropic's *first-party list price* for Opus 4.8 — **not** a verified AWS Bedrock
-rate. Every `estUsd` figure in this doc and in the pod logs inherits that assumption, including the
-~$0.49/run headline. It may be right. Nobody has checked.
+**The verified us-east-1 on-demand rate for `us.anthropic.claude-opus-4-8` is `5.50` in / `27.50`
+out, per Mtok.** Read from the AWS **Price List API** — the billing source of truth — and now the
+default in `logCost()` and set in `.env.local`. **Do not re-derive this. Two traps are waiting, and
+both hand you a confident wrong number instead of an error:**
 
-This matters more than it looks: Mode 2 costs roughly **16× Mode 1** ($0.49 vs $0.03), because 50
-abstracts pass through a context window three times. That ratio is what will be asked about the
-moment this graduates past a two-person pilot, and answering it with a number nobody verified is
-how a pilot loses its budget.
+- The service code is **`AmazonBedrockFoundationModels`**, *not* `AmazonBedrock`. The old
+  service code (which the previous version of this handoff told you to use) carries only legacy
+  Claude models — 2.x, 3 Haiku/Sonnet — and returns **zero hits for Opus**, silently. The newer
+  models are sold as Marketplace "Amazon Bedrock Edition" listings, and the model name lives in
+  `product.attributes.servicename`, not in the `model` attribute (which is null).
+  ```bash
+  aws pricing get-products --region us-east-1 --service-code AmazonBedrockFoundationModels \
+    --filters 'Type=TERM_MATCH,Field=regionCode,Value=us-east-1'
+  # then: servicename == "Claude Opus 4.8 (Amazon Bedrock Edition)"
+  ```
+- **`aws.amazon.com/bedrock/pricing` will tell you $6.00 / $30.00. That is the GovCloud table.**
+  The commercial-region tables on that page are rendered client-side and do not survive a fetch.
 
-**Get the real rate — do not guess, and do not read it off a blog post:**
+**Why 5.50/27.50 and not 5.00/25.00:** the Price List publishes two on-demand tiers per model,
+"Standard" and "Standard, Global". A `us.` prefix is a **geography-scoped** cross-region profile and
+bills at "Standard"; only a `global.` profile gets the 10%-cheaper "Standard, Global" tier. The old
+5/25 default was the *global* rate — so **every `estUsd` logged before `5656230` understated the
+real bill by exactly 10%**, including the ~$0.49 Mode 2 headline (really ~$0.54).
 
-1. The rate is a function of **the model ID and the region**, which is exactly why it is an env var
-   and not a constant. We are on `BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-8` in `us-east-1`.
-   Note the `us.` prefix: that is a **cross-region inference profile**, and inference profiles can be
-   priced differently from the base model. Price the profile you actually invoke.
+**Reconciled against a real run, so the arithmetic is confirmed, not assumed:** 1,279 in / 634 out
+logged `estUsd: 0.0245`, and `1279/1e6*5.50 + 634/1e6*27.50 = 0.0245`. `logCost()` was always right;
+only its rate was wrong.
 
-2. Read it from AWS, not from memory. Either:
-   - the Bedrock pricing page for **us-east-1**, on-demand, for that exact model; or
-   - the API, which is the auditable answer:
-     ```bash
-     aws pricing get-products --region us-east-1 --service-code AmazonBedrock \
-       --filters 'Type=TERM_MATCH,Field=regionCode,Value=us-east-1' \
-       --query 'PriceList' --output text | grep -i opus
-     ```
-     (`aws pricing` only lives in `us-east-1` and `ap-south-1` — that region flag is the endpoint,
-     not the thing being priced.)
+**Still to do:** set `BEDROCK_USD_PER_MTOK_IN=5.50` / `_OUT=27.50` **on the pod** (the K8s secret
+alongside `LITERATURE_SEARCH_CWIDS`), so a dev run and a prod run agree. The code default now
+matches, so a missing var is no longer a 10% lie — but set them anyway, because the default stops
+being right the moment `BEDROCK_MODEL_ID` changes.
 
-3. Set both vars wherever the pod gets its env (the K8s secret alongside `LITERATURE_SEARCH_CWIDS`),
-   **and locally in `.env.local`**, so a dev run and a prod run agree.
+**A real cost lever, if anyone asks:** switching to `global.anthropic.claude-opus-4-8` is exactly
+10% cheaper (5.00/25.00). It routes to any commercial AWS region, so it is a **data-residency
+call, not a code one** — and the rates would then need to move back to 5.00/25.00.
 
-4. **Then reconcile.** The cost log already emits `model` on every line precisely so a past `estUsd`
-   can be recomputed against a rate discovered later. Take one real `literature-search` log line,
-   multiply its `inputTokens`/`outputTokens` by the true rate, and confirm the new `estUsd` matches.
-   If it does not, the arithmetic in `logCost()` is wrong, not the rate.
-
-Until that is done, treat every dollar figure as **unverified**, and say so out loud to anyone who
-asks. Do not put a cost meter in front of a librarian either way — iteration is the behaviour we
-want, and a running meter teaches them to ration it.
+Do not put a cost meter in front of a librarian either way — iteration is the behaviour we want, and
+a running meter teaches them to ration it.
 
 ## Also before this meets a real user
 
@@ -73,10 +73,13 @@ want, and a running meter teaches them to ration it.
   question and worth re-asking with that fact up front. **Do NOT build a PHI detector**: the obvious
   MRN heuristic is "a 7-10 digit number", which fires on every 8-digit PMID in the seeds field.
 
-- **The nav item is wider than the API gate.** `LITERATURE_SEARCH_CWIDS` gates the route
-  (authoritative), but the sidebar link renders for every Superuser / Curator_All / Reporter_All, so
-  a non-allowlisted user can open the page and hit a visible 403. Narrow the nav, or accept it and
-  make the 403 read like a waiting list rather than an error.
+- ~~**The nav item is wider than the API gate.**~~ **DONE (`5656230`).** One boolean
+  (`literatureAccess`) now rides the JWT and hides the sidebar link; the roster itself never reaches
+  the browser. It is set **outside** the `if (user)` guard in the `jwt` callback, so adding someone
+  to the pilot takes effect on the next token refresh rather than requiring them to log out — check
+  that if you ever touch it. The allowlist parse lives in `controllers/literatureAllowlist.ts`, and
+  an **empty list means the pilot is closed, not open to everyone**. The API is still the real gate:
+  `/literature` remains reachable by URL and still 403s, verified in a browser.
 
 - **The 500s ALB idle timeout is not a promise.** It is a live-read of today's config. If anyone
   retunes the ingress, the three-POST design is what quietly breaks — the 47s synthesis call is the
@@ -173,6 +176,11 @@ cd ~/worktrees/pm-literature-ui && PORT=3000 npm run dev
 `localhost:5000`, which on macOS is answered by AirPlay Receiver with a 403. Exclude it (above) or
 turn AirPlay off.
 
+**`check:literature` can fail with `pubmed retrieval tool HTTP 502`. Re-run it before you debug it.**
+It fired once on 2026-07-13 and passed clean on an immediate re-run — NCBI throttling, surfacing as
+a 502 rather than as the fake zero of bug #1 above. This is the *good* failure mode: loud, not a
+lie. Do not add a retry to paper over it; a 502 that fails the check is the check working.
+
 `.env.local`: `RECITER_PUBMED_API_URL=http://localhost:8083`, `AWS_REGION=us-east-1`,
 `BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-8`, `LITERATURE_SEARCH_CWIDS=paa2013`, and the two
 `BEDROCK_USD_PER_MTOK_*` rates once you have actually looked them up.
@@ -187,11 +195,10 @@ on reciter-dev, which rejects our API key. Literature Search touches none of it.
   https://account.ncbi.nlm.nih.gov/settings/ — but rotate it anyway. It *is* set locally and the
   tool does read it (`PubmedXmlQuery.java:68`, `System.getenv`), which lifts NCBI from 3/s to 10/s.
   Confirm it is set **on the pod** too, or Modes 2-3 will trip the unkeyed limit under real use.
-- **`NARROW_ABOVE = 200` is duplicated**, once in the controller and once in `LiteratureSearch.tsx`,
-  because a *value* import from the controller would drag the Bedrock SDK into the client bundle.
-  Its proper home is `literatureSearch.strategy.ts` (pure, already value-imported by the client).
-  Same story as `RECORD_CAP`/`CAP`. The server is the one that enforces the boundary, so the
-  duplication is cosmetic — but it will rot.
+- ~~**`NARROW_ABOVE = 200` is duplicated**~~ **DONE (`5656230`).** `RECORD_CAP` and `NARROW_ABOVE`
+  now live in `literatureSearch.strategy.ts` and are imported by both sides; the controller
+  re-exports them so `check.js` and the API route keep their single import site. The values did
+  agree, so this closed the latent drift rather than a live bug.
 - `probe-latency.mjs` sits untracked in the worktree. It is how the 2.3s / 28.9s / 47.1s latency
   numbers were measured, and it costs a real Bedrock call to run. Delete it or keep it; it is not
   committed.
