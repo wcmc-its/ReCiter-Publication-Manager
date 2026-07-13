@@ -189,6 +189,23 @@ const untickConcept = (s, ci) => ({
     assert.ok(widened > hits, `unticking a concept must widen the search (${hits} -> ${widened})`)
     console.log(`untick the Depression block: ${hits} -> ${widened} records`)
 
+    // THE MONOTONICITY INVARIANT, and the assertion that would have caught a real bug.
+    //
+    // OR-ing terms INTO a block can only ADD records. `widened >= base` is arithmetic. When it is
+    // violated, the maths is not wrong — THE COUNT IS. A throttled esearch comes back as a
+    // well-formed 0 rather than an error (unkeyed NCBI is 3 req/s and a build fires a dozen
+    // counts), and on 2026-07-13 that produced a suggested widening priced at "+-5,714 records":
+    // countPubmed returned 0 for a query that reliably counts 64,604.
+    //
+    // suggestFixes now refuses to publish a price that violates this, and countPubmed retries a
+    // zero once. This is the check that keeps both honest.
+    const widenedBlockHits = await lit.countPubmed(lit.assembleQuery(widenedDepression))
+    assert.ok(
+        widenedBlockHits >= hits,
+        `widening a block cannot SHRINK the search — the count is untrustworthy (${hits} -> ${widenedBlockHits})`,
+    )
+    console.log(`widen the Depression block:  ${hits} -> ${widenedBlockHits} records (+${widenedBlockHits - hits})`)
+
     fs.rmSync(OUT, { recursive: true, force: true })
     console.log('\nOK - assembleQuery, numberStrategy, the empty-concept rule, and the derived miss-diagnosis all pass')
 })().catch(e => {

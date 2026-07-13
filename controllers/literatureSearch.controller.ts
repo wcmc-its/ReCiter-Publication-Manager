@@ -58,7 +58,20 @@ export type SeedResult = {
 
 // The one PubMed call this mode makes. Bare POST to the Retrieval Tool, which owns the
 // PUBMED_API_KEY and the backoff (PRs #796-800) — modelled on pubmedLookup.controller.ts.
-export async function countPubmed(query: string): Promise<number> {
+//
+// A ZERO IS NOT TO BE TRUSTED ON SIGHT. Observed in a live run 2026-07-13: this route returned
+// 0 for a query that reliably counts 64,604 (ten for ten when re-run by hand). A build fires a
+// dozen counts in a burst — the yield, then one per seed, then one per failing block, then the
+// limits check, then the verify and the price — and unkeyed NCBI allows 3 requests/second. A
+// throttled esearch comes back as a well-formed 0, not an error, so it is indistinguishable
+// from "your strategy found nothing" — the most dangerous possible lie in this feature, and one
+// a librarian has no way to catch.
+//
+// So we retry a zero once. A genuine zero reproduces; a throttled one almost never does. This is
+// belt-and-braces, not the real fix: set PUBMED_API_KEY on the retrieval tool (free, lifts the
+// limit to 10/s). The load-bearing defence is the monotonicity invariant in suggestFixes below —
+// a count that violates arithmetic is a count we refuse to publish.
+export async function countPubmed(query: string, retryOnZero = true): Promise<number> {
     const res = await fetch(reciterConfig.reciterPubmed.searchPubmedCountEndpoint, {
         method: 'POST',
         headers: {
@@ -69,11 +82,23 @@ export async function countPubmed(query: string): Promise<number> {
     })
     if (!res.ok) throw new Error(`pubmed retrieval tool HTTP ${res.status}`)
     const body = await res.text()
-    // The tool returns a bare integer for this route. Guard anyway: a non-numeric body
-    // means the tool changed shape, and silently coercing it to 0 would read as
-    // "your strategy found nothing" — the most dangerous possible lie in this feature.
+    // The tool returns a bare integer for this route. Guard anyway: a non-numeric body means the
+    // tool changed shape, and silently coercing it to 0 would be the same lie by another route.
     const n = Number(body.trim())
     if (!Number.isFinite(n)) throw new Error(`unexpected count payload: ${body.slice(0, 80)}`)
+
+    if (n === 0 && retryOnZero) {
+        await new Promise(r => setTimeout(r, 400))
+        const again = await countPubmed(query, false)
+        if (again !== 0) {
+            console.log(JSON.stringify({
+                tag: 'literature-count-zero-retry',
+                recovered: again,
+                query: query.slice(0, 120),
+            }))
+        }
+        return again
+    }
     return n
 }
 
@@ -481,14 +506,34 @@ export async function suggestFixes(
             // 2. PRICE: what does ticking this ONE line cost? Per-line on purpose — it is exactly
             //    what the checkbox next to it does, so the number is the honest price of that
             //    click.
-            line.costRecords = await countPubmed(assembleQuery(withLine)) - result.hits
+            //
+            //    THE INVARIANT. OR-ing terms into a concept block can only ever ADD records, so
+            //    `widened >= base` is arithmetic, not a hope. When it is violated the COUNT is
+            //    wrong, not the maths — a throttled esearch returns a well-formed 0 (see
+            //    countPubmed). This fired for real: a widened query that truly counts 64,604 came
+            //    back as 0 mid-build, and the page rendered the price as "+-5,714 records".
+            //
+            //    So we refuse to publish a price we cannot stand behind. The LINE still stands —
+            //    it is independently verified to retrieve the seed — it just arrives without a
+            //    number rather than with a fabricated one. Never invent a figure for a librarian
+            //    who is about to make a methods decision on it.
+            const widenedHits = await countPubmed(assembleQuery(withLine))
+            if (widenedHits >= result.hits) {
+                line.costRecords = widenedHits - result.hits
+            } else {
+                console.error(JSON.stringify({
+                    tag: 'literature-price-impossible', pmid: miss.pmid, conceptIndex: ci,
+                    baseHits: result.hits, widenedHits,
+                    why: 'a widening cannot shrink the result set — the count is untrustworthy, price withheld',
+                }))
+            }
 
             out = {
                 ...out,
                 concepts: out.concepts.map((c, i) => i === ci ? { ...c, lines: [...c.lines, line] } : c),
             }
             console.log(JSON.stringify({
-                tag: 'literature-fix', pmid: miss.pmid, conceptIndex: ci, terms, costRecords: line.costRecords,
+                tag: 'literature-fix', pmid: miss.pmid, conceptIndex: ci, terms, costRecords: line.costRecords ?? null,
             }))
         }
     }

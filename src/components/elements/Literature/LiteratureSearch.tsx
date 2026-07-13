@@ -15,7 +15,8 @@
 // current selection — via the pure functions in literatureSearch.strategy.ts, which the server
 // uses too. If the screen and the count could disagree, Mode 1 would be worthless.
 //
-// Styling uses the calm tokens from styles/globals.css. No new visual vocabulary.
+// Styling lives in LiteratureSearch.module.css, lifted from the signed-off form mockup. No
+// inline style objects: the page has a design system now, and it should be edited in one place.
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
@@ -26,6 +27,7 @@ import {
     dateLimits,
     pubTypes,
 } from '../../../../controllers/literatureSearch.strategy'
+import s from './LiteratureSearch.module.css'
 
 type Seed = {
     pmid: string
@@ -51,63 +53,13 @@ type Expert = {
     pubs: number
 }
 
-// CONTRAST. The calm palette's hint gray #8a94a6 measures 3.06:1 on white -- it fails WCAG AA
-// for body text (4.5:1) and, at 11-12px, fails the large-text exception too. Every helper line
-// on this page used it, INCLUDING the "do not include patient identifiers" warning, which made
-// the one line that most needs reading the least legible thing on the screen. Descriptive text
-// now uses the muted token #5a6478 (5.95:1, passes AA). Nothing on this page uses #8a94a6 for
-// text any more -- notably NOT the concept-block line numbers, which look decorative but are
-// how a PRESS peer reviewer cites the strategy ("line 3 AND line 6"). They are content.
-//
-// NOTE: #8a94a6 is the house hint color app-wide (see STYLEGUIDE), so it fails AA on /curate and
-// /authorships too. Fixing it properly is a one-token change in globals.css -- not this page's
-// call to make unilaterally.
-const INK = '#1a2133'      // 16.0:1
-const MUTED = '#5a6478'    //  5.95:1 -- AA for body
-const ACCENT = '#2563a8'
-const BORDER = '#e8e2d9'
-const DIVIDER = '#f0ece5'
-const SUBTLE = '#faf8f5'
-const DANGER_BG = '#fee2e2'
-const DANGER = '#991b1b'
-
-const card: React.CSSProperties = {
-    background: 'var(--color-surface, #fff)',
-    border: `0.5px solid ${BORDER}`,
-    borderRadius: 'var(--radius-md, 6px)',
-    padding: '24px 28px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 20,
-}
-// The uppercase/600/tracked treatment is what marks these as section labels -- the color is not
-// doing that work, so darkening it costs nothing and buys legibility.
-const sec: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.1em',
-    color: MUTED,
-}
-// Helper text is CONTENT, not chrome: it carries the PHI warning and the known-item rationale.
-// 13px/1.5 at AA contrast, rather than 12px of the faintest gray in the palette.
-const hint: React.CSSProperties = { fontSize: 13, lineHeight: 1.5, color: MUTED }
-const mono = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-const input: React.CSSProperties = {
-    font: 'inherit', padding: '10px 12px', border: `0.5px solid ${BORDER}`, borderRadius: 5, resize: 'vertical',
-}
-const btnSoft: React.CSSProperties = {
-    font: 'inherit', fontSize: 12, fontWeight: 600, background: 'rgba(37,99,168,0.1)', color: ACCENT,
-    border: 0, borderRadius: 6, padding: '8px 14px', cursor: 'pointer',
-}
-
 // Only Search strategy is built. Issue review and Clinical question end in a synthesis over
 // retrieved abstracts, so they need the streaming question answered first (and Clinical
 // question carries the highest PHI surface -- PICO invites someone to paste a case).
 const MODES = [
-    { id: 'search-strategy', label: 'Search strategy', hint: 'Recall · uncapped · produces a strategy, not a synthesis', ready: true },
-    { id: 'issue-review', label: 'Issue review', hint: 'Precision · top 50 · narrative synthesis', ready: false },
-    { id: 'clinical-question', label: 'Clinical question', hint: 'Precision · top 50 · PICO answer', ready: false },
+    { id: 'search-strategy', label: 'Search strategy', desc: 'Recall · uncapped · produces a strategy, not a synthesis', ready: true },
+    { id: 'issue-review', label: 'Issue review', desc: 'Precision · top 50 · narrative synthesis', ready: false },
+    { id: 'clinical-question', label: 'Clinical question', desc: 'Precision · top 50 · PICO answer', ready: false },
 ]
 
 const DATABASES = [
@@ -116,11 +68,16 @@ const DATABASES = [
     { id: 'scopus', label: 'Scopus', ready: false },
 ]
 
+// The mockup's rule: a PMID is 5-9 digits. Used for the live seed counter, and it is the same
+// shape the server filters on, so the count on screen is the count that will be validated.
+const PMID = /^\d{5,9}$/
+const parseSeeds = (raw: string) => raw.split(/\s+/).map(x => x.trim()).filter(x => PMID.test(x))
+
 // A term line: editable in place. No click-to-edit mode, no modal, no separate "Edit & re-run"
 // button -- the line IS the input, and every keystroke lands in the same debounced re-count the
-// checkboxes use. That retires the mockup's free-text re-run and its whole failure mode: there
-// is no second copy of the query to get out of sync, and a broken line can only break its own
-// block. Auto-grows because a real MeSH line runs to 600 characters and must not be a slot.
+// checkboxes use. That retires the free-text re-run and its whole failure mode: there is no
+// second copy of the query to get out of sync, and a broken line can only break its own block.
+// Auto-grows because a real MeSH line runs to 600 characters and must not be a slot.
 function LineInput({ value, on, onChange }: { value: string; on: boolean; onChange: (v: string) => void }) {
     const ref = useRef<HTMLTextAreaElement>(null)
     const grow = () => {
@@ -136,12 +93,7 @@ function LineInput({ value, on, onChange }: { value: string; on: boolean; onChan
             onChange={e => onChange(e.target.value)}
             onInput={grow}
             spellCheck={false}
-            style={{
-                flex: 1, minWidth: 0, font: 'inherit', fontFamily: mono, fontSize: 12.5, lineHeight: 1.7,
-                color: on ? INK : MUTED, background: 'transparent', border: 0, borderRadius: 3,
-                padding: '0 4px', margin: '0 -4px', resize: 'none', overflow: 'hidden',
-                outlineOffset: 2,
-            }}
+            className={`${s.lineInput} ${on ? '' : s.lineOff}`}
         />
     )
 }
@@ -174,8 +126,12 @@ export default function LiteratureSearch() {
     const dates = useMemo(dateLimits, [])
     const types = useMemo(pubTypes, [])
 
+    const seedList = parseSeeds(seeds)
+    // The mockup's gate: a question shorter than 8 characters is not a question.
+    const canBuild = question.trim().length >= 8 && !busy
+
     const build = async () => {
-        if (!question.trim() || busy) return
+        if (!canBuild) return
         setBusy(true)
         setErr('')
         try {
@@ -222,9 +178,9 @@ export default function LiteratureSearch() {
                     body: JSON.stringify({ strategy, seeds, dateId, typeId }),
                 })
                 const data = await res.json()
-                // A slower earlier request must never overwrite a newer count. Silently
-                // dropping a stale response is the only correct thing here: the number on
-                // screen has to belong to the strategy on screen.
+                // A slower earlier request must never overwrite a newer count. Silently dropping
+                // a stale response is the only correct thing here: the number on screen has to
+                // belong to the strategy on screen.
                 if (mine !== seq.current) return
                 if (!res.ok) { setErr(data?.message || 'Could not re-count the strategy.'); return }
                 setErr('')
@@ -242,11 +198,11 @@ export default function LiteratureSearch() {
 
     // Keep the limits on the client object in step with the dropdowns, so the line numbering
     // redraws instantly. The server re-derives them from the same ids and the same table —
-    // buildLimits() is shared, which is why the two can't drift.
+    // buildLimits() is shared, which is why the two cannot drift.
     const liveStrategy: Strategy | null = strategy && { ...strategy, limits: buildLimits(dateId, typeId) }
 
     const editConcept = (ci: number, fn: (c: Concept) => Concept) =>
-        setStrategy(s => s && { ...s, concepts: s.concepts.map((c, i) => (i === ci ? fn(c) : c)) })
+        setStrategy(st => st && { ...st, concepts: st.concepts.map((c, i) => (i === ci ? fn(c) : c)) })
 
     const toggle = (ci: number, li: number) =>
         editConcept(ci, c => ({ ...c, lines: c.lines.map((l, j) => (j === li ? { ...l, on: !l.on } : l)) }))
@@ -260,22 +216,20 @@ export default function LiteratureSearch() {
     const newSearch = () => { setStrategy(null); setResult(null); setExperts(null); setErr('') }
 
     // Same reason as the error state above: toast.success was a silent no-op here, so Copy
-    // worked but never said so. Confirm on the button itself -- nothing to mount, nothing to
-    // configure, and the feedback lands where the user is already looking.
+    // worked but never said so. Confirm on the button itself.
     const copy = (text: string, what: string) => {
         navigator.clipboard.writeText(text).then(
             () => {
                 setCopied(what)
                 setTimeout(() => setCopied(c => (c === what ? '' : c)), 1800)
             },
-            // writeText rejects outside a secure context (plain-http over an IP). Say so
-            // rather than looking like a dead button.
+            // writeText rejects outside a secure context (plain-http over an IP). Say so rather
+            // than looking like a dead button.
             () => setErr('Could not copy to the clipboard.'),
         )
     }
 
-    // The PRISMA-S methods block — what goes in the manuscript. This, not a record export, is
-    // what reproducibility actually requires.
+    // The PRISMA-S methods block — what goes in the manuscript.
     //
     // IT IS BUILT FROM `result`, NEVER FROM `strategy`. The exported block must describe the
     // query that produced the count printed beside it. If a librarian unticks two bundles and
@@ -297,72 +251,56 @@ export default function LiteratureSearch() {
             r.query,
             ``,
             r.seeds.length
-                ? `Known-item validation: ${r.seeds.filter(s => s.retrieved).length} of ${r.seeds.length} seed records retrieved (${r.seeds.map(s => s.pmid).join(', ')}).`
+                ? `Known-item validation: ${r.seeds.filter(x => x.retrieved).length} of ${r.seeds.length} seed records retrieved (${r.seeds.map(x => x.pmid).join(', ')}).`
                 : `Known-item validation: not performed.`,
         ].join('\n')
     }
 
-    const retrieved = result ? result.seeds.filter(s => s.retrieved).length : 0
+    const retrieved = result ? result.seeds.filter(x => x.retrieved).length : 0
     const allFound = result && result.seeds.length > 0 && retrieved === result.seeds.length
     const numbered = liveStrategy ? numberStrategy(liveStrategy) : null
-    const seedOf = (pmid?: string) => result?.seeds.find(s => s.pmid === pmid)
-    const nameOf = (s?: Seed) => (s ? s.label || `PMID ${s.pmid}` : '')
+    const seedOf = (pmid?: string) => result?.seeds.find(x => x.pmid === pmid)
+    const nameOf = (x?: Seed) => (x ? x.label || `PMID ${x.pmid}` : '')
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '28px 32px 48px' }}>
+        <div className={s.page}>
             {result ? (
-                <div style={{ fontSize: 12, color: MUTED }}>
-                    Literature Search &nbsp;&rsaquo;&nbsp; <b style={{ color: INK }}>Search strategy</b>
-                </div>
+                <div className={s.crumb}>Literature Search &nbsp;&rsaquo;&nbsp; <b>Search strategy</b></div>
             ) : (
-                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.01em' }}>
-                    Literature Search
-                </h1>
+                <>
+                    <h1 className={s.title}>Literature Search</h1>
+                    <p className={s.sub}>
+                        Build a reproducible search strategy for a systematic review &mdash; not a finished answer.
+                    </p>
+                </>
             )}
 
             {/* THE FORM. Collapses to a one-line summary bar once a strategy exists — on a laptop
                 the deliverable otherwise sits below the fold, under a form nobody is reading any
                 more. "New search" brings it back. */}
             {result ? (
-                <div style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 12, padding: '12px 16px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, background: '#eff6ff', color: '#1d4ed8', borderRadius: 999, padding: '3px 10px', whiteSpace: 'nowrap' }}>
-                        Search strategy
-                    </span>
-                    <span style={{ flex: 1, minWidth: 160, fontSize: 13, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        &ldquo;{question}&rdquo;
-                    </span>
-                    <button
-                        onClick={newSearch}
-                        style={{ font: 'inherit', fontSize: 12, background: 'transparent', color: MUTED, border: `0.5px solid ${BORDER}`, borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}
-                    >
-                        New search
-                    </button>
+                <div className={s.summary}>
+                    <span className={s.chip}>Search strategy</span>
+                    <span className={s.summaryQ}>&ldquo;{question}&rdquo;</span>
+                    <button className={s.btnSecondary} onClick={newSearch}>New search</button>
                 </div>
             ) : (
-                <div style={card}>
+                <div className={s.card}>
                     {/*
                       * The mode is a RETRIEVAL OBJECTIVE, not a template: Search strategy chases
                       * recall and ends in a handoff, the other two chase precision and end in a
                       * synthesis. Only Search strategy is built. The other two are shown DISABLED
                       * rather than hidden, so the scope of what this page does (and does not yet
-                      * do) is legible instead of being a silent omission. No branching behind
-                      * them -- there is nothing to branch to yet.
+                      * do) is legible instead of being a silent omission.
                       */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <span style={sec}>Mode</span>
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <div className={s.field}>
+                        <span className={s.eyebrow}>Mode</span>
+                        <div className={s.modes} role="radiogroup" aria-label="Search mode">
                             {MODES.map(m => (
                                 <label
                                     key={m.id}
                                     htmlFor={`lit-mode-${m.id}`}
-                                    style={{
-                                        flex: '1 1 180px', display: 'flex', alignItems: 'flex-start', gap: 9,
-                                        padding: '12px 14px', borderRadius: 6,
-                                        border: `0.5px solid ${m.ready ? ACCENT : BORDER}`,
-                                        background: m.ready ? 'rgba(37,99,168,0.1)' : 'transparent',
-                                        cursor: m.ready ? 'pointer' : 'not-allowed',
-                                        opacity: m.ready ? 1 : 0.55,
-                                    }}
+                                    className={`${s.mode} ${m.ready ? s.modeSelected : s.modeDisabled}`}
                                 >
                                     <input
                                         id={`lit-mode-${m.id}`}
@@ -371,88 +309,96 @@ export default function LiteratureSearch() {
                                         checked={m.ready}
                                         disabled={!m.ready}
                                         readOnly
-                                        style={{ marginTop: 2, accentColor: ACCENT }}
                                     />
-                                    <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <span style={{ fontSize: 13, fontWeight: 600 }}>
-                                            {m.label}{!m.ready && <span style={{ fontWeight: 400, color: MUTED }}> — soon</span>}
+                                    <span className={s.modeBody}>
+                                        <span className={s.modeTitle}>
+                                            {m.label}{!m.ready && <span className={s.soon}> &mdash; soon</span>}
                                         </span>
-                                        <span style={{ fontSize: 12, lineHeight: 1.4, color: MUTED }}>{m.hint}</span>
+                                        <span className={s.modeDesc}>{m.desc}</span>
                                     </span>
                                 </label>
                             ))}
                         </div>
-                        <div style={hint}>
-                            Search strategy produces a reproducible, peer-reviewable query. Screen and synthesize it
-                            in Covidence.
-                        </div>
+                        <p className={s.help}>
+                            Search strategy produces a reproducible, peer-reviewable query. Screen and synthesize
+                            the results in Covidence.
+                        </p>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label style={sec} htmlFor="lit-q">What do you want to know?</label>
+                    <div className={s.field}>
+                        <label className={s.eyebrow} htmlFor="lit-q">What do you want to know?</label>
                         <textarea
                             id="lit-q"
+                            className={s.input}
                             rows={2}
                             value={question}
                             onChange={e => setQuestion(e.target.value)}
                             placeholder="Do probiotics reduce symptoms of depression in adults?"
-                            style={input}
                         />
-                        <div style={hint}>
+                        <p className={s.help}>
                             Your question is sent to an external AI service &mdash; do not include patient identifiers.
-                        </div>
+                        </p>
                     </div>
 
                     {/*
                       * Embase and Scopus are visible-but-disabled on purpose. It sets the
                       * expectation, and it keeps the query artifact an ARRAY of per-database
-                      * results rather than letting a scalar sneak in -- adding a database should
-                      * push an element, not change every consumer.
+                      * results rather than letting a scalar sneak in.
                       */}
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 20, flexWrap: 'wrap' }}>
-                        <span style={sec}>Databases</span>
-                        {DATABASES.map(d => (
-                            <label
-                                key={d.id}
-                                htmlFor={`lit-db-${d.id}`}
-                                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, opacity: d.ready ? 1 : 0.5, cursor: 'not-allowed' }}
-                            >
-                                <input id={`lit-db-${d.id}`} type="checkbox" checked={d.ready} disabled readOnly style={{ accentColor: ACCENT }} />
-                                {d.label}
-                                {!d.ready && <span style={{ color: MUTED }}>(soon)</span>}
-                            </label>
-                        ))}
+                    <div className={s.field}>
+                        <span className={s.eyebrow}>Databases</span>
+                        <div className={s.dbRow}>
+                            {DATABASES.map(d => (
+                                <label
+                                    key={d.id}
+                                    htmlFor={`lit-db-${d.id}`}
+                                    className={`${s.db} ${d.ready ? '' : s.dbOff}`}
+                                >
+                                    <input id={`lit-db-${d.id}`} type="checkbox" checked={d.ready} disabled readOnly />
+                                    {d.label}
+                                    {!d.ready && <span className={s.soon}>(soon)</span>}
+                                </label>
+                            ))}
+                        </div>
                     </div>
 
-                    <div style={{ borderLeft: '2px solid rgba(37,99,168,0.1)', paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label style={sec} htmlFor="lit-seeds">Known-item seeds</label>
+                    {/* THE RECALL CONTRACT. The seed count is live and turns green once armed —
+                        a strategy with no seeds cannot be validated, and the pill is the cheapest
+                        possible way to say so before the librarian has spent a model call. */}
+                    <div className={s.requirement}>
+                        <div className={s.reqHead}>
+                            <label className={s.eyebrow} htmlFor="lit-seeds">Known-item seeds</label>
+                            <span className={`${s.seedCount} ${seedList.length ? s.seedCountArmed : ''}`}>
+                                {seedList.length === 1 ? '1 seed' : `${seedList.length} seeds`}
+                            </span>
+                        </div>
                         {/* 5 rows, not 2: the librarian names 3-5 seeds, and at 2 rows the first PMID
                             scrolled out of its own box the moment a fourth was added. */}
                         <textarea
                             id="lit-seeds"
+                            className={`${s.input} ${s.mono}`}
                             rows={5}
                             value={seeds}
                             onChange={e => setSeeds(e.target.value)}
-                            placeholder="PMIDs, one per line &mdash; papers this search MUST retrieve"
-                            style={{ ...input, fontFamily: mono, fontSize: 13 }}
+                            placeholder="PMIDs, one per line — papers this search MUST retrieve"
                         />
-                        <div style={hint}>
-                            We run the strategy and report whether each one came back. A strategy that misses a known
-                            include is broken.
-                        </div>
+                        <p className={s.help}>
+                            We run the strategy and report whether each one came back.{' '}
+                            <b>A strategy that misses a known include is broken.</b>
+                        </p>
                     </div>
 
-                    <div style={{ borderLeft: '2px solid rgba(37,99,168,0.1)', paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label style={sec} htmlFor="lit-crit">Inclusion / exclusion criteria &mdash; optional</label>
+                    <div className={s.requirement}>
+                        <label className={s.eyebrow} htmlFor="lit-crit">Inclusion / exclusion criteria &mdash; optional</label>
                         <textarea
                             id="lit-crit"
+                            className={s.input}
                             rows={2}
                             value={criteria}
                             onChange={e => setCriteria(e.target.value)}
                             placeholder="e.g. RCTs only; adults; validated depression scales; exclude preclinical"
-                            style={input}
                         />
-                        <div style={hint}>Shapes the query.</div>
+                        <p className={s.help}>Shapes the query.</p>
                     </div>
 
                     {/*
@@ -461,92 +407,74 @@ export default function LiteratureSearch() {
                       * hole in the one thing this mode promises. The ids resolve to PubMed syntax
                       * server-side, by a table both ends share.
                       */}
-                    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                            <label style={{ fontSize: 12, color: MUTED }} htmlFor="lit-date">Date</label>
-                            <select id="lit-date" value={dateId} onChange={e => setDateId(e.target.value)}
-                                style={{ font: 'inherit', fontSize: 13, padding: '7px 10px', border: `0.5px solid ${BORDER}`, borderRadius: 5, background: '#fff' }}>
+                    <div className={s.controls}>
+                        <div className={s.control}>
+                            <label htmlFor="lit-date">Date</label>
+                            <select id="lit-date" className={s.input} value={dateId} onChange={e => setDateId(e.target.value)}>
                                 {dates.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
                             </select>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                            <label style={{ fontSize: 12, color: MUTED }} htmlFor="lit-type">Publication type</label>
-                            <select id="lit-type" value={typeId} onChange={e => setTypeId(e.target.value)}
-                                style={{ font: 'inherit', fontSize: 13, padding: '7px 10px', border: `0.5px solid ${BORDER}`, borderRadius: 5, background: '#fff' }}>
+                        <div className={s.control}>
+                            <label htmlFor="lit-type">Publication type</label>
+                            <select id="lit-type" className={s.input} value={typeId} onChange={e => setTypeId(e.target.value)}>
                                 {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                             </select>
                         </div>
-                        <span style={{ flex: 1 }} />
-                        <button
-                            onClick={build}
-                            disabled={busy || !question.trim()}
-                            style={{
-                                font: 'inherit', fontSize: 13, fontWeight: 600,
-                                background: busy ? MUTED : INK,
-                                color: '#fff', border: 0, borderRadius: 6, padding: '10px 20px',
-                                cursor: busy || !question.trim() ? 'default' : 'pointer',
-                                opacity: !question.trim() ? 0.5 : 1,
-                            }}
-                        >
+                        <span className={s.spacer} />
+                        <button className={s.btn} onClick={build} disabled={!canBuild}>
                             {busy ? 'Building strategy…' : 'Build strategy'}
                         </button>
                     </div>
 
-                    <div style={hint}>
+                    <p className={s.capNote}>
                         <b>No result cap in this mode.</b> A systematic-review search is designed to over-retrieve:
                         a 5,000-record yield is a success, not an error.
-                    </div>
+                    </p>
                 </div>
             )}
 
-            {err && (
-                <div role="alert" style={{ fontSize: 13, background: DANGER_BG, color: DANGER, borderRadius: 4, padding: '10px 14px' }}>
-                    {err}
-                </div>
-            )}
+            {err && <div role="alert" className={s.error}>{err}</div>}
 
             {result && liveStrategy && numbered && (
                 <>
                     {/* THE DELIVERABLE — PRESS-numbered, line by line, every atomic line toggleable
                         and editable. This is the form a strategy is peer-reviewed in, and it is
                         also the only form a checkbox can sit on. */}
-                    <div style={{ border: `0.5px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', background: '#fff' }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '12px 16px', background: SUBTLE, borderBottom: `0.5px solid ${BORDER}` }}>
-                            <span style={{ ...sec, color: INK }}>PubMed</span>
-                            <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', opacity: recounting ? 0.45 : 1 }}>
-                                {result.hits.toLocaleString()} <span style={{ fontWeight: 400, color: MUTED }}>records</span>
+                    <section className={s.panel} aria-live="polite">
+                        <div className={s.panelHead}>
+                            <h2 className={s.panelTitle}>PubMed</h2>
+                            <span className={`${s.hits} ${recounting ? s.hitsStale : ''}`}>
+                                {result.hits.toLocaleString()} <span>records</span>
                             </span>
-                            {recounting && <span style={{ fontSize: 12, color: MUTED }} aria-live="polite">re-counting…</span>}
+                            {recounting && <span className={s.recounting}>re-counting…</span>}
                         </div>
 
-                        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div className={s.lines}>
                             {numbered.rows.map((row, i) => {
-                                // A combination line (6 = 4 OR 5) is DERIVED. It has no checkbox because
-                                // there is nothing to decide about it: it recomputes from the lines above.
+                                // A combination line (6 = 4 OR 5) is DERIVED. No checkbox: there is
+                                // nothing to decide about it, it recomputes from the lines above.
                                 if (row.kind === 'combine') {
                                     return (
-                                        <div key={`c${i}`} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontFamily: mono, fontSize: 12.5, lineHeight: 1.7, color: MUTED }}>
-                                            <span style={{ width: 18 }} />
-                                            <span style={{ minWidth: 20, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{row.n}</span>
-                                            <span style={{ padding: '0 4px' }}>{row.text}</span>
+                                        <div className={s.line} key={`c${i}`}>
+                                            <span style={{ width: 16, flexShrink: 0 }} />
+                                            <span className={s.lineNum}>{row.n}</span>
+                                            <span className={s.combine}>{row.text}</span>
                                         </div>
                                     )
                                 }
 
                                 const seed = seedOf(row.line.suggestedFor)
                                 return (
-                                    <div key={`t${row.ci}-${row.li}`} style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                                    <div key={`t${row.ci}-${row.li}`}>
+                                        <div className={s.line}>
                                             <input
                                                 type="checkbox"
+                                                className={s.lineCheck}
                                                 checked={row.line.on}
                                                 onChange={() => toggle(row.ci, row.li)}
                                                 aria-label={`Include line: ${row.line.terms.slice(0, 60)}`}
-                                                style={{ width: 18, accentColor: ACCENT, cursor: 'pointer', alignSelf: 'center' }}
                                             />
-                                            <span style={{ minWidth: 20, textAlign: 'right', flexShrink: 0, fontFamily: mono, fontSize: 12.5, lineHeight: 1.7, color: MUTED, fontVariantNumeric: 'tabular-nums', userSelect: 'none' }}>
-                                                {row.n ?? '·'}
-                                            </span>
+                                            <span className={s.lineNum}>{row.n ?? '·'}</span>
                                             <LineInput
                                                 value={row.line.terms}
                                                 on={row.line.on}
@@ -554,11 +482,11 @@ export default function LiteratureSearch() {
                                             />
                                         </div>
                                         {/* The model's proposed widening: a LINE, not a paragraph. Verified
-                                            (it really does retrieve that seed) and priced (what ticking it
-                                            costs in records to screen). That trade is the judgment the
-                                            librarian is here to make, and now it is one click. */}
+                                            (it really does retrieve that seed, against the whole strategy)
+                                            and priced (what ticking it costs in records to screen). That
+                                            trade is the judgment the librarian is here to make. */}
                                         {row.line.suggestedFor && !row.line.on && (
-                                            <div style={{ marginLeft: 46, marginBottom: 4, fontSize: 12, color: ACCENT }}>
+                                            <div className={s.suggest}>
                                                 Suggested: retrieves {nameOf(seed)}
                                                 {typeof row.line.costRecords === 'number' && (
                                                     <> &middot; <b>+{row.line.costRecords.toLocaleString()} records</b> to screen</>
@@ -570,190 +498,178 @@ export default function LiteratureSearch() {
                             })}
 
                             {!numbered.rows.some(r => r.kind === 'term' && r.n !== null) && (
-                                <div style={{ fontSize: 13, color: DANGER, padding: '8px 0' }}>
-                                    Nothing is ticked, so there is no strategy to run.
-                                </div>
+                                <div className={s.empty}>Nothing is ticked, so there is no strategy to run.</div>
                             )}
 
-                            <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
-                                <span style={{ width: 18 }} />
+                            <div className={s.addLines}>
                                 {liveStrategy.concepts.map((c, ci) => (
-                                    <button
-                                        key={ci}
-                                        onClick={() => addLine(ci)}
-                                        style={{ font: 'inherit', fontSize: 12, background: 'transparent', color: ACCENT, border: 0, padding: 0, cursor: 'pointer' }}
-                                    >
+                                    <button key={ci} className={s.addLine} onClick={() => addLine(ci)}>
                                         + line to {c.label}
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px', borderTop: `1px solid ${DIVIDER}`, fontSize: 12, color: MUTED }}>
+                        <div className={s.panelFoot}>
                             <span>Run {result.runDate}{result.limits ? ` · limits: ${result.limits}` : ' · no limits'}</span>
-                            <span style={{ flex: 1 }} />
-                            <span style={{ fontSize: 12 }}>Tick, untick or edit any line &mdash; it re-counts for free.</span>
+                            <span className={s.spacer} />
+                            <span>Tick, untick or edit any line &mdash; it re-counts for free.</span>
                             <button
-                                onClick={() => copy(result.query, 'Boolean query')}
-                                aria-live="polite"
+                                className={`${s.btnSecondary} ${copied === 'query' ? s.btnSecondaryDone : ''}`}
+                                onClick={() => copy(result.query, 'query')}
                                 disabled={!result.query}
-                                style={{ ...btnSoft, background: copied === 'Boolean query' ? '#dcfce7' : 'rgba(37,99,168,0.1)', color: copied === 'Boolean query' ? '#166534' : ACCENT }}
                             >
-                                {copied === 'Boolean query' ? '✓ Copied' : 'Copy'}
+                                {copied === 'query' ? '✓ Copied' : 'Copy query'}
                             </button>
                         </div>
-                    </div>
+                    </section>
 
-                    {/* A Cochrane-compliant search needs Embase and CENTRAL too. The card is here to
-                        say so out loud — and to keep the artifact an array. */}
-                    <div style={{ border: `0.5px dashed ${BORDER}`, borderRadius: 6, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                            <span style={{ ...sec }}>Embase</span>
-                            <span style={{ marginLeft: 'auto', fontSize: 12, color: MUTED }}>not searched</span>
+                    {/* A Cochrane-compliant search needs Embase and CENTRAL too. The card says so
+                        out loud — and keeps the artifact an array. */}
+                    <div className={s.pending}>
+                        <div className={s.pendingHead}>
+                            <span className={s.eyebrow}>Embase</span>
+                            <span className={s.expertsCount}>not searched</span>
                         </div>
-                        <div style={{ fontSize: 13, color: MUTED }}>
+                        <div className={s.pendingNote}>
                             A Cochrane-compliant search needs Embase and CENTRAL too. Coming soon.
                         </div>
                     </div>
 
                     {/* KNOWN-ITEM VALIDATION — the thing that makes an LLM-drafted Boolean defensible. */}
-                    {result.seeds.length > 0 && (
-                        <div style={card}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                                <span style={sec}>Known-item validation</span>
-                                <span style={{
-                                    marginLeft: 'auto', fontSize: 12, fontVariantNumeric: 'tabular-nums',
-                                    fontWeight: allFound ? 400 : 600,
-                                    color: allFound ? MUTED : DANGER,
-                                    opacity: recounting ? 0.45 : 1,
-                                }}>
+                    <div className={`${s.card} ${s.validation}`}>
+                        <div className={s.valHead}>
+                            <span className={s.eyebrow}>Known-item validation</span>
+                            {result.seeds.length > 0 && (
+                                <span className={`${s.valScore} ${allFound ? '' : s.valScoreWarn} ${recounting ? s.hitsStale : ''}`}>
                                     {retrieved} of {result.seeds.length} retrieved
                                 </span>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                {result.seeds.map(s => {
-                                    const failing = (s.failingConcepts || [])
-                                        .map(i => ({ label: result.concepts[i]?.label, lines: numbered.conceptLines[i] || [] }))
-                                        .filter(f => f.label)
-                                    return (
-                                        <div key={s.pmid} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 0', borderBottom: `1px solid ${DIVIDER}`, flexWrap: 'wrap', fontSize: 13 }}>
-                                            <span style={{ width: 16, fontWeight: 600, textAlign: 'center', color: s.retrieved ? '#166534' : DANGER }}>
-                                                {s.retrieved ? '✓' : '✗'}
-                                            </span>
-                                            {/* Author + year, not a bare PMID: a librarian who named four seeds
-                                                cannot tell which paper missed from an 8-digit number. */}
-                                            {s.label && <span style={{ fontWeight: 600 }}>{s.label}</span>}
-                                            <span style={{ fontFamily: mono, fontSize: 12, color: MUTED, fontVariantNumeric: 'tabular-nums' }}>
-                                                PMID {s.pmid}
-                                            </span>
-                                            {!s.retrieved && (
-                                                <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: DANGER }}>
-                                                    Not retrieved
-                                                </span>
-                                            )}
-                                            {/* The reason is DERIVED by re-counting the seed against each block, never
-                                                guessed by the model. A hallucinated reason would be worse than none. */}
-                                            {/* A paper can fail a block AND the limits at once, so both are
-                                                reported. Naming only the block would send a librarian off to
-                                                widen a search that still cannot return the paper. */}
-                                            {!s.retrieved && (
-                                                <span style={{ flexBasis: '100%', marginLeft: 26, marginTop: 5, fontSize: 12, lineHeight: 1.5, background: DANGER_BG, color: DANGER, borderRadius: 4, padding: '8px 12px' }}>
-                                                    {!failing.length && !s.failsLimits && (
-                                                        <>Nothing is ticked, so there is no strategy to retrieve it.</>
-                                                    )}
-                                                    {failing.length > 0 && (
-                                                        <>
-                                                            Excluded by the{' '}
-                                                            {failing.map((f, k) => (
-                                                                <span key={k}>
-                                                                    {k > 0 && ' and '}
-                                                                    <b>{f.label}</b>
-                                                                    {f.lines.length > 0 && (f.lines.length > 1
-                                                                        ? ` (lines ${f.lines[0]}–${f.lines[f.lines.length - 1]})`
-                                                                        : ` (line ${f.lines[0]})`)}
-                                                                </span>
-                                                            ))}
-                                                            {failing.length > 1 ? ' blocks' : ' block'}.{' '}
-                                                        </>
-                                                    )}
-                                                    {s.failsLimits && (
-                                                        <>
-                                                            {failing.length > 0 && <>It also fails your </>}
-                                                            {failing.length === 0 && <>It matches every block you have ticked, so your </>}
-                                                            <b>limits</b>
-                                                            {failing.length > 0
-                                                                ? <>, so widening the {failing.length > 1 ? 'blocks' : 'block'} alone will not bring it back &mdash; change the date range or publication type above.</>
-                                                                : <> are what exclude it &mdash; change the date range or publication type above.</>}
-                                                        </>
-                                                    )}
-                                                    {failing.length > 0 && !s.failsLimits && (
-                                                        <>Widen {failing.length > 1 ? 'them' : 'it'} to retrieve this paper &mdash; a
-                                                            suggested line may already be waiting, unticked, in the strategy above.</>
-                                                    )}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-
-                            {/* Only advise widening when a BLOCK is actually the problem. Telling a
-                                librarian to widen a block when the limits are what exclude the paper
-                                sends them to spend records on a search that still cannot return it. */}
-                            {!allFound && result.seeds.some(s => !s.retrieved && s.failingConcepts?.length) && (
-                                <div style={hint}>
-                                    A strategy that misses a known include is not yet finished. Widen the failing
-                                    block &mdash; the yield will grow, and that is the trade.
-                                </div>
                             )}
                         </div>
-                    )}
+
+                        {/* NO SEEDS = NO RECALL CHECK. Saying so is the whole ethic of this feature:
+                            an unvalidated strategy is a guess, and a guess that stays quiet reads
+                            exactly like a strategy that passed. */}
+                        {result.seeds.length === 0 ? (
+                            <div className={s.recallLine}>
+                                <span className={`${s.dot} ${s.dotWarn}`} />
+                                <span>
+                                    No known-item seeds provided &mdash; <b>recall cannot be verified.</b> Add PMIDs
+                                    of papers this search must retrieve, and re-run, to make this strategy testable.
+                                </span>
+                            </div>
+                        ) : (
+                            <>
+                                <div className={s.seeds}>
+                                    {result.seeds.map(x => {
+                                        const failing = (x.failingConcepts || [])
+                                            .map(i => ({ label: result.concepts[i]?.label, lines: numbered.conceptLines[i] || [] }))
+                                            .filter(f => f.label)
+                                        return (
+                                            <div className={s.seed} key={x.pmid}>
+                                                <span className={`${s.seedMark} ${x.retrieved ? s.seedHit : s.seedMiss}`}>
+                                                    {x.retrieved ? '✓' : '✗'}
+                                                </span>
+                                                {/* Author + year, not a bare PMID: a librarian who named four
+                                                    seeds cannot tell which paper missed from an 8-digit number. */}
+                                                {x.label && <span className={s.seedName}>{x.label}</span>}
+                                                <span className={s.seedId}>PMID {x.pmid}</span>
+                                                {!x.retrieved && <span className={s.verdict}>Not retrieved</span>}
+
+                                                {/* The reason is DERIVED by re-counting the seed against each
+                                                    block AND the limits, never guessed by the model. A paper can
+                                                    fail both at once, so both are reported — naming only the
+                                                    block sends a librarian off to widen a search that still
+                                                    cannot return it. */}
+                                                {!x.retrieved && (
+                                                    <span className={s.why}>
+                                                        {!failing.length && !x.failsLimits && (
+                                                            <>Nothing is ticked, so there is no strategy to retrieve it.</>
+                                                        )}
+                                                        {failing.length > 0 && (
+                                                            <>
+                                                                Excluded by the{' '}
+                                                                {failing.map((f, k) => (
+                                                                    <span key={k}>
+                                                                        {k > 0 && ' and '}
+                                                                        <b>{f.label}</b>
+                                                                        {f.lines.length > 0 && (f.lines.length > 1
+                                                                            ? ` (lines ${f.lines[0]}–${f.lines[f.lines.length - 1]})`
+                                                                            : ` (line ${f.lines[0]})`)}
+                                                                    </span>
+                                                                ))}
+                                                                {failing.length > 1 ? ' blocks' : ' block'}.{' '}
+                                                            </>
+                                                        )}
+                                                        {x.failsLimits && (
+                                                            <>
+                                                                {failing.length > 0 ? <>It also fails your </> : <>It matches every block you have ticked, so your </>}
+                                                                <b>limits</b>
+                                                                {failing.length > 0
+                                                                    ? <>, so widening the {failing.length > 1 ? 'blocks' : 'block'} alone will not bring it back &mdash; change the date range or publication type.</>
+                                                                    : <> are what exclude it &mdash; change the date range or publication type.</>}
+                                                            </>
+                                                        )}
+                                                        {failing.length > 0 && !x.failsLimits && (
+                                                            <>Widen {failing.length > 1 ? 'them' : 'it'} to retrieve this paper &mdash; a
+                                                                suggested line may already be waiting, unticked, in the strategy above.</>
+                                                        )}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                {allFound ? (
+                                    <div className={s.recallLine}>
+                                        <span className={s.dot} />
+                                        <span>Every known include came back. This strategy is validated against its seeds.</span>
+                                    </div>
+                                ) : (
+                                    result.seeds.some(x => !x.retrieved && x.failingConcepts?.length) && (
+                                        <p className={s.help}>
+                                            A strategy that misses a known include is not yet finished. Widen the failing
+                                            block &mdash; the yield will grow, and that is the trade.
+                                        </p>
+                                    )
+                                )}
+                            </>
+                        )}
+                    </div>
 
                     {/* AT WEILL CORNELL — works with no records at all, straight off the query's MeSH. */}
                     {experts && experts.experts.length > 0 && (
-                        <div style={{ ...card, padding: 0, overflow: 'hidden', gap: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '14px 20px', background: SUBTLE, borderBottom: `0.5px solid ${BORDER}` }}>
-                                <span style={sec}>At Weill Cornell</span>
-                                <span style={{ marginLeft: 'auto', fontSize: 12, color: MUTED }}>
-                                    top {experts.experts.length} of <b>{experts.total.toLocaleString()}</b> faculty publishing on these MeSH terms
+                        <div className={`${s.card} ${s.experts}`}>
+                            <div className={s.expertsHead}>
+                                <span className={s.eyebrow}>At Weill Cornell</span>
+                                <span className={s.expertsCount}>
+                                    top {experts.experts.length} of <b>{experts.total.toLocaleString()}</b> faculty
+                                    publishing on these MeSH terms
                                 </span>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', padding: '4px 20px 8px' }}>
+                            <div className={s.expertsList}>
                                 {experts.experts.map(e => (
-                                    <div key={e.personIdentifier} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '9px 0', borderBottom: `1px solid ${DIVIDER}` }}>
-                                        <span style={{ fontWeight: 600, fontSize: 13, color: ACCENT }}>
-                                            {e.firstName} {e.lastName}
-                                        </span>
-                                        <span style={{ fontSize: 12, color: MUTED, fontStyle: e.primaryOrganizationalUnit ? 'normal' : 'italic' }}>
+                                    <div className={s.expert} key={e.personIdentifier}>
+                                        <span className={s.expertName}>{e.firstName} {e.lastName}</span>
+                                        <span className={`${s.expertDept} ${e.primaryOrganizationalUnit ? '' : s.expertDeptBlank}`}>
                                             {e.primaryOrganizationalUnit || 'department not recorded'}
                                         </span>
-                                        <span style={{ marginLeft: 'auto', fontSize: 12, color: MUTED, fontVariantNumeric: 'tabular-nums' }}>
-                                            {e.pubs} pubs
-                                        </span>
+                                        <span className={s.expertPubs}>{e.pubs} pubs</span>
                                     </div>
                                 ))}
                             </div>
-                            <div style={{ padding: '10px 20px 14px', fontSize: 12, color: MUTED, background: SUBTLE, borderTop: `0.5px solid ${BORDER}` }}>
-                                Ranked by accepted publications.
-                            </div>
+                            <div className={s.expertsFoot}>Ranked by accepted publications.</div>
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        <span style={{ flex: 1 }} />
+                    <div className={s.actions}>
                         <button
-                            onClick={() => copy(prismaBlock(result), 'PRISMA-S methods block')}
-                            aria-live="polite"
+                            className={s.btn}
+                            onClick={() => copy(prismaBlock(result), 'prisma')}
                             disabled={recounting || !result.query}
-                            style={{
-                                font: 'inherit', fontSize: 13, fontWeight: 600,
-                                background: copied === 'PRISMA-S methods block' ? '#166534' : INK,
-                                color: '#fff', border: 0, borderRadius: 6, padding: '10px 20px',
-                                cursor: recounting ? 'default' : 'pointer', opacity: recounting ? 0.5 : 1,
-                            }}
                         >
-                            {copied === 'PRISMA-S methods block' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
+                            {copied === 'prisma' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
                         </button>
                     </div>
                 </>
