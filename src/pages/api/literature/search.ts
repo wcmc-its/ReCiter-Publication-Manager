@@ -73,7 +73,10 @@ import {
     Sort,
     UsageLog,
 } from '../../../../controllers/literatureSearch.controller'
-import { buildLimits, picoQuestion, picoComplete, Pico } from '../../../../controllers/literatureSearch.strategy'
+import {
+    buildLimits, picoQuestion, picoComplete, parseSeeds, conceptsOf,
+    Pico, Db, Seed, Rendering,
+} from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
 import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
 
@@ -138,7 +141,7 @@ function parseStrategy(raw: any): Strategy {
     if (!raw || !Array.isArray(raw.concepts) || !raw.concepts.length || raw.concepts.length > MAX_CONCEPTS) {
         throw new Error('malformed strategy')
     }
-    const concepts: Concept[] = raw.concepts.map((c: any) => {
+    const concepts: Rendering[] = raw.concepts.map((c: any) => {
         if (!Array.isArray(c?.lines) || c.lines.length > MAX_LINES) throw new Error('malformed strategy')
         return {
             label: String(c.label ?? '').slice(0, 120),
@@ -154,9 +157,13 @@ function parseStrategy(raw: any): Strategy {
             }),
         }
     })
+    // WHICH DATABASE the posted strategy belongs to. Resolved to a known Db, never trusted as text:
+    // an unknown value falls back to PubMed rather than reaching a dialect lookup that is not there.
+    const db: Db = raw?.db === 'scopus' ? 'scopus' : 'pubmed'
     // Limits are resolved from ids server-side (see buildLimits) and never accepted as text —
-    // otherwise a re-count could run a query the build path could not have produced.
-    return { db: 'pubmed', concepts, limits: buildLimits(String(raw.dateId ?? ''), String(raw.typeId ?? '')) }
+    // otherwise a re-count could run a query the build path could not have produced. They are
+    // resolved in THIS database's syntax, so a Scopus re-count cannot end up carrying PubMed limits.
+    return { db, concepts, limits: buildLimits(db, String(raw.dateId ?? ''), String(raw.typeId ?? '')).terms }
 }
 
 // The MeSH descriptors the strategy targets, for the "At Weill Cornell" panel. Pulled
@@ -183,7 +190,7 @@ const NOT_A_TOPIC = new Set([
     'adult', 'adolescent', 'aged', 'child', 'infant', 'middle aged', 'young adult',
 ])
 
-function meshFromConcepts(concepts: Concept[]): string[] {
+function meshFromConcepts(concepts: Rendering[]): string[] {
     const found = new Set<string>()
     for (const c of concepts) {
         for (const line of c.lines) {
@@ -225,11 +232,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
     }
 
-    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, strategy: edited } = req.body || {}
+    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, strategy: edited } = req.body || {}
 
-    const seedPmids: string[] = Array.isArray(seeds)
-        ? seeds
-        : String(seeds || '').split(/[\s,]+/).filter(Boolean)
+    // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
+    // has no PMID at all, and a PMID-keyed seed check could only ever validate the half of Scopus
+    // that PubMed already covers. See parseSeeds.
+    const seedList: Seed[] = parseSeeds(seeds)
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
     if (phase === 'screen') {
@@ -310,7 +318,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // pressed Retrieve would look exactly like a search that found nothing.
     if (edited && !proceed) {
         try {
-            const result = await runStrategy(parseStrategy({ ...edited, dateId, typeId }), seedPmids)
+            const recounted = parseStrategy({ ...edited, dateId, typeId })
+            const { unsupported } = buildLimits(recounted.db, String(dateId ?? ''), String(typeId ?? ''))
+            const result = await runStrategy(recounted, seedList, unsupported)
             return res.status(200).send({ statusCode: 200, databases: [result] })
         } catch (err: any) {
             console.error('[literature] recount failed:', err)
@@ -328,7 +338,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (mode === 'issue-review' || mode === 'clinical-question') {
         const isPico = mode === 'clinical-question'
         try {
-            const limits = buildLimits(String(dateId ?? ''), String(typeId ?? ''))
+            // Modes 2 and 3 are PUBMED ONLY — they order records by an evidence tier derived from
+            // PubMed's publication-type indexing, which Scopus does not have.
+            const { terms: limits } = buildLimits('pubmed', String(dateId ?? ''), String(typeId ?? ''))
             // An unknown sort resolves to relevance, never to a guess — same rule as buildLimits.
             // Relevance is the default because it is what makes a 50-cap defensible: the top 50 of
             // a 300-hit precision search by PubMed's Best Match is a reading list; the newest 50
@@ -430,32 +442,76 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        // The limits are OURS, not the model's: resolved from the two dropdown ids into PubMed
-        // syntax by a server-side table. See buildLimits().
-        const limits = buildLimits(String(dateId ?? ''), String(typeId ?? ''))
+        // WHICH DATABASES. PubMed is always in — it is the only one every mode can use — and Scopus
+        // joins it when ticked. Mode 1 ONLY, and that restriction is principled rather than
+        // unfinished: Modes 2 and 3 order records by their evidence tier, which is derived from
+        // PubMed's publication-type indexing, and Scopus HAS NO SUCH INDEX (probed: DOCTYPE(rct)
+        // returns 0 — there is no RCT document type). A Scopus "clinical answer" would have no
+        // evidence hierarchy underneath it at all, which is the one thing Mode 3 is for.
+        const dbs: Db[] = ['pubmed', ...(Array.isArray(databases) && databases.includes('scopus') ? ['scopus' as Db] : [])]
 
-        const { strategy, usage } = await buildStrategy(String(question), limits, criteria)
+        // ONE STRATEGY PER DATABASE, SHARING ONLY THE CONCEPT LABELS.
+        //
+        // PubMed goes first and its concept LABELS become the shared spine. Scopus is then drafted
+        // from the ORIGINAL QUESTION, in native Scopus, told only which ideas to cover. Its terms
+        // are never derived from PubMed's — there is no MeSH -> Scopus map here and there must
+        // never be one. See SCOPUS_PROMPT and the note on the Concept/Rendering split.
+        const results: any[] = []
+        let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+        let spine: Concept[] | undefined
+        let pubmedStrategy: Strategy | undefined
+        let pubmedRecords: Record<string, any> = {}
 
-        // Counts + known-item validation. No records are retrieved, so this is cheap and
-        // scales to a 15,000-hit strategy.
-        let result = await runStrategy(strategy, seedPmids)
+        for (const db of dbs) {
+            // The limits are OURS, not the model's: resolved from the two dropdown ids into THIS
+            // database's syntax by the dialect table. A limit this database cannot express comes
+            // back named in `unsupported` — never silently dropped, because a Scopus count run
+            // without the "RCT only" the librarian asked for answers a broader question than the
+            // PubMed count printed beside it.
+            const { terms: limits, unsupported } = buildLimits(db, String(dateId ?? ''), String(typeId ?? ''))
 
-        // Fetch the seed records themselves — one bounded call, never fatal. This buys the
-        // author+year label AND the title/MeSH the fix model needs in order to see the paper it
-        // is being asked to widen for.
-        const records = await seedRecords(result.seeds.map(s => s.pmid))
-        result = { ...result, seeds: result.seeds.map(s => ({ ...s, label: records[s.pmid]?.label })) }
+            const built = await buildStrategy(String(question), limits, criteria, 'recall', undefined, db, spine)
+            usage = {
+                inputTokens: usage.inputTokens + built.usage.inputTokens,
+                outputTokens: usage.outputTokens + built.usage.outputTokens,
+            }
+            if (!spine) spine = conceptsOf(built.strategy)
 
-        // For anything it missed: ask the model for the terms that would retrieve it, VERIFY
-        // that they do, PRICE what they cost, and hand the result back as an unticked line in
-        // the block it belongs to. Advice the librarian can inspect and reject, not a paragraph.
-        const fixed = await suggestFixes(strategy, result, records)
-        result = { ...result, concepts: fixed.strategy.concepts }
+            // Counts + known-item validation. No records are retrieved, so this is cheap and
+            // scales to a 15,000-hit strategy — in either database.
+            let result = await runStrategy(built.strategy, seedList, unsupported)
 
-        // The expert panel works with no records at all — straight off the query's MeSH.
+            if (db === 'pubmed') {
+                // Fetch the seed records themselves — one bounded call, never fatal. This buys the
+                // author+year label AND the title/MeSH the fix model needs in order to see the paper
+                // it is being asked to widen for. PubMed-only: it is a PubMed record fetch, and the
+                // label it produces is reused on the Scopus panel below rather than fetched twice.
+                pubmedRecords = await seedRecords(seedList)
+                pubmedStrategy = built.strategy
+
+                // For anything it missed: ask the model for the terms that would retrieve it, VERIFY
+                // that they do, PRICE what they cost, and hand the result back as an unticked line in
+                // the block it belongs to. Advice the librarian can inspect and reject, not a paragraph.
+                const fixed = await suggestFixes(built.strategy, result, pubmedRecords)
+                usage = {
+                    inputTokens: usage.inputTokens + fixed.usage.inputTokens,
+                    outputTokens: usage.outputTokens + fixed.usage.outputTokens,
+                }
+                result = { ...result, concepts: fixed.strategy.concepts }
+            }
+
+            // The label is a property of the PAPER, not of the database that found it, so a seed
+            // shows the same name on both panels.
+            result = { ...result, seeds: result.seeds.map(s => ({ ...s, label: pubmedRecords[s.id]?.label })) }
+            results.push(result)
+        }
+
+        // The expert panel works with no records at all — straight off the query's MeSH, so it is
+        // PubMed's strategy that feeds it. Scopus has no controlled vocabulary and therefore no
+        // MeSH to harvest; asking it for one would return nothing, not something.
         let experts = { experts: [], total: 0 }
         try {
-            const mesh = meshFromConcepts(strategy.concepts)
+            const mesh = meshFromConcepts(pubmedStrategy?.concepts || [])
             if (mesh.length) experts = await findWcmExperts(mesh, 5) as any
         } catch (e) {
             // The panel is a bonus, not the deliverable. Never fail the strategy over it.
@@ -464,17 +520,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // The build and the fixes are one run from the librarian's point of view, so they are one
         // cost line. Iteration after this call is free anyway — every toggle takes the no-model
-        // re-count path above.
-        logCost('search-strategy', cwid, {
-            inputTokens: usage.inputTokens + fixed.usage.inputTokens,
-            outputTokens: usage.outputTokens + fixed.usage.outputTokens,
-        }, {
-            hits: result.hits,
-            seeds: result.seeds.length,
-            seedsRetrieved: result.seeds.filter(s => s.retrieved).length,
+        // re-count path above, in either database.
+        logCost('search-strategy', cwid, usage, {
+            dbs,
+            hits: results.map(r => `${r.db}:${r.hits}`).join(' '),
+            seeds: seedList.length,
+            seedsRetrieved: results.map(r => `${r.db}:${r.seeds.filter((s: any) => s.retrieved).length}`).join(' '),
         })
 
-        return res.status(200).send({ statusCode: 200, databases: [result], experts, model: process.env.BEDROCK_MODEL_ID })
+        return res.status(200).send({ statusCode: 200, databases: results, experts, model: process.env.BEDROCK_MODEL_ID })
     } catch (err: any) {
         console.error('[literature] strategy failed:', err)
         return res.status(502).send({ statusCode: 502, message: err?.message || 'Strategy build failed.' })

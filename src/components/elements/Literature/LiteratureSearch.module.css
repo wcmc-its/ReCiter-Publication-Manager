@@ -163,11 +163,12 @@
   gap: 7px;
   font-size: 13px;
   color: var(--text-body);
-  cursor: not-allowed;
+  cursor: pointer;              /* Scopus is a real choice now, not a promise */
   margin: 0;
 }
 .db input { accent-color: var(--accent); }
-.dbOff { opacity: .5; }
+.db input:disabled { cursor: not-allowed; }
+.dbOff { opacity: .5; cursor: not-allowed; }
 .db .soon { color: var(--text-muted); font-size: 12px; }
 
 /* ---------- The recall contract (seeds + criteria) ---------- */
@@ -992,3 +993,23 @@
    anyway: they are inspecting that record precisely because they are reconsidering it. */
 .recOff:has(.hint:hover),
 .recOff:has(.hint:focus-visible) { opacity: 1; }
+
+/* ---------- What a database IS, said out loud ----------
+   Scopus has no controlled vocabulary, and a limit it cannot express is not a limit it quietly
+   ignores. Both facts belong ON the panel whose count they qualify, not in a footnote somewhere —
+   two counts side by side invite the reader to compare them, and these notes are what make that
+   comparison honest. */
+.dbNote {
+  margin: 0;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+  background: #fafaf8;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.dbNote b { color: var(--text-body); font-weight: 600; }
+.dbNoteWarn {
+  background: var(--warn-soft, #fdf6ec);
+  color: var(--text-body);
+}

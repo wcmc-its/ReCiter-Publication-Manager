@@ -18,57 +18,206 @@ export type Line = {
     costRecords?: number     // extra records to screen if this ONE line is ticked
 }
 
-export type Concept = {
-    label: string            // e.g. "Depression"
-    lines: Line[]            // atomic term lines only: MeSH line, free-text line, …
+// ---------------------------------------------------------------------------
+// THE SPLIT: WHAT IS AN IDEA, AND WHAT IS ONE DATABASE'S WAY OF SAYING IT.
+//
+// These two things used to be welded into one object, and a second database is what pulls them
+// apart:
+//
+//   Concept   — DB-NEUTRAL. The intellectual content of one block of the question ("Depression").
+//               It is the ONLY thing that ever crosses a database boundary.
+//   Rendering — DB-NATIVE. How ONE database expresses that concept. Generated FOR that database,
+//               FROM the original question — never translated out of another database's rendering.
+//
+// SOMEONE WILL LOOK AT A SEARCH WITH TWO RENDERINGS OF THE SAME CONCEPT AND CALL IT A TRANSLATION
+// LAYER. IT IS NOT. HOLD THE LINE. There is no MeSH -> Scopus map here and there must never be
+// one: Cochrane and PRESS expect a bespoke, separately peer-reviewed strategy per database, and a
+// mechanical transliteration is exactly the artifact a librarian rejects at PRESS review. The
+// model writes native PubMed, and separately writes native Scopus. They share the LABELS, so a
+// human can see that both searches are about the same three ideas — and nothing else.
+//
+// This also makes the databases' DIFFERENCES visible instead of hiding them, which is the honest
+// outcome: Scopus has NO CONTROLLED VOCABULARY, so a PubMed concept block is
+// `(exploded MeSH) OR (free-text)` while the Scopus rendering of the same concept has no
+// controlled-vocab arm at all. It is faithfully the same idea and systematically less sensitive.
+// No amount of engineering removes that, and a librarian will say so.
+
+export type Db = 'pubmed' | 'scopus'
+
+/** DB-NEUTRAL. The only thing shared across databases. */
+export type Concept = { label: string }
+
+/** DB-NATIVE. One database's expression of one concept. */
+export type Rendering = Concept & {
+    lines: Line[]            // atomic term lines only: the MeSH line, the free-text line, …
 }
 
+/** One database's whole strategy: its rendering of every concept, plus its own native limits. */
 export type Strategy = {
-    db: 'pubmed'
-    concepts: Concept[]
-    // Fully tagged, e.g. "(2021:2026[dp]) AND (Randomized Controlled Trial[pt])". Built from
-    // the UI's dropdowns, NEVER by the model — see the note on LIMITS in the controller.
+    db: Db
+    concepts: Rendering[]
+    // Fully tagged and NATIVE TO `db` — "(2021:2026[dp])" in PubMed, "(PUBYEAR > 2020)" in Scopus.
+    // Built from the UI's dropdowns via the dialect below, NEVER by the model.
     limits: string
 }
 
-// LIMITS. The date range and publication type are chosen from these fixed tables and resolved
-// to PubMed syntax ON THE SERVER, by id. They used to be a free-text box passed to the model as
-// prose, which meant the MODEL decided what "2021-2026" meant — a quiet hole in the one thing
-// Mode 1 promises. A librarian who cannot reproduce the count has nothing.
+/** The neutral spine of a strategy — the labels, and nothing else. */
+export const conceptsOf = (s: Strategy): Concept[] => s.concepts.map(c => ({ label: c.label }))
+
+// ---------------------------------------------------------------------------
+// THE DIALECT. Everything that differs BY DATABASE lives here and nowhere else, so that adding a
+// third database is a table entry rather than a hunt through the codebase for hardcoded `[tiab]`.
 //
-// Functions, not constants: the year has to be read when the search runs, not when the module
-// was imported, or a pod that stays up over New Year silently searches the wrong window.
-export const dateLimits = () => {
-    const y = new Date().getFullYear()
-    return [
-        { id: 'any', label: 'Any date', terms: '' },
-        { id: '5y', label: `${y - 5} – ${y}`, terms: `${y - 5}:${y}[dp]` },
-        { id: '10y', label: `${y - 10} – ${y}`, terms: `${y - 10}:${y}[dp]` },
+// LIMITS. The date range and publication type are chosen from fixed tables and resolved to the
+// database's own syntax ON THE SERVER, by id. They were once a free-text box passed to the model as
+// prose, which meant the MODEL decided what "2021-2026" meant — a quiet hole in the one thing Mode
+// 1 promises. A librarian who cannot reproduce the count has nothing.
+//
+// `terms: null` MEANS THE DATABASE CANNOT EXPRESS THIS LIMIT, and that is not the same as "no
+// limit". Scopus has no publication-type index for study design — `DOCTYPE(rct)` returns 0, because
+// there is no such document type — so "RCT only" has NO Scopus equivalent. Silently dropping it
+// would run an UNLIMITED Scopus search beside a limited PubMed one and print both counts side by
+// side as if they answered the same question. So an inexpressible limit is DECLARED (see
+// buildLimits) and shown to the librarian. The alternative — faking it with free-text `randomized`
+// — is a translation layer wearing a disguise, and it would be a worse lie for looking helpful.
+
+export type LimitOption = { id: string; label: string; terms: string | null }
+
+// A KNOWN ITEM, AND IT IS NOT A PMID.
+//
+// It was, and that was a bug waiting to be baked in. A PMID only exists for a record MEDLINE
+// indexed — so a PMID-keyed seed check can only ever validate the part of a Scopus search that
+// PubMed already covers, which is precisely the part Scopus adds nothing to. The records Scopus
+// exists FOR — conference papers, European and non-MEDLINE journal content — HAVE NO PMID AT ALL.
+// Probed live: a Scopus search for conference papers returns records whose `pubmed-id` is simply
+// absent. A librarian must be able to seed one of those, or they can never prove Scopus is earning
+// its place in the search.
+//
+// So a seed is an IDENTIFIER WITH A KIND, and each dialect renders it in its own syntax. Both forms
+// verified against both live APIs: PubMed `[uid]` and `[aid]`, Scopus `PMID()` and `DOI()`.
+export type SeedKind = 'pmid' | 'doi'
+export type Seed = { id: string; kind: SeedKind }
+
+// Digits are a PMID; anything starting `10.` with a slash is a DOI. Anything else is not an
+// identifier we can check, and is DROPPED rather than guessed at — a seed we silently mis-parse
+// would report a miss against a paper the librarian never named.
+export function parseSeeds(raw: string | string[]): Seed[] {
+    const tokens = (Array.isArray(raw) ? raw : String(raw || '').split(/[\s,]+/))
+        .map(t => String(t || '').trim().replace(/^(doi:|https?:\/\/(dx\.)?doi\.org\/)/i, ''))
+        .filter(Boolean)
+    const out: Seed[] = []
+    for (const t of tokens) {
+        if (/^\d+$/.test(t)) out.push({ id: t, kind: 'pmid' })
+        else if (/^10\.\S+\/\S+$/.test(t)) out.push({ id: t, kind: 'doi' })
+    }
+    // Same seed twice is one seed. Two counts for the same paper is two counts for nothing.
+    return out.filter((s, i) => out.findIndex(x => x.id === s.id && x.kind === s.kind) === i)
+}
+
+export type Dialect = {
+    db: Db
+    name: string                                     // 'PubMed'
+    provenance: string                               // what the export prints under "Database"
+    /** This seed, in this database's identifier syntax. */
+    seedQuery: (seed: Seed) => string
+    dateLimits: () => LimitOption[]
+    pubTypes: () => LimitOption[]
+}
+
+const year = () => new Date().getFullYear()
+
+// Functions, not constants: the year has to be read when the search RUNS, not when the module was
+// imported, or a pod that stays up over New Year silently searches the wrong window.
+export const DIALECTS: Record<Db, Dialect> = {
+    pubmed: {
+        db: 'pubmed',
+        name: 'PubMed',
+        provenance: 'PubMed (via NCBI E-utilities)',
+        // [uid] is the correct tag — PubMed normalizes [pmid] -> [UID]. [aid] is the Article
+        // Identifier field, which is where PubMed keeps the DOI. Both verified live against a
+        // paper with a known PMID *and* a known DOI: each returns exactly 1.
+        seedQuery: s => (s.kind === 'doi' ? `${s.id}[aid]` : `${s.id}[uid]`),
+        dateLimits: () => [
+            { id: 'any', label: 'Any date', terms: '' },
+            { id: '5y', label: `${year() - 5} – ${year()}`, terms: `${year() - 5}:${year()}[dp]` },
+            { id: '10y', label: `${year() - 10} – ${year()}`, terms: `${year() - 10}:${year()}[dp]` },
+        ],
+        pubTypes: () => [
+            { id: 'any', label: 'Any type', terms: '' },
+            { id: 'rct-ma', label: 'RCT + Meta-analysis', terms: 'Randomized Controlled Trial[pt] OR Meta-Analysis[pt]' },
+            { id: 'rct', label: 'RCT only', terms: 'Randomized Controlled Trial[pt]' },
+            { id: 'review', label: 'Review', terms: 'Review[pt] OR Systematic Review[pt]' },
+        ],
+    },
+    scopus: {
+        db: 'scopus',
+        name: 'Scopus',
+        provenance: 'Scopus (via the Elsevier Scopus Search API)',
+        // Scopus DOES index the PMIDs of the records it shares with MEDLINE, so a PubMed-shaped
+        // seed still works here (probed: PMID(37314797) -> 1, PMID(99999999999) -> 0). But a
+        // Scopus-ONLY record has no PMID, and those are the records Scopus is here for — so DOI is
+        // the identifier that reaches all of them, and it is the one to prefer for a Scopus seed.
+        seedQuery: s => (s.kind === 'doi' ? `DOI(${s.id})` : `PMID(${s.id})`),
+        // `PUBYEAR > 2020` is 2021 onwards — the same window as PubMed's `2021:2026[dp]`.
+        dateLimits: () => [
+            { id: 'any', label: 'Any date', terms: '' },
+            { id: '5y', label: `${year() - 5} – ${year()}`, terms: `PUBYEAR > ${year() - 6}` },
+            { id: '10y', label: `${year() - 10} – ${year()}`, terms: `PUBYEAR > ${year() - 11}` },
+        ],
+        pubTypes: () => [
+            { id: 'any', label: 'Any type', terms: '' },
+            // THE HONEST NULLS. Scopus indexes a DOCUMENT type (article, review, conference paper),
+            // not a STUDY DESIGN. There is no RCT document type — probed live, DOCTYPE(rct) is 0 —
+            // so these two limits cannot be expressed here at all, and pretending otherwise is the
+            // whole trap this table exists to avoid.
+            { id: 'rct-ma', label: 'RCT + Meta-analysis', terms: null },
+            { id: 'rct', label: 'RCT only', terms: null },
+            { id: 'review', label: 'Review', terms: 'DOCTYPE(re)' },
+        ],
+    },
+}
+
+/**
+ * The limits for one database, PLUS the limits that database cannot express.
+ *
+ * `unsupported` is the load-bearing half. A caller who ignores it and prints only `terms` has
+ * quietly run a broader search than the librarian asked for.
+ */
+export function buildLimits(db: Db, dateId: string, typeId: string): { terms: string; unsupported: string[] } {
+    const d = DIALECTS[db]
+    const chosen = [
+        d.dateLimits().find(x => x.id === dateId),
+        d.pubTypes().find(x => x.id === typeId),
     ]
+    const terms = chosen
+        .map(x => x?.terms)                  // an unknown id resolves to no limit, never to a guess
+        .filter((t): t is string => !!t)
+        .map(t => `(${t})`)
+        .join(' AND ')
+    const unsupported = chosen
+        .filter(x => x && x.terms === null)  // null means "this database cannot say this"
+        .map(x => x!.label)
+    return { terms, unsupported }
 }
 
-export const pubTypes = () => [
-    { id: 'any', label: 'Any type', terms: '' },
-    { id: 'rct-ma', label: 'RCT + Meta-analysis', terms: 'Randomized Controlled Trial[pt] OR Meta-Analysis[pt]' },
-    { id: 'rct', label: 'RCT only', terms: 'Randomized Controlled Trial[pt]' },
-    { id: 'review', label: 'Review', terms: 'Review[pt] OR Systematic Review[pt]' },
-]
+// Kept for the UI, which renders ONE pair of dropdowns for the whole search. The ids are shared
+// across databases on purpose — the librarian picks an INTENT ("RCTs only"), and each dialect then
+// says how it expresses that intent, or that it cannot.
+export const dateLimits = () => DIALECTS.pubmed.dateLimits()
+export const pubTypes = () => DIALECTS.pubmed.pubTypes()
 
-export function buildLimits(dateId: string, typeId: string): string {
-    const terms = [
-        dateLimits().find(d => d.id === dateId)?.terms,
-        pubTypes().find(t => t.id === typeId)?.terms,
-    ].filter(Boolean)                        // an unknown id resolves to no limit, never to a guess
-    return terms.map(t => `(${t})`).join(' AND ')
-}
-
-const live = (c: Concept) => c.lines.filter(l => l.on && l.terms.trim()).map(l => l.terms.trim())
+const live = (c: Rendering) => c.lines.filter(l => l.on && l.terms.trim()).map(l => l.terms.trim())
 
 // The Boolean the librarian copies out, and the only thing we ever count.
 //
 // A concept with nothing ticked DROPS OUT OF THE AND ENTIRELY. It must never emit `3 AND ()`,
 // which PubMed would either reject or — far worse — silently reinterpret. This is the one piece
 // of real logic in this file and it is what literatureSearch.check.js defends.
+//
+// DB-NEUTRAL, and it stays that way: OR within a block, AND between blocks, limits appended. That
+// Boolean grammar is the same in PubMed and in Scopus — it is the TERMS inside the lines and the
+// LIMITS on the end that are native, and both of those arrive already rendered. So this function
+// needs no dialect, and if it ever grows a `switch (s.db)` something has gone wrong upstream.
 export function assembleQuery(s: Strategy): string {
     const blocks = s.concepts.map(live).filter(t => t.length > 0).map(t => `(${t.join(' OR ')})`)
     if (!blocks.length) return ''
@@ -77,7 +226,7 @@ export function assembleQuery(s: Strategy): string {
 }
 
 // The query for one concept on its own — used to derive WHICH block excluded a missed seed.
-export function conceptQuery(c: Concept): string {
+export function conceptQuery(c: Rendering): string {
     return live(c).join(' OR ')
 }
 

@@ -20,7 +20,7 @@
 // loaded only from inside a click. Keeping the documents here and the file formats there is what
 // lets `npm run check:literature` assert what a document SAYS with no dependency and no model call.
 
-import { numberStrategy, Concept } from './literatureSearch.strategy'
+import { numberStrategy, DIALECTS, Rendering, Db, SeedKind } from './literatureSearch.strategy'
 
 export type Block =
     | { kind: 'h1'; text: string }
@@ -60,23 +60,36 @@ const modelDisclosure = (id: string) => `${modelLabel(id)} (${id})`
 // The facts. Every document opens with these, and this is the only place they are assembled.
 
 export type RunFacts = {
+    // WHICH DATABASE. Not decoration: the document says "paste this into X to reproduce the count",
+    // and a Scopus strategy pasted into PubMed reproduces nothing. Defaults to PubMed for the two
+    // modes that only have one.
+    db?: Db
     query: string
     hits: number
     runDate: string
     cwid?: string
     limits?: string
     sort?: string
-    model?: string        // the Bedrock profile id, verbatim
+    model?: string             // the Bedrock profile id, verbatim
+    unsupportedLimits?: string[]
 }
 
 export function reproHeader(f: RunFacts): Block[] {
+    const dialect = DIALECTS[f.db || 'pubmed']
     return [
         { kind: 'h2', text: 'How to reproduce this search' },
         { kind: 'table', head: ['Field', 'Value'], rows: [
-            ['Database', 'PubMed (via NCBI E-utilities)'],
+            ['Database', dialect.provenance],
             ['Date searched', f.runDate],
             ['Records retrieved', String(f.hits)],
             ...(f.limits ? [['Limits', f.limits]] : []),
+            // A LIMIT THIS DATABASE COULD NOT EXPRESS. It goes in the METHODS, not just on the
+            // screen, because the count above answers a BROADER question than the librarian asked —
+            // and a reader comparing it with the PubMed count has no way to know that unless the
+            // document says so. Scopus has no RCT document type, so "RCT only" lands here.
+            ...(f.unsupportedLimits?.length
+                ? [['Limits NOT applied', `${f.unsupportedLimits.join('; ')} — ${dialect.name} cannot express this limit, so the count above is not restricted by it`]]
+                : []),
             ...(f.sort ? [['Ranking', f.sort]] : []),
             ...(f.cwid ? [['Searched by', f.cwid]] : []),
             // THE DISCLOSURE PEOPLE FORGET. The QUERY is model-drafted too, not just the prose — so
@@ -87,7 +100,7 @@ export function reproHeader(f: RunFacts): Block[] {
                 ? [['Strategy drafted by', `${modelDisclosure(f.model)}, then reviewed and edited by the person named above`]]
                 : []),
         ] },
-        { kind: 'p', text: 'Full Boolean query — paste this into PubMed to reproduce the count above:' },
+        { kind: 'p', text: `Full Boolean query — paste this into ${dialect.name} to reproduce the count above:` },
         { kind: 'mono', text: f.query },
     ]
 }
@@ -95,24 +108,37 @@ export function reproHeader(f: RunFacts): Block[] {
 // ---------------------------------------------------------------------------
 // The documents.
 
-export type SeedLike = { pmid: string; retrieved: boolean; label?: string; missReason?: string }
+export type SeedLike = {
+    id: string
+    kind: SeedKind             // a Scopus-only record has NO PMID — see Seed. Never assume one.
+    retrieved: boolean
+    label?: string
+    missReason?: string
+}
 
 // Mode 1's deliverable, and the reason the whole feature exists: the PRISMA-S appendix.
 export function strategyDoc(
-    r: { concepts: Concept[]; limits: string; query: string; hits: number; runDate: string; seeds: SeedLike[] },
+    r: {
+        db?: Db; concepts: Rendering[]; limits: string; unsupportedLimits?: string[]
+        query: string; hits: number; runDate: string; seeds: SeedLike[]
+    },
     question: string,
     cwid?: string,
     model?: string,
 ): Block[] {
+    const dialect = DIALECTS[r.db || 'pubmed']
     // Numbered from the RESULT's concepts — the toggled state that was actually counted. An
     // unticked line was not searched, so it does not appear in the methods.
-    const { rows } = numberStrategy({ db: 'pubmed', concepts: r.concepts, limits: r.limits })
+    const { rows } = numberStrategy({ db: r.db || 'pubmed', concepts: r.concepts, limits: r.limits })
     const lines = rows.filter(x => x.n !== null)
 
     return [
-        { kind: 'h1', text: 'PubMed search strategy' },
+        { kind: 'h1', text: `${dialect.name} search strategy` },
         { kind: 'p', text: question },
-        ...reproHeader({ query: r.query, hits: r.hits, runDate: r.runDate, cwid, limits: r.limits, model }),
+        ...reproHeader({
+            db: r.db, query: r.query, hits: r.hits, runDate: r.runDate, cwid,
+            limits: r.limits, unsupportedLimits: r.unsupportedLimits, model,
+        }),
 
         { kind: 'h2', text: 'Search strategy, line by line' },
         { kind: 'small', text: 'Numbered as published search strategies are peer-reviewed (PRESS): each line is searched, and the combining lines show how the blocks were AND-ed and OR-ed together.' },
@@ -125,8 +151,9 @@ export function strategyDoc(
         ...(r.seeds.length
             ? [
                 { kind: 'p' as const, text: `${r.seeds.filter(s => s.retrieved).length} of ${r.seeds.length} seed records were retrieved by this strategy. A strategy that misses a paper it is known to need is broken, whatever its yield.` },
-                { kind: 'table' as const, head: ['PMID', 'Paper', 'Retrieved?', 'If missed, why'], rows: r.seeds.map(s => [
-                    s.pmid, s.label || '', s.retrieved ? 'Yes' : 'NO', s.retrieved ? '' : (s.missReason || ''),
+                { kind: 'table' as const, head: ['Identifier', 'Paper', 'Retrieved?', 'If missed, why'], rows: r.seeds.map(s => [
+                    `${s.kind.toUpperCase()} ${s.id}`, s.label || '', s.retrieved ? 'Yes' : 'NO',
+                    s.retrieved ? '' : (s.missReason || ''),
                 ]) },
             ]
             : [{ kind: 'p' as const, text: 'Not performed. No known-item seeds were supplied, so the recall of this strategy has not been verified.' }]),
@@ -217,7 +244,7 @@ export function recordSheets(
             name: 'Search',
             head: ['Field', 'Value'],
             rows: [
-                ['Database', 'PubMed (via NCBI E-utilities)'],
+                ['Database', DIALECTS[facts.db || 'pubmed'].provenance],
                 ['Date searched', facts.runDate],
                 ['Records retrieved', facts.hits],
                 ...(facts.limits ? [['Limits', facts.limits]] : []),

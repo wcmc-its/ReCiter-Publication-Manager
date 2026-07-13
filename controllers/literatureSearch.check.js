@@ -139,18 +139,24 @@ const untickConcept = (s, ci) => ({
     assert.ok(Number.isFinite(hits) && hits > 0, `expected a positive yield, got ${hits}`)
     console.log(`yield: ${hits}`)
 
-    const seeds = await lit.validateSeeds(s, [
+    // A seed is an IDENTIFIER WITH A KIND, never a bare PMID — a Scopus-only record has no PMID at
+    // all. parseSeeds is what the route and the browser both use, so it is what is checked.
+    const seedList = lit.parseSeeds([
         '37314797', // Nikolova 2023  JAMA Psychiatry    -> in the set
         '35654766', // Schaub   2022  Transl Psychiatry  -> in the set
         '34875345', // Tian     2022  Brain Behav Immun  -> in the set
         '27793434', // Sarkar   2016  Trends Neurosci    -> MISS
     ])
+    assert.strictEqual(seedList.length, 4, 'four PMIDs parse out of the seeds box')
+    assert.ok(seedList.every(x => x.kind === 'pmid'), 'digits are PMIDs')
+
+    const seeds = await lit.validateSeeds(s, seedList)
 
     for (const x of seeds) {
         const why = x.retrieved
             ? ''
             : `  <- fails: ${[...x.failingConcepts.map(i => s.concepts[i].label), ...(x.failsLimits ? ['LIMITS'] : [])].join(', ')}`
-        console.log(`  ${x.retrieved ? 'HIT ' : 'MISS'}  PMID ${x.pmid}${why}`)
+        console.log(`  ${x.retrieved ? 'HIT ' : 'MISS'}  ${x.kind.toUpperCase()} ${x.id}${why}`)
     }
 
     assert.strictEqual(seeds.filter(x => x.retrieved).length, 3, 'three seeds must be retrieved')
@@ -160,7 +166,7 @@ const untickConcept = (s, ci) => ({
     // "depression". A model asked to GUESS the reason would most likely have blamed the
     // 2021-2026 date range. Deriving the reason rather than guessing it is what makes the miss
     // trustworthy, so it is what this check defends.
-    const miss = seeds.find(x => x.pmid === '27793434')
+    const miss = seeds.find(x => x.id === '27793434')
     assert.ok(miss && !miss.retrieved, 'Sarkar 2016 must miss this strategy')
     assert.deepStrictEqual(miss.failingConcepts, [1], 'the miss is attributed to the Depression block (index 1)')
 
@@ -540,6 +546,91 @@ const untickConcept = (s, ci) => ({
     console.log(`guideline:    PMID ${g.pmid} -> tier ${g.tier.rank} (${g.design}) from ${JSON.stringify(g.types)}`)
 
     // =======================================================================================
+    // THE CONCEPT / RENDERING SPLIT, and the database dialects.
+    //
+    // The whole point of the split is that a LABEL crosses a database boundary and TERMS never do.
+    // Everything below is a rule that, if it broke, would break SILENTLY — a Scopus search running
+    // without the limit the librarian asked for, or a seed check that cannot see half of Scopus.
+
+    // A limit one database cannot express is DECLARED, not dropped. Scopus indexes a document type,
+    // not a study design — probed live, DOCTYPE(rct) returns 0 — so "RCT only" has NO Scopus
+    // equivalent. If this ever starts returning terms, someone has invented a fake RCT filter and
+    // the Scopus count is quietly answering a different question from the PubMed one beside it.
+    const pmLimits = lit.buildLimits('pubmed', '5y', 'rct')
+    assert.ok(pmLimits.terms.includes('[dp]') && pmLimits.terms.includes('Randomized Controlled Trial[pt]'),
+        'PubMed expresses both limits natively')
+    assert.deepStrictEqual(pmLimits.unsupported, [], 'PubMed can express every limit the UI offers')
+
+    const scLimits = lit.buildLimits('scopus', '5y', 'rct')
+    assert.ok(scLimits.terms.includes('PUBYEAR >'), 'Scopus expresses the DATE limit natively')
+    assert.ok(!/\[dp\]|\[pt\]/.test(scLimits.terms), 'PubMed field tags must NEVER reach a Scopus query')
+    assert.deepStrictEqual(scLimits.unsupported, ['RCT only'],
+        'Scopus has no RCT document type, and MUST say so rather than run an unlimited search')
+    assert.ok(!/randomi/i.test(scLimits.terms),
+        'an inexpressible limit must not be faked with free text — that is a translation layer in disguise')
+
+    // A SEED IS NOT A PMID. A Scopus-only record (a conference paper, a non-MEDLINE journal) has no
+    // PMID at all, and those are the records Scopus is FOR — so a PMID-keyed seed check could only
+    // ever validate the half of Scopus that PubMed already covers. DOIs must parse and must render
+    // in each database's own identifier syntax.
+    const mixed = lit.parseSeeds('37314797, 10.1001/jamapsychiatry.2023.1817 not-an-id 37314797')
+    assert.deepStrictEqual(mixed, [
+        { id: '37314797', kind: 'pmid' },
+        { id: '10.1001/jamapsychiatry.2023.1817', kind: 'doi' },
+    ], 'PMIDs and DOIs both parse; junk is dropped; duplicates collapse')
+
+    const [pmSeed, doiSeed] = mixed
+    assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(pmSeed), '37314797[uid]')
+    assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(doiSeed), '10.1001/jamapsychiatry.2023.1817[aid]')
+    assert.strictEqual(lit.DIALECTS.scopus.seedQuery(pmSeed), 'PMID(37314797)')
+    assert.strictEqual(lit.DIALECTS.scopus.seedQuery(doiSeed), 'DOI(10.1001/jamapsychiatry.2023.1817)')
+    console.log('dialects:     limits native per DB; Scopus DECLARES "RCT only" as inexpressible; seeds are PMID *or* DOI')
+
+    // ---- Live Scopus. Skipped LOUDLY when the tool is not configured. ----------------------
+    if (!process.env.RECITER_SCOPUS_API_URL && !process.env.RECITER_API_BASE_URL) {
+        console.log('scopus:       SKIPPED — set RECITER_SCOPUS_API_URL to check the Scopus half')
+    } else {
+        const sc = {
+            db: 'scopus',
+            concepts: [
+                { label: 'Probiotics / microbiome', lines: [{ terms: 'TITLE-ABS-KEY(probiotic* OR synbiotic* OR "gut microbiome")', on: true }] },
+                { label: 'Depression', lines: [{ terms: 'TITLE-ABS-KEY(depress* OR "mood disorder")', on: true }] },
+            ],
+            limits: lit.buildLimits('scopus', '5y', 'any').terms,
+        }
+        const scQuery = lit.assembleQuery(sc)
+        // assembleQuery is DB-NEUTRAL: OR inside a block, AND between blocks, limits appended. If it
+        // ever grows a `switch (s.db)`, something has gone wrong upstream.
+        assert.ok(scQuery.includes('TITLE-ABS-KEY') && scQuery.includes('PUBYEAR >'),
+            'the Scopus query is native Scopus, top-level limit and all')
+
+        const scHits = await lit.countScopus(scQuery)
+        assert.ok(Number.isFinite(scHits) && scHits > 0, `expected a positive Scopus yield, got ${scHits}`)
+
+        // Narrowing must NARROW. This is the assertion that would catch a force-wrapped query: nest
+        // a top-level limit inside TITLE-ABS-KEY() and Elsevier answers 400, or worse, silently
+        // ignores it and this number does not move.
+        const scNarrower = await lit.countScopus(`${scQuery} AND DOCTYPE(ar)`)
+        assert.ok(scNarrower < scHits, 'a top-level DOCTYPE limit must actually narrow the Scopus count')
+
+        // THE SEED CHECK, IN SCOPUS. Scopus indexes the PMIDs of the records it shares with MEDLINE,
+        // which is what lets a librarian seed a Scopus strategy with the PMIDs they already have.
+        const scSeeds = await lit.validateSeeds(sc, lit.parseSeeds('37314797 99999999999'))
+        const found = scSeeds.find(x => x.id === '37314797')
+        const absent = scSeeds.find(x => x.id === '99999999999')
+        assert.ok(found && found.retrieved, 'Scopus must retrieve Nikolova 2023 for this strategy')
+
+        // NOT IN THE DATABASE IS NOT A STRATEGY BUG, and it must never be reported as one. Without
+        // this verdict a paper Scopus has never indexed "fails" every concept block at once, which
+        // reads as a catastrophically narrow query and sends a librarian off to widen a search that
+        // was never broken.
+        assert.ok(absent && absent.notInDatabase === true,
+            'a record Scopus does not index is reported as a COVERAGE gap, not as a failing block')
+        assert.ok(!absent.failingConcepts, 'a not-in-database miss must not also blame a concept block')
+        console.log(`scopus:       ${scHits} hits -> ${scNarrower} with DOCTYPE(ar); seed PMID 37314797 retrieved; a missing record reads as coverage, not as a bad query`)
+    }
+
+    // =======================================================================================
     // EXPORTS. An export that cannot be re-run is not evidence — so the thing worth pinning is that
     // every document carries the query, the count, the date, who ran it, and WHICH MODEL DRAFTED IT.
     //
@@ -591,7 +682,7 @@ const untickConcept = (s, ci) => ({
             { label: 'Depression', lines: [{ terms: 'depression[tiab]', on: true }] },
         ],
         limits: '', query: 'q', hits: 5, runDate: '2026-07-13',
-        seeds: [{ pmid: '1', retrieved: false, label: 'Smith 2020', missReason: 'Depression block' }],
+        seeds: [{ id: '1', kind: 'pmid', retrieved: false, label: 'Smith 2020', missReason: 'Depression block' }],
     }, 'Q?', 'paa2013', 'us.anthropic.claude-opus-4-8')
     const sDoc = said(strategyBlocks)
     assert.ok(!sDoc.includes('SHOULD-NOT-APPEAR'), 'an UNTICKED line was never searched and must not appear in the methods')

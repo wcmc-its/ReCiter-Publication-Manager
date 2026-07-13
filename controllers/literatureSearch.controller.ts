@@ -47,26 +47,45 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { reciterConfig } from '../config/local'
 import {
     Line,
+    Db,
     Concept,
+    Rendering,
     Strategy,
+    Dialect,
+    DIALECTS,
+    Seed,
+    SeedKind,
+    parseSeeds,
     Pico,
     RECORD_CAP,
     NARROW_ABOVE,
     assembleQuery,
     conceptQuery,
+    conceptsOf,
+    buildLimits,
     numberStrategy,
     picoQuestion,
     picoComplete,
 } from './literatureSearch.strategy'
 
 // Re-exported so the check script and the API route have one import site.
-export { assembleQuery, conceptQuery, numberStrategy, picoQuestion, picoComplete, RECORD_CAP, NARROW_ABOVE }
-export type { Line, Concept, Strategy, Pico }
+export {
+    assembleQuery, conceptQuery, conceptsOf, buildLimits, numberStrategy, parseSeeds,
+    picoQuestion, picoComplete, DIALECTS, RECORD_CAP, NARROW_ABOVE,
+}
+export type { Line, Db, Concept, Rendering, Strategy, Dialect, Seed, SeedKind, Pico }
 
 export type SeedResult = {
-    pmid: string
+    id: string
+    kind: SeedKind                  // 'pmid' | 'doi' — NOT a PMID by assumption. See Seed.
     label?: string                  // "Nikolova (2023)" — see seedRecords()
     retrieved: boolean
+    // THE MISS THAT IS NOT A BUG. The record is not in this database AT ALL, so no widening of any
+    // block will ever retrieve it. Distinguishing this from "your strategy excludes it" is the
+    // difference between "Scopus does not index this paper" — a fact about Scopus, and often the
+    // most interesting thing on the screen — and sending a librarian off to widen a search that
+    // cannot possibly return it.
+    notInDatabase?: boolean
     // On a miss: WHY, derived by re-counting the seed against each part of the strategy on its
     // own. Never guessed by the model — a hallucinated reason for a miss would be worse than no
     // reason at all.
@@ -126,6 +145,47 @@ export async function countPubmed(query: string, retryOnZero = true): Promise<nu
     return n
 }
 
+// The Scopus count. Same contract as countPubmed — a query in, a total out — through the ReCiter
+// Scopus Retrieval Tool, which holds the Elsevier key (PR #797 moved it out of this app, and it
+// must never come back).
+//
+// TWO THINGS HERE ARE NOT PREFERENCES, THEY ARE ELSEVIER'S BEHAVIOUR, PROBED LIVE:
+//
+//   count=1, NEVER count=0. Elsevier IGNORES count=0 and silently returns 25 records — so asking
+//   for "no records, just the total" the obvious way bills a page and hands you one, with nothing
+//   in the response to say so. count=1 returns the true opensearch:totalResults for one record.
+//
+//   The QUERY GOES THROUGH VERBATIM. That is the whole reason the tool needed a new endpoint
+//   (ScopusTool #35): the old /scopus/search/documents force-wraps every term in TITLE-ABS-KEY(),
+//   which makes a top-level limit (AND PUBYEAR > 2020) impossible to express — nested inside the
+//   wrap, Elsevier answers 400 "Error translating query".
+//
+// No zero-retry here, unlike PubMed. PubMed's zero-retry exists because a THROTTLED NCBI returns a
+// well-formed 0 that is indistinguishable from a genuine one. Elsevier answers a rate-limit with a
+// 429 and a quota header — a real error, which the tool turns into a 502 and this throws on. Do not
+// add a retry to paper over an error that is already loud.
+export async function countScopus(query: string): Promise<number> {
+    const res = await fetch(reciterConfig.reciterScopus.searchQueryEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'reciter-pub-manager-server' },
+        body: JSON.stringify({ query, count: 1 }),
+    })
+    if (!res.ok) throw new Error(`scopus retrieval tool HTTP ${res.status}`)
+    const data: any = await res.json()
+
+    const raw = data?.['search-results']?.['opensearch:totalResults']
+    const n = Number(raw)
+    // Same rule as countPubmed: a payload we cannot read is an ERROR, never a zero. Coercing an
+    // unexpected shape to 0 would report "your search found nothing" for a broken integration.
+    if (raw === undefined || raw === null || !Number.isFinite(n)) {
+        throw new Error(`unexpected scopus count payload: ${JSON.stringify(data).slice(0, 120)}`)
+    }
+    return n
+}
+
+/** Counting, by database. The ONE place that knows a database has a counter. */
+export const countIn = (db: Db) => (db === 'scopus' ? countScopus : countPubmed)
+
 // Known-item validation. The librarian names papers the search MUST retrieve; a strategy
 // that misses a known include is broken and has to be widened. This is what makes an
 // LLM-drafted Boolean defensible rather than merely plausible.
@@ -135,45 +195,56 @@ export async function countPubmed(query: string, retryOnZero = true): Promise<nu
 //
 // Costs one count call per seed, and never downloads a record — so validating against a
 // 15,000-hit strategy costs the same as against a 12-hit one.
-export async function validateSeeds(s: Strategy, pmids: string[]): Promise<SeedResult[]> {
+export async function validateSeeds(s: Strategy, seeds: Seed[]): Promise<SeedResult[]> {
     const query = assembleQuery(s)
+    const dialect = DIALECTS[s.db]
+    const count = countIn(s.db)
     const out: SeedResult[] = []
 
-    for (const raw of pmids) {
-        const pmid = raw.trim()
-        if (!/^\d+$/.test(pmid)) continue
+    for (const seed of seeds) {
+        const { id, kind } = seed
+        const ref = dialect.seedQuery(seed)      // `123[uid]` / `PMID(123)` / `DOI(10.x/y)`
 
-        // Everything unticked: there is no strategy to validate against, and
-        // `<pmid>[uid] AND ()` is not a query. Say so rather than counting nothing.
+        // Everything unticked: there is no strategy to validate against, and `<ref> AND ()` is not
+        // a query. Say so rather than counting nothing.
         if (!query) {
-            out.push({ pmid, retrieved: false, failingConcepts: [], failsLimits: false })
+            out.push({ id, kind, retrieved: false, failingConcepts: [], failsLimits: false })
             continue
         }
 
-        const hit = await countPubmed(`${pmid}[uid] AND (${query})`)
-        if (hit === 1) {
-            out.push({ pmid, retrieved: true })
+        const hit = await count(`${ref} AND (${query})`)
+        if (hit >= 1) {
+            out.push({ id, kind, retrieved: true })
             continue
         }
 
-        // MISS. Work out WHAT excluded it by re-counting the seed against each part of the
-        // strategy on its own. Deterministic: the parts that return 0 are the culprits, and a
-        // seed can fail several of them at once.
+        // MISS — and the FIRST question is whether this database has the paper at all. Ask before
+        // blaming a concept block: a seed Scopus has never indexed will "fail" every block, which
+        // reads as a catastrophically narrow strategy and is nothing of the sort. This costs one
+        // count and it is the difference between a real diagnosis and a misleading one.
+        if ((await count(ref)) === 0) {
+            out.push({ id, kind, retrieved: false, notInDatabase: true })
+            continue
+        }
+
+        // It IS in the database, so something in the strategy excluded it. Work out WHAT, by
+        // re-counting the seed against each part of the strategy on its own. Deterministic: the
+        // parts that return 0 are the culprits, and a seed can fail several of them at once.
         const failing: number[] = []
         for (let i = 0; i < s.concepts.length; i++) {
             const block = conceptQuery(s.concepts[i])
             if (!block) continue          // an unticked concept is not in the AND, so it excludes nothing
-            const inBlock = await countPubmed(`${pmid}[uid] AND (${block})`)
+            const inBlock = await count(`${ref} AND (${block})`)
             if (inBlock === 0) failing.push(i)
         }
         // The limits are checked SEPARATELY, not inferred from "no block failed". A paper can
         // fail a block and the limits together, and only naming the block would send the
         // librarian off to widen a search that still cannot return it.
         const failsLimits = s.limits
-            ? (await countPubmed(`${pmid}[uid] AND ${s.limits}`)) === 0
+            ? (await count(`${ref} AND ${s.limits}`)) === 0
             : false
 
-        out.push({ pmid, retrieved: false, failingConcepts: failing, failsLimits })
+        out.push({ id, kind, retrieved: false, failingConcepts: failing, failsLimits })
     }
     return out
 }
@@ -187,30 +258,38 @@ export async function validateSeeds(s: Strategy, pmids: string[]): Promise<SeedR
 // the toggles are safe. A librarian who unticks two bundles and then copies a methods block
 // describing the un-toggled query would have broken the single thing this feature is for.
 export type StrategyResult = {
-    db: string
-    concepts: Concept[]
+    db: Db
+    dbName: string                 // 'PubMed' / 'Scopus' — the screen and the export both need it
+    concepts: Rendering[]          // THIS database's rendering. Labels are shared; lines are not.
     limits: string
+    // The limits this database CANNOT express, by name ("RCT only"). Never silently empty: if the
+    // librarian asked for RCTs and Scopus has no RCT document type, the Scopus count beside the
+    // PubMed one answers a BROADER question, and the screen has to say so or the two numbers are
+    // not comparable. An unexpressed limit that nobody mentions is a lie of omission.
+    unsupportedLimits: string[]
     query: string
     hits: number
     runDate: string
     seeds: SeedResult[]
 }
 
-export async function runStrategy(s: Strategy, seedPmids: string[]): Promise<StrategyResult> {
+export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits: string[] = []): Promise<StrategyResult> {
     const query = assembleQuery(s)
-    // Everything unticked. Don't ask PubMed to count the empty string — it is not a "0 hits"
+    // Everything unticked. Don't ask the database to count the empty string — it is not a "0 hits"
     // result, it is "you have no strategy", and conflating the two is how a librarian ends up
     // trusting a count that describes nothing.
-    const hits = query ? await countPubmed(query) : 0
-    const seeds = await validateSeeds(s, seedPmids)
+    const hits = query ? await countIn(s.db)(query) : 0
+    const seedResults = await validateSeeds(s, seeds)
     return {
         db: s.db,
+        dbName: DIALECTS[s.db].name,
         concepts: s.concepts,
         limits: s.limits,
+        unsupportedLimits,
         query,
         hits,
         runDate: new Date().toISOString().slice(0, 10),
-        seeds,
+        seeds: seedResults,
     }
 }
 
@@ -302,8 +381,16 @@ async function fetchArticles(query: string, cap: number, sort: Sort, retryOnEmpt
     }
 }
 
-export async function seedRecords(pmids: string[]): Promise<Record<string, SeedRecord>> {
-    const ids = pmids.filter(p => /^\d+$/.test(p))
+// Keyed by SEED ID, and PubMed-only.
+//
+// ponytail: PMID seeds only. A DOI seed is perfectly checkable — `10.x/y[aid]` counts fine, and
+// validateSeeds uses it — but matching the RETURNED record back to the DOI that asked for it means
+// digging the DOI out of PubMed's articleid list, and all this buys is a prettier label and a
+// suggested fix. A DOI seed keeps its own DOI as its label and gets no auto-widening; the diagnosis
+// (which block excluded it, or that the database does not have it) is unaffected, and that is the
+// part that matters. Upgrade when a librarian actually seeds by DOI and misses the label.
+export async function seedRecords(seeds: Seed[]): Promise<Record<string, SeedRecord>> {
+    const ids = seeds.filter(s => s.kind === 'pmid').map(s => s.id)
     if (!ids.length) return {}
 
     const out: Record<string, SeedRecord> = {}
@@ -725,7 +812,7 @@ Do not use relevance ranking, sort orders, or result caps. Return the strategy o
 // quietly undermining reproducibility — the whole promise of the mode — for zero benefit.
 const STRATEGY_TOOL = {
     name: 'submit_strategy',
-    description: 'Return the finished PubMed search strategy as PRESS-numbered concept blocks.',
+    description: 'Return the finished search strategy as PRESS-numbered concept blocks, in the syntax of the database named in the system prompt.',
     input_schema: {
         type: 'object' as const,
         properties: {
@@ -796,6 +883,46 @@ If the criteria say nothing about study design, emit no such block — never inv
 
 Do not use relevance ranking, sort orders, or result caps — the caller applies those. Return the strategy only.`
 
+// SCOPUS IS A DIFFERENT DATABASE, SO IT GETS A DIFFERENT PROMPT — NOT A TRANSLATION OF THIS ONE.
+//
+// This is the load-bearing decision of the whole multi-database design, and it is easy to get
+// wrong in a way that looks efficient. The tempting move is to take the PubMed strategy and map it
+// across: "Depression"[MeSH] -> some Scopus equivalent, [tiab] -> TITLE-ABS-KEY. There IS no Scopus
+// equivalent of a MeSH descriptor — Scopus HAS NO CONTROLLED VOCABULARY AT ALL — so the map would
+// have to invent one, and a mechanical transliteration is exactly the artifact a librarian rejects
+// at PRESS review. Cochrane expects a bespoke, separately peer-reviewed strategy per database.
+//
+// So the model writes NATIVE SCOPUS, from the ORIGINAL QUESTION, sharing only the concept LABELS
+// with the PubMed strategy — which is how a human can see that both searches are about the same
+// three ideas without either being derived from the other.
+//
+// AND THE HONEST CONSEQUENCE, which belongs in front of the librarian rather than buried here: with
+// no controlled-vocabulary arm, the Scopus rendering of a concept is FAITHFULLY THE SAME IDEA AND
+// SYSTEMATICALLY LESS SENSITIVE than the PubMed one. For a systematic review, where recall is the
+// cardinal virtue, that is a methodological cost no engineering can remove. Scopus is a
+// SUPPLEMENTARY database here, not a PubMed-equivalent one.
+const SCOPUS_PROMPT = `You are a medical reference librarian drafting a Scopus search strategy for a systematic review.
+
+Your objective is RECALL (sensitivity), not precision:
+- A yield in the thousands is SUCCESS, not a problem. Do not try to keep the result set small.
+- Missing a relevant study is the cardinal sin. Retrieving irrelevant ones is fine — a human screens them later.
+
+SCOPUS HAS NO CONTROLLED VOCABULARY. There is no MeSH, no Emtree, and nothing to explode. Do NOT emit MeSH descriptors, [MeSH], [tiab], [majr], or any other PubMed field tag — they are not valid Scopus syntax and the search will fail or, worse, silently return the wrong thing. Everything is free text, and that means the free-text line must carry the entire concept ON ITS OWN: every synonym, every spelling variant, every abbreviation, and the truncations. Be more generous than you would be in PubMed, because there is no controlled-vocabulary arm to catch what the free text misses.
+
+Structure the search as CONCEPT BLOCKS, one per idea in the question (typically 2-4). They will be AND-ed together.
+
+Write each concept block as SEPARATE LINES, so that each can be peer-reviewed and toggled independently — for example one line for the core terms and one for the broader or adjacent synonyms. The lines within a block are OR-ed; the blocks are AND-ed.
+
+Use Scopus field syntax, and nothing else:
+- TITLE-ABS-KEY(...) searches title, abstract and keywords. This is your workhorse; anchor essentially everything in it.
+- TITLE(...), ABS(...), AUTHKEY(...) are available if a term genuinely belongs in one field only.
+- Quote phrases: TITLE-ABS-KEY("gut microbiome"). Truncate with *: probiotic*.
+- Inside a field you may use OR and AND, e.g. TITLE-ABS-KEY(probiotic* OR synbiotic* OR "gut microbiota").
+
+Date and document-type limits are supplied by the caller and applied separately, at the top level. NEVER put PUBYEAR, DOCTYPE, LANGUAGE or SRCTYPE inside a concept block.
+
+Return the strategy only.`
+
 export type UsageLog = { inputTokens: number; outputTokens: number }
 
 // A FILTER THAT CANCELS ITSELF. Lines within a block are OR-ed; blocks are AND-ed. So a
@@ -857,6 +984,12 @@ export async function buildStrategy(
     criteria?: string,
     objective: 'recall' | 'precision' = 'recall',
     pico?: Pico,
+    db: Db = 'pubmed',
+    // The concept LABELS the sibling strategy used, when there is one. This is the ONLY thing that
+    // crosses a database boundary, and passing it is not a translation: the model still writes
+    // native Scopus from the ORIGINAL QUESTION, and the labels only keep the two strategies talking
+    // about the same three ideas so a human can read them side by side. Never pass the LINES.
+    sharedConcepts?: Concept[],
 ): Promise<{ strategy: Strategy; usage: UsageLog }> {
     const parts = [`Research question: ${question}`]
 
@@ -885,23 +1018,46 @@ export async function buildStrategy(
         ? `Limits already applied by the caller (do NOT repeat these inside a concept block): ${limits}`
         : `No limits will be applied.`)
 
-    const prompt = objective === 'precision' ? REVIEW_PROMPT : SYSTEM_PROMPT
+    // The shared spine, and ONLY the spine. The model is told which ideas the other database's
+    // strategy is built from, and writes this database's own expression of them from scratch.
+    if (sharedConcepts?.length) {
+        parts.push(
+            `A strategy for another database has already been drafted for this question from the ` +
+            `following concepts. Use the SAME concepts, with the SAME labels, in the same order, so ` +
+            `that the two strategies are about the same ideas:\n\n` +
+            sharedConcepts.map(c => `- ${c.label}`).join('\n') + `\n\n` +
+            `Write this database's terms FROM THE QUESTION. You have not been shown the other ` +
+            `database's terms and you do not need them: do not attempt to reproduce or translate ` +
+            `another database's syntax.`,
+        )
+    }
+
+    // Scopus gets its OWN prompt, never a translation. Mode 1 (recall) is the only mode Scopus is
+    // offered in — see the route — so there is no precision/Scopus combination to prompt for.
+    const prompt = db === 'scopus'
+        ? SCOPUS_PROMPT
+        : (objective === 'precision' ? REVIEW_PROMPT : SYSTEM_PROMPT)
+
     const { input, usage } = await invoke(prompt, STRATEGY_TOOL, parts.join('\n\n'))
     if (!input?.concepts?.length) throw new Error('model did not return a strategy')
 
     const strategy: Strategy = {
-        db: 'pubmed',
+        db,
         concepts: input.concepts.map((c: any) => ({
             label: String(c.label || ''),
             // Every line the model writes arrives TICKED. Untick is the librarian's move.
             lines: (Array.isArray(c.lines) ? c.lines : [c.lines])
                 .filter((t: any) => typeof t === 'string' && t.trim())
                 .map((t: string) => ({ terms: t.trim(), on: true })),
-        })).filter((c: Concept) => c.lines.length),
+        })).filter((c: Rendering) => c.lines.length),
         limits,
     }
 
-    return { strategy: hoistFilters(strategy), usage }
+    // hoistFilters is PubMed-only, and not by oversight: the failure it repairs is a MeSH one
+    // ("Humans"[MeSH] OR-ed in with real terms, silently satisfying its own block). Scopus has no
+    // controlled vocabulary, so it has no Humans[MeSH] to bury — running a MeSH-shaped regex over a
+    // Scopus strategy could only ever produce a false positive.
+    return { strategy: db === 'pubmed' ? hoistFilters(strategy) : strategy, usage }
 }
 
 // ---------------------------------------------------------------------------
@@ -957,25 +1113,36 @@ export async function suggestFixes(
     records: Record<string, SeedRecord>,
 ): Promise<{ strategy: Strategy; usage: UsageLog }> {
     const usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+
+    // PUBMED ONLY, and this is a limit of the FIX, not of the diagnosis. The whole method rests on
+    // seeing the paper's MeSH descriptors — "this is indexed under Emotions, not Depression, so the
+    // block needs Emotions[MeSH]". Scopus has no controlled vocabulary, so there is no such gap to
+    // find and nothing of this shape to propose. A Scopus miss still gets its full DIAGNOSIS (which
+    // block excluded it, or that Scopus does not index the paper at all); what it does not get is a
+    // pre-written, verified, priced line. Proposing one blind is how the model ends up suggesting
+    // "Bipolar Disorder" to fix a depression miss — see seedRecords.
+    if (s.db !== 'pubmed') return { strategy: s, usage }
+
     // Only a CONCEPT miss has a fix of this shape. A limits-only miss is fixed by changing the
-    // dropdowns, which the seed panel already says — a term line cannot help.
+    // dropdowns, which the seed panel already says — a term line cannot help. Nor can one help a
+    // paper the database does not have (notInDatabase), which is why that verdict short-circuits.
     //
     // And only a miss whose RECORD we actually have. Without the title and the MeSH descriptors
     // the model is guessing at a paper it cannot see, and it guesses badly (see seedRecords).
     // Proposing nothing is strictly better than proposing a plausible wrong answer with a
     // checkbox on it.
-    const misses = result.seeds.filter(x => !x.retrieved && x.failingConcepts?.length && records[x.pmid])
+    const misses = result.seeds.filter(x => !x.retrieved && x.failingConcepts?.length && records[x.id])
     if (!misses.length) return { strategy: s, usage }
 
     let out = s
     for (const miss of misses) {
-        const rec = records[miss.pmid]
+        const rec = records[miss.id]
         const blocks = miss.failingConcepts!
             .map(i => `Block ${i} ("${s.concepts[i].label}"):\n${s.concepts[i].lines.filter(l => l.on).map(l => l.terms).join('\n')}`)
             .join('\n\n')
 
         const { input, usage: u } = await invoke(FIX_PROMPT, FIX_TOOL,
-            `Missed paper: PMID ${miss.pmid} — ${rec.label}\n`
+            `Missed paper: ${miss.kind.toUpperCase()} ${miss.id} — ${rec.label}\n`
             + `Title: ${rec.title}\n`
             + `Indexed in PubMed under these MeSH descriptors: ${rec.mesh.join(', ') || '(none)'}\n\n`
             + `It was excluded by the following block(s), which it does not match:\n\n${blocks}`)
@@ -988,7 +1155,7 @@ export async function suggestFixes(
             if (!terms || !Number.isInteger(ci) || !out.concepts[ci]) continue
             if (!miss.failingConcepts!.includes(ci)) continue    // stay inside the block we asked about
 
-            const line: Line = { terms, on: false, suggestedFor: miss.pmid }
+            const line: Line = { terms, on: false, suggestedFor: miss.id }
             const withLine: Strategy = {
                 ...out,
                 concepts: out.concepts.map((c, i) =>
@@ -1004,12 +1171,12 @@ export async function suggestFixes(
             //    not retrieve the paper. A widening that cannot deliver is worse than no advice:
             //    it is a false promise with a price tag. If the seed does not come back, the
             //    limits (or another block) are the real problem, and the seed panel says so.
-            const retrieves = await countPubmed(`${miss.pmid}[uid] AND (${assembleQuery(withLine)})`)
+            const retrieves = await countPubmed(`${miss.id}[uid] AND (${assembleQuery(withLine)})`)
             if (retrieves !== 1) {
                 // Say so out loud. A proposal that vanishes without a trace is how a feature
                 // quietly stops working — the page would show a miss with no fix and look fine.
                 console.log(JSON.stringify({
-                    tag: 'literature-fix-rejected', pmid: miss.pmid, conceptIndex: ci, terms, retrieves,
+                    tag: 'literature-fix-rejected', seed: miss.id, conceptIndex: ci, terms, retrieves,
                     why: 'ticking this line would not actually retrieve the seed',
                 }))
                 continue
@@ -1034,7 +1201,7 @@ export async function suggestFixes(
                 line.costRecords = widenedHits - result.hits
             } else {
                 console.error(JSON.stringify({
-                    tag: 'literature-price-impossible', pmid: miss.pmid, conceptIndex: ci,
+                    tag: 'literature-price-impossible', seed: miss.id, conceptIndex: ci,
                     baseHits: result.hits, widenedHits,
                     why: 'a widening cannot shrink the result set — the count is untrustworthy, price withheld',
                 }))
@@ -1045,7 +1212,7 @@ export async function suggestFixes(
                 concepts: out.concepts.map((c, i) => i === ci ? { ...c, lines: [...c.lines, line] } : c),
             }
             console.log(JSON.stringify({
-                tag: 'literature-fix', pmid: miss.pmid, conceptIndex: ci, terms, costRecords: line.costRecords ?? null,
+                tag: 'literature-fix', seed: miss.id, conceptIndex: ci, terms, costRecords: line.costRecords ?? null,
             }))
         }
     }
@@ -1545,8 +1712,13 @@ export async function runReview(s: Strategy, sort: Sort, proceed = false): Promi
 
     const base = {
         db: s.db,
+        dbName: DIALECTS[s.db].name,
         concepts: s.concepts,
         limits: s.limits,
+        // Modes 2 and 3 are PubMed-only (they rank on PubMed's publication-type index, which Scopus
+        // does not have), and every limit the dropdowns offer IS expressible in PubMed — so there is
+        // nothing here to declare. The field exists so ReviewResult and StrategyResult stay one shape.
+        unsupportedLimits: [] as string[],
         query,
         hits,
         runDate: new Date().toISOString().slice(0, 10),

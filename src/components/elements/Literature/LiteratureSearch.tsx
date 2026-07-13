@@ -62,7 +62,9 @@ import {
     buildLimits,
     dateLimits,
     pubTypes,
+    DIALECTS,
 } from '../../../../controllers/literatureSearch.strategy'
+import type { Db, Rendering, SeedKind } from '../../../../controllers/literatureSearch.strategy'
 // THE CONTRACT, imported rather than re-declared. `import type` is erased at transpile, so this
 // costs the client bundle nothing (the controller's AWS SDK import never reaches the browser) —
 // but it means the screen cannot quietly disagree with the route about what a record is. A
@@ -74,18 +76,25 @@ import type { Block, RunFacts } from '../../../../controllers/literatureExport'
 import { saveDocx, saveText, saveXlsx, stamp } from './download'
 import s from './LiteratureSearch.module.css'
 
+// A KNOWN ITEM, AND IT IS NOT A PMID BY ASSUMPTION. A Scopus-only record — a conference paper, a
+// non-MEDLINE journal — has no PMID at all, and those are the records Scopus is here for. So a seed
+// is an identifier WITH A KIND, and a DOI is a first-class one.
 type Seed = {
-    pmid: string
+    id: string
+    kind: SeedKind
     label?: string
     retrieved: boolean
+    notInDatabase?: boolean        // this database does not have the paper. Not a strategy bug.
     failingConcepts?: number[]
     failsLimits?: boolean
 }
 
 type DbResult = {
-    db: string
-    concepts: Concept[]
+    db: Db
+    dbName: string
+    concepts: Rendering[]          // THIS database's rendering. The labels are shared; the lines are not.
     limits: string
+    unsupportedLimits: string[]    // limits this database cannot express — declared, never dropped
     query: string
     hits: number
     runDate: string
@@ -123,10 +132,15 @@ const MODES = [
     { id: 'clinical-question', label: 'Clinical question', desc: 'Precision · top 50 · PICO answer', ready: true },
 ]
 
-const DATABASES = [
+// SCOPUS IS SEARCH-STRATEGY ONLY, and that is principled rather than unfinished. Modes 2 and 3
+// order records by an evidence tier derived from PubMed's publication-type indexing, and Scopus has
+// no such index — probed live, DOCTYPE(rct) returns 0, because Scopus has no RCT document type. A
+// Scopus "clinical answer" would have no evidence hierarchy underneath it, which is the one thing
+// Mode 3 is for. Embase remains unavailable: Elsevier does not sell us API access to it.
+const DATABASES: Array<{ id: Db | 'embase'; label: string; ready: boolean; srOnly?: boolean; note?: string }> = [
     { id: 'pubmed', label: 'PubMed', ready: true },
     { id: 'embase', label: 'Embase', ready: false },
-    { id: 'scopus', label: 'Scopus', ready: false },
+    { id: 'scopus', label: 'Scopus', ready: true, srOnly: true, note: 'no controlled vocabulary — supplementary to PubMed, not equivalent' },
 ]
 
 // Without this control "top 50" is an unranked slice of the yield and the mode's promise is
@@ -230,9 +244,19 @@ export default function LiteratureSearch() {
     // server last COUNTED; `strategy` is what the librarian currently has ticked. They differ
     // only while a re-count is in flight, and the screen says so rather than showing a number
     // that belongs to a query nobody is looking at any more.
-    const [strategy, setStrategy] = useState<Strategy | null>(null)
-    const [result, setResult] = useState<DbResult | null>(null)
+    // ONE STRATEGY AND ONE RESULT PER DATABASE. They are index-parallel, and they share only the
+    // concept LABELS — each database's TERMS were generated natively for it, never translated from
+    // the other's. Modes 2 and 3 have exactly one database, so for them these arrays have length 1
+    // and `strategy` / `result` below are the whole story.
+    const [strategies, setStrategies] = useState<Strategy[]>([])
+    const [results, setResults] = useState<DbResult[]>([])
+    const [dbs, setDbs] = useState<Db[]>(['pubmed'])
     const [recounting, setRecounting] = useState(false)
+
+    // Modes 2 and 3 only ever search one database, so they read the head of each array and nothing
+    // in their code has to know the arrays exist.
+    const strategy = strategies[0] || null
+    const result = results[0] || null
 
     // ---- Mode 2 ----
     // `phase` is where the librarian is: the form, the candidate list, or the synthesis.
@@ -313,17 +337,17 @@ export default function LiteratureSearch() {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, criteria, seeds, dateId, typeId }),
+                body: JSON.stringify({ question, criteria, seeds, dateId, typeId, databases: dbs }),
             })
             const data = await res.json()
             if (!res.ok) {
                 setErr(data?.message || 'Could not build the strategy.')
                 return
             }
-            const r: DbResult = data.databases[0]
-            fresh.current = true                 // this strategy was just counted; don't re-count it
-            setStrategy({ db: 'pubmed', concepts: r.concepts, limits: r.limits })
-            setResult(r)
+            const rs: DbResult[] = data.databases || []
+            fresh.current = true                 // these were just counted; don't re-count them
+            setStrategies(rs.map(r => ({ db: r.db, concepts: r.concepts, limits: r.limits })))
+            setResults(rs)
             setExperts(data.experts)
             setModel(data.model || '')
         } catch {
@@ -376,7 +400,7 @@ export default function LiteratureSearch() {
             // downstream — the summary bar, the screen call, the synthesis call — then carries the
             // question that was really asked, not one the client reconstructed and hoped matched.
             if (data.question) setQuestion(data.question)
-            setResult(r)
+            setResults([r])
             setExperts(data.experts)
             setModel(data.model || '')
             setPhase('candidates')
@@ -389,7 +413,7 @@ export default function LiteratureSearch() {
                 const st: Strategy = { db: 'pubmed', concepts: r.concepts, limits: r.limits }
                 fresh.current = true          // the server just counted this one; don't re-count it
                 setBaseStrategy(st)
-                setStrategy(st)
+                setStrategies([st])
                 setNarrowings(r.narrowings || [])
                 setBaseHits(r.hits)
                 setTicked({})
@@ -401,7 +425,7 @@ export default function LiteratureSearch() {
             // Retrieved. DROP THE STRATEGY: nothing in the candidates phase edits it, and leaving
             // it set would let the re-count effect land a record-less result on top of the list.
             setGate(false)
-            setStrategy(null)
+            setStrategies([])
 
             const recs = r.records || []
             setRecords(recs)
@@ -446,7 +470,8 @@ export default function LiteratureSearch() {
         const next = { ...ticked, [n.label]: !ticked[n.label] }
         setTicked(next)
         if (!baseStrategy) return
-        setStrategy({
+        dirty.current.add(0)
+        setStrategies([{
             ...baseStrategy,
             concepts: [
                 ...baseStrategy.concepts,
@@ -454,7 +479,7 @@ export default function LiteratureSearch() {
                     .filter(x => next[x.label])
                     .map(x => ({ label: x.label, lines: [{ terms: x.terms, on: true }] })),
             ],
-        })
+        }])
     }
 
     // ---- MODE 2, POST 2 of 3: screen all 50 in ONE call. ~29s, measured, no drops.
@@ -547,33 +572,53 @@ export default function LiteratureSearch() {
     const fresh = useRef(false)
     const seq = useRef(0)
 
+    // WHICH DATABASES NEED RE-COUNTING. Toggling a line in the Scopus strategy must not spend a
+    // PubMed count — each toggle already costs one count for the yield plus one per seed, and
+    // unkeyed NCBI allows only 3 requests/second, so re-counting a database nobody touched is how
+    // you trip a rate limit on someone else's behalf. An empty set means "everything": that is the
+    // limits dropdowns, which sit on every strategy at once.
+    const dirty = useRef<Set<number>>(new Set())
+
     useEffect(() => {
         if (!isSR && !gate) return
-        if (!strategy) return
-        if (fresh.current) { fresh.current = false; return }
+        if (!strategies.length) return
+        if (fresh.current) { fresh.current = false; dirty.current.clear(); return }
+
+        const targets = dirty.current.size ? Array.from(dirty.current) : strategies.map((_, i) => i)
 
         const mine = ++seq.current
         const t = setTimeout(async () => {
+            // Cleared HERE, not above: the effect re-runs (and this cleanup fires) on every
+            // keystroke, and clearing before the debounce settles would lose the record of which
+            // database was edited — and fall back to re-counting all of them.
+            dirty.current.clear()
             setRecounting(true)
             try {
-                const res = await fetch('/api/literature/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    // No seeds in Mode 2: known-item validation is a recall check, and it is
-                    // meaningless against a search that is being deliberately narrowed. Sending
-                    // them would also spend one count call per seed on every tick, for nothing.
-                    body: JSON.stringify({ strategy, seeds: isSR ? seeds : '', dateId, typeId }),
-                })
-                const data = await res.json()
+                const fetched = await Promise.all(targets.map(async di => {
+                    const res = await fetch('/api/literature/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        // No seeds in Mode 2: known-item validation is a recall check, and it is
+                        // meaningless against a search that is being deliberately narrowed. Sending
+                        // them would also spend one count call per seed on every tick, for nothing.
+                        body: JSON.stringify({ strategy: strategies[di], seeds: isSR ? seeds : '', dateId, typeId }),
+                    })
+                    const data = await res.json()
+                    if (!res.ok) throw new Error(data?.message || 'Could not re-count the strategy.')
+                    return { di, r: data.databases[0] as DbResult }
+                }))
                 // A slower earlier request must never overwrite a newer count. Silently dropping
                 // a stale response is the only correct thing here: the number on screen has to
                 // belong to the strategy on screen.
                 if (mine !== seq.current) return
-                if (!res.ok) { setErr(data?.message || 'Could not re-count the strategy.'); return }
                 setErr('')
-                setResult(data.databases[0])
-            } catch {
-                if (mine === seq.current) setErr('Could not reach the server.')
+                setResults(rs => {
+                    const next = [...rs]
+                    fetched.forEach(({ di, r }) => { next[di] = r })
+                    return next
+                })
+            } catch (e: any) {
+                if (mine === seq.current) setErr(e?.message || 'Could not reach the server.')
             } finally {
                 if (mine === seq.current) setRecounting(false)
             }
@@ -581,31 +626,41 @@ export default function LiteratureSearch() {
 
         return () => clearTimeout(t)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [strategy, dateId, typeId, isSR, gate])
+    }, [strategies, dateId, typeId, isSR, gate])
 
     // Keep the limits on the client object in step with the dropdowns, so the line numbering
     // redraws instantly. The server re-derives them from the same ids and the same table —
     // buildLimits() is shared, which is why the two cannot drift.
-    const liveStrategy: Strategy | null = strategy && { ...strategy, limits: buildLimits(dateId, typeId) }
+    // Keep each strategy's limits in step with the dropdowns, IN ITS OWN DATABASE'S SYNTAX, so the
+    // line numbering redraws instantly. The server re-derives them from the same ids and the same
+    // dialect table — buildLimits() is shared, which is why the two cannot drift.
+    const liveStrategies: Strategy[] = strategies.map(st => ({
+        ...st, limits: buildLimits(st.db, dateId, typeId).terms,
+    }))
+    const liveStrategy: Strategy | null = liveStrategies[0] || null      // Modes 2 & 3
 
-    const editConcept = (ci: number, fn: (c: Concept) => Concept) =>
-        setStrategy(st => st && { ...st, concepts: st.concepts.map((c, i) => (i === ci ? fn(c) : c)) })
+    const editConcept = (di: number, ci: number, fn: (c: Rendering) => Rendering) => {
+        dirty.current.add(di)
+        setStrategies(sts => sts.map((st, i) => (
+            i === di ? { ...st, concepts: st.concepts.map((c, j) => (j === ci ? fn(c) : c)) } : st
+        )))
+    }
 
-    const toggle = (ci: number, li: number) =>
-        editConcept(ci, c => ({ ...c, lines: c.lines.map((l, j) => (j === li ? { ...l, on: !l.on } : l)) }))
+    const toggle = (di: number, ci: number, li: number) =>
+        editConcept(di, ci, c => ({ ...c, lines: c.lines.map((l, j) => (j === li ? { ...l, on: !l.on } : l)) }))
 
-    const edit = (ci: number, li: number, terms: string) =>
-        editConcept(ci, c => ({ ...c, lines: c.lines.map((l, j) => (j === li ? { ...l, terms } : l)) }))
+    const edit = (di: number, ci: number, li: number, terms: string) =>
+        editConcept(di, ci, c => ({ ...c, lines: c.lines.map((l, j) => (j === li ? { ...l, terms } : l)) }))
 
-    const addLine = (ci: number) =>
-        editConcept(ci, c => ({ ...c, lines: [...c.lines, { terms: '', on: true }] }))
+    const addLine = (di: number, ci: number) =>
+        editConcept(di, ci, c => ({ ...c, lines: [...c.lines, { terms: '', on: true }] }))
 
     // Back to the form with the question, the criteria and the limits still in it. That IS the
     // edit-and-re-run path in Mode 2: there is nothing else to edit, because the query was
     // derived from these fields.
     const newSearch = () => {
-        setStrategy(null)
-        setResult(null)
+        setStrategies([])
+        setResults([])
         setExperts(null)
         setErr('')
         setPhase('form')
@@ -648,9 +703,9 @@ export default function LiteratureSearch() {
     // then pastes a methods block describing the un-toggled strategy, we have broken the single
     // thing this feature exists to guarantee.
     const prismaBlock = (r: DbResult) => {
-        const { rows } = numberStrategy({ db: 'pubmed', concepts: r.concepts, limits: r.limits })
+        const { rows } = numberStrategy({ db: r.db, concepts: r.concepts, limits: r.limits })
         return [
-            `Database: PubMed (via NCBI E-utilities)`,
+            `Database: ${DIALECTS[r.db].provenance}`,
             `Date searched: ${r.runDate}`,
             `Records retrieved: ${r.hits}`,
             ``,
@@ -659,11 +714,14 @@ export default function LiteratureSearch() {
                 .filter(row => row.n !== null)   // an unticked line was not searched, so it is not in the methods
                 .map(row => `${row.n}. ${row.kind === 'term' ? row.line.terms : row.text}`),
             ``,
+            ...(r.unsupportedLimits?.length
+                ? [`Limits NOT applied: ${r.unsupportedLimits.join('; ')} — ${DIALECTS[r.db].name} cannot express this limit, so the count above is not restricted by it.`, ``]
+                : []),
             `Full Boolean:`,
             r.query,
             ``,
             r.seeds.length
-                ? `Known-item validation: ${r.seeds.filter(x => x.retrieved).length} of ${r.seeds.length} seed records retrieved (${r.seeds.map(x => x.pmid).join(', ')}).`
+                ? `Known-item validation: ${r.seeds.filter(x => x.retrieved).length} of ${r.seeds.length} seed records retrieved (${r.seeds.map(x => `${x.kind.toUpperCase()} ${x.id}`).join(', ')}).`
                 : `Known-item validation: not performed.`,
         ].join('\n')
     }
@@ -671,8 +729,10 @@ export default function LiteratureSearch() {
     const retrieved = result ? result.seeds.filter(x => x.retrieved).length : 0
     const allFound = result && result.seeds.length > 0 && retrieved === result.seeds.length
     const numbered = liveStrategy ? numberStrategy(liveStrategy) : null
-    const seedOf = (pmid?: string) => result?.seeds.find(x => x.pmid === pmid)
-    const nameOf = (x?: Seed) => (x ? x.label || `PMID ${x.pmid}` : '')
+    // Per DATABASE now — a seed can be retrieved by PubMed and missed by Scopus, and that difference
+    // is one of the more interesting things this screen can tell a librarian.
+    const seedIn = (r: DbResult, id?: string) => r.seeds.find(x => x.id === id)
+    const nameOf = (x?: Seed) => (x ? x.label || `${x.kind.toUpperCase()} ${x.id}` : '')
 
     // THE TALLY FOLLOWS THE HUMAN, NEVER THE FLAGS.
     const included = records.filter(r => picked[r.pmid])
@@ -726,11 +786,13 @@ export default function LiteratureSearch() {
     // WHICH MODEL. Carried on the facts so that every builder discloses it without having to be
     // told twice — the synthesis, the strategy appendix and the spreadsheet all read it from here.
     const runFacts = (r: DbResult): RunFacts => ({
+        db: r.db,
         query: r.query,
         hits: r.hits,
         runDate: r.runDate,
         cwid: runBy,
         limits: r.limits,
+        unsupportedLimits: r.unsupportedLimits,
         sort: r.records?.length ? sortLabel : undefined,
         model,
     })
@@ -762,8 +824,12 @@ export default function LiteratureSearch() {
     // artifact. Same builders, concatenated — there is no second source of truth.
     const dlPacket = (r: DbResult) => {
         const facts = runFacts(r)
+        // EVERY database that was searched, not just the first. A methods appendix that reports one
+        // of two searches is not a methods appendix — and the two are separate documents inside the
+        // one file precisely because they are separate searches, with separate counts that must
+        // never be added together.
         const blocks: Block[] = [
-            ...strategyDoc(r, question, runBy, model),
+            ...results.flatMap(x => strategyDoc(x, question, runBy, model)),
             ...(synthesis
                 ? synthesisDoc(synthesis, facts, question,
                     { pico: isPico, screenedIn: included.length, screenedOf: records.length })
@@ -980,17 +1046,37 @@ export default function LiteratureSearch() {
                     <div className={s.field}>
                         <span className={s.eyebrow}>Databases</span>
                         <div className={s.dbRow}>
-                            {DATABASES.map(d => (
-                                <label
-                                    key={d.id}
-                                    htmlFor={`lit-db-${d.id}`}
-                                    className={`${s.db} ${d.ready ? '' : s.dbOff}`}
-                                >
-                                    <input id={`lit-db-${d.id}`} type="checkbox" checked={d.ready} disabled readOnly />
-                                    {d.label}
-                                    {!d.ready && <span className={s.soon}>(soon)</span>}
-                                </label>
-                            ))}
+                            {DATABASES.map(d => {
+                                // PubMed is always on and cannot be turned off — it is the only database
+                                // every mode can use. Scopus is offered in Search strategy ONLY (Modes 2
+                                // and 3 rank on PubMed's publication-type index, which Scopus lacks).
+                                const fixed = d.id === 'pubmed'
+                                const usable = d.ready && (!d.srOnly || isSR)
+                                const on = fixed || (usable && dbs.includes(d.id as Db))
+                                return (
+                                    <label
+                                        key={d.id}
+                                        htmlFor={`lit-db-${d.id}`}
+                                        className={`${s.db} ${usable || fixed ? '' : s.dbOff}`}
+                                        title={d.note || ''}
+                                    >
+                                        <input
+                                            id={`lit-db-${d.id}`}
+                                            type="checkbox"
+                                            checked={on}
+                                            disabled={fixed || !usable}
+                                            onChange={() => setDbs(cur => (
+                                                cur.includes(d.id as Db)
+                                                    ? cur.filter(x => x !== d.id)
+                                                    : [...cur, d.id as Db]
+                                            ))}
+                                        />
+                                        {d.label}
+                                        {!d.ready && <span className={s.soon}>(soon)</span>}
+                                        {d.ready && d.srOnly && !isSR && <span className={s.soon}>(search strategy only)</span>}
+                                    </label>
+                                )
+                            })}
                         </div>
                     </div>
 
@@ -1120,19 +1206,55 @@ export default function LiteratureSearch() {
             {err && <div role="alert" className={s.error}>{err}</div>}
 
             {/* ============ MODE 1 — THE STRATEGY ============ */}
-            {isSR && result && liveStrategy && numbered && (
+            {isSR && results.length > 0 && (
                 <>
-                    {/* THE DELIVERABLE — PRESS-numbered, line by line, every atomic line toggleable
-                        and editable. This is the form a strategy is peer-reviewed in, and it is
-                        also the only form a checkbox can sit on. */}
+                    {/* ONE PANEL PER DATABASE. They share the concept LABELS and nothing else: each
+                        set of terms was written natively for its own database, from the question.
+                        Two counts sit side by side, and they are NOT the same search — which is the
+                        honest thing to show, and the reason the panels are separate rather than
+                        summed. Counts across databases must never be added: the overlap is large
+                        and unmeasured until records are deduped. */}
+                    {results.map((result, di) => {
+                    const live = liveStrategies[di]
+                    if (!live) return null
+                    const numbered = numberStrategy(live)
+                    const retrieved = result.seeds.filter(x => x.retrieved).length
+                    const allFound = result.seeds.length > 0 && retrieved === result.seeds.length
+                    return (
+                    <div key={result.db}>
                     <section className={s.panel} aria-live="polite">
                         <div className={s.panelHead}>
-                            <h2 className={s.panelTitle}>PubMed</h2>
+                            <h2 className={s.panelTitle}>{result.dbName}</h2>
                             <span className={`${s.hits} ${recounting ? s.hitsStale : ''}`}>
                                 {result.hits.toLocaleString()} <span>records</span>
                             </span>
                             {recounting && <span className={s.recounting}>re-counting…</span>}
                         </div>
+
+                        {/* SCOPUS IS NOT A SECOND PUBMED, AND THE SCREEN SAYS SO. It has no controlled
+                            vocabulary — nothing to explode, no MeSH analogue — so this strategy is
+                            faithfully the same idea and systematically LESS SENSITIVE than the PubMed
+                            one beside it. For a systematic review, where recall is the cardinal
+                            virtue, that is a methodological cost no engineering can remove, and a
+                            librarian is entitled to read it before they trust the number above. */}
+                        {result.db === 'scopus' && (
+                            <div className={s.dbNote}>
+                                Scopus has <b>no controlled vocabulary</b> — no MeSH, nothing to explode — so every
+                                concept below rests on free text alone. It is a <b>supplementary</b> database here,
+                                not a PubMed-equivalent one.
+                            </div>
+                        )}
+
+                        {/* A LIMIT THIS DATABASE CANNOT EXPRESS. Never silently dropped: the count
+                            above would then answer a BROADER question than the one asked, sitting
+                            next to a PubMed count that answered the narrow one. */}
+                        {result.unsupportedLimits?.length > 0 && (
+                            <div className={`${s.dbNote} ${s.dbNoteWarn}`}>
+                                <b>{result.unsupportedLimits.join('; ')}</b> could not be applied &mdash; {result.dbName} indexes a
+                                document type (article, review), not a study design, so it has no way to say this.
+                                The count above is <b>not</b> restricted by it.
+                            </div>
+                        )}
 
                         <div className={s.lines}>
                             {numbered.rows.map((row, i) => {
@@ -1148,7 +1270,7 @@ export default function LiteratureSearch() {
                                     )
                                 }
 
-                                const seed = seedOf(row.line.suggestedFor)
+                                const seed = seedIn(result, row.line.suggestedFor)
                                 return (
                                     <div key={`t${row.ci}-${row.li}`}>
                                         <div className={s.line}>
@@ -1156,14 +1278,14 @@ export default function LiteratureSearch() {
                                                 type="checkbox"
                                                 className={s.lineCheck}
                                                 checked={row.line.on}
-                                                onChange={() => toggle(row.ci, row.li)}
+                                                onChange={() => toggle(di, row.ci, row.li)}
                                                 aria-label={`Include line: ${row.line.terms.slice(0, 60)}`}
                                             />
                                             <span className={s.lineNum}>{row.n ?? '·'}</span>
                                             <LineInput
                                                 value={row.line.terms}
                                                 on={row.line.on}
-                                                onChange={v => edit(row.ci, row.li, v)}
+                                                onChange={v => edit(di, row.ci, row.li, v)}
                                             />
                                         </div>
                                         {/* The model's proposed widening: a LINE, not a paragraph. Verified
@@ -1187,8 +1309,8 @@ export default function LiteratureSearch() {
                             )}
 
                             <div className={s.addLines}>
-                                {liveStrategy.concepts.map((c, ci) => (
-                                    <button key={ci} className={s.addLine} onClick={() => addLine(ci)}>
+                                {live.concepts.map((c, ci) => (
+                                    <button key={ci} className={s.addLine} onClick={() => addLine(di, ci)}>
                                         + line to {c.label}
                                     </button>
                                 ))}
@@ -1208,8 +1330,8 @@ export default function LiteratureSearch() {
                             <span>Tick, untick or edit any line &mdash; it re-counts for free.</span>
                             {/* The strategy is the deliverable, so it downloads FROM the strategy —
                                 not from a menu somewhere else. Word for the appendix, plain text for
-                                the query, because a query wants to be pasted back into PubMed and
-                                nothing else. Both describe the TOGGLED state, never the draft. */}
+                                the query, because a query wants to be pasted back into the database
+                                that produced it. Both describe the TOGGLED state, never the draft. */}
                             <div className={s.footBtns}>
                                 <button
                                     className={`${s.btnSecondary} ${copied === 'query' ? s.btnSecondaryDone : ''}`}
@@ -1228,19 +1350,9 @@ export default function LiteratureSearch() {
                         </div>
                     </section>
 
-                    {/* A Cochrane-compliant search needs Embase and CENTRAL too. The card says so
-                        out loud — and keeps the artifact an array. */}
-                    <div className={s.pending}>
-                        <div className={s.pendingHead}>
-                            <span className={s.eyebrow}>Embase</span>
-                            <span className={s.expertsCount}>not searched</span>
-                        </div>
-                        <div className={s.pendingNote}>
-                            A Cochrane-compliant search needs Embase and CENTRAL too. Coming soon.
-                        </div>
-                    </div>
-
-                    {/* KNOWN-ITEM VALIDATION — the thing that makes an LLM-drafted Boolean defensible. */}
+                    {/* KNOWN-ITEM VALIDATION, PER DATABASE. A seed can be retrieved by PubMed and
+                        MISSED by Scopus — and that difference is often the most informative thing on
+                        this screen, because it is a fact about the databases, not about the query. */}
                     <div className={`${s.card} ${s.validation}`}>
                         <div className={s.valHead}>
                             <span className={s.eyebrow}>Known-item validation</span>
@@ -1259,7 +1371,8 @@ export default function LiteratureSearch() {
                                 <span className={`${s.dot} ${s.dotWarn}`} />
                                 <span>
                                     No known-item seeds provided &mdash; <b>recall cannot be verified.</b> Add PMIDs
-                                    of papers this search must retrieve, and re-run, to make this strategy testable.
+                                    or DOIs of papers this search must retrieve, and re-run, to make this strategy
+                                    testable.
                                 </span>
                             </div>
                         ) : (
@@ -1270,15 +1383,19 @@ export default function LiteratureSearch() {
                                             .map(i => ({ label: result.concepts[i]?.label, lines: numbered.conceptLines[i] || [] }))
                                             .filter(f => f.label)
                                         return (
-                                            <div className={s.seed} key={x.pmid}>
+                                            <div className={s.seed} key={`${x.kind}${x.id}`}>
                                                 <span className={`${s.seedMark} ${x.retrieved ? s.seedHit : s.seedMiss}`}>
                                                     {x.retrieved ? '✓' : '✗'}
                                                 </span>
                                                 {/* Author + year, not a bare PMID: a librarian who named four
                                                     seeds cannot tell which paper missed from an 8-digit number. */}
                                                 {x.label && <span className={s.seedName}>{x.label}</span>}
-                                                <span className={s.seedId}>PMID {x.pmid}</span>
-                                                {!x.retrieved && <span className={s.verdict}>Not retrieved</span>}
+                                                <span className={s.seedId}>{x.kind.toUpperCase()} {x.id}</span>
+                                                {!x.retrieved && (
+                                                    <span className={s.verdict}>
+                                                        {x.notInDatabase ? 'Not in this database' : 'Not retrieved'}
+                                                    </span>
+                                                )}
 
                                                 {/* The reason is DERIVED by re-counting the seed against each
                                                     block AND the limits, never guessed by the model. A paper can
@@ -1287,10 +1404,22 @@ export default function LiteratureSearch() {
                                                     cannot return it. */}
                                                 {!x.retrieved && (
                                                     <span className={s.why}>
-                                                        {!failing.length && !x.failsLimits && (
+                                                        {/* NOT A STRATEGY BUG, AND IT MUST NOT READ AS ONE. The paper
+                                                            is not in this database at all, so no widening of any block
+                                                            can ever retrieve it. Without this verdict the seed would
+                                                            "fail" every block at once and look like a catastrophically
+                                                            narrow query — sending a librarian off to fix a search that
+                                                            was never broken. It is also a real finding in its own
+                                                            right: it is what Scopus's coverage gap LOOKS like. */}
+                                                        {x.notInDatabase && (
+                                                            <><b>{result.dbName} does not index this paper.</b> No change to the
+                                                                strategy can retrieve it &mdash; this is a coverage gap in the
+                                                                database, not a fault in the query.</>
+                                                        )}
+                                                        {!x.notInDatabase && !failing.length && !x.failsLimits && (
                                                             <>Nothing is ticked, so there is no strategy to retrieve it.</>
                                                         )}
-                                                        {failing.length > 0 && (
+                                                        {!x.notInDatabase && failing.length > 0 && (
                                                             <>
                                                                 Excluded by the{' '}
                                                                 {failing.map((f, k) => (
@@ -1305,7 +1434,7 @@ export default function LiteratureSearch() {
                                                                 {failing.length > 1 ? ' blocks' : ' block'}.{' '}
                                                             </>
                                                         )}
-                                                        {x.failsLimits && (
+                                                        {!x.notInDatabase && x.failsLimits && (
                                                             <>
                                                                 {failing.length > 0 ? <>It also fails your </> : <>It matches every block you have ticked, so your </>}
                                                                 <b>limits</b>
@@ -1314,9 +1443,20 @@ export default function LiteratureSearch() {
                                                                     : <> are what exclude it &mdash; change the date range or publication type.</>}
                                                             </>
                                                         )}
-                                                        {failing.length > 0 && !x.failsLimits && (
-                                                            <>Widen {failing.length > 1 ? 'them' : 'it'} to retrieve this paper &mdash; a
-                                                                suggested line may already be waiting, unticked, in the strategy above.</>
+                                                        {/* ONLY PROMISE A SUGGESTED LINE IF ONE ACTUALLY EXISTS. The
+                                                            model-written widening is a PubMed move — it works by reading
+                                                            the paper's MeSH descriptors, and Scopus has no controlled
+                                                            vocabulary to read. So in a Scopus panel there is no unticked
+                                                            line waiting, and telling a librarian to go and find one is
+                                                            the exact species of confident, plausible falsehood this
+                                                            feature exists to prevent. Checked against the STRATEGY, not
+                                                            against the database name: if the suggestion is not there, do
+                                                            not mention it, whatever produced it. */}
+                                                        {!x.notInDatabase && failing.length > 0 && !x.failsLimits && (
+                                                            live.concepts.some(c => c.lines.some(l => l.suggestedFor === x.id))
+                                                                ? <>Widen {failing.length > 1 ? 'them' : 'it'} to retrieve this paper &mdash; a
+                                                                    suggested line is waiting, unticked, in the strategy above.</>
+                                                                : <>Widen {failing.length > 1 ? 'them' : 'it'} to retrieve this paper.</>
                                                         )}
                                                     </span>
                                                 )}
@@ -1342,12 +1482,29 @@ export default function LiteratureSearch() {
                         )}
                     </div>
 
+                    </div>
+                    )
+                    })}
+
+
+                    {/* A Cochrane-compliant search needs Embase and CENTRAL too. The card says so
+                        out loud — and keeps the artifact an array. */}
+                    <div className={s.pending}>
+                        <div className={s.pendingHead}>
+                            <span className={s.eyebrow}>Embase</span>
+                            <span className={s.expertsCount}>not searched</span>
+                        </div>
+                        <div className={s.pendingNote}>
+                            A Cochrane-compliant search needs Embase and CENTRAL too. Coming soon.
+                        </div>
+                    </div>
+
                     {expertsPanel}
 
                     <div className={s.actions}>
                         <button
                             className={s.btn}
-                            onClick={() => copy(prismaBlock(result), 'prisma')}
+                            onClick={() => copy(results.map(prismaBlock).join('\n\n'), 'prisma')}
                             disabled={recounting || !result.query}
                         >
                             {copied === 'prisma' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
