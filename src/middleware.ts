@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt";
 
 //middleware should run for these router paths
 export const config = {
-  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*','/authorships/:path*'],
+  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*','/authorships/:path*','/literature/:path*'],
 }
 					 
 
@@ -98,6 +98,16 @@ export async function middleware(request: NextRequest) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
                 }
 
+            }
+            // Literature Search. The matcher alone only proves a session EXISTS — any
+            // logged-in role would otherwise walk in, and this page fronts a route that
+            // spends institutional money per call. Gate it to the same roles as the nav
+            // item. (The API route additionally enforces the LITERATURE_SEARCH_CWIDS pilot
+            // allowlist; that check, not this one, is the real control.)
+            else if (pathName && pathName.startsWith('/literature') && !isSuperUser && !isCuratorAll && !isReporterAll)
+            {
+              if (isCuratorSelf) return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+              return redirectToLandingPage(request,'/search');
             }
             else if (pathName && pathName.startsWith('/manageusers')  && !isSuperUser)
             {
