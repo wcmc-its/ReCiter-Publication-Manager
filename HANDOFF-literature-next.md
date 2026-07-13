@@ -193,8 +193,8 @@ a 502 rather than as the fake zero of bug #1 above. This is the *good* failure m
 lie. Do not add a retry to paper over it; a 502 that fails the check is the check working.
 
 `.env.local`: `RECITER_PUBMED_API_URL=http://localhost:8083`, `AWS_REGION=us-east-1`,
-`BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-8`, `LITERATURE_SEARCH_CWIDS=paa2013`, and the two
-`BEDROCK_USD_PER_MTOK_*` rates once you have actually looked them up.
+`BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-8`, `LITERATURE_SEARCH_CWIDS=paa2013`. **That is the
+whole list** — there are no rate vars any more; see the cost section above.
 
 **Login lands on `/curate/paa2013`, which errors — ignore it.** That page calls the ReCiter backend
 on reciter-dev, which rejects our API key. Literature Search touches none of it.
