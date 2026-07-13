@@ -22,15 +22,23 @@ export default async function handler(
         const { uid } = req.query;
 
         const apiResponse = await getPublications(uid, req);
-        if(apiResponse.statusCode === 200) {
-            res.status(apiResponse.statusCode).send({
-                statusCode: apiResponse.statusCode,
+
+        // CHANGED: apiResponse.statusCode could previously be `undefined` (e.g. when
+        // getPublications' internal .catch() caught a plain JS error without a `.status`
+        // property). Passing `undefined` into res.status() crashes the process with
+        // ERR_HTTP_INVALID_STATUS_CODE. This normalizes it to a guaranteed numeric value,
+        // defaulting to 500, as a defensive second layer even after the upstream fix.
+        const statusCode = typeof apiResponse.statusCode === 'number' ? apiResponse.statusCode : 500;
+
+        if(statusCode === 200) {
+            res.status(statusCode).send({
+                statusCode,
                 reciter: apiResponse.statusText.reciterData,
                 reciterPending: apiResponse.statusText.reciterPendingData
             })
         } else {
-            res.status(apiResponse.statusCode).send({
-                statusCode: apiResponse.statusCode,
+            res.status(statusCode).send({
+                statusCode,
                 message: apiResponse.statusText
             })
         }
