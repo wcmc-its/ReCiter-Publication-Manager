@@ -22,11 +22,30 @@ error anywhere. **Deploy the retrieval tool first, or not at all.**
 
 `npm run check:literature` is green, needs no LLM, and must stay that way. Keep it green.
 
-## THE COST NUMBER IS NOW REAL (done — `5656230`)
+## THE APP NO LONGER KNOWS WHAT ANYTHING COSTS, ON PURPOSE (done — `5656230`, `f0e2ef2`)
 
-**The verified us-east-1 on-demand rate for `us.anthropic.claude-opus-4-8` is `5.50` in / `27.50`
-out, per Mtok.** Read from the AWS **Price List API** — the billing source of truth — and now the
-default in `logCost()` and set in `.env.local`. **Do not re-derive this. Two traps are waiting, and
+**`estUsd` is GONE from the logs, and no price lives in this codebase any more.** `logCost()` emits
+`model` + `inputTokens` + `outputTokens` and stops. There is **nothing to set on the pod** — the two
+`BEDROCK_USD_PER_MTOK_*` vars an earlier draft of this doc told you to provision no longer exist.
+
+**Why:** a token count is a **durable** fact about what we did; a price is a **volatile** fact owned
+by AWS that changes without telling us. Bake the volatile one into a log line and a rate change
+silently rots every past line. This is not hypothetical — it is what happened here. The route logged
+`5/25` per Mtok for months; the real rate for a `us.` profile is `5.50/27.50`; **every figure it ever
+emitted was 10% light**, and it was recoverable *only* because `model` and the token counts were on
+the line beside it. Store the durable fact; apply the volatile one at read time.
+
+**So where do dollars come from now?**
+- **Totals:** Cost Explorer, filtered to Bedrock. Authoritative, self-updating, and structurally
+  incapable of being 10% wrong.
+- **Ratios** ("Mode 2 costs ~16× Mode 1") — the question that *will* be asked when this outgrows the
+  pilot: Cost Explorer cannot answer it, because it has never heard of a cwid or a mode. Recompute
+  from the logged tokens, at the rate of the day. That is a five-minute job and it is always right.
+
+**The rate, as of 2026-07-13, if you need to do that arithmetic today:**
+`us.anthropic.claude-opus-4-8`, us-east-1, on-demand = **$5.50 / Mtok in, $27.50 / Mtok out**
+(so the Mode 2 headline is ~$0.54, not the ~$0.49 quoted below and elsewhere in this doc).
+Read it from the **AWS Price List API** — the billing source of truth. **Two traps are waiting, and
 both hand you a confident wrong number instead of an error:**
 
 - The service code is **`AmazonBedrockFoundationModels`**, *not* `AmazonBedrock`. The old
@@ -42,27 +61,19 @@ both hand you a confident wrong number instead of an error:**
 - **`aws.amazon.com/bedrock/pricing` will tell you $6.00 / $30.00. That is the GovCloud table.**
   The commercial-region tables on that page are rendered client-side and do not survive a fetch.
 
-**Why 5.50/27.50 and not 5.00/25.00:** the Price List publishes two on-demand tiers per model,
-"Standard" and "Standard, Global". A `us.` prefix is a **geography-scoped** cross-region profile and
-bills at "Standard"; only a `global.` profile gets the 10%-cheaper "Standard, Global" tier. The old
-5/25 default was the *global* rate — so **every `estUsd` logged before `5656230` understated the
-real bill by exactly 10%**, including the ~$0.49 Mode 2 headline (really ~$0.54).
-
-**Reconciled against a real run, so the arithmetic is confirmed, not assumed:** 1,279 in / 634 out
-logged `estUsd: 0.0245`, and `1279/1e6*5.50 + 634/1e6*27.50 = 0.0245`. `logCost()` was always right;
-only its rate was wrong.
-
-**Still to do:** set `BEDROCK_USD_PER_MTOK_IN=5.50` / `_OUT=27.50` **on the pod** (the K8s secret
-alongside `LITERATURE_SEARCH_CWIDS`), so a dev run and a prod run agree. The code default now
-matches, so a missing var is no longer a 10% lie — but set them anyway, because the default stops
-being right the moment `BEDROCK_MODEL_ID` changes.
+**Why 5.50 and not 5.00:** the Price List publishes two on-demand tiers per model — **"Regional
+CRIS"** and **"Global"**. A `us.` prefix is a **geography-scoped** cross-region inference profile and
+bills the *CRIS* tier; only a `global.` profile gets the 10%-cheaper *Global* tier. The 5/25 that
+everyone reaches for is Anthropic's **first-party list price**, which happens to coincide with the
+*Global* tier — so it looks right, and is 10% low for every `us.` profile. The delta is a stable
+structure, not a one-off: Opus 4.5/4.6/4.7/4.8, Sonnet 4.5/4.6, and Haiku 4.5 all show exactly 10%.
 
 **A real cost lever, if anyone asks:** switching to `global.anthropic.claude-opus-4-8` is exactly
-10% cheaper (5.00/25.00). It routes to any commercial AWS region, so it is a **data-residency
-call, not a code one** — and the rates would then need to move back to 5.00/25.00.
+10% cheaper. It routes to any commercial AWS region, so it is a **data-residency call, not a code
+one**. Nothing in the code needs to change for it either way — which is now the point.
 
-Do not put a cost meter in front of a librarian either way — iteration is the behaviour we want, and
-a running meter teaches them to ration it.
+Do not put a cost meter in front of a librarian: iteration is the behaviour we want, and a running
+meter teaches them to ration it.
 
 ## Also before this meets a real user
 

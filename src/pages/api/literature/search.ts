@@ -77,58 +77,38 @@ import { buildLimits } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
 import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
 
-// Cost visibility. One structured line per model call; grep the pod logs.
+// Usage visibility. One structured line per model call; grep the pod logs.
 //
 // NOTE: the question text is deliberately NOT logged — see the data-handling section of the spec.
-// Never show this figure to the librarian either: iteration is the behaviour we want, and a
-// running meter teaches them to ration it.
 //
-// It matters MORE in Mode 2, not less. A Mode 1 run is ~$0.03 because the model only ever sees the
-// question; a Mode 2 run is ~$0.49 because 50 abstracts go through a context window three times.
-// That is the number that will be asked about when this scales past a pilot, so log every call.
+// THIS DELIBERATELY LOGS NO DOLLAR FIGURE, and that is the whole design. A token count is a
+// DURABLE fact about what we did; a price is a VOLATILE fact owned by AWS, which changes without
+// telling us. Bake the volatile one into the log and a rate change silently rots every past line.
+// Log the durable one and any dollar question can be answered later, at whatever the rate turns
+// out to be — which is exactly what saved us here: this route logged `5/25` per Mtok for months,
+// the real us-east-1 rate for a `us.` profile was 5.50/27.50, and every figure it had ever emitted
+// was 10% light. It was recoverable ONLY because `model` and the token counts were on the line.
 //
-// ponytail: env-driven rates, not a constant. Bedrock's per-Mtok price is a function of
-// BEDROCK_MODEL_ID and region, so a baked-in number silently becomes a lie the moment the model
-// changes.
-//
-// The defaults below are the VERIFIED us-east-1 on-demand rate for us.anthropic.claude-opus-4-8,
-// read on 2026-07-13 from the AWS Price List API — the billing source of truth, not a pricing page:
+// So: totals come from Cost Explorer filtered to Bedrock — authoritative, self-updating, and
+// structurally incapable of being 10% wrong. What Cost Explorer CANNOT tell you is "Mode 2 costs
+// ~16x Mode 1", because it has never heard of a cwid or a mode. That is what these lines are for.
+// To answer it, multiply the tokens below by the rate of the day:
 //
 //   aws pricing get-products --region us-east-1 --service-code AmazonBedrockFoundationModels \
 //     --filters 'Type=TERM_MATCH,Field=regionCode,Value=us-east-1'
-//   # then: product.attributes.servicename == "Claude Opus 4.8 (Amazon Bedrock Edition)"
+//   # servicename == "Claude Opus 4.8 (Amazon Bedrock Edition)"; a `us.` profile bills the
+//   # "Regional CRIS" tier, NOT "Global" — the two differ by 10%.
 //
-// TWO TRAPS, both of which produce a confident wrong number:
-//   - The service code is AmazonBedrockFoundationModels, NOT AmazonBedrock. The latter carries only
-//     legacy Claude models (2.x, 3 Haiku/Sonnet) and returns NOTHING for Opus — an empty result,
-//     not an error.
-//   - aws.amazon.com/bedrock/pricing says $6.00/$30.00 for Opus 4.8. That is the GovCloud table;
-//     the commercial-region tables on that page are rendered client-side and don't fetch.
-//
-// 5.50/27.50 is the "Standard" (geography-scoped) tier, which is what a `us.` inference profile
-// bills at. A `global.` profile is 10% cheaper (5.00/25.00) but routes to any commercial AWS
-// region — a data-residency call, not a code one. The previous 5/25 default WAS the global rate,
-// so every estUsd logged before this commit understated the real bill by exactly 10%.
-//
-// If anyone ever sets cache_control on these calls, this undercounts: Bedrock bills cache read and
-// cache write as separate line items, and input_tokens excludes them. Nothing caches today.
-function rate(v: string | undefined, fallback: number): number {
-    const n = Number(v)
-    return Number.isFinite(n) && n > 0 ? n : fallback   // a typo'd rate must not log estUsd: null
-}
-
+// Never show a cost to the librarian either way: iteration is the behaviour we want, and a running
+// meter teaches them to ration it.
 function logCost(mode: string, cwid: string, usage: UsageLog, extra: Record<string, any> = {}) {
-    const inRate = rate(process.env.BEDROCK_USD_PER_MTOK_IN, 5.5)
-    const outRate = rate(process.env.BEDROCK_USD_PER_MTOK_OUT, 27.5)
-    const cost = (usage.inputTokens / 1e6) * inRate + (usage.outputTokens / 1e6) * outRate
     console.log(JSON.stringify({
         tag: 'literature-search',
         mode,
-        model: process.env.BEDROCK_MODEL_ID,    // so estUsd can be reconciled to a rate later
+        model: process.env.BEDROCK_MODEL_ID,    // the rate is a function of THIS — so price it later
         cwid,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
-        estUsd: Number(cost.toFixed(4)),
         ...extra,
     }))
 }
