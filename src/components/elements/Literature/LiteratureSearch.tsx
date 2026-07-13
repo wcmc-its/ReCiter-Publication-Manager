@@ -1206,23 +1206,25 @@ export default function LiteratureSearch() {
                             </span>
                             <span className={s.spacer} />
                             <span>Tick, untick or edit any line &mdash; it re-counts for free.</span>
-                            <button
-                                className={`${s.btnSecondary} ${copied === 'query' ? s.btnSecondaryDone : ''}`}
-                                onClick={() => copy(result.query, 'query')}
-                                disabled={!result.query}
-                            >
-                                {copied === 'query' ? '✓ Copied' : 'Copy query'}
-                            </button>
                             {/* The strategy is the deliverable, so it downloads FROM the strategy —
                                 not from a menu somewhere else. Word for the appendix, plain text for
                                 the query, because a query wants to be pasted back into PubMed and
                                 nothing else. Both describe the TOGGLED state, never the draft. */}
-                            <button className={s.btnSecondary} onClick={() => dlQuery(result)} disabled={!result.query}>
-                                Query (.txt)
-                            </button>
-                            <button className={s.btnSecondary} onClick={() => dlStrategy(result)} disabled={recounting || !result.query}>
-                                Word (.docx)
-                            </button>
+                            <div className={s.footBtns}>
+                                <button
+                                    className={`${s.btnSecondary} ${copied === 'query' ? s.btnSecondaryDone : ''}`}
+                                    onClick={() => copy(result.query, 'query')}
+                                    disabled={!result.query}
+                                >
+                                    {copied === 'query' ? '✓ Copied' : 'Copy query'}
+                                </button>
+                                <button className={s.btnSecondary} onClick={() => dlQuery(result)} disabled={!result.query}>
+                                    Query (.txt)
+                                </button>
+                                <button className={s.btnSecondary} onClick={() => dlStrategy(result)} disabled={recounting || !result.query}>
+                                    Word (.docx)
+                                </button>
+                            </div>
                         </div>
                     </section>
 
