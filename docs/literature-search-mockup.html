@@ -1,0 +1,1326 @@
+<!doctype html><html><head><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"capabilities":{"downloads":"downloads.DUzXFHNF.js","mcp":"mcp.Djj5DQjZ.js","self":"self.DqF_PxOe.js"},"transforms":"_transforms.DYk1Ltlh.js"}</script><script>(function(){"use strict";const X="modulepreload",Y=function(e){return"/"+e},Z={},U=function(t,n,u){let o=Promise.resolve();function i(f){const a=new Event("vite:preloadError",{cancelable:!0});if(a.payload=f,window.dispatchEvent(a),!a.defaultPrevented)throw f}return o.then(f=>{for(const a of f||[])a.status==="rejected"&&i(a.reason);return t().catch(i)})},D=["light","dark","system"];function $(e){if(e==null||typeof e!="object")return!1;const t=e.__frame_init;return t!=null&&typeof t=="object"}function q(e){if(e==null||typeof e!="object")return!1;const t=e.__frame_theme;if(t==null||typeof t!="object")return!1;const n=t.theme;return typeof n=="string"&&D.includes(n)}function M(e){if(window===top||e.type==="auxclick"&&e.button!==1)return;const t=e.composedPath?e.composedPath():[e.target];let n=null;for(let f=0;f<t.length;f++){const a=t[f];if(a&&a.matches&&a.matches("a[href],area[href]")){n=a;break}}if(!n&&e.target&&e.target.closest&&(n=e.target.closest("a[href],area[href]")),!n)return;const u=n.getAttribute("href");if(!u)return;let o,i;try{o=new URL(u,document.baseURI),i=new URL(document.baseURI).origin}catch{return}(o.protocol==="http:"||o.protocol==="https:")&&o.origin!==i&&(e.preventDefault(),parent.postMessage({__frame_nav:!0,url:o.href},"*"))}const L={};function y(e){if(window===top)return;const t=Date.now();t-(L[e]||0)<500||(L[e]=t,parent.postMessage({__frame_engaged:!0,kind:e},"*"))}const F=2e3,T=["wheel","touchstart","touchmove","keydown","pointerdown"];let k=0;function B(e){e.isTrusted&&(k=Date.now())}function z(){addEventListener("click",M,!0),addEventListener("auxclick",M,!0)}function W(){for(let e=0;e<T.length;e++)addEventListener(T[e],B,{capture:!0,passive:!0});addEventListener("scroll",e=>{e.isTrusted&&Date.now()-k<F&&y("scroll")},{capture:!0,passive:!0}),addEventListener("pointermove",e=>{e.isTrusted&&y("pointer")},{capture:!0,passive:!0}),addEventListener("click",e=>{e.isTrusted&&y("click")},{capture:!0,passive:!0})}function x(e,t,n){const u=[...t.values()].filter(o=>o.targets.some(i=>i.startsWith(e+".")));return{wrap(o,i){const f=`${e}.${o}`,a=u.filter(s=>s.targets.includes(f));return a.length===0?(...s)=>{try{return i(...s)}catch(d){return Promise.reject(d)}}:(...s)=>{let d=s;for(const c of a){const l=c.module.parameters;if(l)try{d=l(d)}catch{return Promise.reject({code:"transform_error",id:c.id,scope:e,message:"parameters transform failed"})}}let m;try{m=i(...d)}catch(c){m=Promise.reject(c)}return m.then(c=>{for(let l=a.length-1;l>=0;l--){const h=a[l],p=h.module.returns;if(p)try{c=p(c)}catch{return n({id:h.id,scope:e,leg:"returns"}),c}}return c},c=>{for(let l=a.length-1;l>=0;l--){const h=a[l],p=h.module.throws;if(p)try{c=p(c)}catch{return n({id:h.id,scope:e,leg:"throws"}),Promise.reject(c)}}return Promise.reject(c)})}}}}function H(e,t,n,u=()=>{}){const o=new Set(e.changes??[]),i=new Map;for(const f of o){const a=t[f];a&&i.set(f,a)}return{contract:e.contract,changes:o,flags:new Set(e.flags??[]),capabilities:e.capabilities??{},transforms:i,shellOrigin:n.shellOrigin,mount:n.mount,pipe:f=>x(f,i,u)}}(function(){const e=Object.defineProperty,t=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let u=0;for(let o=0;o<n.length;o++){const i=n[o];try{e(t,i,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[i]}catch{}try{e(t,i,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[i]=="function"&&u++}if(u&&window!==top)try{parent.postMessage({__frame_rtc_lockdown_failed:u},"*")}catch{}})();const K=1e4,G=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function J(e){for(const t of G)if(t.endsWith(":*"))try{const n=new URL(e);if(`${n.protocol}//${n.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}const w=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities??{}}),E=window.__FRAME_PREAMBLE?.transforms,C=/^[\w.-]+\.js$/,V=/^[a-z][a-z0-9_-]{0,63}$/;let A=null,g=null;function P(e,t,n){try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}let R=!1;function N(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,R=!0):R&&(delete t.dataset.theme,t.style.colorScheme="",R=!1)}const _=new Map;function Q(e,t){const n=_.get(e);if(!n)return;Object.assign(n.impl,t),n.impl.__settled=()=>Promise.reject({code:"capability_removed",message:`${e}: method not in this runtime`});const u=n.queue;n.queue=[];for(const o of u){const i=t[o.method];i?i(...o.args).then(o.resolve,o.reject):o.reject({code:"capability_removed",message:`${e}.${o.method} is not in this runtime`})}}function O(e,t){const n=_.get(e);if(!n)return;n.impl.__settled=()=>Promise.reject(t);const u=n.queue;n.queue=[];for(const o of u)o.reject(t)}const j=Object.getOwnPropertyDescriptor(window,"claude");if(window!==top&&!(j&&j.writable===!1)){z(),W();const e=j?.value??{};P(window,"claude",e);const t=s=>{const d={impl:Object.create(null),queue:[]};_.set(s,d);const m=new Proxy(d.impl,{get:(c,l)=>{if(typeof l=="string"&&!(l==="then"||l==="toJSON"||l==="valueOf"))return l==="toString"?Object.prototype.toString:(...h)=>{const p=c[l]??c.__settled;return p?p(...h):new Promise((b,S)=>{d.queue.push({method:l,args:h,resolve:b,reject:S})})}},set:()=>!1});P(e,s,m)};for(const s of Object.keys(w)){if(e[s]!==void 0){P(e,s,e[s]);continue}t(s)}let n=null,u=null,o=0;const i=s=>{s.source!==parent||!J(s.origin)||$(s.data)&&(n=s.data.__frame_init,g=s.origin,removeEventListener("message",i),clearTimeout(o),u?.())};addEventListener("message",i),parent.postMessage({__frame_connect:!0},"*");const f=new Promise(s=>{u=s,o=setTimeout(()=>{removeEventListener("message",i),s()},K)}),a=document.readyState==="loading"?new Promise(s=>document.addEventListener("DOMContentLoaded",()=>s(),{once:!0})):Promise.resolve();f.then(async()=>{if(!n||!g){for(const r of _.keys())O(r,{code:"not_granted",message:"frame initialization did not arrive - capability unavailable"});return}N(n.theme);const s=g;addEventListener("message",r=>{r.source!==parent||r.origin!==s||q(r.data)&&N(r.data.__frame_theme.theme)});const d=r=>U(()=>import("/_runtime/"+r),void 0),m=Object.keys(n.capabilities??{});for(const r of m)Object.hasOwn(w,r)||V.test(r)&&e[r]===void 0&&(t(r),O(r,{code:"capability_disabled",message:"capability not in this runtime generation"}));const c=m.filter(r=>Object.hasOwn(w,r)).map(r=>[r,w[r]]).filter(r=>typeof r[1]=="string"&&C.test(r[1])),[l,...h]=await Promise.allSettled([E&&C.test(E)?d(E):Promise.resolve({}),...c.map(([,r])=>d(r))]),p=g;A=H(n,l.status==="fulfilled"&&l.value?.TRANSFORMS||{},{shellOrigin:p,mount:Q},r=>parent.postMessage({__frame_cap_telemetry:r},p));const b=r=>parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:r}},p),S=A;h.forEach((r,v)=>{const I=c[v][0];if(r.status!=="fulfilled"){b(I);return}try{r.value?.install?.(S)}catch{b(I)}});for(const[r,v]of _)v.queue.length===0&&Object.keys(v.impl).length>0||O(r,{code:m.includes(r)?"capability_disabled":"not_granted",message:"capability not available in this session"});await a,parent.postMessage({__frame_ready:!0},g)})}})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>Literature Search &mdash; RPM UI mockup</title>
+<style>
+  /* Calm system tokens, lifted verbatim from styles/globals.css on origin/dev.
+     Single-theme light on purpose: RPM has no dark mode. */
+  :root {
+    color-scheme: light;
+    --bg: #f5f2ee;
+    --surface: #ffffff;
+    --subtle: #faf8f5;
+    --border: #e8e2d9;
+    --divider: #f0ece5;
+    --ink: #1a2133;
+    --muted: #5a6478;
+    --hint: #8a94a6;
+    --accent: #2563a8;
+    --accent-soft: rgba(37, 99, 168, 0.1);
+    --chrome: #1e2d3d;
+    --chrome-hover: #2a3d51;
+    --chrome-label: #5a7a94;
+    --wcm-red: #c44040;
+    --success-bg: #dcfce7;
+    --success-text: #166534;
+    --danger-bg: #fee2e2;
+    --danger-text: #991b1b;
+    --warning-bg: #fef3c7;
+    --warning-text: #92400e;
+    --badge-blue-bg: #eff6ff;
+    --badge-blue-text: #1d4ed8;
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-pill: 999px;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --page: #ebe6dd;
+  }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ---- Review header (mockup chrome, not part of the app) ---- */
+  .review-head { display: flex; flex-direction: column; gap: 6px; }
+  .review-head h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .review-head p { margin: 0; color: var(--muted); max-width: 68ch; }
+  .review-head code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+  }
+
+  .stepper { display: flex; gap: 6px; flex-wrap: wrap; }
+  .step {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .step:hover { background: var(--accent-soft); color: var(--accent); }
+  .step[aria-selected="true"] {
+    background: var(--chrome);
+    border-color: var(--chrome);
+    color: #fff;
+  }
+  .step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .step .num {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.55;
+    margin-right: 6px;
+  }
+
+  /* ---- The app frame ---- */
+  .app {
+    display: flex;
+    min-height: 620px;
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  }
+
+  /* ---- Sidebar (matches SideNavbar.tsx: 220px, #1e2d3d) ---- */
+  .drawer {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--chrome);
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 20px 12px;
+  }
+  .brand .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--wcm-red);
+    flex-shrink: 0;
+  }
+  .brand span { font-size: 13px; font-weight: 600; color: #fff; }
+  .nav-label {
+    padding: 4px 20px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--chrome-label);
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px;
+    font-size: 13px;
+    color: #c8d4de;
+    text-decoration: none;
+    border-left: 2px solid transparent;
+  }
+  .nav-item:hover { background: var(--chrome-hover); color: #fff; }
+  .nav-item[aria-current="page"] {
+    background: var(--chrome-hover);
+    color: #fff;
+    font-weight: 600;
+    border-left-color: var(--accent);
+  }
+  .nav-item.is-disabled { color: #6b7f92; }
+  .nav-item svg { flex-shrink: 0; }
+  .drawer hr {
+    border: 0;
+    border-top: 1px solid #2e4050;
+    margin: 10px 0;
+  }
+
+  /* ---- Content column ---- */
+  .main {
+    flex: 1;
+    min-width: 0;
+    padding: 24px 28px 32px;
+    overflow-x: auto;
+  }
+  .screen { display: none; flex-direction: column; gap: 18px; }
+  .screen.is-active { display: flex; }
+
+  .crumb { font-size: 12px; color: var(--hint); }
+  .crumb b { color: var(--ink); font-weight: 600; }
+  .page-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 20px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .sec {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--hint);
+  }
+
+  /* ---- Mode picker ---- */
+  .modes { display: flex; gap: 10px; flex-wrap: wrap; }
+  .mode {
+    flex: 1 1 180px;
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .mode:hover { background: var(--subtle); }
+  .mode:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .mode:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mode input { margin: 2px 0 0; accent-color: var(--accent); }
+  .mode .t { font-weight: 600; font-size: 13px; display: block; }
+  .mode .s { font-size: 12px; color: var(--muted); display: block; }
+
+  /* ---- Form controls ---- */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field textarea,
+  .field input[type="text"] {
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 5px;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+  .field textarea::placeholder { color: var(--hint); }
+  .field textarea:focus,
+  .field input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .conditional {
+    border-left: 2px solid var(--accent-soft);
+    padding-left: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .conditional .note { font-size: 12px; color: var(--hint); }
+
+  .filters { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+  .filters .field { gap: 5px; }
+  .filters label { font-size: 12px; color: var(--muted); }
+  select {
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 5px;
+    padding: 7px 10px;
+  }
+  select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  /* ---- Buttons: soft tint at rest, solid on hover ---- */
+  .btn {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    padding: 8px 16px;
+    cursor: pointer;
+    border: 0.5px solid transparent;
+    transition: background 0.12s, color 0.12s;
+  }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-cta { background: var(--chrome); color: #fff; }
+  .btn-cta:hover { background: #2a3d51; }
+  .btn-soft {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: transparent;
+  }
+  .btn-soft:hover { background: var(--accent); color: #fff; }
+  .btn-quiet {
+    background: transparent;
+    color: var(--muted);
+    border-color: var(--border);
+    font-weight: 400;
+  }
+  .btn-quiet:hover { background: var(--subtle); color: var(--ink); }
+  .btn-sm { padding: 5px 11px; font-size: 12px; }
+  .row-end { display: flex; justify-content: flex-end; gap: 10px; }
+
+  /* ---- Query block ---- */
+  .query {
+    background: var(--subtle);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .query code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .query .acts { display: flex; gap: 8px; }
+  .counts {
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .counts b { color: var(--ink); font-weight: 600; }
+
+  /* ---- Running / phase list ---- */
+  .phases { display: flex; flex-direction: column; gap: 18px; }
+  .phase { display: flex; gap: 12px; align-items: flex-start; }
+  .phase .mark {
+    width: 18px; height: 18px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 1px;
+  }
+  .phase .mark.done { background: var(--success-bg); color: var(--success-text); }
+  .phase .mark.busy { background: var(--accent-soft); color: var(--accent); }
+  .phase .mark.wait { background: var(--divider); color: var(--hint); }
+  .phase .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .phase .t { font-size: 13px; font-weight: 600; }
+  .phase .t.pending { font-weight: 400; color: var(--hint); }
+
+  .bar {
+    height: 6px;
+    background: var(--divider);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    max-width: 320px;
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    width: 65%;
+    background: var(--accent);
+    border-radius: var(--radius-pill);
+  }
+  .prog-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Summary bar (collapsed form) ---- */
+  .summary-bar {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--badge-blue-bg);
+    color: var(--badge-blue-text);
+    border-radius: var(--radius-pill);
+    padding: 3px 10px;
+    white-space: nowrap;
+  }
+  .summary-bar .q {
+    color: var(--muted);
+    font-size: 13px;
+    flex: 1;
+    min-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .summary-bar .n {
+    font-size: 12px;
+    color: var(--hint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Screening toolbar + rows ---- */
+  .screen-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--divider);
+  }
+  .tally { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tally b { color: var(--ink); font-weight: 600; }
+  .tally .inc { color: var(--success-text); }
+  .screen-bar .spacer { flex: 1; }
+
+  .rows { display: flex; flex-direction: column; }
+  .rec {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  .rec:last-child { border-bottom: 0; }
+  .rec input[type="checkbox"] { margin-top: 3px; accent-color: var(--accent); }
+  .rec .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .rec .cite {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .rec .cite .who { font-weight: 600; }
+  .rec .cite .jrnl { color: var(--muted); }
+  .rec .cite .pmid {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--hint);
+    font-variant-numeric: tabular-nums;
+  }
+  .rec .title { font-size: 13px; color: var(--muted); }
+  .rec .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+  .tag {
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    padding: 2px 7px;
+    white-space: nowrap;
+  }
+  .tag-design { background: var(--badge-blue-bg); color: var(--badge-blue-text); }
+  .tag-obs { background: var(--divider); color: var(--muted); }
+  .rec .facts { font-size: 12px; color: var(--hint); font-variant-numeric: tabular-nums; }
+  .rec.excluded { opacity: 0.62; }
+  .flagline {
+    display: flex;
+    gap: 7px;
+    align-items: baseline;
+    margin-top: 4px;
+    font-size: 12px;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-radius: var(--radius-sm);
+    padding: 5px 9px;
+    align-self: flex-start;
+  }
+  .flagline b { font-weight: 600; }
+  .wcm-mark {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--wcm-red);
+    background: #fdf0f0;
+    border-radius: var(--radius-sm);
+    padding: 2px 7px;
+  }
+
+  /* ---- WCM expert panel ---- */
+  .experts { padding: 0; overflow: hidden; }
+  .experts .hd {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 14px 20px;
+    background: var(--subtle);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .experts .hd .sec { margin: 0; }
+  .experts .hd .n { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .experts .list { display: flex; flex-direction: column; padding: 4px 20px 8px; }
+  .expert {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  .expert:last-child { border-bottom: 0; }
+  .expert .nm { font-weight: 600; font-size: 13px; color: var(--accent); }
+  .expert .dept { color: var(--muted); font-size: 12px; }
+  .expert .dept.blank { color: var(--hint); font-style: italic; }
+  .expert .pubs {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .experts .ft {
+    padding: 10px 20px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--subtle);
+    border-top: 0.5px solid var(--border);
+  }
+  .experts .ft b { color: var(--ink); font-weight: 600; }
+
+  /* ---- Synthesis ---- */
+  .caveat {
+    display: flex;
+    gap: 10px;
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    border-radius: var(--radius-md);
+    padding: 11px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .caveat b { font-weight: 600; }
+
+  table.sum {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.sum th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--hint);
+    padding: 0 12px 8px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  table.sum td {
+    padding: 9px 12px 9px 0;
+    border-bottom: 1px solid var(--divider);
+    color: var(--muted);
+  }
+  table.sum td:first-child { color: var(--ink); font-weight: 600; }
+  table.sum .num { font-variant-numeric: tabular-nums; }
+  .tbl-scroll { overflow-x: auto; }
+
+  .prose { font-size: 14px; line-height: 1.65; color: var(--ink); max-width: 68ch; }
+  .prose p { margin: 0 0 10px; }
+  .prose p:last-child { margin-bottom: 0; }
+  a.pmid {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    text-decoration: none;
+    background: var(--accent-soft);
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+  a.pmid:hover { text-decoration: underline; }
+  .provenance {
+    font-size: 12px;
+    color: var(--hint);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .provenance .spacer { flex: 1; }
+
+  /* ---- Decisions review panel (mockup chrome) ---- */
+  .decisions {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .decisions h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--hint);
+  }
+  .decisions ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 11px; }
+  .decisions li { color: var(--muted); line-height: 1.55; }
+  .decisions li b { color: var(--ink); font-weight: 600; }
+  .decisions .where {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: var(--radius-sm);
+    padding: 1px 6px;
+    margin-right: 6px;
+    white-space: nowrap;
+  }
+  .foot { font-size: 12px; color: var(--hint); max-width: 72ch; }
+
+  /* ---- Mode tag on the stepper ---- */
+  .mode-tag {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: var(--radius-pill);
+    padding: 1px 6px;
+    margin-left: 7px;
+    background: var(--badge-blue-bg);
+    color: var(--badge-blue-text);
+  }
+  .mode-tag.alt { background: var(--divider); color: var(--muted); }
+  .step[aria-selected="true"] .mode-tag { background: rgba(255,255,255,0.18); color: #fff; }
+
+  /* ---- Databases checklist ---- */
+  .dbs { display: flex; gap: 18px; flex-wrap: wrap; }
+  .db { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .db input { accent-color: var(--accent); }
+  .db.soon { color: var(--hint); }
+  .db .soon-tag {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: var(--divider);
+    color: var(--hint);
+    border-radius: var(--radius-pill);
+    padding: 1px 6px;
+  }
+
+  /* ---- Strategy block (the SR deliverable) ---- */
+  .strat {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+  .strat > .hd {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 11px 16px;
+    background: var(--subtle);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .strat > .hd .db-name {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink);
+  }
+  .strat > .hd .hits {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .strat > .hd .hits small { font-weight: 400; color: var(--muted); }
+  .strat .lines {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-x: auto;
+  }
+  .sline {
+    display: flex;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: nowrap;
+  }
+  .sline .n {
+    color: var(--hint);
+    min-width: 16px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+  }
+  .sline .c { color: var(--ink); }
+  .sline.combine .c { color: var(--muted); }
+  .strat .ft {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    border-top: 1px solid var(--divider);
+    font-size: 12px;
+    color: var(--hint);
+  }
+  .strat .ft .spacer { flex: 1; }
+
+  .strat.pending { border-style: dashed; background: transparent; }
+  .strat.pending > .hd { background: transparent; border-bottom: 0; }
+  .strat.pending .db-name { color: var(--hint); }
+  .strat.pending .body {
+    padding: 0 16px 14px;
+    font-size: 13px;
+    color: var(--hint);
+  }
+
+  /* ---- Known-item validation ---- */
+  .seeds { display: flex; flex-direction: column; }
+  .seed {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--divider);
+    font-size: 13px;
+  }
+  .seed:last-child { border-bottom: 0; }
+  .seed .k {
+    width: 16px;
+    flex-shrink: 0;
+    font-weight: 600;
+    text-align: center;
+  }
+  .seed.hit .k { color: var(--success-text); }
+  .seed.miss .k { color: var(--danger-text); }
+  .seed .who { font-weight: 600; }
+  .seed .id {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--hint);
+    font-variant-numeric: tabular-nums;
+  }
+  .seed.miss { align-items: flex-start; flex-wrap: wrap; }
+  .seed .verdict {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--danger-text);
+  }
+  .seed .why {
+    flex-basis: 100%;
+    margin-left: 26px;
+    margin-top: 5px;
+    font-size: 12px;
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+  }
+  .seed .why b { font-weight: 600; }
+  .val-score {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .val-score.warn { color: var(--danger-text); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+  @media (max-width: 760px) {
+    .drawer { display: none; }
+    .main { padding: 20px 16px 28px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="review-head">
+    <h1>Literature Search &mdash; UI mockup for sign-off</h1>
+    <p>
+      Four screens in the calm system. Nothing is built yet. <b>Revised after the SR conversation:</b> in
+      Search-strategy mode the deliverable is <i>the strategy itself</i> &mdash; no candidate list, no screening, no
+      synthesis, no cap. Steps 3 and 4 now belong to <b>Issue review</b> only. The list underneath explains
+      what changed and why.
+    </p>
+  </header>
+
+  <div class="stepper" role="tablist" aria-label="Flow steps">
+    <button class="step" role="tab" aria-selected="true" data-target="s1"><span class="num">1</span>Search form</button>
+    <button class="step" role="tab" aria-selected="false" data-target="s2"><span class="num">2</span>The strategy <span class="mode-tag">SR</span></button>
+    <button class="step" role="tab" aria-selected="false" data-target="s3"><span class="num">3</span>Candidates <span class="mode-tag alt">Issue review</span></button>
+    <button class="step" role="tab" aria-selected="false" data-target="s4"><span class="num">4</span>Synthesis <span class="mode-tag alt">Issue review</span></button>
+  </div>
+
+  <div class="app">
+
+    <!-- Sidebar &mdash; mirrors SideNavbar.tsx menu order on origin/dev -->
+    <nav class="drawer" aria-label="RPM navigation">
+      <div class="brand"><span class="dot"></span><span>ReCiter</span></div>
+      <div class="nav-label">Navigation</div>
+
+      <a class="nav-item" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l2.5 2.5"/></svg>
+        Find People
+      </a>
+      <a class="nav-item is-disabled" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M5 5.5h6M5 10.5h4"/></svg>
+        Curate Publications
+      </a>
+      <a class="nav-item" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12V4l5-2 5 2v8"/><path d="M7 14V9h2v5"/></svg>
+        Authorships
+      </a>
+      <a class="nav-item" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12V4l5-2 5 2v8"/><path d="M7 14V9h2v5"/></svg>
+        Create Reports
+      </a>
+
+      <!-- Proposed: index 4, directly after Create Reports -->
+      <a class="nav-item" href="#" aria-current="page">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 4C6.7 2.9 4.8 2.5 2.5 2.5v10c2.3 0 4.2.4 5.5 1.5 1.3-1.1 3.2-1.5 5.5-1.5v-10C11.2 2.5 9.3 2.9 8 4z"/><path d="M8 4v10"/></svg>
+        Literature Search
+      </a>
+
+      <a class="nav-item" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M5 8h6M5 5.5h6M5 10.5h4"/></svg>
+        Manage Notifications
+      </a>
+      <a class="nav-item" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>
+        Manage Profile
+      </a>
+
+      <hr>
+      <div class="nav-label">Admin</div>
+      <a class="nav-item" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM3 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/><path d="M8 6v2M5.5 11H3.5M10.5 11h2"/></svg>
+        Manage Users
+      </a>
+      <a class="nav-item" href="#">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 2v1M8 13v1M2 8h1M13 8h1M3.5 3.5l.7.7M11.8 11.8l.7.7M11.8 4.2l-.7.7M4.2 11.8l-.7.7"/></svg>
+        Configuration
+      </a>
+    </nav>
+
+    <main class="main">
+
+      <!-- ============ SCREEN 1 &mdash; Search form ============ -->
+      <section class="screen is-active" id="s1" role="tabpanel" aria-label="Search form">
+        <h1 class="page-title">Literature Search</h1>
+
+        <div class="card">
+          <div class="field">
+            <div class="sec">Mode</div>
+            <div class="modes">
+              <label class="mode">
+                <input type="radio" name="mode" checked>
+                <span>
+                  <span class="t">Search strategy</span>
+                  <span class="s">Recall &middot; uncapped &middot; produces a strategy, not a synthesis</span>
+                </span>
+              </label>
+              <label class="mode">
+                <input type="radio" name="mode">
+                <span>
+                  <span class="t">Issue review</span>
+                  <span class="s">Precision &middot; top 50 &middot; narrative synthesis</span>
+                </span>
+              </label>
+              <label class="mode">
+                <input type="radio" name="mode">
+                <span>
+                  <span class="t">Clinical question</span>
+                  <span class="s">Precision &middot; top 50 &middot; PICO answer</span>
+                </span>
+              </label>
+            </div>
+            <div class="note" style="font-size:12px;color:var(--hint)">
+              Search strategy produces a reproducible, peer-reviewable query. Screen and synthesize it in Covidence.
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="sec" for="q">What do you want to know?</label>
+            <textarea id="q" rows="2">Do probiotics reduce symptoms of depression in adults?</textarea>
+          </div>
+
+          <div class="field">
+            <div class="sec">Databases</div>
+            <div class="dbs">
+              <label class="db"><input type="checkbox" checked> PubMed</label>
+              <label class="db soon"><input type="checkbox" disabled> Embase <span class="soon-tag">soon</span></label>
+              <label class="db soon"><input type="checkbox" disabled> Scopus <span class="soon-tag">soon</span></label>
+            </div>
+          </div>
+
+          <div class="conditional">
+            <div class="sec">Known-item seeds</div>
+            <textarea rows="2" placeholder="PMID or DOI, one per line &mdash; papers this search MUST retrieve">37314797
+35654766
+34875345
+27793434</textarea>
+            <div class="note">
+              Search-strategy mode only. We run the strategy and report whether each one came back. A strategy that
+              misses a known include is broken.
+            </div>
+          </div>
+
+          <div class="conditional">
+            <div class="sec">Inclusion / exclusion criteria <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--hint)">&mdash; optional</span></div>
+            <textarea rows="2" placeholder="e.g. RCTs only; adults; validated depression scales; exclude preclinical"></textarea>
+            <div class="note">Shapes the query. In Issue review, this also drives the screening flags.</div>
+          </div>
+
+          <div class="filters">
+            <div class="field">
+              <label for="dt">Date</label>
+              <select id="dt"><option>2021 &ndash; 2026</option><option>2016 &ndash; 2026</option><option>Any</option></select>
+            </div>
+            <div class="field">
+              <label for="pt">Publication type</label>
+              <select id="pt"><option>RCT + Meta-analysis</option><option>Any</option><option>Review</option></select>
+            </div>
+            <div class="spacer" style="flex:1"></div>
+            <button class="btn btn-cta">Build strategy</button>
+          </div>
+        </div>
+
+        <p class="foot">
+          <b>No &ldquo;Max records&rdquo; in this mode.</b> A systematic-review search is designed to over-retrieve &mdash; a
+          5,000-record yield is a success, not an error. The cap returns for Issue review and Clinical question,
+          which synthesize and so must fit the abstracts in a context window.
+        </p>
+      </section>
+
+      <!-- ============ SCREEN 2 &mdash; The strategy (SR deliverable) ============ -->
+      <section class="screen" id="s2" role="tabpanel" aria-label="The strategy">
+        <div class="crumb">Literature Search &nbsp;&rsaquo;&nbsp; <b>Search strategy</b></div>
+
+        <div class="summary-bar">
+          <span class="chip">Search strategy</span>
+          <span class="q">&ldquo;Do probiotics reduce symptoms of depression in adults?&rdquo;</span>
+          <button class="btn btn-quiet btn-sm">New search</button>
+        </div>
+
+        <!-- The deliverable: numbered concept blocks, per database -->
+        <div class="strat">
+          <div class="hd">
+            <span class="db-name">PubMed</span>
+            <span class="hits">122 <small>records</small></span>
+          </div>
+          <div class="lines">
+            <div class="sline"><span class="n">1</span><span class="c">"Gastrointestinal Microbiome"[MeSH] OR "Probiotics"[MeSH]</span></div>
+            <div class="sline"><span class="n">2</span><span class="c">probiotic*[tiab] OR synbiotic*[tiab] OR psychobiotic*[tiab]</span></div>
+            <div class="sline combine"><span class="n">3</span><span class="c">1 OR 2</span></div>
+            <div class="sline"><span class="n">4</span><span class="c">"Depression"[MeSH] OR "Depressive Disorder"[MeSH]</span></div>
+            <div class="sline"><span class="n">5</span><span class="c">depress*[tiab]</span></div>
+            <div class="sline combine"><span class="n">6</span><span class="c">4 OR 5</span></div>
+            <div class="sline combine"><span class="n">7</span><span class="c">3 AND 6</span></div>
+            <div class="sline combine"><span class="n">8</span><span class="c">7 AND (2021:2026[dp]) AND (Randomized Controlled Trial[pt])</span></div>
+          </div>
+          <div class="ft">
+            <span>Run 12 Jul 2026 &middot; limits: 2021&ndash;2026, English</span>
+            <span class="spacer"></span>
+            <button class="btn btn-soft btn-sm">Copy</button>
+            <button class="btn btn-quiet btn-sm">Edit &amp; re-run</button>
+          </div>
+        </div>
+
+        <!-- Second database: visible, disabled. Forces the array-shaped artifact. -->
+        <div class="strat pending">
+          <div class="hd">
+            <span class="db-name">Embase</span>
+            <span class="hits"><small>not searched</small></span>
+          </div>
+          <div class="body">A Cochrane-compliant search needs Embase and CENTRAL too. Coming soon.</div>
+        </div>
+
+        <div class="card">
+          <div class="screen-bar" style="border-bottom:0;padding-bottom:0">
+            <span class="sec">Known-item validation</span>
+            <span class="val-score warn">3 of 4 retrieved</span>
+          </div>
+
+          <div class="seeds">
+            <div class="seed hit">
+              <span class="k">&#10003;</span>
+              <span class="who">Nikolova (2023)</span>
+              <span class="id">PMID 37314797</span>
+            </div>
+            <div class="seed hit">
+              <span class="k">&#10003;</span>
+              <span class="who">Schaub (2022)</span>
+              <span class="id">PMID 35654766</span>
+            </div>
+            <div class="seed hit">
+              <span class="k">&#10003;</span>
+              <span class="who">Tian (2022)</span>
+              <span class="id">PMID 34875345</span>
+            </div>
+            <div class="seed miss">
+              <span class="k">&#10007;</span>
+              <span class="who">Sarkar (2016)</span>
+              <span class="id">PMID 27793434</span>
+              <span class="verdict">Not retrieved</span>
+              <span class="why">
+                <b>Why:</b> it clears your probiotics block (MeSH-indexed under <i>Probiotics</i>) but fails the
+                depression block &mdash; PubMed indexes it under <i>Emotions</i>, not <i>Depression</i>, and the
+                abstract never says &ldquo;depression.&rdquo; Adding <code>"Emotions"[MeSH] OR mood[tiab]</code> to
+                line 4 retrieves it, at a cost of <b>+426 records</b> to screen.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="provenance">
+          <span class="spacer"></span>
+          <button class="btn btn-quiet btn-sm">Export CSV</button>
+          <button class="btn btn-cta btn-sm">Copy PRISMA-S methods block</button>
+        </div>
+
+        <p class="foot">
+          <b>The miss is the most valuable thing on this screen.</b> A strategy that hasn't been run is a guess;
+          a strategy that retrieves every known include is signed off. Without this check, the failure mode is a
+          model emitting a confident, plausible Boolean that silently misses half the literature.
+          There is no candidate list and no synthesis in this mode &mdash; the strategy <i>is</i> the deliverable.
+        </p>
+      </section>
+
+      <!-- ============ SCREEN 3 &mdash; Candidates ============ -->
+      <section class="screen" id="s3" role="tabpanel" aria-label="Candidates">
+        <div class="crumb">Literature Search &nbsp;&rsaquo;&nbsp; <b>Candidates</b></div>
+
+        <div class="summary-bar">
+          <span class="chip" style="background:var(--divider);color:var(--muted)">Issue review</span>
+          <span class="q">&ldquo;Do probiotics reduce symptoms of depression in adults?&rdquo;</span>
+          <span class="n">122 records</span>
+          <button class="btn btn-quiet btn-sm">New search</button>
+        </div>
+
+        <div class="card">
+          <div class="query">
+            <code>("Gastrointestinal Microbiome"[MeSH] OR "Probiotics"[MeSH]) AND ("Depression"[MeSH] OR "Depressive Disorder"[MeSH]) AND (2021:2026[dp]) AND (Randomized Controlled Trial[pt])</code>
+            <div class="acts">
+              <button class="btn btn-soft btn-sm">Copy</button>
+              <button class="btn btn-quiet btn-sm">Edit &amp; re-run</button>
+            </div>
+          </div>
+          <div class="counts">PubMed <b>122</b> &nbsp;&middot;&nbsp; top 50 retrieved (cap 50)</div>
+        </div>
+
+        <div class="card">
+          <div class="screen-bar">
+            <div class="tally"><b class="inc">2</b> included &nbsp;&middot;&nbsp; <b>2</b> excluded</div>
+            <div class="spacer"></div>
+            <button class="btn btn-cta btn-sm">Synthesize 2 selected</button>
+          </div>
+
+          <div class="rows">
+            <div class="rec">
+              <input type="checkbox" checked aria-label="Include Nikolova 2023">
+              <div class="body">
+                <div class="cite">
+                  <span class="who">Nikolova et al. (2023)</span>
+                  <span class="jrnl">JAMA Psychiatry</span>
+                  <span class="pmid">PMID 37314797</span>
+                </div>
+                <div class="title">Acceptability, Tolerability, and Estimates of Putative Treatment Effects of Probiotics as Adjunctive Treatment in Patients With Depression</div>
+                <div class="meta"><span class="tag tag-design">RCT</span></div>
+              </div>
+            </div>
+
+            <div class="rec">
+              <input type="checkbox" checked aria-label="Include Schaub 2022">
+              <div class="body">
+                <div class="cite">
+                  <span class="who">Schaub et al. (2022)</span>
+                  <span class="jrnl">Translational Psychiatry</span>
+                  <span class="pmid">PMID 35654766</span>
+                </div>
+                <div class="title">Clinical, gut microbial and neural effects of a probiotic add-on therapy in depressed patients</div>
+                <div class="meta"><span class="tag tag-design">RCT</span></div>
+              </div>
+            </div>
+
+            <div class="rec excluded">
+              <input type="checkbox" aria-label="Include Kim 2021">
+              <div class="body">
+                <div class="cite">
+                  <span class="who">Kim et al. (2021)</span>
+                  <span class="jrnl">J Gerontol A Biol Sci Med Sci</span>
+                  <span class="pmid">PMID 32300799</span>
+                </div>
+                <div class="title">Probiotic Supplementation Improves Cognitive Function and Mood with Changes in Gut Microbiota in Community-Dwelling Older Adults</div>
+                <div class="meta"><span class="tag tag-design">RCT</span></div>
+                <div class="flagline"><b>Excluded:</b> healthy community-dwelling adults; primary outcome is cognition, not a validated depression scale in a clinical population.</div>
+              </div>
+            </div>
+
+            <div class="rec excluded">
+              <input type="checkbox" aria-label="Include Chen 2023">
+              <div class="body">
+                <div class="cite">
+                  <span class="who">Chen et al. (2023)</span>
+                  <span class="jrnl">Front Cell Infect Microbiol</span>
+                  <span class="pmid">PMID 36794003</span>
+                </div>
+                <div class="title">High-fiber diet ameliorates gut microbiota, serum metabolism and emotional mood in type 2 diabetes patients</div>
+                <div class="meta"><span class="tag tag-obs">Dietary</span></div>
+                <div class="flagline"><b>Excluded:</b> intervention is a high-fiber diet, not a probiotic.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expert panel: appears here too, not only on synthesis -->
+        <div class="card experts">
+          <div class="hd">
+            <span class="sec">At Weill Cornell</span>
+            <span class="n">top 5 of <b>430</b> faculty publishing on these MeSH terms</span>
+          </div>
+          <div class="list">
+            <div class="expert">
+              <span class="nm">Eamonn Quigley</span>
+              <span class="dept">Medicine</span>
+              <span class="pubs">61 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Eric Pamer</span>
+              <span class="dept blank">department not recorded</span>
+              <span class="pubs">43 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Marcel Van den Brink</span>
+              <span class="dept blank">department not recorded</span>
+              <span class="pubs">40 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Chun-Jun Guo</span>
+              <span class="dept">Medicine</span>
+              <span class="pubs">23 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Iliyan Iliev</span>
+              <span class="dept">Gastroenterology and Hepatology (Medicine)</span>
+              <span class="pubs">22 pubs</span>
+            </div>
+          </div>
+<div class="ft">Ranked by accepted publications. Live query against <b>2,310,368</b> person&ndash;MeSH rows.</div>
+        </div>
+
+        <p class="foot">
+          Records the AI excluded stay on the page, de-emphasised, with the reason shown. Nothing is hidden &mdash;
+          that visibility is the whole integrity argument. The flags are suggestions; the checkbox is yours.
+          <b>This screen never appears in Search-strategy mode</b> &mdash; screening a systematic review is Covidence's
+          job, and pretending otherwise is the exact failure this redesign exists to prevent.
+        </p>
+      </section>
+
+      <!-- ============ SCREEN 4 &mdash; Synthesis ============ -->
+      <section class="screen" id="s4" role="tabpanel" aria-label="Synthesis">
+        <div class="crumb">Literature Search &nbsp;&rsaquo;&nbsp; <b>Synthesis</b></div>
+
+        <div class="caveat">
+          <span aria-hidden="true">&#9888;</span>
+          <span><b>AI-assisted synthesis over the records you selected.</b> Verify against the sources.
+          Every claim links to the PMID it came from.</span>
+        </div>
+
+        <div class="card">
+          <div class="sec">Summary table</div>
+          <div class="tbl-scroll">
+            <table class="sum">
+              <thead>
+                <tr><th>Study</th><th>Year</th><th>Journal</th><th>Design</th><th>Intervention</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Nikolova</td><td class="num">2023</td><td>JAMA Psychiatry</td><td>RCT</td><td>Probiotic, adjunctive</td></tr>
+                <tr><td>Schaub</td><td class="num">2022</td><td>Transl Psychiatry</td><td>RCT</td><td>Probiotic add-on</td></tr>
+                <tr><td>Tian</td><td class="num">2022</td><td>Brain Behav Immun</td><td>RCT</td><td><i>B. breve</i> CCFM1025</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sec">Synthesis</div>
+          <div class="prose">
+            <p>
+              <b>Illustrative only.</b> The prose and any pooled statistics on this screen stand in for a model
+              output that does not exist yet &mdash; this mode is not built. The citations, journals, and PMIDs
+              above are real and verified; no effect sizes are shown because inventing them is precisely the
+              failure this feature is designed to prevent.
+            </p>
+            <p>
+              In the built version, every claim here carries the PMID it came from
+              (<a class="pmid" href="#">PMID 37314797</a>), and the abstracts behind those claims are real
+              because the tool call fetched them.
+            </p>
+          </div>
+        </div>
+
+        <div class="card experts">
+          <div class="hd">
+            <span class="sec">At Weill Cornell</span>
+            <span class="n">top 5 of <b>430</b> faculty publishing on these MeSH terms</span>
+          </div>
+          <div class="list">
+            <div class="expert">
+              <span class="nm">Eamonn Quigley</span>
+              <span class="dept">Medicine</span>
+              <span class="pubs">61 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Eric Pamer</span>
+              <span class="dept blank">department not recorded</span>
+              <span class="pubs">43 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Marcel Van den Brink</span>
+              <span class="dept blank">department not recorded</span>
+              <span class="pubs">40 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Chun-Jun Guo</span>
+              <span class="dept">Medicine</span>
+              <span class="pubs">23 pubs</span>
+            </div>
+            <div class="expert">
+              <span class="nm">Iliyan Iliev</span>
+              <span class="dept">Gastroenterology and Hepatology (Medicine)</span>
+              <span class="pubs">22 pubs</span>
+            </div>
+          </div>
+<div class="ft">Ranked by accepted publications. Live query against <b>2,310,368</b> person&ndash;MeSH rows.</div>
+        </div>
+
+        <div class="provenance">
+          <span>2 of 4 screened in by <b>paa2013</b> on 12 Jul 2026.</span>
+          <span class="spacer"></span>
+          <button class="btn btn-quiet btn-sm">Export CSV</button>
+          <button class="btn btn-soft btn-sm">Copy Markdown</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <section class="decisions">
+    <h2>What changed after the systematic-review conversation</h2>
+    <ol>
+      <li>
+        <span class="where">Screen 2</span>
+        <b>Mode 1's deliverable is the search strategy &mdash; not records, not a synthesis.</b>
+        For a systematic review, the strategy <i>is</i> the librarian's intellectual output: peer-reviewed by another
+        librarian, published as the PRISMA-S appendix, and the thing that makes the review reproducible. Records,
+        screening, and synthesis belong to Covidence and Rayyan, which the SR team already trusts. So Search-strategy
+        mode has no candidate list, no screening checkboxes, and no synthesis. It is a much smaller screen than
+        the previous draft &mdash; and it's the one they'd actually use.
+      </li>
+      <li>
+        <span class="where">Screen 2</span>
+        <b>Known-item validation, and it isn't optional.</b>
+        The librarian names papers the search <i>must</i> find; we report hit or miss for each. Without it, the failure
+        mode is a model emitting a confident, plausible Boolean that silently misses half the literature with nobody
+        able to tell. The miss is styled as the most important thing on the page, with the model's guess at why &mdash;
+        because that's what tells the librarian how to widen.
+      </li>
+      <li>
+        <span class="where">Screen 1</span>
+        <b>The result cap is gone from Search-strategy mode.</b>
+        An earlier version of this mockup proposed refusing above 200 records. That was wrong: SR searches are
+        <i>designed</i> to over-retrieve, so the tool would have refused to run on essentially every real systematic
+        review. The cap is a property of the mode, not a global setting &mdash; Mode 1 doesn't synthesize, so no abstracts
+        enter a context window and there is nothing to protect. Issue review and Clinical question keep the 50-cap.
+      </li>
+      <li>
+        <span class="where">Screens 1 &amp; 2</span>
+        <b>Built for Embase and Scopus without building Embase or Scopus.</b>
+        Phase 1 is PubMed-only, but the query artifact is an <i>array</i> keyed by database, and hit counts render
+        per database rather than per sub-query. Adding Embase later pushes an element; no consumer changes. The
+        greyed-out database rows are deliberate &mdash; they hold the shape open. No abstraction layer, no adapter
+        interface, and no query-translation engine: the model writes a native query per database.
+      </li>
+      <li>
+        <span class="where">Sidebar</span>
+        <b>&ldquo;Literature Search&rdquo;, open-book icon, slotted after Create Reports.</b>
+        Unchanged. Two-word Title Case like every sibling, drawn in the existing 16&times;16 stroke-1.5 <code>NavIcon</code>
+        idiom so it sits beside the others without looking imported.
+      </li>
+      <li>
+        <span class="where">Still open</span>
+        <b>How loudly do we say &ldquo;this is not a systematic review tool&rdquo;?</b>
+        Mode 1 now structurally can't emit a synthesis, so the hazard is much reduced. The mockup takes the middle
+        option &mdash; one quiet line under the mode picker naming the handoff to Covidence. A first-run banner is the
+        alternative, but your SR librarians may find it patronising. Worth asking them.
+      </li>
+    </ol>
+  </section>
+
+  <p class="foot">
+    Colours, spacing, and radii are the calm tokens from <code>styles/globals.css</code> on <code>origin/dev</code>,
+    not re-derived. Type is the app's own <code>--font-sans</code> stack rather than an embedded webfont, so it
+    falls back exactly the way RPM itself falls back.
+  </p>
+
+</div>
+
+<script>
+  const steps = document.querySelectorAll('.step');
+  steps.forEach(btn => {
+    btn.addEventListener('click', () => {
+      steps.forEach(b => b.setAttribute('aria-selected', String(b === btn)));
+      document.querySelectorAll('.screen').forEach(s => {
+        s.classList.toggle('is-active', s.id === btn.dataset.target);
+      });
+    });
+  });
+</script>
+
+</body></html>
