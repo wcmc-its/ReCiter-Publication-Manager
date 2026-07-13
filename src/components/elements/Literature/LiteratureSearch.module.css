@@ -38,17 +38,25 @@
   --card-shadow: 0 1px 2px rgba(26, 33, 51, 0.03);
 
   max-width: 1080px;
-  padding: 30px 40px 56px;
   color: var(--text-body);
   font-family: var(--font-sans);
+
+  /* NO TOP/LEFT PADDING. AppLayout's .main already supplies `padding: 20px 40px`, and /search
+     adds nothing on top of it -- its h1 lands at x=260, y=76. This page was adding another
+     30px/40px, so the same h1 sat 40px right and 30px down of every other page's. Only the
+     bottom is ours, so a long strategy does not end flush against the footer. */
+  padding: 0 0 32px;
 }
 
 /* ---------- Page head ---------- */
+/* Size and weight are deliberately NOT set here. globals.css pins `h1 { font-size: 28px
+   !important; font-weight: 500 }` app-wide (it has to, to beat Bootstrap's responsive
+   calc()), so the mockup's 23px/600 never applied -- it was dead CSS losing silently to
+   !important. The app's h1 IS the house style, and matching /search is the point. Overriding
+   it here would mean a second !important, and this page is not the place to relitigate the
+   app's type scale. */
 .title {
   margin: 0;
-  font-size: 23px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
   color: var(--text-strong);
 }
 .sub {
