@@ -985,12 +985,19 @@ export default function LiteratureSearch() {
 
     const docxFailed = () => setErr('Could not build the Word document.')
 
+    // THE FILENAME NAMES THE DATABASE, because the file is downloaded PER DATABASE and the download
+    // folder is where provenance goes to die. Every query used to land as `pubmed-query-<date>.txt` —
+    // so a Scopus query was saved under PubMed's name, and once Embase (Ovid) shipped there were THREE
+    // panels writing one filename, each silently overwriting the last. A librarian ends up with a
+    // single file called "pubmed-query" containing an Ovid strategy, and no way to know.
+    //
+    // `r.db` is right there on the result. Use it.
     const dlStrategy = (r: DbResult) =>
-        saveDocx(strategyDoc(r, question, runBy, model), `${stamp('search-strategy', r.runDate)}.docx`)
+        saveDocx(strategyDoc(r, question, runBy, model), `${stamp(`search-strategy-${r.db}`, r.runDate)}.docx`)
             .catch(docxFailed)
 
     const dlQuery = (r: DbResult) =>
-        saveText(r.query, `${stamp('pubmed-query', r.runDate)}.txt`)
+        saveText(r.query, `${stamp(`${r.db}-query`, r.runDate)}.txt`)
 
     const dlRecords = (r: DbResult) =>
         saveXlsx(recordSheets(records, flags, picked, runFacts(r)), `${stamp('records', r.runDate)}.xlsx`)
