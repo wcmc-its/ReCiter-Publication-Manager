@@ -1,7 +1,97 @@
-# RUNBOOK — Shipping Literature Search to PROD
+# RUNBOOK — Turning Literature Search on: DEV (the demo) and PROD
 
 Written 2026-07-14, while the reason is still understood. Everything below was verified against the
 live cluster and the committed buildspec, not remembered.
+
+# PART 1 — DEV, and the librarian demo
+
+## MERGING PR #824 INTO `dev` DOES NOT GIVE YOU A DEMO
+
+Read this before scheduling anything. **Three gates sit between the merge and a working page, and not
+one of them is code.** Each fails in a different, confusing way, and two of them fail *in front of the
+audience*.
+
+### D1. Both dev pipelines are parked at a manual approval — and you need BOTH
+
+**Verified 2026-07-14** (`aws codepipeline get-pipeline-state`): `ReCiter-Pubmed-Retrieval-Tool-Dev` and
+`ReCiter-Scopus-Dev-k8` are **both** sitting at `ManualApproval: InProgress`, with `Build: Succeeded`
+behind them. **Merging changes nothing until someone clicks them**, and merging RPM #824 itself needs the
+RPM dev pipeline run too.
+
+- **PubMed** — without the sort/retmax build (tool PRs **#164/#165, merged 2026-07-14, NOT deployed**),
+  **Modes 2 and 3 will refuse to run.** That is deliberate: the controller detects an old jar and throws,
+  rather than printing *"the top 50, by most relevant"* over a slice that was never ranked. **Mode 1 is
+  unaffected** — so a Mode-1-only demo survives this gate.
+- **Scopus** — without its deploy (`#35` merged, never deployed), `POST /scopus/search/query` **404s**.
+  Ticking Scopus renders an explicit failure panel — graceful, and browser-verified — but *"this database
+  could not be searched"* is not what you want on screen in front of a librarian.
+
+### D2. The Bedrock IAM policy is not attached anywhere — this one 502s the demo
+
+A grep finds **no `bedrock:InvokeModel` policy anywhere in the org**, including ReCiter-CDK. Without it,
+the very first *"Build strategy"* click is an `AccessDeniedException` → **502**. Attach
+`docs/iam-reciter-pm-bedrock.json` to the role the dev pod actually runs as, and prove it with the
+`simulate-principal-policy` command in `docs/iam-reciter-pm-bedrock.md` — that needs no pod and no kubectl.
+
+**UNVERIFIED, AND CHECK IT FIRST:** *prod* has **no service account** (see P2 below), so there may be no
+role to attach anything to. **Nobody has confirmed whether dev has one.** If dev has no service account
+either, this is not a five-minute task and it must not be discovered on demo day.
+
+### D3. The allowlist fails shut — so nobody, *including the presenter*, can open the page
+
+`LITERATURE_SEARCH_CWIDS` is an **`optional: true`** `secretKeyRef` into the `reciter-pm-dev-secrets`
+Secret (`kubernetes/k8-deployment.yaml:189`). `optional` means **the pod starts happily without it** — and
+then the allowlist denies **everyone**. That is the intended safety property (an absent key means the pilot
+is closed, not open — executed and verified), and it is also a silent demo-killer.
+
+So the key must contain the CWIDs of **the presenter and every librarian in the room**, comma-separated,
+no spaces. Note that dev **does** run `kubectl apply` (`k8-buildspec.yml:91`), so `BEDROCK_MODEL_ID` and
+`AWS_REGION` come from the manifest automatically — **the allowlist is the only variable you must set by
+hand on dev.**
+
+> A `kubectl get secret reciter-pm-dev-secrets` returned **NotFound** in the default namespace on
+> 2026-07-14. That may simply be the wrong namespace — **confirm the namespace before concluding the
+> Secret is missing.**
+
+## The order, and the order is the point
+
+```
+1. Review + merge PR #824 → dev            (a human review; the PR title says DO NOT MERGE for a reason)
+2. Approve the RPM dev pipeline            → the code is actually on the pod
+3. Approve BOTH retrieval-tool pipelines   → PubMed (Modes 2-3) and Scopus (no 404 panel)
+4. Attach the Bedrock IAM policy           → or step 6 is a 502
+5. Set LITERATURE_SEARCH_CWIDS             → or step 6 is a 403 for everyone, you included
+6. DRIVE IT YOURSELF, END TO END, ON DEV   → before any librarian sees it
+```
+
+**Step 6 is not optional.** Two of the three gates fail *at the demo*, not before it, and the failure looks
+like a broken product rather than a missing config.
+
+## What to actually demo — lead with the part that works
+
+The measurements (`RECALL-STUDY.md`) say the **Boolean query is the deliverable**: the strategy retrieves
+**99%** of the studies a published Cochrane review included, and survives a badly-phrased question. The
+relevance-ranked 50 is **triage**, not a screen. Demo that story, because it is the true one.
+
+**Use Mode 1, and give it seeds. The seeds ARE the demo.** Driven live on 2026-07-14:
+
+1. Ask a real question, and paste 2–3 PMIDs the search **must** find.
+2. It builds a numbered PRESS-style strategy, every line with its own count, every line a checkbox.
+3. **Known-item validation names the block that failed.** Seeded with PMID 30141340 it reported:
+   *"Not retrieved — excluded by the **Educational or psychological interventions (lines 4–5)** block"*
+   — and offered a widening line, **unticked**, carrying exactly the missing vocabulary
+   (`"action plan"[tiab] OR "care plan"[tiab] …`), **verified** to retrieve the paper and **priced**
+   at *+59 records to screen*. **This is the moment. Nothing else in the tool lands like it.**
+4. **Copy PRISMA-S methods block** → paste it. It carries the AI disclosure, the model id, the verbatim
+   fenced query and the date. That is what makes it publishable.
+5. **Download everything** → open the `.xlsx`. Show that when the sample is truncated the AI verdict column
+   is **refused**, and the sheet says why — because that file goes to Covidence, and a verdict over a
+   relevance-ranked sliver would be a screen-shaped object that costs a review its recall.
+
+**Do NOT demo:** Modes 2/3 (unless D1's PubMed approval is done), Scopus (unless its approval is done), and
+**do not call the AI screen a screen.** It triages. Saying otherwise is the one claim the data refuses.
+
+# PART 2 — PROD
 
 ## The one fact this runbook exists to carry
 

@@ -142,6 +142,6 @@ Green on the ARN a reviewer looks at, denied on the three the request is actuall
 - **Model access.** IAM is necessary, not sufficient: `anthropic.claude-opus-4-8` must also be *enabled*
   for the account in the Bedrock console (Model access) in **each** of us-east-1, us-east-2, us-west-2.
   A disabled model returns `AccessDeniedException` too, and no IAM change will move it.
-- **Prod env vars.** Per `RUNBOOK-prod-literature-search.md`, the prod pipeline only runs `kubectl set image`, never
+- **Prod env vars.** Per `RUNBOOK-literature-search-deploy.md`, the prod pipeline only runs `kubectl set image`, never
   `kubectl apply` — so `BEDROCK_MODEL_ID` / `AWS_REGION` will not reach the prod pod from the manifest
   even with this policy attached. That is a separate runbook item.
