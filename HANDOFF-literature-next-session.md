@@ -17,6 +17,7 @@ first. Everything below is on it.
 | **Model disclosure** | Shipped, all three surfaces — including the one people forget, the **strategy** export (Mode 1's *query* is model-drafted too). Carries both the pretty name and the profile id. |
 | **Concept/Rendering split** | Shipped. See below. |
 | **Scopus (Mode 1)** | Shipped. Native Scopus, own seed check, own export. |
+| **Results column** | Shipped. A record count per PRESS line, on screen and in the exports. **Costs one count call per row, per database** — see the rate-limit note below. |
 | **ScopusTool [#35](https://github.com/wcmc-its/ReCiter-Scopus-Retrieval-Tool/pull/35)** | **MERGED to `dev`** (`cd99761`). `POST /scopus/search/query`, query passed verbatim. 39 tests. |
 | **PubMedTool [#164](https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool/pull/164)** | **OPEN** → `dev`. `sort` + `retmax` on `/query-complex/`. 20 tests. **Merge + deploy before RPM.** |
 
@@ -115,10 +116,18 @@ Literature Search is a claim about **a laptop**.
    **not** verify that the merge triggers the branch-gated CodeBuild. `RECITER_SCOPUS_API_URL` on the
    pod must point at a jar that has `POST /scopus/search/query` — against an older one it **404s**.
 
-Also carried, and it bites under real use: **`PUBMED_API_KEY` should be rotated** (it was printed to
-a transcript on 2026-07-13) **and set on the retrieval tool** — unkeyed NCBI allows 3 req/s, and a
-two-database Mode 1 build fires a burst of counts. A throttled esearch returns a **well-formed zero**,
-not an error.
+**`PUBMED_API_KEY` IS NOW REQUIRED, NOT MERELY ADVISABLE** — rotate it (it was printed to a transcript
+on 2026-07-13) and set it on the retrieval tool. The per-line Results column costs **one count call
+per row per database**, so a 7-row two-database build is ~14 counts where it used to be 2. Unkeyed
+NCBI allows **3 requests/second**; the key is free and lifts it to 10/s. This matters more than it
+sounds: **a throttled esearch returns a well-formed ZERO, not an error**, so a rate-limited history
+renders as a strategy that found nothing rather than as a failure. The counts run sequentially to
+stay under the limit, which is why a build now takes visibly longer.
+
+PubMedTool **[PR #165](https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool/pull/165)** (stacked
+on #164) fixes the two bugs found while verifying #164: the threshold refusal now returns **502 in
+~1s instead of 500 after ~30s and seven ESearch calls**. Merge #164 first; #165 retargets to `dev`
+automatically.
 
 ### P1 — the validation that actually matters, and it is not code
 
