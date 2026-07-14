@@ -697,11 +697,37 @@ export default function LiteratureSearch() {
     }))
     const liveStrategy: Strategy | null = liveStrategies[0] || null      // Modes 2 & 3
 
+    // THE COUNT MAP IS KEYED BY PRESS LINE NUMBER, AND THE LINE NUMBERS MOVE.
+    //
+    // Untick one line of a two-line concept and numberStrategy drops that concept's OR-combine row,
+    // so every number below it shifts by TWO. The rows on screen renumber on the same tick; the map
+    // does not. Read the old map at the new numbers and each line shows a DIFFERENT line's count —
+    // including the final row, the one that IS the search, which then disagrees with the yield above
+    // it. `rowSeq` cannot save us here: it orders responses, and nothing is in flight yet.
+    //
+    // So drop the map the instant the numbering it is keyed to stops existing. RowCount already
+    // renders a missing count as an em-dash, which is the honest state: a count not yet made.
+    const dropRowCounts = (di?: number) => setResults(rs => rs.map((r, i) => (
+        di === undefined || i === di ? { ...r, rowCounts: {} } : r
+    )))
+
     const editConcept = (di: number, ci: number, fn: (c: Rendering) => Rendering) => {
         dirty.current.add(di)
+        dropRowCounts(di)
         setStrategies(sts => sts.map((st, i) => (
             i === di ? { ...st, concepts: st.concepts.map((c, j) => (j === ci ? fn(c) : c)) } : st
         )))
+    }
+
+    // The limits dropdowns sit on EVERY strategy at once, so they rewrite the final row of every
+    // database under an unchanged line number — the one mutation that moves no numbers and still
+    // invalidates a count. They must also CLEAR `dirty`: it is the record of which database was
+    // edited, and a limits change edits all of them. Inheriting a stale set here would re-count one
+    // database and leave the other printing its new limit line under a count of the broader query.
+    const changeLimits = (fn: () => void) => {
+        dirty.current.clear()
+        dropRowCounts()
+        fn()
     }
 
     const toggle = (di: number, ci: number, li: number) =>
@@ -1203,13 +1229,13 @@ export default function LiteratureSearch() {
                     <div className={s.controls}>
                         <div className={s.control}>
                             <label htmlFor="lit-date">Date</label>
-                            <select id="lit-date" className={s.input} value={dateId} onChange={e => setDateId(e.target.value)}>
+                            <select id="lit-date" className={s.input} value={dateId} onChange={e => changeLimits(() => setDateId(e.target.value))}>
                                 {dates.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
                             </select>
                         </div>
                         <div className={s.control}>
                             <label htmlFor="lit-type">Publication type</label>
-                            <select id="lit-type" className={s.input} value={typeId} onChange={e => setTypeId(e.target.value)}>
+                            <select id="lit-type" className={s.input} value={typeId} onChange={e => changeLimits(() => setTypeId(e.target.value))}>
                                 {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                             </select>
                         </div>

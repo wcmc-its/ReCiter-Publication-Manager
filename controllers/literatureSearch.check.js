@@ -133,6 +133,27 @@ const untickConcept = (s, ci) => ({
         ['4: 2 OR 3', '5: 1 AND 4', `6: 5 AND ${s.limits}`],
         'unticking a line renumbers, and a single-line concept emits no OR row',
     )
+    // ...and THAT is why a rowCounts map cannot outlive the selection it was counted for. The map is
+    // keyed by line number, and a line number does not name a stable query: here, number 4 means
+    // "Depression"[MeSH] before the untick and "2 OR 3" after it. Read the old map at the new numbers
+    // and every row shows some other row's count -- silently, and including the final row, the one
+    // that IS the search. The UI must therefore DROP the map on any edit (dropRowCounts), not grey it
+    // out. This asserts the hazard rather than the fix, because the fix lives in React and this file
+    // cannot render: if a number ever stops being re-keyed by an untick, this goes red and the
+    // invalidation can be revisited.
+    const numberedQuery = st => new Map(lit.numberStrategy(st).rows.filter(r => r.n !== null).map(r => [r.n, r.query]))
+    const before = numberedQuery(s)
+    const after = numberedQuery(oneOff)
+    const collision = [...after].filter(([n, q]) => before.has(n) && before.get(n) !== q)
+    assert.ok(
+        collision.length > 0,
+        'unticking a line RE-KEYS the rows: a count map from the previous selection must be dropped, never re-read',
+    )
+    assert.notStrictEqual(
+        before.get(Math.max(...before.keys())),
+        after.get(Math.max(...after.keys())),
+        'even the final row -- the whole search -- changes its number, so a stale map mislabels the yield line itself',
+    )
 
     // ---- Live PubMed. ---------------------------------------------------------------------
     const hits = await lit.countPubmed(q)
