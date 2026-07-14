@@ -18,6 +18,7 @@ first. Everything below is on it.
 | **Concept/Rendering split** | Shipped. See below. |
 | **Scopus (Mode 1)** | Shipped. Native Scopus, own seed check, own export. |
 | **ScopusTool [#35](https://github.com/wcmc-its/ReCiter-Scopus-Retrieval-Tool/pull/35)** | **MERGED to `dev`** (`cd99761`). `POST /scopus/search/query`, query passed verbatim. 39 tests. |
+| **PubMedTool [#164](https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool/pull/164)** | **OPEN** → `dev`. `sort` + `retmax` on `/query-complex/`. 20 tests. **Merge + deploy before RPM.** |
 
 `npm run check:literature` is **green and still needs NO LLM**. Keep it that way.
 
@@ -71,13 +72,35 @@ gives the pod `RECITER_SCOPUS_API_URL` but NO `BEDROCK_MODEL_ID`, NO `AWS_REGION
 this environment"** and the sidebar link hides itself. Every "verified" claim in this repo about
 Literature Search is a claim about **a laptop**.
 
-1. **Ship the PubMed retrieval tool FIRST.** `ReCiter-PubMed-Retrieval-Tool @
-   feature/pubmed-sort-retmax` is **still local and UNPUSHED** (2 commits: `990d555`, `110afb1`).
-   **It needs its own PR.** Against an older jar, `{sort, retmax}` are **silently ignored** (Jackson
-   does not fail on unknown properties) and Modes 2–3 print *"top 50 by most relevant"* over an
-   **unranked slice**. This deploys before RPM, or not at all.
-   *(Do NOT run `mvn` on that repo on this machine — JDK 25 kills the pinned Lombok. Run the jar.
-   The Scopus tool is fine: it is Boot 3.4.3 / Java 17, and Temurin 17 is the only JDK here.)*
+1. **Ship the PubMed retrieval tool FIRST — the PR is now OPEN, and it needs review + merge +
+   deploy.** **[PubMedTool PR #164](https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool/pull/164)**
+   (`feature/pubmed-sort-retmax-dev` → `dev`), 20 tests, 0 failures. Rebased onto current `dev` —
+   the original branch was cut from `master` and was 15 commits behind. `.*dev` in the buildspec
+   deploys `reciter-pubmed-dev`, which is what RPM's `RECITER_PUBMED_API_URL` points at.
+
+   **This deploys before RPM, or not at all.** Against an older jar `{sort, retmax}` are **silently
+   ignored** (Jackson does not fail on unknown properties) and Modes 2–3 print *"top 50 by most
+   relevant"* over an **unranked slice**.
+
+   Verified live through the jar: `retmax` is honoured exactly; `sort=relevance` and `sort=date`
+   return a **different first record**, which is the proof the sort reached the wire. That last one
+   matters more than it looks — **NCBI silently ignores a literal `sort=date`** (the ESearch key is
+   `pub_date`), so forwarding the caller's value verbatim would have reproduced the exact failure the
+   parameter exists to fix. The PR maps it.
+
+   *(The "never `mvn` here, JDK 25 kills Lombok" warning in earlier handoffs is **STALE** — Temurin 17
+   is now the only JDK on this machine and `mvn -B clean verify` is green on both Java tools.)*
+
+   **Two bugs found while verifying it, NEITHER caused by the PR — do not let them get attributed to
+   it:**
+   - The 2,000-record **threshold refusal surfaces as `500`, not the `502`** `GlobalExceptionHandler`
+     intends: the refusal is an `IOException` thrown inside a `@Retryable`, so Spring Retry burns all
+     7 attempts on a permanent condition and then wraps it, and the `IOException` handler never sees
+     it. **Confirmed against an unmodified `dev` build.** Wants its own issue.
+   - **`retmax` caps the EFetch; the parsed count can be LOWER.** `cancer[tiab]` with `retmax=50`
+     yields **46** — the SAX parser deliberately skips `<PubmedBookArticle>` records and that batch
+     had 4 book chapters. So "top 50" may legitimately deliver fewer, and RPM must not treat a short
+     list as an error.
 
 2. **Give the pod the three env vars** (`BEDROCK_MODEL_ID`, `AWS_REGION`, `LITERATURE_SEARCH_CWIDS`)
    in `k8-deployment.yaml` + `k8-secrets.yaml`.
@@ -146,8 +169,9 @@ Nothing needs it yet (Literature Search is a dev-only pilot). **Plan it rather t
 ## Running it locally
 
 ```bash
-# PubMed tool — MUST be the sort/retmax build (see P0.1). NEVER `mvn` on that repo here.
-java -jar ~/Dropbox/GitHub/ReCiter-PubMed-Retrieval-Tool/target/reciter-pubmed-retrieval-tool-1.1.0.jar --server.port=8083
+# PubMed tool — MUST be the sort/retmax build (PR #164), or Modes 2-3 print "by most relevant"
+# over an unranked slice. `mvn` IS fine here now (Temurin 17 is the only JDK).
+cd ~/worktrees/pubmed-sort-retmax && java -jar target/reciter-pubmed-retrieval-tool-1.1.0.jar --server.port=8083
 
 # Scopus tool — dev, post-#35. mvn IS fine here (Boot 3.4.3 / Java 17).
 cd ~/worktrees/scopus-dev && java -jar target/reciter-scopus-retrieval-tool-3.0.0.jar --server.port=8082
