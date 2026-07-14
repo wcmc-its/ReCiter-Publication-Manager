@@ -877,6 +877,10 @@ export default function LiteratureSearch() {
         db: r.db,
         query: r.query,
         hits: r.hits,
+        // Modes 2/3 only ever pull down a capped, ranked slice, so the export must not print the
+        // yield under the word "retrieved". Mode 1 counts and never retrieves — it leaves this unset
+        // and keeps its single, correct row.
+        retrieved: r.records?.length,
         runDate: r.runDate,
         cwid: runBy,
         limits: r.limits,

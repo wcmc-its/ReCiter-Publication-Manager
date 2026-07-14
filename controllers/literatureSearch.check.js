@@ -744,6 +744,7 @@ const untickConcept = (s, ci) => ({
     // declaration. This is the assertion that says both out loud.
     const facts = {
         query: 'probiotics[tiab] AND depression[tiab]', hits: 122, runDate: '2026-07-13',
+        retrieved: 50, sort: 'most relevant',
         cwid: 'paa2013', model: 'us.anthropic.claude-opus-4-8',
     }
     const doc = said(xp.synthesisDoc(
@@ -756,6 +757,24 @@ const untickConcept = (s, ci) => ({
         assert.ok(doc.includes(must),
             `the exported document must carry "${must}" — an export that cannot be re-run is not evidence`)
     }
+
+    // THE YIELD IS NOT THE RETRIEVED COUNT, and a methods table that says it is will be copied
+    // straight into a PRISMA flow diagram. This document retrieves the top 50 of 122 and screens
+    // them; the closing line already says "1 of 50 retrieved records", so a header reading
+    // "Records retrieved: 122" contradicts its own document — and 122 is the number a co-author
+    // would write down. Both numbers, named for what they are.
+    assert.ok(doc.includes('Records identified by the query'),
+        'the yield must be labelled as the yield, never as the number of records retrieved')
+    assert.ok(/top 50 of 122, ranked by most relevant/.test(doc),
+        'a capped, ranked slice must DECLARE the cap and the ranking in the methods, not only on screen')
+    assert.ok(!/Records retrieved\D+122/.test(doc),
+        'the 122 hits must never be printed under the word "retrieved" — only 50 records were')
+    // Mode 1 counts and never retrieves, so it keeps its single row and gains no cap sentence.
+    const mode1 = said(xp.strategyDoc(
+        { concepts: [{ label: 'P', lines: [{ terms: 'probiotics[tiab]', on: true }] }], limits: '', query: 'q', hits: 122, runDate: '2026-07-13', seeds: [] },
+        'Q?', 'paa2013', 'us.anthropic.claude-opus-4-8',
+    ))
+    assert.ok(!/top \d+ of/.test(mode1), 'Mode 1 retrieves nothing, so it must not claim a retrieved slice')
 
     // The strategy export must describe the TOGGLED state, never the model's draft: an unticked line
     // was not searched, so it must not appear in a methods section that claims it was.

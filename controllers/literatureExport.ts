@@ -66,6 +66,10 @@ export type RunFacts = {
     db?: Db
     query: string
     hits: number
+    // HOW MANY RECORDS WERE ACTUALLY PULLED DOWN. Modes 2 and 3 retrieve a CAPPED, ranked slice — 50
+    // of however many the query yields — so `hits` and "retrieved" are two different numbers there,
+    // and only Mode 1 (which counts and never retrieves) may conflate them. Left undefined by Mode 1.
+    retrieved?: number
     runDate: string
     cwid?: string
     limits?: string
@@ -81,7 +85,17 @@ export function reproHeader(f: RunFacts): Block[] {
         { kind: 'table', head: ['Field', 'Value'], rows: [
             ['Database', dialect.provenance],
             ['Date searched', f.runDate],
-            ['Records retrieved', String(f.hits)],
+            // TWO NUMBERS, NEVER ONE. In Modes 2/3 the query yields thousands and we retrieve the top
+            // 50 — so a single "Records retrieved: 1391" row is how a co-author writes "Records
+            // screened: 1,391" into a PRISMA flow diagram when the true figure is 50, twenty-seven
+            // times smaller. The cap and the ranking were declared on screen and in NO export. They
+            // are now in the methods, where the reader building the flow diagram actually looks.
+            ['Records identified by the query', String(f.hits)],
+            ...(f.retrieved !== undefined && f.retrieved < f.hits
+                ? [['Records retrieved and screened', `${f.retrieved} — the top ${f.retrieved} of ${f.hits}, ranked by ${f.sort || 'relevance'}. The rest were not retrieved.`]]
+                : f.retrieved !== undefined
+                    ? [['Records retrieved and screened', String(f.retrieved)]]
+                    : []),
             ...(f.limits ? [['Limits', f.limits]] : []),
             // A LIMIT THIS DATABASE COULD NOT EXPRESS. It goes in the METHODS, not just on the
             // screen, because the count above answers a BROADER question than the librarian asked —
@@ -254,7 +268,12 @@ export function recordSheets(
             rows: [
                 ['Database', DIALECTS[facts.db || 'pubmed'].provenance],
                 ['Date searched', facts.runDate],
-                ['Records retrieved', facts.hits],
+                // Same two numbers as the .docx methods table, and for the same reason: this sheet
+                // sits next to a Records sheet holding exactly `retrieved` rows.
+                ['Records identified by the query', facts.hits],
+                ...(facts.retrieved !== undefined
+                    ? [['Records retrieved and screened', facts.retrieved]]
+                    : []),
                 ...(facts.limits ? [['Limits', facts.limits]] : []),
                 ...(facts.sort ? [['Ranking', facts.sort]] : []),
                 ...(facts.cwid ? [['Searched by', facts.cwid]] : []),
