@@ -185,17 +185,121 @@ paper cannot silently vanish from the table. No change needed.
   question rather than assemble a review, and "the top 50 by relevance" may be exactly right for them.
   Do not generalise this result onto them without running it.
 
+## Part 3 — does the strategy survive a question a real person would type? (`literatureSearch.question.js`)
+
+Parts 1 and 2 left the Boolean query as the deliverable. That made its 99% recall the only claim we are
+still making — and it rested on three Cochrane reviews with **questions written by reading those
+reviews**: careful, PICO-shaped restatements of a question a Cochrane team had already spent months
+sharpening. That is not what the box will get.
+
+So: hold everything constant — same reviews, same gold PMIDs, same ceiling, same criteria — and change
+**only the question**, degrading it toward what a hurried person types. B and C are deliberately faithful
+paraphrases, not strawmen: a degraded question that also asks something *different* would confound
+vagueness with a changed question.
+
+| | A careful | B colloquial | C terse | D terse, no criteria |
+|---|---|---|---|---|
+| Hearing loss | 100% / 898 | 100% / 3,117 | 100% / 802 | 100% / 3,374 |
+| Toe-brachial | 100% / 4,510 | 100% / 6,162 | 94% / 1,077 | 100% / 3,560 |
+| Eczema | 100% / 5,354 | **90% / 368** | 97% / 5,137 | 97% / 6,511 |
+| **POOLED** | **100%** | **96%** | **97%** | **99%** |
+
+*(recall / yield)*
+
+**The strategy builder is robust to phrasing.** 100% on the careful question, 99% on the worst realistic
+input — a bare keyword string with no inclusion criteria at all. **The question is not the risk**, and
+Mode 1 does not need to interrogate the user before it searches. That was the thing this experiment was
+run to find out, and the answer is a clean no.
+
+### But the yields tell a second story, and it is the one worth keeping
+
+Look at eczema variant B: recall drops to 90% and the **yield collapses from 5,354 to 368** — 93% of the
+search, gone. The model had silently added a third concept block: **an RCT design filter**, from a
+question that says nothing whatsoever about randomised trials.
+
+That is a **prompt violation**. Limits come from the two dropdowns and are passed in by the caller; the
+system prompt explicitly says *"Limits already applied by the caller (do NOT repeat these inside a
+concept block)"*. On a vague question the model fills the gaps in the PICO anyway, and **every gap it
+fills is an AND, and every AND can only narrow.**
+
+### The mechanism, which is NOT the one I first assumed
+
+The obvious story — "the invented RCT filter threw away the trials" — is **wrong**, and it is worth
+recording that it is wrong, because it is the story anyone would tell. Blaming each lost study against
+each block (`<pmid>[uid] AND (block)`) gives:
+
+| lost study | eczema block | education block | RCT filter | killed by |
+|---|---|---|---|---|
+| 30141340 | ✓ | **0** | ✓ | education block |
+| 29505898 | ✓ | **0** | ✓ | education block |
+| 24942774 | ✓ | ✓ | **0** | RCT filter |
+
+The invented RCT filter matched both of those RCTs perfectly well. It only cost **one** study. **The
+dominant loss came from a narrower intervention vocabulary**: the colloquial phrasing *"teaching patients
+about their eczema"* produced an education block that missed the terms **"eczema care plan"** and
+**"eczema action plan"** — which is precisely what those two papers are titled.
+
+So there are two distinct failure modes, and they need different answers:
+
+1. **Invented constraint blocks** (the RCT filter). A prompt violation, cheap to detect — a concept block
+   made of publication-type terms is not a concept, it is a limit — and it collapsed the yield by 93%.
+2. **Vocabulary gaps** (the missing "care plan" / "action plan" synonyms). Not fixable by a rule. This is
+   what a librarian is *for*, and it is what the product's own seed validation exists to catch.
+
+### And the product already contains its own cure
+
+The failing-block diagnosis above is not a technique I invented for this write-up — **it is what the tool
+already does** when you give it known-item seeds. Every line is a checkbox with its own count, so the
+368-record collapse is visible on screen, and a seeded run names the exact block that killed the seed.
+
+The operational lesson is therefore blunt and it belongs in front of every librarian who uses this:
+**always give seeds.** A strategy with no seeds is a strategy whose recall nobody has checked — including
+this tool, which is capable of checking it and is being asked not to.
+
 ## Where that leaves the feature
 
 Both halves work. **The strategy builder retrieves the studies (99%) and the screen keeps them (98% of
 those it judges).** The failure is entirely in the relevance-ranked cut between them, and in the model's
 habit of silently returning a short verdict array.
 
-So the honest shape of Mode 1 today is: **the Boolean query is the deliverable.** It is excellent, it is
-reproducible, and Covidence wants exactly that. The 50-record sample is triage and is labelled as such.
+So the honest shape of Mode 1 is: **the Boolean query is the deliverable.** It is excellent, it is
+reproducible, it survives a badly-phrased question, and Covidence wants exactly that. The 50-record
+sample is triage and the export says so.
 
-**A screening pass over a much deeper slice is now a live option**, where before the re-ask fix it was
-not: the classifier has earned it (99%/100% recall), and verdict-completeness — the thing that blocked it
-— is solved and measured at 50/50 per batch. What remains unknown is whether completeness *holds* at 200
-or 500 records, where the middle is far bigger and the re-ask has more to recover. That is the next
-experiment, and it is now a cheap one: run `screen.js` with a larger `CAP` and watch the reask log.
+### The deeper-slice idea is DEAD, and the rank table already killed it
+
+It is tempting to say "the screen is good and complete now, so screen a deeper slice and beat the cap."
+**The arithmetic refuses.** Read the recall from the rank table at each cap:
+
+| cap | hearing | toe-brachial | eczema | **pooled recall of eligible studies** |
+|---|---|---|---|---|
+| 50 (today) | 1/25 | 0/18 | 0/29 | **1%** |
+| 200 | 3/25 | 4/18 | 6/29 | **18%** |
+| 500 | 24/25 | 9/18 | 20/29 | **74%** |
+| 1000 | 25/25 | 10/18 | 22/29 | **79%** |
+
+Even with *perfect* verdict completeness, screening 200 records shows the model **18%** of the eligible
+studies. A systematic review needs essentially all of them; 74% is not a screen. And the curve flattens
+after 500 because the diagnostic review's studies are scattered past rank 1000 — the ranking is not
+degrading gracefully, it is simply not sorted by the thing we care about. **Completeness was never the
+binding constraint. Recall arithmetic is.**
+
+It is not even runnable as specified. At ~800 input tokens per record, **500 records is ~400k input
+tokens** — past the standard 200k context on `us.anthropic.claude-opus-4-8`, so it is a chunked design,
+and chunking is what we ruled out. And **200 records would blow the 8,000-token output ceiling** (~200
+verdicts × ~50 tokens) — where it would now *throw*, correctly, on the `stop_reason` guard.
+
+**Do not run this experiment.** It costs money to confirm a design the rank table has already refused.
+
+### What is actually left
+
+- **Modes 2 and 3 are unmeasured.** They are relevance-truncated too, but they answer a clinical question
+  rather than assemble a review, so "the top 50 by relevance" may be exactly right for them. Do not
+  generalise Part 1 onto them without running it — and note the yardstick would have to be different,
+  because there is no "included studies" list for a clinical question.
+- **The invented-constraint bug** (Part 3): a concept block made of publication-type terms is a limit
+  wearing a concept's clothes. `hoistFilters()` already performs exactly this species of repair for
+  PubMed. Extending it to hoist a design-filter *block* out of the concepts and into the limits — where it
+  is visible, labelled as a limit, and toggleable — is the contained fix.
+- **Say "always give seeds" out loud, in the UI.** It is the single highest-leverage thing a librarian can
+  do, and the tool is already built to reward it.

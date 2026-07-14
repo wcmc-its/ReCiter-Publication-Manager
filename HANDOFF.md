@@ -229,21 +229,40 @@ on release day.
 
 ## Still to run
 
-- **DOES VERDICT COMPLETENESS HOLD AT 200 OR 500 RECORDS?** The 50-record case is **solved**:
-  `screenRecords()` was observed returning 43 verdicts for 50 records (the seven omitted were positions
-  25-31 — a contiguous window out of the middle, i.e. lost-in-the-middle, not truncation), so it now
-  **re-asks for exactly the skipped records**. Measured after the fix: **50 of 50 in every batch.** But
-  the whole point of solving it was to make a **deeper, unranked slice** buildable — and nobody knows
-  whether completeness survives a 200- or 500-record list, where the middle is far bigger. That is now
-  the experiment that unlocks the cap problem, and it is cheap: raise `CAP` in `screen.js` and watch the
-  `literature-screen-reask` log.
-  - *"What is the screen's false-negative rate?"* — **ANSWERED.** 99% enriched / 100% realistic. Its one
-    loss is a borderline paper it is genuinely stochastic about (excluded in one batch, included in
-    another, coherent reasoning both times). See `docs/RECALL-STUDY.md` Part 2.
-  - *"Should we chunk, or use a better model?"* — **NO to both.** We are already on the most capable
-    model, and the drop rate is unstable anyway (7 records one run, 1 the next) — a rate that swings 7x
-    cannot be managed, only repaired. Chunking shrinks the middle but never reaches zero and screens each
-    batch blind to the others. Re-asking only pays for the failures and terminates.
+- **THE INVENTED-CONSTRAINT BUG — the one live code finding left, and it is small.** On a vague question
+  the model adds a concept block that is really a LIMIT — measured: an *"RCT design filter"* block
+  invented from a question that never mentioned trials, which **collapsed the yield from 5,354 to 368**
+  (93% of the search) and cost a known-included study. It is an explicit prompt violation: limits come
+  from the dropdowns, and `SYSTEM_PROMPT` already says *"do NOT repeat these inside a concept block"*.
+  `hoistFilters()` performs exactly this species of repair for PubMed already. Extend it to hoist a
+  publication-type/design BLOCK out of the concepts and into the limits, where it is visible, labelled a
+  limit, and toggleable. Contained.
+- **PUT "ALWAYS GIVE SEEDS" IN FRONT OF THE LIBRARIAN.** The tool's own seed validation + failing-block
+  diagnosis is what *finds* the bug above — it names the exact block that killed a seed. A strategy run
+  with no seeds is one whose recall nobody checked, including the tool, which was built to check it and
+  was asked not to. Highest-leverage UI copy change in the feature.
+- **MODES 2 AND 3 ARE STILL UNMEASURED.** They are relevance-truncated too, but they answer a clinical
+  question rather than assemble a review, so "top 50 by relevance" may be exactly right for them. Do not
+  generalise Part 1 onto them — and note the yardstick must be different, since a clinical question has
+  no "included studies" list.
+
+**THREE QUESTIONS ARE NOW CLOSED. Do not re-open them, and do not pay to re-derive them.**
+  - *"What is the screen's false-negative rate?"* — **99% enriched / 100% realistic.** Its one loss is a
+    borderline paper it is genuinely stochastic about. The classifier was never the problem.
+  - *"Verdict completeness — chunk, or use a better model?"* — **NEITHER, and it is FIXED.** The model
+    dropped a CONTIGUOUS window out of the middle of the list (positions 25-31 of 50: lost-in-the-middle,
+    not truncation), and the drop rate is unmanageable anyway — 7 records one run, 1 the next. We are
+    already on the most capable model; chunking never reaches zero and screens each batch blind to the
+    others. Completeness is *checkable*, so it is **repaired**: `screenRecords()` re-asks for exactly the
+    skipped records. Measured after: **50 of 50 in every batch.**
+  - *"Then screen a DEEPER SLICE to beat the cap?"* — **NO. The rank table already refuses it.** Even with
+    perfect completeness, a 200-record cap shows the model **18%** of the eligible studies and a
+    500-record cap **74%** — and 500 records is ~400k input tokens, past the model's context, so it is a
+    chunked design. Completeness was never the binding constraint; **recall arithmetic is.** Do not run
+    this experiment.
+  - *"Does a vague question break the strategy?"* — **NO.** 100% recall on a careful question, **99% on a
+    bare keyword string with no criteria at all.** The strategy builder is robust to phrasing and Mode 1
+    does NOT need to interrogate the user before searching. See `docs/RECALL-STUDY.md` Part 3.
 - **Embase Part 3** (`EMBASE-SPIKE.md`): do PMIDs 37314797 / 34875345 / 35654766 land inside line 7 in
   Ovid? Strategy *quality*, not feasibility.
 - **The librarian questions**, which are now the real bottleneck: is the Scopus rendering
