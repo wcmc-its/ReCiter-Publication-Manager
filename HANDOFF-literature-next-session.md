@@ -4,6 +4,72 @@
 **every document names the model**, and **Scopus is built, merged in the tool, and searching** — via
 the Concept/Rendering split, which is also done.
 
+## START HERE — this session is for the ULTRACODE REVIEW of PR #824
+
+```bash
+cd ~/worktrees/pm-literature-ui        # NOT ~/Dropbox/GitHub/ReCiter-Publication-Manager
+git log --oneline -1                   # expect e785053 or later, on feature/pm-literature-mode2
+git diff origin/dev...HEAD --stat      # the review surface
+```
+
+**All of the app code is on ONE PR: [#824](https://github.com/wcmc-its/ReCiter-Publication-Manager/pull/824)**
+(`feature/pm-literature-mode2` → `dev`, 35 commits, MERGEABLE/CLEAN). Point the review at that. The
+two Java PRs are small and separate; ScopusTool #35 is already merged.
+
+**IGNORE in the diff:** `package-lock.json`, `*.md`, `*.png` — they dominate the line count and are
+not code. **The code that matters:**
+
+| File | What it is |
+|---|---|
+| `controllers/literatureSearch.strategy.ts` | Pure, shared with the browser. Types, `DIALECTS`, `numberStrategy`, `parseSeeds`, `buildLimits`. |
+| `controllers/literatureSearch.controller.ts` | Server. Bedrock, `countPubmed`/`countScopus`, `validateSeeds`, `runStrategy`, `countRows`, `suggestFixes`, `screenRecords`, `synthesize`. |
+| `controllers/literatureExport.ts` | Pure `Block[]` document builders. |
+| `controllers/literatureDocx.ts` | `Block[]` → `.docx`. Dynamically imported, browser-only. |
+| `controllers/literatureSearch.check.js` | The ONLY automated test. Integration, no LLM. |
+| `src/pages/api/literature/search.ts` | The one API route. Branches on `phase`/`mode`. Session auth + allowlist. **Spends money.** |
+| `src/components/elements/Literature/LiteratureSearch.tsx` | The whole UI. |
+
+### The lens to review it through
+
+**THE CARDINAL SIN IS A CONFIDENT WRONG NUMBER** — a count, a record list, or a methods block that
+looks right and is not. A crash is recoverable; a librarian trusting a fabricated count is not.
+Weight everything against that.
+
+**Landmines ALREADY handled.** Do not re-report these as new — but DO report anywhere they *leak*:
+
+- A throttled PubMed esearch returns a **well-formed ZERO**, not an error.
+- Elsevier **ignores `count=0`** and silently returns 25 records. A cheap count is `count=1`.
+- Scopus `view=COMPLETE` **caps a page at 25** (`count=50` is a 400).
+- `Number(null) === 0`, so a missing iCite percentile must never render as `0`.
+- An **unticked** strategy line was never searched, so it must never appear in an export.
+- A count **not yet made** renders as an em-dash, never `0`.
+- Scopus has **no controlled vocabulary and no RCT doctype**; limits it cannot express are DECLARED.
+- A **Scopus-only record has no PMID.** Nothing may be keyed on PMID.
+
+### Where I would look hardest (my own suspicion list — unverified)
+
+1. **`rowCounts` are keyed by PRESS LINE NUMBER, and those numbers RENUMBER when a line is toggled.**
+   The Results column is fetched in a *separate, slower* request (~5s) behind the yield (~1s). I
+   guard it with a per-database `rowSeq` ref and drop a stale response — **but that guard is the
+   newest, least-exercised code in the diff, and if it is wrong the failure is counts sitting beside
+   lines they do not belong to: confidently, invisibly wrong.** Start here.
+2. **`strategies[]` and `results[]` are index-parallel arrays** with `dirty` / `seq` / `rowSeq` /
+   `fresh` refs around them. Can they desynchronise? Can `fetchRows` capture a stale strategy from a
+   closure? Can an error path leave `recounting` stuck true?
+3. **The new `phase === 'rows'` branch on the route** — does it sit *inside* the session-auth +
+   allowlist gate, and does it enforce `parseStrategy`'s bounds (`MAX_CONCEPTS`/`MAX_LINES`/
+   `MAX_TERMS`)? It drives N count calls from a client-supplied strategy.
+4. **The check (`literatureSearch.check.js`) is the only safety net.** What can break in this feature
+   *without it going red*?
+
+### What a static review CANNOT see — say so rather than pretend
+
+Runtime behaviour under real Bedrock; whether the model's Scopus strategy would survive a librarian's
+PRESS review; cross-repo deploy behaviour; and the **Mode 2/3 synthesis `.docx`, which has never been
+clicked in a browser** (only the Mode 1 strategy one has — the renderer is shared and the check
+renders synthesis blocks to a real `.docx` in node, so the risk is low, but it is unverified in the
+UI).
+
 ## Where it stands
 
 **[PR #824](https://github.com/wcmc-its/ReCiter-Publication-Manager/pull/824)**
@@ -20,6 +86,7 @@ first. Everything below is on it.
 | **Results column** | Shipped. A record count per PRESS line, on screen and in the exports. **Costs one count call per row, per database** — see the rate-limit note below. |
 | **ScopusTool [#35](https://github.com/wcmc-its/ReCiter-Scopus-Retrieval-Tool/pull/35)** | **MERGED to `dev`** (`cd99761`). `POST /scopus/search/query`, query passed verbatim. 39 tests. |
 | **PubMedTool [#164](https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool/pull/164)** | **OPEN** → `dev`. `sort` + `retmax` on `/query-complex/`. 20 tests. **Merge + deploy before RPM.** |
+| **PubMedTool [#165](https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool/pull/165)** | **OPEN**, stacked on #164 (auto-retargets to `dev` when #164 lands). A too-broad query was a **500 after ~30s and 7 ESearch calls**; now a **502 in ~1s and 1 call**. |
 
 `npm run check:literature` is **green and still needs NO LLM**. Keep it that way.
 
