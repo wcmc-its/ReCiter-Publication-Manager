@@ -51,10 +51,24 @@ now REFUSES the verdict columns whenever the sheet is truncated**, and says why,
 records and the strategy still ship: the Boolean query is the reliable half, and it is what Covidence
 actually wants.
 
-**What is still open.** The screen's false-negative rate AT VOLUME remains genuinely unmeasured — the
-cap starved it, so it got one study and kept it. That needs a *different* experiment, and it is now the
-top of the "still to run" list below. Note also that the old worry recorded in memory — the model's
-"Adults" concept block killing 3 of 4 seeds — did **not** reproduce here: seed-style recall was 99%.
+**THE SCREEN WAS THEN MEASURED DIRECTLY TOO** (`literatureSearch.screen.js`), by padding each review's
+known-included studies to a full 50-record batch with retrieved-but-excluded records. **It is good:**
+**99%** recall enriched, **89%** at a realistic prevalence, and its one loss is the same borderline paper
+both times, excluded with a coherent reason. The classifier was never the problem.
+
+**But that run caught the thing that matters more.** On one batch the model returned **43 verdicts for 50
+records** — seven records got none, four of them known-included studies — and it did **not** trip the
+`max_tokens` guard. It simply omitted them from a tool call whose schema says *"never omit a record"*.
+That is item #1's failure mode, on an ordinary run, first try. Before the fix those four would have
+arrived **pre-ticked and indistinguishable from AI-endorsed includes**. **The `screened: false` marker is
+not belt-and-braces; it fires routinely.**
+
+**And it closes off the obvious repair.** "Just screen a deeper slice" does not work as stated: at 50
+records the model already drops ~14% of its verdicts, so a 500-record batch leans on fail-open for a
+large silent fraction — safe, but screening nothing. **Verdict-completeness has to be solved first.**
+
+Note also that the old worry recorded in memory — the model's "Adults" concept block killing 3 of 4
+seeds — did **not** reproduce: seed-style recall was 99%.
 
 ## The work order — all of it laptop-only
 
@@ -215,12 +229,16 @@ on release day.
 
 ## Still to run
 
-- **SCREENING RECALL AT VOLUME — the number the recall study could not produce.** The cap starved the
-  screen (it saw one eligible study and kept it), so its false-negative rate is still unmeasured. Run a
-  *different* experiment: take the 72 known-good studies from `literatureSearch.recall.json`, mix them
-  with ~200 records the strategy retrieved but the review EXCLUDED, hand that set to `screenRecords()`
-  directly, and count what it bins. That measures the classifier instead of the ranker. A laptop
-  afternoon, about two dollars. **This is now the top open question of the whole feature.**
+- **VERDICT COMPLETENESS — the new top open question, and it now blocks the only path forward.**
+  `screenRecords()` was observed returning **43 verdicts for 50 records** on a live run, with no
+  `max_tokens` truncation: the model just omitted them. Fail-open catches it and `screened: false` makes
+  it visible, so nothing is lost — but nothing is *screened* either, and it silently costs ~14% of the
+  page. Both halves of this feature are now measured and both are good (strategy 99%, screen 98% of what
+  it judges), so the natural fix for the cap problem is to screen a **deeper, unranked slice** — and this
+  is exactly what stops that being buildable. Solve it first: smaller batches, a completeness retry
+  (re-ask only for the missing pmids), or a tool shape that cannot return a short array.
+  - *"What is the screen's false-negative rate?"* — **ANSWERED.** 99% enriched / 89% realistic; its one
+    loss is a borderline paper excluded consistently and defensibly. See `docs/RECALL-STUDY.md` Part 2.
 - **Embase Part 3** (`EMBASE-SPIKE.md`): do PMIDs 37314797 / 34875345 / 35654766 land inside line 7 in
   Ovid? Strategy *quality*, not feasibility.
 - **The librarian questions**, which are now the real bottleneck: is the Scopus rendering

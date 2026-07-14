@@ -90,21 +90,74 @@ opens it. The records and the strategy still ship — the strategy is the good h
 is what Covidence actually wants. The 50-record sample stays on screen as triage, which is a fair
 description of what it is. See `controllers/literatureExport.ts`.
 
+## Part 2 — the screen, measured directly (`literatureSearch.screen.js`)
+
+The study above left the screen **innocent by starvation**: it was handed one eligible study and kept
+it. So it was measured on its own, by padding each review's known-included studies up to a full 50-record
+batch with records *the same strategy retrieved but the review excluded* — the exact shape the code
+screens in production. Run in two stages, because an enriched batch (~50% eligible) could flatter a model
+that a real one (~3%) would not.
+
+| | recall | |
+|---|---|---|
+| **Stage A** — enriched, ~50% eligible | **99%** | 71/72 kept |
+| **Stage B** — realistic, ~6% eligible | **89%** | 8/9 kept |
+
+**The screen is good, and prevalence did not flatter it.** Stage B's single loss is the *same study*
+Stage A lost (PMID 34956078), excluded both times with near-identical reasoning — *"TBI measured as
+covariate, not the index test evaluated against imaging with sens/spec"*. That is a defensible call on a
+borderline paper, made consistently, not a hallucination. It is exactly the judgement a human
+first-screener makes and a second reviewer overturns, which is why Covidence does dual screening and we
+do not. **The classifier was never the problem.**
+
+### The thing this run actually caught, which matters more than the number
+
+On the eczema batch the model **returned 43 verdicts for 50 records**. Seven records got no verdict at
+all; four of them were known-included studies:
+
+```
+{"tag":"literature-screen-missing","pmids":[...7...],"why":"the model returned no verdict for these records; they fail open as includes"}
+```
+
+It did **not** trip the `stop_reason: max_tokens` guard — so this is not truncation. The model simply
+omitted records from a tool call whose schema says *"Exactly one entry per record supplied. Never omit a
+record."* This is HANDOFF item #1's failure mode, occurring on an ordinary 50-record run, on the first
+real attempt. Before the fix, those four studies would have arrived **pre-ticked and visually identical
+to AI-endorsed includes**. They now carry `screened: false` and a warning strip saying nothing approved
+them. **The fail-open marker is not a belt-and-braces nicety; it fires routinely.**
+
+It also means the Stage A eczema figure needs its asterisk: the model *judged* 25 of those 29 and kept
+all 25 — the other four were saved by failing open, not by judgement. Across both stages the model
+judged 68 gold studies and kept 67.
+
+### And it closes off the obvious fix
+
+The tempting repair for the cap problem is "screen a deeper slice". **It does not work as stated.** At 50
+records the model already drops ~14% of its verdicts. Batch up to 500 and you lean on fail-open for a
+large, silent fraction of the corpus — which is safe (nothing is thrown away) but useless (nothing is
+screened either). Any deeper-slice design has to solve verdict-completeness *first*: smaller batches, a
+completeness retry, or a different tool shape that cannot silently return a short array.
+
 ## What this study does NOT establish
 
 - **N is 3.** This is a smoke alarm, not a thermometer. It cannot rank models or justify tuning.
-- **It says nothing about the screen's false-negative rate at volume** — the thing the handoff was
-  actually worried about. That question is still open and now needs a *different* experiment: feed the
-  screen a known-positive set directly and see what it does.
+- **The distractor side is noisy by construction.** A "distractor" is any retrieved record the review did
+  not include — but some are its own protocol, a secondary report, or a study excluded on full text for a
+  reason no title/abstract screen could see. Do **not** read the include rate on distractors as a
+  precision score. Recall is the clean number here; precision is not measured.
 - **All three reviews are Cochrane**, and Cochrane questions are unusually well-formed. A messier
   question may strategise worse.
 - **Modes 2 and 3 are unmeasured.** They are relevance-truncated too, but they answer a clinical
   question rather than assemble a review, and "the top 50 by relevance" may be exactly right for them.
   Do not generalise this result onto them without running it.
 
-## The next experiment, for whoever picks this up
+## Where that leaves the feature
 
-Screening recall, isolated from the cap: take the 72 known-good studies, mix them with 200 records the
-strategy retrieved but the review excluded, hand *that* to `screenRecords()`, and count what it bins.
-That measures the classifier instead of the ranker, and it is the number the handoff was originally
-asking for. It is a laptop afternoon and about two dollars.
+Both halves work. **The strategy builder retrieves the studies (99%) and the screen keeps them (98% of
+those it judges).** The failure is entirely in the relevance-ranked cut between them, and in the model's
+habit of silently returning a short verdict array.
+
+So the honest shape of Mode 1 today is: **the Boolean query is the deliverable.** It is excellent, it is
+reproducible, and Covidence wants exactly that. The 50-record sample is triage and is labelled as such.
+A screening pass over the full yield is a *possible* future — the classifier has now earned that
+consideration — but it needs verdict-completeness solved before it is worth building.
