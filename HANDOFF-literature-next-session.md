@@ -116,13 +116,27 @@ Literature Search is a claim about **a laptop**.
    **not** verify that the merge triggers the branch-gated CodeBuild. `RECITER_SCOPUS_API_URL` on the
    pod must point at a jar that has `POST /scopus/search/query` — against an older one it **404s**.
 
-**`PUBMED_API_KEY` IS NOW REQUIRED, NOT MERELY ADVISABLE** — rotate it (it was printed to a transcript
-on 2026-07-13) and set it on the retrieval tool. The per-line Results column costs **one count call
-per row per database**, so a 7-row two-database build is ~14 counts where it used to be 2. Unkeyed
-NCBI allows **3 requests/second**; the key is free and lifts it to 10/s. This matters more than it
-sounds: **a throttled esearch returns a well-formed ZERO, not an error**, so a rate-limited history
-renders as a strategy that found nothing rather than as a failure. The counts run sequentially to
-stay under the limit, which is why a build now takes visibly longer.
+**CORRECTION — `PUBMED_API_KEY` IS NOT A MISSING P0.** An earlier version of this handoff said it was.
+It is already wired: the PubMed tool reads it from the env, appends `api_key=` to every ESearch and
+EFetch, and `kubernetes/k8-secret.yaml` + `k8-deployment.yaml` inject it. The ~10/s keyed quota is
+real. It should still be **rotated** (it was printed to a transcript on 2026-07-13), but nothing is
+blocked on it.
+
+**What IS true, and matters more:** the tool deliberately paces each pod to **2 requests/second**
+(`pubmed.ratelimit.permits-per-second=2.0`), because the limiter is PER POD while NCBI's quota is
+PER KEY — the HPA allows 4 replicas, so 4 × 2/s ≈ 8/s stays under ~10/s with headroom for the ReCiter
+engine on the same key. **That is correct engineering and it should not be "fixed".** Two consequences:
+
+- **Every count call costs ~500ms.** The Results column is 7 counts, so it is a **measured 5.5s**.
+  That is why the column is fetched BEHIND the yield rather than in front of it: a toggle still
+  updates the yield in **1.1s** (the free-iteration loop is untouched) and the column fills at 5.0s.
+- **The tool WAITS rather than getting throttled**, so the "a throttled esearch returns a well-formed
+  zero" hazard is handled one layer down. RPM's zero-retry stays as belt-and-braces for a
+  misconfigured tool or contention from the engine on the same key.
+
+**DO NOT parallelise RPM's count calls.** The tool's limiter serialises them inside the pod anyway,
+and a burst only takes the shared budget from everything else on the key. The TOOL owns the rate
+policy — it knows the pod count and whether a key is set; RPM does not.
 
 PubMedTool **[PR #165](https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool/pull/165)** (stacked
 on #164) fixes the two bugs found while verifying #164: the threshold refusal now returns **502 in
