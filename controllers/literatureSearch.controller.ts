@@ -1527,6 +1527,11 @@ export async function suggestFixes(
 // hat, and the ceiling costs nothing when it is not reached.
 const LONG_MAX_TOKENS = 8000
 
+// One first pass plus two re-asks. Three, not "until complete": a model that has skipped the same record
+// twice is telling you something, and an unbounded loop over a paid call is how a screen quietly costs
+// twenty dollars. Whatever is still missing after this falls open, visibly, with `screened: false`.
+const SCREEN_ATTEMPTS = 3
+
 export type Screened = {
     pmid: string
     include: boolean     // the AI SUGGESTION. The human's checkbox is separate client state.
@@ -1596,27 +1601,89 @@ export async function screenRecords(
 ): Promise<{ flags: Screened[]; usage: UsageLog }> {
     const byPmid = new Map(records.map(r => [r.pmid, r]))
 
-    const parts = [`Question: ${question}`]
-    if (criteria) parts.push(`Inclusion/exclusion criteria: ${criteria}`)
-    parts.push(`Screen all ${records.length} records below. Return one verdict per record.\n\n${renderRecords(records)}`)
-
-    // ONE call for all 50 — measured at 40.4k in / 2.5k out / 28.9s, and it returned 50 of 50
-    // with no drops. Do NOT chunk it: chunking multiplies the fixed prompt cost, and worse, it
-    // screens each batch without sight of the others, which is how the same paper gets excluded
-    // in batch 1 and included in batch 3.
-    const { input, usage } = await invoke(SCREEN_PROMPT, SCREEN_TOOL, parts.join('\n\n'), LONG_MAX_TOKENS)
-
     const verdicts = new Map<string, any>()
-    for (const v of (input?.verdicts || [])) {
-        const pmid = String(v?.pmid ?? '').trim()
-        if (!byPmid.has(pmid)) {
-            // A verdict on a paper we never sent. Drop it — it cannot be shown against a record,
-            // and a PMID the model produced from memory is exactly the fabrication we are here to
-            // stop. Loud, because it means the prompt or the model has drifted.
-            console.error(JSON.stringify({ tag: 'literature-screen-unknown-pmid', pmid }))
-            continue
+    let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+
+    // ASK, THEN ASK AGAIN FOR WHAT CAME BACK EMPTY.
+    //
+    // The model drops records. Not at random, and not because it ran out of tokens: measured on a live
+    // 50-record batch it returned 43 verdicts, and the seven it omitted were positions 25-31 — a
+    // CONTIGUOUS WINDOW OUT OF THE MIDDLE OF THE LIST. That is lost-in-the-middle, and it took whatever
+    // sat in that window regardless of what the papers were. Four of the seven were studies a published
+    // review had included.
+    //
+    // Two things follow, and they decide the shape of this function.
+    //
+    // A BIGGER OR BETTER MODEL CANNOT FIX THIS. We are already on the most capable one, and even a
+    // better one would only drop three instead of seven — you would still not know which run was which.
+    // But completeness is CHECKABLE: we know exactly which records came back without a verdict. A
+    // requirement you can verify should be REPAIRED, not made more probable. So we re-ask for precisely
+    // the records that were skipped, and we keep the fail-open floor underneath for anything that is
+    // still missing when we stop.
+    //
+    // AND WE STILL DO NOT CHUNK THE FIRST PASS. Chunking would shrink the middle, but it never reaches
+    // zero (a ten-record call can drop one too) and it screens each batch blind to the others, which is
+    // how the same paper is excluded in batch 1 and included in batch 3. Re-asking only pays for the
+    // failures, and it terminates.
+    //
+    // The re-ask IS itself a small blind batch, and that is a real cost, not a free one: the screen is
+    // measurably STOCHASTIC on a borderline paper (in testing, one diagnostic-accuracy study was
+    // excluded in one batch and included in another, on reasoning that was coherent both times). So a
+    // record that lands in a re-ask may get a verdict it would not have got in the main pass. That is
+    // accepted deliberately: an unstable verdict on a borderline paper is a judgement the librarian can
+    // see, argue with, and untick. NO verdict at all is an unread paper wearing a tick, which is the
+    // failure this whole work order exists to kill. A shaky answer beats a silent gap.
+    let pending = records
+    for (let attempt = 1; attempt <= SCREEN_ATTEMPTS && pending.length; attempt++) {
+        const parts = [`Question: ${question}`]
+        if (criteria) parts.push(`Inclusion/exclusion criteria: ${criteria}`)
+        parts.push(`Screen all ${pending.length} records below. Return one verdict per record.\n\n${renderRecords(pending)}`)
+
+        let input: any
+        try {
+            const res = await invoke(SCREEN_PROMPT, SCREEN_TOOL, parts.join('\n\n'), LONG_MAX_TOKENS)
+            input = res.input
+            usage = {
+                inputTokens: usage.inputTokens + res.usage.inputTokens,
+                outputTokens: usage.outputTokens + res.usage.outputTokens,
+            }
+        } catch (err: any) {
+            // A FAILED RE-ASK MUST NOT DESTROY A SCREEN THAT MOSTLY WORKED. The first call is different:
+            // if it throws we have no verdicts at all, and a screen of nothing is not a screen — let it
+            // out to the route, with its billed usage, as a visible error. A later attempt failing just
+            // means the stragglers stay unscreened, which is what the fail-open flag is FOR.
+            if (attempt === 1) throw err
+            usage = {
+                inputTokens: usage.inputTokens + (err?.usage?.inputTokens || 0),
+                outputTokens: usage.outputTokens + (err?.usage?.outputTokens || 0),
+            }
+            console.error(JSON.stringify({
+                tag: 'literature-screen-reask-failed', attempt, left: pending.length,
+                why: 're-ask threw; the remaining records stay unscreened and fail open',
+            }))
+            break
         }
-        if (!verdicts.has(pmid)) verdicts.set(pmid, v)   // first verdict wins; a duplicate is noise
+
+        for (const v of (input?.verdicts || [])) {
+            const pmid = String(v?.pmid ?? '').trim()
+            if (!byPmid.has(pmid)) {
+                // A verdict on a paper we never sent. Drop it — it cannot be shown against a record,
+                // and a PMID the model produced from memory is exactly the fabrication we are here to
+                // stop. Loud, because it means the prompt or the model has drifted.
+                console.error(JSON.stringify({ tag: 'literature-screen-unknown-pmid', pmid }))
+                continue
+            }
+            if (!verdicts.has(pmid)) verdicts.set(pmid, v)   // first verdict wins; a duplicate is noise
+        }
+
+        const before = pending.length
+        pending = pending.filter(r => !verdicts.has(r.pmid))
+        if (pending.length) {
+            console.error(JSON.stringify({
+                tag: 'literature-screen-reask', attempt, asked: before,
+                answered: before - pending.length, reasking: pending.length,
+            }))
+        }
     }
 
     // Built by walking the RECORDS, not the verdicts: every record gets exactly one flag, in the
@@ -1786,6 +1853,9 @@ export async function synthesize(
     // The table is STRUCTURED data, so we can hold it to the record: the model contributes the
     // intervention and the reading order, and PubMed supplies every other cell. A row for a paper
     // that was not selected is dropped outright.
+    //
+    // The row-level defence against the SAME lost-in-the-middle drop that afflicts the screen lives
+    // below, where the model's omissions are backfilled from the records we already hold.
     const seen = new Set<string>()
     const table: SynthRow[] = []
     for (const row of (Array.isArray(input?.table) ? input.table : [])) {

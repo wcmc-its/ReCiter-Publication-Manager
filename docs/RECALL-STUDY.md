@@ -110,33 +110,67 @@ borderline paper, made consistently, not a hallucination. It is exactly the judg
 first-screener makes and a second reviewer overturns, which is why Covidence does dual screening and we
 do not. **The classifier was never the problem.**
 
-### The thing this run actually caught, which matters more than the number
+### The thing this run actually caught, which mattered more than the number
 
-On the eczema batch the model **returned 43 verdicts for 50 records**. Seven records got no verdict at
-all; four of them were known-included studies:
+On the eczema batch the model **returned 43 verdicts for 50 records**. Seven got no verdict at all; four
+of them were known-included studies. It did **not** trip the `stop_reason: max_tokens` guard — this was
+not truncation. The model simply omitted records from a tool call whose schema says *"Exactly one entry
+per record supplied. Never omit a record."*
+
+And the omission was **not random**. Reconstructing the batch order showed the seven were positions
+**25–31 of 50** — a contiguous window out of the dead centre of the list:
 
 ```
-{"tag":"literature-screen-missing","pmids":[...7...],"why":"the model returned no verdict for these records; they fail open as includes"}
+........................XXXXXXX...................
 ```
 
-It did **not** trip the `stop_reason: max_tokens` guard — so this is not truncation. The model simply
-omitted records from a tool call whose schema says *"Exactly one entry per record supplied. Never omit a
-record."* This is HANDOFF item #1's failure mode, occurring on an ordinary 50-record run, on the first
-real attempt. Before the fix, those four studies would have arrived **pre-ticked and visually identical
-to AI-endorsed includes**. They now carry `screened: false` and a warning strip saying nothing approved
-them. **The fail-open marker is not a belt-and-braces nicety; it fires routinely.**
+That is **lost-in-the-middle**: positional attention degradation. It took whatever sat in that window
+regardless of what the papers were.
 
-It also means the Stage A eczema figure needs its asterisk: the model *judged* 25 of those 29 and kept
-all 25 — the other four were saved by failing open, not by judgement. Across both stages the model
-judged 68 gold studies and kept 67.
+### Which is why the fix is a repair, not a better model
 
-### And it closes off the obvious fix
+Two things follow, and they decided the design.
 
-The tempting repair for the cap problem is "screen a deeper slice". **It does not work as stated.** At 50
-records the model already drops ~14% of its verdicts. Batch up to 500 and you lean on fail-open for a
-large, silent fraction of the corpus — which is safe (nothing is thrown away) but useless (nothing is
-screened either). Any deeper-slice design has to solve verdict-completeness *first*: smaller batches, a
-completeness retry, or a different tool shape that cannot silently return a short array.
+**A better model cannot fix this.** We are already on the most capable one. A better one would drop three
+instead of seven and you would still not know which run was which. And the rate is **wildly unstable** —
+re-running the identical experiment dropped **7 records one run and 1 the next**. You cannot manage a
+rate that swings 7× between runs.
+
+**But completeness is checkable.** We know exactly which records came back without a verdict — the
+`missing` list already existed. A requirement you can *verify* should be **repaired**, not made more
+probable. So `screenRecords()` now **re-asks for precisely the records that were skipped** (up to two
+re-asks), with the fail-open `screened: false` floor still underneath for anything missing at the end.
+
+**Measured after the fix: every batch returns 50 of 50.** The re-ask fires visibly and converges:
+
+```
+{"tag":"literature-screen-reask","attempt":1,"asked":50,"answered":49,"reasking":1}
+```
+
+No `literature-screen-missing` in any of the six batches. Screen recall re-measured: **99% enriched,
+100% realistic**.
+
+The first pass is still **not chunked**. Chunking shrinks the middle but never reaches zero (a ten-record
+call can drop one too), and it screens each batch blind to the others. Re-asking only pays for the
+failures, and it terminates.
+
+### One honest caveat about the re-ask
+
+The re-ask is itself a small blind batch, and the screen is **measurably stochastic on borderline
+papers**: across runs, PMID 34956078 was excluded in one batch and included in another, with coherent
+reasoning both times. So a record that lands in a re-ask may get a verdict it would not have got in the
+main pass.
+
+That is accepted deliberately. An unstable verdict on a borderline paper is a judgement the librarian can
+see, argue with, and untick. **No verdict at all is an unread paper wearing a tick** — which is the
+failure this entire work order exists to kill. A shaky answer beats a silent gap.
+
+### The same bug class, checked elsewhere
+
+`synthesize()` returns a variable-length evidence table from the same model in the same shape, and it
+builds that table by walking the model's rows. It was checked: it **already backfills** any selected
+paper the model omits, from the record we hold, and logs it (`literature-synth-missing-rows`). A selected
+paper cannot silently vanish from the table. No change needed.
 
 ## What this study does NOT establish
 
@@ -159,5 +193,9 @@ habit of silently returning a short verdict array.
 
 So the honest shape of Mode 1 today is: **the Boolean query is the deliverable.** It is excellent, it is
 reproducible, and Covidence wants exactly that. The 50-record sample is triage and is labelled as such.
-A screening pass over the full yield is a *possible* future — the classifier has now earned that
-consideration — but it needs verdict-completeness solved before it is worth building.
+
+**A screening pass over a much deeper slice is now a live option**, where before the re-ask fix it was
+not: the classifier has earned it (99%/100% recall), and verdict-completeness — the thing that blocked it
+— is solved and measured at 50/50 per batch. What remains unknown is whether completeness *holds* at 200
+or 500 records, where the middle is far bigger and the re-ask has more to recover. That is the next
+experiment, and it is now a cheap one: run `screen.js` with a larger `CAP` and watch the reask log.

@@ -229,16 +229,21 @@ on release day.
 
 ## Still to run
 
-- **VERDICT COMPLETENESS — the new top open question, and it now blocks the only path forward.**
-  `screenRecords()` was observed returning **43 verdicts for 50 records** on a live run, with no
-  `max_tokens` truncation: the model just omitted them. Fail-open catches it and `screened: false` makes
-  it visible, so nothing is lost — but nothing is *screened* either, and it silently costs ~14% of the
-  page. Both halves of this feature are now measured and both are good (strategy 99%, screen 98% of what
-  it judges), so the natural fix for the cap problem is to screen a **deeper, unranked slice** — and this
-  is exactly what stops that being buildable. Solve it first: smaller batches, a completeness retry
-  (re-ask only for the missing pmids), or a tool shape that cannot return a short array.
-  - *"What is the screen's false-negative rate?"* — **ANSWERED.** 99% enriched / 89% realistic; its one
-    loss is a borderline paper excluded consistently and defensibly. See `docs/RECALL-STUDY.md` Part 2.
+- **DOES VERDICT COMPLETENESS HOLD AT 200 OR 500 RECORDS?** The 50-record case is **solved**:
+  `screenRecords()` was observed returning 43 verdicts for 50 records (the seven omitted were positions
+  25-31 — a contiguous window out of the middle, i.e. lost-in-the-middle, not truncation), so it now
+  **re-asks for exactly the skipped records**. Measured after the fix: **50 of 50 in every batch.** But
+  the whole point of solving it was to make a **deeper, unranked slice** buildable — and nobody knows
+  whether completeness survives a 200- or 500-record list, where the middle is far bigger. That is now
+  the experiment that unlocks the cap problem, and it is cheap: raise `CAP` in `screen.js` and watch the
+  `literature-screen-reask` log.
+  - *"What is the screen's false-negative rate?"* — **ANSWERED.** 99% enriched / 100% realistic. Its one
+    loss is a borderline paper it is genuinely stochastic about (excluded in one batch, included in
+    another, coherent reasoning both times). See `docs/RECALL-STUDY.md` Part 2.
+  - *"Should we chunk, or use a better model?"* — **NO to both.** We are already on the most capable
+    model, and the drop rate is unstable anyway (7 records one run, 1 the next) — a rate that swings 7x
+    cannot be managed, only repaired. Chunking shrinks the middle but never reaches zero and screens each
+    batch blind to the others. Re-asking only pays for the failures and terminates.
 - **Embase Part 3** (`EMBASE-SPIKE.md`): do PMIDs 37314797 / 34875345 / 35654766 land inside line 7 in
   Ovid? Strategy *quality*, not feasibility.
 - **The librarian questions**, which are now the real bottleneck: is the Scopus rendering
