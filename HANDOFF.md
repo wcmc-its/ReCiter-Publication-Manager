@@ -44,30 +44,38 @@ opens in Covidence, where it is treated as a screening pass, and a verdict colum
 ~none of the eligible studies is a screen-shaped object that would quietly cost a published review its
 recall.
 
+## DONE 2026-07-14 (end of session) — do not redo
+
+- **PUSHED.** All commits are on `origin/feature/pm-literature-mode2`. PR #824 is open against `dev`.
+- **CI IS REAL AND GREEN.** It is no longer a claim: two runs (push + pull_request) executed on a
+  GitHub-hosted runner and all four steps passed — `npm ci --ignore-scripts`, `npx tsc --noEmit`,
+  `npx next build`, `npm run check:literature:pure`. PR #824 has a working merge gate for the first time.
+- **PR description rewritten** to carry the measurements, the deliberate omissions, a review guide and the
+  ops blockers. A reviewer facing +19k lines now has the story.
+- **Browser-verified** (dev server, live Bedrock + live PubMed):
+  - **Seed validation + failing-block diagnosis** — and it independently reproduced the session's finding.
+    Seeded with PMID 30141340, the tool flagged it *"Not retrieved — excluded by the **Educational or
+    psychological interventions (lines 4–5)** block"* and offered a **verified, priced, unticked** widening
+    line containing exactly the missing vocabulary (`"action plan"[tiab] OR "care plan"[tiab] …`,
+    *retrieves Brown (2018) · +59 records*). **This is the product doing by itself the diagnosis that took
+    a hand-written probe to do.** It is the strongest argument for the "always give seeds" item below.
+  - **Keystroke bounds refusal** — a 2,447-char line is refused with *"It has been left as it was — nothing
+    was cut. Split the terms across two lines in the same block: lines within a block are OR-ed, so the
+    search is identical."* Refused, reverted to last good, **never truncated**.
+  - **PRISMA-S methods block** — the actual clipboard payload carries the AI disclosure (*"Strategy drafted
+    by Claude Opus 4.8 … then reviewed and edited by the person named above"*), the model id, the fenced
+    verbatim query, the date, and says *"Records **identified** by the query"* (the old hand-built string
+    said "Records retrieved", which was wrong).
+  - **Scopus failure panel** (dead port) — PubMed strategy survives intact, explicit failure panel says
+    *"this is not a result of zero"*, cost still logged with `"failed":"scopus"`.
+- **STILL NOT BROWSER-DRIVEN** — and both are now hard to trigger *because the fixes work*: the
+  **`screened: false` warning strip + "N never screened" tally** (the re-ask makes dropped verdicts rare by
+  design) and the **`degraded` note** (needs a live Bedrock enrichment failure). Typechecked and reasoned,
+  not seen. Not a merge blocker; worth a look if you can force them.
+
 ## DO NEXT
 
-### 1. Push. (Blocked on a human saying "push".)
-Seven commits are local; **PR #824 does not know about any of them.** This is also the ONLY real test of
-the CI we built: it is *proven* to run offline (executed from a clean `git archive` under `env -i` with a
-preload that hard-exits on any socket/DNS/fetch), but **it has never actually run on a GitHub runner.**
-Until it does, "PR #824 has CI" is a claim, not a fact.
-Branch `feature/pm-literature-mode2` → base `dev`. PR is titled DO NOT MERGE — review only.
-
-### 2. Rewrite the PR description.
-#824 is now **59 commits, ~+19k lines**, and its story has changed completely: it was "here is a literature
-search feature", it is now "here is the feature, plus the measurements showing which half of it works and
-which half we just disabled." No reviewer will reconstruct that from the diff.
-
-### 3. Browser-verify the UI that was never driven.
-The Scopus **failure panel was verified end-to-end** in a browser (dead port → PubMed strategy survives
-intact, explicit failure panel, cost still logged). **These were NOT driven and are typechecked + reasoned
-only** — the gate flagged it and it is right:
-- the **unscreened warning strip** (`screened: false`) and the **"N never screened"** tally arithmetic
-- the **keystroke bounds refusal** on `addLine()` / `edit()` (MAX_LINES / MAX_TERMS)
-- the **degraded** note (search succeeded, enrichment failed)
-- the rebuilt **PRISMA-S methods block** (now a `Block[]` renderer, carries the AI disclosure)
-
-### 4. THEN STOP BUILDING AND GO TO THE LIBRARIAN.
+### STOP BUILDING AND GO TO THE LIBRARIAN.
 **This is the real bottleneck and it is now a much better conversation, because we have numbers.**
 - The strategy is 99% and robust. **Is a peer-reviewable Boolean query, handed to Covidence, what they
   actually want?** If yes, Mode 1 is nearly done.
