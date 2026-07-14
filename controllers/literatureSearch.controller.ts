@@ -403,6 +403,10 @@ export type SeedRecord = { label: string; title: string; mesh: string[] }
 // through three call sites to catch a case the retry already catches, and seedRecords has no
 // count to hand us anyway. Upgrade path if a single retry proves too weak: pass the known count
 // and loop until records.length > 0 || attempts exhausted.
+// A TOOL TOO OLD TO RANK. Not a fetch failure — a truth failure, so it must never be swallowed into
+// an empty list the way a network error is.
+class StalePubmedTool extends Error {}
+
 async function fetchArticles(query: string, cap: number, sort: Sort, retryOnEmpty = true): Promise<any[]> {
     if (!query.trim()) return []
     try {
@@ -413,6 +417,33 @@ async function fetchArticles(query: string, cap: number, sort: Sort, retryOnEmpt
         })
         if (!res.ok) throw new Error(`pubmed retrieval tool HTTP ${res.status}`)
         const data: any = await res.json()
+
+        // THE CAPABILITY SIGNAL WE WERE THROWING AWAY.
+        //
+        // `retmax` and `sort` are sent as JSON fields. Against a retrieval tool that predates them,
+        // Jackson drops both SILENTLY (FAIL_ON_UNKNOWN_PROPERTIES is off) — no 4xx, no warning — and
+        // the tool runs its own default esearch. The old code then `.slice(0, cap)`d the result and
+        // handed back an UNRANKED slice, while the UI and the exported methods table went on
+        // asserting "the top 50, ranked by most relevant" as fact. That is the cardinal sin with a
+        // deploy-ordering trigger: it looks perfect on a laptop running the new jar.
+        //
+        // But the response tells us. If the tool honoured `retmax` it cannot return more than `cap`;
+        // if it ignored `retmax` it ignored `sort` too, because they arrive in the same object. So a
+        // long list is proof the ranking claim is false — and a false claim is worse than no answer.
+        // Fail loudly (502) rather than degrade, because there is no honest degraded mode here: the
+        // whole promise of Modes 2/3 is that the 50 are the TOP 50.
+        //
+        // ponytail: a free signal already in the response, not a version probe. Ceiling — it only
+        // fires when the tool's own default retmax exceeds `cap`; an old jar that happens to default
+        // BELOW the cap returns a short list and slips through. Upgrade path if that ever bites: have
+        // the tool echo the applied retmax/sort in its response and assert on it. A seed fetch cannot
+        // false-positive: a uid query cannot return more records than it names.
+        if (Array.isArray(data) && data.length > cap) {
+            throw new StalePubmedTool(
+                `The PubMed retrieval tool ignored the ranking request (it returned ${data.length} records for a cap of ${cap}), `
+                + 'so "the top 50, by most relevant" would not be true of them. Deploy the sort/retmax build of the tool before using this mode.',
+            )
+        }
         const list = Array.isArray(data) ? data.slice(0, cap) : []
 
         if (!list.length && retryOnEmpty) {
@@ -429,6 +460,9 @@ async function fetchArticles(query: string, cap: number, sort: Sort, retryOnEmpt
         }
         return list
     } catch (e) {
+        // The stale-tool verdict is the one thing here that must NOT become an empty list: an empty
+        // list reads as "no records matched", which is a different lie.
+        if (e instanceof StalePubmedTool) throw e
         // Loud, not silent. A silent degradation here is how a page that quietly shows nothing
         // goes unnoticed for a year.
         console.error('[literature] record fetch failed:', query.slice(0, 120), e)
@@ -1417,7 +1451,9 @@ export async function screenRecords(
 // Synthesis. THIS is the call the whole feature exists to keep honest.
 
 export type SynthRow = { pmid: string; study: string; year: string; journal: string; design: string; intervention: string; rank: number }
-export type Synthesis = { table: SynthRow[]; prose: string; floor?: string }
+// `invented` is the model's own contamination, carried ON THE WIRE rather than only into a pod log.
+// A citation the reader can click has to be one the reader can check.
+export type Synthesis = { table: SynthRow[]; prose: string; floor?: string; invented?: string[] }
 
 // Mode 3 orders the evidence; Mode 2 does not. The sort is STABLE, so within a tier PubMed's
 // relevance order survives — we are re-ordering by design, not re-scoring by relevance.
@@ -1569,12 +1605,32 @@ export async function synthesize(
         table.sort((a, b) => a.rank - b.rank || (pos.get(a.pmid)! - pos.get(b.pmid)!))
     }
 
-    const dropped = records.filter(r => !seen.has(r.pmid)).map(r => r.pmid)
+    // A PAPER THE LIBRARIAN SELECTED CANNOT VANISH FROM THE TABLE. The old code logged the drop and
+    // shipped the short table anyway — so the document said "18 of 50 records were selected" above a
+    // table with 16 rows, and the two papers the model quietly declined to describe were the ones
+    // nobody would ever go looking for. Backfill them from the records we already hold, and let the
+    // MISSING CELL be the visible thing rather than the missing row.
+    const dropped = records.filter(r => !seen.has(r.pmid))
     if (dropped.length) {
         console.error(JSON.stringify({
-            tag: 'literature-synth-missing-rows', pmids: dropped,
-            why: 'the model left these selected papers out of the evidence table',
+            tag: 'literature-synth-missing-rows', pmids: dropped.map(r => r.pmid),
+            why: 'the model left these selected papers out of the evidence table; backfilled from the record',
         }))
+        for (const rec of dropped) {
+            table.push({
+                pmid: rec.pmid,
+                study: rec.authors || `PMID ${rec.pmid}`,
+                year: rec.year,
+                journal: rec.journal,
+                design: rec.design,
+                rank: rec.tier.rank,
+                intervention: '(not described by the model)',
+            })
+        }
+        if (pico) {
+            const pos = new Map(ordered.map((r, i) => [r.pmid, i]))
+            table.sort((a, b) => a.rank - b.rank || (pos.get(a.pmid)! - pos.get(b.pmid)!))
+        }
     }
 
     // The PROSE we cannot filter, and we do not try: silently deleting a sentence would be a
@@ -1592,9 +1648,20 @@ export async function synthesize(
         }))
     }
 
+    // ...AND THE SHOUT GOES TO THE READER, NOT ONLY TO THE POD LOG. We already knew the citation was
+    // fabricated and we rendered it as a clickable PubMed link anyway, then exported it to Word. A
+    // detection nobody sees is not a detection. It rides back on the wire so the UI can warn and the
+    // export can refuse; the prose itself is still not rewritten, for the reason above.
     // The floor is computed, never asked for. If the model's prose disagrees with it, the floor is
     // the one that is right.
-    return { synthesis: { table, prose, ...(pico ? { floor: evidenceFloor(ordered) } : {}) }, usage }
+    return {
+        synthesis: {
+            table, prose,
+            ...(pico ? { floor: evidenceFloor(ordered) } : {}),
+            ...(invented.length ? { invented } : {}),
+        },
+        usage,
+    }
 }
 
 // What the model is shown. One block per record: the PubMed facts on a header line, then the

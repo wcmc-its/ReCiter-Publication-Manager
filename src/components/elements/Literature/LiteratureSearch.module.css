@@ -909,6 +909,16 @@
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-md, 6px);
 }
+/* The model cited a paper it was never given. Same shape as .floor, in danger — it sits above the
+   synthesis it contaminates, and it is the one thing on this screen a reader must not scroll past. */
+.invented {
+  composes: floor;
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  border-left-color: var(--danger);
+}
+.invented .floorLabel,
+.invented .floorText { color: var(--danger); }
 .floorLabel {
   display: block;
   font-size: 11px;

@@ -776,6 +776,21 @@ const untickConcept = (s, ci) => ({
     ))
     assert.ok(!/top \d+ of/.test(mode1), 'Mode 1 retrieves nothing, so it must not claim a retrieved slice')
 
+    // A FABRICATED CITATION MUST TRAVEL WITH THE DOCUMENT. The server already detects a PMID the
+    // model was never given; for a while it only console.error'd it and exported the clickable link
+    // anyway. The .docx is the copy that gets mailed to a co-author, so the warning belongs IN it —
+    // and above the prose, not in a footnote under it.
+    const dirty = said(xp.synthesisDoc(
+        { table: [], prose: 'Probiotics reduced symptoms [PMID 99999999].', invented: ['99999999'] },
+        facts, 'Q?', { pico: false, screenedIn: 1, screenedOf: 50 },
+    ))
+    assert.ok(/WARNING/.test(dirty) && dirty.includes('99999999'),
+        'a synthesis citing a PMID outside the evidence set must say so IN the exported document')
+    assert.ok(dirty.indexOf('WARNING') < dirty.indexOf('Probiotics reduced symptoms'),
+        'the warning must sit ABOVE the prose it contaminates — a reader must not reach the claim first')
+    assert.ok(!/WARNING/.test(doc), 'a clean synthesis must carry no warning')
+    console.log('synthesis:    an invented citation is flagged on the wire, on screen, and above the prose in the .docx')
+
     // The strategy export must describe the TOGGLED state, never the model's draft: an unticked line
     // was not searched, so it must not appear in a methods section that claims it was.
     const strategyBlocks = xp.strategyDoc({

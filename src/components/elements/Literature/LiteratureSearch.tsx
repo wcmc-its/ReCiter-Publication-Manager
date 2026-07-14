@@ -1926,6 +1926,28 @@ export default function LiteratureSearch() {
                       * this set" is frequently the true answer to the question, and it is the one
                       * sentence on this screen that changes what someone does next.
                       */}
+                    {/* THE MODEL CITED A PAPER IT WAS NEVER GIVEN.
+                      *
+                      * The server has always detected this — and used to console.error it and then
+                      * render the fabricated PMID as a clickable PubMed link anyway, straight into a
+                      * .docx. A link a reader can click has to be one a reader can check. The prose
+                      * is deliberately NOT rewritten (silently deleting the sentence would be a
+                      * second fabrication over the first); it is flagged, loudly, above the thing it
+                      * contaminates, and the reader decides.
+                      */}
+                    {synthesis.invented?.length && (
+                        <div className={s.invented} role="alert">
+                            <span className={s.floorLabel}>Do not trust this summary as written</span>
+                            <p className={s.floorText}>
+                                The AI cited {synthesis.invented.length === 1 ? 'a paper' : 'papers'} that
+                                {synthesis.invented.length === 1 ? ' was' : ' were'} not among the ones you
+                                selected: PMID {synthesis.invented.join(', ')}. That citation came from outside
+                                this evidence set, so the sentence around it is unsupported. Read the prose
+                                before you use any of it, and do not export it as it stands.
+                            </p>
+                        </div>
+                    )}
+
                     {synthesis.floor && (
                         <div className={s.floor}>
                             <span className={s.floorLabel}>Strength of this evidence</span>
