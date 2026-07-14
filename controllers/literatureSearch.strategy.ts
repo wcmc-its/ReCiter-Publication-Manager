@@ -136,7 +136,19 @@ export const DIALECTS: Record<Db, Dialect> = {
         // [uid] is the correct tag — PubMed normalizes [pmid] -> [UID]. [aid] is the Article
         // Identifier field, which is where PubMed keeps the DOI. Both verified live against a
         // paper with a known PMID *and* a known DOI: each returns exactly 1.
-        seedQuery: s => (s.kind === 'doi' ? `${s.id}[aid]` : `${s.id}[uid]`),
+        //
+        // THE DOI IS QUOTED, AND THAT IS LOAD-BEARING. A seed ref is never counted standalone — it is
+        // always concatenated (`${ref} AND (${query})`) — and a PII-style DOI carries literal
+        // parentheses, which PubMed then reads as its own Boolean grouping. Probed live against the
+        // Lancet COVID paper (PMID 31986264, DOI 10.1016/S0140-6736(20)30183-5), inside a query that
+        // genuinely retrieves it:
+        //     31986264[uid] AND (wuhan[tiab])                        -> 1   (control)
+        //     10.1016/S0140-6736(20)30183-5[aid] AND (wuhan[tiab])   -> 0   (the parser choked)
+        //     "10.1016/S0140-6736(20)30183-5"[aid] AND (wuhan[tiab]) -> 1   (quoted)
+        // Unquoted, the seed check calls a retrieved paper a MISS, and the derived diagnosis then
+        // blames every concept block and the limits — sending a librarian to fix a search that was
+        // never broken. That is a confident wrong answer, which is the one thing this mode cannot do.
+        seedQuery: s => (s.kind === 'doi' ? `"${s.id}"[aid]` : `${s.id}[uid]`),
         dateLimits: () => [
             { id: 'any', label: 'Any date', terms: '' },
             { id: '5y', label: `${year() - 5} – ${year()}`, terms: `${year() - 5}:${year()}[dp]` },
@@ -157,7 +169,10 @@ export const DIALECTS: Record<Db, Dialect> = {
         // seed still works here (probed: PMID(37314797) -> 1, PMID(99999999999) -> 0). But a
         // Scopus-ONLY record has no PMID, and those are the records Scopus is here for — so DOI is
         // the identifier that reaches all of them, and it is the one to prefer for a Scopus seed.
-        seedQuery: s => (s.kind === 'doi' ? `DOI(${s.id})` : `PMID(${s.id})`),
+        // Quoted for the same reason as PubMed's: the ref is concatenated into a larger Boolean, and
+        // the parens in a PII-style DOI are otherwise Scopus's own grouping operator, closing DOI()
+        // early. Scopus accepts a quoted phrase in a field function, so the quoting costs nothing.
+        seedQuery: s => (s.kind === 'doi' ? `DOI("${s.id}")` : `PMID(${s.id})`),
         // `PUBYEAR > 2020` is 2021 onwards — the same window as PubMed's `2021:2026[dp]`.
         dateLimits: () => [
             { id: 'any', label: 'Any date', terms: '' },

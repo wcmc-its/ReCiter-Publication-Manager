@@ -649,10 +649,25 @@ const untickConcept = (s, ci) => ({
 
     const [pmSeed, doiSeed] = mixed
     assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(pmSeed), '37314797[uid]')
-    assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(doiSeed), '10.1001/jamapsychiatry.2023.1817[aid]')
+    assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(doiSeed), '"10.1001/jamapsychiatry.2023.1817"[aid]')
     assert.strictEqual(lit.DIALECTS.scopus.seedQuery(pmSeed), 'PMID(37314797)')
-    assert.strictEqual(lit.DIALECTS.scopus.seedQuery(doiSeed), 'DOI(10.1001/jamapsychiatry.2023.1817)')
+    assert.strictEqual(lit.DIALECTS.scopus.seedQuery(doiSeed), 'DOI("10.1001/jamapsychiatry.2023.1817")')
+
+    // THE DOI IS QUOTED, AND ONLY A LIVE COUNT CAN PROVE IT MATTERS. A PII-style DOI carries literal
+    // parentheses, and the seed ref is only ever counted CONCATENATED (`${ref} AND (${query})`) --
+    // where those parens become PubMed's own Boolean grouping. Unquoted, a paper the search really
+    // does retrieve is reported as a MISS, and the diagnosis then blames every concept block.
+    // The control is the same paper by PMID: if that stops returning 1, this fixture rotted rather
+    // than the quoting regressing.
+    const lancet = { id: '10.1016/S0140-6736(20)30183-5', kind: 'doi' }   // PMID 31986264
+    const inQuery = q => lit.countPubmed(`${q} AND (wuhan[tiab])`)
+    assert.strictEqual(await inQuery('31986264[uid]'), 1, 'control: the query does retrieve the paper by PMID')
+    assert.strictEqual(
+        await inQuery(lit.DIALECTS.pubmed.seedQuery(lancet)), 1,
+        'a parenthesised DOI seed must survive concatenation -- unquoted it counts 0 and the paper reads as a miss',
+    )
     console.log('dialects:     limits native per DB; Scopus DECLARES "RCT only" as inexpressible; seeds are PMID *or* DOI')
+    console.log('seed quoting: a PII-style DOI (parens and all) counts 1 inside `AND (...)`, same as its PMID')
 
     // ---- Live Scopus. Skipped LOUDLY when the tool is not configured. ----------------------
     if (!process.env.RECITER_SCOPUS_API_URL && !process.env.RECITER_API_BASE_URL) {
