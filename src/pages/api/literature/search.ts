@@ -78,6 +78,7 @@ import {
 } from '../../../../controllers/literatureSearch.controller'
 import {
     buildLimits, picoQuestion, picoComplete, parseSeeds, conceptsOf, DIALECTS,
+    MAX_CONCEPTS, MAX_LINES, MAX_TERMS,
     Pico, Db, Seed, Rendering,
 } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
@@ -136,10 +137,11 @@ function parsePmids(raw: any): string[] {
 // query, so it is a trust boundary and gets a real guard. The bounds are not paranoia about the
 // librarian: each toggle costs 1 + N count calls, so a strategy with 200 lines in it would turn
 // one keystroke into a burst that trips NCBI's rate limit for everyone on the pod.
-const MAX_CONCEPTS = 12
-const MAX_LINES = 25
-const MAX_TERMS = 2000
-
+//
+// The bounds themselves live in literatureSearch.strategy.ts, next to RECORD_CAP, because the
+// MODEL's output has to be held to the same ones. It was not: buildStrategy() applied none of them,
+// so the server would happily build, count and render a strategy it then REFUSED to re-count — a
+// paid-for strategy that 502s on the first checkbox. One definition, both ends.
 function parseStrategy(raw: any): Strategy {
     if (!raw || !Array.isArray(raw.concepts) || !raw.concepts.length || raw.concepts.length > MAX_CONCEPTS) {
         throw new Error('malformed strategy')
@@ -514,6 +516,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).send({ statusCode: 400, message: 'A research question is required.' })
     }
 
+    // HOISTED ABOVE THE try, BECAUSE THE TOKENS ARE SPENT WHETHER OR NOT THE REQUEST SUCCEEDS.
+    // Declared inside it, as it was, a throw carried the running total out of scope and put the call
+    // beyond logCost's reach: the money was gone and so was the only record that it had ever been
+    // spent. Bedrock bills for the call that preceded a throw exactly as it bills for one that
+    // returned, and an unlogged call is one nobody can attribute to a mode or a cwid afterwards.
+    let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+
     try {
         // WHICH DATABASES. PubMed is always in — it is the only one every mode can use — and the others
         // join it when ticked. Mode 1 ONLY, and that restriction is principled rather than unfinished:
@@ -538,53 +547,133 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // are never derived from PubMed's — there is no MeSH -> Scopus map here and there must
         // never be one. See SCOPUS_PROMPT and the note on the Concept/Rendering split.
         const results: any[] = []
-        let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
         let spine: Concept[] | undefined
         let pubmedStrategy: Strategy | undefined
         let pubmedRecords: Record<string, any> = {}
 
         for (const db of dbs) {
-            // The limits are OURS, not the model's: resolved from the two dropdown ids into THIS
-            // database's syntax by the dialect table. A limit this database cannot express comes
-            // back named in `unsupported` — never silently dropped, because a Scopus count run
-            // without the "RCT only" the librarian asked for answers a broader question than the
-            // PubMed count printed beside it.
-            const { terms: limits, unsupported } = buildLimits(db, String(dateId ?? ''), String(typeId ?? ''))
-
-            const built = await buildStrategy(String(question), limits, criteria, 'recall', undefined, db, spine)
-            usage = {
-                inputTokens: usage.inputTokens + built.usage.inputTokens,
-                outputTokens: usage.outputTokens + built.usage.outputTokens,
+            // PUBMED'S FAILURE IS NOT ONLY PUBMED'S. It goes first because its concept LABELS become
+            // the spine every later database is drafted against — that is what makes two panels two
+            // renderings of ONE search rather than two unrelated searches. If PubMed never reached a
+            // strategy there IS no spine, and drafting Scopus without one does not fail: it succeeds,
+            // and hands back a Scopus panel decomposed into DIFFERENT ideas. Plausible on screen,
+            // paid for, and impossible to spot. So a database queued behind a spine-less PubMed fails
+            // loudly instead of quietly answering a different question.
+            //
+            // A PubMed that failed AFTER its strategy was drafted — on the count, the seed check or
+            // the fixes — still leaves a good spine, and the databases behind it go ahead on it. The
+            // spine is what they need, not PubMed's numbers.
+            if (db !== 'pubmed' && !spine) {
+                results.push({
+                    db,
+                    failed: true,
+                    error: `${DIALECTS[db].name} was not searched: its strategy is drafted to cover the same concepts as the PubMed one, and the PubMed strategy failed. Built without it, it would cover different ideas than the panel beside it.`,
+                })
+                continue
             }
-            if (!spine) spine = conceptsOf(built.strategy)
 
-            // Counts + known-item validation. No records are retrieved, so this is cheap and
-            // scales to a 15,000-hit strategy — in either database.
-            let result = await runStrategy(built.strategy, seedList, unsupported)
+            // ONE DATABASE'S FAILURE IS ONE DATABASE'S FAILURE — and it used not to be. This loop was
+            // a single unguarded await chain in one try, so ANY throw (a 404 from a Scopus tool older
+            // than POST /scopus/search/query, an NCBI blip, a Bedrock throttle) flew past `results`,
+            // past logCost, and out to a 502. Tick Scopus with a stale tool behind it and the PubMed
+            // strategy the librarian actually came for — its counts, its seed check, its fixes — all
+            // evaporated, and the tokens burned building them were never even logged.
+            try {
+                // The limits are OURS, not the model's: resolved from the two dropdown ids into THIS
+                // database's syntax by the dialect table. A limit this database cannot express comes
+                // back named in `unsupported` — never silently dropped, because a Scopus count run
+                // without the "RCT only" the librarian asked for answers a broader question than the
+                // PubMed count printed beside it.
+                const { terms: limits, unsupported } = buildLimits(db, String(dateId ?? ''), String(typeId ?? ''))
 
-            if (db === 'pubmed') {
-                // Fetch the seed records themselves — one bounded call, never fatal. This buys the
-                // author+year label AND the title/MeSH the fix model needs in order to see the paper
-                // it is being asked to widen for. PubMed-only: it is a PubMed record fetch, and the
-                // label it produces is reused on the Scopus panel below rather than fetched twice.
-                pubmedRecords = await seedRecords(seedList)
-                pubmedStrategy = built.strategy
-
-                // For anything it missed: ask the model for the terms that would retrieve it, VERIFY
-                // that they do, PRICE what they cost, and hand the result back as an unticked line in
-                // the block it belongs to. Advice the librarian can inspect and reject, not a paragraph.
-                const fixed = await suggestFixes(built.strategy, result, pubmedRecords)
+                const built = await buildStrategy(String(question), limits, criteria, 'recall', undefined, db, spine)
                 usage = {
-                    inputTokens: usage.inputTokens + fixed.usage.inputTokens,
-                    outputTokens: usage.outputTokens + fixed.usage.outputTokens,
+                    inputTokens: usage.inputTokens + built.usage.inputTokens,
+                    outputTokens: usage.outputTokens + built.usage.outputTokens,
                 }
-                result = { ...result, concepts: fixed.strategy.concepts }
-            }
+                if (!spine) spine = conceptsOf(built.strategy)
 
-            // The label is a property of the PAPER, not of the database that found it, so a seed
-            // shows the same name on both panels.
-            result = { ...result, seeds: result.seeds.map(s => ({ ...s, label: pubmedRecords[s.id]?.label })) }
-            results.push(result)
+                // Counts + known-item validation. No records are retrieved, so this is cheap and
+                // scales to a 15,000-hit strategy — in either database.
+                let result = await runStrategy(built.strategy, seedList, unsupported)
+                let degraded: string | undefined
+
+                if (db === 'pubmed') {
+                    // Recorded BEFORE the enrichment below and outside its try, because the expert panel
+                    // is drawn from the strategy's MeSH and has nothing to do with seeds or fixes. Set
+                    // after them, as it was, a seed fetch that threw also cost the librarian the panel.
+                    pubmedStrategy = built.strategy
+
+                    // SEEDS AND FIXES ARE ENRICHMENT, AND ENRICHMENT DEGRADES — it does not destroy.
+                    // Both of these ran inside the per-database try, so a Bedrock throttle in
+                    // suggestFixes — one Opus invoke per missed seed plus two counts per proposal, the
+                    // flakiest link in the whole chain — threw away a strategy that had already been
+                    // built, already been counted and already been PAID FOR, and replaced it with a
+                    // failure panel that said the database could not be searched. It could: the search
+                    // succeeded, and only the advice on top of it did not. The strategy and its count
+                    // are the deliverable; everything in here is a bonus, and a bonus fails quietly.
+                    try {
+                        // Fetch the seed records themselves — one bounded call. This buys the
+                        // author+year label AND the title/MeSH the fix model needs in order to see the paper
+                        // it is being asked to widen for. PubMed-only: it is a PubMed record fetch, and the
+                        // label it produces is reused on the Scopus panel below rather than fetched twice.
+                        pubmedRecords = await seedRecords(seedList)
+
+                        // For anything it missed: ask the model for the terms that would retrieve it, VERIFY
+                        // that they do, PRICE what they cost, and hand the result back as an unticked line in
+                        // the block it belongs to. Advice the librarian can inspect and reject, not a paragraph.
+                        const fixed = await suggestFixes(built.strategy, result, pubmedRecords)
+                        usage = {
+                            inputTokens: usage.inputTokens + fixed.usage.inputTokens,
+                            outputTokens: usage.outputTokens + fixed.usage.outputTokens,
+                        }
+                        result = { ...result, concepts: fixed.strategy.concepts }
+                    } catch (err: any) {
+                        console.error('[literature] pubmed enrichment failed:', err)
+                        usage = {
+                            inputTokens: usage.inputTokens + (err?.usage?.inputTokens || 0),
+                            outputTokens: usage.outputTokens + (err?.usage?.outputTokens || 0),
+                        }
+                        // `degraded` IS NOT `failed`, and the difference is the whole point: the panel,
+                        // the strategy, the count and the exports all stand, and this note rides beside
+                        // them. It says only what is actually missing — the seed CHECK itself is run by
+                        // runStrategy above and survives, so claiming the seeds went unvalidated would be
+                        // the same species of false statement this fix exists to delete.
+                        degraded = 'Suggested fixes for the seeds this strategy missed could not be produced, so no widening terms are proposed below. The strategy, its count and the seed check itself are unaffected.'
+                    }
+                }
+
+                // The label is a property of the PAPER, not of the database that found it, so a seed
+                // shows the same name on both panels.
+                result = { ...result, seeds: result.seeds.map(s => ({ ...s, label: pubmedRecords[s.id]?.label })) }
+                results.push(degraded ? { ...result, degraded } : result)
+            } catch (err: any) {
+                console.error(`[literature] ${db} failed:`, err)
+                // BEDROCK BILLS FOR THE CALL THAT THREW. invoke() hangs the tokens it has already been
+                // charged for on the error it raises — a body that arrived, was billed, and was then
+                // rejected for stopping at max_tokens is spend like any other — so a database that
+                // failed after its model call is still money out of the account. Dropping it wrote a
+                // ZERO into logCost for a run that really cost something, which is the one number in
+                // this file nobody would ever go back and question.
+                usage = {
+                    inputTokens: usage.inputTokens + (err?.usage?.inputTokens || 0),
+                    outputTokens: usage.outputTokens + (err?.usage?.outputTokens || 0),
+                }
+                // WRITTEN FOR A LIBRARIAN, never lifted from the exception. The throws underneath here
+                // read "scopus retrieval tool HTTP 404" and "unexpected count payload: {...}" and carry
+                // hostnames, ports and payload fragments — none of which belongs on a librarian's page,
+                // and none of which tells them what to do next. This does.
+                //
+                // It is pushed IN PLACE, so the failure occupies the slot its panel would have. An
+                // absent entry would read as a database nobody ticked; a zero would read as a database
+                // that found nothing, which is a wrong number and the one thing this feature must never
+                // print.
+                results.push({
+                    db,
+                    failed: true,
+                    error: `${DIALECTS[db].name} could not be searched — its strategy could not be built or run. That is a fault in the service behind it, not in your question. Try again; if it keeps failing, tell the ReCiter team.`,
+                })
+            }
         }
 
         // The expert panel works with no records at all — straight off the query's MeSH, so it is
@@ -599,19 +688,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.error('[literature] expert panel failed:', e)
         }
 
+        // A FAILED DATABASE HAS NO hits AND NO seeds, so the two maps below read the survivors only —
+        // `r.seeds.filter(...)` on a failure would throw INSIDE the cost log, which is the one place a
+        // throw must never reach: it would land in the catch below, whose whole job is to log the cost.
+        const survived = results.filter(r => !r.failed)
+
         // The build and the fixes are one run from the librarian's point of view, so they are one
         // cost line. Iteration after this call is free anyway — every toggle takes the no-model
         // re-count path above, in either database.
+        //
+        // A FAILURE IS EXACTLY WHEN THE SPEND MOST NEEDS A LINE HERE: a database that got as far as a
+        // drafted strategy and then failed on its count has already been billed for an Opus call, and
+        // so has one whose fixes threw. Both fold their tokens back into `usage` in their catch blocks,
+        // and both are named below, so the log can tell a cheap failure from an expensive one.
         logCost('search-strategy', cwid, usage, {
             dbs,
-            hits: results.map(r => `${r.db}:${r.hits}`).join(' '),
+            hits: survived.map(r => `${r.db}:${r.hits}`).join(' '),
+            failed: results.filter(r => r.failed).map(r => r.db).join(' '),
+            degraded: survived.filter(r => r.degraded).map(r => r.db).join(' '),
             seeds: seedList.length,
-            seedsRetrieved: results.map(r => `${r.db}:${r.seeds.filter((s: any) => s.retrieved).length}`).join(' '),
+            seedsRetrieved: survived.map(r => `${r.db}:${r.seeds.filter((s: any) => s.retrieved).length}`).join(' '),
         })
 
+        // A DATABASE FAILING IS A PANEL, NOT A STATUS CODE — and that holds even when every database
+        // fails. This used to return a 502 in the all-failed case, with the per-database errors mashed
+        // into one joined string, and the client bails on `!res.ok` before it ever sets its failure
+        // state: the failure panels, which exist for exactly this case, never mounted and the page told
+        // the librarian nothing at all. A 200 carrying the failures lets it say WHICH database broke and
+        // WHY, one panel each — which is the answer they can act on.
+        //
+        // Nothing in an all-failed 200 can be mistaken for a successful search: a failed entry carries
+        // no `hits` and no `concepts`, so there is no count to render and no strategy to export. The 502
+        // stays where it belongs — a route-level failure (bad input, no Bedrock, an unforeseen throw),
+        // where there is nothing per-database to say.
         return res.status(200).send({ statusCode: 200, databases: results, experts, model: process.env.BEDROCK_MODEL_ID })
     } catch (err: any) {
         console.error('[literature] strategy failed:', err)
+        // Per-database failures never arrive here — they are panels, not throws. What is left is the
+        // unforeseen, and it still gets a cost line: see the hoist of `usage` above.
+        logCost('search-strategy', cwid, usage, { dbs: [], failed: 'all' })
         return res.status(502).send({ statusCode: 502, message: err?.message || 'Strategy build failed.' })
     }
 }

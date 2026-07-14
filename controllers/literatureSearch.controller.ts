@@ -59,6 +59,9 @@ import {
     Pico,
     RECORD_CAP,
     NARROW_ABOVE,
+    MAX_CONCEPTS,
+    MAX_LINES,
+    MAX_TERMS,
     assembleQuery,
     conceptQuery,
     conceptsOf,
@@ -72,6 +75,7 @@ import {
 export {
     assembleQuery, conceptQuery, conceptsOf, buildLimits, numberStrategy, parseSeeds,
     picoQuestion, picoComplete, DIALECTS, RECORD_CAP, NARROW_ABOVE,
+    MAX_CONCEPTS, MAX_LINES, MAX_TERMS,
 }
 export type { Line, Db, Concept, Rendering, Strategy, Dialect, Seed, SeedKind, Pico }
 
@@ -367,7 +371,16 @@ export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits:
     // Everything unticked. Don't ask the database to count the empty string — it is not a "0 hits"
     // result, it is "you have no strategy", and conflating the two is how a librarian ends up
     // trusting a count that describes nothing.
-    const hits = query ? await countIn(s.db)(query) : 0
+    //
+    // IT THROWS. It used to return `hits: 0`, which is the same lie the build path was just fixed to
+    // stop telling, arriving by the other door: a librarian who unticks every line got a panel that
+    // confidently printed "0 records", styled identically to a real count, with Copy PRISMA-S and
+    // the exports live over it. Null would have worked too, but null is Embase's "cannot be counted"
+    // and every render site already reads it that way — an empty selection is not an uncountable
+    // database, and the client is not this agent's to teach a third state to. A throw is what the
+    // re-count path already handles.
+    if (!query) throw new Error('nothing is ticked, so there is no strategy to count')
+    const hits = await countIn(s.db)(query)
     // The Results column is NOT computed here — it is 7 calls and 5.5 seconds, and it would sit
     // between a librarian's click and the yield they clicked for. It is fetched separately, and the
     // column fills in behind the number. See countRows().
@@ -884,7 +897,15 @@ export function bedrockConfigured(): boolean {
     return !!process.env.BEDROCK_MODEL_ID
 }
 
-//
+// BEDROCK HAS ALREADY BILLED THE CALL BY THE TIME WE DECIDE TO REJECT ITS ANSWER — input tokens AND
+// output tokens, truncated or not. A bare `throw` loses that number on its way out (the usage only
+// ever leaves these functions on the RETURN), so the route's hoisted total stays {0,0} and logCost
+// affirmatively writes a ZERO for a run that cost real money: the exact silent billing the hoist was
+// added to prevent, reintroduced by the guard that refuses the answer. So every throw that happens
+// AFTER a model call has returned carries the spend on the error, and the route's per-database catch
+// folds `err.usage` into its running total before it logs. Shape is UsageLog, matching the returns.
+const billed = (message: string, usage: UsageLog) => Object.assign(new Error(message), { usage })
+
 // maxTokens is a PARAMETER because Mode 2 needs a bigger one and the default silently truncates:
 // a 30-record synthesis was measured at 4.0k output tokens, hit max_tokens=4000 exactly, and
 // stopped mid-sentence. A truncated synthesis does not look broken — it looks like prose. Give
@@ -910,14 +931,25 @@ async function invoke(system: string, tool: any, user: string, maxTokens = 2000)
     // The SDK throws on non-2xx (ValidationException / AccessDeniedException / Throttling),
     // so there is no !res.ok branch to keep; search.ts's try/catch turns a throw into a 502.
     const data: any = JSON.parse(new TextDecoder().decode(res.body))
-    const block = (data.content || []).find((c: any) => c.type === 'tool_use')
-    return {
-        input: block?.input,
-        usage: {
-            inputTokens: data.usage?.input_tokens ?? 0,
-            outputTokens: data.usage?.output_tokens ?? 0,
-        },
+
+    // Read BEFORE the refusal below, because a truncated answer is a BILLED answer. See billed().
+    const usage: UsageLog = {
+        inputTokens: data.usage?.input_tokens ?? 0,
+        outputTokens: data.usage?.output_tokens ?? 0,
     }
+
+    // A max_tokens cut lands MID-tool_use, and what comes back is still perfectly parseable — the
+    // verdicts array is simply SHORT, the strategy is simply missing its last block. Nothing
+    // downstream can tell that apart from a model that had nothing more to say: screenRecords()
+    // fails each absent verdict OPEN, so the unscreened records reach the librarian pre-ticked and
+    // visually identical to endorsed ones, wearing an AI endorsement nobody wrote. So refuse the
+    // whole answer. A 502 they can see and re-run beats a short answer they cannot see at all.
+    if (data.stop_reason === 'max_tokens') {
+        throw billed(`the model's answer was cut off at the ${maxTokens}-token ceiling, so it is incomplete and cannot be trusted`, usage)
+    }
+
+    const block = (data.content || []).find((c: any) => c.type === 'tool_use')
+    return { input: block?.input, usage }
 }
 
 // Mode 1's retrieval objective is RECALL, and that is the opposite of what a model will
@@ -1158,6 +1190,48 @@ export function hoistFilters(s: Strategy): Strategy {
     }
 }
 
+// THE MODEL'S ANSWER IS INPUT TOO, AND IT GETS THE SAME BOUNDS THE BROWSER'S DOES.
+//
+// The route bounds the strategy the browser POSTS BACK for a re-count; nothing bounded what the
+// model RETURNED. So the server could build, count and render a strategy it would then REFUSE to
+// re-count — a 502 on every subsequent toggle, on the rows phase, and on Mode 2's escape hatch,
+// against a strategy the librarian has already been billed for. What we BUILD has to be something
+// we can later RE-COUNT, which means one set of ceilings, enforced in both directions.
+//
+// IT THROWS RATHER THAN TRUNCATING, and that is the whole decision. Dropping a 13th concept block
+// or a 26th line does not "clamp" a search strategy, it changes what the search MEANS: a dropped
+// AND-ed block silently broadens the yield, a dropped term line silently costs recall, and clipping
+// a line at 2,000 characters can cut a term mid-Boolean and leave a query that no longer parses.
+// The librarian would get a strategy, a count and a PRESS table that all agree with each other and
+// disagree with the search they asked for — a confident wrong answer, which is the one thing this
+// mode may never produce. A 502 is visible, and the model is not deterministic: a re-run lands in
+// bounds.
+//
+// It runs AFTER the empty-line filter and AFTER hoistFilters, because both change the shape: the
+// filter can empty a concept the model returned with `lines: []`, and hoistFilters ADDS the Humans
+// block — so a 12-concept answer can leave this function as 13.
+//
+// Exported only so literatureSearch.check.js can assert it without an LLM: buildStrategy() cannot be
+// driven from a check that makes no model call, and this is the half of it that has to be true.
+export function checkStrategy(s: Strategy): void {
+    // AND THIS IS WHERE THE EMPTINESS GUARD BELONGS. It used to fire on the RAW model input, ten
+    // lines before the filter that can empty it — so a model answering `lines: []` produced a
+    // ZERO-CONCEPT strategy, which assembleQuery() renders as '' and runStrategy() then reports as
+    // `hits: 0`: a confident zero for a search that does not exist.
+    if (!s.concepts.length) throw new Error('model did not return a usable strategy')
+    if (s.concepts.length > MAX_CONCEPTS) {
+        throw new Error(`model returned ${s.concepts.length} concept blocks; at most ${MAX_CONCEPTS} can be re-counted`)
+    }
+    for (const c of s.concepts) {
+        if (c.lines.length > MAX_LINES) {
+            throw new Error(`model returned ${c.lines.length} lines in one concept block; at most ${MAX_LINES} can be re-counted`)
+        }
+        for (const l of c.lines) {
+            if (l.terms.length > MAX_TERMS) throw new Error('model returned a term line that is too long to be re-counted')
+        }
+    }
+}
+
 export async function buildStrategy(
     question: string,
     limits: string,
@@ -1220,11 +1294,10 @@ export async function buildStrategy(
             : (objective === 'precision' ? REVIEW_PROMPT : SYSTEM_PROMPT)
 
     const { input, usage } = await invoke(prompt, STRATEGY_TOOL, parts.join('\n\n'))
-    if (!input?.concepts?.length) throw new Error('model did not return a strategy')
 
     const strategy: Strategy = {
         db,
-        concepts: input.concepts.map((c: any) => ({
+        concepts: (Array.isArray(input?.concepts) ? input.concepts : []).map((c: any) => ({
             label: String(c.label || ''),
             // Every line the model writes arrives TICKED. Untick is the librarian's move.
             lines: (Array.isArray(c.lines) ? c.lines : [c.lines])
@@ -1238,7 +1311,16 @@ export async function buildStrategy(
     // ("Humans"[MeSH] OR-ed in with real terms, silently satisfying its own block). Scopus has no
     // controlled vocabulary, so it has no Humans[MeSH] to bury — running a MeSH-shaped regex over a
     // Scopus strategy could only ever produce a false positive.
-    return { strategy: db === 'pubmed' ? hoistFilters(strategy) : strategy, usage }
+    const built = db === 'pubmed' ? hoistFilters(strategy) : strategy
+    // The build is billed whether or not the answer it produced is usable, and checkStrategy throws
+    // on exactly the answers that are not. Carry the spend out with the refusal — a rejected build
+    // that logs {0,0} is the same silent billing as a truncated one. See billed().
+    try {
+        checkStrategy(built)
+    } catch (e: any) {
+        throw billed(e.message, usage)
+    }
+    return { strategy: built, usage }
 }
 
 // ---------------------------------------------------------------------------
@@ -1343,6 +1425,28 @@ export async function suggestFixes(
                     i === ci ? { ...c, lines: [...c.lines, { ...line, on: true }] } : c),
             }
 
+            // 0. AND IT STILL HAS TO FIT. checkStrategy ran on the strategy the model BUILT; this
+            //    function then GROWS it, one line per missed seed per block, and four seeds all
+            //    failing the same block is not exotic. A block pushed past MAX_LINES (or a term line
+            //    past MAX_TERMS) yields a strategy the route will REFUSE to re-count — a 502 on every
+            //    subsequent toggle, against a strategy the librarian has already paid for. Re-validate
+            //    the strategy WITH the line in it, using the same validator both ends use, so there is
+            //    one set of ceilings and no second copy of them to drift.
+            //
+            //    Dropping the suggestion is safe: the strategy still stands, the seed still shows as a
+            //    miss with its diagnosis, and the librarian is one term line short of a fix they can
+            //    write by hand. Appending it anyway breaks the search. Cheaper here than after the two
+            //    counts below — a line we will never publish must not spend NCBI's quota being priced.
+            try {
+                checkStrategy(withLine)
+            } catch (e: any) {
+                console.log(JSON.stringify({
+                    tag: 'literature-fix-rejected', seed: miss.id, conceptIndex: ci, terms,
+                    why: `the fix would not fit: ${e.message}`,
+                }))
+                continue
+            }
+
             // 1. VERIFY AGAINST THE WHOLE STRATEGY, LIMITS AND ALL — because "tick this and the
             //    paper comes back" is the claim the checkbox makes, so that is the claim that has
             //    to be true. Verifying the term line ALONE (`pmid AND (terms)`) is not enough and
@@ -1428,6 +1532,15 @@ export type Screened = {
     include: boolean     // the AI SUGGESTION. The human's checkbox is separate client state.
     reason: string       // one clause: why excluded, or — if included — what qualifies it.
     design: string
+    // FALSE MEANS NO MODEL EVER LOOKED AT THIS RECORD. Absent means it did.
+    //
+    // Without it, an include is an include: the fail-open record below carries a `reason` the page
+    // never shows (the reason only renders on an EXCLUDE), so it arrives pre-ticked, indistinguishable
+    // from a paper the model actually endorsed, and inflates the "N included" tally on its way into
+    // the synthesis. It is the ONLY field that separates "the model read this and kept it" from "the
+    // model never saw it", so it has to reach the client — the route returns `flags` verbatim, and
+    // the page renders the reason whenever `!f.include || f.screened === false`.
+    screened?: boolean
 }
 
 const SCREEN_TOOL = {
@@ -1518,6 +1631,11 @@ export async function screenRecords(
                 include: true,                       // fail open — see the prompt
                 reason: 'Not screened — no verdict came back for this record. Read it yourself.',
                 design: r.design,
+                // The fail-open default STAYS: an unscreened record must not be silently dropped
+                // either. This flag is what stops it being silently KEPT — it is the difference
+                // between an unread paper the librarian can see is unread, and one wearing an
+                // endorsement no model gave it.
+                screened: false,
             }
         }
         return {
@@ -1861,29 +1979,42 @@ export async function suggestNarrowings(s: Strategy, baseHits?: number): Promise
         const hits = await countPubmed(assembleQuery(withBlock(s, c.label, c.terms)))
 
         // AND-ing a block can only ever REMOVE records, so `hits <= base` is arithmetic, not a
-        // hope — the same invariant suggestFixes enforces in the other direction. Two ways a
-        // candidate fails it, and neither is publishable:
+        // hope — the same invariant suggestFixes enforces in the other direction. Three ways a
+        // candidate fails, and none of them is publishable:
         //
         //   hits >  base    IMPOSSIBLE. The maths is not wrong, THE COUNT IS (a throttled esearch
         //                   returns a well-formed number — see countPubmed). Never show it.
         //   hits === base   the block excludes nothing: every record already satisfies it. The
         //                   panel would say "narrow this: 1,391 -> 1,391". USELESS ADVICE IS WORSE
         //                   THAN NONE — it is a checkbox that costs a click and buys nothing.
+        //   hits === 0      UNVERIFIABLE, and this REVERSES what this comment used to say. The old
+        //                   rule kept a zero on the argument that "1,391 -> 0" is the most useful
+        //                   thing this panel can say about a literature with no trials in it. Then it
+        //                   published "Randomized trials only: 123 -> 0" — TWICE — over a base that
+        //                   was ALREADY controlled-trial-limited, so every one of those 123 records
+        //                   satisfies (RCT[pt] OR CCT[pt]) and the only arithmetically possible
+        //                   answer was 123. It was a throttled esearch, and countPubmed's zero-retry
+        //                   fires 400ms later — still inside the same burst — so it was throttled
+        //                   too.
+        //
+        //                   A throttled zero and a true zero ARE THE SAME BYTES. There is nothing
+        //                   left to inspect, so the only choice is which mistake to make: withhold a
+        //                   true finding, or hand a librarian a priced checkbox that narrows their
+        //                   search to nothing. The first costs them a candidate they were never owed;
+        //                   the second costs them the search, because they will TICK IT. Withhold.
         //
         // Either way the candidate is DROPPED, and dropped OUT LOUD. Same principle as suggestFixes
         // refusing to publish a widening that does not retrieve the seed. A candidate that vanished
         // silently is how a panel quietly stops offering anything and nobody notices.
-        //
-        // A narrowing that lands on ZERO is KEPT, on purpose: "1,391 -> 0" is the most useful thing
-        // this panel can say about a literature that contains no trials, and the librarian can see
-        // it and decline to tick it. Hiding it would hide the finding.
-        if (hits >= base) {
+        if (hits >= base || hits === 0) {
             console.log(JSON.stringify({
                 tag: 'literature-narrowing-dropped',
                 label: c.label, baseHits: base, hits,
                 why: hits > base
                     ? 'AND-ing a block cannot GROW the result set — the count is untrustworthy'
-                    : 'this block excludes nothing from the current query, so it is not a narrowing',
+                    : hits === 0
+                        ? 'a zero here is indistinguishable from a throttled esearch, so it cannot be published'
+                        : 'this block excludes nothing from the current query, so it is not a narrowing',
             }))
             continue
         }

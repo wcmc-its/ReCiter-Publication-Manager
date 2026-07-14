@@ -15,6 +15,12 @@
  * broken — and in the case of the abstract path, a mocked version is precisely what would have
  * let "50 records, 0 abstracts" through.
  *
+ * WHICH IS WHY IT IS NOT THE MERGE GATE, AND CANNOT BECOME ONE. It needs a PubMed tool on :8083 that
+ * no GitHub-hosted runner can reach, and it is flaky against live NCBI (2 red in 6 consecutive runs
+ * on unchanged logic). The gate is its pure sibling — literatureSearch.pure.check.js, no network, no
+ * env — which is what CI runs on every push. Anything you assert here that does NOT need the world
+ * belongs over there, or it only ever runs on the laptop of whoever remembered.
+ *
  * NO LLM. Needs .env.local (for RECITER_PUBMED_API_URL / RECITER_API_BASE_URL), needs no
  * BEDROCK_MODEL_ID, and NEVER calls Bedrock — everything asserted here is either pure or
  * downstream of the model, which is the point: the verifiable half of both modes does not
@@ -43,9 +49,18 @@ const OUT = path.join(ROOT, '.litcheck')
 let embaseRun = null
 fs.rmSync(OUT, { recursive: true, force: true })
 
-for (const line of fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8').split('\n')) {
-    const m = line.match(/^([A-Z_]+)\s*=\s*(.*)$/)
-    if (m) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '')
+// A laptop keeps RECITER_PUBMED_API_URL in .env.local, which is gitignored — so on any runner that
+// checks the repo out there is no such file, and reading it unconditionally crashes with ENOENT
+// before a single assertion runs. A missing file is therefore not an error: the same names arrive as
+// real environment variables instead. An UNSET url still is an error, and the first count says so
+// loudly. Where the file does exist it still WINS, or a stale shell export would quietly point a
+// local run at a different PubMed than the one the developer is reading in .env.local.
+const envFile = path.join(ROOT, '.env.local')
+if (fs.existsSync(envFile)) {
+    for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+        const m = line.match(/^([A-Z_]+)\s*=\s*(.*)$/)
+        if (m) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '')
+    }
 }
 
 execSync(
@@ -932,6 +947,35 @@ const untickConcept = (s, ci) => ({
     // and this export IS the PRISMA-S appendix, so if the disclosure is not here it is nowhere.
     assert.ok(sDoc.includes('us.anthropic.claude-opus-4-8'),
         'the SEARCH STRATEGY export must disclose the model that drafted the query, not only the synthesis')
+
+    // THE RESULTS COLUMN, ACTUALLY PRINTED. Everything asserted about the row counts further up was
+    // asserted about the MAP; the appendix is where a PRESS reviewer reads them. Until this, no check
+    // ever handed the map to the exporter — every strategyDoc() call passed no rowCounts — so the
+    // Records column was only exercised on its BLANK branch, and a column that printed every count one
+    // line out of place would have gone green.
+    //
+    // A LINE NUMBER DOES NOT NAME A STABLE QUERY (the re-keying asserted at the top of this file), so
+    // "the right number appeared" is not the property worth checking — "each count is on ITS OWN line"
+    // is. Read the count back at the number the EXPORT derived, not at the number we counted with.
+    // The last row is the anchor: it IS the whole search, so its cell must equal the yield printed in
+    // the header above it, or the appendix and the panel are describing different queries.
+    const counted = xp.strategyDoc(
+        { ...s, query: q, hits: rowsResult.hits, runDate: '2026-07-13', seeds: [], rowCounts: rc },
+        'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',
+    )
+    const recordsTable = counted.find(b => b.kind === 'table' && b.head[2] === 'Records')
+    assert.ok(recordsTable, 'the strategy appendix must carry a Records column')
+    assert.strictEqual(recordsTable.rows.length, Object.keys(rc).length,
+        'every counted line reaches the appendix — a line the librarian searched and cannot see the yield of is half an appendix')
+    for (const [n, , records] of recordsTable.rows) {
+        assert.strictEqual(records, rc[Number(n)].toLocaleString(),
+            `line ${n} must print ITS OWN count (${rc[Number(n)]}), not some other line's`)
+    }
+    assert.strictEqual(
+        recordsTable.rows[recordsTable.rows.length - 1][2], rowsResult.hits.toLocaleString(),
+        'the last line of the appendix IS the search: its count must equal the yield in the header above it',
+    )
+    console.log(`records col:  ${recordsTable.rows.length} lines printed, each carrying its own count; last line == yield (${rowsResult.hits.toLocaleString()})`)
 
     // EMBASE (OVID): THE EXPORT IS THE ARTIFACT THAT LEAVES THE BUILDING, so it is the thing that has
     // to say the strategy was DRAFTED and never RUN. `hits` is null here, and both of the obvious

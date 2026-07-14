@@ -64,6 +64,14 @@ import {
     pubTypes,
     parseSeeds,
     DIALECTS,
+    // THE BOUNDS ARE THE SERVER'S, AND THE BROWSER IS WHERE THEY HAVE TO BE ENFORCED. The route
+    // rejects an over-size strategy with a 502 "malformed strategy" — but by then the librarian has
+    // already built it, and the strategy on screen is READ-ONLY under an error that explains
+    // nothing. Imported rather than re-typed: a second copy of these numbers that drifts low refuses
+    // a strategy the server would have taken, and one that drifts high is the 502 all over again.
+    MAX_CONCEPTS,
+    MAX_LINES,
+    MAX_TERMS,
 } from '../../../../controllers/literatureSearch.strategy'
 import type { Db, Rendering, SeedKind } from '../../../../controllers/literatureSearch.strategy'
 // THE CONTRACT, imported rather than re-declared. `import type` is erased at transpile, so this
@@ -74,6 +82,10 @@ import type { Db, Rendering, SeedKind } from '../../../../controllers/literature
 import type { PubRecord, Screened, Synthesis, Narrowing } from '../../../../controllers/literatureSearch.controller'
 import { strategyDoc, synthesisDoc, recordSheets, modelLabel } from '../../../../controllers/literatureExport'
 import type { Block, RunFacts } from '../../../../controllers/literatureExport'
+// THE CLIPBOARD IS A DOCUMENT TOO. It renders the same Block[] as the .docx — see
+// literatureMarkdown.ts for why the hand-built string it replaced was the most dangerous artifact
+// on the page. No dependencies, so this is a static import.
+import { markdownDoc } from '../../../../controllers/literatureMarkdown'
 import { saveDocx, saveText, saveXlsx, stamp } from './download'
 import s from './LiteratureSearch.module.css'
 
@@ -157,7 +169,26 @@ type DbResult = {
     // refuse — only an honesty reason to warn, which is what the gate does.
     needsNarrowing?: boolean
     narrowings?: Narrowing[]
+    // THE SEARCH RAN AND WAS COUNTED; SOMETHING AFTER IT DID NOT. Seed validation or the suggested
+    // widenings can fail on their own — they are extra count calls, and NCBI can throttle them long
+    // after the yield has landed. That is NOT a failed database: the query is real, the count is
+    // real, and we were BILLED for it. So it renders as a quiet note on a normal panel, never as a
+    // failure and never as a suppressed count — a degraded panel that hid its own number would
+    // throw away the one thing the librarian paid for.
+    degraded?: string
 }
+
+// A DATABASE THAT FAILED. The build loop no longer throws the whole run away when one database
+// dies — it pushes this into the results array, in the position that database would have occupied,
+// so a dead Scopus tool costs the librarian Scopus and nothing else.
+//
+// It is a DIFFERENT SHAPE, deliberately, and not a `hits: 0` or an empty panel on the normal one.
+// Every field a strategy panel reads — the query, the count, the lines, the seeds — is missing here
+// because none of them exist, and a type that pretended otherwise would let one of them render as a
+// zero. A zero beside a database name is a librarian reading "this database found nothing."
+type DbFailure = { db: Db; failed: true; error: string }
+const isFailure = (x: DbResult | DbFailure): x is DbFailure => (x as DbFailure).failed === true
+
 type Expert = {
     personIdentifier: string
     firstName: string
@@ -293,6 +324,12 @@ export default function LiteratureSearch() {
     // and `strategy` / `result` below are the whole story.
     const [strategies, setStrategies] = useState<Strategy[]>([])
     const [results, setResults] = useState<DbResult[]>([])
+    // THE FAILURES, HELD SEPARATELY FROM THE SEARCHES. They are lifted out of the response array
+    // rather than left in it, so `results` and `strategies` stay dense and index-parallel — every
+    // `di` in this file (rowSeq, rowState, dirty, fetchRows) is an index into those two arrays, and
+    // a hole in one of them would put a count against the wrong database. It also means the exports,
+    // which all iterate `results`, CANNOT print a failed database as a searched one: it is not there.
+    const [failures, setFailures] = useState<DbFailure[]>([])
     const [dbs, setDbs] = useState<Db[]>(['pubmed'])
     const [recounting, setRecounting] = useState(false)
 
@@ -387,7 +424,12 @@ export default function LiteratureSearch() {
                 setErr(data?.message || 'Could not build the strategy.')
                 return
             }
-            const rs: DbResult[] = data.databases || []
+            // A DATABASE THAT DIED IS NOT A DATABASE THAT FOUND NOTHING, and it must not travel with
+            // the ones that worked. Split it out here, at the boundary, so nothing downstream — no
+            // panel, no export, no count — ever has to remember to check.
+            const all: Array<DbResult | DbFailure> = data.databases || []
+            const rs = all.filter(x => !isFailure(x)) as DbResult[]
+            setFailures(all.filter(isFailure))
             fresh.current = true                 // these were just counted; don't re-count them
             const sts = rs.map(r => ({ db: r.db, concepts: r.concepts, limits: r.limits }))
             setStrategies(sts)
@@ -415,6 +457,10 @@ export default function LiteratureSearch() {
     // model call re-writing it", and `proceed` says "do not raise the gate again, I have seen the
     // count". The button that sends it is never disabled on the count — see retrieveNow.
     const runIssueReview = async (narrowed?: Strategy) => {
+        // The OTHER caller that clears `strategies` — and the one where a surviving stale re-count
+        // does its damage silently, by wiping the error this function is about to set. See
+        // cancelRecount().
+        cancelRecount()
         setErr('')
         setRecords([])
         setFlags({})
@@ -441,7 +487,22 @@ export default function LiteratureSearch() {
                 setStage('idle')
                 return
             }
-            const r: DbResult = data.databases[0]
+            // A FAILED DATABASE NOW ARRIVES AS A 200. The build loop no longer throws the run away
+            // when a database dies — it hands the failure back in the results array — and Modes 2/3
+            // search exactly one database, so "one failed" and "all failed" are the same event here.
+            // Without this the failure object falls straight through as a DbResult and the candidates
+            // screen renders `undefined` hits and an empty record list under them: a search that died
+            // wearing the face of one that found nothing. There is no failure PANEL in these modes and
+            // there should not be — the librarian is still standing on the form, so the error belongs
+            // where they are looking.
+            const r = data.databases?.[0] as DbResult | DbFailure | undefined
+            if (!r || isFailure(r)) {
+                // The server's own words when it has them — "Could not reach the PubMed tool" is the
+                // difference between retrying for ten minutes and knowing the pod is down.
+                setErr((r && isFailure(r) && r.error) || 'Could not run the search.')
+                setStage('idle')
+                return
+            }
             // Mode 3: adopt the sentence the SERVER assembled from the PICO fields. Everything
             // downstream — the summary bar, the screen call, the synthesis call — then carries the
             // question that was really asked, not one the client reconstructed and hoped matched.
@@ -513,19 +574,25 @@ export default function LiteratureSearch() {
     // number that comes back is COUNTED, never estimated, and the librarian can try every
     // combination they like for free.
     const toggleNarrowing = (n: Narrowing) => {
-        const next = { ...ticked, [n.label]: !ticked[n.label] }
-        setTicked(next)
         if (!baseStrategy) return
+        const next = { ...ticked, [n.label]: !ticked[n.label] }
+        // A narrowing is an EXTRA concept block, so ticking enough of them walks the strategy past
+        // MAX_CONCEPTS — and the re-count it triggers is the very same call that would then 502.
+        // The gate would go read-only at the exact moment the librarian was using it as intended.
+        const concepts = [
+            ...baseStrategy.concepts,
+            ...narrowings
+                .filter(x => next[x.label])
+                .map(x => ({ label: x.label, lines: [{ terms: x.terms, on: true }] })),
+        ]
+        if (concepts.length > MAX_CONCEPTS) {
+            setErr(`A strategy can hold at most ${MAX_CONCEPTS} concept blocks, and this one is full. `
+                + `Untick another narrowing before adding this one.`)
+            return
+        }
+        setTicked(next)
         dirty.current.add(0)
-        setStrategies([{
-            ...baseStrategy,
-            concepts: [
-                ...baseStrategy.concepts,
-                ...narrowings
-                    .filter(x => next[x.label])
-                    .map(x => ({ label: x.label, lines: [{ terms: x.terms, on: true }] })),
-            ],
-        }])
+        setStrategies([{ ...baseStrategy, concepts }])
     }
 
     // ---- MODE 2, POST 2 of 3: screen all 50 in ONE call. ~29s, measured, no drops.
@@ -632,12 +699,27 @@ export default function LiteratureSearch() {
 
         const targets = dirty.current.size ? Array.from(dirty.current) : strategies.map((_, i) => i)
 
-        const mine = ++seq.current
         const t = setTimeout(async () => {
             // Cleared HERE, not above: the effect re-runs (and this cleanup fires) on every
             // keystroke, and clearing before the debounce settles would lose the record of which
             // database was edited — and fall back to re-counting all of them.
             dirty.current.clear()
+            // THE BUMP BELONGS TO THE REQUEST, NOT TO THE EFFECT RUN.
+            //
+            // It used to sit in the effect body, 300ms before the request it names was issued — so
+            // every keystroke bumped it, and the cleanup then cancelled the timeout that would have
+            // issued that request. A bump with no request behind it has no `finally` to match it, and
+            // the LAST such bump wins: `mine === seq.current` was then never true again, `recounting`
+            // stayed true for the rest of the session, and every export button on the page stayed
+            // disabled until a reload. A bump that exists only for a request actually issued always
+            // has a matching `finally`.
+            //
+            // The stale-response drop is unchanged, and this is why: requests are numbered in the
+            // order they are ISSUED, which is the order their timeouts fire. So a slow request issued
+            // first still holds a lower `mine` than the fast one issued after it, and when it finally
+            // lands `mine !== seq.current` and it is dropped — exactly as before. All that changed is
+            // that a request nobody made no longer takes a number.
+            const mine = ++seq.current
             setRecounting(true)
             try {
                 const fetched = await Promise.all(targets.map(async di => {
@@ -669,7 +751,15 @@ export default function LiteratureSearch() {
                 const withExperts = fetched.find(f => f.experts)
                 if (withExperts) setExperts(withExperts.experts)
                 // Same again: the yield has landed, so now go and fill the column behind it.
-                fetched.forEach(({ di }) => fetchRows(strategies[di], di))
+                //
+                // MODE 1 ONLY. This effect deliberately also serves Modes 2 and 3 (a ticked narrowing
+                // re-counts through it), and those modes NEVER render the Results column — there is no
+                // RowCount anywhere outside the `isSR` panel. So an unguarded call here spent a full
+                // per-line sweep — 7 count calls, a measured 5.5s — on a map no JSX ever reads, on
+                // every tick of the narrowing gate. NCBI's quota is per-KEY and we share ours with the
+                // ReCiter engine, so that waste came out of the nightly ETL's budget, not ours. The
+                // guard suppresses the CALLS: spending them and discarding the answer is the bug.
+                if (isSR) fetched.forEach(({ di }) => fetchRows(strategies[di], di))
             } catch (e: any) {
                 if (mine === seq.current) setErr(e?.message || 'Could not reach the server.')
             } finally {
@@ -818,18 +908,73 @@ export default function LiteratureSearch() {
     const toggle = (di: number, ci: number, li: number) =>
         editConcept(di, ci, c => ({ ...c, lines: c.lines.map((l, j) => (j === li ? { ...l, on: !l.on } : l)) }))
 
-    const edit = (di: number, ci: number, li: number, terms: string) =>
+    // THE BOUNDS, AT THE KEYSTROKE — because the alternative is a 502 on someone else's click.
+    //
+    // The route refuses an over-size strategy with "malformed strategy", and it refuses it on the
+    // NEXT re-count: the librarian types a long line, then ticks an unrelated checkbox, and THAT is
+    // what appears to break. The strategy is then read-only under an error that explains none of it,
+    // and every export is disabled behind `recounting`. Neither ceiling is theoretical — a Cochrane
+    // drug hedge runs to ~1,500 characters of OR-ed synonyms, so one paste of a longer one clears
+    // MAX_TERMS, and "+ line to" is a button that can be clicked twenty-six times.
+    //
+    // A REFUSAL, NEVER A TRUNCATION. Clipping a 2,400-character paste to 2,000 would hand back a
+    // strategy that runs, counts, and is quietly missing 400 characters of synonyms — a search
+    // narrowed by us, silently, which is worse than the 502 and worse than doing nothing.
+    const edit = (di: number, ci: number, li: number, terms: string) => {
+        if (terms.length > MAX_TERMS) {
+            setErr(`That line is ${terms.length.toLocaleString()} characters, and the longest line we can re-count `
+                + `is ${MAX_TERMS.toLocaleString()}. It has been left as it was — nothing was cut. Split the terms `
+                + `across two lines in the same block: lines within a block are OR-ed, so the search is identical.`)
+            return
+        }
         editConcept(di, ci, c => ({ ...c, lines: c.lines.map((l, j) => (j === li ? { ...l, terms } : l)) }))
+    }
 
-    const addLine = (di: number, ci: number) =>
+    const addLine = (di: number, ci: number) => {
+        if ((strategies[di]?.concepts[ci]?.lines.length || 0) >= MAX_LINES) {
+            setErr(`A concept block holds at most ${MAX_LINES} lines and this one is full. Untick a line you are `
+                + `not using, or add the terms to an existing line — lines within a block are OR-ed, so it makes `
+                + `no difference to the search.`)
+            return
+        }
         editConcept(di, ci, c => ({ ...c, lines: [...c.lines, { terms: '', on: true }] }))
+    }
+
+    // CANCEL WHAT IS IN FLIGHT BEFORE CLEARING WHAT IT WOULD LAND ON.
+    //
+    // Every caller that empties `strategies` must come through here first, and there are two of them:
+    // newSearch() and runIssueReview(). Emptying `strategies` trips the re-count effect's
+    // `if (!strategies.length) return` — so the effect never reaches the code that would have
+    // invalidated an outstanding response, and that response then passes its own
+    // `mine === seq.current` guard and lands on a search nobody is looking at any more. In
+    // newSearch() it wrote its count back into the array we had just cleared, bringing a dead
+    // strategy's form back on screen. In runIssueReview() it is worse and quieter: the stale response
+    // reaches the unconditional `setErr('')` and ERASES A RETRIEVAL ERROR the librarian needed to
+    // see — "PubMed counted 275 records and returned none of them" blinks out, and the empty
+    // candidate list beneath it reads as an honest zero.
+    //
+    // Each `rowSeq` key is BUMPED, never reset. A fresh `{}` looks equivalent and is not: the next
+    // search's first fetchRows would compute `mine = (undefined || 0) + 1 = 1` and collide with a
+    // still-in-flight `mine = 1` from this one, which lands, matches, and hangs a dead search's
+    // per-line counts beside the new search's lines. Monotonic is the whole guarantee.
+    const cancelRecount = () => {
+        seq.current++
+        Object.keys(rowSeq.current).forEach(k => { rowSeq.current[Number(k)]++ })
+        dirty.current.clear()
+        // Nothing is in flight any more, so nothing is coming to turn these off — and `recounting`
+        // left true disables every export for the rest of the session.
+        setRecounting(false)
+        setRowState({})
+    }
 
     // Back to the form with the question, the criteria and the limits still in it. That IS the
     // edit-and-re-run path in Mode 2: there is nothing else to edit, because the query was
     // derived from these fields.
     const newSearch = () => {
+        cancelRecount()
         setStrategies([])
         setResults([])
+        setFailures([])
         setExperts(null)
         setErr('')
         setPhase('form')
@@ -865,45 +1010,6 @@ export default function LiteratureSearch() {
         )
     }
 
-    // The PRISMA-S methods block — what goes in the manuscript.
-    //
-    // IT IS BUILT FROM `result`, NEVER FROM `strategy`. The exported block must describe the
-    // query that produced the count printed beside it. If a librarian unticks two bundles and
-    // then pastes a methods block describing the un-toggled strategy, we have broken the single
-    // thing this feature exists to guarantee.
-    const prismaBlock = (r: DbResult) => {
-        const { rows } = numberStrategy({ db: r.db, concepts: r.concepts, limits: r.limits })
-        return [
-            `Database: ${DIALECTS[r.db].provenance}`,
-            `Date searched: ${r.runDate}`,
-            // Null is not zero, and it is not the empty string either. An uncounted database says so
-            // in the methods block, because a PRISMA-S appendix reading "Records retrieved: 0" against
-            // a working strategy is a fabrication a reader cannot see through.
-            r.hits === null
-                ? `Records retrieved: not counted — we have no API for ${DIALECTS[r.db].name}. Run this strategy in Ovid to obtain the yield.`
-                : `Records retrieved: ${r.hits}`,
-            ``,
-            `Search strategy:`,
-            ...rows
-                .filter(row => row.n !== null)   // an unticked line was not searched, so it is not in the methods
-                .map(row => {
-                    const c = r.rowCounts?.[row.n as number]
-                    const line = `${row.n}. ${row.kind === 'term' ? row.line.terms : row.text}`
-                    return typeof c === 'number' ? `${line}    ${c.toLocaleString()}` : line
-                }),
-            ``,
-            ...(r.unsupportedLimits?.length
-                ? [`Limits NOT applied: ${r.unsupportedLimits.join('; ')} — ${DIALECTS[r.db].name} cannot express this limit, so the count above is not restricted by it.`, ``]
-                : []),
-            `Full Boolean:`,
-            r.query,
-            ``,
-            r.seeds.length
-                ? `Known-item validation: ${r.seeds.filter(x => x.retrieved).length} of ${r.seeds.length} seed records retrieved (${r.seeds.map(x => `${x.kind.toUpperCase()} ${x.id}`).join(', ')}).`
-                : `Known-item validation: not performed.`,
-        ].join('\n')
-    }
-
     const retrieved = result ? result.seeds.filter(x => x.retrieved).length : 0
     const allFound = result && result.seeds.length > 0 && retrieved === result.seeds.length
     const numbered = liveStrategy ? numberStrategy(liveStrategy) : null
@@ -916,6 +1022,19 @@ export default function LiteratureSearch() {
     const included = records.filter(r => picked[r.pmid])
     const excludedCount = records.length - included.length
     const screened = Object.keys(flags).length > 0
+    // ...AND IT SAYS HOW MANY OF THE INCLUDED ONES NOBODY READ. A fail-open record is pre-ticked, so
+    // it lands inside `included` and makes the headline number say "31 included" when the AI only
+    // ever looked at 24 of them. The tick stays (dropping it silently would be the worse bug), but
+    // the number beside it stops being able to hide behind it.
+    //
+    // IT COUNTS `included`, NOT `records`, AND THAT IS THE WHOLE POINT OF IT. Counted over all the
+    // records it is a number about the SEARCH; the two beside it are numbers about the PILE. So a
+    // librarian who read the warning strips and unticked all seven unscreened records still saw
+    // "24 included · 26 excluded · 7 never screened" — three numbers that no longer add up, telling
+    // them seven unread papers were still in the stack they were about to synthesize when in fact
+    // none were. The tally answers one question, and every number in it has to answer that same
+    // question: what is in the pile RIGHT NOW.
+    const unscreened = included.filter(r => flags[r.pmid]?.screened === false).length
     const sortLabel = (SORTS.find(x => x.id === (result?.sort || sort)) || SORTS[0]).label.toLowerCase()
 
     // The gate's tone and its primary button key off ONE number, and it is the counted one: the
@@ -923,25 +1042,6 @@ export default function LiteratureSearch() {
     // NARROW_ABOVE the warning drops away and the button becomes an ordinary "Find records" —
     // nothing to warn about, so nothing warns.
     const over = !!result && result.hits > NARROW_ABOVE
-
-    const markdown = () => {
-        if (!synthesis) return ''
-        const cols = ['Study', 'Year', 'Journal', 'Design', 'Intervention']
-        return [
-            `# ${question}`,
-            ``,
-            `| ${cols.join(' | ')} |`,
-            `| ${cols.map(() => '---').join(' | ')} |`,
-            ...synthesis.table.map(r => `| ${r.study} | ${r.year} | ${r.journal} | ${r.design} | ${r.intervention} |`),
-            ``,
-            synthesis.prose,
-            ``,
-            provenance
-                ? `${included.length} of ${records.length} records screened in by ${provenance.cwid} on ${provenance.date}.`
-                : ``,
-            `AI-assisted synthesis, drafted by ${model ? `${modelLabel(model)} (${model})` : 'a language model'}, over the records selected above. Verify every claim against the source.`,
-        ].join('\n')
-    }
 
     // ---- DOWNLOADS. --------------------------------------------------------------------------
     //
@@ -1007,6 +1107,41 @@ export default function LiteratureSearch() {
             `${stamp(isPico ? 'clinical-answer' : 'issue-review', r.runDate)}.docx`,
         ).catch(docxFailed)
     }
+
+    // THE TWO CLIPBOARD ARTIFACTS, AND THEY ARE THE ONES PEOPLE ACTUALLY FORWARD.
+    //
+    // Both are now THE SAME DOCUMENTS as the .docx files above, rendered as Markdown instead of
+    // OOXML — same builders, same blocks, one renderer each. Both used to be strings assembled by
+    // hand right here, and being hand-assembled is precisely how each ended up missing the one thing
+    // it existed to say.
+    //
+    // The synthesis went out with no database, no query, no yield, no search date — and no
+    // fabricated-citation warning. We detect an invented PMID, shout about it on screen, stamp it
+    // into the Word file, and then handed the librarian a clean-looking copy of the contaminated
+    // summary to paste into an email.
+    //
+    // The methods block was worse, because of where it LANDS. It is pasted into a published
+    // manuscript as a reproducibility statement, and it did not disclose that the strategy had been
+    // DRAFTED BY A MODEL, or which model. Every Block[] export stamps that in ("Strategy drafted by
+    // <model>, then reviewed and edited by the person named above"); the one artifact that goes into
+    // the literature was the one that left it out. It also called the yield "Records retrieved",
+    // which in a PRISMA-S appendix is the number a reader copies into a flow diagram — and it is a
+    // count, not a retrieval.
+    //
+    // There is no hand-built format left on this page. A fact added to a document now arrives in
+    // every artifact of it, including these.
+    const markdown = (r: DbResult) => (synthesis
+        ? markdownDoc(synthesisDoc(synthesis, runFacts(r), question,
+            { pico: isPico, screenedIn: included.length, screenedOf: records.length }))
+        : '')
+
+    // EVERY database that was searched, in one document, exactly as "Download everything" does it —
+    // and a failed database appears in neither, because it is not in `results`. Each database opens
+    // its own H1, so a two-database methods section arrives already sectioned. The blocks are built
+    // from `result`, never from the live `strategy`: the methods must describe the query that
+    // produced the count printed beside it, or a librarian who unticks two bundles publishes a
+    // strategy that does not reproduce their own number.
+    const prismaBlock = () => markdownDoc(results.flatMap(r => strategyDoc(r, question, runBy, model)))
 
     // THE PACKET: the whole run as one Word file plus one spreadsheet, for the co-author who was
     // not in the room, or for a manuscript submission where the search has to travel as a single
@@ -1394,6 +1529,41 @@ export default function LiteratureSearch() {
 
             {err && <div role="alert" className={s.error}>{err}</div>}
 
+            {/* ============ A DATABASE THAT FAILED ============
+                One database dying no longer takes the whole run with it — so it has to be SAID, and
+                said as a failure. The three things it must never look like, because each of them is a
+                number a librarian would act on:
+
+                  a panel with an empty strategy   — reads as "this database has nothing to say"
+                  a count of 0                     — reads as "this database found nothing"
+                  Embase's "not counted"           — reads as "drafted, run it yourself in Ovid",
+                                                     which is a TRUE statement about Embase and a
+                                                     false one about a database whose tool was down
+
+                So: no count element at all, no line numbers, no seeds, and the word FAILED. It sits
+                outside the `results.length > 0` block on purpose — if every database failed there are
+                no panels to hang it under, and that is exactly when it matters most.
+
+                It is also absent from every export: `results` holds the searches that ran, the
+                exports iterate `results`, and this database is not in it. A methods appendix that
+                lists a database we never searched is a fabrication with a citation on it. */}
+            {failures.map(f => (
+                <section className={s.panel} key={`failed-${f.db}`} aria-live="polite">
+                    <div className={s.panelHead}>
+                        <h2 className={s.panelTitle}>{DIALECTS[f.db].name}</h2>
+                    </div>
+                    <div className={`${s.dbNote} ${s.dbNoteWarn}`}>
+                        <b>This database was not searched — the search failed.</b> It has no strategy, no
+                        count and no records here, and <b>this is not a result of zero</b>: we do not know what
+                        {' '}{DIALECTS[f.db].name} would have returned. Nothing below or above includes it, and it
+                        does not appear in any download. Try again, or run the other databases without it.
+                        {/* The server's own words, verbatim. "Could not reach the Scopus tool" is the
+                            difference between waiting five minutes and telling someone the pod is down. */}
+                        {f.error && <p className={s.help}>{f.error}</p>}
+                    </div>
+                </section>
+            ))}
+
             {/* ============ MODE 1 — THE STRATEGY ============ */}
             {isSR && results.length > 0 && (
                 <>
@@ -1450,6 +1620,19 @@ export default function LiteratureSearch() {
                                 <b>{result.unsupportedLimits.join('; ')}</b> could not be applied &mdash; {result.dbName} indexes a
                                 document type (article, review), not a study design, so it has no way to say this.
                                 The count above is <b>not</b> restricted by it.
+                            </div>
+                        )}
+
+                        {/* THE SEARCH RAN; SOMETHING AFTER IT DID NOT. Seed validation and the suggested
+                            widenings are extra count calls made once the yield has already landed, and
+                            NCBI can throttle them on their own. That is NOT a failed database — the
+                            query is real, the count above it is real, and we were billed for it — so
+                            this is a quiet note on a working panel and NOT the failure panel above. A
+                            degraded panel that suppressed its own count would throw away the one thing
+                            the librarian actually paid for, to report a step that is a courtesy. */}
+                        {result.degraded && (
+                            <div className={s.dbNote}>
+                                <b>The count is good; part of the check around it is not.</b> {result.degraded}
                             </div>
                         )}
 
@@ -1736,7 +1919,7 @@ export default function LiteratureSearch() {
                     <div className={s.actions}>
                         <button
                             className={s.btn}
-                            onClick={() => copy(results.map(prismaBlock).join('\n\n'), 'prisma')}
+                            onClick={() => copy(prismaBlock(), 'prisma')}
                             disabled={recounting || !result.query}
                         >
                             {copied === 'prisma' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
@@ -1905,6 +2088,12 @@ export default function LiteratureSearch() {
                                     <div className={s.tally}>
                                         <b className={s.tallyInc}>{included.length}</b> included &nbsp;&middot;&nbsp;{' '}
                                         <b>{excludedCount}</b> excluded
+                                        {/* "OF THEM" is doing real work: this number is a SUBSET of the
+                                            included count to its left, not a third bucket beside it. Read
+                                            as a third bucket the three numbers appear not to add up. */}
+                                        {unscreened > 0 && (
+                                            <> &nbsp;&middot;&nbsp; <b>{unscreened}</b> of them never screened</>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className={s.tally}>{records.length} record{records.length === 1 ? '' : 's'}</div>
@@ -2008,7 +2197,29 @@ export default function LiteratureSearch() {
                                                     )}
                                                 </div>
 
-                                                {f && !f.include && (
+                                                {/* NOBODY LOOKED AT THIS ONE, AND IT MUST NOT LOOK LIKE AN ENDORSEMENT.
+                                                    A record the model returned no verdict for fails OPEN — it arrives
+                                                    with include: true, so it is PRE-TICKED and, until this branch
+                                                    existed, was pixel-identical to a record the AI had read and
+                                                    approved. It sat in the "N included" tally, went into the synthesis,
+                                                    and carried an AI endorsement it had never been given. That is the
+                                                    one failure on this page that puts an UNREAD paper in front of a
+                                                    librarian wearing a machine's approval.
+
+                                                    Fail-open is still right — silently DROPPING an unscreened record
+                                                    would be worse. The bug was that it was invisible. So it keeps its
+                                                    tick and gets the loudest treatment on the row: the warning strip,
+                                                    not the quiet grey reason line an exclusion gets. An exclusion is a
+                                                    judgment; this is the absence of one. */}
+                                                {f && f.screened === false ? (
+                                                    <div className={s.caveat}>
+                                                        <span aria-hidden="true">&#9888;</span>
+                                                        <span>
+                                                            <b>Not screened by the AI.</b> {f.reason} It is ticked because nothing
+                                                            was thrown away &mdash; <b>not because anything approved it.</b>
+                                                        </span>
+                                                    </div>
+                                                ) : f && !f.include && (
                                                     <div className={`${s.why} ${s.flagline}`}>
                                                         <b>Excluded:</b> {f.reason}
                                                     </div>
@@ -2144,17 +2355,20 @@ export default function LiteratureSearch() {
                         <button className={s.btnSecondary} onClick={() => setPhase('candidates')}>
                             Back to candidates
                         </button>
-                        <button
-                            className={`${s.btnSecondary} ${copied === 'md' ? s.btnSecondaryDone : ''}`}
-                            onClick={() => copy(markdown(), 'md')}
-                        >
-                            {copied === 'md' ? '✓ Copied' : 'Copy Markdown'}
-                        </button>
                         {/* The answer is PROSE, so it leaves as Word — headings, the evidence table, the
                             caveat, and the query that produced it, all in one file someone can put in
-                            front of a co-author. "Everything" adds the records spreadsheet beside it. */}
+                            front of a co-author. "Everything" adds the records spreadsheet beside it.
+                            Copy Markdown now sits inside this guard with the rest of them, because it
+                            is one of them: it carries the same facts and needs the same `result` to
+                            state them. A clipboard copy with no query behind it is what we just fixed. */}
                         {result && (
                             <>
+                                <button
+                                    className={`${s.btnSecondary} ${copied === 'md' ? s.btnSecondaryDone : ''}`}
+                                    onClick={() => copy(markdown(result), 'md')}
+                                >
+                                    {copied === 'md' ? '✓ Copied' : 'Copy Markdown'}
+                                </button>
                                 <button className={s.btnSecondary} onClick={() => dlSynthesis(result)}>
                                     {isPico ? 'Answer' : 'Synthesis'} (.docx)
                                 </button>

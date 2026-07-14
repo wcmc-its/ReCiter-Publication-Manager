@@ -373,7 +373,7 @@ export function numberStrategy(s: Strategy): { rows: Row[]; conceptLines: number
     return { rows, conceptLines }
 }
 
-// THE TWO NUMBERS BOTH SIDES HAVE TO AGREE ON, and they live here for the same reason the line
+// THE NUMBERS BOTH SIDES HAVE TO AGREE ON, and they live here for the same reason the line
 // numbering does: the browser needs their VALUES, and a *value* import from the controller would
 // drag the Bedrock SDK into the client bundle. This file is pure, so the client can import the
 // same constant the server enforces instead of keeping a hand-copied mirror in step.
@@ -381,6 +381,22 @@ export function numberStrategy(s: Strategy): { rows: Row[]; conceptLines: number
 // The cap. NOT a setting — see the controller header. 50 abstracts is ~40k input tokens, which is
 // what a single screening call was measured at; it is also about as many as a human will read.
 export const RECORD_CAP = 50
+
+// THE BOUNDS ON A STRATEGY — and the point is that BOTH ENDS OF THE ROUND TRIP USE THE SAME ONES.
+//
+// The API route enforces these on the strategy the BROWSER posts back, because that is a trust
+// boundary whose text goes straight into a PubMed query. They are also not paranoia about the
+// librarian: every toggle costs 1 + N count calls, so a 200-line strategy turns one keystroke into
+// a burst that trips NCBI's rate limit for everyone on the pod.
+//
+// They live HERE, rather than in the route, because buildStrategy() has to hold the MODEL to the
+// same ceilings. Whatever the server BUILDS must be something it can later RE-COUNT — and while
+// these were two hand-copied numbers in two files, it wasn't: the server would happily build, count
+// and render a strategy it then refused to re-count, 502-ing every subsequent toggle, the rows
+// phase, and Mode 2's escape hatch, on a strategy the librarian had already paid for.
+export const MAX_CONCEPTS = 12   // AND-ed concept blocks in one strategy
+export const MAX_LINES = 25      // OR-ed term lines within one block
+export const MAX_TERMS = 2000    // characters in a single term line
 
 // ---------------------------------------------------------------------------
 // PICO — Mode 3's input.
