@@ -230,9 +230,16 @@ export function conceptQuery(c: Rendering): string {
     return live(c).join(' OR ')
 }
 
+// EVERY ROW CARRIES THE QUERY IT DENOTES.
+//
+// `text` is what the row SAYS ("3 AND 6"). `query` is what that row WOULD ACTUALLY SEARCH. They are
+// not interchangeable, and the distinction is what makes a per-row record count safe: the count is
+// run against a query DERIVED FROM THE STRUCTURE, never parsed back out of the label. Reading "3 AND
+// 6" and reconstructing a query from it would mean re-deriving, in a second place, the thing this
+// function exists to derive once — and the second copy is the one that goes wrong.
 export type Row =
-    | { kind: 'term'; n: number | null; ci: number; li: number; line: Line }
-    | { kind: 'combine'; n: number; text: string }
+    | { kind: 'term'; n: number | null; ci: number; li: number; line: Line; query: string }
+    | { kind: 'combine'; n: number; text: string; query: string }
 
 // PRESS line numbering — the form a search strategy is peer-reviewed and published in. Derived,
 // never stored: the numbers ARE the current selection, so they cannot describe a query we did
@@ -246,6 +253,7 @@ export function numberStrategy(s: Strategy): { rows: Row[]; conceptLines: number
     const rows: Row[] = []
     const conceptLines: number[][] = []   // conceptLines[ci] = the numbers this concept occupies
     const refs: number[] = []             // the line each LIVE concept resolves to, for the AND
+    const blocks: string[] = []           // each live concept's query, for the AND row
     let n = 0
 
     s.concepts.forEach((c, ci) => {
@@ -253,13 +261,15 @@ export function numberStrategy(s: Strategy): { rows: Row[]; conceptLines: number
         c.lines.forEach((line, li) => {
             const num = line.on && line.terms.trim() ? ++n : null
             if (num) mine.push(num)
-            rows.push({ kind: 'term', n: num, ci, li, line })
+            rows.push({ kind: 'term', n: num, ci, li, line, query: line.terms.trim() })
         })
         conceptLines.push(mine)
 
         if (mine.length === 0) return                        // drops out of the AND
+        const block = conceptQuery(c)
+        blocks.push(`(${block})`)
         if (mine.length === 1) { refs.push(mine[0]); return } // `4 OR` of one thing is noise
-        rows.push({ kind: 'combine', n: ++n, text: mine.join(' OR ') })
+        rows.push({ kind: 'combine', n: ++n, text: mine.join(' OR '), query: block })
         refs.push(n)
     })
 
@@ -267,10 +277,12 @@ export function numberStrategy(s: Strategy): { rows: Row[]; conceptLines: number
 
     let base = refs[0]
     if (refs.length > 1) {
-        rows.push({ kind: 'combine', n: ++n, text: refs.join(' AND ') })
+        rows.push({ kind: 'combine', n: ++n, text: refs.join(' AND '), query: blocks.join(' AND ') })
         base = n
     }
-    if (s.limits) rows.push({ kind: 'combine', n: ++n, text: `${base} AND ${s.limits}` })
+    // The last row IS the whole search — the same string assembleQuery() produces, so the count
+    // beside it is the yield printed at the top of the panel. They cannot disagree.
+    if (s.limits) rows.push({ kind: 'combine', n: ++n, text: `${base} AND ${s.limits}`, query: assembleQuery(s) })
 
     return { rows, conceptLines }
 }

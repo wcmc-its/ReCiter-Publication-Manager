@@ -394,6 +394,12 @@
 .lineOff { color: var(--text-muted); }
 /* A combination line (6 = 4 OR 5) is DERIVED: no checkbox, nothing to decide. */
 .combine {
+  /* GROWS, so the Results count is pushed out to the same right edge as every other row's. A
+     combining line's text is short ("3 AND 6"), so without this its count floated in mid-row and the
+     column stopped being a column — and a column you cannot scan down is the whole reason the
+     Results figures are there at all. */
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.6;
@@ -1012,4 +1018,18 @@
 .dbNoteWarn {
   background: var(--warn-soft, #fdf6ec);
   color: var(--text-body);
+}
+
+/* The Results column of the search history. Tabular figures so the counts form a column the eye can
+   run down — that vertical scan IS the point: it is where a librarian sees the funnel narrow. */
+.rowCount {
+  flex-shrink: 0;
+  min-width: 66px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
 }

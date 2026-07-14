@@ -269,8 +269,51 @@ export type StrategyResult = {
     unsupportedLimits: string[]
     query: string
     hits: number
+    // One record count per PRESS line number — the Results column of a search history. See
+    // countRows(). Keyed by the DERIVED line number, so it renumbers with the selection and can
+    // never describe a line that was not searched.
+    rowCounts: Record<number, number>
     runDate: string
     seeds: SeedResult[]
+}
+
+// THE RESULTS COLUMN — one record count per numbered line, which is how a search history is read.
+//
+// This is what PubMed's own Advanced Search history shows, and it is the thing that makes a strategy
+// legible: line 1 retrieves 40,000, line 2 retrieves 9,000, and 3 AND 6 collapses to 122 — the
+// funnel IS the argument, and a strategy without it is a wall of Boolean the librarian has to run in
+// their head.
+//
+// IT IS NOT FREE, AND THE COST IS THE WHOLE DESIGN CONSTRAINT. Each row is a separate count call —
+// there is no way to derive the count of `1 OR 2` from the counts of 1 and 2 — so a 7-row strategy
+// costs 7 calls per database instead of 1. Three consequences, all deliberate:
+//
+//   1. SEQUENTIAL, not Promise.all. Firing 7 counts at once is precisely how you trip NCBI's
+//      3 requests/second limit for everyone on the pod — and a throttled esearch returns a
+//      WELL-FORMED ZERO, not an error. A strategy whose rows all read "0" would look like a broken
+//      query rather than a rate limit. Slower and true beats faster and lying.
+//   2. The LAST row's query IS assembleQuery(s), so its count IS the yield. It is computed once and
+//      reused, never counted twice — and that is also what guarantees the number beside the final
+//      line and the number at the top of the panel cannot disagree.
+//   3. This makes PUBMED_API_KEY (free, lifts the limit to 10/s) go from "should have" to
+//      "required". See the handoff.
+//
+// ponytail: no cache. A memo keyed on the query text would help a librarian who unticks and re-ticks
+// the same line — but the strategy is edited far more often than it is reverted, and a stale count
+// beside a line is the exact lie this feature exists to prevent. Add one only if a librarian
+// complains about the wait, and key it on the exact query string.
+async function countRows(s: Strategy, hits: number): Promise<Record<number, number>> {
+    const count = countIn(s.db)
+    const { rows } = numberStrategy(s)
+    const out: Record<number, number> = {}
+
+    for (const row of rows) {
+        if (row.n === null || !row.query.trim()) continue
+        // The final row is the whole search, which we have already counted. Never pay twice.
+        if (row.query === assembleQuery(s)) { out[row.n] = hits; continue }
+        out[row.n] = await count(`(${row.query})`)
+    }
+    return out
 }
 
 export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits: string[] = []): Promise<StrategyResult> {
@@ -279,6 +322,7 @@ export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits:
     // result, it is "you have no strategy", and conflating the two is how a librarian ends up
     // trusting a count that describes nothing.
     const hits = query ? await countIn(s.db)(query) : 0
+    const rowCounts = query ? await countRows(s, hits) : {}
     const seedResults = await validateSeeds(s, seeds)
     return {
         db: s.db,
@@ -288,6 +332,7 @@ export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits:
         unsupportedLimits,
         query,
         hits,
+        rowCounts,
         runDate: new Date().toISOString().slice(0, 10),
         seeds: seedResults,
     }
@@ -1721,6 +1766,10 @@ export async function runReview(s: Strategy, sort: Sort, proceed = false): Promi
         unsupportedLimits: [] as string[],
         query,
         hits,
+        // Modes 2 and 3 do not show a search history — the strategy is a means, not the deliverable,
+        // and 7 extra counts per toggle would buy a column nobody is reading. The field exists so
+        // ReviewResult and StrategyResult stay one shape.
+        rowCounts: {} as Record<number, number>,
         runDate: new Date().toISOString().slice(0, 10),
         seeds: [] as SeedResult[],    // Mode 2 has no known-item seeds; the array keeps one shape
         sort,

@@ -89,12 +89,31 @@ type Seed = {
     failsLimits?: boolean
 }
 
+// THE RESULTS COLUMN. One record count per numbered line — how a search history is actually read:
+// line 1 finds 40,000, line 2 finds 9,000, and "3 AND 6" collapses to 122. The funnel IS the
+// argument, and without it the panel is a wall of Boolean the librarian has to run in their head.
+//
+// AN UNTICKED LINE HAS NO NUMBER AND THEREFORE NO COUNT, which is right: it was not searched, so
+// there is nothing true to say about it. And a MISSING count renders as nothing at all — never as a
+// 0. A throttled esearch comes back as a well-formed zero, so "0" is a value we must be able to
+// distinguish from "not counted yet", and the em-dash is how.
+function RowCount({ n, counts, stale }: { n: number | null; counts: Record<number, number>; stale: boolean }) {
+    if (n === null) return <span className={s.rowCount} />
+    const c = counts?.[n]
+    return (
+        <span className={`${s.rowCount} ${stale ? s.hitsStale : ''}`}>
+            {typeof c === 'number' ? c.toLocaleString() : '—'}
+        </span>
+    )
+}
+
 type DbResult = {
     db: Db
     dbName: string
     concepts: Rendering[]          // THIS database's rendering. The labels are shared; the lines are not.
     limits: string
     unsupportedLimits: string[]    // limits this database cannot express — declared, never dropped
+    rowCounts: Record<number, number>   // records per PRESS line — the Results column
     query: string
     hits: number
     runDate: string
@@ -712,7 +731,11 @@ export default function LiteratureSearch() {
             `Search strategy:`,
             ...rows
                 .filter(row => row.n !== null)   // an unticked line was not searched, so it is not in the methods
-                .map(row => `${row.n}. ${row.kind === 'term' ? row.line.terms : row.text}`),
+                .map(row => {
+                    const c = r.rowCounts?.[row.n as number]
+                    const line = `${row.n}. ${row.kind === 'term' ? row.line.terms : row.text}`
+                    return typeof c === 'number' ? `${line}    ${c.toLocaleString()}` : line
+                }),
             ``,
             ...(r.unsupportedLimits?.length
                 ? [`Limits NOT applied: ${r.unsupportedLimits.join('; ')} — ${DIALECTS[r.db].name} cannot express this limit, so the count above is not restricted by it.`, ``]
@@ -1266,6 +1289,7 @@ export default function LiteratureSearch() {
                                             <span className={s.lineGutter} />
                                             <span className={s.lineNum}>{row.n}</span>
                                             <span className={s.combine}>{row.text}</span>
+                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} />
                                         </div>
                                     )
                                 }
@@ -1287,6 +1311,7 @@ export default function LiteratureSearch() {
                                                 on={row.line.on}
                                                 onChange={v => edit(di, row.ci, row.li, v)}
                                             />
+                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} />
                                         </div>
                                         {/* The model's proposed widening: a LINE, not a paragraph. Verified
                                             (it really does retrieve that seed, against the whole strategy)

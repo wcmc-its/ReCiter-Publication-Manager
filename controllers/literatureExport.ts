@@ -121,6 +121,7 @@ export function strategyDoc(
     r: {
         db?: Db; concepts: Rendering[]; limits: string; unsupportedLimits?: string[]
         query: string; hits: number; runDate: string; seeds: SeedLike[]
+        rowCounts?: Record<number, number>
     },
     question: string,
     cwid?: string,
@@ -141,10 +142,17 @@ export function strategyDoc(
         }),
 
         { kind: 'h2', text: 'Search strategy, line by line' },
-        { kind: 'small', text: 'Numbered as published search strategies are peer-reviewed (PRESS): each line is searched, and the combining lines show how the blocks were AND-ed and OR-ed together.' },
-        { kind: 'table', head: ['#', 'Search line'], rows: lines.map(x => [
+        { kind: 'small', text: 'Numbered as published search strategies are peer-reviewed (PRESS): each line is searched, and the combining lines show how the blocks were AND-ed and OR-ed together. The record count for each line is the count that line returned on the date above.' },
+        // THE RESULTS COLUMN GOES IN THE APPENDIX TOO. A PRESS reviewer reads a strategy BY its
+        // per-line yields — that is how you see which block is doing the work and which one is dead
+        // weight. An appendix with the lines but not the numbers is half an appendix.
+        { kind: 'table', head: ['#', 'Search line', 'Records'], rows: lines.map(x => [
             String(x.n),
             x.kind === 'term' ? (x as any).line.terms : (x as any).text,
+            // Never a 0 for "not counted" — see RowCount in the UI. An absent count is absent.
+            typeof r.rowCounts?.[x.n as number] === 'number'
+                ? r.rowCounts![x.n as number].toLocaleString()
+                : '',
         ]) },
 
         { kind: 'h2', text: 'Known-item validation' },
