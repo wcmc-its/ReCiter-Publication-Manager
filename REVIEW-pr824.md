@@ -31,32 +31,46 @@ critic. 39 findings raised, **31 survived**, 11 refuted. 137 agents, 0 errors.
   again equals the panel headline (**5,926 records**).
 - The expert panel moves **1,233 → 818** on the same untick, instead of sitting frozen.
 
-**Still open** — everything in the *Correctness / UX* section below except the `.docx`, `modelLabel`
-and export-label items, which are done. Specifically still to do:
+Also fixed since (`85a9156`, `68d8586`, `708bfe9`): the Results column no longer renders a **failed**
+fetch as an em-dash indistinguishable from a **pending** one (three states, one retry after a pause,
+and a manual Retry); the pending pulse starts when the counts are **invalidated** rather than when the
+fetch begins (the column used to look idle for up to ~18s while a re-count was in flight); and the
+export filename now **names its database** (all three panels were writing `pubmed-query-<date>.txt`,
+each overwriting the last).
 
-- [ ] `LiteratureSearch.tsx:606/637/647` — `newSearch()` cannot cancel an in-flight re-count; the
-      stale response writes back into the cleared `results` and the form vanishes; `recounting` can
-      wedge true and disable every export until a reload. **Fix: `seq.current++` and
-      `setRecounting(false)` inside `newSearch()`.**
-- [ ] `LiteratureSearch.tsx:811` — "Copy Markdown" is a fourth, undeclared document builder with no
-      query, database, yield or search date.
-- [ ] `LiteratureSearch.tsx:869` — the Scopus query downloads as `pubmed-query-<date>.txt`; both
-      databases' Word appendices collide on one filename.
-- [ ] `search.ts:509` — a Scopus tool failure 502s the whole Mode 1 build, discarding the
-      already-paid-for PubMed strategy, and skips `logCost`.
-- [ ] `controller.ts:820` — `invoke()` discards Bedrock's `stop_reason`, so a `max_tokens` truncation
-      is parsed as a complete answer. (Chains into the next one.)
-- [ ] `LiteratureSearch.tsx:1843` — a record the model never screened renders as an ordinary AI
-      *include*: pre-ticked, counted in the tally, fed to the synthesis with no marker.
-- [ ] `controller.ts:1101` — the model's own strategy output is never bounds-checked, though the same
-      object posted back from the browser is; a build the server accepts can be one it then refuses
-      to re-count.
-- [ ] `literatureExport.ts:52` — `modelLabel()` mangles any Bedrock id with a `-vN:M` or dated suffix.
-- [ ] `LiteratureSearch.tsx:185` — the browser shadows the shared `parseSeeds` with a stricter
-      PMID-only rule.
-- [ ] `LiteratureSearch.tsx:643` — Mode 2/3 narrowing ticks fire a per-line count sweep for a column
-      those modes never render.
-- [ ] `check.js:726` — `strategyDoc`'s Records column is never given a `rowCounts` map.
+**Still open** — nine findings, worst first:
+
+- [ ] `LiteratureSearch.tsx:606/637/647` — **`newSearch()` cannot cancel an in-flight re-count.** The
+      stale response writes back into the cleared `results`, the form the librarian just asked for
+      vanishes, and `recounting` can wedge true and disable every export until a reload.
+      **Fix: `seq.current++` and `setRecounting(false)` inside `newSearch()`.** This is the next one.
+- [ ] `controller.ts:820` + `LiteratureSearch.tsx:1843` — **a record the model never screened arrives
+      pre-ticked.** `invoke()` discards Bedrock's `stop_reason`, so a `max_tokens` truncation is parsed
+      as a complete answer; `screenRecords` then fails the missing verdicts *open* with `include: true`,
+      and the row only renders its reason on an **exclude** — so an unread abstract is visually
+      identical to an endorsed one, is counted in the "N included" tally, and goes into the synthesis
+      with no marker. Fix them together; the second is only reachable because of the first.
+- [ ] `controller.ts:1101` — the **model's own** strategy output is never bounds-checked, though the
+      same object posted back from the browser is. A build the server accepts can be one it then
+      **refuses to re-count** (502 on every subsequent toggle).
+- [ ] `search.ts` (the Mode 1 build loop) — **one database's failure 502s the whole build**, discarding
+      the already-paid-for PubMed strategy, and skips `logCost` so the spend is unlogged. More acute
+      now that three databases can be ticked.
+- [ ] `LiteratureSearch.tsx:811` — **"Copy Markdown" is a fourth, undeclared document builder** with no
+      query, no database, no yield and no search date: the exact facts `literatureExport.ts` exists to
+      guarantee.
+- [ ] `literatureExport.ts:52` — `modelLabel()` **mangles** any Bedrock id carrying a `-vN:M` or dated
+      suffix (`…claude-opus-4-5-20251101-v1:0` → "Claude Opus 4.5.20251101."), putting an invented
+      version string in the AI declaration of every export.
+- [ ] `LiteratureSearch.tsx:185` — the browser **shadows** the shared `parseSeeds` with a stricter
+      PMID-only rule, so the on-screen seed count disagrees with what the server validates.
+- [ ] `LiteratureSearch.tsx:643` — Mode 2/3 narrowing ticks fire a full per-line count sweep for a
+      column those modes never render, burning the shared NCBI budget.
+- [ ] `check.js` — `strategyDoc`'s **Records column** is never given a `rowCounts` map, so the only
+      branch exercised is the empty one.
+
+**Embase:** Part 3 of the spike (do PMIDs 37314797 / 34875345 / 35654766 land inside line 7 in Ovid?)
+is still unrun. It is about strategy *quality*, not feasibility, and it did not gate the build.
 
 Deploy prerequisites (out of this PR's surface, but they gate the feature — see the handoff's P0):
 `BEDROCK_MODEL_ID`, `AWS_REGION`, `LITERATURE_SEARCH_CWIDS` on the pod; `bedrock:InvokeModel` on the
