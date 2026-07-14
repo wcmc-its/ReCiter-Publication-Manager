@@ -48,8 +48,19 @@ export type Block =
 // ships the next one, and a stale pretty name sitting next to a correct id is worse than no pretty
 // name at all. Ceiling: it reads the `family-version` id shape (claude-opus-4-8); an id it cannot
 // parse falls through to the raw id — which is the half that had to be right anyway.
+//
+// THE TRAP THIS REGEX IS SHAPED AROUND: a real profile id does not stop at the version. It carries a
+// release date and a revision — us.anthropic.claude-opus-4-5-20251101-v1:0 — and a version pattern
+// that is merely "digits and hyphens" swallows both, inventing "Claude Opus 4.5.20251101." out of
+// thin air. A fabricated version in a journal's AI declaration is the one error nobody catches,
+// because it looks exactly like a real one. So the version is 1–2 digit groups (a version is 4-8; a
+// date is 20251101 and can never be mistaken for one) and it must END at a boundary we actually
+// recognize: end-of-id, a -YYYYMMDD date, a -vN revision, or a :N. An id whose suffix we do NOT
+// recognize does not get a guessed name — it falls through raw. A missing model name beats a wrong one.
 export function modelLabel(id: string): string {
-    const m = String(id || '').match(/^(?:[a-z]+\.)?anthropic\.claude-([a-z]+)-([\d-]+)/i)
+    const m = String(id || '').match(
+        /^(?:[a-z]+\.)?anthropic\.claude-([a-z]+)-(\d{1,2}(?:-\d{1,2})*)(?=$|-\d{8}\b|-v\d|:)/i,
+    )
     if (!m) return String(id || '')
     return `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2].replace(/-/g, '.')}, via AWS Bedrock`
 }

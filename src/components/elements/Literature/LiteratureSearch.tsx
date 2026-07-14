@@ -62,6 +62,7 @@ import {
     buildLimits,
     dateLimits,
     pubTypes,
+    parseSeeds,
     DIALECTS,
 } from '../../../../controllers/literatureSearch.strategy'
 import type { Db, Rendering, SeedKind } from '../../../../controllers/literatureSearch.strategy'
@@ -206,11 +207,6 @@ const STAGES: Record<string, { expect: number }> = {
     screening: { expect: 30 },
     synthesizing: { expect: 48 },
 }
-
-// The mockup's rule: a PMID is 5-9 digits. Used for the live seed counter, and it is the same
-// shape the server filters on, so the count on screen is the count that will be validated.
-const PMID = /^\d{5,9}$/
-const parseSeeds = (raw: string) => raw.split(/\s+/).map(x => x.trim()).filter(x => PMID.test(x))
 
 // A term line: editable in place. No click-to-edit mode, no modal, no separate "Edit & re-run"
 // button -- the line IS the input, and every keystroke lands in the same debounced re-count the
@@ -1295,7 +1291,7 @@ export default function LiteratureSearch() {
                                 rows={5}
                                 value={seeds}
                                 onChange={e => setSeeds(e.target.value)}
-                                placeholder="PMIDs, one per line — papers this search MUST retrieve"
+                                placeholder="PMIDs or DOIs, one per line — papers this search MUST retrieve"
                             />
                             <p className={s.help}>
                                 We run the strategy and report whether each one came back.{' '}

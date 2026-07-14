@@ -672,6 +672,21 @@ const untickConcept = (s, ci) => ({
         { id: '10.1001/jamapsychiatry.2023.1817', kind: 'doi' },
     ], 'PMIDs and DOIs both parse; junk is dropped; duplicates collapse')
 
+    // ...AND THE SCREEN MUST COUNT WITH THIS EXACT FUNCTION. The component used to keep its own
+    // PMID-only `parseSeeds` (a `/^\d{5,9}$/` filter), which meant the live "N seeds" pill and the
+    // server's validation disagreed in BOTH directions: a pasted DOI counted 0 on screen and 1 on
+    // the server, a comma-separated list of 3 counted 1, and the same PMID twice counted 2 on
+    // screen and 1 on the server. The pill is the librarian's only pre-flight evidence that their
+    // seeds registered, so a shadowing copy is a confident wrong number by construction. There is
+    // no runtime seam to assert this through (the .tsx never reaches node), so assert it at the
+    // source: the browser imports the shared parser and does not redefine one.
+    const tsx = fs.readFileSync(
+        path.join(ROOT, 'src/components/elements/Literature/LiteratureSearch.tsx'), 'utf8')
+    assert.ok(!/(?:const|function)\s+parseSeeds\b/.test(tsx),
+        'LiteratureSearch.tsx must NOT define its own parseSeeds — it shadows the shared one and the seed count stops matching what the server validates')
+    assert.ok(/^\s*parseSeeds,\s*$/m.test(tsx),
+        'LiteratureSearch.tsx must import parseSeeds from literatureSearch.strategy')
+
     const [pmSeed, doiSeed] = mixed
     assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(pmSeed), '37314797[uid]')
     assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(doiSeed), '"10.1001/jamapsychiatry.2023.1817"[aid]')
@@ -812,6 +827,41 @@ const untickConcept = (s, ci) => ({
     assert.strictEqual(xp.modelLabel('anthropic.claude-sonnet-4-5'), 'Claude Sonnet 4.5, via AWS Bedrock')
     assert.strictEqual(xp.modelLabel('some-model-we-have-never-seen'), 'some-model-we-have-never-seen')
     assert.strictEqual(xp.modelLabel(''), '')
+
+    // THE FULL-LENGTH IDS, which is what BEDROCK_MODEL_ID actually holds the moment anyone pins a
+    // profile instead of taking the floating alias. Every id below is a REAL, ACTIVE profile in the
+    // account (aws bedrock list-inference-profiles). The version must stop before the release date
+    // and before the -vN revision — a regex that reads "digits and hyphens" swallows both and prints
+    // "Claude Opus 4.5.20251101." into the AI declaration of every export. There is no error worse
+    // than an invented model version, because it is indistinguishable from a real one.
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-opus-4-8-v1:0'), 'Claude Opus 4.8, via AWS Bedrock')
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-opus-4-5-20251101-v1:0'), 'Claude Opus 4.5, via AWS Bedrock')
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-sonnet-4-5-20250929-v1:0'), 'Claude Sonnet 4.5, via AWS Bedrock')
+    assert.strictEqual(xp.modelLabel('global.anthropic.claude-haiku-4-5-20251001-v1:0'), 'Claude Haiku 4.5, via AWS Bedrock')
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-opus-4-6-v1'), 'Claude Opus 4.6, via AWS Bedrock')
+    // A one-part version is a version: Sonnet 4 is not Sonnet 4.20250514.
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-sonnet-4-20250514-v1:0'), 'Claude Sonnet 4, via AWS Bedrock')
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-sonnet-5'), 'Claude Sonnet 5, via AWS Bedrock')
+
+    // THE FALLBACK, which is the whole safety property: an id whose shape we do not recognize gets
+    // NO pretty name rather than a guessed one. Legacy claude-3 ids put the generation before the
+    // family (claude-3-5-sonnet), so they do not parse — and printing the raw id is the correct,
+    // honest outcome. The id is the half that had to be right anyway.
+    assert.strictEqual(xp.modelLabel('anthropic.claude-3-5-sonnet-20240620-v1:0'), 'anthropic.claude-3-5-sonnet-20240620-v1:0')
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-3-haiku-20240307-v1:0'), 'us.anthropic.claude-3-haiku-20240307-v1:0')
+    // An unrecognized SUFFIX must also fall through whole — never a truncated guess.
+    assert.strictEqual(xp.modelLabel('us.anthropic.claude-opus-4-8-preview'), 'us.anthropic.claude-opus-4-8-preview')
+
+    // And the id itself survives verbatim in the disclosure, whatever the label does.
+    for (const id of ['us.anthropic.claude-opus-4-5-20251101-v1:0', 'anthropic.claude-3-5-sonnet-20240620-v1:0']) {
+        const decl = said(xp.strategyDoc(
+            { concepts: [{ label: 'P', lines: [{ terms: 'probiotics[tiab]', on: true }] }],
+              limits: '', query: 'probiotics[tiab]', hits: 122, runDate: '2026-07-13', seeds: [] },
+            'Q?', 'paa2013', id,
+        ))
+        assert.ok(decl.includes(id), `the profile id must survive verbatim in the declaration: ${id}`)
+        assert.ok(!/\d{8}\./.test(decl), `a release date must never be printed as a version: ${id}`)
+    }
 
     // THE REPRODUCIBILITY INVARIANT. A synthesis pasted into a manuscript without the query behind
     // it is an anecdote with citations — and "AI-assisted" with no model version is not a
