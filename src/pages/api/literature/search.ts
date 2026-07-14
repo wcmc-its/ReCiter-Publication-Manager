@@ -68,6 +68,9 @@ import {
     synthesize,
     bedrockConfigured,
     RECORD_CAP,
+    countRows,
+    countIn,
+    assembleQuery,
     Strategy,
     Concept,
     Sort,
@@ -303,6 +306,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } catch (err: any) {
             console.error('[literature] synthesis failed:', err)
             return res.status(502).send({ statusCode: 502, message: err?.message || 'Synthesis failed.' })
+        }
+    }
+
+    // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------
+    //
+    // Its own request because it is SLOW and the yield is not: 7 rows is 7 count calls, and the
+    // retrieval tool paces every call at 500ms (each pod is smoothed to 2/s so 4 replicas stay under
+    // NCBI's ~10/s keyed quota). Measured at 5.5s. Folding that into the re-count would have put five
+    // and a half seconds between ticking a checkbox and seeing the number you ticked it for — and
+    // that loop, free and instant, is the entire argument for Mode 1.
+    //
+    // So: the yield comes back in one call as it always did, and the column fills in behind it. No
+    // model, no cost, and it takes the same strategy guard as every other path.
+    if (phase === 'rows') {
+        try {
+            const s = parseStrategy({ ...edited, dateId, typeId })
+            const query = assembleQuery(s)
+            if (!query) return res.status(200).send({ statusCode: 200, rowCounts: {} })
+            const hits = await countIn(s.db)(query)
+            const rowCounts = await countRows(s, hits)
+            return res.status(200).send({ statusCode: 200, db: s.db, hits, rowCounts })
+        } catch (err: any) {
+            console.error('[literature] row counts failed:', err)
+            return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not count the lines.' })
         }
     }
 

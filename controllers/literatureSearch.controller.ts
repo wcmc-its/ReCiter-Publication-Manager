@@ -284,25 +284,33 @@ export type StrategyResult = {
 // funnel IS the argument, and a strategy without it is a wall of Boolean the librarian has to run in
 // their head.
 //
-// IT IS NOT FREE, AND THE COST IS THE WHOLE DESIGN CONSTRAINT. Each row is a separate count call —
-// there is no way to derive the count of `1 OR 2` from the counts of 1 and 2 — so a 7-row strategy
-// costs 7 calls per database instead of 1. Three consequences, all deliberate:
+// IT IS NOT FREE, AND WHO PAYS IS THE WHOLE POINT. Each row is a separate count call — the count of
+// `1 OR 2` cannot be derived from the counts of 1 and 2 — so a 7-row strategy costs 7 calls, and the
+// PubMed Retrieval Tool paces every call at 500ms (it smooths each pod to 2 req/s so that 4 HPA
+// replicas stay under NCBI's ~10/s keyed quota, shared with the ReCiter engine). MEASURED: 7 counts
+// = 5.5 SECONDS.
 //
-//   1. SEQUENTIAL, not Promise.all. Firing 7 counts at once is precisely how you trip NCBI's
-//      3 requests/second limit for everyone on the pod — and a throttled esearch returns a
-//      WELL-FORMED ZERO, not an error. A strategy whose rows all read "0" would look like a broken
-//      query rather than a rate limit. Slower and true beats faster and lying.
-//   2. The LAST row's query IS assembleQuery(s), so its count IS the yield. It is computed once and
-//      reused, never counted twice — and that is also what guarantees the number beside the final
-//      line and the number at the top of the panel cannot disagree.
-//   3. This makes PUBMED_API_KEY (free, lifts the limit to 10/s) go from "should have" to
-//      "required". See the handoff.
+// That is why this is a SEPARATE CALL from the yield, and it is the whole reason Mode 1 still feels
+// like Mode 1. Ticking a checkbox re-counts the YIELD in one call, as it always did — the loop this
+// mode is built around ("tick, untick, it re-counts for free") is untouched — and the Results column
+// then fills in behind it. Folding these 7 calls into runStrategy would have put 5.5 seconds between
+// a librarian's click and the number they clicked for.
+//
+// DO NOT PARALLELISE THEM. It buys nothing: the tool's limiter serialises them inside the pod
+// anyway, so they would queue rather than run, and firing a burst only takes the shared NCBI budget
+// away from everything else on the same key. The tool OWNS the rate policy — it knows the pod count
+// and whether a key is set, and RPM does not. Do not put a second, worse-informed copy of that
+// policy here.
+//
+// The LAST row's query IS assembleQuery(s), so its count IS the yield — passed in, never counted
+// twice, which is also what makes it impossible for the number beside the final line and the number
+// at the top of the panel to disagree.
 //
 // ponytail: no cache. A memo keyed on the query text would help a librarian who unticks and re-ticks
-// the same line — but the strategy is edited far more often than it is reverted, and a stale count
+// the same line — but a strategy is edited far more often than it is reverted, and a stale count
 // beside a line is the exact lie this feature exists to prevent. Add one only if a librarian
 // complains about the wait, and key it on the exact query string.
-async function countRows(s: Strategy, hits: number): Promise<Record<number, number>> {
+export async function countRows(s: Strategy, hits: number): Promise<Record<number, number>> {
     const count = countIn(s.db)
     const { rows } = numberStrategy(s)
     const out: Record<number, number> = {}
@@ -322,7 +330,9 @@ export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits:
     // result, it is "you have no strategy", and conflating the two is how a librarian ends up
     // trusting a count that describes nothing.
     const hits = query ? await countIn(s.db)(query) : 0
-    const rowCounts = query ? await countRows(s, hits) : {}
+    // The Results column is NOT computed here — it is 7 calls and 5.5 seconds, and it would sit
+    // between a librarian's click and the yield they clicked for. It is fetched separately, and the
+    // column fills in behind the number. See countRows().
     const seedResults = await validateSeeds(s, seeds)
     return {
         db: s.db,
@@ -332,7 +342,7 @@ export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits:
         unsupportedLimits,
         query,
         hits,
-        rowCounts,
+        rowCounts: {},          // filled in by the separate rows call
         runDate: new Date().toISOString().slice(0, 10),
         seeds: seedResults,
     }

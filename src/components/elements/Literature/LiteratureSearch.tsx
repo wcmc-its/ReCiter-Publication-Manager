@@ -365,10 +365,13 @@ export default function LiteratureSearch() {
             }
             const rs: DbResult[] = data.databases || []
             fresh.current = true                 // these were just counted; don't re-count them
-            setStrategies(rs.map(r => ({ db: r.db, concepts: r.concepts, limits: r.limits })))
+            const sts = rs.map(r => ({ db: r.db, concepts: r.concepts, limits: r.limits }))
+            setStrategies(sts)
             setResults(rs)
             setExperts(data.experts)
             setModel(data.model || '')
+            // The Results column, behind the yield. See fetchRows().
+            sts.forEach((st, di) => fetchRows(st, di))
         } catch {
             setErr('Could not reach the server.')
         } finally {
@@ -636,6 +639,8 @@ export default function LiteratureSearch() {
                     fetched.forEach(({ di, r }) => { next[di] = r })
                     return next
                 })
+                // Same again: the yield has landed, so now go and fill the column behind it.
+                fetched.forEach(({ di }) => fetchRows(strategies[di], di))
             } catch (e: any) {
                 if (mine === seq.current) setErr(e?.message || 'Could not reach the server.')
             } finally {
@@ -650,6 +655,40 @@ export default function LiteratureSearch() {
     // Keep the limits on the client object in step with the dropdowns, so the line numbering
     // redraws instantly. The server re-derives them from the same ids and the same table —
     // buildLimits() is shared, which is why the two cannot drift.
+    // THE RESULTS COLUMN, FETCHED BEHIND THE YIELD.
+    //
+    // It is 7 count calls and a measured 5.5 seconds — the retrieval tool paces every call at 500ms,
+    // because it smooths each pod to 2 req/s so that 4 HPA replicas stay under NCBI's ~10/s keyed
+    // quota (shared with the ReCiter engine). Waiting for it before showing the yield would have put
+    // five and a half seconds between ticking a checkbox and seeing the number you ticked it for,
+    // and that loop — free, instant iteration — is the whole argument for this mode.
+    //
+    // So the column arrives late, and until it does each row shows an em-dash rather than a zero. A
+    // count that has not been made yet is NOT a count of nothing.
+    //
+    // `rowSeq` is per-database and it is load-bearing: a slow column landing on a strategy that has
+    // since been edited would put counts beside lines they do not belong to — a number that is
+    // confidently, invisibly wrong, which is worse than no number.
+    const rowSeq = useRef<Record<number, number>>({})
+
+    const fetchRows = async (st: Strategy, di: number) => {
+        const mine = (rowSeq.current[di] = (rowSeq.current[di] || 0) + 1)
+        try {
+            const res = await fetch('/api/literature/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phase: 'rows', strategy: st, dateId, typeId }),
+            })
+            const data = await res.json()
+            if (!res.ok) return                       // the yield still stands; the column just stays empty
+            if (mine !== rowSeq.current[di]) return   // the strategy moved on. Drop it.
+            setResults(rs => rs.map((r, i) => (i === di ? { ...r, rowCounts: data.rowCounts || {} } : r)))
+        } catch {
+            // Never fatal. The column is a reading aid; the yield, the seeds and the query are the
+            // deliverable, and they are already on screen.
+        }
+    }
+
     // Keep each strategy's limits in step with the dropdowns, IN ITS OWN DATABASE'S SYNTAX, so the
     // line numbering redraws instantly. The server re-derives them from the same ids and the same
     // dialect table — buildLimits() is shared, which is why the two cannot drift.

@@ -552,8 +552,12 @@ const untickConcept = (s, ci) => ({
     // "line 1 == 40,132" would rot within weeks. What cannot drift is the ARITHMETIC — and the
     // arithmetic is exactly what a librarian reads the column for.
 
-    const rowsResult = await lit.runStrategy(s, [])
-    const rc = rowsResult.rowCounts
+    // countRows is its own call, not part of runStrategy — the column costs 7 counts and a measured
+    // 5.5s at the retrieval tool's 500ms pacing, and it must never sit between a librarian's click
+    // and the yield they clicked for. The check exercises it the same way the route does.
+    const rowsHits = await lit.countPubmed(lit.assembleQuery(s))
+    const rc = await lit.countRows(s, rowsHits)
+    const rowsResult = { hits: rowsHits }
     const numbered = lit.numberStrategy(s)
     const lastRow = numbered.rows.filter(r => r.n !== null).pop()
 
