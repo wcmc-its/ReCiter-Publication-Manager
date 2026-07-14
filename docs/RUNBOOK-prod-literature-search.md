@@ -70,7 +70,7 @@ declaring done. Do not instead attach Bedrock to the node role — that grants i
 
 ### P3. Scopus in prod is a live 502 hazard
 
-Prod's env has `SCOPUS_API_KEY` / `SCOPUS_INST_TOKEN` but **no `RECITER_SCOPUS_API_URL`**. Per HANDOFF #4,
+Prod's env has `SCOPUS_API_KEY` / `SCOPUS_INST_TOKEN` but **no `RECITER_SCOPUS_API_URL`**. Per the per-database failure handling in `src/pages/api/literature/search.ts`,
 one database failing 502s the *entire* Mode-1 build (and the user is billed silently). Either set it:
 
 ```bash
@@ -115,7 +115,7 @@ An absent or empty roster means the pilot is **closed**, not open.
 `/api/literature/search` 403s everyone and the sidebar link never renders.
 
 **Who decides the roster:** the pilot list is the **librarian/SR team's** call, not engineering's — the same people
-who own the recall question in HANDOFF ("nobody has measured whether the AI screen is any good"). Engineering
+who own the recall question (now answered — see `RECALL-STUDY.md`). Engineering
 executes the list it is given; it does not add itself.
 
 **Sessions are cached.** `src/pages/api/auth/[...nextauth].jsx:201` stamps `token.literatureAccess` at **login**.

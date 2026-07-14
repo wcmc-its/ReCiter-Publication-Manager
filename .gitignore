@@ -41,3 +41,5 @@ node_modules
 .superpowers/
 .litcheck/
 .litrecall/
+.litrecall-run.json
+.litquestion-run.json

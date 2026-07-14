@@ -2,9 +2,10 @@
 
 Run 2026-07-14 against **live PubMed** and **live Bedrock** (`us.anthropic.claude-opus-4-8`).
 Reproduce with `node controllers/literatureSearch.recall.js` (~$0.80, ~4 minutes).
-Full artifact — every query, every rank, every verdict — in `.litrecall-run.json`.
+The run writes `.litrecall-run.json` (every query, every rank, every verdict). It is gitignored — it is
+an output, and `literatureSearch.screen.js` consumes it — so regenerate it rather than looking for it here.
 
-This is the measurement `HANDOFF.md` said had never been taken: *"Nobody has measured whether the AI
+This is the measurement nobody had ever taken. The question it answers was: *"Nobody has measured whether the AI
 screen is any good — and a wrong EXCLUDE is invisible."*
 
 It has now been taken. **The screen is not where the loss is.** The loss is somewhere nobody was
