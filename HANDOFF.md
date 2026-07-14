@@ -18,38 +18,43 @@ anything. That is fine. **Almost all of the remaining work is laptop work** — 
 ordered so that when someone finally clicks those approvals, the only unknown left is the deploy
 itself.
 
-## THE BIGGEST RISK, and it has no owner, no ticket and no line of code
+## THE BIGGEST RISK — MEASURED 2026-07-14. It was not the screen. It was the cap.
 
-**Nobody has measured whether the AI screen is any good — and a wrong EXCLUDE is invisible.**
+This section used to say *"nobody has measured whether the AI screen is any good — and a wrong EXCLUDE
+is invisible."* That measurement has now been run, against live PubMed and live Bedrock, on three
+published Cochrane reviews whose included studies are known.
 
-Every other finding in this document is about a number or a document being wrong in a way you can
-*see* once you look. The screen's false negatives cannot be seen at all. `screenRecords()` fails
-**open**, which is the right default — but it means the only error class the system defends against is
-the one that leaves a trace. A record the model wrongly marks *"Exclude — not an RCT"* renders with a
-reason, looks considered, and the librarian moves on. It leaves no artifact, trips no guard, appears
-in no log, and is never counted.
+**Full write-up: `docs/RECALL-STUDY.md`. Reproduce: `node controllers/literatureSearch.recall.js`.**
 
-There is **no recall metric anywhere in this repo**. `check.js` runs with no LLM at all, so the only
-automated test of this feature is *structurally incapable* of ever evaluating the model.
+| | |
+|---|---|
+| The **strategy** retrieved | **72 of 73** known-included studies — **99%** |
+| Of those, the **top-50 relevance cut** showed the model | **1** — **1%** |
+| Of what reached the model, the **AI screen** kept | **1 of 1**. It threw away **nothing.** |
 
-The one recall signal that exists is seed validation, it runs at N≈4, and **it has already been
-observed failing**: the model's own "Adults" concept block silently killed **3 of 4 seeds**. That is a
-75% miss rate on the only measurement anyone has taken, and it is sitting in a memory file as an open
-question rather than in anyone's queue.
+**The screen was never the problem, and the fear in this document was aimed at the wrong thing.** The
+strategy builder is excellent — it is the best part of this feature. What destroys the result is the
+**top-50 relevance cut sitting between them**. Across all three reviews, exactly ONE of the 72 retrieved
+known-good studies ranks in the top 50 (at #38). The typical eligible study sits around **rank 300**.
 
-Compounding it: the screen operates on the **top 50 of a 1,391-hit search, ranked by relevance**. The
-resulting `.xlsx`, with its *"AI suggested / Include / Exclude"* column, is the file that goes into
-**Covidence**, where it will be treated as a screening pass. A relevance-truncated sample with an
-unmeasured classifier on top of it is not a systematic screen — and if it lowers a published review's
-recall, that is a harm this tool caused that nobody will ever be able to attribute to it.
+**And a bigger cap does not rescue it.** At a cap of 500 — 10x the screening cost — we still lose HALF
+the diagnostic review's studies. PubMed relevance ranking is not built to float the primary studies a
+systematic review would include, and it does not: it surfaces reviews and highly-cited work, a
+population nearly *disjoint* from the eligible one. The cap is not a tuning knob. Ranking by relevance
+is simply the wrong instrument for this job.
 
-**This is entirely laptop-testable, today.** Take two or three published systematic reviews with known
-included-studies lists (a librarian picks them). Run Mode 1 + screening against real Bedrock and live
-PubMed. Report **two numbers**: how many of the known includes the STRATEGY retrieved at all, and how
-many of those the SCREEN then threw away. Until someone has those two numbers, we do not know whether
-this feature helps a librarian or quietly costs them the studies they were hired to find.
+**What changed because of it:** the `.xlsx` that goes into **Covidence** carried an *"AI suggested /
+Include / Exclude"* column over that sample. Covidence treats the file as a screening pass. A verdict
+column over 50 relevance-ranked records — containing ~none of the eligible ones — is not a screen; it is
+a screen-shaped object, and it would have quietly cost a published review its recall. **`recordSheets()`
+now REFUSES the verdict columns whenever the sheet is truncated**, and says why, in the file. The
+records and the strategy still ship: the Boolean query is the reliable half, and it is what Covidence
+actually wants.
 
-**Do this before polishing anything below it.**
+**What is still open.** The screen's false-negative rate AT VOLUME remains genuinely unmeasured — the
+cap starved it, so it got one study and kept it. That needs a *different* experiment, and it is now the
+top of the "still to run" list below. Note also that the old worry recorded in memory — the model's
+"Adults" concept block killing 3 of 4 seeds — did **not** reproduce here: seed-style recall was 99%.
 
 ## The work order — all of it laptop-only
 
@@ -210,14 +215,21 @@ on release day.
 
 ## Still to run
 
+- **SCREENING RECALL AT VOLUME — the number the recall study could not produce.** The cap starved the
+  screen (it saw one eligible study and kept it), so its false-negative rate is still unmeasured. Run a
+  *different* experiment: take the 72 known-good studies from `literatureSearch.recall.json`, mix them
+  with ~200 records the strategy retrieved but the review EXCLUDED, hand that set to `screenRecords()`
+  directly, and count what it bins. That measures the classifier instead of the ranker. A laptop
+  afternoon, about two dollars. **This is now the top open question of the whole feature.**
 - **Embase Part 3** (`EMBASE-SPIKE.md`): do PMIDs 37314797 / 34875345 / 35654766 land inside line 7 in
   Ovid? Strategy *quality*, not feasibility.
 - **The librarian questions**, which are now the real bottleneck: is the Scopus rendering
   peer-reviewable with no controlled vocabulary? **Is an uncounted Embase strategy useful, or noise?**
-  May a relevance-truncated 50-of-1,391 sample go into Covidence with an "AI suggested" column at all,
-  or must the `.xlsx` **refuse** when `hits > RECORD_CAP`? And **PubMed Clinical Queries hedges** are
-  the standard librarian instrument for Mode 3 and appear in **none** of the design docs — **ask before
-  inventing our own.**
+  And **PubMed Clinical Queries hedges** are the standard librarian instrument for Mode 3 and appear in
+  **none** of the design docs — **ask before inventing our own.**
+  - *"May a relevance-truncated 50-of-N sample go into Covidence with an 'AI suggested' column?"* —
+    **ANSWERED, by measurement, and the answer is no.** The sample contains ~1% of the eligible
+    studies. The export now refuses the verdict columns when truncated. See `docs/RECALL-STUDY.md`.
 
 ## Do NOT re-litigate
 

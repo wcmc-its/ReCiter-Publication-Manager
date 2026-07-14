@@ -1,0 +1,155 @@
+{
+  "model": "us.anthropic.claude-opus-4-8",
+  "reviews": [
+    {
+      "title": "Intratympanic corticosteroids for sudden sensorineural hearing loss",
+      "gold": 25,
+      "hits": 818,
+      "query": "(Hearing Loss, Sudden[MeSH] OR Hearing Loss, Sensorineural[MeSH] OR ((sudden[tiab] OR idiopathic[tiab]) AND (hearing loss[tiab] OR hearing losses[tiab] OR deafness[tiab] OR hypoacusis[tiab] OR hypacusis[tiab])) OR sensorineural hearing loss[tiab] OR SSNHL[tiab] OR ISSNHL[tiab] OR ISSHL[tiab] OR sudden deafness[tiab]) AND (Adrenal Cortex Hormones[MeSH] OR Glucocorticoids[MeSH] OR Dexamethasone[MeSH] OR Methylprednisolone[MeSH] OR Prednisolone[MeSH] OR Prednisone[MeSH] OR Betamethasone[MeSH] OR Triamcinolone[MeSH] OR Hydrocortisone[MeSH] OR corticosteroid*[tiab] OR corticoid*[tiab] OR glucocorticoid*[tiab] OR steroid*[tiab] OR dexamethasone[tiab] OR methylprednisolone[tiab] OR prednisolone[tiab] OR prednisone[tiab] OR betamethasone[tiab] OR triamcinolone[tiab] OR hydrocortisone[tiab]) AND (Injection, Intratympanic[MeSH] OR Tympanic Membrane[MeSH] OR intratympanic[tiab] OR intra-tympanic[tiab] OR transtympanic[tiab] OR trans-tympanic[tiab] OR intratympanically[tiab] OR intracochlear[tiab] OR intra-cochlear[tiab] OR round window[tiab] OR local injection*[tiab] OR local delivery[tiab] OR topical steroid*[tiab])",
+      "strategyRecall": [
+        25,
+        25
+      ],
+      "capLoss": [
+        24,
+        25
+      ],
+      "screenRecall": [
+        1,
+        1
+      ],
+      "endToEnd": [
+        1,
+        25
+      ],
+      "binned": [],
+      "unscreened": 0,
+      "ranks": {
+        "15235345": 218,
+        "16730534": 228,
+        "17989574": 333,
+        "18401285": 417,
+        "18720882": 454,
+        "19172627": 442,
+        "19861194": 38,
+        "20948195": 249,
+        "21124045": 346,
+        "21221047": 312,
+        "21221620": 430,
+        "21327728": 387,
+        "21610239": 265,
+        "21646929": 354,
+        "23077155": 338,
+        "23652330": 111,
+        "23959817": 348,
+        "24303415": 602,
+        "26121830": 384,
+        "26812786": 206,
+        "28756569": 153,
+        "29149379": 427,
+        "29168028": 303,
+        "32668428": 325,
+        "33369870": 381
+      }
+    },
+    {
+      "title": "Toe-brachial index and toe systolic blood pressure for diagnosing peripheral arterial disease",
+      "gold": 18,
+      "hits": 27133,
+      "query": "(\"Blood Pressure Determination\"[MeSH] OR \"Blood Pressure\"[MeSH] OR \"toe brachial\"[tiab] OR \"toe-brachial\"[tiab] OR \"toe brachial index\"[tiab] OR \"toe-brachial index\"[tiab] OR TBI[tiab] OR \"toe pressure\"[tiab] OR \"toe pressures\"[tiab] OR \"toe systolic\"[tiab] OR \"toe systolic pressure\"[tiab] OR \"toe blood pressure\"[tiab] OR \"toe systolic blood pressure\"[tiab] OR TSP[tiab] OR \"digital pressure\"[tiab] OR \"hallux pressure\"[tiab] OR \"great toe pressure\"[tiab]) AND (\"Peripheral Arterial Disease\"[MeSH] OR \"Peripheral Vascular Diseases\"[MeSH] OR \"Arterial Occlusive Diseases\"[MeSH] OR \"Intermittent Claudication\"[MeSH] OR \"Ischemia\"[MeSH] OR \"Lower Extremity\"[MeSH] OR \"peripheral arterial disease\"[tiab] OR \"peripheral artery disease\"[tiab] OR \"peripheral vascular disease\"[tiab] OR PAD[tiab] OR PVD[tiab] OR \"arterial occlusive\"[tiab] OR \"arterial occlusion\"[tiab] OR \"arterial insufficiency\"[tiab] OR \"lower limb ischemia\"[tiab] OR \"lower limb ischaemia\"[tiab] OR \"limb ischemia\"[tiab] OR \"limb ischaemia\"[tiab] OR \"critical limb ischemia\"[tiab] OR \"critical limb ischaemia\"[tiab] OR \"intermittent claudication\"[tiab] OR claudication[tiab] OR \"lower extremity arterial\"[tiab] OR \"peripheral occlusive\"[tiab]) AND (\"Sensitivity and Specificity\"[MeSH] OR \"Diagnosis\"[MeSH] OR \"Diagnostic Techniques, Cardiovascular\"[MeSH] OR \"Reproducibility of Results\"[MeSH] OR \"Predictive Value of Tests\"[MeSH] OR \"ROC Curve\"[MeSH] OR sensitivit*[tiab] OR specificit*[tiab] OR accuracy[tiab] OR accurate[tiab] OR \"predictive value\"[tiab] OR \"predictive values\"[tiab] OR \"diagnostic value\"[tiab] OR \"diagnostic accuracy\"[tiab] OR \"diagnostic performance\"[tiab] OR \"true positive\"[tiab] OR \"false positive\"[tiab] OR \"true negative\"[tiab] OR \"false negative\"[tiab] OR \"likelihood ratio\"[tiab] OR ROC[tiab] OR \"receiver operating\"[tiab] OR \"area under the curve\"[tiab] OR AUC[tiab] OR \"reference standard\"[tiab] OR \"gold standard\"[tiab])",
+      "strategyRecall": [
+        18,
+        18
+      ],
+      "capLoss": [
+        18,
+        18
+      ],
+      "screenRecall": [
+        0,
+        0
+      ],
+      "endToEnd": [
+        0,
+        18
+      ],
+      "binned": [],
+      "unscreened": 0,
+      "ranks": {
+        "16123491": null,
+        "16860193": null,
+        "22783531": null,
+        "23641284": null,
+        "26281971": 945,
+        "28423999": 303,
+        "29270232": 368,
+        "29633431": null,
+        "31471230": 302,
+        "31624003": 288,
+        "33630461": null,
+        "34275312": 119,
+        "34488499": 159,
+        "34583809": 213,
+        "34956078": 80,
+        "37120264": 174,
+        "37892678": null,
+        "38414018": null
+      }
+    },
+    {
+      "title": "Educational and psychological interventions for managing atopic dermatitis (eczema)",
+      "gold": 30,
+      "hits": 10112,
+      "query": "(Dermatitis, Atopic[MeSH] OR eczema*[tiab] OR \"atopic dermatitis\"[tiab] OR neurodermatitis[tiab] OR \"atopic eczema\"[tiab] OR \"besnier prurigo\"[tiab]) AND (Patient Education as Topic[MeSH] OR Health Education[MeSH] OR Self-Management[MeSH] OR Self Care[MeSH] OR Psychotherapy[MeSH] OR Behavior Therapy[MeSH] OR Cognitive Behavioral Therapy[MeSH] OR Relaxation Therapy[MeSH] OR Stress, Psychological[MeSH] OR Caregivers[MeSH] OR Habit[MeSH] OR Counseling[MeSH] OR Mind-Body Therapies[MeSH] OR educat*[tiab] OR psychoeducat*[tiab] OR \"self management\"[tiab] OR \"self-management\"[tiab] OR \"self care\"[tiab] OR \"self-care\"[tiab] OR psychotherap*[tiab] OR psychological*[tiab] OR behavio*[tiab] OR \"habit reversal\"[tiab] OR cognitive[tiab] OR relaxation[tiab] OR \"stress management\"[tiab] OR mindfulness[tiab] OR counsel*[tiab] OR counsell*[tiab] OR training[tiab] OR workshop*[tiab] OR programme*[tiab] OR program[tiab] OR programs[tiab] OR intervention*[tiab] OR support*[tiab] OR coaching[tiab] OR biofeedback[tiab] OR \"nurse led\"[tiab] OR \"nurse-led\"[tiab])",
+      "strategyRecall": [
+        29,
+        30
+      ],
+      "capLoss": [
+        29,
+        29
+      ],
+      "screenRecall": [
+        0,
+        0
+      ],
+      "endToEnd": [
+        0,
+        30
+      ],
+      "binned": [],
+      "unscreened": 0,
+      "ranks": {
+        "1981422": 279,
+        "3778815": 345,
+        "11405162": 299,
+        "11737422": 588,
+        "11952543": null,
+        "12000479": 273,
+        "16295138": 466,
+        "16627509": 364,
+        "17014636": 166,
+        "17506956": 436,
+        "18304147": null,
+        "18422535": null,
+        "19397561": 151,
+        "21236514": 396,
+        "21879233": 188,
+        "22983681": 251,
+        "23458232": null,
+        "24594972": 367,
+        "24942774": 541,
+        "26616256": null,
+        "26775779": 452,
+        "27295179": null,
+        "28940213": 319,
+        "29243849": 274,
+        "29505898": null,
+        "29722071": 286,
+        "33486817": 155,
+        "34009282": 129,
+        "36740888": 190
+      }
+    }
+  ]
+}
