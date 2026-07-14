@@ -193,10 +193,16 @@ const NOT_A_TOPIC = new Set([
     'adult', 'adolescent', 'aged', 'child', 'infant', 'middle aged', 'young adult',
 ])
 
+// AN UNTICKED LINE WAS NEVER SEARCHED, and that rule does not stop at the export.
+//
+// This used to read every line, ticked or not, so the panel's caption -- "faculty publishing on these
+// MeSH terms" -- counted faculty against terms the librarian had switched OFF and the search had
+// never used. Untick the whole Probiotics MeSH line and the strategy stops being about probiotics
+// while the panel goes on ranking probiotics researchers, with a confident total beside them.
 function meshFromConcepts(concepts: Rendering[]): string[] {
     const found = new Set<string>()
     for (const c of concepts) {
-        for (const line of c.lines) {
+        for (const line of c.lines.filter(l => l.on)) {
             for (const token of line.terms.split(/\s+OR\s+/i)) {
                 const m = token.match(/^\s*\(?\s*"?([^"[\]]+?)"?\s*\[(?:MeSH|majr)/i)
                 if (m && !NOT_A_TOPIC.has(m[1].trim().toLowerCase())) found.add(m[1].trim())
