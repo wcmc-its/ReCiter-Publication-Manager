@@ -777,9 +777,28 @@ export default function LiteratureSearch() {
     //
     // So drop the map the instant the numbering it is keyed to stops existing. RowCount already
     // renders a missing count as an em-dash, which is the honest state: a count not yet made.
-    const dropRowCounts = (di?: number) => setResults(rs => rs.map((r, i) => (
-        di === undefined || i === di ? { ...r, rowCounts: {} } : r
-    )))
+    const dropRowCounts = (di?: number) => {
+        setResults(rs => rs.map((r, i) => (
+            di === undefined || i === di ? { ...r, rowCounts: {} } : r
+        )))
+        // ...AND SAY THE NEW ONES ARE COMING, from this instant.
+        //
+        // Dropping the map is only half the truth. The counts are invalidated HERE, on the toggle, but
+        // fetchRows does not start until the yield lands ~2.4s later — so the column sat on an em-dash
+        // through the debounce and the whole re-count round trip, looking IDLE while a re-count was
+        // already in flight. An em-dash means "not counted"; it must not also mean "not counted, but
+        // working on it", or a librarian cannot tell a busy column from a finished one.
+        //
+        // Only for databases we can actually count: Embase never fetches rows, so marking it pending
+        // would leave it pulsing for ever, promising a number that is never coming.
+        setRowState(m => {
+            const next = { ...m }
+            strategies.forEach((st, i) => {
+                if ((di === undefined || i === di) && DIALECTS[st.db].countable) next[i] = 'pending'
+            })
+            return next
+        })
+    }
 
     const editConcept = (di: number, ci: number, fn: (c: Rendering) => Rendering) => {
         dirty.current.add(di)
