@@ -165,6 +165,33 @@ spec:
             # Scopus lookups at the Scopus Retrieval Tool. Prod value is http://reciter-scopus-prod.
             - name: RECITER_SCOPUS_API_URL
               value: http://reciter-scopus-dev
+            # --- Literature Search (PR #824) -------------------------------------------------
+            # The model id is NOT a secret: it is already on every log line this feature emits
+            # (see the logCost() line in src/pages/api/literature/search.ts). Keeping it a plain
+            # value makes it reviewable in the PR, and means a model change is a code change —
+            # which is right, because the model determines the billing rate.
+            # Without this, /api/literature/search returns a clean 503 and nothing else breaks.
+            - name: BEDROCK_MODEL_ID
+              value: us.anthropic.claude-opus-4-8
+            # Belt-and-braces, NOT a blocker: the client already falls back to us-east-1
+            # (controllers/literatureSearch.controller.ts). Explicit because a `us.` cross-region
+            # inference profile bills the Regional CRIS tier, and that is region-dependent.
+            - name: AWS_REGION
+              value: us-east-1
+            # The pilot roster. `optional: true` is LOAD-BEARING, twice over:
+            #   1. This repo is PUBLIC, so the roster must not be committed. It lives only in the
+            #      reciter-pm-dev-secrets Secret, and can be changed without a code deploy.
+            #   2. The dev buildspec `kubectl apply`s this manifest. A secretKeyRef to a key that
+            #      does not exist yet is CreateContainerConfigError — the pod never starts, and
+            #      that takes down ALL of reciter-pm-dev, not just Literature Search.
+            # When the key is absent the allowlist is empty, and an empty allowlist FAILS SHUT:
+            # isAllowlisted() returns false for everyone, so the route 403s. Safe, not open.
+            - name: LITERATURE_SEARCH_CWIDS
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: LITERATURE_SEARCH_CWIDS
+                  optional: true
           ports:
             - containerPort: 3000
               name: reciter-pm
