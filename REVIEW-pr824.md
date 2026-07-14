@@ -18,6 +18,18 @@ critic. 39 findings raised, **31 survived**, 11 refuted. 137 agents, 0 errors.
 | `880397e` | An invented citation reaches the reader; dropped table rows are backfilled; a ranking the tool never applied is refused (502) instead of asserted. |
 | `115c7ca` | Bound the seed list (`MAX_SEEDS = 10`); recompute the expert panel a toggle invalidated. |
 | `362e378` | A retracted trial sorts below everything; a protocol is not a trial; Word gets real paragraphs. |
+| `6ba9e10` | **Found by driving the browser, not by reading the diff** — `meshFromConcepts` ignored `line.on`, so the expert panel counted faculty against MeSH terms the librarian had switched off. The static review only caught the *edit* case; only the untick case reveals this one. The unticked-line rule does not stop at the export. |
+
+**Driven end to end** on real Bedrock (`us.anthropic.claude-opus-4-8`) + live PubMed, in a browser:
+
+- Baseline: 7 PRESS lines, final row `3 AND 6` = **5,996**, matching the panel yield exactly.
+- Untick line 1 (the MeSH line) → the OR-combine row drops and everything shifts by **two**, exactly
+  as predicted. **Every count immediately becomes an em-dash.** Pre-fix, that instant showed 117,586
+  (the switched-off line's count) beside the tiab line, and 684,638 beside the final row — against a
+  headline of 5,996.
+- Re-count lands → each count is back beside the line it belongs to, and the final row (**5,926**)
+  again equals the panel headline (**5,926 records**).
+- The expert panel moves **1,233 → 818** on the same untick, instead of sitting frozen.
 
 **Still open** — everything in the *Correctness / UX* section below except the `.docx`, `modelLabel`
 and export-label items, which are done. Specifically still to do:
