@@ -37,6 +37,10 @@ const ROOT = path.resolve(__dirname, '..')
 // dies with MODULE_NOT_FOUND. (The check still makes no model call; the import just has to
 // resolve.) .litcheck/ is gitignored.
 const OUT = path.join(ROOT, '.litcheck')
+
+// Embase (Ovid) is asserted in two halves: the pure/dialect facts where the dialects are checked, and
+// the EXPORT in the exports section, where the renderers are loaded. This carries the run between them.
+let embaseRun = null
 fs.rmSync(OUT, { recursive: true, force: true })
 
 for (const line of fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8').split('\n')) {
@@ -688,6 +692,55 @@ const untickConcept = (s, ci) => ({
         'a parenthesised DOI seed must survive concatenation -- unquoted it counts 0 and the paper reads as a miss',
     )
     console.log('dialects:     limits native per DB; Scopus DECLARES "RCT only" as inexpressible; seeds are PMID *or* DOI')
+
+    // ---- EMBASE (OVID): the database we DRAFT and never RUN. -------------------------------
+    //
+    // We have no API for it, so it produces NO NUMBER — and `strict: false` in tsconfig means the
+    // compiler will NOT stop anyone turning that null into a zero. These assertions are the only net.
+    assert.strictEqual(lit.DIALECTS.embase.countable, false, 'Embase has no API: it cannot be counted')
+    assert.strictEqual(lit.DIALECTS.pubmed.countable, true)
+    assert.strictEqual(lit.DIALECTS.scopus.countable, true)
+
+    // countIn must THROW rather than fall through to PubMed's counter. A `db === 'scopus' ? a : b`
+    // ternary would have counted an Ovid/Emtree query against PubMed and printed the answer next to
+    // the Embase strategy — a number about a different database entirely.
+    assert.throws(() => lit.countIn('embase'), /cannot be counted/i,
+        'counting an uncountable database must throw, never silently use another database s counter')
+    assert.throws(() => lit.DIALECTS.embase.seedQuery({ id: '1', kind: 'pmid' }), /cannot be counted/i,
+        'a seed check needs a count; inventing Ovid seed syntax we never verified would be worse than none')
+
+    // Ovid applies date/type limits in its OWN Limits panel, not as terms in the Boolean. So every one
+    // of them is DECLARED, and NONE is silently dropped into the query.
+    const eLimits = lit.buildLimits('embase', '5y', 'rct')
+    assert.strictEqual(eLimits.terms, '', 'no limit may be fabricated into an Ovid query')
+    assert.deepStrictEqual(eLimits.unsupported.length, 2, 'both limits are DECLARED as applied in Ovid, not dropped')
+
+    // The query is passed through VERBATIM. Ovid syntax must survive assembly untouched: mangle
+    // `exp probiotic agent/` and the line does not merely get worse, it does not run at all.
+    const ovid = {
+        db: 'embase',
+        concepts: [
+            { label: 'Probiotics', lines: [{ terms: 'exp probiotic agent/ or intestine flora/', on: true }, { terms: 'probiotic*.ti,ab,kw.', on: true }] },
+            { label: 'Depression', lines: [{ terms: 'exp depression/', on: true }] },
+        ],
+        limits: '',
+    }
+    const oq = lit.assembleQuery(ovid)
+    assert.ok(oq.includes('exp probiotic agent/') && oq.includes('probiotic*.ti,ab,kw.'),
+        'Ovid syntax must pass through assembleQuery verbatim')
+    assert.ok(!oq.includes('[tiab]') && !oq.includes('TITLE-ABS-KEY') && !/\/exp\b/.test(oq),
+        'no PubMed, Scopus or Embase.com syntax may leak into an Ovid query')
+
+    // runStrategy makes NO network call for an uncountable database, and returns null — never 0, and
+    // never an empty seed list that would read as "none of your known papers came back".
+    const eRun = await lit.runStrategy(ovid, lit.parseSeeds('37314797'), eLimits.unsupported)
+    assert.strictEqual(eRun.hits, null, 'an uncounted database yields NULL, never 0')
+    assert.deepStrictEqual(eRun.rowCounts, {}, 'no Results column without a counter')
+    assert.deepStrictEqual(eRun.seeds, [], 'a seed cannot be validated against a database we cannot count')
+
+    // The export half of this lives in the exports section below, where the renderers are loaded.
+    embaseRun = { run: eRun, unsupported: eLimits.unsupported }
+    console.log('embase(ovid): countable=false -> hits NULL not 0, no seed check, Ovid syntax passes through verbatim')
     console.log('seed quoting: a PII-style DOI (parens and all) counts 1 inside `AND (...)`, same as its PMID')
 
     // ---- Live Scopus. Skipped LOUDLY when the tool is not configured. ----------------------
@@ -829,6 +882,31 @@ const untickConcept = (s, ci) => ({
     // and this export IS the PRISMA-S appendix, so if the disclosure is not here it is nowhere.
     assert.ok(sDoc.includes('us.anthropic.claude-opus-4-8'),
         'the SEARCH STRATEGY export must disclose the model that drafted the query, not only the synthesis')
+
+    // EMBASE (OVID): THE EXPORT IS THE ARTIFACT THAT LEAVES THE BUILDING, so it is the thing that has
+    // to say the strategy was DRAFTED and never RUN. `hits` is null here, and both of the obvious
+    // coercions are fabrications in a methods table: String(null) is the word "null", Number(null) is
+    // 0 — and "Records identified by the query: 0" beside a perfectly good strategy reads, to a reader
+    // who was not in the room, as "this search found nothing."
+    assert.ok(embaseRun, 'the Embase dialect section must have run before the exports section')
+    const eDoc = said(xp.strategyDoc(
+        { ...embaseRun.run, db: 'embase', unsupportedLimits: embaseRun.unsupported },
+        'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',
+    ))
+    // `said` emits one line per table CELL, so the yield is the line straight after its label. Assert
+    // on THAT cell, not on a loose window — a regex that runs past the newline sweeps up other cells
+    // and passes (or fails) for reasons that have nothing to do with the yield.
+    const eLines = eDoc.split('\n')
+    const eYield = eLines[eLines.findIndex(l => /^Records identified by the query$/i.test(l)) + 1]
+    assert.ok(/^Not counted/i.test(eYield),
+        `the yield cell must SAY it was not counted, got: ${JSON.stringify(eYield)}`)
+    assert.ok(!/^\s*(0|null)\s*$/i.test(eYield),
+        'an uncounted database must never print 0 or "null" as its yield — that reads as "found nothing"')
+    assert.ok(/ON ITS OWN/i.test(eDoc),
+        'we cannot detect a dead Emtree heading, so the export must tell the librarian how to find one')
+    assert.ok(/Limits panel/i.test(eDoc),
+        'Ovid CAN apply these limits, in its own panel — do not tell a librarian it cannot')
+    console.log('embase export: declares DRAFTED-not-run, prints no 0/null yield, tells the librarian to test each Emtree line')
 
     // THE RENDERER. Word is the delivery format, so a Block[] it cannot render is a download button
     // that throws in a librarian's face. Packer really zips it — a .docx is a zip, so it opens PK.

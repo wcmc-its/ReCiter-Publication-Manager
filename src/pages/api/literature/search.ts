@@ -77,7 +77,7 @@ import {
     UsageLog,
 } from '../../../../controllers/literatureSearch.controller'
 import {
-    buildLimits, picoQuestion, picoComplete, parseSeeds, conceptsOf,
+    buildLimits, picoQuestion, picoComplete, parseSeeds, conceptsOf, DIALECTS,
     Pico, Db, Seed, Rendering,
 } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
@@ -344,6 +344,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (phase === 'rows') {
         try {
             const s = parseStrategy({ ...edited, dateId, typeId })
+            // An uncountable database has no Results column, and asking for one is not an error — it is
+            // a question with an empty answer. `countIn` would THROW here (deliberately), and a 502 on
+            // a column nobody can fill would put an error banner over a strategy that is perfectly
+            // fine. An empty map renders as em-dashes, which is exactly what "not counted" looks like.
+            if (!DIALECTS[s.db].countable) {
+                return res.status(200).send({ statusCode: 200, db: s.db, hits: null, rowCounts: {} })
+            }
             const query = assembleQuery(s)
             if (!query) return res.status(200).send({ statusCode: 200, rowCounts: {} })
             const hits = await countIn(s.db)(query)
@@ -508,13 +515,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        // WHICH DATABASES. PubMed is always in — it is the only one every mode can use — and Scopus
-        // joins it when ticked. Mode 1 ONLY, and that restriction is principled rather than
-        // unfinished: Modes 2 and 3 order records by their evidence tier, which is derived from
-        // PubMed's publication-type indexing, and Scopus HAS NO SUCH INDEX (probed: DOCTYPE(rct)
-        // returns 0 — there is no RCT document type). A Scopus "clinical answer" would have no
-        // evidence hierarchy underneath it at all, which is the one thing Mode 3 is for.
-        const dbs: Db[] = ['pubmed', ...(Array.isArray(databases) && databases.includes('scopus') ? ['scopus' as Db] : [])]
+        // WHICH DATABASES. PubMed is always in — it is the only one every mode can use — and the others
+        // join it when ticked. Mode 1 ONLY, and that restriction is principled rather than unfinished:
+        // Modes 2 and 3 order records by their evidence tier, which is derived from PubMed's
+        // publication-type indexing. Scopus HAS NO SUCH INDEX (probed: DOCTYPE(rct) returns 0 — there
+        // is no RCT document type), and Embase we cannot even retrieve from. A "clinical answer" out of
+        // either would have no evidence hierarchy underneath it, which is the one thing Mode 3 is for.
+        //
+        // DERIVED FROM THE DIALECT TABLE, NOT FROM A HARDCODED LIST. This line used to read
+        // `databases.includes('scopus') ? ['scopus'] : []`, so when the browser started sending
+        // 'embase' the server SILENTLY DROPPED IT and returned a PubMed-only result to a librarian who
+        // had ticked two databases — no error, no mention, just a missing panel. A third database is a
+        // table entry, and this is one of the places that has to mean it.
+        const asked = Array.isArray(databases) ? databases.map(String) : []
+        const extras = (Object.keys(DIALECTS) as Db[]).filter(db => db !== 'pubmed' && asked.includes(db))
+        const dbs: Db[] = ['pubmed', ...extras]
 
         // ONE STRATEGY PER DATABASE, SHARING ONLY THE CONCEPT LABELS.
         //

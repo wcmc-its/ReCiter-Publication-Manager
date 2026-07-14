@@ -183,8 +183,21 @@ export async function countScopus(query: string): Promise<number> {
     return n
 }
 
-/** Counting, by database. The ONE place that knows a database has a counter. */
-export const countIn = (db: Db) => (db === 'scopus' ? countScopus : countPubmed)
+/**
+ * Counting, by database. The ONE place that knows a database has a counter.
+ *
+ * An UNCOUNTABLE database (Embase via Ovid — no API on any platform) has no counter, and this THROWS
+ * rather than falling through to PubMed's. A `db === 'scopus' ? scopus : pubmed` ternary would have
+ * quietly counted an Ovid/Emtree query against PubMed and printed the answer next to the Embase
+ * strategy: a number that is not wrong so much as about a different database entirely, which is the
+ * worst thing this feature knows how to do. Callers must check `DIALECTS[db].countable` first.
+ */
+export const countIn = (db: Db) => {
+    if (!DIALECTS[db].countable) {
+        throw new Error(`${DIALECTS[db].name} cannot be counted from here — there is no API for it.`)
+    }
+    return db === 'scopus' ? countScopus : countPubmed
+}
 
 // Known-item validation. The librarian names papers the search MUST retrieve; a strategy
 // that misses a known include is broken and has to be widened. This is what makes an
@@ -268,7 +281,11 @@ export type StrategyResult = {
     // not comparable. An unexpressed limit that nobody mentions is a lie of omission.
     unsupportedLimits: string[]
     query: string
-    hits: number
+    // NULL means "we cannot count this database" — Embase (Ovid), which we have no API for. It is NOT
+    // zero, and the difference is the whole feature: 0 records is a finding, "not counted" is an
+    // absence. The type is nullable precisely so that every render and export site is FORCED by the
+    // compiler to say which one it is looking at.
+    hits: number | null
     // One record count per PRESS line number — the Results column of a search history. See
     // countRows(). Keyed by the DERIVED line number, so it renumbers with the selection and can
     // never describe a line that was not searched.
@@ -326,6 +343,27 @@ export async function countRows(s: Strategy, hits: number): Promise<Record<numbe
 
 export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits: string[] = []): Promise<StrategyResult> {
     const query = assembleQuery(s)
+    const dialect = DIALECTS[s.db]
+
+    // AN UNCOUNTABLE DATABASE PRODUCES NO NUMBERS AT ALL. Embase (Ovid): we have no API, so there is
+    // nothing here to count with and nothing to check a seed against. Every one of those is NULL or
+    // EMPTY — never zero, never an empty seed list that reads as "none of them came back". The
+    // strategy is the deliverable; the librarian runs it.
+    if (!dialect.countable) {
+        return {
+            db: s.db,
+            dbName: dialect.name,
+            concepts: s.concepts,
+            limits: s.limits,
+            unsupportedLimits,
+            query,
+            hits: null,
+            rowCounts: {},
+            runDate: new Date().toISOString().slice(0, 10),
+            seeds: [],
+        }
+    }
+
     // Everything unticked. Don't ask the database to count the empty string — it is not a "0 hits"
     // result, it is "you have no strategy", and conflating the two is how a librarian ends up
     // trusting a count that describes nothing.
@@ -336,7 +374,7 @@ export async function runStrategy(s: Strategy, seeds: Seed[], unsupportedLimits:
     const seedResults = await validateSeeds(s, seeds)
     return {
         db: s.db,
-        dbName: DIALECTS[s.db].name,
+        dbName: dialect.name,
         concepts: s.concepts,
         limits: s.limits,
         unsupportedLimits,
@@ -1032,6 +1070,39 @@ Date and document-type limits are supplied by the caller and applied separately,
 
 Return the strategy only.`
 
+// EMBASE VIA OVID. Its own prompt, never a translation of the PubMed one — see THE SPLIT. The syntax
+// rules below are not stylistic: Ovid REJECTS Elsevier's Embase.com dialect outright ("Invalid
+// subheading: exp"), so a strategy in the wrong platform's language is not a worse strategy, it is a
+// strategy that does not run at all.
+const EMBASE_PROMPT = `You are a medical reference librarian drafting an Embase search strategy for a systematic review.
+
+The search will be run on EMBASE VIA THE OVID PLATFORM (OvidSP). Ovid's query language is NOT the same as Embase.com's, even though both search Embase and both use the Emtree thesaurus. You must write OVID syntax.
+
+Your objective is RECALL (sensitivity), not precision:
+- A yield in the thousands is SUCCESS, not a problem. Do not try to keep the result set small.
+- Missing a relevant study is the cardinal sin. Retrieving irrelevant ones is fine — a human screens them later.
+
+EMBASE'S CONTROLLED VOCABULARY IS EMTREE. It is NOT MeSH. Do NOT emit MeSH descriptors, [MeSH], [tiab], [majr], [pt], or Scopus syntax such as TITLE-ABS-KEY. Do NOT emit Embase.com syntax: 'term'/exp and term:ti,ab,kw are ELSEVIER syntax and Ovid REJECTS them.
+
+Use OVID syntax, and nothing else:
+- Explode an Emtree heading with the exp prefix and a TRAILING SLASH: exp probiotic agent/
+- A heading without explosion is just the trailing slash: probiotic agent/
+- Free text is field-tagged with a TRAILING period: probiotic*.ti,ab,kw.
+  (.ti = title, .ab = abstract, .kw = keyword. The trailing period is REQUIRED.)
+- Truncate with *: probiotic*
+- Multi-word free-text phrases take NO quotes; use adjacency instead: (gut adj3 microbiome).ti,ab,kw.
+- Combine with and / or / not.
+
+EVERY EMTREE HEADING YOU EMIT MUST BE A REAL EMTREE PREFERRED TERM. A heading that does not exist retrieves ZERO records in Ovid — silently, with no error — and it will contribute nothing to the block it sits in. Emtree's preferred terms often differ from MeSH: Emtree uses 'probiotic agent', not 'Probiotics'. If you are not confident a heading is a real Emtree preferred term, DO NOT emit it — put the concept in the free-text line instead, where a wrong guess costs nothing.
+
+Structure the search as CONCEPT BLOCKS, one per idea in the question (typically 2-4). They will be AND-ed together.
+
+GIVE EACH BLOCK EXACTLY TWO LINES: one line of Emtree headings, then one line of free text. This is not cosmetic. Nobody can count this database for the librarian, so the ONLY way to find a dead Emtree heading is to run the heading line on its own in Ovid — which is possible only if it IS its own line. Keeping the two arms separate also means that if a heading is dead, the free-text line beside it still carries the concept.
+
+Date and publication-type limits are applied by the librarian in Ovid's own Limits panel, not in the query. NEVER put them inside a concept block.
+
+Return the strategy only.`
+
 export type UsageLog = { inputTokens: number; outputTokens: number }
 
 // A FILTER THAT CANCELS ITSELF. Lines within a block are OR-ed; blocks are AND-ed. So a
@@ -1141,11 +1212,12 @@ export async function buildStrategy(
         )
     }
 
-    // Scopus gets its OWN prompt, never a translation. Mode 1 (recall) is the only mode Scopus is
-    // offered in — see the route — so there is no precision/Scopus combination to prompt for.
-    const prompt = db === 'scopus'
-        ? SCOPUS_PROMPT
-        : (objective === 'precision' ? REVIEW_PROMPT : SYSTEM_PROMPT)
+    // Scopus and Embase each get their OWN prompt, never a translation of PubMed's. Mode 1 (recall) is
+    // the only mode either is offered in — see the route — so there is no precision variant to prompt
+    // for on those two.
+    const prompt = db === 'scopus' ? SCOPUS_PROMPT
+        : db === 'embase' ? EMBASE_PROMPT
+            : (objective === 'precision' ? REVIEW_PROMPT : SYSTEM_PROMPT)
 
     const { input, usage } = await invoke(prompt, STRATEGY_TOOL, parts.join('\n\n'))
     if (!input?.concepts?.length) throw new Error('model did not return a strategy')

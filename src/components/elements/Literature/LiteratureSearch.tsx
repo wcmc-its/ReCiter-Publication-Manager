@@ -156,9 +156,12 @@ const MODES = [
 // no such index — probed live, DOCTYPE(rct) returns 0, because Scopus has no RCT document type. A
 // Scopus "clinical answer" would have no evidence hierarchy underneath it, which is the one thing
 // Mode 3 is for. Embase remains unavailable: Elsevier does not sell us API access to it.
-const DATABASES: Array<{ id: Db | 'embase'; label: string; ready: boolean; srOnly?: boolean; note?: string }> = [
+const DATABASES: Array<{ id: Db; label: string; ready: boolean; srOnly?: boolean; note?: string }> = [
     { id: 'pubmed', label: 'PubMed', ready: true },
-    { id: 'embase', label: 'Embase', ready: false },
+    // Embase is DRAFTED, never executed: we have no API for it, so it yields a strategy and no count.
+    // That is a real limitation and it is stated on the chip rather than discovered in the export.
+    // It is Mode 1 only, for the same reason Scopus is — see the route.
+    { id: 'embase', label: 'Embase (Ovid)', ready: true, srOnly: true, note: 'strategy only — we cannot count Embase, so you run it in Ovid' },
     { id: 'scopus', label: 'Scopus', ready: true, srOnly: true, note: 'no controlled vocabulary — supplementary to PubMed, not equivalent' },
 ]
 
@@ -677,6 +680,10 @@ export default function LiteratureSearch() {
     const rowSeq = useRef<Record<number, number>>({})
 
     const fetchRows = async (st: Strategy, di: number) => {
+        // Nothing to fetch for a database we cannot count. Skipping here rather than round-tripping
+        // keeps the em-dashes on screen from the first paint, and does not burn a request to be told
+        // what the dialect table already knows.
+        if (!DIALECTS[st.db].countable) return
         const mine = (rowSeq.current[di] = (rowSeq.current[di] || 0) + 1)
         try {
             const res = await fetch('/api/literature/search', {
@@ -796,7 +803,12 @@ export default function LiteratureSearch() {
         return [
             `Database: ${DIALECTS[r.db].provenance}`,
             `Date searched: ${r.runDate}`,
-            `Records retrieved: ${r.hits}`,
+            // Null is not zero, and it is not the empty string either. An uncounted database says so
+            // in the methods block, because a PRISMA-S appendix reading "Records retrieved: 0" against
+            // a working strategy is a fabrication a reader cannot see through.
+            r.hits === null
+                ? `Records retrieved: not counted — we have no API for ${DIALECTS[r.db].name}. Run this strategy in Ovid to obtain the yield.`
+                : `Records retrieved: ${r.hits}`,
             ``,
             `Search strategy:`,
             ...rows
@@ -1322,10 +1334,18 @@ export default function LiteratureSearch() {
                     <section className={s.panel} aria-live="polite">
                         <div className={s.panelHead}>
                             <h2 className={s.panelTitle}>{result.dbName}</h2>
-                            <span className={`${s.hits} ${recounting ? s.hitsStale : ''}`}>
-                                {result.hits.toLocaleString()} <span>records</span>
-                            </span>
-                            {recounting && <span className={s.recounting}>re-counting…</span>}
+                            {/* A DATABASE WE CANNOT COUNT SHOWS NO NUMBER. `hits` is null for Embase
+                                (Ovid) — we have no API — and null is NOT zero. Rendering it as "0
+                                records" beside a perfectly good strategy would be the most damaging
+                                thing on this screen: it reads as "your search found nothing." */}
+                            {result.hits === null ? (
+                                <span className={s.notCounted}>not counted &mdash; run it in Ovid</span>
+                            ) : (
+                                <span className={`${s.hits} ${recounting ? s.hitsStale : ''}`}>
+                                    {result.hits.toLocaleString()} <span>records</span>
+                                </span>
+                            )}
+                            {recounting && result.hits !== null && <span className={s.recounting}>re-counting…</span>}
                         </div>
 
                         {/* SCOPUS IS NOT A SECOND PUBMED, AND THE SCREEN SAYS SO. It has no controlled
@@ -1465,7 +1485,22 @@ export default function LiteratureSearch() {
                         {/* NO SEEDS = NO RECALL CHECK. Saying so is the whole ethic of this feature:
                             an unvalidated strategy is a guess, and a guess that stays quiet reads
                             exactly like a strategy that passed. */}
-                        {result.seeds.length === 0 ? (
+                        {/* A DATABASE WE CANNOT COUNT CANNOT BE SEED-CHECKED EITHER, and it must not
+                            borrow PubMed's "add some seeds and re-run" advice — that advice is FALSE
+                            here. No number of seeds will ever make Embase testable from this screen;
+                            the check moves to Ovid, with the librarian. Saying "recall cannot be
+                            verified — add seeds" would send them round a loop that has no exit. */}
+                        {result.hits === null ? (
+                            <div className={s.recallLine}>
+                                <span className={`${s.dot} ${s.dotWarn}`} />
+                                <span>
+                                    <b>Not checkable from here.</b> A recall check needs a count, and we have no API for{' '}
+                                    {result.dbName} &mdash; seeds would change nothing. Run the strategy in Ovid and
+                                    look for the papers it must retrieve. Check the Emtree lines while you are there:
+                                    run each one on its own, and <b>a heading line that returns 0 is a dead line.</b>
+                                </span>
+                            </div>
+                        ) : result.seeds.length === 0 ? (
                             <div className={s.recallLine}>
                                 <span className={`${s.dot} ${s.dotWarn}`} />
                                 <span>
@@ -1586,15 +1621,17 @@ export default function LiteratureSearch() {
                     })}
 
 
-                    {/* A Cochrane-compliant search needs Embase and CENTRAL too. The card says so
-                        out loud — and keeps the artifact an array. */}
+                    {/* Embase used to be a disabled checkbox and a "Coming soon" card here. It is now a
+                        real, drafted, uncounted strategy — so the promise is kept and the card is gone.
+                        CENTRAL is the one still outstanding, and it says so rather than implying a date. */}
                     <div className={s.pending}>
                         <div className={s.pendingHead}>
-                            <span className={s.eyebrow}>Embase</span>
+                            <span className={s.eyebrow}>CENTRAL</span>
                             <span className={s.expertsCount}>not searched</span>
                         </div>
                         <div className={s.pendingNote}>
-                            A Cochrane-compliant search needs Embase and CENTRAL too. Coming soon.
+                            A Cochrane-compliant search also wants CENTRAL (the Cochrane trials register).
+                            It is not searched here.
                         </div>
                     </div>
 

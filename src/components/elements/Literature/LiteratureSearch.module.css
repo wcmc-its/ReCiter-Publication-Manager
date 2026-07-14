@@ -901,6 +901,15 @@
 /* ---------- Evidence floor (Mode 3) ---------- */
 /* Derived from PubMed's publication types. No inference, so it cannot be wrong — and it is often
    the true answer to the question. Given real weight on the page for that reason. */
+/* A database we cannot count. Deliberately NOT styled like a number — it must not read as a yield of
+   any kind, least of all a small one. */
+.notCounted {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .floor {
   margin-top: 14px;
   padding: 14px 16px;

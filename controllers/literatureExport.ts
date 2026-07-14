@@ -65,7 +65,8 @@ export type RunFacts = {
     // modes that only have one.
     db?: Db
     query: string
-    hits: number
+    // NULL = this database has no count because we have no API for it (Embase via Ovid). Never zero.
+    hits: number | null
     // HOW MANY RECORDS WERE ACTUALLY PULLED DOWN. Modes 2 and 3 retrieve a CAPPED, ranked slice — 50
     // of however many the query yields — so `hits` and "retrieved" are two different numbers there,
     // and only Mode 1 (which counts and never retrieves) may conflate them. Left undefined by Mode 1.
@@ -90,10 +91,17 @@ export function reproHeader(f: RunFacts): Block[] {
             // screened: 1,391" into a PRISMA flow diagram when the true figure is 50, twenty-seven
             // times smaller. The cap and the ranking were declared on screen and in NO export. They
             // are now in the methods, where the reader building the flow diagram actually looks.
-            ['Records identified by the query', String(f.hits)],
-            ...(f.retrieved !== undefined && f.retrieved < f.hits
+            // AN UNCOUNTED DATABASE STATES THAT IT IS UNCOUNTED. `hits` is null for Embase (Ovid) —
+            // no API — and `String(null)` is the word "null", while `Number(null)` is 0. Both are
+            // fabrications in a methods table. The strategy is real and was drafted; it was never RUN,
+            // and the document has to be the thing that says so, because the reader was not in the
+            // room. THIS IS THE PRISMA-S APPENDIX: a yield printed here is a yield someone will cite.
+            ...(f.hits === null
+                ? [['Records identified by the query', `Not counted — we have no API for ${dialect.name}. This strategy was DRAFTED, not executed: run it in Ovid to obtain the yield.`]]
+                : [['Records identified by the query', String(f.hits)]]),
+            ...(f.hits !== null && f.retrieved !== undefined && f.retrieved < f.hits
                 ? [['Records retrieved and screened', `${f.retrieved} — the top ${f.retrieved} of ${f.hits}, ranked by ${f.sort || 'relevance'}. The rest were not retrieved.`]]
-                : f.retrieved !== undefined
+                : f.hits !== null && f.retrieved !== undefined
                     ? [['Records retrieved and screened', String(f.retrieved)]]
                     : []),
             ...(f.limits ? [['Limits', f.limits]] : []),
@@ -101,8 +109,15 @@ export function reproHeader(f: RunFacts): Block[] {
             // screen, because the count above answers a BROADER question than the librarian asked —
             // and a reader comparing it with the PubMed count has no way to know that unless the
             // document says so. Scopus has no RCT document type, so "RCT only" lands here.
+            //
+            // Ovid is a DIFFERENT case and gets a different sentence: Ovid can express these limits
+            // perfectly well — just in its own Limits panel, against a numbered set, rather than as
+            // terms inside the Boolean. Telling a librarian "Ovid cannot express this" would be false,
+            // and would send them looking for a workaround to a problem that does not exist.
             ...(f.unsupportedLimits?.length
-                ? [['Limits NOT applied', `${f.unsupportedLimits.join('; ')} — ${dialect.name} cannot express this limit, so the count above is not restricted by it`]]
+                ? [['Limits NOT applied', dialect.countable
+                    ? `${f.unsupportedLimits.join('; ')} — ${dialect.name} cannot express this limit, so the count above is not restricted by it`
+                    : `${f.unsupportedLimits.join('; ')} — apply these in Ovid's own Limits panel after running the strategy. They are not part of the query text above.`]]
                 : []),
             ...(f.sort ? [['Ranking', f.sort]] : []),
             ...(f.cwid ? [['Searched by', f.cwid]] : []),
@@ -134,7 +149,7 @@ export type SeedLike = {
 export function strategyDoc(
     r: {
         db?: Db; concepts: Rendering[]; limits: string; unsupportedLimits?: string[]
-        query: string; hits: number; runDate: string; seeds: SeedLike[]
+        query: string; hits: number | null; runDate: string; seeds: SeedLike[]
         rowCounts?: Record<number, number>
     },
     question: string,
@@ -157,6 +172,31 @@ export function strategyDoc(
 
         { kind: 'h2', text: 'Search strategy, line by line' },
         { kind: 'small', text: 'Numbered as published search strategies are peer-reviewed (PRESS): each line is searched, and the combining lines show how the blocks were AND-ed and OR-ed together. The record count for each line is the count that line returned on the date above.' },
+
+        // THE ONE THING THIS EXPORT CAN DO THAT WE CANNOT.
+        //
+        // We have no API for Ovid, so we cannot count a line — which means a HALLUCINATED EMTREE
+        // HEADING IS INVISIBLE TO US. It retrieves 0 in Ovid, silently, with no error, and its line
+        // just quietly contributes nothing to its block. (Verified in Ovid: `zzzprobioticzzz/` -> 0,
+        // no fallback to a keyword search — which is also why a wrong heading can never produce a
+        // wrong NUMBER, only a thinner search.)
+        //
+        // The librarian, standing in front of Ovid, CAN check it — in seconds — but only if someone
+        // tells them to. So the document tells them. That sentence is the entire difference between a
+        // silent failure and a caught one, and it costs one paragraph.
+        ...(dialect.countable ? [] : [
+            { kind: 'p' as const, text:
+                `HOW TO RUN THIS, AND HOW TO CHECK IT. This strategy was drafted for Ovid and has NOT been executed — `
+                + `we have no API for ${dialect.name}, so no line below carries a count. Paste the lines into Ovid's `
+                + `Advanced Search in order, with "Map Term to Subject Heading" UNTICKED so that each line runs exactly `
+                + `as written; Ovid will number them 1..n as you go, matching the numbering below.` },
+            { kind: 'p' as const, text:
+                `Then check the Emtree lines. Run each subject-heading line ON ITS OWN. A heading that does not exist `
+                + `returns ZERO in Ovid without raising an error, so a heading line that comes back 0 is a dead line — `
+                + `it contributed nothing, and the free-text line beside it carried that concept alone. Ovid's Term `
+                + `Finder will give you the correct Emtree preferred term. This check cannot be automated from our side, `
+                + `and it is the one thing a reviewer of this strategy should not skip.` },
+        ]),
         // THE RESULTS COLUMN GOES IN THE APPENDIX TOO. A PRESS reviewer reads a strategy BY its
         // per-line yields — that is how you see which block is doing the work and which one is dead
         // weight. An appendix with the lines but not the numbers is half an appendix.

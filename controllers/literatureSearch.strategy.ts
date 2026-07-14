@@ -42,7 +42,15 @@ export type Line = {
 // controlled-vocab arm at all. It is faithfully the same idea and systematically less sensitive.
 // No amount of engineering removes that, and a librarian will say so.
 
-export type Db = 'pubmed' | 'scopus'
+// A DIALECT IS PLATFORM + DATABASE, NOT DATABASE.
+//
+// 'embase' here means EMBASE VIA OVID, because that is what WCM has (OvidSP; probed live). Ovid and
+// Elsevier's Embase.com are different query languages over the SAME Emtree thesaurus — Elsevier writes
+// 'probiotic agent'/exp, Ovid writes `exp probiotic agent/` and rejects the other outright with
+// "Invalid subheading: exp". If WCM ever moved Embase to Elsevier, the concepts and the Emtree
+// headings survive untouched and only this rendering changes. That is the Concept/Rendering split
+// doing exactly the job it exists for.
+export type Db = 'pubmed' | 'scopus' | 'embase'
 
 /** DB-NEUTRAL. The only thing shared across databases. */
 export type Concept = { label: string }
@@ -118,6 +126,15 @@ export type Dialect = {
     db: Db
     name: string                                     // 'PubMed'
     provenance: string                               // what the export prints under "Database"
+    /**
+     * CAN WE COUNT THIS DATABASE OURSELVES?
+     *
+     * false = we have no API for it, so this database yields NO number: no hits, no Results column, no
+     * known-item seed check. It is a strategy we DRAFT and the librarian EXECUTES elsewhere. That is a
+     * real, declared limitation, and it is the one thing that must never quietly become a zero — an
+     * uncounted database renders an em-dash, exactly as an un-run line does.
+     */
+    countable: boolean
     /** This seed, in this database's identifier syntax. */
     seedQuery: (seed: Seed) => string
     dateLimits: () => LimitOption[]
@@ -133,6 +150,7 @@ export const DIALECTS: Record<Db, Dialect> = {
         db: 'pubmed',
         name: 'PubMed',
         provenance: 'PubMed (via NCBI E-utilities)',
+        countable: true,
         // [uid] is the correct tag — PubMed normalizes [pmid] -> [UID]. [aid] is the Article
         // Identifier field, which is where PubMed keeps the DOI. Both verified live against a
         // paper with a known PMID *and* a known DOI: each returns exactly 1.
@@ -165,6 +183,7 @@ export const DIALECTS: Record<Db, Dialect> = {
         db: 'scopus',
         name: 'Scopus',
         provenance: 'Scopus (via the Elsevier Scopus Search API)',
+        countable: true,
         // Scopus DOES index the PMIDs of the records it shares with MEDLINE, so a PubMed-shaped
         // seed still works here (probed: PMID(37314797) -> 1, PMID(99999999999) -> 0). But a
         // Scopus-ONLY record has no PMID, and those are the records Scopus is here for — so DOI is
@@ -188,6 +207,58 @@ export const DIALECTS: Record<Db, Dialect> = {
             { id: 'rct-ma', label: 'RCT + Meta-analysis', terms: null },
             { id: 'rct', label: 'RCT only', terms: null },
             { id: 'review', label: 'Review', terms: 'DOCTYPE(re)' },
+        ],
+    },
+
+    // EMBASE, VIA OVID. The database Cochrane requires and the one whose absence a peer reviewer
+    // notices. We have NO API for it on any platform — so this dialect DRAFTS a strategy and the
+    // librarian RUNS it. It is `countable: false`, and everything follows from that.
+    //
+    // The syntax below is OVID's, and it was verified in Ovid against live Embase (1974–2026):
+    //
+    //     exp probiotic agent/ or intestine flora/          ->  209,420
+    //     exp depression/                                   ->  833,391
+    //     3 and 6  (the whole strategy)                     ->    8,811   (PubMed: ~5,996)
+    //     zzzprobioticzzz/                                  ->        0   <- THE CONTROL
+    //
+    // That last line is why the rest can be trusted: a heading that does not exist returns ZERO rather
+    // than silently degrading into a keyword search. So a wrong heading costs SENSITIVITY (its line
+    // contributes nothing, and the free-text line beside it still carries the concept) and never
+    // produces a wrong number. Ovid also auto-maps an entry term to its preferred heading — probed:
+    // `probiotics/` -> 77,017, essentially the same set as `exp probiotic agent/` (77,052) — so a
+    // near-miss synonym self-corrects.
+    //
+    // THE HAZARD THAT REMAINS, and it is why the Emtree line and the free-text line are separate,
+    // independently-toggleable rows: a dead heading is INVISIBLE to us, because we cannot count it.
+    // The export therefore tells the librarian to run each Emtree line on its own in Ovid — a line
+    // that returns 0 is a dead heading. That is the most this can honestly promise without an API.
+    embase: {
+        db: 'embase',
+        name: 'Embase (Ovid)',
+        provenance: 'Embase 1974 to present (via Ovid, OvidSP)',
+        countable: false,
+        // Never called: a seed check needs a count, and there is nothing here to count with. It
+        // THROWS rather than returning a plausible-looking guess, because the one thing worse than no
+        // seed check is a seed check written in invented syntax. (Ovid does index PMIDs and DOIs; if
+        // we ever get an API, verify the field codes against Ovid before writing them here.)
+        seedQuery: () => {
+            throw new Error('Embase (Ovid) cannot be counted from here, so a seed cannot be checked against it.')
+        },
+        // THE HONEST NULLS, and there are more of them here than anywhere else. Ovid DOES apply date
+        // and publication-type limits — but through its own Limits panel, as a `limit` command against
+        // a numbered set, NOT as terms inside the Boolean. Fabricating an in-query date filter would
+        // be inventing syntax to make a dropdown feel answered. So every limit is DECLARED as applied
+        // in Ovid, and the export says exactly that.
+        dateLimits: () => [
+            { id: 'any', label: 'Any date', terms: '' },
+            { id: '5y', label: `${year() - 5} – ${year()}`, terms: null },
+            { id: '10y', label: `${year() - 10} – ${year()}`, terms: null },
+        ],
+        pubTypes: () => [
+            { id: 'any', label: 'Any type', terms: '' },
+            { id: 'rct-ma', label: 'RCT + Meta-analysis', terms: null },
+            { id: 'rct', label: 'RCT only', terms: null },
+            { id: 'review', label: 'Review', terms: null },
         ],
     },
 }
