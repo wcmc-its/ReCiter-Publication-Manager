@@ -648,11 +648,31 @@ const TIERS: Array<{ rank: number; label: string; phrase: string; pts: string[] 
 
 const OTHER: Tier = { rank: 8, label: 'Other', phrase: 'not indexed with a study design' }
 
+// TWO TYPES THAT OVERRIDE EVERY OTHER TYPE ON THE RECORD, and so must be tested BEFORE the table.
+//
+// A RETRACTED TRIAL IS STILL TAGGED "Randomized Controlled Trial". PubMed adds "Retracted
+// Publication" alongside the original types rather than replacing them — so first-match-wins found
+// the RCT, ranked it 3, and sorted a withdrawn paper to the TOP of a clinical answer, where Mode 3
+// then led with it. That is the worst output this feature can produce: not a wrong number, a
+// retracted one, presented as the strongest evidence available.
+const RETRACTED: Tier = { rank: 9, label: 'RETRACTED', phrase: 'a RETRACTED publication, which must not be relied on' }
+
+// A PROTOCOL REPORTS NO RESULTS AT ALL. "Clinical Trial Protocol" startsWith "clinical trial", so it
+// matched the rank-4 interventional tier and could set the evidence floor — announcing "the strongest
+// evidence retrieved is a non-randomized clinical trial" on the strength of a paper describing a
+// trial that has not happened yet.
+const PROTOCOL: Tier = { rank: 8, label: 'Protocol', phrase: 'a trial protocol, which reports no results' }
+
 // First match wins, and the table is ordered strongest-first, because the types OVERLAP by design:
 // a meta-analysis is also tagged "Systematic Review" and "Review"; an RCT is also tagged "Clinical
 // Trial" and "Journal Article". The strongest TRUE label is the one that shows.
 export function tierOf(types: string[]): Tier {
     const t = (types || []).map(x => String(x || '').trim().toLowerCase())
+
+    // The two overrides, strongest claim first: retraction beats everything, including a protocol.
+    if (t.some(x => x.startsWith('retracted publication'))) return RETRACTED
+    if (t.some(x => x.startsWith('clinical trial protocol'))) return PROTOCOL
+
     for (const tier of TIERS) {
         if (tier.pts.some(p => t.some(x => x.startsWith(p)))) {
             return { rank: tier.rank, label: tier.label, phrase: tier.phrase }

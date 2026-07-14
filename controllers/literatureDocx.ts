@@ -46,24 +46,42 @@ const table = (head: string[], rows: string[][]) => new Table({
     },
 })
 
-function render(b: Block): Paragraph | Table {
+// A PARAGRAPH BREAK IS NOT A NEWLINE, IN WORD.
+//
+// OOXML has no concept of a line break inside <w:t> — a raw \n there is whitespace, and Word renders
+// it as a space. So `new TextRun(prose)` collapsed the model's 3-5 paragraph answer (bottom line,
+// then the supporting evidence, then what it does not establish — the structure both synth prompts
+// ask for, and the structure the on-screen <Prose> component splits on) into ONE grey slab of text.
+// The screen showed the shape; the .docx, which is the artifact that actually leaves the building,
+// did not.
+//
+// Split on blank lines, falling back to single newlines, exactly as <Prose> does — one Paragraph
+// each, so Word gets real paragraph marks.
+function paragraphs(text: string): Paragraph[] {
+    const parts = String(text ?? '').split(/\n{2,}/)
+    const split = parts.length > 1 ? parts : String(text ?? '').split(/\n/)
+    const kept = split.map(t => t.trim()).filter(Boolean)
+    return (kept.length ? kept : ['']).map(t => new Paragraph({ children: [new TextRun(t)], spacing: { after: 120 } }))
+}
+
+function render(b: Block): Array<Paragraph | Table> {
     switch (b.kind) {
         case 'h1':
-            return new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_1, spacing: { after: 180 } })
+            return [new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_1, spacing: { after: 180 } })]
         case 'h2':
-            return new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 120 } })
+            return [new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 120 } })]
         case 'p':
-            return new Paragraph({ children: [new TextRun(b.text)], spacing: { after: 120 } })
+            return paragraphs(b.text)
         case 'small':
-            return new Paragraph({ children: [new TextRun({ text: b.text, italics: true, size: 18 })], spacing: { after: 120 } })
+            return [new Paragraph({ children: [new TextRun({ text: b.text, italics: true, size: 18 })], spacing: { after: 120 } })]
         // The query. It has to survive copy-paste back into PubMed, so it is monospaced and never
-        // wrapped in anything that could reflow it.
+        // wrapped in anything that could reflow it — including by the paragraph splitter above.
         case 'mono':
-            return new Paragraph({ children: [new TextRun({ text: b.text, font: 'Consolas', size: 18 })], spacing: { after: 120 } })
+            return [new Paragraph({ children: [new TextRun({ text: b.text, font: 'Consolas', size: 18 })], spacing: { after: 120 } })]
         case 'table':
-            return table(b.head, b.rows)
+            return [table(b.head, b.rows)]
         case 'spacer':
-            return new Paragraph({ text: '' })
+            return [new Paragraph({ text: '' })]
     }
 }
 
@@ -72,6 +90,6 @@ export function docxDoc(blocks: Block[]): Document {
         styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
         // Word will not lay a table out flush against the next paragraph without something between
         // them, so every table gets a trailing empty paragraph.
-        sections: [{ children: blocks.flatMap(b => (b.kind === 'table' ? [render(b), new Paragraph({ text: '' })] : [render(b)])) }],
+        sections: [{ children: blocks.flatMap(b => (b.kind === 'table' ? [...render(b), new Paragraph({ text: '' })] : render(b))) }],
     })
 }

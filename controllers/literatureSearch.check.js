@@ -509,6 +509,27 @@ const untickConcept = (s, ci) => ({
     // "Journal Article", and inventing a design for them would be the exact lie we are avoiding.
     assert.strictEqual(lit.tierOf(['Journal Article']).label, 'Other')
 
+    // THE TWO TYPES THAT OVERRIDE EVERY OTHER TYPE ON THE RECORD.
+    //
+    // PubMed ADDS "Retracted Publication" alongside the original types rather than replacing them, so
+    // a retracted trial still carries "Randomized Controlled Trial" — and first-match-wins used to
+    // find the RCT, rank it 3, and sort a withdrawn paper to the TOP of a clinical answer. Not a
+    // wrong number: a retracted one, led with as the strongest evidence available.
+    const mkTier = (pmid, types) => ({ pmid, tier: lit.tierOf(types), types })
+    const retracted = lit.tierOf(['Randomized Controlled Trial', 'Retracted Publication', 'Journal Article'])
+    assert.strictEqual(retracted.label, 'RETRACTED', 'a retracted trial is NOT an RCT, whatever else PubMed tags it')
+    assert.ok(retracted.rank > lit.tierOf(['Journal Article']).rank,
+        'a retracted paper must sort BELOW an unclassified one — it can never lead the evidence')
+    assert.strictEqual(lit.byTier([mkTier('1', ['Randomized Controlled Trial', 'Retracted Publication']), mkTier('2', ['Case Reports'])])[0].pmid, '2',
+        'a case report outranks a retracted trial')
+
+    // "Clinical Trial Protocol" startsWith "clinical trial", so it matched the rank-4 interventional
+    // tier — letting a paper that reports NO RESULTS set the evidence floor.
+    const protocol = lit.tierOf(['Clinical Trial Protocol', 'Journal Article'])
+    assert.strictEqual(protocol.label, 'Protocol', 'a protocol is not a trial: it reports no results')
+    assert.ok(protocol.rank > lit.tierOf(['Clinical Trial']).rank, 'a protocol must never outrank a completed trial')
+    console.log('tiers:        a RETRACTED trial sorts below everything; a PROTOCOL is not a clinical trial')
+
     // ---- Pure: the sort is STABLE. ----------------------------------------------------------
     // Within a tier, PubMed's relevance order must survive: we are re-ordering by DESIGN, not
     // re-scoring by relevance. If this ever becomes unstable, the top of each tier silently
@@ -818,6 +839,30 @@ const untickConcept = (s, ci) => ({
     ), { kind: 'spacer' }]))
     assert.ok(buf.length > 1000 && buf[0] === 0x50 && buf[1] === 0x4b,
         'a .docx is a zip and must open with PK — Word will not read anything else')
+
+    // ...AND WORD MUST SEE THE PARAGRAPHS. A .docx that OPENS is not a .docx that READS. OOXML has no
+    // line break inside <w:t>, so a raw \n there is whitespace — Word renders it as a space — and the
+    // model's 3-5 paragraph answer (bottom line / supporting evidence / what this does not establish)
+    // used to arrive as one grey slab. The screen split it; the FILE, which is the thing that leaves
+    // the building, did not. So assert on the emitted XML, not on the zip magic.
+    //
+    // jszip arrives with docx and is only used to READ the output back. If a docx bump ever drops it,
+    // skip loudly rather than fail: a missing test-only dep is not a broken export.
+    let JSZip = null
+    try { JSZip = require('jszip') } catch { /* below */ }
+    if (!JSZip) {
+        console.log('docx:         SKIPPED the paragraph check — jszip (a docx dependency) is not resolvable')
+    } else {
+        const slab = await Packer.toBuffer(docxDoc([
+            { kind: 'p', text: 'Bottom line.\n\nThe supporting evidence.\n\nWhat this does not establish.' },
+        ]))
+        const xml = await (await JSZip.loadAsync(slab)).file('word/document.xml').async('string')
+        assert.strictEqual((xml.match(/<w:p[ >]/g) || []).length, 3,
+            'a 3-paragraph synthesis must emit 3 Word paragraphs — one slab of newlines is not a document')
+        assert.ok(!/<w:t[^>]*>[^<]*\n/.test(xml),
+            'no raw newline may survive inside a <w:t>: Word reads it as a space, not a break')
+        console.log('docx:         a multi-paragraph synthesis emits real Word paragraphs, not one slab')
+    }
 
     // The spreadsheet: a null iCite percentile is NOT a zero. Number(null) === 0, and a confident
     // "0" against a brand-new trial is a scarlet letter we invented.
