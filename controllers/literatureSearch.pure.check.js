@@ -263,4 +263,35 @@ assert.ok(methods.includes('reviewed and edited by'), 'the disclosure must name 
 assert.ok(methods.includes(hits.toLocaleString()), 'the per-line counts must survive the markdown renderer — the Records column is how a PRESS reviewer reads a strategy')
 console.log(`documents:    synthesis markdown carries the invented-PMID warning, the query, the database, the yield and the date; the appendix discloses the model`)
 
+// THE .XLSX MUST NOT CARRY AN AI VERDICT OVER A TRUNCATED SAMPLE.
+//
+// This is the one assertion in this file that exists because of a MEASUREMENT rather than a code
+// reading. docs/RECALL-STUDY.md: the strategy retrieved 72 of 73 known-included studies (99%), and the
+// top-50 relevance cut then showed the model ONE of them (1%). So an "AI suggested / Include / Exclude"
+// column on a truncated sheet describes a population that is nearly disjoint from the eligible one —
+// and this is the file that opens in COVIDENCE, where it is treated as a screening pass.
+//
+// Guard both directions. A refusal that also fires on a COMPLETE sheet would delete a verdict the model
+// really did give over every record it was asked about, which is a different bug with the same shape.
+const recs = [{ pmid: '1', title: 't', authors: 'a', year: '2020', journal: 'j', design: 'RCT' }]
+const flags = { 1: { include: true, reason: 'an RCT in the right population', screened: true } }
+const xlFacts = f => ({ db: 'pubmed', query: q, runDate: '2026-07-13', model: 'us.anthropic.claude-opus-4-8', ...f })
+
+const cutSheets = xp.recordSheets(recs, flags, {}, xlFacts({ hits: 1391, retrieved: 50 }))
+assert.ok(!cutSheets[0].head.includes('AI suggested'),
+    'a TRUNCATED sheet must not carry an AI verdict column — the top 50 by relevance holds ~1% of the eligible studies (docs/RECALL-STUDY.md)')
+assert.ok(!cutSheets[0].head.includes('AI reason'), 'the reason column goes with the verdict it explains')
+assert.strictEqual(cutSheets[0].head.length, cutSheets[0].rows[0].length,
+    'dropping the columns must drop the CELLS — a head and a row of different lengths silently shifts every value into the wrong column')
+const searchSheet = JSON.stringify(cutSheets[1].rows)
+assert.ok(/NOT INCLUDED — this is not a screen/.test(searchSheet),
+    'the sheet must say IN THE FILE why there is no verdict — Covidence opens it, and that reader never saw our UI')
+assert.ok(!/AI suggestions by/.test(searchSheet), 'the sheet must not advertise an AI verdict it does not carry')
+
+const wholeSheets = xp.recordSheets(recs, flags, {}, xlFacts({ hits: 1, retrieved: 1 }))
+assert.ok(wholeSheets[0].head.includes('AI suggested'),
+    'a COMPLETE sheet keeps its verdict column — the model screened every record there was, and that verdict is real')
+assert.ok(JSON.stringify(wholeSheets[0].rows).includes('Include'), 'and the verdict itself survives')
+console.log(`exports:      the .xlsx REFUSES its AI verdict column when the sample is truncated, and keeps it when it is not`)
+
 console.log('\nAll pure checks passed. No network, no model, no environment.')
