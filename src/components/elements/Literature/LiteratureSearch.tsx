@@ -627,7 +627,7 @@ export default function LiteratureSearch() {
                     })
                     const data = await res.json()
                     if (!res.ok) throw new Error(data?.message || 'Could not re-count the strategy.')
-                    return { di, r: data.databases[0] as DbResult }
+                    return { di, r: data.databases[0] as DbResult, experts: data.experts }
                 }))
                 // A slower earlier request must never overwrite a newer count. Silently dropping
                 // a stale response is the only correct thing here: the number on screen has to
@@ -639,6 +639,11 @@ export default function LiteratureSearch() {
                     fetched.forEach(({ di, r }) => { next[di] = r })
                     return next
                 })
+                // The expert panel is derived from the MeSH terms in the concept blocks, so a toggle
+                // moves it. The route recomputes it for PubMed and sends nothing for Scopus (no
+                // controlled vocabulary), so an absent key means "unchanged", not "empty".
+                const withExperts = fetched.find(f => f.experts)
+                if (withExperts) setExperts(withExperts.experts)
                 // Same again: the yield has landed, so now go and fill the column behind it.
                 fetched.forEach(({ di }) => fetchRows(strategies[di], di))
             } catch (e: any) {

@@ -240,7 +240,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
     // has no PMID at all, and a PMID-keyed seed check could only ever validate the half of Scopus
     // that PubMed already covers. See parseSeeds.
+    //
+    // AND IT IS BOUNDED, because a seed is the most expensive character a librarian can type. Each
+    // one costs several count calls to validate, and each one the strategy MISSES costs a Bedrock
+    // Opus call to diagnose. Paste the 60-PMID "known includes" list from a previous review and a
+    // single POST becomes ~300 sequential PubMed counts (paced at 500ms = minutes) plus one Opus
+    // invocation per miss. Nothing upstream capped it: not the textarea, not parseSeeds.
+    //
+    // The whole design is built around "the 3-5 seeds a librarian already knows should come back", so
+    // a bound of 10 costs a real user nothing and turns an unbounded paid fan-out into a 400.
+    const MAX_SEEDS = 10
     const seedList: Seed[] = parseSeeds(seeds)
+    if (seedList.length > MAX_SEEDS) {
+        return res.status(400).send({
+            statusCode: 400,
+            message: `At most ${MAX_SEEDS} known-item seeds. A seed check is a recall spot-check, not a screening pass — pick the few papers that must come back.`,
+        })
+    }
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
     if (phase === 'screen') {
@@ -333,7 +349,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
     }
 
-    // ---- RE-COUNT. No model, no cost log, no expert panel (none of them changed). -----------
+    // ---- RE-COUNT. No model and no cost log — but the EXPERT PANEL does change, and used not to.
+    //
+    // The old comment here said "none of them changed", and it was wrong about the panel:
+    // meshFromConcepts() reads `line.terms` straight out of the concept blocks, and a toggle or an
+    // edit is precisely a change to those blocks. So unticking both MeSH lines in the Depression
+    // block re-counted the yield, renumbered the lines — and left "top 5 of 430 faculty publishing on
+    // these MeSH terms" on screen, answering a strategy that no longer existed. A stale count with a
+    // confident caption is the same sin as a wrong one.
+    //
+    // Recomputed only for PubMed: the panel is derived from MeSH, and Scopus has no controlled
+    // vocabulary, so a Scopus toggle returns no `experts` key at all and the client leaves the panel
+    // exactly as it was rather than blanking it.
     //
     // This is the path a toggle takes, in BOTH modes: untick a line, tick a suggested widening,
     // tick a priced narrowing — all of them post the strategy and get back a count. That is what
@@ -348,7 +375,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const recounted = parseStrategy({ ...edited, dateId, typeId })
             const { unsupported } = buildLimits(recounted.db, String(dateId ?? ''), String(typeId ?? ''))
             const result = await runStrategy(recounted, seedList, unsupported)
-            return res.status(200).send({ statusCode: 200, databases: [result] })
+
+            let experts
+            if (recounted.db === 'pubmed') {
+                const mesh = meshFromConcepts(recounted.concepts)
+                experts = mesh.length ? await findWcmExperts(mesh, 5) as any : { experts: [], total: 0 }
+            }
+            return res.status(200).send({ statusCode: 200, databases: [result], ...(experts ? { experts } : {}) })
         } catch (err: any) {
             console.error('[literature] recount failed:', err)
             return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not re-count the strategy.' })
