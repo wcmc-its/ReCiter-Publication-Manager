@@ -1052,3 +1052,50 @@
   font-variant-numeric: tabular-nums;
   user-select: none;
 }
+
+/* THE COLUMN IS COMING. ~5s of em-dash used to be indistinguishable from a column that had already
+   died; the pulse says "in flight". Motion is suppressed for anyone who asked for that. */
+.rowPending {
+  color: var(--text-muted);
+  opacity: 0.55;
+  animation: rowPulse 1.4s ease-in-out infinite;
+}
+@keyframes rowPulse {
+  0%, 100% { opacity: 0.30; }
+  50%      { opacity: 0.75; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rowPending { animation: none; opacity: 0.55; }
+}
+
+/* THE COLUMN DIED. Deliberately NOT an em-dash: an em-dash means "not counted yet", and letting it
+   also mean "never coming" is how a librarian waits forever for a number that already failed. */
+.rowFailed {
+  color: var(--danger);
+  letter-spacing: 1px;
+  cursor: help;
+}
+
+.rowsFailed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: var(--radius-md, 6px);
+}
+
+.linkBtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--danger);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkBtn:hover { opacity: 0.75; }

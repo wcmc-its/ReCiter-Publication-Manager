@@ -97,14 +97,39 @@ type Seed = {
 // there is nothing true to say about it. And a MISSING count renders as nothing at all — never as a
 // 0. A throttled esearch comes back as a well-formed zero, so "0" is a value we must be able to
 // distinguish from "not counted yet", and the em-dash is how.
-function RowCount({ n, counts, stale }: { n: number | null; counts: Record<number, number>; stale: boolean }) {
+//
+// BUT "NOT COUNTED YET" AND "WE GAVE UP" ARE NOT THE SAME THING, and for a long time this rendered
+// them identically: a failed rows fetch left the column empty, so the em-dash quietly changed meaning
+// from "coming in a moment" to "never coming", and a librarian sat waiting for a number that had
+// already failed. An em-dash that silently stops meaning what it said is the same family of bug as a
+// count beside the wrong line — the screen looks calm and it is lying about its own state.
+//
+// So there are three states, and they look different:
+//   pending  — a soft ellipsis. The column is being counted; it takes ~5s and it IS coming.
+//   counted  — the number.
+//   failed   — an explicit mark, with a Retry beside the panel. Never an em-dash.
+type RowState = 'pending' | 'done' | 'failed'
+
+// Long enough for a transient NCBI blip to pass, short enough that a librarian does not notice. The
+// retrieval tool has already spent its own seven retries by the time we see a 502, so an instant
+// re-fire lands in the same bad moment; a pause is the entire point.
+const ROWS_RETRY_MS = 1500
+
+function RowCount({ n, counts, stale, state }: {
+    n: number | null; counts: Record<number, number>; stale: boolean; state: RowState
+}) {
     if (n === null) return <span className={s.rowCount} />
     const c = counts?.[n]
-    return (
-        <span className={`${s.rowCount} ${stale ? s.hitsStale : ''}`}>
-            {typeof c === 'number' ? c.toLocaleString() : '—'}
-        </span>
-    )
+    if (typeof c === 'number') {
+        return <span className={`${s.rowCount} ${stale ? s.hitsStale : ''}`}>{c.toLocaleString()}</span>
+    }
+    if (state === 'failed') {
+        return <span className={`${s.rowCount} ${s.rowFailed}`} title="This line could not be counted. PubMed did not answer.">·&thinsp;·&thinsp;·</span>
+    }
+    if (state === 'pending') {
+        return <span className={`${s.rowCount} ${s.rowPending}`} aria-label="counting">&hellip;</span>
+    }
+    return <span className={`${s.rowCount} ${stale ? s.hitsStale : ''}`}>&mdash;</span>
 }
 
 type DbResult = {
@@ -679,12 +704,21 @@ export default function LiteratureSearch() {
     // confidently, invisibly wrong, which is worse than no number.
     const rowSeq = useRef<Record<number, number>>({})
 
-    const fetchRows = async (st: Strategy, di: number) => {
+    // Per-database: is the column coming, here, or dead? Keyed by database index, like everything else
+    // in this file. Never conflated with `recounting`, which is about the YIELD.
+    const [rowState, setRowState] = useState<Record<number, RowState>>({})
+
+    const fetchRows = async (st: Strategy, di: number, attempt = 0) => {
         // Nothing to fetch for a database we cannot count. Skipping here rather than round-tripping
         // keeps the em-dashes on screen from the first paint, and does not burn a request to be told
         // what the dialect table already knows.
         if (!DIALECTS[st.db].countable) return
-        const mine = (rowSeq.current[di] = (rowSeq.current[di] || 0) + 1)
+
+        const mine = attempt === 0
+            ? (rowSeq.current[di] = (rowSeq.current[di] || 0) + 1)
+            : rowSeq.current[di]
+        setRowState(m => ({ ...m, [di]: 'pending' }))
+
         try {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
@@ -692,12 +726,36 @@ export default function LiteratureSearch() {
                 body: JSON.stringify({ phase: 'rows', strategy: st, dateId, typeId }),
             })
             const data = await res.json()
-            if (!res.ok) return                       // the yield still stands; the column just stays empty
             if (mine !== rowSeq.current[di]) return   // the strategy moved on. Drop it.
+
+            if (!res.ok) {
+                // ONE RETRY, AFTER A PAUSE — and then we stop and SAY SO.
+                //
+                // The 502 we actually see is a transient NCBI blip, and by the time it reaches us the
+                // retrieval tool has ALREADY burned its own seven internal retries on it (which is why
+                // the failing request takes ~19s). So an immediate re-fire would just fail again, and
+                // hammering is the one thing we must not do: the tool owns the rate policy because it
+                // knows the pod count and that NCBI's quota is per-KEY, shared with the ReCiter engine.
+                // A single attempt after a real pause costs one call and catches a blip that has passed.
+                //
+                // ponytail: one retry, fixed backoff. Ceiling — a longer outage still fails, and that is
+                // correct: it then says "could not count" and offers a button, rather than quietly
+                // grinding through an exponential ladder on someone else's rate budget.
+                if (attempt === 0 && res.status >= 500) {
+                    await new Promise(r => setTimeout(r, ROWS_RETRY_MS))
+                    if (mine !== rowSeq.current[di]) return
+                    return fetchRows(st, di, 1)
+                }
+                setRowState(m => ({ ...m, [di]: 'failed' }))
+                return
+            }
             setResults(rs => rs.map((r, i) => (i === di ? { ...r, rowCounts: data.rowCounts || {} } : r)))
+            setRowState(m => ({ ...m, [di]: 'done' }))
         } catch {
-            // Never fatal. The column is a reading aid; the yield, the seeds and the query are the
-            // deliverable, and they are already on screen.
+            // Never fatal — the column is a reading aid, and the yield, the seeds and the query are the
+            // deliverable and are already on screen. But it is not SILENT either: the row cells say
+            // "could not count" rather than sitting on an em-dash that reads as "still coming".
+            if (mine === rowSeq.current[di]) setRowState(m => ({ ...m, [di]: 'failed' }))
         }
     }
 
@@ -1383,7 +1441,7 @@ export default function LiteratureSearch() {
                                             <span className={s.lineGutter} />
                                             <span className={s.lineNum}>{row.n}</span>
                                             <span className={s.combine}>{row.text}</span>
-                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} />
+                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} state={rowState[di] || 'done'} />
                                         </div>
                                     )
                                 }
@@ -1405,7 +1463,7 @@ export default function LiteratureSearch() {
                                                 on={row.line.on}
                                                 onChange={v => edit(di, row.ci, row.li, v)}
                                             />
-                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} />
+                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} state={rowState[di] || 'done'} />
                                         </div>
                                         {/* The model's proposed widening: a LINE, not a paragraph. Verified
                                             (it really does retrieve that seed, against the whole strategy)
@@ -1425,6 +1483,22 @@ export default function LiteratureSearch() {
 
                             {!numbered.rows.some(r => r.kind === 'term' && r.n !== null) && (
                                 <div className={s.empty}>Nothing is ticked, so there is no strategy to run.</div>
+                            )}
+
+                            {/* THE COLUMN DIED, AND IT SAYS SO. The yield above is still real — it was
+                                counted in a different call — so this is not an error banner over the
+                                whole panel, which would overstate it. It is a line under the column
+                                that failed, offering the one thing that fixes it. */}
+                            {rowState[di] === 'failed' && (
+                                <div className={s.rowsFailed}>
+                                    <span>
+                                        The per-line counts could not be fetched &mdash; PubMed did not answer.
+                                        The yield above is unaffected.
+                                    </span>
+                                    <button className={s.linkBtn} onClick={() => fetchRows(liveStrategies[di], di)}>
+                                        Retry
+                                    </button>
+                                </div>
                             )}
 
                             <div className={s.addLines}>
