@@ -3,6 +3,7 @@ import { NextApiRequest } from 'next'
 import httpBuildQuery from 'http-build-query'
 import url from 'url'
 import { deleteUserFeedback, findUserFeedback } from './userfeedback.controller'
+import { attachArticleProvenance } from '../src/lib/articleProvenance'
 
 export async function getPublications(uid: string | string[], req: NextApiRequest)  {
 
@@ -31,35 +32,11 @@ export async function getPublications(uid: string | string[], req: NextApiReques
                         statusText: responseText
                     }
                 } else {
-                    // CHANGED: Previously called `await res.json()` directly, which throws
-                    // an uncaught SyntaxError if the upstream API returns HTTP 200 with an
-                    // empty or malformed body. Now we read the raw text first and parse it
-                    // manually so we can distinguish "empty body" vs "invalid JSON" and
-                    // return a proper, well-formed error response instead of letting the
-                    // exception fall through to the outer .catch() (where it caused
-                    // apiResponse.statusCode to become undefined downstream).
-                    let data: any
-                    try {
-                        const responseText = await res.text()
-                        data = responseText ? JSON.parse(responseText) : null
-                    } catch (parseError) {
-                        console.log('ReCiter API returned invalid JSON: ' + parseError)
-                        return {
-                            statusCode: 502,
-                            statusText: 'Upstream returned invalid or empty JSON'
-                        }
-                    }
-
-                    // CHANGED: Explicitly handle the "valid JSON but empty body" case
-                    // (data === null) so it doesn't silently proceed into
-                    // getPendingFeedback() with a null data object.
-                    if (data === null) {
-                        return {
-                            statusCode: 502,
-                            statusText: 'Upstream returned an empty response body'
-                        }
-                    }
-
+                    let data: any = await res.json()
+                    // Enrich with first-retrieval date from DynamoDB ArticleProvenance
+                    // (on-the-fly, per (personIdentifier, pmid)). Non-fatal.
+                    const personIdentifier = Array.isArray(uid) ? uid[0] : uid
+                    await attachArticleProvenance(personIdentifier, data)
                     let finalData = await getPendingFeedback(uid, data)
                     return {
                         statusCode: res.status,
@@ -69,14 +46,9 @@ export async function getPublications(uid: string | string[], req: NextApiReques
             })
             .catch((error) => {
                 console.log('ReCiter Update Goldstandard api is not reachable: ' + error)
-                // CHANGED: `error.status` is undefined for most JS errors (e.g. SyntaxError,
-                // TypeError, network errors), which previously caused apiResponse.statusCode
-                // to be `undefined`. That undefined was later passed straight into
-                // res.status(undefined) in the API handler, crashing the process with
-                // ERR_HTTP_INVALID_STATUS_CODE. Now we fall back to 500 and a safe message.
                 return {
-                    statusCode: error?.status ?? 500,
-                    statusText: error?.message ?? 'Unknown error'
+                    statusCode: error.status,
+                    statusText: error
                 }
             });
 }
@@ -124,6 +96,7 @@ async function getPendingFeedback(uid: string | string[], data: any) {
     }
     return reciterData
 }
+
 
 
 function formatPublications(data: any) {
