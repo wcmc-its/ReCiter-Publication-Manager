@@ -3,6 +3,7 @@ import { NextApiRequest } from 'next'
 import httpBuildQuery from 'http-build-query'
 import url from 'url'
 import { deleteUserFeedback, findUserFeedback } from './userfeedback.controller'
+import { attachArticleProvenance } from '../src/lib/articleProvenance'
 
 export async function getPublications(uid: string | string[], req: NextApiRequest)  {
 
@@ -31,6 +32,7 @@ export async function getPublications(uid: string | string[], req: NextApiReques
                         statusText: responseText
                     }
                 } else {
+                    
                     // CHANGED: Previously called `await res.json()` directly, which throws
                     // an uncaught SyntaxError if the upstream API returns HTTP 200 with an
                     // empty or malformed body. Now we read the raw text first and parse it
@@ -49,6 +51,8 @@ export async function getPublications(uid: string | string[], req: NextApiReques
                             statusText: 'Upstream returned invalid or empty JSON'
                         }
                     }
+                    const personIdentifier = Array.isArray(uid) ? uid[0] : uid
+                     await attachArticleProvenance(personIdentifier, data)
 
                     // CHANGED: Explicitly handle the "valid JSON but empty body" case
                     // (data === null) so it doesn't silently proceed into
