@@ -16,5 +16,5 @@ export function isAllowlisted(cwid: string | null | undefined): boolean {
         .filter(Boolean)
     // An empty list means the pilot is closed, NOT open to everyone. Fail shut.
     if (!allowed.length || !cwid) return false
-    return allowed.includes(String(cwid).toLowerCase())
+    return allowed.includes(cwid.toLowerCase())
 }
