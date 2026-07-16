@@ -108,6 +108,23 @@ function buildWhere(body: any): any {
 const siblingKey = (r: any) =>
   r.source === "scopus" ? String(r.external_id || "") : String(r.pmid ?? "");
 
+// Which of these cwids have a ReCiter identity? `person` mirrors ReCiter's Identity table
+// (the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
+// someone — typically inactive faculty — ReCiter doesn't track; accepting those 404s at the
+// ExternalArticle endpoint and orphans gold-standard writes). Checked at read time, not
+// produce time, because people also leave WCM after a row is produced.
+// ponytail: app-side IN() lookup instead of a SQL JOIN — person/authorship_review collations
+// differ (general_ci vs unicode_ci), which breaks and de-indexes a direct join.
+async function reciterIdentitySet(cwids: Array<string | undefined | null>): Promise<Set<string>> {
+  const wanted = [...new Set(cwids.filter(Boolean).map(String))];
+  if (wanted.length === 0) return new Set();
+  const found: any[] = await models.Person.findAll({
+    where: { personIdentifier: { [Op.in]: wanted } },
+    attributes: ["personIdentifier"], raw: true,
+  });
+  return new Set(found.map((p) => String(p.personIdentifier)));
+}
+
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
 export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -149,9 +166,15 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       });
       scopusSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
     }
+    const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
     const out = rows.map((r: any) => {
       const map = r.source === "scopus" ? scopusSib : pmidSib;
-      return { ...r.toJSON(), pmid_sibling_count: map[siblingKey(r)] || 1 };
+      return {
+        ...r.toJSON(),
+        pmid_sibling_count: map[siblingKey(r)] || 1,
+        // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
+        identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
+      };
     });
 
     res.send({ rows: out, count, limit, offset });
@@ -287,6 +310,10 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
       case "accept": {
         if (!cwid) return res.status(409).send("No proposed identity to accept");
         if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
+        // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
+        if (!(await reciterIdentitySet([cwid])).size) {
+          return res.status(422).send(`${row.top_name || cwid} has no ReCiter identity (likely departed/inactive) — this authorship can't be accepted; dismiss it instead`);
+        }
         if (isScopus) {
           const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
           if (resp.statusCode === 409) return res.status(409).send(resp.statusText);
@@ -313,6 +340,9 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         } catch { candidateCwids = []; }
         const allowed = new Set([row.top_cwid, ...candidateCwids].filter(Boolean).map(String));
         if (!allowed.has(chosen)) return res.status(400).send("cwid is not a candidate for this authorship");
+        if (!(await reciterIdentitySet([chosen])).size) {
+          return res.status(422).send(`${chosen} has no ReCiter identity (likely departed/inactive) — this authorship can't be assigned; dismiss it instead`);
+        }
         if (isScopus) {
           const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
           if (resp.statusCode === 409) return res.status(409).send(resp.statusText);
