@@ -16,10 +16,10 @@
   align-items: center;
   gap: 10px;
   font-family: var(--font-sans);
-  background: none;
-  border: none;
-  padding: 0;
-  margin-left: 12px;
+  background: #faf8f5;
+  border: 1px solid #e8e2d9;
+  border-radius: 6px;
+  padding: 9px 16px;
 }
 
 .showLabel {

@@ -12,6 +12,15 @@ import { useSession } from 'next-auth/react';
 import { allowedPermissions } from "../../../utils/constants";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
+import { stripHtml } from "../../../utils/htmlText";
+
+// Title/journal fields can carry PubMed inline markup (<i>, <sub>, …); strip to
+// plain text for spreadsheet cells, which can't render HTML.
+const HTML_BEARING_FIELDS = ['articleTitle', 'articleTitleRTF', 'journalTitleVerbose'];
+const stripHtmlFields = (row: any): any => {
+  HTML_BEARING_FIELDS.forEach((k) => { if (row && row[k]) row[k] = stripHtml(row[k]); });
+  return row;
+};
 
 interface PrimaryName {
   firstInitial?: string,
@@ -217,7 +226,7 @@ const Profile = ({
             itemRow = { ...itemRow, ...item[obj] };
           }
         })
-        worksheet.addRow(itemRow);
+        worksheet.addRow(stripHtmlFields(itemRow));
       })
       const buf = await workbook.csv.writeBuffer();
       let blobFromBuffer = new Blob([buf]);

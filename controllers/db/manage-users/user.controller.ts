@@ -8,6 +8,33 @@ models.AdminUser.hasMany(models.AdminUsersDepartment, {as:'AdminUserDept', const
 models.AdminUser.hasOne(models.Person, {as:'person', constraints: false,foreignKey:"personIdentifier" });
 models.AdminUser.hasMany(models.AdminDepartment, {as:'AdminDepartment', constraints: false,foreignKey:"departmentID" });
 
+/**
+ * Resolve a set of admin_users.userID values to display names, for the curation
+ * Audit History (FeedbackLog.curatedBy). Returns a { userID: name } map; ids that
+ * are missing/invalid (e.g. 0 = unknown) are simply absent from the map.
+ */
+export const findAdminUserNamesByIds = async (ids: number[]): Promise<{ [id: number]: string }> => {
+  const map: { [id: number]: string } = {};
+  const valid = (ids || []).filter((id) => Number.isInteger(id) && id > 0);
+  if (valid.length === 0) {
+    return map;
+  }
+  try {
+    const users: any[] = await models.AdminUser.findAll({
+      where: { userID: { [Op.in]: valid } },
+      attributes: ['userID', 'nameFirst', 'nameLast'],
+      raw: true,
+    });
+    users.forEach((u) => {
+      const name = [u.nameFirst, u.nameLast].filter(Boolean).join(' ').trim();
+      map[u.userID] = name || String(u.userID);
+    });
+  } catch (e) {
+    console.log('findAdminUserNamesByIds error', e);
+  }
+  return map;
+};
+
 export const listAllUsers = async (
   req: NextApiRequest,
   res: NextApiResponse

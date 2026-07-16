@@ -3,6 +3,7 @@ import styles from "./ReportsResultPane.module.css";
 import { AuthorsComponent } from "../Common/AuthorsComponent";
 import { Author } from "../../../../types/Author";
 import { setHelptextInfo, setReportFilterLabels, setReportFilterDisplayRank, setIsVisible } from "../../../utils/constants";
+import { sanitizeInlineHtml } from "../../../utils/htmlText";
 
 interface ReportsResultPaneProps {
   title: string
@@ -111,7 +112,7 @@ export const ReportsResultPane: React.FC<ReportsResultPaneProps> = ({
     <div className={styles.articleCard}>
       {/* Title + type badge */}
       <div className={styles.articleCardTop}>
-        <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: title }} />
+        <div className={styles.articleTitle} dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(title) }} />
         <span className={styles.typeBadge}>{publicationTypeCanonical}</span>
       </div>
 

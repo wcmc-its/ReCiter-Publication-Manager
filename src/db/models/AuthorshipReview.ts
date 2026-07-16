@@ -6,8 +6,12 @@ import { DataTypes, Model, Optional } from 'sequelize';
 // adversarial-attribution-review producer. Column names are snake_case to match that table.
 export interface AuthorshipReviewAttributes {
   id: number;
-  pmid: number;
+  source: 'pubmed' | 'scopus';
+  pmid?: number;                 // NULL for scopus rows (no PMID)
+  external_id?: string;          // numeric Scopus record ID (scopus rows)
   author_key: string;
+  pub_type?: string;             // Scopus subtypeDescription (Article / Book Chapter / …)
+  container_id?: string;         // book base DOI (scopus book chapters)
   author_position?: number;
   author_position_label?: string;
   wcm_author?: string;
@@ -43,13 +47,17 @@ export interface AuthorshipReviewAttributes {
 
 export type AuthorshipReviewPk = "id";
 export type AuthorshipReviewId = AuthorshipReview[AuthorshipReviewPk];
-export type AuthorshipReviewOptionalAttributes = "id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
+export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
 export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttributes, AuthorshipReviewOptionalAttributes>;
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
   id!: number;
-  pmid!: number;
+  source!: 'pubmed' | 'scopus';
+  pmid?: number;
+  external_id?: string;
   author_key!: string;
+  pub_type?: string;
+  container_id?: string;
   author_position?: number;
   author_position_label?: string;
   wcm_author?: string;
@@ -85,8 +93,12 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   static initModel(sequelize: Sequelize.Sequelize): typeof AuthorshipReview {
     AuthorshipReview.init({
       id: { autoIncrement: true, type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
-      pmid: { type: DataTypes.BIGINT, allowNull: false },
-      author_key: { type: DataTypes.STRING(32), allowNull: false },
+      source: { type: DataTypes.ENUM('pubmed', 'scopus'), allowNull: false, defaultValue: 'pubmed' },
+      pmid: { type: DataTypes.BIGINT, allowNull: true },
+      external_id: { type: DataTypes.STRING(96), allowNull: true },
+      author_key: { type: DataTypes.STRING(160), allowNull: false },
+      pub_type: { type: DataTypes.STRING(40), allowNull: true },
+      container_id: { type: DataTypes.STRING(96), allowNull: true },
       author_position: { type: DataTypes.INTEGER, allowNull: true },
       author_position_label: { type: DataTypes.STRING(8), allowNull: true },
       wcm_author: { type: DataTypes.STRING(255), allowNull: true },
@@ -125,6 +137,7 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       indexes: [
         { name: "PRIMARY", unique: true, using: "BTREE", fields: [{ name: "id" }] },
         { name: "uq_author_key", unique: true, using: "BTREE", fields: [{ name: "author_key" }] },
+        { name: "ix_source", using: "BTREE", fields: [{ name: "source" }] },
         { name: "ix_pmid", using: "BTREE", fields: [{ name: "pmid" }] },
         { name: "ix_classification", using: "BTREE", fields: [{ name: "classification" }] },
         { name: "ix_status", using: "BTREE", fields: [{ name: "status" }] },

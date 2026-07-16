@@ -17,7 +17,15 @@ const MenuListItem: React.FC<MenuItem> = ({ title, to, id, imgUrl, imgUrlActive,
   }
 
   const pathName = customRouterPathNames(router.pathname);
-  const selected = to.includes(pathName);
+  // Highlight this item only when the current route IS its route or a sub-route of it
+  // (e.g. Curate Publications stays lit on /curate/[id]). The last clause keeps the
+  // notifications/manageprofile items lit, whose `to` carries the username while
+  // pathName is normalized to the base. The trailing '/' guards against sibling
+  // prefixes (e.g. /report must not match /reportbuilder).
+  const selected =
+    to === pathName ||
+    pathName.startsWith(to + '/') ||
+    to.startsWith(pathName + '/');
 
   const renderIcon = () => {
     if (muiIcon) return muiIcon;

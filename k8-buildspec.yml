@@ -83,6 +83,12 @@ phases:
           kubectl set image deployment/reciter-pm-prod reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
         fi
         if expr "${BRANCH}" : ".*dev" >/dev/null ||  expr "${BRANCH}" : ".*dev_Upd_NextJS14" >/dev/null; then
+          # Reconcile the whole manifest (env/probes/HPA/service), not just the image, so config
+          # drift can't silently accumulate the way it did for years. Stamp the freshly-built tag
+          # into the manifest first so apply deploys the real image, not the ":dev" placeholder.
+          # Best-effort: if apply fails, the set-image below still ships the build (non-regressive).
+          sed -i.bak "s#reciter-publication-manager:dev#reciter-publication-manager:$TAG#" kubernetes/k8-deployment.yaml
+          kubectl apply -f kubernetes/k8-deployment.yaml -f kubernetes/k8-service.yaml -n $EKS_CLUSTER_NAME || echo "WARNING: kubectl apply failed; falling back to set-image"
           kubectl set image deployment/reciter-pm-dev reciter-pm=$REPOSITORY_URI:$TAG -n $EKS_CLUSTER_NAME
         fi
         if expr "${BRANCH}" : ".*master_Next14" >/dev/null; then
