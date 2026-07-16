@@ -132,8 +132,8 @@ export const reciterConfig = {
      * RECITER_API_BASE_URL when unset.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-complex/',
-        searchPubmedCountEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-number-pubmed-articles/',
+        searchPubmedEndpoint: process.env.RECITER_PUBMED_API_URL + '/pubmed/query-complex/',
+        searchPubmedCountEndpoint: process.env.RECITER_PUBMED_API_URL + '/pubmed/query-number-pubmed-articles/',
     },
     /**
      * Scopus search via the ReCiter Scopus Retrieval Tool. The tool holds the Elsevier
@@ -143,8 +143,8 @@ export const reciterConfig = {
      * See https://github.com/wcmc-its/ReCiter-Scopus-Retrieval-Tool.git.
      */
     reciterScopus: {
-        searchDocumentsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/documents',
-        searchAuthorsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/authors',
+        searchDocumentsEndpoint: process.env.RECITER_SCOPUS_API_URL + '/scopus/search/documents',
+        searchAuthorsEndpoint: process.env.RECITER_SCOPUS_API_URL  + '/scopus/search/authors',
     },
     /**
      * PM#771 — OpenAlex is a free, keyless public API. It is queried ONLY server-side
