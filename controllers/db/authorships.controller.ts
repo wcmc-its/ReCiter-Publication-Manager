@@ -269,6 +269,23 @@ async function appendFeedbackLog(userID: number, personIdentifier: string, pmid:
   await updatePendingArticleCount(personIdentifier, feedback);
 }
 
+// Interpret a 409 dup-conflict body from the ExternalArticle add. BLOCKED = the article is
+// already in the person's record (ALREADY_ADDED, or a PMID/DOI match to an attributed
+// article) — ReCiter ignores force for BLOCKED, so the accept's end state already exists
+// and the caller should resolve the row as accepted instead of bouncing forever. (Dev and
+// prod PM share one DynamoDB ExternalArticle table but have separate review queues, so a
+// row accepted in one env stays open in the other and re-accepting it lands here.)
+// WARNING = fuzzy title+year match the curator may force; surface its human message.
+function dupConflict(body: any): { blocked: boolean; message: string } {
+  const detail = Array.isArray(body?.matches) && body.matches.length
+    ? ` (${body.matches.map((m: any) => m.matchedId || m.type).filter(Boolean).join(", ")})`
+    : "";
+  return {
+    blocked: body?.status === "BLOCKED",
+    message: `${body?.message || "Possible duplicate."}${detail}`,
+  };
+}
+
 // ExternalArticle payload for a scopus row (no PMID → not gold standard). articleId is
 // "SCOPUS:<numericId>" where numericId = external_id (dc:identifier minus SCOPUS_ID:).
 function scopusExternalPayload(row: any) {
@@ -316,8 +333,13 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         }
         if (isScopus) {
           const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
-          if (resp.statusCode === 409) return res.status(409).send(resp.statusText);
-          if (resp.statusCode !== 201 && resp.statusCode !== 200) return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          if (resp.statusCode === 409) {
+            const dup = dupConflict(resp.statusText);
+            // BLOCKED → already in the record: fall through and resolve the row as accepted
+            if (!dup.blocked) return res.status(409).send(dup.message);
+          } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
+            return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          }
           await models.AuthorshipReview.update({ status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() }, { where: { id } });
           break; // no AdminFeedbackLog / pending-count for scopus (PMID-keyed)
         }
@@ -345,8 +367,12 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         }
         if (isScopus) {
           const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
-          if (resp.statusCode === 409) return res.status(409).send(resp.statusText);
-          if (resp.statusCode !== 201 && resp.statusCode !== 200) return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          if (resp.statusCode === 409) {
+            const dup = dupConflict(resp.statusText);
+            if (!dup.blocked) return res.status(409).send(dup.message);
+          } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
+            return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          }
           await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
