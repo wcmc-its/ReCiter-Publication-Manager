@@ -9,12 +9,18 @@
 //
 // This file exists rather than an import from search.ts because that would drag the Bedrock SDK and
 // the PubMed controllers into the auth bundle. It is deliberately dependency-free.
-export function isAllowlisted(cwid: string | null | undefined): boolean {
-    const allowed = (process.env.LITERATURE_SEARCH_CWIDS || '')
+// Parsed once at module load — the roster is fixed for the life of the process, and a rollback
+// (emptying the env var) is a redeploy, which re-runs this. A Set gives an O(1) membership test.
+const ALLOWLIST = new Set(
+    (process.env.LITERATURE_SEARCH_CWIDS || '')
         .split(',')
         .map(s => s.trim().toLowerCase())
-        .filter(Boolean)
+        .filter(Boolean),
+)
+
+export function isAllowlisted(cwid: string | null | undefined): boolean {
     // An empty list means the pilot is closed, NOT open to everyone. Fail shut.
-    if (!allowed.length || !cwid) return false
-    return allowed.includes(cwid.toLowerCase())
+    // Trim the incoming cwid too — a stray space from a form field or header must not silently miss.
+    if (!cwid || ALLOWLIST.size === 0) return false
+    return ALLOWLIST.has(cwid.trim().toLowerCase())
 }

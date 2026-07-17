@@ -63,12 +63,16 @@ if (fs.existsSync(envFile)) {
     }
 }
 
-execSync(
-    `npx tsc controllers/literatureSearch.controller.ts controllers/literatureExport.ts ` +
-    `controllers/literatureDocx.ts --outDir ${OUT} ` +
-    `--module commonjs --target es2020 --esModuleInterop --skipLibCheck --allowJs`,
-    { cwd: ROOT, stdio: 'inherit' },
-)
+try {
+    execSync(
+        `npx tsc controllers/literatureSearch.controller.ts controllers/literatureExport.ts ` +
+        `controllers/literatureDocx.ts --outDir ${OUT} ` +
+        `--module commonjs --target es2020 --esModuleInterop --skipLibCheck --allowJs`,
+        { cwd: ROOT, stdio: 'inherit' },
+    )
+} catch (err) {
+    throw new Error(`Failed to compile literature modules for the check: ${err.message}`)
+}
 const lit = require(path.join(OUT, 'controllers/literatureSearch.controller.js'))
 
 // A strategy shaped exactly as the model is prompted to emit one: PRESS-style, each concept

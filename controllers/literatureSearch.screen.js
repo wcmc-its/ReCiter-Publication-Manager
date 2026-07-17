@@ -48,9 +48,14 @@ const { execSync } = require('child_process')
 const ROOT = path.resolve(__dirname, '..')
 const OUT = path.join(ROOT, '.litrecall')
 
-for (const line of fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8').split('\n')) {
-    const m = line.match(/^([A-Z_]+)\s*=\s*(.*)$/)
-    if (m) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '')
+// .env.local is gitignored, so a CI checkout has no such file — read it only if it exists, else the
+// same names arrive as real environment variables. When it exists it wins over a stale shell export.
+const envFile = path.join(ROOT, '.env.local')
+if (fs.existsSync(envFile)) {
+    for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+        const m = line.match(/^([A-Z_]+)\s*=\s*(.*)$/)
+        if (m) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '')
+    }
 }
 
 fs.rmSync(OUT, { recursive: true, force: true })

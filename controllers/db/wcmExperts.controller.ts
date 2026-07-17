@@ -16,16 +16,9 @@
 //   - primaryOrganizationalUnit is genuinely blank for MSK-side appointments (Pamer,
 //     Van den Brink, Xavier). Render that as "department not recorded", never an empty cell.
 
-import sequelize from '../../src/db/db'
-import { QueryTypes } from 'sequelize'
+import { WcmExpert, queryTopExperts, queryExpertTotal } from './wcmExperts.repository'
 
-export type WcmExpert = {
-    personIdentifier: string
-    firstName: string
-    lastName: string
-    primaryOrganizationalUnit: string | null
-    pubs: number
-}
+export type { WcmExpert }
 
 export type WcmExpertResult = {
     experts: WcmExpert[]
@@ -36,36 +29,7 @@ export async function findWcmExperts(meshTerms: string[], limit = 5): Promise<Wc
     const terms = (meshTerms || []).map(t => String(t).trim()).filter(Boolean)
     if (terms.length === 0) return { experts: [], total: 0 }
 
-    // Only ACCEPTED assertions count — a suggested-but-unconfirmed article is not evidence
-    // that this person works on the topic.
-    const experts: WcmExpert[] = await sequelize.query(
-        `SELECT p.personIdentifier, p.firstName, p.lastName,
-                p.primaryOrganizationalUnit,
-                COUNT(DISTINCT k.pmid) AS pubs
-         FROM person_article_keyword k
-         JOIN person_article pa ON pa.personIdentifier = k.personIdentifier
-                               AND pa.pmid = k.pmid
-                               AND pa.userAssertion = 'ACCEPTED'
-         JOIN person p ON p.personIdentifier = k.personIdentifier
-         WHERE k.keyword IN (:terms)
-         GROUP BY p.personIdentifier, p.firstName, p.lastName, p.primaryOrganizationalUnit
-         ORDER BY pubs DESC
-         LIMIT :limit`,
-        { replacements: { terms, limit }, type: QueryTypes.SELECT },
-    ) as WcmExpert[]
-
-    const totalRow: any[] = await sequelize.query(
-        `SELECT COUNT(*) AS total FROM (
-             SELECT k.personIdentifier
-             FROM person_article_keyword k
-             JOIN person_article pa ON pa.personIdentifier = k.personIdentifier
-                                   AND pa.pmid = k.pmid
-                                   AND pa.userAssertion = 'ACCEPTED'
-             WHERE k.keyword IN (:terms)
-             GROUP BY k.personIdentifier
-         ) t`,
-        { replacements: { terms }, type: QueryTypes.SELECT },
-    )
-
-    return { experts, total: Number(totalRow?.[0]?.total ?? 0) }
+    const experts = await queryTopExperts(terms, limit)
+    const total = await queryExpertTotal(terms)
+    return { experts, total }
 }

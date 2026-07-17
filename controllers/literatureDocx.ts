@@ -20,6 +20,16 @@ import {
 } from 'docx'
 import type { Block } from './literatureExport'
 
+type RenderNode = Paragraph | Table
+
+const SPACING = {
+    paragraph: { after: 120 },
+    heading1: { after: 180 },
+    heading2: { before: 240, after: 120 },
+} as const
+
+const DEFAULT_STYLES = { default: { document: { run: { font: 'Calibri', size: 22 } } } } as const
+
 // A short row would silently shift every later cell one column left, which reads as corrupted data
 // rather than as a missing value.
 const padTo = (r: string[], n: number) => Array.from({ length: n }, (_, i) => r[i] ?? '')
@@ -61,35 +71,40 @@ function paragraphs(text: string): Paragraph[] {
     const parts = String(text ?? '').split(/\n{2,}/)
     const split = parts.length > 1 ? parts : String(text ?? '').split(/\n/)
     const kept = split.map(t => t.trim()).filter(Boolean)
-    return (kept.length ? kept : ['']).map(t => new Paragraph({ children: [new TextRun(t)], spacing: { after: 120 } }))
+    return (kept.length ? kept : ['']).map(t => new Paragraph({ children: [new TextRun(t)], spacing: SPACING.paragraph }))
 }
 
-function render(b: Block): Array<Paragraph | Table> {
+function renderBlock(b: Block): RenderNode[] {
     switch (b.kind) {
         case 'h1':
-            return [new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_1, spacing: { after: 180 } })]
+            return [new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_1, spacing: SPACING.heading1 })]
         case 'h2':
-            return [new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 120 } })]
+            return [new Paragraph({ text: b.text, heading: HeadingLevel.HEADING_2, spacing: SPACING.heading2 })]
         case 'p':
             return paragraphs(b.text)
         case 'small':
-            return [new Paragraph({ children: [new TextRun({ text: b.text, italics: true, size: 18 })], spacing: { after: 120 } })]
+            return [new Paragraph({ children: [new TextRun({ text: b.text, italics: true, size: 18 })], spacing: SPACING.paragraph })]
         // The query. It has to survive copy-paste back into PubMed, so it is monospaced and never
         // wrapped in anything that could reflow it — including by the paragraph splitter above.
         case 'mono':
-            return [new Paragraph({ children: [new TextRun({ text: b.text, font: 'Consolas', size: 18 })], spacing: { after: 120 } })]
+            return [new Paragraph({ children: [new TextRun({ text: b.text, font: 'Consolas', size: 18 })], spacing: SPACING.paragraph })]
         case 'table':
             return [table(b.head, b.rows)]
         case 'spacer':
             return [new Paragraph({ text: '' })]
+        default: {
+            // Adding a new Block kind without a case here becomes a compile error, not a silent drop.
+            const exhaustive: never = b
+            return exhaustive
+        }
     }
 }
 
 export function docxDoc(blocks: Block[]): Document {
     return new Document({
-        styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
+        styles: DEFAULT_STYLES,
         // Word will not lay a table out flush against the next paragraph without something between
         // them, so every table gets a trailing empty paragraph.
-        sections: [{ children: blocks.flatMap(b => (b.kind === 'table' ? [...render(b), new Paragraph({ text: '' })] : render(b))) }],
+        sections: [{ children: blocks.flatMap(b => (b.kind === 'table' ? [...renderBlock(b), new Paragraph({ text: '' })] : renderBlock(b))) }],
     })
 }
