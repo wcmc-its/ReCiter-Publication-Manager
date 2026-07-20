@@ -29,6 +29,9 @@ export const generatePubsRtf = async (
   res: NextApiResponse
 ) => {
   try {
+     if (req == null || req.body == null) {
+      return res.status(400).send("Request body is required");
+    }
     let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     let generatePubsRtfOutput: any = [];
 								
@@ -76,6 +79,9 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
+    if (req == null || req.body == null) {
+      return res.status(400).send("Request body is required");
+     }
       let apiBody: GeneratePubsPeopleOnlyApiBody = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
         "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
@@ -99,6 +105,9 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
+      if (req == null || req.body == null) {
+        return res.status(400).send("Request body is required");
+      }
       let apiBody: PublicationSearchFilter = req.body;
       const where = {};
       const joinOrgWhere ={};
@@ -343,6 +352,9 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
+      if (req == null || req.body == null) {
+        return res.status(400).send("Request body is required");
+      }
       let apiBody: PublicationSearchFilter = req.body;
       const where = {};
       const joinOrgWhere ={};
@@ -659,6 +671,9 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
+      if (req == null || req.body == null) {
+        return res.status(400).send("Request body is required");
+      }
       let apiBody: any = req.body;
       const where = {};
 					  

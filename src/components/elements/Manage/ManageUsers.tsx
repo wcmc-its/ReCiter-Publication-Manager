@@ -57,13 +57,31 @@ const ManageUsers = () => {
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel.labelUserView)
     } else if (session?.adminSettings) {
-      let adminSettings = typeof session.adminSettings === "string" ? JSON.parse(session.adminSettings) : session.adminSettings;
-      let data = adminSettings.find(obj => obj.viewName === "findPeople")
-      viewAttributes = typeof data.viewAttributes === "string" ? JSON.parse(data.viewAttributes) : data.viewAttributes;
-      let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
-      let notificationsData = adminSettings.find(obj => obj.viewName === "EmailNotifications")
-      emailNotifications = typeof notificationsData.viewAttributes === "string" ? JSON.parse(notificationsData.viewAttributes) : notificationsData.viewAttributes;
-      cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
+      let adminSettings = typeof session.adminSettings === "string"
+        ? JSON.parse(session.adminSettings)
+        : session.adminSettings;
+      if (Array.isArray(adminSettings)) {
+        let data = adminSettings.find(obj => obj?.viewName === "findPeople");
+        if (data?.viewAttributes != null) {
+          viewAttributes = typeof data.viewAttributes === "string"
+            ? JSON.parse(data.viewAttributes)
+            : data.viewAttributes;
+        }
+        if (!Array.isArray(viewAttributes)) {
+          viewAttributes = [];
+        }
+        let cwidLabel = viewAttributes.find(item => item?.labelUserKey === "personIdentifier");
+        let notificationsData = adminSettings.find(obj => obj?.viewName === "EmailNotifications");
+        if (notificationsData?.viewAttributes != null) {
+          emailNotifications = typeof notificationsData.viewAttributes === "string"
+            ? JSON.parse(notificationsData.viewAttributes)
+            : notificationsData.viewAttributes;
+        }
+        if (!Array.isArray(emailNotifications)) {
+          emailNotifications = [];
+        }
+        cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView);
+      }
     }
     let settingsObj = emailNotifications && emailNotifications.find(data => data.isVisible)
     setVisibleNotification(settingsObj && settingsObj.isVisible || false)

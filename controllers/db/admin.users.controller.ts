@@ -82,6 +82,10 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
     try {
 
         const data =  await Promise.all(userRolePayload.map(async role=>{
+            if (role == null) {
+                console.log('Skipping null/undefined role entry');
+                return null;
+            }
             let userRole = typeof role === "string" ? JSON.parse(role) : null;
             let userID = userRole?.userID;
             let roleID = userRole?.roleID;

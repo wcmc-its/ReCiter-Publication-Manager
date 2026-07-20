@@ -85,6 +85,7 @@ const CurateIndividual = () => {
       .then(data => {
         let parsedSettingsArray = [];
         data.map((obj, index1) => {
+    
           let c = typeof(obj.viewAttributes) === "string" ? JSON.parse(obj.viewAttributes) : JSON.parse(JSON.stringify(obj.viewAttributes));
 
           let parsedSettings = {

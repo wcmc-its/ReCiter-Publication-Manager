@@ -43,20 +43,39 @@ const Login = () => {
             });
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
-                if (session) {
-                    let userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== "" ? JSON.parse(session.data.userRoles) : [];
-                    let userName = session.data.username;
-                     if(!userPermissions || userPermissions == "" ){
-                         router.push('/noaccess');
-                     }else{
-                        let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
-                        if((userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) && userName && personIdentifier)
-                            router.push(`curate/${personIdentifier}`);
-                        else 
-                           router.push('/search');
+                 if (session == null || session.data == null) {
+                     router.push('/noaccess');
+                     return;
+                 }
+                 let userPermissions = [];
+
+                 try {
+                     userPermissions = typeof session.data.userRoles === "string" && session.data.userRoles !== ""
+                         ? JSON.parse(session.data.userRoles)
+                         : Array.isArray(session.data.userRoles)
+                             ? session.data.userRoles
+                             : [];
+                 } catch (e) {
+                     console.error('Failed to parse userRoles JSON:', e);
+                     userPermissions = [];
+                 }
+                 let userName = session.data.username;
+
+                 if (!Array.isArray(userPermissions) || userPermissions.length === 0) {
+                     router.push('/noaccess');
+                 } else {
+                     let personIdentifier = userPermissions && userPermissions.length > 0 ? userPermissions[0].personIdentifier : "";
+
+                     if (userPermissions.some(role => role?.roleLabel === allowedPermissions.Curator_Self) && userName && personIdentifier) {
+                         router.push(`curate/${personIdentifier}`);
+                     } else {
+                         router.push('/search');
                      }
-                } 
-            });
+                 }
+             }).catch((e) => {
+                 console.error('getSession failed:', e);
+                 router.push('/noaccess');
+             });
             
         } else {
             setInvalidCredentialsFlag(true)
