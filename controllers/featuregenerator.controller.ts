@@ -41,7 +41,7 @@ export async function getPublications(uid: string | string[], req: NextApiReques
                     let data: any
                     try {
                         const responseText = await res.text()
-                        data = responseText ? JSON.parse(responseText) : null
+                        data = responseText && typeof responseText === 'string' ?? JSON.parse(responseText) : null
                     } catch (parseError) {
                         console.log('ReCiter API returned invalid JSON: ' + parseError)
                         return {
