@@ -33,8 +33,9 @@ export async function middleware(request: NextRequest) {
       if(decodedTokenJson )
           allUserRoles = JSON.stringify(decodedTokenJson);
       if (allUserRoles && allUserRoles.length > 0) {
-          let userRoles = allUserRoles && allUserRoles?.length > 0 && JSON.parse(allUserRoles)
-          userRoles = JSON.parse(userRoles.userRoles);
+          let userRoles = typeof allUserRoles === "string" ? JSON.parse(allUserRoles) : allUserRoles;
+          userRoles = typeof userRoles.userRoles === "string" ? JSON.parse(userRoles.userRoles) : userRoles.userRoles;
+          
           if (userRoles && userRoles.length > 0) {
             let loggedInUserInfo = userRoles[0].personIdentifier;
             let isCuratorSelf = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_Self)

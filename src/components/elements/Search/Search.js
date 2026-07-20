@@ -36,9 +36,9 @@ const Search = () => {
   const loading = status === 'loading';
 
   // Phase 9: Parse scope/proxy data and derive capabilities
-  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
-  const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
-  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  const scopeData =typeof session?.data?.scopeData === "string" ? JSON.parse(session.data.scopeData): null;
+  const proxyPersonIds = typeof session?.data?.proxyPersonIds === "string" ? JSON.parse(session.data.proxyPersonIds): [];
+  const userRoles = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles): [];
   const caps = getCapabilities(userRoles);
   const showScopeFilter = caps.canCurate.scoped && !caps.canCurate.all;
   const router = useRouter()
@@ -291,9 +291,7 @@ const Search = () => {
       .then(data => {
         let parsedSettingsArray = [];
         data.map((obj, index1) => {
-          let a = JSON.stringify(obj.viewAttributes)
-          let b = JSON.parse(a);
-          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          let c = typeof(obj.viewAttributes) === "string" ? JSON.parse(obj.viewAttributes) : JSON.parse(JSON.stringify(obj.viewAttributes));
           let parsedSettings = {
             viewName : obj.viewName,
             viewAttributes: c,

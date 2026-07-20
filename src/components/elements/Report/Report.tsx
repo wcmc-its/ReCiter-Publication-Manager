@@ -118,7 +118,7 @@ const Report = () => {
 
     } else if (session?.adminSettings) {
       // regular settings from session
-      let adminSettings = JSON.parse(session.adminSettings);
+      let adminSettings = typeof session.adminSettings === "string" ? JSON.parse(session.adminSettings) : session.adminSettings;
       let data = adminSettings.find(obj => obj.viewName === "reportingFilters")
       let viewProfileUpdatedData = adminSettings.find(obj => obj.viewName === "viewProfile")
       let sortLabelsUpdatedData = adminSettings.find(obj => obj.viewName === "reportingWebViewSort")
@@ -129,14 +129,14 @@ const Report = () => {
       let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
 
-      sortLabelViewAttributes = JSON.parse(sortLabelsUpdatedData.viewAttributes);
-      profileViewAttributes = JSON.parse(viewProfileUpdatedData.viewAttributes);
-      viewAttributes = JSON.parse(data.viewAttributes);
-      headShotLabels = JSON.parse(headShotData.viewAttributes);
-      exportArticleCSVLabels = JSON.parse(exportArticle.viewAttributes);
-      exportAuthorShipCSVLabels = JSON.parse(exportAuthors.viewAttributes);
-      reportingWeb = JSON.parse(reportingWebDisplay.viewAttributes);
-      exportArticleRTF = JSON.parse(exportRTF.viewAttributes);
+      sortLabelViewAttributes = typeof sortLabelsUpdatedData.viewAttributes === "string" ? JSON.parse(sortLabelsUpdatedData.viewAttributes) : sortLabelsUpdatedData.viewAttributes;
+      profileViewAttributes = typeof viewProfileUpdatedData.viewAttributes === "string" ? JSON.parse(viewProfileUpdatedData.viewAttributes) : viewProfileUpdatedData.viewAttributes;
+      viewAttributes = typeof data.viewAttributes === "string" ? JSON.parse(data.viewAttributes) : data.viewAttributes;
+      headShotLabels = typeof headShotData.viewAttributes === "string" ? JSON.parse(headShotData.viewAttributes) : headShotData.viewAttributes;
+      exportArticleCSVLabels = typeof exportArticle.viewAttributes === "string" ? JSON.parse(exportArticle.viewAttributes) : exportArticle.viewAttributes;
+      exportAuthorShipCSVLabels = typeof exportAuthors.viewAttributes === "string" ? JSON.parse(exportAuthors.viewAttributes) : exportAuthors.viewAttributes;
+      reportingWeb = typeof reportingWebDisplay.viewAttributes === "string" ? JSON.parse(reportingWebDisplay.viewAttributes) : reportingWebDisplay.viewAttributes;
+      exportArticleRTF = typeof exportRTF.viewAttributes === "string" ? JSON.parse(exportRTF.viewAttributes) : exportRTF.viewAttributes;
 
     }
 

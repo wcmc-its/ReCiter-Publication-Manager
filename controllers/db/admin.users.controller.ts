@@ -82,10 +82,10 @@ export const findOrCreateAdminUserRole = async (userRolePayload:Array<JSON>) => 
     try {
 
         const data =  await Promise.all(userRolePayload.map(async role=>{
-            let userRole = JSON.parse(JSON.stringify(role));
-            let userID = userRole.userID;
-            let roleID = userRole.roleID;
-            let createTimestamp = userRole.createTimestamp;
+            let userRole = typeof role === "string" ? JSON.parse(role) : null;
+            let userID = userRole?.userID;
+            let roleID = userRole?.roleID;
+            let createTimestamp = userRole?.createTimestamp;
             const [adminUserRole, created]  = await models.AdminUsersRole.findOrCreate({
                 where: {
                      [Op.and]: [{userID: userID}, {roleID: roleID}] ,

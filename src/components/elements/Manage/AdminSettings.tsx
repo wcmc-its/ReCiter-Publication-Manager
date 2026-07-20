@@ -114,9 +114,7 @@ const AdminSettings = () => {
       .then(data => {
         let parsedSettingsArray = [];
         data.map((obj, index1) => {
-          let a = JSON.stringify(obj.viewAttributes)
-          let b = JSON.parse(a);
-          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          let c = typeof(obj.viewAttributes) === "string" ? JSON.parse(obj.viewAttributes) : JSON.parse(JSON.stringify(obj.viewAttributes));
           let parsedSettings = {
             viewName: obj.viewName,
             viewAttributes: c,

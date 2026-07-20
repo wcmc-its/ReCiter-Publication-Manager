@@ -56,7 +56,7 @@ const Profile = ({
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const { data: session, status } = useSession(); const loading = status === "loading";
-  const userPermissions = JSON.parse(session.data.userRoles);
+  const userPermissions = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
   const [showAllRels, setShowAllRels] = useState(false);
@@ -105,9 +105,9 @@ const Profile = ({
       let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
       exportArticleRTFViewAttr = exportRTF.viewAttributes;
     } else if (session?.adminSettings) {
-      let adminSettings = JSON.parse(session.adminSettings);
+      let adminSettings = typeof session.adminSettings === "string" ? JSON.parse(session.adminSettings) : session.adminSettings;
       let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
-      exportArticleRTFViewAttr = JSON.parse(exportRTF.viewAttributes);
+      exportArticleRTFViewAttr = typeof exportRTF.viewAttributes === "string" ? JSON.parse(exportRTF.viewAttributes) : exportRTF.viewAttributes;
     }
     setExportArticlesRTF(exportArticleRTFViewAttr)
   }, [])

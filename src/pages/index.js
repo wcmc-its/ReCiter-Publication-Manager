@@ -13,7 +13,8 @@ export async function getServerSideProps(ctx) {
     let personIdentifier = null;
     if(session && session.data && session?.data.userRoles)
     {  
-        userPermissions = JSON.parse(session?.data?.userRoles);
+        userPermissions =typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
+        
          personIdentifier = userPermissions && userPermissions?.length > 0 ? userPermissions[0]?.personIdentifier : ""
     }
     if (process.env.NEXT_PUBLIC_LOGIN_PROVIDER !== "SAML") {

@@ -49,7 +49,7 @@ const NestedListItem: React.FC<NestedListItemProps> = ({ header, menuItems, imgU
         <List component="div" disablePadding>
           {
             menuItems.map((item: MenuItem, index: number) => {
-              let userPermissions = JSON.parse(session.data.userRoles);
+              let userPermissions = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if (matchedRoles.length >= 1) {
                 return (

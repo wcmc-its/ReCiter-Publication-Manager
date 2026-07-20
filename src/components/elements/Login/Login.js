@@ -44,7 +44,7 @@ const Login = () => {
             //if(session && session.data && session.data.userRoles)
              getSession().then((session) => {
                 if (session) {
-                    let userPermissions = session.data.userRoles && session.data.userRoles !="" && JSON.parse(session.data.userRoles);
+                    let userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== "" ? JSON.parse(session.data.userRoles) : [];
                     let userName = session.data.username;
                      if(!userPermissions || userPermissions == "" ){
                          router.push('/noaccess');

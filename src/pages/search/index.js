@@ -16,8 +16,7 @@ import { authOptions } from "../api/auth/[...nextauth]";
             },
         };
     }
-	const userPermissions = session.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
-   
+    const userPermissions =typeof session.data?.userRoles === "string"? JSON.parse(session.data.userRoles): session.data?.userRoles ?? [];
     if(userPermissions.length === 0) {
 
         return {

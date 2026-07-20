@@ -200,7 +200,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
 
   const { data: session, status } = useSession(); const loading = status === "loading";
 
-  const userPermissions = JSON.parse(session.data.userRoles);
+  const userPermissions = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
   const isSuperuser = userPermissions.some((role: any) => role.roleLabel === "Superuser");
 
   // A user "has their own profile" when they hold a Curator_Self role carrying a
@@ -347,8 +347,8 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       let updatedData = updatedAdminSettings.find(obj => obj.viewName === "EmailNotifications")
       manageNotifications = updatedData?.viewAttributes || [];
     } else if (session?.adminSettings) {
-      let adminSettings = JSON.parse(JSON.stringify(session.adminSettings));
-      let data = JSON.parse(adminSettings).find(obj => obj.viewName === "EmailNotifications")
+      let adminSettings = typeof session.adminSettings === "string" ? JSON.parse(session.adminSettings) : JSON.parse(JSON.stringify(session.adminSettings));
+      let data = adminSettings.find(obj => obj.viewName === "EmailNotifications")
       manageNotifications = data ? JSON.parse(data.viewAttributes) : [];
     }
     let settingsObj = manageNotifications.find(data=> data.isVisible)

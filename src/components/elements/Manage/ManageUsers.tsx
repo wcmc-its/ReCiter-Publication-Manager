@@ -57,12 +57,12 @@ const ManageUsers = () => {
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       setNameOrcwidLabel(cwidLabel.labelUserView)
     } else if (session?.adminSettings) {
-      let adminSettings = JSON.parse(session.adminSettings);
+      let adminSettings = typeof session.adminSettings === "string" ? JSON.parse(session.adminSettings) : session.adminSettings;
       let data = adminSettings.find(obj => obj.viewName === "findPeople")
-      viewAttributes = JSON.parse(data.viewAttributes)
+      viewAttributes = typeof data.viewAttributes === "string" ? JSON.parse(data.viewAttributes) : data.viewAttributes;
       let cwidLabel = viewAttributes.find(data => data.labelUserKey === "personIdentifier")
       let notificationsData = adminSettings.find(obj => obj.viewName === "EmailNotifications")
-      emailNotifications = JSON.parse(notificationsData.viewAttributes);
+      emailNotifications = typeof notificationsData.viewAttributes === "string" ? JSON.parse(notificationsData.viewAttributes) : notificationsData.viewAttributes;
       cwidLabel && setNameOrcwidLabel(cwidLabel.labelUserView)
     }
     let settingsObj = emailNotifications && emailNotifications.find(data => data.isVisible)

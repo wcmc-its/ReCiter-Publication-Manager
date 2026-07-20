@@ -18,7 +18,7 @@ const ToastContainerWrapper = () => {
       let displayMessages = updatedAdminSettings.find(obj => obj.viewName === "displayMessages")
       displayToastMessages = displayMessages?.viewAttributes || [];
     } else if (session?.adminSettings) {
-        let adminSettings = JSON.parse(JSON.stringify(session.adminSettings));
+        let adminSettings =typeof session.adminSettings === "string"? JSON.parse(session.adminSettings): JSON.parse(JSON.stringify(session.adminSettings));
         let displayMessages = JSON.parse(adminSettings).find(obj => obj.viewName === "displayMessages")
         displayToastMessages = displayMessages ? JSON.parse(displayMessages.viewAttributes) : [];
     }
