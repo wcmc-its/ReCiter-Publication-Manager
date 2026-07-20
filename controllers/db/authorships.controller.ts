@@ -108,6 +108,23 @@ function buildWhere(body: any): any {
 const siblingKey = (r: any) =>
   r.source === "scopus" ? String(r.external_id || "") : String(r.pmid ?? "");
 
+// Which of these cwids have a ReCiter identity? `person` mirrors ReCiter's Identity table
+// (the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
+// someone — typically inactive faculty — ReCiter doesn't track; accepting those 404s at the
+// ExternalArticle endpoint and orphans gold-standard writes). Checked at read time, not
+// produce time, because people also leave WCM after a row is produced.
+// ponytail: app-side IN() lookup instead of a SQL JOIN — person/authorship_review collations
+// differ (general_ci vs unicode_ci), which breaks and de-indexes a direct join.
+async function reciterIdentitySet(cwids: Array<string | undefined | null>): Promise<Set<string>> {
+  const wanted = [...new Set(cwids.filter(Boolean).map(String))];
+  if (wanted.length === 0) return new Set();
+  const found: any[] = await models.Person.findAll({
+    where: { personIdentifier: { [Op.in]: wanted } },
+    attributes: ["personIdentifier"], raw: true,
+  });
+  return new Set(found.map((p) => String(p.personIdentifier)));
+}
+
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
 export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -149,9 +166,15 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       });
       scopusSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
     }
+    const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
     const out = rows.map((r: any) => {
       const map = r.source === "scopus" ? scopusSib : pmidSib;
-      return { ...r.toJSON(), pmid_sibling_count: map[siblingKey(r)] || 1 };
+      return {
+        ...r.toJSON(),
+        pmid_sibling_count: map[siblingKey(r)] || 1,
+        // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
+        identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
+      };
     });
 
     res.send({ rows: out, count, limit, offset });
@@ -246,6 +269,23 @@ async function appendFeedbackLog(userID: number, personIdentifier: string, pmid:
   await updatePendingArticleCount(personIdentifier, feedback);
 }
 
+// Interpret a 409 dup-conflict body from the ExternalArticle add. BLOCKED = the article is
+// already in the person's record (ALREADY_ADDED, or a PMID/DOI match to an attributed
+// article) — ReCiter ignores force for BLOCKED, so the accept's end state already exists
+// and the caller should resolve the row as accepted instead of bouncing forever. (Dev and
+// prod PM share one DynamoDB ExternalArticle table but have separate review queues, so a
+// row accepted in one env stays open in the other and re-accepting it lands here.)
+// WARNING = fuzzy title+year match the curator may force; surface its human message.
+function dupConflict(body: any): { blocked: boolean; message: string } {
+  const detail = Array.isArray(body?.matches) && body.matches.length
+    ? ` (${body.matches.map((m: any) => m.matchedId || m.type).filter(Boolean).join(", ")})`
+    : "";
+  return {
+    blocked: body?.status === "BLOCKED",
+    message: `${body?.message || "Possible duplicate."}${detail}`,
+  };
+}
+
 // ExternalArticle payload for a scopus row (no PMID → not gold standard). articleId is
 // "SCOPUS:<numericId>" where numericId = external_id (dc:identifier minus SCOPUS_ID:).
 function scopusExternalPayload(row: any) {
@@ -287,10 +327,19 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
       case "accept": {
         if (!cwid) return res.status(409).send("No proposed identity to accept");
         if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
+        // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
+        if (!(await reciterIdentitySet([cwid])).size) {
+          return res.status(422).send(`${row.top_name || cwid} has no ReCiter identity (likely departed/inactive) — this authorship can't be accepted; dismiss it instead`);
+        }
         if (isScopus) {
           const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
-          if (resp.statusCode === 409) return res.status(409).send(resp.statusText);
-          if (resp.statusCode !== 201 && resp.statusCode !== 200) return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          if (resp.statusCode === 409) {
+            const dup = dupConflict(resp.statusText);
+            // BLOCKED → already in the record: fall through and resolve the row as accepted
+            if (!dup.blocked) return res.status(409).send(dup.message);
+          } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
+            return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          }
           await models.AuthorshipReview.update({ status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() }, { where: { id } });
           break; // no AdminFeedbackLog / pending-count for scopus (PMID-keyed)
         }
@@ -313,10 +362,17 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         } catch { candidateCwids = []; }
         const allowed = new Set([row.top_cwid, ...candidateCwids].filter(Boolean).map(String));
         if (!allowed.has(chosen)) return res.status(400).send("cwid is not a candidate for this authorship");
+        if (!(await reciterIdentitySet([chosen])).size) {
+          return res.status(422).send(`${chosen} has no ReCiter identity (likely departed/inactive) — this authorship can't be assigned; dismiss it instead`);
+        }
         if (isScopus) {
           const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
-          if (resp.statusCode === 409) return res.status(409).send(resp.statusText);
-          if (resp.statusCode !== 201 && resp.statusCode !== 200) return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          if (resp.statusCode === 409) {
+            const dup = dupConflict(resp.statusText);
+            if (!dup.blocked) return res.status(409).send(dup.message);
+          } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
+            return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
+          }
           await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
