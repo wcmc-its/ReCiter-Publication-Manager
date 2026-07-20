@@ -43,6 +43,8 @@ interface AuthorshipRow {
   single_candidate?: boolean;
   candidate_cwids_json?: string;
   pmid_sibling_count?: number;
+  // false → proposed identity is not in ReCiter (departed/inactive); Accept is impossible
+  identity_in_reciter?: boolean;
   status?: string;
   snooze_until?: string;
   reviewer?: string;
@@ -243,6 +245,12 @@ const scopusBadgeStyle: CSSProperties = {
 const notInPubmedPillStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 8px",
   borderRadius: 20, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", whiteSpace: "nowrap",
+};
+// replaces the Accept button when the proposed identity is not in ReCiter
+const noIdentityPillStyle: CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "5px 10px",
+  borderRadius: 20, background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", whiteSpace: "nowrap",
+  cursor: "help",
 };
 
 // Scopus evidence lead: no PMID — Scopus record + DOI links (mirrors PmidLink's slot).
@@ -491,12 +499,23 @@ const AuthorshipsTabs = () => {
     setMenu(null);
     Promise.allSettled(batch.map((row) => doActionAsync(row, "accept")))
       .then((results) => {
-        const failed = results.some((r) => r.status === "rejected");
+        const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: `Accepted ${ok.length}` });
         // success: silently refill the queue to the next batch ("accept 20 → next 20").
-        // failure: full refresh (with loading) to restore the optimistically-removed rows.
-        if (failed) { setErrorMsg("Some accepts failed — refreshing"); fetchData(); }
+        // failure: full refresh (with loading) to restore the optimistically-removed rows,
+        // with the failures broken down by cause so the same rows don't fail opaquely forever.
+        if (failures.length) {
+          const dups = failures.filter((f) => (f.reason as any)?.status === 409).length;
+          const noId = failures.filter((f) => (f.reason as any)?.status === 422).length;
+          const other = failures.length - dups - noId;
+          const parts: string[] = [];
+          if (dups) parts.push(`${dups} possible duplicate${dups > 1 ? "s" : ""} (accept individually to review)`);
+          if (noId) parts.push(`${noId} with no ReCiter identity`);
+          if (other) parts.push(`${other} failed`);
+          setErrorMsg(`${failures.length} of ${batch.length} accepts skipped: ${parts.join("; ")} — refreshing`);
+          fetchData();
+        }
         else topUp();
         fetchSummary();
       });
@@ -533,7 +552,8 @@ const AuthorshipsTabs = () => {
   }, []);
 
   const toggleSelect = useCallback((row: AuthorshipRow) => {
-    if (!row.single_candidate || statusView !== "open") return; // multi rows aren't bulk-selectable
+    // multi rows and no-ReCiter-identity rows aren't bulk-selectable
+    if (!row.single_candidate || row.identity_in_reciter === false || statusView !== "open") return;
     setSelected((s) => {
       const next = new Set(s);
       next.has(row.id) ? next.delete(row.id) : next.add(row.id);
@@ -600,7 +620,13 @@ const AuthorshipsTabs = () => {
       if (!row) return;
       const doAction = doActionRef.current;
       const toggleSelect = toggleSelectRef.current;
-      if (k === "y") { if (row.single_candidate && statusView === "open") doAction?.(row, "accept"); else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship"); e.preventDefault(); }
+      if (k === "y") {
+        if (row.single_candidate && statusView === "open") {
+          if (row.identity_in_reciter === false) setErrorMsg(`${row.top_name || row.top_cwid} is not in ReCiter — this authorship can't be accepted (dismiss it instead)`);
+          else doAction?.(row, "accept");
+        } else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship");
+        e.preventDefault();
+      }
       else if (k === "n") { if (statusView === "open") { if (row.single_candidate) doAction?.(row, "reject"); else setErrorMsg("Use Pick one ▾ / None of these for a multi-candidate authorship"); } e.preventDefault(); }
       else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
       else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
@@ -619,11 +645,11 @@ const AuthorshipsTabs = () => {
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
 
-  // F4: near-certain bulk = visible single-candidate rows with IO >= 95
-  const nearCertain = rows.filter((r) => r.single_candidate && (r.top_io_score ?? 0) >= 95);
+  // F4: near-certain bulk = visible single-candidate rows with IO >= 95 (and acceptable)
+  const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && (r.top_io_score ?? 0) >= 95);
   const selectedRows = rows.filter((r) => selected.has(r.id));
   // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
-  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate) : [];
+  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
   const toggleSelectAllEligible = useCallback(() => {
@@ -962,6 +988,7 @@ const AuthorshipCard = ({
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onNarrowPmid,
 }: CardProps) => {
   const isMulti = !r.single_candidate && (r.n_candidates ?? 0) > 1;
+  const noIdentity = r.identity_in_reciter === false;
   const isAbsent = r.top_io_score == null;
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
@@ -980,11 +1007,11 @@ const AuthorshipCard = ({
   return (
     <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
-        {/* selection checkbox — single-candidate open rows only */}
-        <input type="checkbox" disabled={!r.single_candidate || statusView !== "open"}
+        {/* selection checkbox — single-candidate open rows with a ReCiter identity only */}
+        <input type="checkbox" disabled={!r.single_candidate || noIdentity || statusView !== "open"}
           checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
           aria-label={`select ${r.wcm_author || ""}`}
-          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && statusView === "open" ? 1 : 0.3 }} />
+          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && !noIdentity && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && !noIdentity && statusView === "open" ? 1 : 0.3 }} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* L1 — WCM author + position */}
@@ -1060,6 +1087,10 @@ const AuthorshipCard = ({
           {statusView === "open" ? (
             isMulti ? (
               <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
+            ) : noIdentity ? (
+              <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted. Dismiss it via the ⋯ menu, or leave it open.`} placement="top" arrow>
+                <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
+              </Tip>
             ) : (
               <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
                 <IconCheck /> Accept
