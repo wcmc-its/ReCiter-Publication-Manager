@@ -29,7 +29,7 @@ export const generatePubsRtf = async (
   res: NextApiResponse
 ) => {
   try {
-     if (req == null || req.body == null) {
+     if (req.body == null) {
       return res.status(400).send("Request body is required");
     }
     let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -70,7 +70,7 @@ export const generatePubsRtf = async (
       : "Error creating the file";
   } catch (e) {
     console.log(e);
-    res.status(500).send(e);
+    res.status(500).send("An error occurred while generating the publication file.");
   }
 };
 
@@ -79,7 +79,7 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-    if (req == null || req.body == null) {
+     if (req.body == null) {
       return res.status(400).send("Request body is required");
      }
       let apiBody: GeneratePubsPeopleOnlyApiBody = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -96,7 +96,7 @@ export const generatePubsPeopleOnlyRtf = async (
         : "Error creating the file";
     } catch (e) {
       console.log(e);
-      res.status(500).send(e);
+      res.status(500).send("An error occurred while generating the publication file.");
     }
   };
 
@@ -105,7 +105,7 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      if (req == null || req.body == null) {
+      if (req.body == null) {
         return res.status(400).send("Request body is required");
       }
       let apiBody: PublicationSearchFilter = req.body;
@@ -343,7 +343,7 @@ export const generatePubsPeopleOnlyRtf = async (
       return searchOutput;
     } catch (e) {
       console.log(e);
-      res.status(500).send(e);
+      res.status(500).send("An error occurred while generating the Authorship Report CSV file.");
     }
   };
 
@@ -352,7 +352,7 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      if (req == null || req.body == null) {
+      if (req.body == null) {
         return res.status(400).send("Request body is required");
       }
       let apiBody: PublicationSearchFilter = req.body;
@@ -662,7 +662,7 @@ export const generatePubsPeopleOnlyRtf = async (
       return searchOutput;
     } catch (e) {
       console.log(e);
-      res.status(500).send(e);
+      res.status(500).send("An error occurred while generating the Article Report CSV file.");
     }
   };
 
@@ -671,7 +671,7 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      if (req == null || req.body == null) {
+      if (req.body == null) {
         return res.status(400).send("Request body is required");
       }
       let apiBody: any = req.body;
@@ -761,6 +761,6 @@ export const generatePubsPeopleOnlyRtf = async (
       return searchOutput;
     } catch (e) {
       console.log(e);
-      res.status(500).send(e);
+      res.status(500).send("An error occurred while generating the Person-Article Report CSV file.");
     }
   };
