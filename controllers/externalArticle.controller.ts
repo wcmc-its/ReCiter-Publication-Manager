@@ -32,7 +32,7 @@ export async function getExternalArticles(uid: string) {
         .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
         .catch((error) => {
             console.log('ReCiter external-article GET is not reachable: ' + error)
-            return { statusCode: error.status || 500, statusText: error }
+            return { statusCode: error.status || 500, statusText: "An internal server error occurred." }
         })
 }
 
@@ -54,7 +54,7 @@ export async function addExternalArticle(uid: string, body: any, addedBy: string
         .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
         .catch((error) => {
             console.log('ReCiter external-article POST is not reachable: ' + error)
-            return { statusCode: error.status || 500, statusText: error }
+            return { statusCode: error.status || 500, statusText: "An internal server error occurred." }
         })
 }
 
@@ -67,6 +67,6 @@ export async function deleteExternalArticle(uid: string, articleId: string) {
         .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
         .catch((error) => {
             console.log('ReCiter external-article DELETE is not reachable: ' + error)
-            return { statusCode: error.status || 500, statusText: error }
+            return { statusCode: error.status || 500, statusText: "An internal server error occurred." }
         })
 }

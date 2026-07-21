@@ -23,6 +23,6 @@ export async function getFeedbackLog(uid: string): Promise<{ statusCode: number;
         })
         .catch((error) => {
             console.log('ReCiter feedback-log api is not reachable: ' + error)
-            return { statusCode: error.status || 500, statusText: String(error) }
+            return { statusCode: error.status || 500, statusText: "An internal server error occurred." }
         })
 }

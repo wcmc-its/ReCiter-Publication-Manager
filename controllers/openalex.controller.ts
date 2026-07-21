@@ -108,7 +108,7 @@ export async function searchOpenAlex(req: NextApiRequest) {
             if (res.status !== 200) {
                 let responseText: any
                 try { responseText = await res.json() } catch (e) { responseText = await res.text() }
-                return { statusCode: res.status, statusText: responseText }
+                return { statusCode: res.status, statusText: "An internal server error occurred." }
             }
             const data: any = await res.json()
             const results = dedupeWorks(
