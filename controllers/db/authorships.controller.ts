@@ -180,7 +180,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     res.send({ rows: out, count, limit, offset });
   } catch (e) {
     console.log(e);
-    res.status(500).send("An internal server error occurred.");
+    res.status(500).send(String(e));
   }
 };
 
@@ -207,7 +207,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     res.send({ total, single_candidate: single, classes, personTypes, bySource, pubTypes });
   } catch (e) {
     console.log(e);
-    res.status(500).send("An internal server error occurred.");
+    res.status(500).send(String(e));
   }
 };
 
@@ -433,6 +433,6 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     return res.send({ ok: true, row: updated });
   } catch (e) {
     console.log(e);
-    return res.status(500).send("An internal server error occurred.");
+    return res.status(500).send(String(e));
   }
 };
