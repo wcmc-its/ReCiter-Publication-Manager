@@ -70,7 +70,7 @@ export const generatePubsRtf = async (
       : "Error creating the file";
   } catch (e) {
     console.log(e);
-    res.status(500).send("An error occurred while generating the publication file.");
+    res.status(500).send(e);
   }
 };
 
@@ -96,7 +96,7 @@ export const generatePubsPeopleOnlyRtf = async (
         : "Error creating the file";
     } catch (e) {
       console.log(e);
-      res.status(500).send("An error occurred while generating the publication file.");
+      res.status(500).send(e);
     }
   };
 
@@ -343,7 +343,7 @@ export const generatePubsPeopleOnlyRtf = async (
       return searchOutput;
     } catch (e) {
       console.log(e);
-      res.status(500).send("An error occurred while generating the Authorship Report CSV file.");
+      res.status(500).send(e);
     }
   };
 
@@ -662,7 +662,7 @@ export const generatePubsPeopleOnlyRtf = async (
       return searchOutput;
     } catch (e) {
       console.log(e);
-      res.status(500).send("An error occurred while generating the Article Report CSV file.");
+      res.status(500).send(e);
     }
   };
 
@@ -761,6 +761,6 @@ export const generatePubsPeopleOnlyRtf = async (
       return searchOutput;
     } catch (e) {
       console.log(e);
-      res.status(500).send("An error occurred while generating the Person-Article Report CSV file.");
+      res.status(500).send(e);
     }
   };
