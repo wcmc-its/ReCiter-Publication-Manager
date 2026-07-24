@@ -1,7 +1,7 @@
 import { findOrCreateAdminUsers,findOrCreateAdminUserRole } from "../../controllers/db/admin.users.controller"
 import {findOneAdminSettings} from '../../controllers/db/admin.settings.controller';
 import { findOnePerson } from "../../controllers/db/person.controller";
-import { findUserPermissions } from '../../controllers/db/userroles.controller';
+import { findUserPermissions } from '../../services/db/userroles.service';
 import { allowedPermissions } from "./constants";
 import { reciterConfig } from "../../config/local";
 import jwt from 'jsonwebtoken';
