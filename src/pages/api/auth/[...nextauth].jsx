@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials"
 import { authenticate } from "../../../../controllers/authentication.controller";
-import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
+import { findUserPermissions } from '../../../../services/db/userroles.service';
 import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
