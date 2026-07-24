@@ -1,7 +1,7 @@
 // Data access for the "experts at Weill Cornell" panel — the raw queries against
 // person_article_keyword. Kept apart from the controller so the SQL lives in one place; the domain
 // notes (the free MeSH join key, the load-bearing LIMIT, the blank-department case) are in
-// wcmExperts.controller.ts.
+// wcmExperts.service.ts.
 import sequelize from '../../src/db/db'
 import { QueryTypes } from 'sequelize'
 

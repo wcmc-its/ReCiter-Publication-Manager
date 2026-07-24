@@ -16,7 +16,7 @@
 //   - primaryOrganizationalUnit is genuinely blank for MSK-side appointments (Pamer,
 //     Van den Brink, Xavier). Render that as "department not recorded", never an empty cell.
 
-import { WcmExpert, queryTopExperts, queryExpertTotal } from './wcmExperts.repository'
+import { WcmExpert, queryTopExperts, queryExpertTotal } from '../../repositories/db/wcmExperts.repository'
 
 export type { WcmExpert }
 

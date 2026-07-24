@@ -80,7 +80,7 @@ import {
     MAX_CONCEPTS, MAX_LINES, MAX_TERMS,
     Pico, Db, Seed, Rendering,
 } from '../../../../controllers/literatureSearch.strategy'
-import { findWcmExperts } from '../../../../controllers/db/wcmExperts.controller'
+import { findWcmExperts } from '../../../../services/db/wcmExperts.service'
 import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
 
 // Usage visibility. One structured line per model call; grep the pod logs.
