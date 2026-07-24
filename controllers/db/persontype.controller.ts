@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { queryDistinctPersonTypes } from './persontype.repository'
+import { queryDistinctPersonTypes } from '../../repositories/db/persontype.repository'
 
 export const findAllPersonTypes = async (req: NextApiRequest, res: NextApiResponse) => {
     try {

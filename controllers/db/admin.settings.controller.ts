@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { querySettingsGrouped, upsertSettings, queryOneSetting } from './admin.settings.repository'
+import { querySettingsGrouped, upsertSettings, queryOneSetting } from '../../repositories/db/admin.settings.repository'
 
 export const listAdminSettings = async (req: NextApiRequest, res: NextApiResponse) => {
     let adminSettings = {};

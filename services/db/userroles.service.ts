@@ -1,4 +1,4 @@
-import { queryUserPermissions } from './userroles.repository';
+import { queryUserPermissions } from '../../repositories/db/userroles.repository';
 
 export const findUserPermissions = async (attrTypes: string[], attrValues: string[]) => {
 
