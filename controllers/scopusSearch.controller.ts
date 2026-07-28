@@ -17,6 +17,18 @@ export function scopusConfigured(): boolean {
 }
 
 // One Scopus Search entry -> external-article POST body (minus addedBy, set server-side).
+// Full author list, falling back to dc:creator (the FIRST author only) when the entry has no
+// author array — which is what every entry looked like before ScopusTool asked for `author` by
+// field, and is still what an older tool build returns. The fallback keeps a stale tool showing
+// one name rather than none; it is not the intended path.
+function scopusAuthors(entry: any, creator: any): string[] {
+    const authors = Array.isArray(entry.author)
+        ? entry.author.map((a: any) => a && (a.authname || a['ce:indexed-name'])).filter(Boolean)
+        : []
+    if (authors.length) return authors
+    return creator ? [creator] : []
+}
+
 function normalizeScopusDoc(entry: any) {
     if (!entry) return null
     const scopusId = String(entry['dc:identifier'] || '').replace(/^SCOPUS_ID:/, '')
@@ -29,7 +41,7 @@ function normalizeScopusDoc(entry: any) {
         doi: entry['prism:doi'] || undefined,
         pmid: pmidRaw ? Number(pmidRaw) : undefined,
         journalOrVenue: entry['prism:publicationName'] || undefined,
-        authors: creator ? [creator] : [],   // Scopus search view returns first author only
+        authors: scopusAuthors(entry, creator),
         pubDate: entry['prism:coverDate'] || undefined,
         publicationType: entry['subtypeDescription'] || undefined,
         sourceType: 'SCOPUS',
