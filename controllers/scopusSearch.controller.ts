@@ -13,7 +13,15 @@ import { reciterConfig } from '../config/local'
 export function scopusConfigured(): boolean {
     // The Elsevier credentials now live in the Scopus Retrieval Tool; here we only need the
     // tool endpoint to be configured. A missing key in the tool surfaces as a 5xx below.
-    return !!(process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL)
+    //
+    // ONLY RECITER_SCOPUS_API_URL counts. This used to also accept RECITER_API_BASE_URL, but that
+    // was a fallback in name only: config/local.js builds the endpoint from RECITER_SCOPUS_API_URL
+    // alone, so with just the base URL set this returned true while the endpoint was the literal
+    // string "undefined/scopus/search/documents". The fetch threw, the route answered 502, and the
+    // tab rendered it as "No Scopus documents matched" — a misconfigured server claiming the person
+    // has no Scopus record. Prod ran that way and it cost hours to find. Gate on the one variable
+    // that is actually used, so a missing value says so.
+    return !!process.env.RECITER_SCOPUS_API_URL
 }
 
 // One Scopus Search entry -> external-article POST body (minus addedBy, set server-side).
