@@ -13,10 +13,30 @@ import { reciterConfig } from '../config/local'
 export function scopusConfigured(): boolean {
     // The Elsevier credentials now live in the Scopus Retrieval Tool; here we only need the
     // tool endpoint to be configured. A missing key in the tool surfaces as a 5xx below.
-    return !!(process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL)
+    //
+    // ONLY RECITER_SCOPUS_API_URL counts. This used to also accept RECITER_API_BASE_URL, but that
+    // was a fallback in name only: config/local.js builds the endpoint from RECITER_SCOPUS_API_URL
+    // alone, so with just the base URL set this returned true while the endpoint was the literal
+    // string "undefined/scopus/search/documents". The fetch threw, the route answered 502, and the
+    // tab rendered it as "No Scopus documents matched" — a misconfigured server claiming the person
+    // has no Scopus record. Prod ran that way and it cost hours to find. Gate on the one variable
+    // that is actually used, so a missing value says so.
+    return !!process.env.RECITER_API_BASE_URL
 }
 
 // One Scopus Search entry -> external-article POST body (minus addedBy, set server-side).
+// Full author list, falling back to dc:creator (the FIRST author only) when the entry has no
+// author array — which is what every entry looked like before ScopusTool asked for `author` by
+// field, and is still what an older tool build returns. The fallback keeps a stale tool showing
+// one name rather than none; it is not the intended path.
+function scopusAuthors(entry: any, creator: any): string[] {
+    const authors = Array.isArray(entry.author)
+        ? entry.author.map((a: any) => a && (a.authname || a['ce:indexed-name'])).filter(Boolean)
+        : []
+    if (authors.length) return authors
+    return creator ? [creator] : []
+}
+
 function normalizeScopusDoc(entry: any) {
     if (!entry) return null
     const scopusId = String(entry['dc:identifier'] || '').replace(/^SCOPUS_ID:/, '')
@@ -29,7 +49,7 @@ function normalizeScopusDoc(entry: any) {
         doi: entry['prism:doi'] || undefined,
         pmid: pmidRaw ? Number(pmidRaw) : undefined,
         journalOrVenue: entry['prism:publicationName'] || undefined,
-        authors: creator ? [creator] : [],   // Scopus search view returns first author only
+        authors: scopusAuthors(entry, creator),
         pubDate: entry['prism:coverDate'] || undefined,
         publicationType: entry['subtypeDescription'] || undefined,
         sourceType: 'SCOPUS',
