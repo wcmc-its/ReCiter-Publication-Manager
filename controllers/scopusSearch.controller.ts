@@ -21,7 +21,7 @@ export function scopusConfigured(): boolean {
     // tab rendered it as "No Scopus documents matched" — a misconfigured server claiming the person
     // has no Scopus record. Prod ran that way and it cost hours to find. Gate on the one variable
     // that is actually used, so a missing value says so.
-    return !!process.env.RECITER_SCOPUS_API_URL
+    return !!process.env.RECITER_API_BASE_URL
 }
 
 // One Scopus Search entry -> external-article POST body (minus addedBy, set server-side).
