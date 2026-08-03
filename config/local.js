@@ -125,31 +125,43 @@ export const reciterConfig = {
      * This endpoint is used to search pubmed. You need to have ReCiter-Pubmed-Retrieval tool conifgured. See https://github.com/wcmc-its/ReCiter-PubMed-Retrieval-Tool.git
      * for details.
      *
-     * On prod these /pubmed/query-* routes live behind the same ingress as the
-     * ReCiter Spring Boot service, so RECITER_API_BASE_URL is sufficient. On
-     * dev the two services are separate (reciter-dev vs reciter-pubmed-dev),
-     * so RECITER_PUBMED_API_URL can override just these routes. Falls back to
-     * RECITER_API_BASE_URL when unset.
+     * The PubMed tool is a separate service in every environment
+     * (reciter-pubmed-dev / reciter-pubmed-prod), so RECITER_PUBMED_API_URL is
+     * REQUIRED — there is no fallback. It reads as one, so be explicit: unset,
+     * these become the literal string "undefined/pubmed/query-complex/" and the
+     * fetch fails at call time rather than at startup. An earlier version of
+     * this comment promised a fallback to RECITER_API_BASE_URL that the code
+     * below never implemented; the Scopus twin of that lie cost hours in prod.
      */
     reciterPubmed: {
-        searchPubmedEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-complex/',
-        searchPubmedCountEndpoint: (process.env.RECITER_PUBMED_API_URL || process.env.RECITER_API_BASE_URL) + '/pubmed/query-number-pubmed-articles/',
+        searchPubmedEndpoint: process.env.RECITER_PUBMED_API_URL + '/pubmed/query-complex/',
+        searchPubmedCountEndpoint: process.env.RECITER_PUBMED_API_URL + '/pubmed/query-number-pubmed-articles/',
     },
     /**
      * Scopus search via the ReCiter Scopus Retrieval Tool. The tool holds the Elsevier
-     * SCOPUS_API_KEY / SCOPUS_INST_TOKEN, so PM no longer needs them. Like PubMed, on dev
-     * the Scopus tool is a separate service (reciter-scopus-dev), so RECITER_SCOPUS_API_URL
-     * overrides just these routes; it falls back to RECITER_API_BASE_URL when unset.
+     * SCOPUS_API_KEY / SCOPUS_INST_TOKEN, so PM no longer needs them. Like PubMed, the tool
+     * is a separate service per environment (reciter-scopus-dev / reciter-scopus-prod), so
+     * RECITER_SCOPUS_API_URL is REQUIRED — there is no fallback to RECITER_API_BASE_URL,
+     * which serves no /scopus/* route. Unset, these become the literal string
+     * "undefined/scopus/search/documents"; scopusConfigured() gates on this exact variable
+     * so that shows up as an honest 503 rather than an empty result set.
+     * NOTE the scheme: these are in-cluster NodePort services listening on port 80 only —
+     * an https:// value connects to :443 and hangs until timeout.
      * See https://github.com/wcmc-its/ReCiter-Scopus-Retrieval-Tool.git.
      */
     reciterScopus: {
-        searchDocumentsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/documents',
-        searchAuthorsEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/authors',
+        searchDocumentsEndpoint: process.env.RECITER_SCOPUS_API_URL + '/scopus/search/documents',
+        searchAuthorsEndpoint: process.env.RECITER_SCOPUS_API_URL  + '/scopus/search/authors',
         // Literature Search's endpoint: the query reaches Elsevier VERBATIM, so a top-level limit
         // (AND PUBYEAR > 2020) is expressible and a search strategy can actually run.
         // searchDocumentsEndpoint cannot do this — it force-wraps every term in TITLE-ABS-KEY().
         // Needs ScopusTool PR #35; against an older jar this 404s. POST {query, count, start, view}.
-        searchQueryEndpoint: (process.env.RECITER_SCOPUS_API_URL || process.env.RECITER_API_BASE_URL) + '/scopus/search/query',
+        //
+        // Built from RECITER_SCOPUS_API_URL ALONE, like its two siblings. This line carried a
+        // `|| RECITER_API_BASE_URL` fallback until #843 established that the fallback was never
+        // real: RECITER_API_BASE_URL serves no /scopus/* route, so falling back to it produced a
+        // confident wrong answer instead of a failure. Do not reintroduce it here.
+        searchQueryEndpoint: process.env.RECITER_SCOPUS_API_URL + '/scopus/search/query',
     },
     /**
      * PM#771 — OpenAlex is a free, keyless public API. It is queried ONLY server-side

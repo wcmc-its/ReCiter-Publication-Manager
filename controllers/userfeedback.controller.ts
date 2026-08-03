@@ -43,9 +43,9 @@ export async function findUserFeedback(uid: string | string[])  {
                     statusText: responseText
                 }
              } else  {
-                let data: any = JSON.parse(responseText)
+                let data: any = responseText && typeof responseText === 'string' ? JSON.parse(responseText):""
                 return {
-                    statusCode: res.status,
+                    statusCode: res?.status,
                     statusText: data
                 }
              }
