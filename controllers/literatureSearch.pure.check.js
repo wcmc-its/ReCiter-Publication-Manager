@@ -19,9 +19,9 @@
  *     A gate that fails twice in six for reasons no commit caused is a gate people learn to re-run
  *     until it is green, which is worse than no gate.
  *
- * So CI ran `tsc` and `next build` and nothing else: it proved the repo COMPILED and asserted nothing
- * about the feature. A green tick over an untested feature is precisely the failure this feature
- * exists to prevent — something that looks considered and checked nothing.
+ * So CI ran `tsc` and `next build` and nothing else — a green tick that proved the repo COMPILED and
+ * asserted nothing about the feature. That is precisely the failure this feature exists to prevent:
+ * something that looks considered and checked nothing.
  *
  * WHAT BELONGS IN HERE: any property that is TRUE BY ARITHMETIC. Every assertion below guards a bug
  * that has ALREADY SHIPPED ONCE — a wrong number in front of a librarian, or a document that left the
@@ -85,9 +85,9 @@ const q = lit.assembleQuery(s)
 // THE MODEL'S OWN OUTPUT IS HELD TO THE SAME CEILINGS AS THE BROWSER'S.
 //
 // The route has always bounded what the BROWSER posts back. buildStrategy() bounded nothing, so the
-// server would happily build, count and render a strategy it then REFUSED to re-count — a 502 on
-// every subsequent toggle, on the rows phase and on Mode 2's escape hatch, against a strategy the
-// librarian had already been billed for. The paid-for strategy became read-only.
+// server would happily build, count and render a strategy it then REFUSED to re-count: a 502 on every
+// subsequent toggle, on the rows phase and on Mode 2's escape hatch, leaving the strategy the
+// librarian had just been billed for read-only.
 //
 // checkStrategy() is exported for exactly this: it is the half of buildStrategy() that is true
 // without an LLM. The comment above it said so and NOTHING EVER ASSERTED IT — so the ceilings could
@@ -126,8 +126,8 @@ assert.throws(
 // as `hits: 0`. A confident zero, for a search that does not exist, printed beside a PRESS appendix.
 //
 // So the guard belongs in checkStrategy(), which buildStrategy() calls LAST — after the filter and
-// after hoistFilters. Both halves are asserted: the empty strategy really does render as '' (which is
-// why it must never reach a count), and checkStrategy really does refuse it.
+// after hoistFilters. Both halves are asserted: the empty strategy really does render as '', and
+// checkStrategy really does refuse it.
 const modelReturnedNoLines = { db: 'pubmed', limits: s.limits, concepts: [{ label: 'Adults', lines: [] }, { label: 'Depression', lines: [] }] }
 const filtered = { ...modelReturnedNoLines, concepts: modelReturnedNoLines.concepts.filter(c => c.lines.length) }
 assert.strictEqual(lit.assembleQuery(filtered), '', 'a zero-concept strategy renders as the empty query — the string that would be counted as hits: 0')
@@ -146,8 +146,7 @@ console.log(`bounds:       checkStrategy rejects >${lit.MAX_CONCEPTS} concepts, 
 //
 // So "a number printed" is NOT the property worth asserting. "Each count landed on ITS OWN line" is.
 // The counts below are synthetic and DISTINCT on purpose: with distinct values, a map shifted by one
-// line cannot agree with the table by accident — and the shifted case is asserted too, because an
-// assertion that cannot fail is not an assertion.
+// line cannot agree with the table by accident. (THE TEETH, below, asserts the shifted case.)
 const numbered = lit.numberStrategy(s)
 const lines = numbered.rows.filter(r => r.n !== null)
 const lastN = lines[lines.length - 1].n
@@ -250,9 +249,9 @@ assert.ok(/AI-ASSISTED[\s\S]*us\.anthropic\.claude-opus-4-8/.test(synthesis), 't
 //
 // At the time of writing, "Copy PRISMA-S" in LiteratureSearch.tsx still hand-builds its own string and
 // is being rebuilt onto Block[]. So what is asserted here is the renderer it is moving to — the same
-// strategyDoc() the .docx uses — which is the only place the AI-drafted disclosure can come from. The
-// moment the button renders blocks, this assertion covers the button; until then it holds the document
-// the button is converging on, and the hand-built string in the component is asserted by nothing.
+// strategyDoc() the .docx uses, and the only place the AI-drafted disclosure can come from. The moment
+// the button renders blocks this assertion covers the button; until then the hand-built string in the
+// component is asserted by nothing.
 const methods = md.markdownDoc(xp.strategyDoc(
     { ...s, query: q, hits, runDate: '2026-07-13', seeds: [], rowCounts: rc },
     'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',

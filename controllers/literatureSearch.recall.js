@@ -79,6 +79,20 @@ const BENCHMARKS = JSON.parse(fs.readFileSync(path.join(__dirname, 'literatureSe
 
 const pct = (n, d) => (d === 0 ? '  n/a' : `${String(Math.round((n / d) * 100)).padStart(3)}%`)
 
+// WHICH COMMIT PRODUCED THIS NUMBER. A recall figure is only meaningful against the prompt, the
+// ceilings and the ranking code that were live when it was measured — change the strategy prompt and
+// the same artifact is now a record of something else. Wrapped because a tarball, a vendored copy or
+// a Docker context is not a git checkout, and a measurement that costs a dollar must not die at the
+// last line because it could not find out what commit it is. A null SHA is a worse artifact than a
+// real one, and both are better than no artifact.
+const gitSha = () => {
+    try {
+        return execSync('git rev-parse HEAD', { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    } catch (e) {
+        return null
+    }
+}
+
 // A single [uid] query, not one count per PMID. The naive form of this check costs one NCBI call per
 // known include (40 reviews x 30 studies = 1,200 calls) and NCBI's keyed quota IS SHARED WITH THE
 // RECITER ENGINE — a recall check that throttles the nightly ETL is not a check, it is an outage. So
@@ -97,6 +111,17 @@ async function retrievedBy(query, gold) {
 // answers it with a number instead of an argument: pull a deep relevance-ordered slice and report
 // where the known-good studies actually LAND. If they sit at rank 900 of 3,168, no cap a human would
 // tolerate reaches them and the ranking itself is the wrong instrument. One call, no model.
+//
+// A NULL RANK IS NOT A RANK OF INFINITY, AND IT IS NOT ONE FACT — it is the ABSENCE of the study from
+// the first DEEP records of this query, and it cannot tell these three apart:
+//
+//   - the study ranks DEEP+1 or worse but the query does retrieve it;
+//   - the query never retrieved it at all (a strategy miss, already counted separately above);
+//   - the deep fetch came back short of DEEP for a reason of its own (a tool cap, a truncated page).
+//
+// Raising DEEP moves that boundary, it does not remove it, so DEEP stays where it is and the LABELS
+// below say what was actually measured — "appears in the first 1000" — instead of implying a rank
+// over the whole yield that we never computed.
 const DEEP = 1000
 async function ranksOf(query, gold) {
     const deep = await lit.fetchRecords(query, DEEP, 'relevance')
@@ -106,6 +131,19 @@ async function ranksOf(query, gold) {
 
 async function run(review) {
     const gold = review.includedPmids
+
+    // A DUPLICATE PMID IN A GOLD LIST DEFLATES EVERY RECALL NUMBER IN THIS FILE, SILENTLY. `retrieved`
+    // is a Set and de-duplicates; `gold.length` does not, so the same study counted twice adds one to
+    // the denominator and nothing to the numerator, and the tool reads worse for a reason that is in
+    // the fixture. THROW rather than de-duplicate: a repeated PMID means the included-studies list was
+    // parsed wrong (the ref-list slice caught a secondary report, say), and quietly repairing it here
+    // would hide the one mistake that invalidates every number downstream.
+    const dupes = [...new Set(gold.filter((p, i) => gold.indexOf(p) !== i))]
+    if (dupes.length) {
+        throw new Error(`"${review.title}": includedPmids contains duplicate PMID(s) — ${dupes.join(', ')}. `
+            + `A gold list with repeats deflates recall against a denominator that is wrong. Fix the benchmark.`)
+    }
+
     console.log(`\n${'='.repeat(78)}\n${review.title}\n  PMID ${review.pmid} — ${gold.length} known includes\n  Q: ${review.question}\n${'='.repeat(78)}`)
 
     // Mode 1, exactly as the route drives it: no limits, recall objective, PubMed.
@@ -137,11 +175,33 @@ async function run(review) {
     // is also not endorsed, and `screened: false` is the only thing that says so.
     const unscreened = reachedModel.filter(p => !verdict.get(p) || verdict.get(p).screened === false)
 
+    // ONE MINUS SCREEN RECALL IS NOT ONE FAILURE, IT IS THREE, AND THEY HAVE THREE DIFFERENT FIXES.
+    // A study the model READ AND EXCLUDED is a judgement error — that is a prompt or a model problem.
+    // A study that came back with NO VERDICT is a completeness error — lost-in-the-middle, and it is
+    // REPAIRABLE by re-asking, which is what screenRecords() already does. A study that came back with
+    // no flag object AT ALL would be a harness or contract error — screenRecords() builds one flag per
+    // record it was handed, so this bucket should always be zero and it is reported precisely so that
+    // a non-zero one cannot hide inside "not kept". Pooling the three tells a reader the screen is bad
+    // without telling them which thing to go and fix.
+    const noFlag = reachedModel.filter(p => !verdict.get(p))
+    // The disjoint half of KEPT: an include the model actually GAVE, as opposed to one the fail-open
+    // default handed out on its behalf.
+    const endorsed = kept.filter(p => verdict.get(p).screened !== false)
+
     console.log(`\n  1. STRATEGY RECALL   ${pct(retrieved.size, gold.length)}   ${retrieved.size}/${gold.length} known includes retrieved by the query`)
     console.log(`  3. CAP LOSS          ${pct(cappedOut.length, retrieved.size)}   ${cappedOut.length}/${retrieved.size} retrieved but never shown (top-${lit.RECORD_CAP} of ${hits.toLocaleString()})`)
     console.log(`  2. SCREEN RECALL     ${pct(kept.length, reachedModel.length)}   ${kept.length}/${reachedModel.length} of those reaching the model were KEPT`)
     console.log(`     -> ${binned.length} known-good ${binned.length === 1 ? 'study was' : 'studies were'} EXCLUDED by the AI screen`)
-    if (unscreened.length) console.log(`     -> ${unscreened.length} reached the model but came back with NO VERDICT (failed open)`)
+    // The breakdown, against the SAME denominator as the percentage above it so the columns can be
+    // read together. KEPT / EXCLUDED / NO FLAG partition that denominator; NO VERDICT does NOT — those
+    // records fail open, so they are already counted inside KEPT, and that is stated rather than left
+    // for the reader to derive from a sum that does not add up.
+    console.log(`     of the ${reachedModel.length} that reached the model:  KEPT ${kept.length} ${pct(kept.length, reachedModel.length).trim()}`
+        + `  ·  EXCLUDED ${binned.length} ${pct(binned.length, reachedModel.length).trim()}`
+        + `  ·  NO VERDICT ${unscreened.length} ${pct(unscreened.length, reachedModel.length).trim()}`
+        + `  ·  NO FLAG AT ALL ${noFlag.length} ${pct(noFlag.length, reachedModel.length).trim()}`)
+    console.log(`       (NO VERDICT fails OPEN and is therefore counted inside KEPT as well: of the ${kept.length} kept, `
+        + `${endorsed.length} carry an include the model actually gave. KEPT is an UPPER bound.)`)
 
     // END TO END: of everything the review included, what survives to the librarian's screen ticked?
     console.log(`\n  END TO END           ${pct(kept.length, gold.length)}   ${kept.length}/${gold.length} known includes survive question -> strategy -> cap -> screen`)
@@ -167,8 +227,12 @@ async function run(review) {
     const beyond = retrieved.size - ranked.length
     if (ranked.length) {
         const med = ranked[Math.floor(ranked.length / 2)]
-        console.log(`\n  WHERE THEY RANK (of ${hits.toLocaleString()}, by PubMed relevance):`)
-        console.log(`     best ${ranked[0]}  ·  median ${med}  ·  worst ${ranked[ranked.length - 1]}${beyond ? `  ·  ${beyond} rank below ${DEEP}` : ''}`)
+        // Every number on these lines is a position WITHIN THE FIRST 1000 records this query returns,
+        // not a rank over the whole yield — the deep slice is all we fetched, and the label says so.
+        console.log(`\n  WHERE THEY RANK WITHIN THE FIRST ${DEEP} (the query yields ${hits.toLocaleString()}; ranked by PubMed relevance):`)
+        console.log(`     ${ranked.length}/${retrieved.size} retrieved known-includes appear in the first ${DEEP}` +
+            `${beyond ? `; the other ${beyond} do NOT (see the note on DEEP — that is not the same as "unranked")` : ''}`)
+        console.log(`     of those ${ranked.length}:  best ${ranked[0]}  ·  median ${med}  ·  worst ${ranked[ranked.length - 1]}`)
         for (const cap of [50, 100, 200, 500, 1000]) {
             const n = ranked.filter(r => r <= cap).length
             console.log(`     a cap of ${String(cap).padStart(4)} would show the model ${String(n).padStart(2)}/${retrieved.size} (${pct(n, retrieved.size).trim()})`)
@@ -180,16 +244,37 @@ async function run(review) {
 
     return {
         title: review.title,
+        pmid: review.pmid,
         gold: gold.length,
         hits,
         query,
+        // The STRATEGY, not only the query string it assembles to. Re-running is a paid Bedrock call
+        // and the model samples, so the strategy that produced these numbers cannot be regenerated —
+        // if it is not in the artifact it is gone, and the recall figure has nothing behind it.
+        strategy,
+        // The criteria the screen was actually given. The same question with different criteria is a
+        // different experiment, and this is the field that says which one was run.
+        criteria: review.criteria || '',
         strategyRecall: [retrieved.size, gold.length],
         capLoss: [cappedOut.length, retrieved.size],
         screenRecall: [kept.length, reachedModel.length],
         endToEnd: [kept.length, gold.length],
         binned,
         unscreened: unscreened.length,
+        // The same breakdown the console prints, so a reader of the JSON is not left to infer which of
+        // the three failures produced the screen-recall number.
+        screenOutcomes: {
+            reachedModel: reachedModel.length,
+            kept: kept.length,
+            excluded: binned.length,
+            noVerdict: unscreened.length,
+            noFlag: noFlag.length,
+            endorsed: endorsed.length,
+        },
         ranks: Object.fromEntries(rank),
+        // What a null in `ranks` means. Without this the file cannot be read correctly six months
+        // later: null is "not in the first 1000 of this query", never "unranked" and never "missing".
+        rankDepth: DEEP,
     }
 }
 
@@ -208,6 +293,17 @@ async function run(review) {
     console.log(`\n  ${'POOLED'.padEnd(48)} strategy ${pct(...S)}  screen ${pct(...C)}  e2e ${pct(...E)}`)
     console.log(`\n  ${S[0]}/${S[1]} known includes retrieved. Of the ones the model saw, it kept ${C[0]}/${C[1]}.`)
 
+    // The pooled breakdown, because "it kept C[0] of C[1]" is one figure covering three different
+    // failures with three different fixes — and the pooled row is exactly where that gets forgotten.
+    const O = out.reduce((a, r) => ({
+        excluded: a.excluded + r.screenOutcomes.excluded,
+        noVerdict: a.noVerdict + r.screenOutcomes.noVerdict,
+        noFlag: a.noFlag + r.screenOutcomes.noFlag,
+        endorsed: a.endorsed + r.screenOutcomes.endorsed,
+    }), { excluded: 0, noVerdict: 0, noFlag: 0, endorsed: 0 })
+    console.log(`  of those ${C[1]}:  KEPT ${C[0]}  ·  EXCLUDED ${O.excluded}  ·  NO VERDICT ${O.noVerdict} (fails open, counted inside KEPT)  ·  NO FLAG AT ALL ${O.noFlag}`)
+    console.log(`  ${O.endorsed} of the ${C[0]} kept carry an include the model actually gave.`)
+
     const dead = out.flatMap(r => r.binned)
     if (dead.length) {
         console.log(`\n  ${dead.length} PUBLISHED-REVIEW-INCLUDED ${dead.length === 1 ? 'STUDY WAS' : 'STUDIES WERE'} EXCLUDED BY THE AI SCREEN.`)
@@ -219,7 +315,37 @@ async function run(review) {
 
     // The run costs a dollar and a Bedrock round-trip. Nobody should have to pay it again just to
     // re-read the result, or to check whether a number in a summary was really measured.
+    //
+    // AND THE NUMBERS ARE NOT ENOUGH ON THEIR OWN. A recall figure with no timestamp, no commit and no
+    // model id is a number nobody can attach to anything: two runs a month apart are indistinguishable
+    // in the file, and a prompt change between them is invisible. So the artifact opens with a
+    // METADATA block naming the run — when, which commit, which model, which ceilings, which benchmark
+    // — and the per-review results move under `reviews`. That key is deliberately unchanged:
+    // literatureSearch.screen.js reads `RUN.reviews[].query` and `RUN.reviews[].ranks` out of this
+    // file, and a rename here would break the next experiment rather than this one.
     const artifact = path.join(ROOT, '.litrecall-run.json')
-    fs.writeFileSync(artifact, JSON.stringify({ model: process.env.BEDROCK_MODEL_ID, reviews: out }, null, 2))
-    console.log(`  full run (queries, ranks, verdicts) -> ${artifact}\n`)
+    fs.writeFileSync(artifact, JSON.stringify({
+        metadata: {
+            ranAt: new Date().toISOString(),
+            gitSha: gitSha(),
+            model: process.env.BEDROCK_MODEL_ID,
+            region: process.env.AWS_REGION,
+            // The two ceilings that decide what the numbers can even mean: the cap is what the model
+            // was shown, the rank depth is how far we looked for the rest.
+            recordCap: lit.RECORD_CAP,
+            rankDepth: DEEP,
+            benchmark: 'controllers/literatureSearch.recall.json',
+            reviews: BENCHMARKS.reviews.map(r => ({
+                pmid: r.pmid,
+                title: r.title,
+                gold: r.includedPmids.length,
+                // The documented indexing ceiling. Judging the strategy against 100% instead of this
+                // is the single easiest way to misread the whole artifact.
+                maxRecall: r.maxRecall,
+                criteria: r.criteria || '',
+            })),
+        },
+        reviews: out,
+    }, null, 2))
+    console.log(`  full run (metadata, queries, strategies, ranks, verdicts) -> ${artifact}\n`)
 })().catch(e => { console.error(e); process.exit(1) })

@@ -84,6 +84,18 @@ const VARIANTS = {
 const pct = (n, d) => (d === 0 ? ' n/a' : `${String(Math.round((n / d) * 100)).padStart(3)}%`)
 const cost = t => t.inputTokens / 1e6 * 5.50 + t.outputTokens / 1e6 * 27.50
 
+// WHICH COMMIT PRODUCED THIS NUMBER — same reasoning, same wrapper, as literatureSearch.recall.js: the
+// strategy prompt is what this experiment is really measuring, so the artifact has to name the commit
+// that held it. Wrapped because a tarball is not a git checkout and a $2.50 run must not die at the
+// last line over it.
+const gitSha = () => {
+    try {
+        return execSync('git rev-parse HEAD', { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    } catch (e) {
+        return null
+    }
+}
+
 // One [uid] query, not one count per PMID. NCBI's keyed quota is shared with the ReCiter engine.
 async function retrieved(query, gold) {
     if (!query) return new Set()
@@ -95,6 +107,21 @@ async function retrieved(query, gold) {
 async function run(review, label, question, criteria) {
     let usage = { inputTokens: 0, outputTokens: 0 }
     try {
+        // POSITIONAL, AND UNAVOIDABLY SO. buildStrategy() takes seven positional parameters and has no
+        // options object, and its signature is NOT this script's to change — the API route and
+        // literatureSearch.build.ts call it too, and a benchmark harness must not reshape production
+        // code to suit itself. So the arguments are named here instead, because two `undefined`s and an
+        // empty string in a row is exactly the call site that breaks in silence when a parameter is
+        // inserted in the middle of that list: the run would still complete, and the recall number it
+        // printed would be measuring something else.
+        //
+        //   question    the variant under test — the ONE thing this experiment changes
+        //   limits      '' — no date or publication-type limits, same as the recall study
+        //   criteria    the review's own eligibility criteria, or '' for variant D
+        //   objective   'recall' — Mode 1, not Mode 2's precision prompt
+        //   pico        undefined — free-text question, not the Mode 3 structured form
+        //   db          'pubmed'
+        //   sharedConcepts  undefined — single database, so there is no sibling spine to share
         const built = await lit.buildStrategy(question, '', criteria, 'recall', undefined, 'pubmed', undefined)
         usage = built.usage
         const query = lit.assembleQuery(built.strategy)
@@ -105,7 +132,24 @@ async function run(review, label, question, criteria) {
         console.log(`     concepts: ${built.strategy.concepts.map(c => c.label).join(' AND ')}`)
         console.log(`     RECALL ${pct(got.size, review.includedPmids.length)}  ${got.size}/${review.includedPmids.length}` +
             `      YIELD ${hits.toLocaleString()} records      $${cost(usage).toFixed(2)}`)
-        return { label, question, hits, recall: [got.size, review.includedPmids.length], concepts: built.strategy.concepts.length, query }
+        return {
+            label,
+            question,
+            // The criteria this variant was actually given, because variant D differs from C ONLY in
+            // this field and the artifact is unreadable if it does not say which was which.
+            criteria,
+            hits,
+            recall: [got.size, review.includedPmids.length],
+            concepts: built.strategy.concepts.length,
+            query,
+            // THE STRATEGY ITSELF, not just the number it scored. The model SAMPLES: re-running this
+            // variant tomorrow produces a different strategy, so the one that earned this recall figure
+            // cannot be regenerated — if it is not written down here it is gone, and the number has
+            // nothing behind it. And the interesting failure mode of a vague question is not a low
+            // score, it is WHICH CONCEPTS the model invented to fill the gap; that is only legible in
+            // the blocks themselves, never in a percentage.
+            strategy: built.strategy,
+        }
     } catch (e) {
         // A REFUSAL IS A RESULT, AND A GOOD ONE. If the model declines to build a strategy from a
         // question too vague to support one, that is the tool behaving correctly — record it as such
@@ -113,7 +157,10 @@ async function run(review, label, question, criteria) {
         // hoping to find.
         console.log(`\n  ${label}  "${question}"`)
         console.log(`     REFUSED: ${e.message}`)
-        return { label, question, refused: e.message, recall: [0, review.includedPmids.length] }
+        // No strategy and no query to record — there is no artifact when the model declines. `criteria`
+        // still goes in, because C and D differ in nothing else and a refusal on one is not a refusal
+        // on the other.
+        return { label, question, criteria, refused: e.message, recall: [0, review.includedPmids.length] }
     }
 }
 
@@ -147,6 +194,23 @@ async function run(review, label, question, criteria) {
         ? 'The strategy builder is ROBUST to how the question is phrased. The question is not the risk.'
         : `Recall falls ${Math.round((base - worst) * 100)} points on a question a real person would type.\n  The tool's missing feature is not a better prompt — it is INTERROGATING THE QUESTION before it searches.`}`)
 
-    fs.writeFileSync(path.join(ROOT, '.litquestion-run.json'), JSON.stringify({ model: process.env.BEDROCK_MODEL_ID, all }, null, 2))
-    console.log(`\n  full run -> .litquestion-run.json\n`)
+    // Same metadata block as literatureSearch.recall.js, and for the same reason: a recall figure with
+    // no timestamp, no commit and no model id cannot be attached to anything, and two runs a month
+    // apart — with a prompt change between them — are indistinguishable in the file. `all` keeps its
+    // key so the shape only gains a sibling.
+    fs.writeFileSync(path.join(ROOT, '.litquestion-run.json'), JSON.stringify({
+        metadata: {
+            ranAt: new Date().toISOString(),
+            gitSha: gitSha(),
+            model: process.env.BEDROCK_MODEL_ID,
+            region: process.env.AWS_REGION,
+            benchmark: 'controllers/literatureSearch.recall.json',
+            // The degraded questions are part of the instrument, not part of the tool, and they live in
+            // this file rather than the benchmark — so an artifact that does not carry them cannot be
+            // read against a later run whose variants were edited.
+            variants: VARIANTS,
+        },
+        all,
+    }, null, 2))
+    console.log(`\n  full run (metadata, strategies, queries, yields) -> .litquestion-run.json\n`)
 })().catch(e => { console.error(e); process.exit(1) })
