@@ -46,18 +46,26 @@
 //
 // Styling lives in LiteratureSearch.module.css, lifted from the signed-off mockup. No inline
 // style objects: the page has a design system now, and it should be edited in one place.
+//
+// WHERE THE PIECES LIVE. This file is the page: it holds ALL the state, every fetch, and the order
+// the screens appear in. Nothing below it holds state, which is the point — a panel that cannot
+// hold an opinion cannot hold one that disagrees with the count. The rest is next door:
+//
+//   LiteratureSearch.types.ts       what a result, a failure and a seed ARE
+//   LiteratureSearch.constants.ts   the modes, the databases, the sorts, the measured stage times
+//   LiteratureSearch.parts.tsx      the leaves: RowCount, LineInput, Prose, the progress bar
+//   LiteratureSearch.downloads.ts   which documents leave the page, and what each one must say
+//   SearchForm.tsx                  the form, in the fields it is made of
+//   StrategyResults.tsx             Mode 1: one panel per database, plus the known-item check
+//   CandidatesView.tsx              Modes 2 and 3: the query, the narrowing gate, the 50 records
+//   SynthesisView.tsx               Modes 2 and 3: the answer, and the ways it leaves
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import {
     Strategy,
-    Concept,
     Pico,
-    PICO_FIELDS,
-    RECORD_CAP as CAP,   // a property of the mode, not a setting
     NARROW_ABOVE,        // the narrowing gate; the server enforces this same number
-    numberStrategy,
-    picoQuestion,
     picoComplete,
     buildLimits,
     dateLimits,
@@ -73,231 +81,23 @@ import {
     MAX_LINES,
     MAX_TERMS,
 } from '../../../../controllers/literatureSearch.strategy'
-import type { Db, Rendering, SeedKind } from '../../../../controllers/literatureSearch.strategy'
+import type { Db, Rendering } from '../../../../controllers/literatureSearch.strategy'
 // THE CONTRACT, imported rather than re-declared. `import type` is erased at transpile, so this
 // costs the client bundle nothing (the controller's AWS SDK import never reaches the browser) —
 // but it means the screen cannot quietly disagree with the route about what a record is. A
 // second, hand-copied copy of these four shapes is exactly how a UI ends up reading a field the
 // server stopped sending.
 import type { PubRecord, Screened, Synthesis, Narrowing } from '../../../../controllers/literatureSearch.controller'
-import { strategyDoc, synthesisDoc, recordSheets, modelLabel } from '../../../../controllers/literatureExport'
-import type { Block, RunFacts } from '../../../../controllers/literatureExport'
-// THE CLIPBOARD IS A DOCUMENT TOO. It renders the same Block[] as the .docx — see
-// literatureMarkdown.ts for why the hand-built string it replaced was the most dangerous artifact
-// on the page. No dependencies, so this is a static import.
-import { markdownDoc } from '../../../../controllers/literatureMarkdown'
-import { saveDocx, saveText, saveXlsx, stamp } from './download'
+import { ROWS_RETRY_MS, SORTS } from './LiteratureSearch.constants'
+import { isFailure } from './LiteratureSearch.types'
+import type { DbFailure, DbResult, Expert, RowState } from './LiteratureSearch.types'
+import { ExpertsPanel, FailedDatabases, PageHead, ProgressPanel, SummaryBar } from './LiteratureSearch.parts'
+import { makeDownloads } from './LiteratureSearch.downloads'
+import { CapNote, CriteriaField, DatabasePicker, LimitsRow, ModePicker, QuestionFields, SeedsField } from './SearchForm'
+import { StrategyResults } from './StrategyResults'
+import { CandidatesPanel, NarrowingGate, QueryCard } from './CandidatesView'
+import { SynthesisView } from './SynthesisView'
 import s from './LiteratureSearch.module.css'
-
-// A KNOWN ITEM, AND IT IS NOT A PMID BY ASSUMPTION. A Scopus-only record — a conference paper, a
-// non-MEDLINE journal — has no PMID at all, and those are the records Scopus is here for. So a seed
-// is an identifier WITH A KIND, and a DOI is a first-class one.
-type Seed = {
-    id: string
-    kind: SeedKind
-    label?: string
-    retrieved: boolean
-    notInDatabase?: boolean        // this database does not have the paper. Not a strategy bug.
-    failingConcepts?: number[]
-    failsLimits?: boolean
-}
-
-// THE RESULTS COLUMN. One record count per numbered line — how a search history is actually read:
-// line 1 finds 40,000, line 2 finds 9,000, and "3 AND 6" collapses to 122. The funnel IS the
-// argument, and without it the panel is a wall of Boolean the librarian has to run in their head.
-//
-// AN UNTICKED LINE HAS NO NUMBER AND THEREFORE NO COUNT, which is right: it was not searched, so
-// there is nothing true to say about it. And a MISSING count renders as nothing at all — never as a
-// 0. A throttled esearch comes back as a well-formed zero, so "0" is a value we must be able to
-// distinguish from "not counted yet", and the em-dash is how.
-//
-// BUT "NOT COUNTED YET" AND "WE GAVE UP" ARE NOT THE SAME THING, and for a long time this rendered
-// them identically: a failed rows fetch left the column empty, so the em-dash quietly changed meaning
-// from "coming in a moment" to "never coming", and a librarian sat waiting for a number that had
-// already failed. An em-dash that silently stops meaning what it said is the same family of bug as a
-// count beside the wrong line — the screen looks calm and it is lying about its own state.
-//
-// So there are three states, and they look different:
-//   pending  — a soft ellipsis. The column is being counted; it takes ~5s and it IS coming.
-//   counted  — the number.
-//   failed   — an explicit mark, with a Retry beside the panel. Never an em-dash.
-type RowState = 'pending' | 'done' | 'failed'
-
-// Long enough for a transient NCBI blip to pass, short enough that a librarian does not notice. The
-// retrieval tool has already spent its own seven retries by the time we see a 502, so an instant
-// re-fire lands in the same bad moment; a pause is the entire point.
-const ROWS_RETRY_MS = 1500
-
-function RowCount({ n, counts, stale, state }: {
-    n: number | null; counts: Record<number, number>; stale: boolean; state: RowState
-}) {
-    if (n === null) return <span className={s.rowCount} />
-    const c = counts?.[n]
-    if (typeof c === 'number') {
-        return <span className={`${s.rowCount} ${stale ? s.hitsStale : ''}`}>{c.toLocaleString()}</span>
-    }
-    if (state === 'failed') {
-        return <span className={`${s.rowCount} ${s.rowFailed}`} title="This line could not be counted. PubMed did not answer.">·&thinsp;·&thinsp;·</span>
-    }
-    if (state === 'pending') {
-        return <span className={`${s.rowCount} ${s.rowPending}`} aria-label="counting">&hellip;</span>
-    }
-    return <span className={`${s.rowCount} ${stale ? s.hitsStale : ''}`}>&mdash;</span>
-}
-
-type DbResult = {
-    db: Db
-    dbName: string
-    concepts: Rendering[]          // THIS database's rendering. The labels are shared; the lines are not.
-    limits: string
-    unsupportedLimits: string[]    // limits this database cannot express — declared, never dropped
-    rowCounts: Record<number, number>   // records per PRESS line — the Results column
-    query: string
-    hits: number
-    runDate: string
-    seeds: Seed[]
-    records?: PubRecord[]
-    sort?: string
-    // Mode 2, THE NARROWING GATE. Above NARROW_ABOVE the server retrieves nothing and hands back
-    // the strategy, the count, and a set of PRICED narrowings instead. It is a 200, not a 4xx:
-    // "too many" is a finding, not an error, and the answer to it is the query — which the
-    // librarian therefore has to be able to see.
-    //
-    // There is no `tooBroad` any more. That flag was the retrieval TOOL's 2,000-record fetch
-    // limit leaking into the product as a refusal, and the limit is gone: the tool takes a retmax
-    // and will return the top 50 of a 184,043-hit query. So there is no technical reason left to
-    // refuse — only an honesty reason to warn, which is what the gate does.
-    needsNarrowing?: boolean
-    narrowings?: Narrowing[]
-    // THE SEARCH RAN AND WAS COUNTED; SOMETHING AFTER IT DID NOT. Seed validation or the suggested
-    // widenings can fail on their own — they are extra count calls, and NCBI can throttle them long
-    // after the yield has landed. That is NOT a failed database: the query is real, the count is
-    // real, and we were BILLED for it. So it renders as a quiet note on a normal panel, never as a
-    // failure and never as a suppressed count — a degraded panel that hid its own number would
-    // throw away the one thing the librarian paid for.
-    degraded?: string
-}
-
-// A DATABASE THAT FAILED. The build loop no longer throws the whole run away when one database
-// dies — it pushes this into the results array, in the position that database would have occupied,
-// so a dead Scopus tool costs the librarian Scopus and nothing else.
-//
-// It is a DIFFERENT SHAPE, deliberately, and not a `hits: 0` or an empty panel on the normal one.
-// Every field a strategy panel reads — the query, the count, the lines, the seeds — is missing here
-// because none of them exist, and a type that pretended otherwise would let one of them render as a
-// zero. A zero beside a database name is a librarian reading "this database found nothing."
-type DbFailure = { db: Db; failed: true; error: string }
-const isFailure = (x: DbResult | DbFailure): x is DbFailure => (x as DbFailure).failed === true
-
-type Expert = {
-    personIdentifier: string
-    firstName: string
-    lastName: string
-    primaryOrganizationalUnit: string | null
-    pubs: number
-}
-
-// Clinical question is LIVE as of 2026-07-13: InfoSec cleared it, and the PHI surface that worried
-// them is gone — the mode takes four structured PICO fields, not a "describe the case" textarea.
-// The hazard was removed at the affordance rather than policed by a detector afterwards. (A
-// detector remains forbidden: the obvious MRN heuristic, "a 7-10 digit number", fires on every
-// 8-digit PMID in the seeds field.)
-const MODES = [
-    { id: 'search-strategy', label: 'Search strategy', desc: 'Recall · uncapped · produces a strategy, not a synthesis', ready: true },
-    { id: 'issue-review', label: 'Issue review', desc: 'Precision · top 50 · narrative synthesis', ready: true },
-    { id: 'clinical-question', label: 'Clinical question', desc: 'Precision · top 50 · PICO answer', ready: true },
-]
-
-// SCOPUS IS SEARCH-STRATEGY ONLY, and that is principled rather than unfinished. Modes 2 and 3
-// order records by an evidence tier derived from PubMed's publication-type indexing, and Scopus has
-// no such index — probed live, DOCTYPE(rct) returns 0, because Scopus has no RCT document type. A
-// Scopus "clinical answer" would have no evidence hierarchy underneath it, which is the one thing
-// Mode 3 is for. Embase remains unavailable: Elsevier does not sell us API access to it.
-const DATABASES: Array<{ id: Db; label: string; ready: boolean; srOnly?: boolean; note?: string }> = [
-    { id: 'pubmed', label: 'PubMed', ready: true },
-    // Embase is DRAFTED, never executed: we have no API for it, so it yields a strategy and no count.
-    // That is a real limitation and it is stated on the chip rather than discovered in the export.
-    // It is Mode 1 only, for the same reason Scopus is — see the route.
-    { id: 'embase', label: 'Embase (Ovid)', ready: true, srOnly: true, note: 'strategy only — we cannot count Embase, so you run it in Ovid' },
-    { id: 'scopus', label: 'Scopus', ready: true, srOnly: true, note: 'no controlled vocabulary — supplementary to PubMed, not equivalent' },
-]
-
-// Without this control "top 50" is an unranked slice of the yield and the mode's promise is
-// false. It is not sugar.
-const SORTS = [
-    { id: 'relevance', label: 'Most relevant' },
-    { id: 'date', label: 'Most recent' },
-]
-
-// The measured shape of each wait, so the screen can show a REAL number instead of a barber
-// pole. Screening 50 abstracts in one call takes ~29s and the synthesis ~47s: those are long
-// enough that a bare spinner reads as "hung", and the honest thing is to say what is happening,
-// how long it usually takes, and how long it has actually been.
-const STAGES: Record<string, { expect: number }> = {
-    fetching: { expect: 3 },
-    screening: { expect: 30 },
-    synthesizing: { expect: 48 },
-}
-
-// A term line: editable in place. No click-to-edit mode, no modal, no separate "Edit & re-run"
-// button -- the line IS the input, and every keystroke lands in the same debounced re-count the
-// checkboxes use. That retires the free-text re-run and its whole failure mode: there is no
-// second copy of the query to get out of sync, and a broken line can only break its own block.
-// Auto-grows because a real MeSH line runs to 600 characters and must not be a slot.
-function LineInput({ value, on, onChange }: { value: string; on: boolean; onChange: (v: string) => void }) {
-    const ref = useRef<HTMLTextAreaElement>(null)
-    const grow = () => {
-        const el = ref.current
-        if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px` }
-    }
-    useEffect(grow, [value])
-    return (
-        <textarea
-            ref={ref}
-            rows={1}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            onInput={grow}
-            spellCheck={false}
-            className={`${s.lineInput} ${on ? '' : s.lineOff}`}
-        />
-    )
-}
-
-// The synthesis cites inline as [PMID 12345678]. Rendering those as links is the whole point:
-// a claim you cannot get back to the abstract for is a claim you cannot check, and unverifiable
-// prose is exactly what this feature is supposed to be an antidote to.
-function Prose({ text }: { text: string }) {
-    const split = (t: string, re: RegExp) => t.split(re).map(p => p.trim()).filter(Boolean)
-    // Blank-line paragraphs if the model gave us any; a single newline is a paragraph too if it
-    // did not. Getting this wrong renders 700 words as one unbroken wall, which nobody reads —
-    // and prose nobody reads is prose nobody verifies.
-    let paras = split(text, /\n{2,}/)
-    if (paras.length === 1) paras = split(text, /\n/)
-    return (
-        <div className={s.prose}>
-            {paras.map((p, i) => (
-                <p key={i}>
-                    {p.split(/\[PMID\s*(\d{5,9})\]/g).map((part, j) =>
-                        j % 2 === 1 ? (
-                            <a
-                                key={j}
-                                className={s.pmid}
-                                href={`https://pubmed.ncbi.nlm.nih.gov/${part}/`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                PMID {part}
-                            </a>
-                        ) : (
-                            <span key={j}>{part}</span>
-                        ),
-                    )}
-                </p>
-            ))}
-        </div>
-    )
-}
 
 export default function LiteratureSearch() {
     const session = useSession().data as any
@@ -851,7 +651,6 @@ export default function LiteratureSearch() {
     const liveStrategies: Strategy[] = strategies.map(st => ({
         ...st, limits: buildLimits(st.db, dateId, typeId).terms,
     }))
-    const liveStrategy: Strategy | null = liveStrategies[0] || null      // Modes 2 & 3
 
     // THE COUNT MAP IS KEYED BY PRESS LINE NUMBER, AND THE LINE NUMBERS MOVE.
     //
@@ -1010,14 +809,6 @@ export default function LiteratureSearch() {
         )
     }
 
-    const retrieved = result ? result.seeds.filter(x => x.retrieved).length : 0
-    const allFound = result && result.seeds.length > 0 && retrieved === result.seeds.length
-    const numbered = liveStrategy ? numberStrategy(liveStrategy) : null
-    // Per DATABASE now — a seed can be retrieved by PubMed and missed by Scopus, and that difference
-    // is one of the more interesting things this screen can tell a librarian.
-    const seedIn = (r: DbResult, id?: string) => r.seeds.find(x => x.id === id)
-    const nameOf = (x?: Seed) => (x ? x.label || `${x.kind.toUpperCase()} ${x.id}` : '')
-
     // THE TALLY FOLLOWS THE HUMAN, NEVER THE FLAGS.
     const included = records.filter(r => picked[r.pmid])
     const excludedCount = records.length - included.length
@@ -1043,185 +834,26 @@ export default function LiteratureSearch() {
     // nothing to warn about, so nothing warns.
     const over = !!result && result.hits > NARROW_ABOVE
 
-    // ---- DOWNLOADS. --------------------------------------------------------------------------
-    //
-    // Each section carries its own button, because that is where someone is standing when they
-    // decide they want it. The FORMAT is chosen per section rather than offered as a menu: a
-    // strategy destined for a manuscript appendix wants Word; fifty records destined for Covidence
-    // or a filter want a spreadsheet; the query itself wants to be pasted straight back into
-    // PubMed, so it wants plain text and nothing else.
-    //
-    // EVERY ONE OF THEM CARRIES THE QUERY, THE COUNT AND THE DATE. See literatureExport.ts.
-
-    // Built from `result`, NEVER from the live `strategy` — the export must describe the toggled
-    // state that produced the count printed beside it.
-    // WHO RAN IT. `provenance` is the server's word for it, but it only arrives with the synthesis —
-    // so a strategy or a records export taken BEFORE the synthesis would have gone out unattributed,
-    // and an export nobody can be traced to is one nobody has to stand behind. The session knows
-    // who this is from the moment the page loads.
-    const runBy = provenance?.cwid || (session?.data?.username as string | undefined)
-
-    // WHICH MODEL. Carried on the facts so that every builder discloses it without having to be
-    // told twice — the synthesis, the strategy appendix and the spreadsheet all read it from here.
-    const runFacts = (r: DbResult): RunFacts => ({
-        db: r.db,
-        query: r.query,
-        hits: r.hits,
-        // Modes 2/3 only ever pull down a capped, ranked slice, so the export must not print the
-        // yield under the word "retrieved". Mode 1 counts and never retrieves — it leaves this unset
-        // and keeps its single, correct row.
-        retrieved: r.records?.length,
-        runDate: r.runDate,
-        cwid: runBy,
-        limits: r.limits,
-        unsupportedLimits: r.unsupportedLimits,
-        sort: r.records?.length ? sortLabel : undefined,
-        model,
+    // The documents this run can leave as, built in LiteratureSearch.downloads.ts. Rebuilt on every
+    // render from the values above, exactly as the closures were when they lived here: a builder
+    // that could read a stale `included` would export a different set from the one on screen.
+    const { dlStrategy, dlQuery, dlRecords, dlSynthesis, markdown, prismaBlock, dlPacket } = makeDownloads({
+        results, records, flags, picked, synthesis, included,
+        question, model, isPico, sortLabel, provenance, session, setErr,
     })
 
-    const docxFailed = () => setErr('Could not build the Word document.')
-
-    // THE FILENAME NAMES THE DATABASE, because the file is downloaded PER DATABASE and the download
-    // folder is where provenance goes to die. Every query used to land as `pubmed-query-<date>.txt` —
-    // so a Scopus query was saved under PubMed's name, and once Embase (Ovid) shipped there were THREE
-    // panels writing one filename, each silently overwriting the last. A librarian ends up with a
-    // single file called "pubmed-query" containing an Ovid strategy, and no way to know.
-    //
-    // `r.db` is right there on the result. Use it.
-    const dlStrategy = (r: DbResult) =>
-        saveDocx(strategyDoc(r, question, runBy, model), `${stamp(`search-strategy-${r.db}`, r.runDate)}.docx`)
-            .catch(docxFailed)
-
-    const dlQuery = (r: DbResult) =>
-        saveText(r.query, `${stamp(`${r.db}-query`, r.runDate)}.txt`)
-
-    const dlRecords = (r: DbResult) =>
-        saveXlsx(recordSheets(records, flags, picked, runFacts(r)), `${stamp('records', r.runDate)}.xlsx`)
-            .catch(() => setErr('Could not build the spreadsheet.'))
-
-    const dlSynthesis = (r: DbResult) => {
-        if (!synthesis) return
-        saveDocx(
-            synthesisDoc(synthesis, runFacts(r), question,
-                { pico: isPico, screenedIn: included.length, screenedOf: records.length }),
-            `${stamp(isPico ? 'clinical-answer' : 'issue-review', r.runDate)}.docx`,
-        ).catch(docxFailed)
-    }
-
-    // THE TWO CLIPBOARD ARTIFACTS, AND THEY ARE THE ONES PEOPLE ACTUALLY FORWARD.
-    //
-    // Both are now THE SAME DOCUMENTS as the .docx files above, rendered as Markdown instead of
-    // OOXML — same builders, same blocks, one renderer each. Both used to be strings assembled by
-    // hand right here, and being hand-assembled is precisely how each ended up missing the one thing
-    // it existed to say.
-    //
-    // The synthesis went out with no database, no query, no yield, no search date — and no
-    // fabricated-citation warning. We detect an invented PMID, shout about it on screen, stamp it
-    // into the Word file, and then handed the librarian a clean-looking copy of the contaminated
-    // summary to paste into an email.
-    //
-    // The methods block was worse, because of where it LANDS. It is pasted into a published
-    // manuscript as a reproducibility statement, and it did not disclose that the strategy had been
-    // DRAFTED BY A MODEL, or which model. Every Block[] export stamps that in ("Strategy drafted by
-    // <model>, then reviewed and edited by the person named above"); the one artifact that goes into
-    // the literature was the one that left it out. It also called the yield "Records retrieved",
-    // which in a PRISMA-S appendix is the number a reader copies into a flow diagram — and it is a
-    // count, not a retrieval.
-    //
-    // There is no hand-built format left on this page. A fact added to a document now arrives in
-    // every artifact of it, including these.
-    const markdown = (r: DbResult) => (synthesis
-        ? markdownDoc(synthesisDoc(synthesis, runFacts(r), question,
-            { pico: isPico, screenedIn: included.length, screenedOf: records.length }))
-        : '')
-
-    // EVERY database that was searched, in one document, exactly as "Download everything" does it —
-    // and a failed database appears in neither, because it is not in `results`. Each database opens
-    // its own H1, so a two-database methods section arrives already sectioned. The blocks are built
-    // from `result`, never from the live `strategy`: the methods must describe the query that
-    // produced the count printed beside it, or a librarian who unticks two bundles publishes a
-    // strategy that does not reproduce their own number.
-    const prismaBlock = () => markdownDoc(results.flatMap(r => strategyDoc(r, question, runBy, model)))
-
-    // THE PACKET: the whole run as one Word file plus one spreadsheet, for the co-author who was
-    // not in the room, or for a manuscript submission where the search has to travel as a single
-    // artifact. Same builders, concatenated — there is no second source of truth.
-    const dlPacket = (r: DbResult) => {
-        const facts = runFacts(r)
-        // EVERY database that was searched, not just the first. A methods appendix that reports one
-        // of two searches is not a methods appendix — and the two are separate documents inside the
-        // one file precisely because they are separate searches, with separate counts that must
-        // never be added together.
-        const blocks: Block[] = [
-            ...results.flatMap(x => strategyDoc(x, question, runBy, model)),
-            ...(synthesis
-                ? synthesisDoc(synthesis, facts, question,
-                    { pico: isPico, screenedIn: included.length, screenedOf: records.length })
-                : []),
-        ]
-        saveDocx(blocks, `${stamp('literature-search', r.runDate)}.docx`).catch(docxFailed)
-        if (records.length) {
-            saveXlsx(recordSheets(records, flags, picked, facts), `${stamp('literature-search', r.runDate)}.xlsx`)
-                .catch(() => setErr('Could not build the spreadsheet.'))
-        }
-    }
-
-    // The wait, with a real number on it. `expect` is the MEASURED median, so the bar is an
-    // estimate and the seconds counter is the truth — the bar stops at 95% rather than telling
-    // the comfortable lie that it is finished.
-    const progress = (() => {
-        if (stage === 'idle') return null
-        const expect = STAGES[stage].expect
-        const label =
-            stage === 'fetching' ? `Retrieving ${CAP} records…`
-                : stage === 'screening' ? `Screening ${records.length} record${records.length === 1 ? '' : 's'}…`
-                    : 'Writing the synthesis…'
-        const note =
-            stage === 'fetching' ? 'Running the query against PubMed.'
-                : stage === 'screening' ? `One model call over all ${records.length} abstracts, against your criteria. The suggestions will land on the rows below — usually about 30 seconds.`
-                    : `One model call over the ${included.length} record${included.length === 1 ? '' : 's'} you selected. Usually about 45 seconds.`
-        return { label, note, pct: Math.min(95, Math.round((elapsed / expect) * 100)) }
-    })()
-
-    const progressPanel = progress && (
-        <div className={s.progress} aria-live="polite">
-            <div className={s.progLine}>
-                <b>{progress.label}</b>
-                <span className={s.spacer} />
-                <span className={s.progElapsed}>{elapsed}s</span>
-            </div>
-            <div className={s.bar}>
-                <span className={s.barFill} style={{ width: `${progress.pct}%` }} />
-            </div>
-            <p className={s.help}>{progress.note}</p>
-        </div>
+    // The wait. ProgressPanel draws nothing while the stage is idle, so the two guards below are
+    // about WHERE it appears — above the form, or above the rows it is annotating — and not about
+    // whether there is anything to say.
+    const progressPanel = (
+        <ProgressPanel stage={stage} elapsed={elapsed} records={records.length} included={included.length} />
     )
 
     // AT WEILL CORNELL — works with no records at all, straight off the query's MeSH. Shown on
     // the strategy, the candidates and the synthesis: the "who here already knows this" question
     // is the one thing this page can answer that PubMed cannot.
     const expertsPanel = experts && experts.experts.length > 0 && (
-        <div className={`${s.card} ${s.experts}`}>
-            <div className={s.expertsHead}>
-                <span className={s.eyebrow}>At Weill Cornell</span>
-                <span className={s.expertsCount}>
-                    top {experts.experts.length} of <b>{experts.total.toLocaleString()}</b> faculty
-                    publishing on these MeSH terms
-                </span>
-            </div>
-            <div className={s.expertsList}>
-                {experts.experts.map(e => (
-                    <div className={s.expert} key={e.personIdentifier}>
-                        <span className={s.expertName}>{e.firstName} {e.lastName}</span>
-                        <span className={`${s.expertDept} ${e.primaryOrganizationalUnit ? '' : s.expertDeptBlank}`}>
-                            {e.primaryOrganizationalUnit || 'department not recorded'}
-                        </span>
-                        <span className={s.expertPubs}>{e.pubs} pubs</span>
-                    </div>
-                ))}
-            </div>
-            <div className={s.expertsFoot}>Ranked by accepted publications.</div>
-        </div>
+        <ExpertsPanel experts={experts} />
     )
 
     const showForm = isSR ? !result : phase === 'form'
@@ -1229,180 +861,19 @@ export default function LiteratureSearch() {
 
     return (
         <div className={s.page}>
-            {showForm ? (
-                <>
-                    <h1 className={s.title}>Literature Search</h1>
-                    <p className={s.sub}>
-                        {isSR
-                            ? 'Build a reproducible search strategy for a systematic review — not a finished answer.'
-                            : 'Retrieve, screen and synthesize the top 50 records — an orientation, not a systematic review.'}
-                    </p>
-                </>
-            ) : (
-                <div className={s.crumb}>Literature Search &nbsp;&rsaquo;&nbsp; <b>{crumb}</b></div>
-            )}
+            <PageHead showForm={showForm} isSR={isSR} crumb={crumb} />
 
             {/* THE FORM. Collapses to a one-line summary bar once there is a deliverable — on a
                 laptop it otherwise sits below the fold, under a form nobody is reading any more.
                 "New search" brings it back, with the question still in it. */}
             {showForm ? (
                 <div className={s.card}>
-                    {/*
-                      * The mode is a RETRIEVAL OBJECTIVE, not a template: Search strategy chases
-                      * recall and ends in a handoff to Covidence, Issue review chases precision
-                      * and ends in a synthesis. Changing it clears the deliverable, because a
-                      * strategy and a candidate list are answers to different questions.
-                      */}
-                    <div className={s.field}>
-                        <span className={s.eyebrow}>Mode</span>
-                        <div className={s.modes} role="radiogroup" aria-label="Search mode">
-                            {MODES.map(m => (
-                                <label
-                                    key={m.id}
-                                    htmlFor={`lit-mode-${m.id}`}
-                                    className={`${s.mode} ${mode === m.id ? s.modeSelected : ''} ${m.ready ? '' : s.modeDisabled}`}
-                                >
-                                    {/* Disabled while a call is in flight: the form is still on screen during
-                                        the 2s fetch, and switching modes underneath a request that is about
-                                        to land would drop its result into the wrong screen. */}
-                                    <input
-                                        id={`lit-mode-${m.id}`}
-                                        type="radio"
-                                        name="lit-mode"
-                                        checked={mode === m.id}
-                                        disabled={!m.ready || inFlight}
-                                        onChange={() => pickMode(m.id)}
-                                    />
-                                    <span className={s.modeBody}>
-                                        <span className={s.modeTitle}>
-                                            {m.label}{!m.ready && <span className={s.soon}> &mdash; soon</span>}
-                                        </span>
-                                        <span className={s.modeDesc}>{m.desc}</span>
-                                    </span>
-                                </label>
-                            ))}
-                        </div>
-                        <p className={s.help}>
-                            {isSR ? (
-                                <>
-                                    Search strategy produces a reproducible, peer-reviewable query. Screen and synthesize
-                                    the results in Covidence.
-                                </>
-                            ) : isPico ? (
-                                <>
-                                    Clinical question answers a PICO question from the top {CAP} records, ordered by
-                                    study design &mdash; guidelines and systematic reviews before trials, using
-                                    PubMed&rsquo;s own indexing. <b>It tells you how strong that evidence is, including
-                                    when it is weak.</b> Verify every claim against the sources.
-                                </>
-                            ) : (
-                                <>
-                                    Issue review retrieves the top {CAP} records, flags each one against your criteria and
-                                    drafts a synthesis you must verify. <b>It is not a systematic review</b> &mdash; for that,
-                                    use Search strategy and hand off to Covidence.
-                                </>
-                            )}
-                        </p>
-                    </div>
+                    <ModePicker mode={mode} isSR={isSR} isPico={isPico} inFlight={inFlight} onPick={pickMode} />
 
-                    {/*
-                      * MODE 3 ASKS FOR FOUR FIELDS, NOT A TEXTAREA, AND THAT IS THE WHOLE PHI
-                      * ARGUMENT. A box that says "describe the case" invites a case history; a
-                      * field labelled Population, placeheld with "adults with type 2 diabetes and
-                      * CKD", teaches that Population is a clinical CLASS. The hazard is designed
-                      * out at the affordance instead of being policed by a detector afterwards —
-                      * and a detector was ruled out, because the obvious MRN heuristic ("a 7-10
-                      * digit number") fires on every 8-digit PMID in the seeds field.
-                      *
-                      * The placeholders are load-bearing. They are the instruction.
-                      */}
-                    {isPico ? (
-                        <div className={s.field}>
-                            <label className={s.eyebrow}>The clinical question</label>
-                            <div className={s.pico}>
-                                {PICO_FIELDS.map(f => (
-                                    <div key={f.id} className={s.picoField}>
-                                        <label className={s.picoLabel} htmlFor={`lit-${f.id}`}>
-                                            {f.label}
-                                            {!f.required && <span className={s.picoOptional}> — optional</span>}
-                                        </label>
-                                        <input
-                                            id={`lit-${f.id}`}
-                                            type="text"
-                                            className={s.input}
-                                            value={pico[f.id] || ''}
-                                            onChange={e => setPico(p => ({ ...p, [f.id]: e.target.value }))}
-                                            placeholder={f.placeholder}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                            {picoComplete(pico) && (
-                                <p className={s.picoEcho}>{picoQuestion(pico as Pico)}</p>
-                            )}
-                            <p className={s.help}>
-                                Population is a clinical class, not a person. Your question is sent to an
-                                external AI service &mdash; do not include patient identifiers.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className={s.field}>
-                            <label className={s.eyebrow} htmlFor="lit-q">What do you want to know?</label>
-                            <textarea
-                                id="lit-q"
-                                className={s.input}
-                                rows={2}
-                                value={question}
-                                onChange={e => setQuestion(e.target.value)}
-                                placeholder="Do probiotics reduce symptoms of depression in adults?"
-                            />
-                            <p className={s.help}>
-                                Your question is sent to an external AI service &mdash; do not include patient identifiers.
-                            </p>
-                        </div>
-                    )}
+                    <QuestionFields isPico={isPico} pico={pico} setPico={setPico}
+                        question={question} setQuestion={setQuestion} />
 
-                    {/*
-                      * Embase and Scopus are visible-but-disabled on purpose. It sets the
-                      * expectation, and it keeps the query artifact an ARRAY of per-database
-                      * results rather than letting a scalar sneak in.
-                      */}
-                    <div className={s.field}>
-                        <span className={s.eyebrow}>Databases</span>
-                        <div className={s.dbRow}>
-                            {DATABASES.map(d => {
-                                // PubMed is always on and cannot be turned off — it is the only database
-                                // every mode can use. Scopus is offered in Search strategy ONLY (Modes 2
-                                // and 3 rank on PubMed's publication-type index, which Scopus lacks).
-                                const fixed = d.id === 'pubmed'
-                                const usable = d.ready && (!d.srOnly || isSR)
-                                const on = fixed || (usable && dbs.includes(d.id as Db))
-                                return (
-                                    <label
-                                        key={d.id}
-                                        htmlFor={`lit-db-${d.id}`}
-                                        className={`${s.db} ${usable || fixed ? '' : s.dbOff}`}
-                                        title={d.note || ''}
-                                    >
-                                        <input
-                                            id={`lit-db-${d.id}`}
-                                            type="checkbox"
-                                            checked={on}
-                                            disabled={fixed || !usable}
-                                            onChange={() => setDbs(cur => (
-                                                cur.includes(d.id as Db)
-                                                    ? cur.filter(x => x !== d.id)
-                                                    : [...cur, d.id as Db]
-                                            ))}
-                                        />
-                                        {d.label}
-                                        {!d.ready && <span className={s.soon}>(soon)</span>}
-                                        {d.ready && d.srOnly && !isSR && <span className={s.soon}>(search strategy only)</span>}
-                                    </label>
-                                )
-                            })}
-                        </div>
-                    </div>
+                    <DatabasePicker isSR={isSR} dbs={dbs} setDbs={setDbs} />
 
                     {/* THE RECALL CONTRACT. Search-strategy mode only: a known-item check is how you
                         prove a strategy did not silently miss half the literature, and it is
@@ -1410,116 +881,24 @@ export default function LiteratureSearch() {
                         The seed count is live and turns green once armed — a strategy with no seeds
                         cannot be validated, and the pill is the cheapest possible way to say so
                         before the librarian has spent a model call. */}
-                    {isSR && (
-                        <div className={s.requirement}>
-                            <div className={s.reqHead}>
-                                <label className={s.eyebrow} htmlFor="lit-seeds">Known-item seeds</label>
-                                <span className={`${s.seedCount} ${seedList.length ? s.seedCountArmed : ''}`}>
-                                    {seedList.length === 1 ? '1 seed' : `${seedList.length} seeds`}
-                                </span>
-                            </div>
-                            {/* 5 rows, not 2: the librarian names 3-5 seeds, and at 2 rows the first PMID
-                                scrolled out of its own box the moment a fourth was added. */}
-                            <textarea
-                                id="lit-seeds"
-                                className={`${s.input} ${s.mono}`}
-                                rows={5}
-                                value={seeds}
-                                onChange={e => setSeeds(e.target.value)}
-                                placeholder="PMIDs or DOIs, one per line — papers this search MUST retrieve"
-                            />
-                            <p className={s.help}>
-                                We run the strategy and report whether each one came back.{' '}
-                                <b>A strategy that misses a known include is broken.</b>
-                            </p>
-                        </div>
-                    )}
+                    {isSR && <SeedsField seeds={seeds} setSeeds={setSeeds} count={seedList.length} />}
 
-                    <div className={s.requirement}>
-                        <label className={s.eyebrow} htmlFor="lit-crit">Inclusion / exclusion criteria &mdash; optional</label>
-                        <textarea
-                            id="lit-crit"
-                            className={s.input}
-                            rows={2}
-                            value={criteria}
-                            onChange={e => setCriteria(e.target.value)}
-                            placeholder="e.g. RCTs only; adults; validated depression scales; exclude preclinical"
-                        />
-                        <p className={s.help}>
-                            {isSR
-                                ? 'Shapes the query.'
-                                : 'Shapes the query — and in this mode it is also what each record is screened against, so the more specific it is, the better the flags.'}
-                        </p>
-                    </div>
+                    <CriteriaField isSR={isSR} criteria={criteria} setCriteria={setCriteria} />
 
-                    {/*
-                      * LIMITS ARE DROPDOWNS, NOT PROSE. They used to be a free-text box passed to
-                      * the model, which meant the MODEL decided what "2021-2026" meant -- a quiet
-                      * hole in the one thing this mode promises. The ids resolve to PubMed syntax
-                      * server-side, by a table both ends share.
-                      *
-                      * SORT is Issue-review only, and it is load-bearing rather than sugar: without
-                      * it, "the top 50" is an unranked slice of the yield and the mode's promise is
-                      * false. There is deliberately no Max control next to it — see CAP.
-                      */}
-                    <div className={s.controls}>
-                        <div className={s.control}>
-                            <label htmlFor="lit-date">Date</label>
-                            <select id="lit-date" className={s.input} value={dateId} onChange={e => changeLimits(() => setDateId(e.target.value))}>
-                                {dates.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-                            </select>
-                        </div>
-                        <div className={s.control}>
-                            <label htmlFor="lit-type">Publication type</label>
-                            <select id="lit-type" className={s.input} value={typeId} onChange={e => changeLimits(() => setTypeId(e.target.value))}>
-                                {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                            </select>
-                        </div>
-                        {!isSR && (
-                            <div className={s.control}>
-                                <label htmlFor="lit-sort">Rank by</label>
-                                <select id="lit-sort" className={s.input} value={sort} onChange={e => setSort(e.target.value)}>
-                                    {SORTS.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
-                                </select>
-                            </div>
-                        )}
-                        <span className={s.spacer} />
-                        <button className={s.btn} onClick={isSR ? build : findRecords} disabled={!canBuild}>
-                            {isSR
-                                ? (busy ? 'Building strategy…' : 'Build strategy')
-                                : (inFlight ? 'Working…' : 'Find records')}
-                        </button>
-                    </div>
+                    <LimitsRow
+                        isSR={isSR} dates={dates} types={types} dateId={dateId} typeId={typeId} sort={sort}
+                        busy={busy} inFlight={inFlight} canBuild={canBuild}
+                        onDate={v => changeLimits(() => setDateId(v))}
+                        onType={v => changeLimits(() => setTypeId(v))}
+                        onSort={setSort}
+                        onRun={isSR ? build : findRecords}
+                    />
 
-                    <p className={s.capNote}>
-                        {isSR ? (
-                            <>
-                                <b>No result cap in this mode.</b> A systematic-review search is designed to over-retrieve:
-                                a 5,000-record yield is a success, not an error.
-                            </>
-                        ) : (
-                            <>
-                                <b>The top {CAP} records, and that is the mode.</b>{' '}
-                                {isPico ? 'Clinical question' : 'Issue review'} reads every abstract it
-                                screens, so the cap is what fits in one pass &mdash; it is a property of the mode, not a
-                                setting you can raise. If the yield runs past {NARROW_ABOVE.toLocaleString()} we will not
-                                quietly hand you a slice of it: we will show you the count and offer narrowings, each one
-                                priced in records, and you decide.
-                            </>
-                        )}
-                    </p>
+                    <CapNote isSR={isSR} isPico={isPico} />
                 </div>
             ) : (
-                <div className={s.summary}>
-                    <span className={s.chip}>{isSR ? 'Search strategy' : 'Issue review'}</span>
-                    <span className={s.summaryQ}>&ldquo;{question}&rdquo;</span>
-                    {!isSR && result && (
-                        <span className={`${s.summaryN} ${recounting ? s.hitsStale : ''}`}>
-                            {result.hits.toLocaleString()} records
-                        </span>
-                    )}
-                    <button className={s.btnSecondary} onClick={newSearch} disabled={inFlight}>New search</button>
-                </div>
+                <SummaryBar isSR={isSR} question={question} result={result}
+                    recounting={recounting} inFlight={inFlight} onNewSearch={newSearch} />
             )}
 
             {/* The wait, before there is anything else to look at. Not gated on `showForm` any
@@ -1529,723 +908,44 @@ export default function LiteratureSearch() {
 
             {err && <div role="alert" className={s.error}>{err}</div>}
 
-            {/* ============ A DATABASE THAT FAILED ============
-                One database dying no longer takes the whole run with it — so it has to be SAID, and
-                said as a failure. The three things it must never look like, because each of them is a
-                number a librarian would act on:
-
-                  a panel with an empty strategy   — reads as "this database has nothing to say"
-                  a count of 0                     — reads as "this database found nothing"
-                  Embase's "not counted"           — reads as "drafted, run it yourself in Ovid",
-                                                     which is a TRUE statement about Embase and a
-                                                     false one about a database whose tool was down
-
-                So: no count element at all, no line numbers, no seeds, and the word FAILED. It sits
-                outside the `results.length > 0` block on purpose — if every database failed there are
-                no panels to hang it under, and that is exactly when it matters most.
-
-                It is also absent from every export: `results` holds the searches that ran, the
-                exports iterate `results`, and this database is not in it. A methods appendix that
-                lists a database we never searched is a fabrication with a citation on it. */}
-            {failures.map(f => (
-                <section className={s.panel} key={`failed-${f.db}`} aria-live="polite">
-                    <div className={s.panelHead}>
-                        <h2 className={s.panelTitle}>{DIALECTS[f.db].name}</h2>
-                    </div>
-                    <div className={`${s.dbNote} ${s.dbNoteWarn}`}>
-                        <b>This database was not searched — the search failed.</b> It has no strategy, no
-                        count and no records here, and <b>this is not a result of zero</b>: we do not know what
-                        {' '}{DIALECTS[f.db].name} would have returned. Nothing below or above includes it, and it
-                        does not appear in any download. Try again, or run the other databases without it.
-                        {/* The server's own words, verbatim. "Could not reach the Scopus tool" is the
-                            difference between waiting five minutes and telling someone the pod is down. */}
-                        {f.error && <p className={s.help}>{f.error}</p>}
-                    </div>
-                </section>
-            ))}
+            <FailedDatabases failures={failures} />
 
             {/* ============ MODE 1 — THE STRATEGY ============ */}
             {isSR && results.length > 0 && (
-                <>
-                    {/* ONE PANEL PER DATABASE. They share the concept LABELS and nothing else: each
-                        set of terms was written natively for its own database, from the question.
-                        Two counts sit side by side, and they are NOT the same search — which is the
-                        honest thing to show, and the reason the panels are separate rather than
-                        summed. Counts across databases must never be added: the overlap is large
-                        and unmeasured until records are deduped. */}
-                    {results.map((result, di) => {
-                    const live = liveStrategies[di]
-                    if (!live) return null
-                    const numbered = numberStrategy(live)
-                    const retrieved = result.seeds.filter(x => x.retrieved).length
-                    const allFound = result.seeds.length > 0 && retrieved === result.seeds.length
-                    return (
-                    <div key={result.db}>
-                    <section className={s.panel} aria-live="polite">
-                        <div className={s.panelHead}>
-                            <h2 className={s.panelTitle}>{result.dbName}</h2>
-                            {/* A DATABASE WE CANNOT COUNT SHOWS NO NUMBER. `hits` is null for Embase
-                                (Ovid) — we have no API — and null is NOT zero. Rendering it as "0
-                                records" beside a perfectly good strategy would be the most damaging
-                                thing on this screen: it reads as "your search found nothing." */}
-                            {result.hits === null ? (
-                                <span className={s.notCounted}>not counted &mdash; run it in Ovid</span>
-                            ) : (
-                                <span className={`${s.hits} ${recounting ? s.hitsStale : ''}`}>
-                                    {result.hits.toLocaleString()} <span>records</span>
-                                </span>
-                            )}
-                            {recounting && result.hits !== null && <span className={s.recounting}>re-counting…</span>}
-                        </div>
-
-                        {/* SCOPUS IS NOT A SECOND PUBMED, AND THE SCREEN SAYS SO. It has no controlled
-                            vocabulary — nothing to explode, no MeSH analogue — so this strategy is
-                            faithfully the same idea and systematically LESS SENSITIVE than the PubMed
-                            one beside it. For a systematic review, where recall is the cardinal
-                            virtue, that is a methodological cost no engineering can remove, and a
-                            librarian is entitled to read it before they trust the number above. */}
-                        {result.db === 'scopus' && (
-                            <div className={s.dbNote}>
-                                Scopus has <b>no controlled vocabulary</b> — no MeSH, nothing to explode — so every
-                                concept below rests on free text alone. It is a <b>supplementary</b> database here,
-                                not a PubMed-equivalent one.
-                            </div>
-                        )}
-
-                        {/* A LIMIT THIS DATABASE CANNOT EXPRESS. Never silently dropped: the count
-                            above would then answer a BROADER question than the one asked, sitting
-                            next to a PubMed count that answered the narrow one. */}
-                        {result.unsupportedLimits?.length > 0 && (
-                            <div className={`${s.dbNote} ${s.dbNoteWarn}`}>
-                                <b>{result.unsupportedLimits.join('; ')}</b> could not be applied &mdash; {result.dbName} indexes a
-                                document type (article, review), not a study design, so it has no way to say this.
-                                The count above is <b>not</b> restricted by it.
-                            </div>
-                        )}
-
-                        {/* THE SEARCH RAN; SOMETHING AFTER IT DID NOT. Seed validation and the suggested
-                            widenings are extra count calls made once the yield has already landed, and
-                            NCBI can throttle them on their own. That is NOT a failed database — the
-                            query is real, the count above it is real, and we were billed for it — so
-                            this is a quiet note on a working panel and NOT the failure panel above. A
-                            degraded panel that suppressed its own count would throw away the one thing
-                            the librarian actually paid for, to report a step that is a courtesy. */}
-                        {result.degraded && (
-                            <div className={s.dbNote}>
-                                <b>The count is good; part of the check around it is not.</b> {result.degraded}
-                            </div>
-                        )}
-
-                        <div className={s.lines}>
-                            {numbered.rows.map((row, i) => {
-                                // A combination line (6 = 4 OR 5) is DERIVED. No checkbox: there is
-                                // nothing to decide about it, it recomputes from the lines above.
-                                if (row.kind === 'combine') {
-                                    return (
-                                        <div className={s.line} key={`c${i}`}>
-                                            <span className={s.lineGutter} />
-                                            <span className={s.lineNum}>{row.n}</span>
-                                            <span className={s.combine}>{row.text}</span>
-                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} state={rowState[di] || 'done'} />
-                                        </div>
-                                    )
-                                }
-
-                                const seed = seedIn(result, row.line.suggestedFor)
-                                return (
-                                    <div key={`t${row.ci}-${row.li}`}>
-                                        <div className={s.line}>
-                                            <input
-                                                type="checkbox"
-                                                className={s.lineCheck}
-                                                checked={row.line.on}
-                                                onChange={() => toggle(di, row.ci, row.li)}
-                                                aria-label={`Include line: ${row.line.terms.slice(0, 60)}`}
-                                            />
-                                            <span className={s.lineNum}>{row.n ?? '·'}</span>
-                                            <LineInput
-                                                value={row.line.terms}
-                                                on={row.line.on}
-                                                onChange={v => edit(di, row.ci, row.li, v)}
-                                            />
-                                            <RowCount n={row.n} counts={result.rowCounts} stale={recounting} state={rowState[di] || 'done'} />
-                                        </div>
-                                        {/* The model's proposed widening: a LINE, not a paragraph. Verified
-                                            (it really does retrieve that seed, against the whole strategy)
-                                            and priced (what ticking it costs in records to screen). That
-                                            trade is the judgment the librarian is here to make. */}
-                                        {row.line.suggestedFor && !row.line.on && (
-                                            <div className={s.suggest}>
-                                                Suggested: retrieves {nameOf(seed)}
-                                                {typeof row.line.costRecords === 'number' && (
-                                                    <> &middot; <b>+{row.line.costRecords.toLocaleString()} records</b> to screen</>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )
-                            })}
-
-                            {!numbered.rows.some(r => r.kind === 'term' && r.n !== null) && (
-                                <div className={s.empty}>Nothing is ticked, so there is no strategy to run.</div>
-                            )}
-
-                            {/* THE COLUMN DIED, AND IT SAYS SO. The yield above is still real — it was
-                                counted in a different call — so this is not an error banner over the
-                                whole panel, which would overstate it. It is a line under the column
-                                that failed, offering the one thing that fixes it. */}
-                            {rowState[di] === 'failed' && (
-                                <div className={s.rowsFailed}>
-                                    <span>
-                                        The per-line counts could not be fetched &mdash; PubMed did not answer.
-                                        The yield above is unaffected.
-                                    </span>
-                                    <button className={s.linkBtn} onClick={() => fetchRows(liveStrategies[di], di)}>
-                                        Retry
-                                    </button>
-                                </div>
-                            )}
-
-                            <div className={s.addLines}>
-                                {live.concepts.map((c, ci) => (
-                                    <button key={ci} className={s.addLine} onClick={() => addLine(di, ci)}>
-                                        + line to {c.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className={s.panelFoot}>
-                            {/* The QUERY is model-drafted too, not just the prose — so the strategy screen
-                                names the model exactly like the synthesis does, and the export says so in
-                                its repro header. A PRISMA-S appendix that does not disclose that the
-                                strategy was AI-drafted and human-reviewed is incomplete. */}
-                            <span>
-                                Run {result.runDate}{result.limits ? ` · limits: ${result.limits}` : ' · no limits'}
-                                {model ? ` · drafted by ${modelLabel(model)}` : ''}
-                            </span>
-                            <span className={s.spacer} />
-                            <span>Tick, untick or edit any line &mdash; it re-counts for free.</span>
-                            {/* The strategy is the deliverable, so it downloads FROM the strategy —
-                                not from a menu somewhere else. Word for the appendix, plain text for
-                                the query, because a query wants to be pasted back into the database
-                                that produced it. Both describe the TOGGLED state, never the draft. */}
-                            <div className={s.footBtns}>
-                                <button
-                                    className={`${s.btnSecondary} ${copied === 'query' ? s.btnSecondaryDone : ''}`}
-                                    onClick={() => copy(result.query, 'query')}
-                                    disabled={!result.query}
-                                >
-                                    {copied === 'query' ? '✓ Copied' : 'Copy query'}
-                                </button>
-                                <button className={s.btnSecondary} onClick={() => dlQuery(result)} disabled={!result.query}>
-                                    Query (.txt)
-                                </button>
-                                <button className={s.btnSecondary} onClick={() => dlStrategy(result)} disabled={recounting || !result.query}>
-                                    Word (.docx)
-                                </button>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* KNOWN-ITEM VALIDATION, PER DATABASE. A seed can be retrieved by PubMed and
-                        MISSED by Scopus — and that difference is often the most informative thing on
-                        this screen, because it is a fact about the databases, not about the query. */}
-                    <div className={`${s.card} ${s.validation}`}>
-                        <div className={s.valHead}>
-                            <span className={s.eyebrow}>Known-item validation</span>
-                            {result.seeds.length > 0 && (
-                                <span className={`${s.valScore} ${allFound ? '' : s.valScoreWarn} ${recounting ? s.hitsStale : ''}`}>
-                                    {retrieved} of {result.seeds.length} retrieved
-                                </span>
-                            )}
-                        </div>
-
-                        {/* NO SEEDS = NO RECALL CHECK. Saying so is the whole ethic of this feature:
-                            an unvalidated strategy is a guess, and a guess that stays quiet reads
-                            exactly like a strategy that passed. */}
-                        {/* A DATABASE WE CANNOT COUNT CANNOT BE SEED-CHECKED EITHER, and it must not
-                            borrow PubMed's "add some seeds and re-run" advice — that advice is FALSE
-                            here. No number of seeds will ever make Embase testable from this screen;
-                            the check moves to Ovid, with the librarian. Saying "recall cannot be
-                            verified — add seeds" would send them round a loop that has no exit. */}
-                        {result.hits === null ? (
-                            <div className={s.recallLine}>
-                                <span className={`${s.dot} ${s.dotWarn}`} />
-                                <span>
-                                    <b>Not checkable from here.</b> A recall check needs a count, and we have no API for{' '}
-                                    {result.dbName} &mdash; seeds would change nothing. Run the strategy in Ovid and
-                                    look for the papers it must retrieve. Check the Emtree lines while you are there:
-                                    run each one on its own, and <b>a heading line that returns 0 is a dead line.</b>
-                                </span>
-                            </div>
-                        ) : result.seeds.length === 0 ? (
-                            <div className={s.recallLine}>
-                                <span className={`${s.dot} ${s.dotWarn}`} />
-                                <span>
-                                    No known-item seeds provided &mdash; <b>recall cannot be verified.</b> Add PMIDs
-                                    or DOIs of papers this search must retrieve, and re-run, to make this strategy
-                                    testable.
-                                </span>
-                            </div>
-                        ) : (
-                            <>
-                                <div className={s.seeds}>
-                                    {result.seeds.map(x => {
-                                        const failing = (x.failingConcepts || [])
-                                            .map(i => ({ label: result.concepts[i]?.label, lines: numbered.conceptLines[i] || [] }))
-                                            .filter(f => f.label)
-                                        return (
-                                            <div className={s.seed} key={`${x.kind}${x.id}`}>
-                                                <span className={`${s.seedMark} ${x.retrieved ? s.seedHit : s.seedMiss}`}>
-                                                    {x.retrieved ? '✓' : '✗'}
-                                                </span>
-                                                {/* Author + year, not a bare PMID: a librarian who named four
-                                                    seeds cannot tell which paper missed from an 8-digit number. */}
-                                                {x.label && <span className={s.seedName}>{x.label}</span>}
-                                                <span className={s.seedId}>{x.kind.toUpperCase()} {x.id}</span>
-                                                {!x.retrieved && (
-                                                    <span className={s.verdict}>
-                                                        {x.notInDatabase ? 'Not in this database' : 'Not retrieved'}
-                                                    </span>
-                                                )}
-
-                                                {/* The reason is DERIVED by re-counting the seed against each
-                                                    block AND the limits, never guessed by the model. A paper can
-                                                    fail both at once, so both are reported — naming only the
-                                                    block sends a librarian off to widen a search that still
-                                                    cannot return it. */}
-                                                {!x.retrieved && (
-                                                    <span className={s.why}>
-                                                        {/* NOT A STRATEGY BUG, AND IT MUST NOT READ AS ONE. The paper
-                                                            is not in this database at all, so no widening of any block
-                                                            can ever retrieve it. Without this verdict the seed would
-                                                            "fail" every block at once and look like a catastrophically
-                                                            narrow query — sending a librarian off to fix a search that
-                                                            was never broken. It is also a real finding in its own
-                                                            right: it is what Scopus's coverage gap LOOKS like. */}
-                                                        {x.notInDatabase && (
-                                                            <><b>{result.dbName} does not index this paper.</b> No change to the
-                                                                strategy can retrieve it &mdash; this is a coverage gap in the
-                                                                database, not a fault in the query.</>
-                                                        )}
-                                                        {!x.notInDatabase && !failing.length && !x.failsLimits && (
-                                                            <>Nothing is ticked, so there is no strategy to retrieve it.</>
-                                                        )}
-                                                        {!x.notInDatabase && failing.length > 0 && (
-                                                            <>
-                                                                Excluded by the{' '}
-                                                                {failing.map((f, k) => (
-                                                                    <span key={k}>
-                                                                        {k > 0 && ' and '}
-                                                                        <b>{f.label}</b>
-                                                                        {f.lines.length > 0 && (f.lines.length > 1
-                                                                            ? ` (lines ${f.lines[0]}–${f.lines[f.lines.length - 1]})`
-                                                                            : ` (line ${f.lines[0]})`)}
-                                                                    </span>
-                                                                ))}
-                                                                {failing.length > 1 ? ' blocks' : ' block'}.{' '}
-                                                            </>
-                                                        )}
-                                                        {!x.notInDatabase && x.failsLimits && (
-                                                            <>
-                                                                {failing.length > 0 ? <>It also fails your </> : <>It matches every block you have ticked, so your </>}
-                                                                <b>limits</b>
-                                                                {failing.length > 0
-                                                                    ? <>, so widening the {failing.length > 1 ? 'blocks' : 'block'} alone will not bring it back &mdash; change the date range or publication type.</>
-                                                                    : <> are what exclude it &mdash; change the date range or publication type.</>}
-                                                            </>
-                                                        )}
-                                                        {/* ONLY PROMISE A SUGGESTED LINE IF ONE ACTUALLY EXISTS. The
-                                                            model-written widening is a PubMed move — it works by reading
-                                                            the paper's MeSH descriptors, and Scopus has no controlled
-                                                            vocabulary to read. So in a Scopus panel there is no unticked
-                                                            line waiting, and telling a librarian to go and find one is
-                                                            the exact species of confident, plausible falsehood this
-                                                            feature exists to prevent. Checked against the STRATEGY, not
-                                                            against the database name: if the suggestion is not there, do
-                                                            not mention it, whatever produced it. */}
-                                                        {!x.notInDatabase && failing.length > 0 && !x.failsLimits && (
-                                                            live.concepts.some(c => c.lines.some(l => l.suggestedFor === x.id))
-                                                                ? <>Widen {failing.length > 1 ? 'them' : 'it'} to retrieve this paper &mdash; a
-                                                                    suggested line is waiting, unticked, in the strategy above.</>
-                                                                : <>Widen {failing.length > 1 ? 'them' : 'it'} to retrieve this paper.</>
-                                                        )}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-
-                                {allFound ? (
-                                    <div className={s.recallLine}>
-                                        <span className={s.dot} />
-                                        <span>Every known include came back. This strategy is validated against its seeds.</span>
-                                    </div>
-                                ) : (
-                                    result.seeds.some(x => !x.retrieved && x.failingConcepts?.length) && (
-                                        <p className={s.help}>
-                                            A strategy that misses a known include is not yet finished. Widen the failing
-                                            block &mdash; the yield will grow, and that is the trade.
-                                        </p>
-                                    )
-                                )}
-                            </>
-                        )}
-                    </div>
-
-                    </div>
-                    )
-                    })}
-
-
-                    {/* Embase used to be a disabled checkbox and a "Coming soon" card here. It is now a
-                        real, drafted, uncounted strategy — so the promise is kept and the card is gone.
-                        CENTRAL is the one still outstanding, and it says so rather than implying a date. */}
-                    <div className={s.pending}>
-                        <div className={s.pendingHead}>
-                            <span className={s.eyebrow}>CENTRAL</span>
-                            <span className={s.expertsCount}>not searched</span>
-                        </div>
-                        <div className={s.pendingNote}>
-                            A Cochrane-compliant search also wants CENTRAL (the Cochrane trials register).
-                            It is not searched here.
-                        </div>
-                    </div>
-
-                    {expertsPanel}
-
-                    <div className={s.actions}>
-                        <button
-                            className={s.btn}
-                            onClick={() => copy(prismaBlock(), 'prisma')}
-                            disabled={recounting || !result.query}
-                        >
-                            {copied === 'prisma' ? '✓ Copied — paste into your manuscript' : 'Copy PRISMA-S methods block'}
-                        </button>
-                        <button
-                            className={s.btnSecondary}
-                            onClick={() => dlPacket(result)}
-                            disabled={recounting || !result.query}
-                        >
-                            Download everything
-                        </button>
-                    </div>
-                </>
+                <StrategyResults
+                    results={results} liveStrategies={liveStrategies} recounting={recounting}
+                    rowState={rowState} model={model} copied={copied} expertsPanel={expertsPanel}
+                    onToggle={toggle} onEdit={edit} onAddLine={addLine} onCopy={copy}
+                    onRetryRows={di => fetchRows(liveStrategies[di], di)}
+                    onDlQuery={dlQuery} onDlStrategy={dlStrategy} onDlPacket={dlPacket}
+                    prismaBlock={prismaBlock}
+                />
             )}
 
             {/* ============ MODE 2, SCREEN 3 — CANDIDATES + SCREENING ============ */}
             {!isSR && phase === 'candidates' && result && (
                 <>
-                    {/* THE QUERY, READ-ONLY. The librarian did not write it, so they must be able to
-                        see it: a synthesis over records retrieved by a query nobody looked at is
-                        not evidence, it is a vibe. */}
-                    <div className={`${s.card} ${s.queryCard}`}>
-                        <div className={s.query}>
-                            <code className={s.queryCode}>{result.query}</code>
-                            <div className={s.queryActs}>
-                                <button
-                                    className={`${s.btnSecondary} ${copied === 'query' ? s.btnSecondaryDone : ''}`}
-                                    onClick={() => copy(result.query, 'query')}
-                                    disabled={!result.query}
-                                >
-                                    {copied === 'query' ? '✓ Copied' : 'Copy query'}
-                                </button>
-                                <button className={s.btnSecondary} onClick={newSearch} disabled={inFlight}>
-                                    Edit &amp; re-run
-                                </button>
-                            </div>
-                        </div>
-                        {/* THE RATIO, ALWAYS. "top 50 retrieved by most relevant" next to a yield
-                            of 1,391 is the one line that stops a thin slice from being read as the
-                            literature — so it is stated whether the slice is thin or not, and the
-                            "all N retrieved" case earns its wording by actually being all of them
-                            (records.length, what arrived — not hits, what PubMed claims). */}
-                        <div className={`${s.counts} ${recounting ? s.hitsStale : ''}`}>
-                            PubMed <b>{result.hits.toLocaleString()}</b>
-                            {gate ? (
-                                <> &nbsp;&middot;&nbsp; nothing retrieved yet</>
-                            ) : records.length >= result.hits ? (
-                                <> &nbsp;&middot;&nbsp; all {records.length} retrieved &nbsp;&middot;&nbsp; run {result.runDate}</>
-                            ) : (
-                                <> &nbsp;&middot;&nbsp; top {records.length} retrieved by {sortLabel} &nbsp;&middot;&nbsp; run {result.runDate}</>
-                            )}
-                        </div>
-                    </div>
+                    <QueryCard
+                        result={result} gate={gate} retrieved={records.length} sortLabel={sortLabel}
+                        recounting={recounting} inFlight={inFlight} copiedQuery={copied === 'query'}
+                        onCopyQuery={() => copy(result.query, 'query')} onNewSearch={newSearch}
+                    />
 
-                    {/* ============ THE NARROWING GATE ============
-                        A big yield is a FINDING, not an error, and it is not a refusal either. The
-                        old behaviour was both wrong halves at once: hard-refuse above 2,000 (which
-                        was only ever the retrieval tool's fetch limit, and that limit is gone), and
-                        below it, silently take the top 50 of 1,391 without a word.
-
-                        So: no refusal, and no silence. The count comes back with PRICED narrowings
-                        — each one COUNTED server-side, never estimated, and any that would not
-                        actually reduce the yield dropped before it ever reached this list, because
-                        advice that changes nothing is worse than no advice.
-
-                        It is an in-page card, not a dialog. Nothing here is a decision we are
-                        entitled to interrupt someone for. */}
                     {gate ? (
-                        <div className={`${s.card} ${s.narrowCard}`}>
-                            {over ? (
-                                <div className={s.caveat}>
-                                    <span aria-hidden="true">&#9888;</span>
-                                    <span>
-                                        <b>{result.hits.toLocaleString()} records match.</b> {isPico ? 'Clinical question' : 'Issue review'} reads only the
-                                        top {CAP}, so that is a thin slice of them. Narrow it &mdash; each option below
-                                        shows what you would be left with.
-                                    </span>
-                                </div>
-                            ) : result.hits === 0 ? (
-                                <div className={s.recallLine}>
-                                    <span className={`${s.dot} ${s.dotWarn}`} />
-                                    <span>
-                                        <b>Nothing matches now.</b> You have narrowed the search down to nothing &mdash;
-                                        untick one of the options below.
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className={s.recallLine}>
-                                    <span className={s.dot} />
-                                    <span>
-                                        <b>{result.hits.toLocaleString()} records.</b> The top {CAP} of that is a
-                                        defensible slice. Retrieve them.
-                                    </span>
-                                </div>
-                            )}
-
-                            {narrowings.length > 0 ? (
-                                <>
-                                    <div className={s.narrowList}>
-                                        {narrowings.map(n => {
-                                            const on = !!ticked[n.label]
-                                            return (
-                                                <label className={`${s.narrow} ${on ? s.narrowOn : ''}`} key={n.label}>
-                                                    <input
-                                                        type="checkbox"
-                                                        className={s.lineCheck}
-                                                        checked={on}
-                                                        disabled={inFlight}
-                                                        onChange={() => toggleNarrowing(n)}
-                                                    />
-                                                    <span className={s.narrowLabel}>{n.label}</span>
-                                                    <span className={s.narrowPrice}>
-                                                        {baseHits.toLocaleString()}
-                                                        <span className={s.narrowArrow} aria-hidden="true">&rarr;</span>
-                                                        <b>{n.hits.toLocaleString()}</b>
-                                                    </span>
-                                                    <span className={s.narrowWhy}>{n.why}</span>
-                                                    {/* The block that gets AND-ed in. The librarian did not write
-                                                        this query and is about to change it, so they have to be able
-                                                        to see exactly what changes — and the full Boolean above
-                                                        re-assembles the moment this is ticked. */}
-                                                    <code className={s.narrowTerms}>{n.terms}</code>
-                                                </label>
-                                            )
-                                        })}
-                                    </div>
-
-                                    <p className={s.help}>
-                                        Each option was counted on its own against the {baseHits.toLocaleString()}-record
-                                        query, so those are its numbers alone. Ticking more than one only narrows
-                                        further &mdash; a combination lands <b>at or below</b> the smallest of them, and
-                                        the live count below is re-counted against PubMed every time you tick.{' '}
-                                        <b>It is never an estimate.</b>
-                                    </p>
-                                </>
-                            ) : (
-                                <p className={s.help}>
-                                    <b>Nothing we could price would actually narrow this.</b> Every candidate we counted
-                                    came back at the same yield, so none of them is advice worth taking. Tighten the
-                                    question or the limits with <b>Edit &amp; re-run</b> &mdash; or take the top {CAP}
-                                    {' '}anyway, now that you know what it is a slice of.
-                                </p>
-                            )}
-
-                            <div className={s.narrowFoot}>
-                                <span className={`${s.counts} ${recounting ? s.hitsStale : ''}`}>
-                                    Now <b>{result.hits.toLocaleString()}</b> record{result.hits === 1 ? '' : 's'}
-                                </span>
-                                {recounting && <span className={s.recounting}>re-counting…</span>}
-                                <span className={s.spacer} />
-                                {/* NEVER DISABLED ON THE COUNT. Below the boundary it is an ordinary
-                                    "Find records"; above it, it says what it is doing and does it
-                                    anyway. Trapping the librarian behind a number would be the tool
-                                    overruling the person qualified to make the call. */}
-                                <button className={s.btn} onClick={retrieveNow} disabled={inFlight}>
-                                    {stage === 'fetching'
-                                        ? 'Retrieving…'
-                                        : over ? `Retrieve the top ${CAP} anyway` : 'Find records'}
-                                </button>
-                            </div>
-                        </div>
+                        <NarrowingGate
+                            result={result} over={over} isPico={isPico} narrowings={narrowings}
+                            ticked={ticked} baseHits={baseHits} recounting={recounting}
+                            inFlight={inFlight} stage={stage}
+                            onToggle={toggleNarrowing} onRetrieve={retrieveNow}
+                        />
                     ) : (
-                        <div className={s.card}>
-                            <div className={s.screenBar}>
-                                {screened ? (
-                                    <div className={s.tally}>
-                                        <b className={s.tallyInc}>{included.length}</b> included &nbsp;&middot;&nbsp;{' '}
-                                        <b>{excludedCount}</b> excluded
-                                        {/* "OF THEM" is doing real work: this number is a SUBSET of the
-                                            included count to its left, not a third bucket beside it. Read
-                                            as a third bucket the three numbers appear not to add up. */}
-                                        {unscreened > 0 && (
-                                            <> &nbsp;&middot;&nbsp; <b>{unscreened}</b> of them never screened</>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className={s.tally}>{records.length} record{records.length === 1 ? '' : 's'}</div>
-                                )}
-                                <span className={s.spacer} />
-                                {/* The records are DATA, so they leave as a spreadsheet: 50 rows with the
-                                    screening decision, the reason, the design and the link, plus a second
-                                    sheet carrying the query that produced them. That is what goes into
-                                    Covidence, or into a filter, or to a co-author. */}
-                                <button
-                                    className={s.btnSecondary}
-                                    onClick={() => dlRecords(result)}
-                                    disabled={!records.length || inFlight}
-                                >
-                                    Records (.xlsx)
-                                </button>
-                                {/* Gated on the HUMAN's selection, and on nothing else. In particular it is
-                                    NOT gated on the screening having succeeded: if the model call fails, the
-                                    records are still on the page and still tickable, and a librarian who has
-                                    ticked four of them by hand is entitled to synthesize them. */}
-                                <button
-                                    className={s.btn}
-                                    onClick={synthesize}
-                                    disabled={!included.length || inFlight}
-                                >
-                                    {stage === 'synthesizing'
-                                        ? 'Writing the synthesis…'
-                                        : `Synthesize ${included.length} selected`}
-                                </button>
-                            </div>
-
-                            {/* The screening wait sits ABOVE the rows it is about to annotate, and the
-                                rows are already on screen underneath it. 29 seconds of nothing would
-                                have been 29 seconds of the librarian wondering if it had died. */}
-                            {(stage === 'screening' || stage === 'synthesizing') && progressPanel}
-
-                            <div className={s.rows}>
-                                {records.map(r => {
-                                    const f = flags[r.pmid]
-                                    const on = !!picked[r.pmid]
-                                    const design = r.design || 'Other'
-                                    const strong = design === 'RCT' || design === 'Meta-analysis'
-                                    return (
-                                        // De-emphasis follows the HUMAN's checkbox, not the model's flag —
-                                        // so re-ticking something the AI excluded restores it fully. The
-                                        // AI's reason stays on the row either way: it is evidence about
-                                        // the model's judgment, and hiding it once overruled would hide
-                                        // exactly the thing worth arguing with.
-                                        <div className={`${s.rec} ${on ? '' : s.recOff}`} key={r.pmid}>
-                                            <input
-                                                type="checkbox"
-                                                className={s.recCheck}
-                                                checked={on}
-                                                disabled={inFlight}
-                                                onChange={() => setPicked(p => ({ ...p, [r.pmid]: !p[r.pmid] }))}
-                                                aria-label={`Include ${r.authors} — ${r.title.slice(0, 80)}`}
-                                            />
-                                            <div className={s.recBody}>
-                                                <div className={s.cite}>
-                                                    <span className={s.who}>{r.authors} ({r.year})</span>
-                                                    <span className={s.jrnl}>{r.journal}</span>
-                                                    <a
-                                                        className={s.recPmid}
-                                                        href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
-                                                        PMID {r.pmid}
-                                                    </a>
-                                                </div>
-                                                <div className={s.recTitle}>{r.title}</div>
-                                                <div className={s.meta}>
-                                                    <span className={`${s.tag} ${strong ? s.tagDesign : s.tagOther}`}>{design}</span>
-                                                    {/* NIH percentile — CONTEXT, not a verdict. It does not sort, does not
-                                                        filter, and never reaches the model. Absent on recent papers because
-                                                        it needs citation history, so render NOTHING rather than "N/A": a
-                                                        blank reads as "not yet scored", a zero would read as "ignored". */}
-                                                    {typeof r.nihPercentile === 'number' && (
-                                                        <span
-                                                            className={`${s.tag} ${s.tagCite} ${s.hint}`}
-                                                            tabIndex={0}
-                                                            aria-describedby={`cite-${r.pmid}`}
-                                                        >
-                                                            <span
-                                                                className={s.meter}
-                                                                aria-hidden="true"
-                                                                style={{ ['--pct' as any]: `${Math.max(2, Math.min(100, Math.round(r.nihPercentile)))}%` }}
-                                                            />
-                                                            Cited {Math.round(r.nihPercentile)}th pct
-                                                            <span role="tooltip" id={`cite-${r.pmid}`} className={s.hintBox}>
-                                                                <b>NIH citation percentile (iCite).</b> This paper is cited more often
-                                                                than {Math.round(r.nihPercentile)}% of NIH-funded papers of the same
-                                                                field and year.
-                                                                <br />
-                                                                It is <b>not a measure of study quality</b>, and it did nothing here: it
-                                                                never sorted these records, never filtered them, and never reached the
-                                                                model. Citation counts favour older papers and reviews &mdash; the exact
-                                                                bias this mode removes.
-                                                            </span>
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* NOBODY LOOKED AT THIS ONE, AND IT MUST NOT LOOK LIKE AN ENDORSEMENT.
-                                                    A record the model returned no verdict for fails OPEN — it arrives
-                                                    with include: true, so it is PRE-TICKED and, until this branch
-                                                    existed, was pixel-identical to a record the AI had read and
-                                                    approved. It sat in the "N included" tally, went into the synthesis,
-                                                    and carried an AI endorsement it had never been given. That is the
-                                                    one failure on this page that puts an UNREAD paper in front of a
-                                                    librarian wearing a machine's approval.
-
-                                                    Fail-open is still right — silently DROPPING an unscreened record
-                                                    would be worse. The bug was that it was invisible. So it keeps its
-                                                    tick and gets the loudest treatment on the row: the warning strip,
-                                                    not the quiet grey reason line an exclusion gets. An exclusion is a
-                                                    judgment; this is the absence of one. */}
-                                                {f && f.screened === false ? (
-                                                    <div className={s.caveat}>
-                                                        <span aria-hidden="true">&#9888;</span>
-                                                        <span>
-                                                            <b>Not screened by the AI.</b> {f.reason} It is ticked because nothing
-                                                            was thrown away &mdash; <b>not because anything approved it.</b>
-                                                        </span>
-                                                    </div>
-                                                ) : f && !f.include && (
-                                                    <div className={`${s.why} ${s.flagline}`}>
-                                                        <b>Excluded:</b> {f.reason}
-                                                    </div>
-                                                )}
-                                                {screened && !f && (
-                                                    <div className={s.help}>
-                                                        The AI returned no verdict for this record &mdash; it is unticked, and
-                                                        the call is yours.
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-
-                                {!records.length && (
-                                    <div className={s.empty}>The query returned no records. Widen the question or the limits.</div>
-                                )}
-                            </div>
-
-                            <p className={s.help}>
-                                Records the AI excluded stay on this page, de-emphasised, with the reason shown.{' '}
-                                <b>The flags are suggestions; the checkbox is yours.</b> Re-tick anything it got wrong —
-                                the count above, and what gets synthesized, follow you and not the model.
-                            </p>
-                        </div>
+                        <CandidatesPanel
+                            records={records} flags={flags} picked={picked} setPicked={setPicked}
+                            screened={screened} included={included} excludedCount={excludedCount}
+                            unscreened={unscreened} stage={stage} inFlight={inFlight}
+                            progressPanel={progressPanel}
+                            onDlRecords={() => dlRecords(result)} onSynthesize={synthesize}
+                        />
                     )}
 
                     {expertsPanel}
@@ -2254,131 +954,14 @@ export default function LiteratureSearch() {
 
             {/* ============ MODE 2, SCREEN 4 — SYNTHESIS ============ */}
             {!isSR && phase === 'synthesis' && synthesis && (
-                <>
-                    {/* The model is NAMED, on screen and in every export. A journal asking for an AI
-                        declaration wants the tool and its version; "AI-assisted" alone is not one. */}
-                    <div className={s.caveat}>
-                        <span aria-hidden="true">&#9888;</span>
-                        <span>
-                            <b>AI-assisted synthesis over the records you selected{model ? `, drafted by ${modelLabel(model)}` : ''}.</b>{' '}
-                            Verify it against the sources. Every claim links to the PMID it came from &mdash; if a claim
-                            carries no PMID, treat it as unsupported.
-                        </span>
-                    </div>
-
-                    {/*
-                      * THE EVIDENCE FLOOR. Derived server-side from PubMed's publication types —
-                      * no inference, no model, and therefore incapable of being wrong.
-                      *
-                      * It is here because a clinician reading a confident synthesis has no way to
-                      * know the whole thing rests on case series. "There is no randomized trial in
-                      * this set" is frequently the true answer to the question, and it is the one
-                      * sentence on this screen that changes what someone does next.
-                      */}
-                    {/* THE MODEL CITED A PAPER IT WAS NEVER GIVEN.
-                      *
-                      * The server has always detected this — and used to console.error it and then
-                      * render the fabricated PMID as a clickable PubMed link anyway, straight into a
-                      * .docx. A link a reader can click has to be one a reader can check. The prose
-                      * is deliberately NOT rewritten (silently deleting the sentence would be a
-                      * second fabrication over the first); it is flagged, loudly, above the thing it
-                      * contaminates, and the reader decides.
-                      */}
-                    {synthesis.invented?.length && (
-                        <div className={s.invented} role="alert">
-                            <span className={s.floorLabel}>Do not trust this summary as written</span>
-                            <p className={s.floorText}>
-                                The AI cited {synthesis.invented.length === 1 ? 'a paper' : 'papers'} that
-                                {synthesis.invented.length === 1 ? ' was' : ' were'} not among the ones you
-                                selected: PMID {synthesis.invented.join(', ')}. That citation came from outside
-                                this evidence set, so the sentence around it is unsupported. Read the prose
-                                before you use any of it, and do not export it as it stands.
-                            </p>
-                        </div>
-                    )}
-
-                    {synthesis.floor && (
-                        <div className={s.floor}>
-                            <span className={s.floorLabel}>Strength of this evidence</span>
-                            <p className={s.floorText}>{synthesis.floor}</p>
-                            <p className={s.floorHelp}>
-                                Study designs are PubMed&rsquo;s own indexing, not the AI&rsquo;s reading of the
-                                abstracts. The table below is ordered by them &mdash; guidelines and systematic
-                                reviews first, then randomized trials.
-                            </p>
-                        </div>
-                    )}
-
-                    <div className={`${s.card} ${s.synthCard}`}>
-                        <span className={s.eyebrow}>{isPico ? 'The evidence' : 'Summary table'}</span>
-                        <div className={s.tblScroll}>
-                            <table className={s.sum}>
-                                <thead>
-                                    <tr>
-                                        <th>Study</th>
-                                        <th>Year</th>
-                                        <th>Journal</th>
-                                        <th>Design</th>
-                                        <th>Intervention</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {synthesis.table.map(r => (
-                                        <tr key={r.pmid}>
-                                            <td>{r.study}</td>
-                                            <td className={s.num}>{r.year}</td>
-                                            <td>{r.journal}</td>
-                                            <td>{r.design}</td>
-                                            <td>{r.intervention}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div className={`${s.card} ${s.synthCard}`}>
-                        <span className={s.eyebrow}>{isPico ? 'Answer' : 'Synthesis'}</span>
-                        <Prose text={synthesis.prose} />
-                    </div>
-
-                    {expertsPanel}
-
-                    <div className={s.provenance}>
-                        {provenance && (
-                            <span>
-                                <b>{included.length}</b> of {records.length} records screened in by <b>{provenance.cwid}</b>{' '}
-                                on {provenance.date}.
-                            </span>
-                        )}
-                        <span className={s.spacer} />
-                        <button className={s.btnSecondary} onClick={() => setPhase('candidates')}>
-                            Back to candidates
-                        </button>
-                        {/* The answer is PROSE, so it leaves as Word — headings, the evidence table, the
-                            caveat, and the query that produced it, all in one file someone can put in
-                            front of a co-author. "Everything" adds the records spreadsheet beside it.
-                            Copy Markdown now sits inside this guard with the rest of them, because it
-                            is one of them: it carries the same facts and needs the same `result` to
-                            state them. A clipboard copy with no query behind it is what we just fixed. */}
-                        {result && (
-                            <>
-                                <button
-                                    className={`${s.btnSecondary} ${copied === 'md' ? s.btnSecondaryDone : ''}`}
-                                    onClick={() => copy(markdown(result), 'md')}
-                                >
-                                    {copied === 'md' ? '✓ Copied' : 'Copy Markdown'}
-                                </button>
-                                <button className={s.btnSecondary} onClick={() => dlSynthesis(result)}>
-                                    {isPico ? 'Answer' : 'Synthesis'} (.docx)
-                                </button>
-                                <button className={s.btn} onClick={() => dlPacket(result)}>
-                                    Download everything
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </>
+                <SynthesisView
+                    synthesis={synthesis} result={result} model={model} isPico={isPico}
+                    included={included.length} total={records.length} provenance={provenance}
+                    copiedMarkdown={copied === 'md'} expertsPanel={expertsPanel}
+                    onBack={() => setPhase('candidates')}
+                    onCopyMarkdown={r => copy(markdown(r), 'md')}
+                    onDlSynthesis={dlSynthesis} onDlPacket={dlPacket}
+                />
             )}
         </div>
     )
