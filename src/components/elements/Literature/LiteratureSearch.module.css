@@ -1,7 +1,8 @@
 /* Literature Search — the page's visual system.
  *
- * Lifted from the signed-off mockup (docs/literature-search-form-mockup.html). Values are the
- * mockup's, not re-derived: type sizes, spacing, radii, borders, shadows.
+ * Lifted from the signed-off mockup, which lived at docs/literature-search-form-mockup.html and was
+ * deleted once this file superseded it. Values are the mockup's, not re-derived: type sizes,
+ * spacing, radii, borders, shadows. The history is in git if the original is ever wanted back.
  *
  * TOKENS ARE SCOPED TO .page, NOT :root. Three of them (--text-strong/body/muted,
  * --color-border-strong, --color-accent-soft/line) do not exist in globals.css yet, and
