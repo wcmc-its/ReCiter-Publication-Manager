@@ -4,13 +4,26 @@
 
 import type { Block, Sheet } from '../../../../controllers/literatureExport'
 
+// Windows rejects < > : " / \ | ? * and the C0 controls in a filename, and Word/Excel refuse to
+// open what the browser saved under a mangled name. The question text reaches `stamp()` on some
+// paths, so this is not theoretical.
+function safeFilename(filename: string): string {
+    // eslint-disable-next-line no-control-regex
+    return filename.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim()
+}
+
 function save(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = filename
+    a.download = safeFilename(filename)
+    // Firefox ignores .click() on an anchor that is not in the document, and Safari has historically
+    // been inconsistent about it. Appending, clicking, removing works everywhere.
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    a.remove()
+    // Revoking synchronously can beat the download to the URL in Chrome. One tick is enough.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 // A real .docx, not an RTF wearing Word's clothes. RTF was cheaper — Word opens it, and it cost no

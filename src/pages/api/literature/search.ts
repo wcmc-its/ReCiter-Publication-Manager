@@ -74,6 +74,10 @@ import {
     Strategy,
     Sort,
     UsageLog,
+    withTimeout,
+    MODEL_TIMEOUT_MS,
+    wasSearched,
+    hasFailed,
 } from '../../../../controllers/literatureSearch.controller'
 import {
     buildLimits, picoQuestion, picoComplete, parseSeeds, DIALECTS,
@@ -177,13 +181,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // 1. Real session auth.
+    //
+    // NO `any` ON THE TOKEN, and least of all here. getToken() returns `JWT | null`, and JWT is an
+    // index-signature type — every claim on it is `unknown`, because next-auth cannot know what our
+    // callbacks put there. Casting to `any` does not recover the knowledge, it only stops the
+    // compiler from asking for it, at the one boundary in this route where a wrong assumption is an
+    // authentication decision made on a value nobody checked.
+    //
+    // So the shape is VALIDATED rather than assumed: `username` has to actually be a non-empty
+    // string before it becomes a cwid. A claim that arrives as a number, an object or an array is
+    // not a username we recognise, and the honest answer to one is the same 401 as no token at all.
     let cwid = ''
     try {
-        const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
-        if (!token?.username) {
+        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        const username = token?.username
+        if (typeof username !== 'string' || !username) {
             return res.status(401).send({ statusCode: 401, message: 'Sign in to use Literature Search.' })
         }
-        cwid = String(token.username).toLowerCase()
+        cwid = username.toLowerCase()
     } catch {
         return res.status(401).send({ statusCode: 401, message: 'Sign in to use Literature Search.' })
     }
@@ -414,9 +429,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 if (!asked.trim()) {
                     return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
                 }
-                const built = await buildStrategy(
-                    asked, limits, criteria, 'precision',
-                    isPico ? (pico as Pico) : undefined,
+                // ON A CLOCK, like every other model call — see MODEL_TIMEOUT_MS. A Bedrock invoke
+                // that never answers would otherwise hold this handler open until the ALB gave up
+                // 500 seconds later, occupying a Next worker the whole time and telling the
+                // librarian nothing. A rejection here lands in the catch below and comes back as the
+                // 502 that path already returns.
+                const built = await withTimeout(
+                    buildStrategy(
+                        asked, limits, criteria, 'precision',
+                        isPico ? (pico as Pico) : undefined,
+                    ),
+                    MODEL_TIMEOUT_MS,
+                    'The search strategy build',
                 )
                 strategy = built.strategy
                 usage = built.usage
@@ -530,7 +554,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // A FAILED DATABASE HAS NO hits AND NO seeds, so the two maps below read the survivors only —
         // `r.seeds.filter(...)` on a failure would throw INSIDE the cost log, which is the one place a
         // throw must never reach: it would land in the catch below, whose whole job is to log the cost.
-        const survived = results.filter(r => !r.failed)
+        //
+        // `wasSearched` rather than `r => !r.failed` so that rule is enforced by the COMPILER and not
+        // by this comment: a DbPanel is a union, and only a type predicate narrows it to the half
+        // that actually has the fields below on it.
+        const survived = results.filter(wasSearched)
 
         // The build and the fixes are one run from the librarian's point of view, so they are one
         // cost line. Iteration after this call is free anyway — every toggle takes the no-model
@@ -543,10 +571,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         logCost('search-strategy', cwid, usage, {
             dbs,
             hits: survived.map(r => `${r.db}:${r.hits}`).join(' '),
-            failed: results.filter(r => r.failed).map(r => r.db).join(' '),
+            failed: results.filter(hasFailed).map(r => r.db).join(' '),
             degraded: survived.filter(r => r.degraded).map(r => r.db).join(' '),
             seeds: seedList.length,
-            seedsRetrieved: survived.map(r => `${r.db}:${r.seeds.filter((s: any) => s.retrieved).length}`).join(' '),
+            seedsRetrieved: survived.map(r => `${r.db}:${r.seeds.filter(s => s.retrieved).length}`).join(' '),
         })
 
         // A DATABASE FAILING IS A PANEL, NOT A STATUS CODE — and that holds even when every database
