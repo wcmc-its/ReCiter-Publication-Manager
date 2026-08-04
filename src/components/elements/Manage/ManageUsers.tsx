@@ -59,13 +59,18 @@ const ManageUsers = () => {
     } else if (session?.adminSettings) {
       let adminSettings = typeof session.adminSettings === "string"
         ? JSON.parse(session.adminSettings)
-        : session.adminSettings;
+        : (typeof session.adminSettings === "object" && session.adminSettings !== null
+          ? session.adminSettings
+          : []);
+
       if (Array.isArray(adminSettings)) {
         let data = adminSettings.find(obj => obj?.viewName === "findPeople");
         if (data?.viewAttributes != null) {
           viewAttributes = typeof data.viewAttributes === "string"
             ? JSON.parse(data.viewAttributes)
-            : data.viewAttributes;
+            : (typeof data.viewAttributes === "object" && data.viewAttributes !== null
+              ? data.viewAttributes
+              : []);
         }
         if (!Array.isArray(viewAttributes)) {
           viewAttributes = [];
@@ -75,7 +80,9 @@ const ManageUsers = () => {
         if (notificationsData?.viewAttributes != null) {
           emailNotifications = typeof notificationsData.viewAttributes === "string"
             ? JSON.parse(notificationsData.viewAttributes)
-            : notificationsData.viewAttributes;
+            : (typeof notificationsData.viewAttributes === "object" && notificationsData.viewAttributes !== null
+              ? notificationsData.viewAttributes
+              : []);
         }
         if (!Array.isArray(emailNotifications)) {
           emailNotifications = [];

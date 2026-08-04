@@ -118,7 +118,12 @@ const Report = () => {
 
     } else if (session?.adminSettings) {
       // regular settings from session
-      let adminSettings = typeof session.adminSettings === "string" ? JSON.parse(session.adminSettings) : session.adminSettings;
+      let adminSettings = typeof session.adminSettings === "string" && session.adminSettings !== ""
+        ? JSON.parse(session.adminSettings)
+        : (typeof session.adminSettings === "object" && session.adminSettings !== null
+          ? session.adminSettings
+          : []);
+
       let data = adminSettings.find(obj => obj.viewName === "reportingFilters")
       let viewProfileUpdatedData = adminSettings.find(obj => obj.viewName === "viewProfile")
       let sortLabelsUpdatedData = adminSettings.find(obj => obj.viewName === "reportingWebViewSort")
@@ -129,10 +134,58 @@ const Report = () => {
       let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
 
 
-      sortLabelViewAttributes = typeof sortLabelsUpdatedData.viewAttributes === "string" ? JSON.parse(sortLabelsUpdatedData.viewAttributes) : sortLabelsUpdatedData.viewAttributes;
-      profileViewAttributes = typeof viewProfileUpdatedData.viewAttributes === "string" ? JSON.parse(viewProfileUpdatedData.viewAttributes) : viewProfileUpdatedData.viewAttributes;
-      viewAttributes = typeof data.viewAttributes === "string" ? JSON.parse(data.viewAttributes) : data.viewAttributes;
-      headShotLabels = typeof headShotData.viewAttributes === "string" ? JSON.parse(headShotData.viewAttributes) : headShotData.viewAttributes;
+      //sortLabelViewAttributes = typeof sortLabelsUpdatedData.viewAttributes === "string" ? JSON.parse(sortLabelsUpdatedData.viewAttributes) : sortLabelsUpdatedData.viewAttributes;
+      sortLabelViewAttributes = sortLabelsUpdatedData?.viewAttributes != null
+        ? (typeof sortLabelsUpdatedData.viewAttributes === "string" && sortLabelsUpdatedData.viewAttributes !== ""
+          ? JSON.parse(sortLabelsUpdatedData.viewAttributes)
+          : (typeof sortLabelsUpdatedData.viewAttributes === "object" ? sortLabelsUpdatedData.viewAttributes : []))
+        : [];
+      //profileViewAttributes = typeof viewProfileUpdatedData.viewAttributes === "string" ? JSON.parse(viewProfileUpdatedData.viewAttributes) : viewProfileUpdatedData.viewAttributes;
+      
+      profileViewAttributes = viewProfileUpdatedData?.viewAttributes != null
+        ? (typeof viewProfileUpdatedData.viewAttributes === "string" && viewProfileUpdatedData.viewAttributes !== ""
+          ? JSON.parse(viewProfileUpdatedData.viewAttributes)
+          : (typeof viewProfileUpdatedData.viewAttributes === "object" ? viewProfileUpdatedData.viewAttributes : []))
+        : [];
+      //viewAttributes = typeof data.viewAttributes === "string" ? JSON.parse(data.viewAttributes) : data.viewAttributes;
+      
+      viewAttributes = data?.viewAttributes != null
+        ? (typeof data.viewAttributes === "string" && data.viewAttributes !== ""
+          ? JSON.parse(data.viewAttributes)
+          : (typeof data.viewAttributes === "object" ? data.viewAttributes : []))
+        : [];
+
+      //headShotLabels = typeof headShotData.viewAttributes === "string" ? JSON.parse(headShotData.viewAttributes) : headShotData.viewAttributes;
+      
+      headShotLabels = headShotData?.viewAttributes != null
+        ? (typeof headShotData.viewAttributes === "string" && headShotData.viewAttributes !== ""
+          ? JSON.parse(headShotData.viewAttributes)
+          : (typeof headShotData.viewAttributes === "object" ? headShotData.viewAttributes : []))
+        : [];
+
+      exportArticleCSVLabels = exportArticle?.viewAttributes != null
+        ? (typeof exportArticle.viewAttributes === "string" && exportArticle.viewAttributes !== ""
+          ? JSON.parse(exportArticle.viewAttributes)
+          : (typeof exportArticle.viewAttributes === "object" ? exportArticle.viewAttributes : []))
+        : [];
+
+      exportAuthorShipCSVLabels = exportAuthors?.viewAttributes != null
+        ? (typeof exportAuthors.viewAttributes === "string" && exportAuthors.viewAttributes !== ""
+          ? JSON.parse(exportAuthors.viewAttributes)
+          : (typeof exportAuthors.viewAttributes === "object" ? exportAuthors.viewAttributes : []))
+        : [];
+
+      reportingWeb = reportingWebDisplay?.viewAttributes != null
+        ? (typeof reportingWebDisplay.viewAttributes === "string" && reportingWebDisplay.viewAttributes !== ""
+          ? JSON.parse(reportingWebDisplay.viewAttributes)
+          : (typeof reportingWebDisplay.viewAttributes === "object" ? reportingWebDisplay.viewAttributes : []))
+        : [];
+
+      exportArticleRTF = exportRTF?.viewAttributes != null
+        ? (typeof exportRTF.viewAttributes === "string" && exportRTF.viewAttributes !== ""
+          ? JSON.parse(exportRTF.viewAttributes)
+          : (typeof exportRTF.viewAttributes === "object" ? exportRTF.viewAttributes : []))
+        : [];
       exportArticleCSVLabels = typeof exportArticle.viewAttributes === "string" ? JSON.parse(exportArticle.viewAttributes) : exportArticle.viewAttributes;
       exportAuthorShipCSVLabels = typeof exportAuthors.viewAttributes === "string" ? JSON.parse(exportAuthors.viewAttributes) : exportAuthors.viewAttributes;
       reportingWeb = typeof reportingWebDisplay.viewAttributes === "string" ? JSON.parse(reportingWebDisplay.viewAttributes) : reportingWebDisplay.viewAttributes;

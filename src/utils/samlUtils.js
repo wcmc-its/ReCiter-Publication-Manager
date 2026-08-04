@@ -63,7 +63,11 @@ export const grantDefaultRolesToAdminUser = async(adminUser) => {
     let assignRolesPayload =[];
     if(adminSettings && adminSettings.viewAttributes && adminSettings.viewAttributes.length > 0)
     {
-        let viewAttributes = adminSettings?.viewAttributes && (typeof adminSettings.viewAttributes === 'string' ? JSON.parse(adminSettings.viewAttributes) : adminSettings.viewAttributes);
+        let viewAttributes = typeof adminSettings.viewAttributes === 'string'
+            ? JSON.parse(adminSettings.viewAttributes)
+            : (typeof adminSettings.viewAttributes === "object" && adminSettings.viewAttributes !== null
+                ? adminSettings.viewAttributes
+                : []);
         viewAttributes && viewAttributes.forEach(attr => {
             attr.roles.map(role=>{
                 if(role.isChecked)

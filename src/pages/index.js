@@ -13,7 +13,13 @@ export async function getServerSideProps(ctx) {
     let personIdentifier = null;
     if(session && session.data && session?.data.userRoles)
     {  
-        userPermissions =typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
+        //userPermissions =typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
+        userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
+            ? JSON.parse(session.data.userRoles)
+            : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
+                ? session.data.userRoles
+                : [])
+				
         
          personIdentifier = userPermissions && userPermissions?.length > 0 ? userPermissions[0]?.personIdentifier : ""
     }

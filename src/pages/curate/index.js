@@ -8,7 +8,12 @@ import { getSession } from "next-auth/react"
 // People to pick a person to curate.
 export async function getServerSideProps(ctx) {
     const session = await getSession(ctx);
-    const userRoles =typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles): session?.data?.userRoles ?? [];
+    const userRoles = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
+            ? JSON.parse(session.data.userRoles)
+            : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
+                ? session.data.userRoles
+                : []);
+       
     const selfRole = userRoles.find((r) => r.roleLabel === "Curator_Self" && r.personIdentifier);
     return {
         redirect: {

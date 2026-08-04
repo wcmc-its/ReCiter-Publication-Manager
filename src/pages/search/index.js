@@ -16,7 +16,13 @@ import { authOptions } from "../api/auth/[...nextauth]";
             },
         };
     }
-    const userPermissions =typeof session?.data?.userRoles === "string"? JSON.parse(session.data.userRoles): session.data?.userRoles ?? [];
+    //const userPermissions =typeof session?.data?.userRoles === "string"? JSON.parse(session.data.userRoles): session.data?.userRoles ?? [];
+    
+    const userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
+            ? JSON.parse(session.data.userRoles)
+            : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
+                ? session.data.userRoles
+                : []);
     if(userPermissions.length === 0) {
 
         return {

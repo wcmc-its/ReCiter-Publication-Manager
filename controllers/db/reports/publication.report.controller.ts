@@ -32,7 +32,8 @@ export const generatePubsRtf = async (
      if (req.body == null) {
       return res.status(400).send("Request body is required");
     }
-    let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : (typeof req.body === "object"  && !Array.isArray(req.body) ? req.body : ({} as GeneratePubsApiBody));
+ 
     let generatePubsRtfOutput: any = [];
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
@@ -82,7 +83,9 @@ export const generatePubsPeopleOnlyRtf = async (
      if (req.body == null) {
       return res.status(400).send("Request body is required");
      }
-      let apiBody: GeneratePubsPeopleOnlyApiBody = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+     
+      let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : (typeof req.body === "object"  && !Array.isArray(req.body) ? req.body : ({} as GeneratePubsApiBody));
+ 
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
         "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
         {

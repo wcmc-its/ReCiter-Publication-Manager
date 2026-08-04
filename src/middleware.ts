@@ -33,8 +33,15 @@ export async function middleware(request: NextRequest) {
       if(decodedTokenJson )
           allUserRoles = JSON.stringify(decodedTokenJson);
       if (allUserRoles && allUserRoles.length > 0) {
-          let userRoles = typeof allUserRoles === "string" ? JSON.parse(allUserRoles) : allUserRoles;
-          userRoles = typeof userRoles.userRoles === "string" ? JSON.parse(userRoles.userRoles) : userRoles.userRoles;
+         let userRoles = typeof allUserRoles === "string" && allUserRoles !== ""
+          ? JSON.parse(allUserRoles)
+          : (typeof allUserRoles === "object" && allUserRoles !== null ? allUserRoles : null);
+
+         userRoles = userRoles?.userRoles != null
+          ? (typeof userRoles.userRoles === "string" && userRoles.userRoles !== ""
+            ? JSON.parse(userRoles.userRoles)
+            : (typeof userRoles.userRoles === "object" ? userRoles.userRoles : []))
+          : [];
           
           if (userRoles && userRoles.length > 0) {
             let loggedInUserInfo = userRoles[0].personIdentifier;

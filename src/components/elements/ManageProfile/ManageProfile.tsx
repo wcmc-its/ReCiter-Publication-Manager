@@ -28,7 +28,11 @@ const ManageProfle = () => {
     const [serverValue, setServerValue] = useState('');
 
     useEffect(() => {
-        let userPermissions =typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
+        let userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
+            ? JSON.parse(session.data.userRoles)
+            : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
+                ? session.data.userRoles
+                : []);
         let curatorSelfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self);
         let curatorAllfRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_All);
         let superUserRole = userPermissions.some(role => role.roleLabel === allowedPermissions.Superuser);

@@ -56,7 +56,11 @@ const Profile = ({
   const [exportArticlRTFLoading, setExportArticleRTFLoading] = useState<boolean>(false);
   const formatter = new Intl.ListFormat('en', { style: 'long', type: 'conjunction'})
   const { data: session, status } = useSession(); const loading = status === "loading";
-  const userPermissions = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session?.data?.userRoles ?? [];
+  const userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
+    ? JSON.parse(session.data.userRoles)
+    : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
+      ? session.data.userRoles
+      : []);
   const [displayImage, setDisplayImage] = useState<boolean>(true);
   const [exportArticlesRTF, setExportArticlesRTF] = useState([])
   const [showAllRels, setShowAllRels] = useState(false);
@@ -105,9 +109,22 @@ const Profile = ({
       let exportRTF = updatedAdminSettings.find(obj => obj.viewName === "reportingArticleRTF")
       exportArticleRTFViewAttr = exportRTF.viewAttributes;
     } else if (session?.adminSettings) {
-      let adminSettings = typeof session.adminSettings === "string" ? JSON.parse(session.adminSettings) : session.adminSettings;
+      let adminSettings = typeof session.adminSettings === "string" && session.adminSettings !== ""
+        ? JSON.parse(session.adminSettings)
+        : (typeof session.adminSettings === "object" && session.adminSettings !== null
+          ? session.adminSettings
+          : []);
       let exportRTF = adminSettings.find(obj => obj.viewName === "reportingArticleRTF")
-      exportArticleRTFViewAttr = typeof exportRTF.viewAttributes === "string" ? JSON.parse(exportRTF.viewAttributes) : exportRTF.viewAttributes;
+     // exportArticleRTFViewAttr = typeof exportRTF.viewAttributes === "string" ? JSON.parse(exportRTF.viewAttributes) : exportRTF.viewAttributes;
+      if (exportRTF?.viewAttributes != null) {
+        exportArticleRTFViewAttr = typeof exportRTF.viewAttributes === "string" && exportRTF.viewAttributes !== ""
+          ? JSON.parse(exportRTF.viewAttributes)
+          : (typeof exportRTF.viewAttributes === "object" && exportRTF.viewAttributes !== null
+            ? exportRTF.viewAttributes
+            : []);
+      } else {
+        exportArticleRTFViewAttr = [];
+      }
     }
     setExportArticlesRTF(exportArticleRTFViewAttr)
   }, [])

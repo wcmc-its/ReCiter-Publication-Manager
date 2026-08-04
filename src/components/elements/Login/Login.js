@@ -54,7 +54,9 @@ const Login = () => {
                          ? JSON.parse(session.data.userRoles)
                          : Array.isArray(session.data.userRoles)
                              ? session.data.userRoles
-                             : [];
+                             : (typeof session.data.userRoles === "object"
+                                 ? session.data.userRoles
+                                 : []);
                  } catch (e) {
                      console.error('Failed to parse userRoles JSON:', e);
                      userPermissions = [];

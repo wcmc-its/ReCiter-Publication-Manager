@@ -112,16 +112,18 @@ const AdminSettings = () => {
       body: JSON.stringify(request),
     }).then(response => response.json())
       .then(data => {
-        let parsedSettingsArray = [];
-        data.map((obj, index1) => {
-          let c = typeof(obj.viewAttributes) === "string" ? JSON.parse(obj.viewAttributes) : JSON.parse(JSON.stringify(obj.viewAttributes));
-          let parsedSettings = {
+        let parsedSettingsArray = data.map(obj => {
+          let c = typeof obj.viewAttributes === "string"
+            ? JSON.parse(obj.viewAttributes)
+            : (typeof obj.viewAttributes === "object" && obj.viewAttributes !== null
+              ? JSON.parse(JSON.stringify(obj.viewAttributes))
+              : []);
+          return {
             viewName: obj.viewName,
             viewAttributes: c,
             viewLabel: obj.viewLabel
-          }
-          parsedSettingsArray.push(parsedSettings)
-        })
+          };
+        });
         setSettings(parsedSettingsArray);
         setLoading(false);
       })
