@@ -20,6 +20,17 @@ const LIST_ATTRIBUTES = [
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+// A no-DOI scopus row can't yet be verified against PubMed (aar_universe_scopus.py's
+// re-check needs either a DOI or, past this floor, a title/author fallback search).
+// Scopus routinely indexes a doc before PubMed does and before Scopus itself backfills
+// its DOI, so a *fresh* no-DOI row is more likely still settling than genuinely
+// PubMed-absent. Hold it out of every view until it clears the floor — the producer's
+// monthly re-check keeps running underneath regardless, so a row that resolves to PubMed
+// in the meantime is auto-dismissed before a curator ever sees it.
+const SCOPUS_NO_DOI_MATURITY_DAYS = 60;
+const maturityCutoffStr = () =>
+  new Date(Date.now() - SCOPUS_NO_DOI_MATURITY_DAYS * 86400000).toISOString().slice(0, 10);
+
 const SORTS: Record<string, any[]> = {
   // default: single-candidate (high-precision) first, then identity-only score desc.
   // ["pmid","DESC"] is a secondary key so same-paper pubmed authorships land adjacent.
@@ -100,6 +111,14 @@ function buildWhere(body: any): any {
   } else if (dateTo) {
     and.push({ entrez_date: { [Op.lte]: dateTo } });
   }
+  // hold immature no-DOI scopus rows out of every view until they clear the floor above
+  and.push({
+    [Op.not]: {
+      source: "scopus",
+      doi: null,
+      entrez_date: { [Op.gt]: maturityCutoffStr() },
+    },
+  });
 
   return and.length ? { [Op.and]: and } : {};
 }
