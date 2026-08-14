@@ -216,13 +216,14 @@ const scopusNote = (r: AuthorshipRow): string => {
   return `Not in PubMed — found via the Scopus AF-ID sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
 };
 
-const btn = (variant: "accept" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
+const btn = (variant: "accept" | "reject" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
   const base: CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 7, padding: "6px 12px",
     font: "inherit", fontSize: 13, fontWeight: 600, cursor: disabled ? "default" : "pointer",
     border: "1px solid transparent", whiteSpace: "nowrap", opacity: disabled ? 0.5 : 1,
   };
   if (variant === "accept") return { ...base, background: "#16a34a", color: "#fff" };
+  if (variant === "reject") return { ...base, background: "#fff", color: "#b91c1c", borderColor: "#fecaca" };
   if (variant === "soft") return { ...base, background: "#f0fdf4", color: "#15803d", borderColor: "#bbf7d0" };
   return { ...base, background: "#fff", color: "#475569", borderColor: "#dde3ea" };
 };
@@ -963,16 +964,12 @@ const AuthorshipsTabs = () => {
         </span>
       </div>
 
-      {/* overflow menu: Reject / Snooze / Dismiss.
-          Reject writes a "rejected" gold-standard entry against top_cwid — valid only for
-          single-candidate rows (the backend 409s on multi). For multi-candidate rows the
-          equivalent "this isn't any of them" action is None of these → dismiss. */}
+      {/* overflow menu: Snooze / Dismiss, plus None of these for multi-candidate rows.
+          Reject (single-candidate only — the backend 409s on multi) is now a primary
+          button on the card itself, not buried here. Multi-candidate's equivalent
+          "this isn't any of them" action stays None of these → dismiss. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
-        {menu?.row.single_candidate ? (
-          <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
-            <IconX size={14} style={{ marginRight: 8 }} /> Reject
-          </MenuItem>
-        ) : (
+        {menu && !menu.row.single_candidate && (
           <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")} style={{ color: "#b91c1c" }}>
             <IconX size={14} style={{ marginRight: 8 }} /> None of these
           </MenuItem>
@@ -1190,9 +1187,14 @@ const AuthorshipCard = ({
                 <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
               </Tip>
             ) : (
-              <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
-                <IconCheck /> Accept
-              </button>
+              <>
+                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+                  <IconX size={14} /> Reject
+                </button>
+                <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
+                  <IconCheck /> Accept
+                </button>
+              </>
             )
           ) : (
             <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}>Reopen</button>
