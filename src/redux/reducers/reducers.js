@@ -747,7 +747,10 @@ export const pubSearchFilter = ( state = initialStatePubSearchFilter, action) =>
       return action.payload 
     
     case methods.PUB_FILTER_CLEAR:
-      return initialStatePubSearchFilter
+      // All three dispatchers (clearPubSearchFilters, updateIndividualPersonReportCriteria,
+      // updatePubFiltersFromSearch) send a payload built from a clone of initialStatePubSearchFilter;
+      // this used to ignore it and rely on those dispatchers mutating the shared default in place instead.
+      return action.payload || initialStatePubSearchFilter
 
     case methods.PUB_POPULATE_SEARCH_FILTERS:
       return action.payload

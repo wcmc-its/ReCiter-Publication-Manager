@@ -1862,11 +1862,20 @@ export const clearReportSearchResults = () => dispatch => {
     })
 }
 
+// initialStatePubSearchFilter is also the pubSearchFilter reducer's default state (reducers.js).
+// Mutating it in place (as the three functions below used to) permanently pollutes that default,
+// so PUB_FILTER_CLEAR stops actually clearing anything for the rest of the session. Clone it instead.
+const cloneInitialPubSearchFilter = () => ({
+    ...initialStatePubSearchFilter,
+    filters: { ...initialStatePubSearchFilter.filters },
+    sort: { ...initialStatePubSearchFilter.sort },
+})
+
 export const clearPubSearchFilters = ()  => {
     return(dispatch, getState) => {
         const filters = getState().filters;
-        
-        let reportsSearchFilters = initialStatePubSearchFilter;
+
+        let reportsSearchFilters = cloneInitialPubSearchFilter();
             //clearing all report filters upon clicking reset button
             reportsSearchFilters.filters.personIdentifers = [];
             reportsSearchFilters.filters.orgUnits = [];
@@ -1897,14 +1906,14 @@ export const clearPubSearchFilters = ()  => {
 export const updateIndividualPersonReportCriteria =(personIdentifier) =>{
     return(dispatch, getState) => {
         const filters = getState().filters;
-        let reportsSearchFilters = initialStatePubSearchFilter;
+        let reportsSearchFilters = cloneInitialPubSearchFilter();
           if (personIdentifier) {
             reportsSearchFilters.filters.personIdentifers = [personIdentifier.personIdentifier];
           }
           updateAuthorFilter(personIdentifier.personIdentifier,10)
           dispatch({
             type: methods.PUB_FILTER_CLEAR,
-            payoload: reportsSearchFilters
+            payload: reportsSearchFilters
           });
     }
     
@@ -1916,7 +1925,7 @@ export const updatePubFiltersFromSearch = () => {
       
       // get filters from Search Page
       const filters = getState().filters;
-    let reportsSearchFilters = initialStatePubSearchFilter;
+    let reportsSearchFilters = cloneInitialPubSearchFilter();
     if (filters.orgUnits) {
       reportsSearchFilters.filters.orgUnits = [...filters.orgUnits]; 
     }
@@ -1936,7 +1945,7 @@ export const updatePubFiltersFromSearch = () => {
 
     dispatch({
       type: methods.PUB_FILTER_CLEAR,
-      payoload: reportsSearchFilters
+      payload: reportsSearchFilters
     });
   }
 }
