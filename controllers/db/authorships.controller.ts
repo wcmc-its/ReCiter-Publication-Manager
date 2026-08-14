@@ -339,6 +339,17 @@ function scopusExternalPayload(row: any) {
   };
 }
 
+// Every candidate identity a row was proposed against (top_cwid + candidate_cwids_json,
+// deduped) — the full set "None of these" rejects and reopen() un-rejects.
+function candidateCwidsFromRow(row: any): string[] {
+  let parsed: any[] = [];
+  try { parsed = JSON.parse(row.candidate_cwids_json || "[]"); } catch { parsed = []; }
+  const list = Array.isArray(parsed)
+    ? parsed.map((c: any) => (typeof c === "string" ? c : c?.cwid)).filter(Boolean).map(String)
+    : [];
+  return Array.from(new Set([row.top_cwid, ...list].filter(Boolean).map(String)));
+}
+
 // POST /api/db/authorships/action — single-row curator action.
 // body: { id, action: "accept"|"reject"|"snooze"|"dismiss"|"assign"|"reopen", cwid?, force? }
 // cwid is required only for "assign"; force retries a scopus Accept past a 409 WARNING.
@@ -393,12 +404,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         if (!chosen) return res.status(400).send("cwid is required for assign");
         // Integrity boundary: the server verifies the chosen cwid is a real candidate for
         // this authorship before any authoritative write (client can't spoof an identity).
-        let candidateCwids: string[] = [];
-        try {
-          const parsed = JSON.parse(row.candidate_cwids_json || "[]");
-          if (Array.isArray(parsed)) candidateCwids = parsed.map((c: any) => (typeof c === "string" ? c : c?.cwid)).filter(Boolean).map(String);
-        } catch { candidateCwids = []; }
-        const allowed = new Set([row.top_cwid, ...candidateCwids].filter(Boolean).map(String));
+        const allowed = new Set(candidateCwidsFromRow(row));
         if (!allowed.has(chosen)) return res.status(400).send("cwid is not a candidate for this authorship");
         if (!(await reciterIdentitySet([chosen])).size) {
           return res.status(422).send(`${chosen} has no ReCiter identity (likely departed/inactive) — this authorship can't be assigned; dismiss it instead`);
@@ -423,17 +429,25 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
       }
       case "reject": {
         if (!cwid) return res.status(409).send("No proposed identity to reject");
-        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
         if (isScopus) {
           // scopus reject = local dismissal, never gold standard (no PMID to reject).
           await models.AuthorshipReview.update({ status: "rejected", reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
-        const gs = await writeGoldStandard(cwid, pmid as number, "rejected", "UPDATE", curator.userID);
-        if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
+        // "None of these" on a multi-candidate row asserts none of them wrote it — reject
+        // every candidate, not just top_cwid. reopen() reverses the same set, recomputed
+        // from candidate_cwids_json (stable once a row leaves "open" — see aar_db.py: the
+        // producer never revisits an already-resolved row's upsert).
+        const targets = row.single_candidate ? [cwid] : candidateCwidsFromRow(row);
+        for (const target of targets) {
+          const gs = await writeGoldStandard(target, pmid as number, "rejected", "UPDATE", curator.userID);
+          if (gs !== 200) return res.status(502).send(`Gold-standard write failed for ${target} (${gs})`);
+        }
         await models.AuthorshipReview.update({ status: "rejected", reviewer, resolved_at: new Date() }, { where: { id } });
-        try { await appendFeedbackLog(curator.userID, cwid, pmid as number, "REJECTED"); }
-        catch (e) { console.log("[authorships] feedbacklog (reject) non-fatal:", e); }
+        for (const target of targets) {
+          try { await appendFeedbackLog(curator.userID, target, pmid as number, "REJECTED"); }
+          catch (e) { console.log("[authorships] feedbacklog (reject) non-fatal:", e); }
+        }
         break;
       }
       case "snooze": {
@@ -456,9 +470,12 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
           const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
           if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
-        } else if (row.status === "rejected" && reverseCwid) {
-          const gs = await writeGoldStandard(reverseCwid, pmid as number, "rejected", "DELETE", curator.userID);
-          if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+        } else if (row.status === "rejected") {
+          const targets = row.single_candidate ? (reverseCwid ? [reverseCwid] : []) : candidateCwidsFromRow(row);
+          for (const target of targets) {
+            const gs = await writeGoldStandard(target, pmid as number, "rejected", "DELETE", curator.userID);
+            if (gs !== 200) return res.status(502).send(`Gold-standard undo failed for ${target} (${gs})`);
+          }
         }
         await models.AuthorshipReview.update({ status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer }, { where: { id } });
         break;

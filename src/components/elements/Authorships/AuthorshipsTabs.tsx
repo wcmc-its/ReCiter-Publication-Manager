@@ -694,7 +694,7 @@ const AuthorshipsTabs = () => {
         } else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship");
         e.preventDefault();
       }
-      else if (k === "n") { if (statusView === "open") { if (row.single_candidate) doAction?.(row, "reject"); else setErrorMsg("Use Pick one ▾ / None of these for a multi-candidate authorship"); } e.preventDefault(); }
+      else if (k === "n") { if (statusView === "open") doAction?.(row, "reject"); e.preventDefault(); }
       else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
       else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
       else if (e.key === "Enter") {
@@ -964,14 +964,14 @@ const AuthorshipsTabs = () => {
         </span>
       </div>
 
-      {/* overflow menu: Snooze / Dismiss, plus None of these for multi-candidate rows.
-          Reject (single-candidate only — the backend 409s on multi) is now a primary
-          button on the card itself, not buried here. Multi-candidate's equivalent
-          "this isn't any of them" action stays None of these → dismiss. */}
+      {/* overflow menu: Snooze / Dismiss, plus Reject all for multi-candidate rows.
+          Single-candidate Reject is a primary button on the card itself, not buried here.
+          Multi-candidate's "none of them wrote it" is a real reject too — against every
+          candidate, not just top_cwid — so it belongs here, not the no-op Dismiss below. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {menu && !menu.row.single_candidate && (
-          <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")} style={{ color: "#b91c1c" }}>
-            <IconX size={14} style={{ marginRight: 8 }} /> None of these
+          <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
+            <IconX size={14} style={{ marginRight: 8 }} /> Reject all
           </MenuItem>
         )}
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
@@ -1416,8 +1416,8 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
           <IconCheck /> Assign selected
         </button>
-        <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("dismiss"); }}>
-          <IconX /> None of these
+        <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+          <IconX /> Reject all
         </button>
       </div>
     </>
