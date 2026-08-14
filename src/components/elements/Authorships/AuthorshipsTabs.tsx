@@ -285,7 +285,13 @@ const AuthorshipsTabs = () => {
   const [classification, setClassification] = useState<"all" | "buried" | "absent" | "suggested">("all");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [sort, setSort] = useState("confidence"); // default sort = Confidence (desc)
+  // default sort = IO desc, matching the page's own lede ("IO ... leads"). top_confidence
+  // (the matcher's identity-match heuristic, not an authorship-likelihood score) was the
+  // prior default, but it's near-constant across the queue — most rows land on the same
+  // base value for a given given-name-match/affiliation-match combo — so it silently fell
+  // through to the pmid tiebreaker for the vast majority of rows (live-verified: 19/20 on
+  // one real page tied at 0.65, ordered only by pmid, unrelated to what's shown on the card).
+  const [sort, setSort] = useState("io");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [datePreset, setDatePreset] = useState("24m"); // default = Last 2 years; "any"|"30d"|"90d"|"6m"|"12m"|"24m"|"custom"
@@ -722,7 +728,7 @@ const AuthorshipsTabs = () => {
             style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", font: "inherit", fontSize: 13, color: "#0f172a", padding: "0 10px", cursor: "pointer" }}>
             <option value="io">Identity-only (IO) — strongest first</option>
             <option value="date">Newest</option>
-            <option value="confidence">Confidence</option>
+            <option value="confidence">Match confidence (name/affiliation, not IO)</option>
             <option value="precision">Best match</option>
             <option value="fg">Authorship Score</option>
           </select>
