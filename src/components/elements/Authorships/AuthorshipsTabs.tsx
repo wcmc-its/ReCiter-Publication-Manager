@@ -51,6 +51,33 @@ interface AuthorshipRow {
   resolved_at?: string;
 }
 
+// One ReCiter ExternalArticleDupCheck.Match — title/journal/pubYear are undefined until
+// ReCiter#705 (structured Match fields) is deployed; render gracefully without them.
+interface DupMatch {
+  type?: string;
+  matchedId?: string;
+  detail?: string;
+  title?: string;
+  journal?: string;
+  pubYear?: string;
+}
+
+// A duplicate-conflict prompt for one row: rendered inline on that row's own card (never a
+// global toast — a fixed-position Snackbar can drift over an unrelated card while the
+// curator scrolls, see HANDOFF_2026-08-14). Stays up until the curator acts on it (no
+// auto-dismiss timer), and a copy survives in the conflict log after it's cleared so a
+// curator can look back at one they've already scrolled past or resolved.
+interface ConflictEntry {
+  id: number;              // AuthorshipRow.id this conflict belongs to
+  action: string;
+  extra?: Record<string, any>;
+  message: string;
+  matches: DupMatch[];
+  wcm_author?: string;     // captured at fire time — "who was this for"
+  top_name?: string;
+  ts: number;
+}
+
 interface Candidate {
   cwid: string;
   name?: string;
@@ -301,7 +328,15 @@ const AuthorshipsTabs = () => {
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
-  const [forcePrompt, setForcePrompt] = useState<{ row: AuthorshipRow; action: string; extra?: Record<string, any>; message: string } | null>(null);
+  // active conflicts, keyed by row id (a row's card renders its own entry inline — see
+  // ConflictEntry doc comment) — plus a capped rolling log of every one seen this session
+  // for the "recent conflicts" history list, independent of whether it's still active.
+  const [conflicts, setConflicts] = useState<Record<number, ConflictEntry>>({});
+  const [conflictLog, setConflictLog] = useState<ConflictEntry[]>([]);
+  const [historyAnchor, setHistoryAnchor] = useState<HTMLElement | null>(null);
+  const clearConflict = useCallback((id: number) => {
+    setConflicts((c) => { if (!(id in c)) return c; const n = { ...c }; delete n[id]; return n; });
+  }, []);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; row: AuthorshipRow } | null>(null);
   // F4: undo holds a BATCH of rows (single-row actions push a 1-element batch)
   const [undo, setUndo] = useState<{ rows: AuthorshipRow[]; label: string } | null>(null);
@@ -465,7 +500,24 @@ const AuthorshipsTabs = () => {
       body: JSON.stringify({ id: row.id, action, ...extra }),
     })
       .then(async (r) => {
-        if (!r.ok) { const err: any = new Error((await r.text()) || `HTTP ${r.status}`); err.status = r.status; throw err; }
+        if (!r.ok) {
+          const text = await r.text();
+          // 409 dup-conflict comes back as JSON ({ message, matches }); everything else is
+          // plain text. Try JSON first, fall back to the raw text as the message.
+          let message = text || `HTTP ${r.status}`;
+          let matches: DupMatch[] = [];
+          if (r.status === 409) {
+            try {
+              const parsed = JSON.parse(text);
+              message = parsed?.message || message;
+              matches = Array.isArray(parsed?.matches) ? parsed.matches : [];
+            } catch { /* not JSON — keep the raw text as the message */ }
+          }
+          const err: any = new Error(message);
+          err.status = r.status;
+          err.matches = matches;
+          throw err;
+        }
         return true;
       })
       // settled (DB write committed on success, or failed): the id no longer needs guarding.
@@ -486,7 +538,15 @@ const AuthorshipsTabs = () => {
       .catch((e) => {
         // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
         const scopusDup = e?.status === 409 && row.source === "scopus" && (action === "accept" || action === "assign");
-        if (scopusDup) setForcePrompt({ row, action, extra, message: String(e?.message || e) });
+        if (scopusDup) {
+          const entry: ConflictEntry = {
+            id: row.id, action, extra, message: String(e?.message || e),
+            matches: Array.isArray(e?.matches) ? e.matches : [],
+            wcm_author: row.wcm_author, top_name: row.top_name, ts: Date.now(),
+          };
+          setConflicts((c) => ({ ...c, [row.id]: entry }));
+          setConflictLog((log) => [entry, ...log].slice(0, 20));
+        }
         else setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}. The row is back in the list — nothing was saved.`);
         fetchData(); // restore the optimistically-removed row
       })
@@ -671,6 +731,15 @@ const AuthorshipsTabs = () => {
         signal) leads; <strong style={{ color: "#0f172a", fontWeight: 600 }}>Authorship Score</strong> (production) is shown
         small as the diagnosis. Expand a card for the affiliation and evidence.
       </p>
+
+      {conflictLog.length > 0 && (
+        <button onClick={(ev) => setHistoryAnchor(ev.currentTarget)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 14, padding: "5px 11px",
+            border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", borderRadius: 7,
+            fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
+          ⚠ Recent duplicate conflicts ({conflictLog.length})
+        </button>
+      )}
 
       {/* summary */}
       {summary && (
@@ -873,6 +942,8 @@ const AuthorshipsTabs = () => {
             onAction={(action, extra) => doAction(r, action, extra)}
             onMenu={(anchor) => setMenu({ anchor, row: r })}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
+            conflict={conflicts[r.id]}
+            onClearConflict={() => clearConflict(r.id)}
           />
         ))}
       </div>
@@ -937,18 +1008,36 @@ const AuthorshipsTabs = () => {
         </Alert>
       </Snackbar>
 
-      {/* scopus Force-add prompt (409 likely-duplicate ExternalArticle) — confirm to retry with force */}
-      <Snackbar open={!!forcePrompt} onClose={() => setForcePrompt(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        message={forcePrompt ? `${forcePrompt.message} — add anyway?` : ""}
-        action={
-          <>
-            <button onClick={() => { if (forcePrompt) { doAction(forcePrompt.row, forcePrompt.action, { ...forcePrompt.extra, force: "true" }); setForcePrompt(null); } }}
-              style={{ color: "#7cc4ff", background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, marginRight: 8 }}>FORCE ADD</button>
-            <button onClick={() => setForcePrompt(null)}
-              style={{ color: "#cbd5e1", background: "none", border: "none", cursor: "pointer", fontSize: 13 }}>DISMISS</button>
-          </>
-        } />
+      {/* recent duplicate-conflicts history — each entry's real prompt lives inline on its own
+          card (see ConflictEntry); this is read-only look-back plus a jump-to-card shortcut for
+          one the curator has scrolled past. ponytail: a Menu list, not a dedicated modal —
+          swap in one if this needs richer layout than a plain list. */}
+      <Menu anchorEl={historyAnchor} open={!!historyAnchor} onClose={() => setHistoryAnchor(null)}
+        PaperProps={{ style: { maxWidth: 420, maxHeight: 420 } }}>
+        {conflictLog.length === 0 && <MenuItem disabled>No conflicts this session</MenuItem>}
+        {conflictLog.map((entry) => {
+          const stillActive = !!conflicts[entry.id];
+          return (
+            <MenuItem key={`${entry.id}-${entry.ts}`} dense style={{ whiteSpace: "normal", display: "block", padding: "8px 14px" }}
+              onClick={() => {
+                setHistoryAnchor(null);
+                cardRefs.current[entry.id]?.scrollIntoView({ block: "center" });
+                setFocusedId(entry.id);
+              }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, fontWeight: 600, color: "#0f172a" }}>
+                <span>{entry.wcm_author || entry.top_name || "—"}</span>
+                <span style={{ color: stillActive ? "#b45309" : "#94a3b8", fontWeight: 500 }}>
+                  {stillActive ? "unresolved" : "resolved/cleared"}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>{entry.message}</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                {new Date(entry.ts).toLocaleTimeString()}
+              </div>
+            </MenuItem>
+          );
+        })}
+      </Menu>
     </div>
   );
 };
@@ -981,11 +1070,14 @@ interface CardProps {
   onAction: (action: string, extra?: Record<string, any>) => void;
   onMenu: (anchor: HTMLElement) => void;
   onNarrowPmid: () => void;
+  conflict?: ConflictEntry;
+  onClearConflict: () => void;
 }
 
 const AuthorshipCard = ({
   row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onNarrowPmid,
+  conflict, onClearConflict,
 }: CardProps) => {
   const isMulti = !r.single_candidate && (r.n_candidates ?? 0) > 1;
   const noIdentity = r.identity_in_reciter === false;
@@ -1109,6 +1201,38 @@ const AuthorshipCard = ({
       {/* snoozed wake-time hint */}
       {statusView === "snoozed" && r.snooze_until && (
         <div style={{ padding: "0 15px 10px 43px", fontSize: 11, color: "#94a3b8" }}>Wakes {r.snooze_until}</div>
+      )}
+
+      {/* possible-duplicate conflict — anchored to THIS card (never a global toast that can
+          drift over an unrelated one), stays up until the curator acts, names who it's for. */}
+      {conflict && (
+        <div onClick={(e) => e.stopPropagation()} style={{
+          margin: "0 15px 12px 43px", padding: "10px 12px", borderRadius: 8,
+          background: "#fffbeb", border: "1px solid #fde68a", fontSize: 12.5, color: "#78350f",
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 3 }}>
+            Possible duplicate — {conflict.wcm_author || conflict.top_name || r.wcm_author}
+          </div>
+          <div style={{ marginBottom: 6 }}>{conflict.message}</div>
+          {conflict.matches.length > 0 && (
+            <ul style={{ margin: "0 0 8px", paddingLeft: 18 }}>
+              {conflict.matches.map((m, i) => (
+                <li key={i} style={{ marginBottom: 2 }}>
+                  {m.title || m.detail || m.type || "conflicting record"}
+                  {(m.journal || m.pubYear) && (
+                    <span style={{ color: "#92400e" }}> ({[m.journal, m.pubYear].filter(Boolean).join(", ")})</span>
+                  )}
+                  {m.matchedId && <span style={{ color: "#a16207" }}> — {m.matchedId}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => { onAction(conflict.action, { ...conflict.extra, force: "true" }); onClearConflict(); }}
+              style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>Force add anyway</button>
+            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>Dismiss</button>
+          </div>
+        </div>
       )}
 
       {/* expanded evidence / pick-one */}
