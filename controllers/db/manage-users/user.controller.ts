@@ -227,7 +227,17 @@ export const createOrUpdateAdminUser = async (
   req: NextApiRequest,
   res: NextApiResponse
 ) => {
-  const { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId } = req.body;
+  const { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId, scopePersonTypes, scopeOrgUnits } = req.body;
+  // Curator_Scoped's personType/orgUnit scope (admin_users.scope_person_types/scope_org_units,
+  // see PM#849). Empty/absent clears scope -- matches the JSON DEFAULT NULL columns and the
+  // full-replace pattern already used for roles/departments below.
+  // Array.isArray, not just truthiness -- a client-sent string also has .length, and would
+  // otherwise get persisted verbatim into the JSON column, then read back as a string instead
+  // of an array everywhere downstream that assumes one (canCurate/isPersonInScope).
+  const scopeFields = {
+    scope_person_types: Array.isArray(scopePersonTypes) && scopePersonTypes.length > 0 ? scopePersonTypes : null,
+    scope_org_units: Array.isArray(scopeOrgUnits) && scopeOrgUnits.length > 0 ? scopeOrgUnits : null,
+  };
 
   try {
     if (isEditUserId) {
@@ -236,7 +246,8 @@ export const createOrUpdateAdminUser = async (
         'nameFirst': firstName,
         'nameMiddle': middleName,
         'nameLast': lastName,
-        'modifyTimestamp': new Date()
+        'modifyTimestamp': new Date(),
+        ...scopeFields
       }
       
 
@@ -310,7 +321,8 @@ export const createOrUpdateAdminUser = async (
         'nameLast': lastName,
         'email': email,
         'status': 1,  // Hardcoded 1 to make user active bydefault
-        'createTimestamp': new Date()
+        'createTimestamp': new Date(),
+        ...scopeFields
       }
 
       
@@ -357,7 +369,7 @@ export const fetchUserDetailsByUserId = async (
   try {
     const UserDetails = await models.AdminUser.findAll({
       where: { userID: req.body },
-      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status"],
+      attributes: ["userID", "personIdentifier", "nameFirst", "nameMiddle", "nameLast", "email", "status", "scope_person_types", "scope_org_units"],
       include: [{
         model: models.AdminUsersDepartment,
         attributes: ["id", "userID", "departmentID"],
