@@ -165,6 +165,30 @@ export const authOptions = {
         token.databaseUser = user.databaseUser || null;
         token.userRoles = user.userRoles || [];
 
+        // scope_person_types/scope_org_units/proxy_person_ids (admin_users, see PM#849) come back
+        // on every role row from findUserPermissions, identical per row since they're per-user, not
+        // per-role -- so the first row is enough. Stored as MariaDB JSON-alias-for-LONGTEXT columns,
+        // so a raw (non-Model) query returns them as JSON text, not pre-parsed values; parse before
+        // re-stringifying onto the token, or Search.js's single JSON.parse(session.data.scopeData)
+        // would hand back strings-of-arrays instead of arrays.
+        const parseJsonColumn = (value) => {
+          if (value == null) return null;
+          if (typeof value !== 'string') return value;
+          try { return JSON.parse(value); } catch { return null; }
+        };
+        let firstRole = {};
+        try {
+          const rolesArr = JSON.parse(token.userRoles || '[]');
+          firstRole = rolesArr[0] || {};
+        } catch (e) {
+          console.warn('JWT callback: could not parse userRoles for scope data', e);
+        }
+        token.scopeData = JSON.stringify({
+          personTypes: parseJsonColumn(firstRole.scope_person_types),
+          orgUnits: parseJsonColumn(firstRole.scope_org_units),
+        });
+        token.proxyPersonIds = JSON.stringify(parseJsonColumn(firstRole.proxy_person_ids) || []);
+
         token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
         token.picture = user.image || user.databaseUser?.profilePicture;
         console.log('JWT callback - final token created with username:', token.username);

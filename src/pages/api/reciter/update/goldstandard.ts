@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getToken } from 'next-auth/jwt'
 import { updateGoldStandard } from "../../../../../controllers/goldstandard.controller"
+import { canCurate } from "../../../../../controllers/db/authorization.controller"
 import { reciterConfig } from '../../../../../config/local'
 
 type Error = {
@@ -25,12 +26,27 @@ export default async function handler(
         // ("Unknown" in the History panel). Never trusted from the client. Best-effort:
         // if the token is missing/unreadable we send nothing and ReCiter defaults to 0.
         let curatedBy = 0
+        let token: any = null
         try {
-            const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+            token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
             const userID = Number(token?.databaseUser?.userID)
             if (Number.isInteger(userID) && userID > 0) curatedBy = userID
         } catch (e) {
             console.warn('[goldstandard] could not resolve curatedBy from JWT; recording as unknown')
+        }
+
+        // The static backendApiKey check above only proves the request came from this app's
+        // own server code -- it says nothing about which curator is behind it or who they're
+        // allowed to curate. Enforce that here. Was previously enforced nowhere: Curator_Self
+        // and Curator_All were exactly as unchecked as Curator_Scoped is without this. See PM#849.
+        const targetUid = req.body?.uid
+        const allowed = await canCurate(token, targetUid)
+        if (!allowed) {
+            res.status(403).send({
+                statusCode: 403,
+                message: "You do not have permission to curate this person's publications"
+            })
+            return
         }
 
         const apiResponse = await updateGoldStandard(req, curatedBy);
