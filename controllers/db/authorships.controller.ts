@@ -288,13 +288,15 @@ async function appendFeedbackLog(userID: number, personIdentifier: string, pmid:
 // prod PM share one DynamoDB ExternalArticle table but have separate review queues, so a
 // row accepted in one env stays open in the other and re-accepting it lands here.)
 // WARNING = fuzzy title+year match the curator may force; surface its human message.
-function dupConflict(body: any): { blocked: boolean; message: string } {
-  const detail = Array.isArray(body?.matches) && body.matches.length
-    ? ` (${body.matches.map((m: any) => m.matchedId || m.type).filter(Boolean).join(", ")})`
-    : "";
+//
+// `matches` is passed through structurally (type/matchedId/detail, plus title/journal/
+// pubYear once ReCiter#705 ships) instead of being collapsed to a bare id — the client
+// renders the real conflict context instead of a number nobody can act on.
+function dupConflict(body: any): { blocked: boolean; message: string; matches: any[] } {
   return {
     blocked: body?.status === "BLOCKED",
-    message: `${body?.message || "Possible duplicate."}${detail}`,
+    message: body?.message || "Possible duplicate.",
+    matches: Array.isArray(body?.matches) ? body.matches : [],
   };
 }
 
@@ -348,7 +350,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
             // BLOCKED → already in the record: fall through and resolve the row as accepted
-            if (!dup.blocked) return res.status(409).send(dup.message);
+            if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
@@ -381,7 +383,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
-            if (!dup.blocked) return res.status(409).send(dup.message);
+            if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
