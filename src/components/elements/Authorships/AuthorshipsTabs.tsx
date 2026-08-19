@@ -216,13 +216,14 @@ const scopusNote = (r: AuthorshipRow): string => {
   return `Not in PubMed — found via the Scopus AF-ID sweep, so production never scored it (no IO/Authorship Score exists). ${who}; ranked by identity-match confidence (${confBand(r.top_confidence)}). Accepting adds it as an ExternalArticle (no PMID → not gold standard).`;
 };
 
-const btn = (variant: "accept" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
+const btn = (variant: "accept" | "reject" | "soft" | "ghost", disabled?: boolean): CSSProperties => {
   const base: CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 7, padding: "6px 12px",
     font: "inherit", fontSize: 13, fontWeight: 600, cursor: disabled ? "default" : "pointer",
     border: "1px solid transparent", whiteSpace: "nowrap", opacity: disabled ? 0.5 : 1,
   };
   if (variant === "accept") return { ...base, background: "#16a34a", color: "#fff" };
+  if (variant === "reject") return { ...base, background: "#fff", color: "#b91c1c", borderColor: "#fecaca" };
   if (variant === "soft") return { ...base, background: "#f0fdf4", color: "#15803d", borderColor: "#bbf7d0" };
   return { ...base, background: "#fff", color: "#475569", borderColor: "#dde3ea" };
 };
@@ -693,7 +694,7 @@ const AuthorshipsTabs = () => {
         } else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship");
         e.preventDefault();
       }
-      else if (k === "n") { if (statusView === "open") { if (row.single_candidate) doAction?.(row, "reject"); else setErrorMsg("Use Pick one ▾ / None of these for a multi-candidate authorship"); } e.preventDefault(); }
+      else if (k === "n") { if (statusView === "open") doAction?.(row, "reject"); e.preventDefault(); }
       else if (k === "s") { if (statusView === "open") doAction?.(row, "snooze"); e.preventDefault(); }
       else if (k === "x") { toggleSelect?.(row); e.preventDefault(); }
       else if (e.key === "Enter") {
@@ -963,18 +964,14 @@ const AuthorshipsTabs = () => {
         </span>
       </div>
 
-      {/* overflow menu: Reject / Snooze / Dismiss.
-          Reject writes a "rejected" gold-standard entry against top_cwid — valid only for
-          single-candidate rows (the backend 409s on multi). For multi-candidate rows the
-          equivalent "this isn't any of them" action is None of these → dismiss. */}
+      {/* overflow menu: Snooze / Dismiss, plus Reject all for multi-candidate rows.
+          Single-candidate Reject is a primary button on the card itself, not buried here.
+          Multi-candidate's "none of them wrote it" is a real reject too — against every
+          candidate, not just top_cwid — so it belongs here, not the no-op Dismiss below. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
-        {menu?.row.single_candidate ? (
+        {menu && !menu.row.single_candidate && (
           <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
-            <IconX size={14} style={{ marginRight: 8 }} /> Reject
-          </MenuItem>
-        ) : (
-          <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")} style={{ color: "#b91c1c" }}>
-            <IconX size={14} style={{ marginRight: 8 }} /> None of these
+            <IconX size={14} style={{ marginRight: 8 }} /> Reject all
           </MenuItem>
         )}
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
@@ -1186,13 +1183,23 @@ const AuthorshipCard = ({
             isMulti ? (
               <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
             ) : noIdentity ? (
-              <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted. Dismiss it via the ⋯ menu, or leave it open.`} placement="top" arrow>
-                <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
-              </Tip>
+              <>
+                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+                  <IconX size={14} /> Reject
+                </button>
+                <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted.`} placement="top" arrow>
+                  <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
+                </Tip>
+              </>
             ) : (
-              <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
-                <IconCheck /> Accept
-              </button>
+              <>
+                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+                  <IconX size={14} /> Reject
+                </button>
+                <button style={btn("accept", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("accept"); }}>
+                  <IconCheck /> Accept
+                </button>
+              </>
             )
           ) : (
             <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reopen"); }}>Reopen</button>
@@ -1414,8 +1421,8 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
           <IconCheck /> Assign selected
         </button>
-        <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("dismiss"); }}>
-          <IconX /> None of these
+        <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+          <IconX /> Reject all
         </button>
       </div>
     </>
