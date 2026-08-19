@@ -99,6 +99,23 @@ import { CandidatesPanel, NarrowingGate, QueryCard } from './CandidatesView'
 import { SynthesisView } from './SynthesisView'
 import s from './LiteratureSearch.module.css'
 
+// Fully self-contained: nothing else in the page reads or writes `copied`, and `copy` needs
+// only a place to report an error. Extracted verbatim — same clipboard call, same 1.8s
+// auto-clear, same rejection path (writeText rejects outside a secure context).
+function useClipboardCopy(onError: (msg: string) => void) {
+    const [copied, setCopied] = useState('')
+    const copy = (text: string, what: string) => {
+        navigator.clipboard.writeText(text).then(
+            () => {
+                setCopied(what)
+                setTimeout(() => setCopied(c => (c === what ? '' : c)), 1800)
+            },
+            () => onError('Could not copy to the clipboard.'),
+        )
+    }
+    return { copied, copy }
+}
+
 export default function LiteratureSearch() {
     const session = useSession().data as any
     const [mode, setMode] = useState('search-strategy')
@@ -185,7 +202,7 @@ export default function LiteratureSearch() {
     // key that does not exist -- so every failure rendered as NOTHING and the button just
     // looked dead. An inline div depends on no config and cannot be silently disabled.
     const [err, setErr] = useState('')
-    const [copied, setCopied] = useState('')
+    const { copied, copy } = useClipboardCopy(setErr)
 
     const dates = useMemo(dateLimits, [])
     const types = useMemo(pubTypes, [])
@@ -256,17 +273,54 @@ export default function LiteratureSearch() {
     // are the same request: a strategy in the body says "you already wrote this, do not spend a
     // model call re-writing it", and `proceed` says "do not raise the gate again, I have seen the
     // count". The button that sends it is never disabled on the count — see retrieveNow.
-    const runIssueReview = async (narrowed?: Strategy) => {
-        // The OTHER caller that clears `strategies` — and the one where a surviving stale re-count
-        // does its damage silently, by wiping the error this function is about to set. See
-        // cancelRecount().
-        cancelRecount()
+    // The up-front reset, pulled out of runIssueReview so the fetch/validate/branch logic below
+    // isn't sharing a function body with six unrelated setState calls.
+    const resetCandidateState = () => {
         setErr('')
         setRecords([])
         setFlags({})
         setPicked({})
         setSynthesis(null)
         setProvenance(null)
+    }
+
+    // THE GATE. Nothing was retrieved — not because we could not (the retrieval tool takes a
+    // retmax now and would happily hand back the top 50 of 184,043), but because 50 out of this
+    // many is a thin slice and the librarian is entitled to know that before they read it as if
+    // it were the literature. Pulled out of runIssueReview as its own named business rule.
+    const enterNarrowingGate = (r: DbResult) => {
+        const st: Strategy = { db: 'pubmed', concepts: r.concepts, limits: r.limits }
+        fresh.current = true          // the server just counted this one; don't re-count it
+        setBaseStrategy(st)
+        setStrategies([st])
+        setNarrowings(r.narrowings || [])
+        setBaseHits(r.hits)
+        setTicked({})
+        setGate(true)
+        setStage('idle')
+    }
+
+    // A COUNT WITHOUT RECORDS IS NOT AN EMPTY SEARCH. If PubMed says 275 papers match and then
+    // hands back none of them, the retrieval was throttled — the count and the fetch are
+    // different endpoints, and only one of them failed. Both `countPubmed` and `fetchArticles`
+    // already retry once; when even the retry comes back empty, the honest thing is to SAY the
+    // retrieval failed. Rendering an empty candidate list under a 275-record count reads as "your
+    // search found nothing", which is the exact quiet lie the rest of this page exists to
+    // prevent. Seen for real, 2026-07-13. Pure — no state, so it's the one part of this business
+    // rule that's testable without a fetch mock.
+    const describeEmptyRetrieval = (hits: number): string | null => (
+        hits > 0
+            ? `PubMed counted ${hits.toLocaleString()} records for this query but returned none of them. `
+                + `That is a rate limit, not an empty result — try again in a moment.`
+            : null
+    )
+
+    const runIssueReview = async (narrowed?: Strategy) => {
+        // The OTHER caller that clears `strategies` — and the one where a surviving stale re-count
+        // does its damage silently, by wiping the error this function is about to set. See
+        // cancelRecount().
+        cancelRecount()
+        resetCandidateState()
         setStage('fetching')
         try {
             const res = await fetch('/api/literature/search', {
@@ -312,20 +366,8 @@ export default function LiteratureSearch() {
             setModel(data.model || '')
             setPhase('candidates')
 
-            // THE GATE. Nothing was retrieved — not because we could not (the retrieval tool takes
-            // a retmax now and would happily hand back the top 50 of 184,043), but because 50 out
-            // of this many is a thin slice and the librarian is entitled to know that before they
-            // read it as if it were the literature.
             if (r.needsNarrowing) {
-                const st: Strategy = { db: 'pubmed', concepts: r.concepts, limits: r.limits }
-                fresh.current = true          // the server just counted this one; don't re-count it
-                setBaseStrategy(st)
-                setStrategies([st])
-                setNarrowings(r.narrowings || [])
-                setBaseHits(r.hits)
-                setTicked({})
-                setGate(true)
-                setStage('idle')
+                enterNarrowingGate(r)
                 return
             }
 
@@ -337,19 +379,10 @@ export default function LiteratureSearch() {
             const recs = r.records || []
             setRecords(recs)
 
-            // A COUNT WITHOUT RECORDS IS NOT AN EMPTY SEARCH. If PubMed says 275 papers match and
-            // then hands back none of them, the retrieval was throttled — the count and the fetch
-            // are different endpoints, and only one of them failed. Both `countPubmed` and
-            // `fetchArticles` already retry once; when even the retry comes back empty, the honest
-            // thing is to SAY the retrieval failed. Rendering an empty candidate list under a
-            // 275-record count reads as "your search found nothing", which is the exact quiet lie
-            // the rest of this page exists to prevent. Seen for real, 2026-07-13.
             if (!recs.length) {
                 setStage('idle')
-                if (r.hits > 0) {
-                    setErr(`PubMed counted ${r.hits.toLocaleString()} records for this query but returned none of them. `
-                        + `That is a rate limit, not an empty result — try again in a moment.`)
-                }
+                const msg = describeEmptyRetrieval(r.hits)
+                if (msg) setErr(msg)
                 return
             }
 
@@ -492,6 +525,27 @@ export default function LiteratureSearch() {
     // limits dropdowns, which sit on every strategy at once.
     const dirty = useRef<Set<number>>(new Set())
 
+    // The network part of a recount, pulled out of the effect below so the effect body reads as
+    // debounce -> fetch -> apply, instead of the fetch itself being one paragraph buried in the
+    // middle of debounce/merge/expert-panel/fetchRows-trigger logic. Same request shape, same
+    // per-line comment about why Mode 2 sends no seeds.
+    const recountStrategies = async (
+        targets: number[], sts: Strategy[], dateId: string, typeId: string,
+    ): Promise<PromiseSettledResult<{ di: number; r: DbResult; experts?: { experts: Expert[]; total: number } }>[]> =>
+        Promise.allSettled(targets.map(async di => {
+            const res = await fetch('/api/literature/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // No seeds in Mode 2: known-item validation is a recall check, and it is
+                // meaningless against a search that is being deliberately narrowed. Sending
+                // them would also spend one count call per seed on every tick, for nothing.
+                body: JSON.stringify({ strategy: sts[di], seeds: isSR ? seeds : '', dateId, typeId }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data?.message || 'Could not re-count the strategy.')
+            return { di, r: data.databases[0] as DbResult, experts: data.experts }
+        }))
+
     useEffect(() => {
         if (!isSR && !gate) return
         if (!strategies.length) return
@@ -522,24 +576,25 @@ export default function LiteratureSearch() {
             const mine = ++seq.current
             setRecounting(true)
             try {
-                const fetched = await Promise.all(targets.map(async di => {
-                    const res = await fetch('/api/literature/search', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        // No seeds in Mode 2: known-item validation is a recall check, and it is
-                        // meaningless against a search that is being deliberately narrowed. Sending
-                        // them would also spend one count call per seed on every tick, for nothing.
-                        body: JSON.stringify({ strategy: strategies[di], seeds: isSR ? seeds : '', dateId, typeId }),
-                    })
-                    const data = await res.json()
-                    if (!res.ok) throw new Error(data?.message || 'Could not re-count the strategy.')
-                    return { di, r: data.databases[0] as DbResult, experts: data.experts }
-                }))
+                const settled = await recountStrategies(targets, strategies, dateId, typeId)
                 // A slower earlier request must never overwrite a newer count. Silently dropping
                 // a stale response is the only correct thing here: the number on screen has to
                 // belong to the strategy on screen.
                 if (mine !== seq.current) return
-                setErr('')
+
+                const fetched = settled
+                    .filter((x): x is PromiseFulfilledResult<{ di: number; r: DbResult; experts?: { experts: Expert[]; total: number } }> => x.status === 'fulfilled')
+                    .map(x => x.value)
+                // allSettled, not all: one database's transient failure must never discard another
+                // database's already-successful recount (Promise.all's fail-fast semantics used to
+                // do exactly that — a Scopus 5xx would silently strand a PubMed count that had
+                // already come back correct). The failed target goes back into `dirty` so the next
+                // debounce cycle retries just that one, rather than leaving it stuck on a stale
+                // pre-edit count with nothing on screen to say so.
+                const failedTargets = targets.filter((_, i) => settled[i].status === 'rejected')
+                const firstFailure = settled.find((x): x is PromiseRejectedResult => x.status === 'rejected')
+
+                setErr(firstFailure ? (firstFailure.reason?.message || 'Could not re-count the strategy.') : '')
                 setResults(rs => {
                     const next = [...rs]
                     fetched.forEach(({ di, r }) => { next[di] = r })
@@ -560,6 +615,7 @@ export default function LiteratureSearch() {
                 // ReCiter engine, so that waste came out of the nightly ETL's budget, not ours. The
                 // guard suppresses the CALLS: spending them and discarding the answer is the bug.
                 if (isSR) fetched.forEach(({ di }) => fetchRows(strategies[di], di))
+                failedTargets.forEach(di => dirty.current.add(di))
             } catch (e: any) {
                 if (mine === seq.current) setErr(e?.message || 'Could not reach the server.')
             } finally {
@@ -663,6 +719,14 @@ export default function LiteratureSearch() {
     // So drop the map the instant the numbering it is keyed to stops existing. RowCount already
     // renders a missing count as an em-dash, which is the honest state: a count not yet made.
     const dropRowCounts = (di?: number) => {
+        // Bump the per-database generation counter for anything being invalidated here, so an
+        // in-flight fetchRows() call that resolves AFTER this edit finds itself stale
+        // (mine !== rowSeq.current[di]) and drops its answer instead of writing pre-edit counts
+        // over a row that has since moved on. Mirrors what cancelRecount() already does for a
+        // full reset — this is the same guarantee, scoped to one database instead of all of them.
+        strategies.forEach((st, i) => {
+            if (di === undefined || i === di) rowSeq.current[i] = (rowSeq.current[i] || 0) + 1
+        })
         setResults(rs => rs.map((r, i) => (
             di === undefined || i === di ? { ...r, rowCounts: {} } : r
         )))
@@ -793,20 +857,6 @@ export default function LiteratureSearch() {
         if (id === mode) return
         setMode(id)
         newSearch()
-    }
-
-    // Same reason as the error state above: toast.success was a silent no-op here, so Copy
-    // worked but never said so. Confirm on the button itself.
-    const copy = (text: string, what: string) => {
-        navigator.clipboard.writeText(text).then(
-            () => {
-                setCopied(what)
-                setTimeout(() => setCopied(c => (c === what ? '' : c)), 1800)
-            },
-            // writeText rejects outside a secure context (plain-http over an IP). Say so rather
-            // than looking like a dead button.
-            () => setErr('Could not copy to the clipboard.'),
-        )
     }
 
     // THE TALLY FOLLOWS THE HUMAN, NEVER THE FLAGS.
