@@ -258,6 +258,13 @@ const outLinkStyle: CSSProperties = {
 // stopPropagation so clicking it never toggles the card (Item 6).
 const PmidLink = ({ pmid }: { pmid: number }) => {
   const [copied, setCopied] = useState(false);
+  // matches the searchInput debounce pattern above: cleanup on unmount/re-trigger so a
+  // card removed (accept/reject) within the 1200ms window can't setState after unmount.
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1200);
+    return () => clearTimeout(t);
+  }, [copied]);
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 9 }}>
       <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
@@ -270,7 +277,6 @@ const PmidLink = ({ pmid }: { pmid: number }) => {
           e.stopPropagation();
           navigator.clipboard.writeText(String(pmid));
           setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
         }}
         title="Copy PMID" style={iconBtn()}>
         {copied ? <IconCheck size={13} style={{ color: "#15803d" }} /> : <IconCopy size={13} />}
