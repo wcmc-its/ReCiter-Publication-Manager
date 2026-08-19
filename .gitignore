@@ -44,3 +44,4 @@ node_modules
 .litrecall-run.json
 .litquestion-run.json
 .litscreen-run.json
+tsconfig.tsbuildinfo
