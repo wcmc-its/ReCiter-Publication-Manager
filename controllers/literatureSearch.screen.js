@@ -121,71 +121,42 @@ function interleave(gold, distractors) {
     return out
 }
 
-async function stage(label, review, goldRecs, distractors, nGold) {
-    // WHICH gold studies get tested is a sampling decision, and it used to be made by PubMed. A plain
-    // .slice() takes them in the order fetchByPmids() happened to return, and that order is arbitrary,
-    // undocumented and free to change — so stage B would test three different studies on Tuesday than
-    // it did on Monday, and the two runs would not be comparable even though nothing in the tool
-    // changed. Sorting by PMID fixes the sample. It TRADES REPRESENTATIVENESS FOR REPRODUCIBILITY on
-    // purpose, and the bias it buys is a real one worth naming: PMIDs are issued in rough chronological
-    // order, so "the first three by PMID" is "the three oldest", and older papers have older abstracts.
-    // That is the lesser harm — a biased measurement can be argued with, an irreproducible one cannot.
-    const gold = [...goldRecs].sort((a, b) => Number(a.pmid) - Number(b.pmid)).slice(0, nGold)
-    const pad = distractors.slice(0, CAP - gold.length)
-    const batch = interleave(gold, pad)
+// THE PER-STAGE METRICS, computed off the gold set, the batch it was folded into, and the verdicts
+// screenRecords() returned. Kept apart from the console.log calls that read values off it so the
+// arithmetic and the reporting can be looked at (and changed) independently.
+//
+// Same three-way split as literatureSearch.recall.js, and for the same reason: an EXCLUSION is a
+// judgement error, a NO VERDICT is a completeness error that re-asking repairs, and a missing flag
+// object is a contract error. One "not kept" number hides which of the three is happening, and they
+// do not have the same fix. KEPT / EXCLUDED / NO FLAG partition the gold denominator; NO VERDICT
+// does not — those fail OPEN and are counted inside KEPT, so KEPT is an upper bound.
+function computeStageMetrics(gold, batch, flags) {
     const goldSet = new Set(gold.map(r => r.pmid))
-
-    const { flags, usage } = await lit.screenRecords(review.question, review.criteria, batch)
     const verdict = new Map(flags.map(f => [f.pmid, f]))
 
     const binned = gold.filter(r => verdict.get(r.pmid) && verdict.get(r.pmid).include === false)
     const kept = gold.filter(r => verdict.get(r.pmid) && verdict.get(r.pmid).include === true)
     const unscreened = gold.filter(r => !verdict.get(r.pmid) || verdict.get(r.pmid).screened === false)
-    // Same three-way split as literatureSearch.recall.js, and for the same reason: an EXCLUSION is a
-    // judgement error, a NO VERDICT is a completeness error that re-asking repairs, and a missing flag
-    // object is a contract error. One "not kept" number hides which of the three is happening, and they
-    // do not have the same fix. KEPT / EXCLUDED / NO FLAG partition the gold denominator; NO VERDICT
-    // does not — those fail OPEN and are counted inside KEPT, so KEPT is an upper bound.
     const noFlag = gold.filter(r => !verdict.get(r.pmid))
     const endorsed = kept.filter(r => verdict.get(r.pmid).screened !== false)
-    const distIncluded = batch.filter(r => !goldSet.has(r.pmid) && verdict.get(r.pmid)?.include === true)
+    const distractorsKept = batch.filter(r => !goldSet.has(r.pmid) && verdict.get(r.pmid)?.include === true)
 
-    console.log(`\n  ${label}  ${gold.length} known-included + ${pad.length} retrieved-but-excluded = ${batch.length} records`)
-    // THE REALISED PREVALENCE, PRINTED, because it is not the number the stage is named after. Stage A
-    // takes every gold study the strategy retrieved, so its prevalence is whatever that count divided
-    // by 50 comes to — 36% to 60% across these three reviews, never a tidy "half".
-    console.log(`     PREVALENCE      ${pct(gold.length, batch.length)}   ${gold.length}/${batch.length} of this batch is eligible`)
-    console.log(`     SCREEN RECALL   ${pct(kept.length, gold.length)}   ${kept.length}/${gold.length} known-included studies KEPT`)
-    console.log(`     -> KEPT ${kept.length}  ·  EXCLUDED ${binned.length}  ·  NO VERDICT ${unscreened.length} (fails open, counted inside KEPT)`
-        + `  ·  NO FLAG AT ALL ${noFlag.length}`)
-    console.log(`     -> of the ${kept.length} kept, ${endorsed.length} carry an include the model actually gave`)
-    // THE DISTRACTOR NUMBER IS NOT A FALSE-POSITIVE RATE AND MUST NOT BE READ AS ONE. A "distractor"
-    // here is only "retrieved by this strategy and not on the review's included list" — which sweeps up
-    // the review's own protocol, its secondary and follow-up reports, and studies it excluded at FULL
-    // TEXT for reasons no title/abstract screen could ever see. Some of those are genuinely eligible on
-    // the evidence the model was shown, so an "include" on them is not necessarily an error, and the
-    // fixture carries no field that would let us tell which is which. The number is printed for shape
-    // only — if it were 47/47 something is badly wrong — and it is NOT a precision score.
-    console.log(`     (of the ${pad.length} distractors it kept ${distIncluded.length} — see above: NOT a precision score)`)
+    return { verdict, binned, kept, unscreened, noFlag, endorsed, distractorsKept }
+}
 
-    if (binned.length) {
-        console.log(`\n     THE STUDIES IT THREW AWAY — every one was INCLUDED by the published review:`)
-        for (const r of binned) {
-            console.log(`       ${r.pmid}  ${(r.title || '(no title)').slice(0, 78)}`)
-            console.log(`               "${verdict.get(r.pmid).reason}"`)
-        }
-    }
-
-    // THE VERDICT HAS TO SURVIVE THE EXPORT, NOT JUST THE FUNCTION CALL.
-    //
-    // Everything above measures screenRecords() in isolation, and that is not where the harm is. The
-    // verdict that can hurt someone is the one that reaches the .xlsx and opens in COVIDENCE, where it
-    // is read as a screening pass by someone who never saw our UI. recordSheets() withholds the column
-    // when the sheet is truncated, so the surviving surface is exactly the case this batch IS: every
-    // record screened, hits === retrieved, a COMPLETE screen, column shipped with full authority.
-    //
-    // So assert that the verdicts just measured are the verdicts that leave the building — same PMIDs,
-    // same three states, no shift, no silent drop. recordSheets() is pure, so this costs no call.
+// THE VERDICT HAS TO SURVIVE THE EXPORT, NOT JUST THE FUNCTION CALL.
+//
+// Everything measured in computeStageMetrics() is screenRecords() in isolation, and that is not
+// where the harm is. The verdict that can hurt someone is the one that reaches the .xlsx and opens
+// in COVIDENCE, where it is read as a screening pass by someone who never saw our UI. recordSheets()
+// withholds the column when the sheet is truncated, so the surviving surface is exactly the case this
+// batch IS: every record screened, hits === retrieved, a COMPLETE screen, column shipped with full
+// authority.
+//
+// So assert that the verdicts just measured are the verdicts that leave the building — same PMIDs,
+// same three states, no shift, no silent drop. recordSheets() is pure, so this costs no call.
+function assertExportParity(batch, flags) {
+    const verdict = new Map(flags.map(f => [f.pmid, f]))
     const cell = f => (f.screened === false ? 'Not screened' : f.include ? 'Include' : 'Exclude')
     const sheet = xp.recordSheets(
         batch,
@@ -209,6 +180,52 @@ async function stage(label, review, goldRecs, distractors, nGold) {
         'a COMPLETE screen must carry every verdict into the .xlsx "AI suggested" column, unshifted — '
         + 'that file opens in Covidence and is read there as a screening pass',
     )
+}
+
+async function stage(label, review, goldRecs, distractors, nGold) {
+    // WHICH gold studies get tested is a sampling decision, and it used to be made by PubMed. A plain
+    // .slice() takes them in the order fetchByPmids() happened to return, and that order is arbitrary,
+    // undocumented and free to change — so stage B would test three different studies on Tuesday than
+    // it did on Monday, and the two runs would not be comparable even though nothing in the tool
+    // changed. Sorting by PMID fixes the sample. It TRADES REPRESENTATIVENESS FOR REPRODUCIBILITY on
+    // purpose, and the bias it buys is a real one worth naming: PMIDs are issued in rough chronological
+    // order, so "the first three by PMID" is "the three oldest", and older papers have older abstracts.
+    // That is the lesser harm — a biased measurement can be argued with, an irreproducible one cannot.
+    const gold = [...goldRecs].sort((a, b) => Number(a.pmid) - Number(b.pmid)).slice(0, nGold)
+    const pad = distractors.slice(0, CAP - gold.length)
+    const batch = interleave(gold, pad)
+
+    const { flags, usage } = await lit.screenRecords(review.question, review.criteria, batch)
+    const { verdict, binned, kept, unscreened, noFlag, endorsed, distractorsKept } = computeStageMetrics(gold, batch, flags)
+
+    console.log(`\n  ${label}  ${gold.length} known-included + ${pad.length} retrieved-but-excluded = ${batch.length} records`)
+    // THE REALISED PREVALENCE, PRINTED, because it is not the number the stage is named after. Stage A
+    // takes every gold study the strategy retrieved, so its prevalence is whatever that count divided
+    // by 50 comes to — 36% to 60% across these three reviews, never a tidy "half".
+    console.log(`     PREVALENCE      ${pct(gold.length, batch.length)}   ${gold.length}/${batch.length} of this batch is eligible`)
+    console.log(`     SCREEN RECALL   ${pct(kept.length, gold.length)}   ${kept.length}/${gold.length} known-included studies KEPT`)
+    console.log(`     -> KEPT ${kept.length}  ·  EXCLUDED ${binned.length}  ·  NO VERDICT ${unscreened.length} (fails open, counted inside KEPT)`
+        + `  ·  NO FLAG AT ALL ${noFlag.length}`)
+    console.log(`     -> of the ${kept.length} kept, ${endorsed.length} carry an include the model actually gave`)
+    // THE DISTRACTOR NUMBER IS NOT A FALSE-POSITIVE RATE AND MUST NOT BE READ AS ONE. A "distractor"
+    // here is only "retrieved by this strategy and not on the review's included list" — which sweeps up
+    // the review's own protocol, its secondary and follow-up reports, and studies it excluded at FULL
+    // TEXT for reasons no title/abstract screen could ever see. Some of those are genuinely eligible on
+    // the evidence the model was shown, so an "include" on them is not necessarily an error, and the
+    // fixture carries no field that would let us tell which is which. The number is printed for shape
+    // only — if it were 47/47 something is badly wrong — and it is NOT a precision score.
+    console.log(`     (of the ${pad.length} distractors it kept ${distractorsKept.length} — see above: NOT a precision score)`)
+
+    if (binned.length) {
+        console.log(`\n     THE STUDIES IT THREW AWAY — every one was INCLUDED by the published review:`)
+        for (const r of binned) {
+            console.log(`       ${r.pmid}  ${(r.title || '(no title)').slice(0, 78)}`)
+            console.log(`               "${verdict.get(r.pmid).reason}"`)
+        }
+    }
+
+    // The verdict has to survive the export, not just the function call — see assertExportParity().
+    assertExportParity(batch, flags)
 
     // WHAT THIS COST COVERS: the Bedrock tokens of THIS screen call, including the re-asks
     // screenRecords() makes internally (it sums their usage into the same object, and a failed re-ask's
@@ -228,7 +245,7 @@ async function stage(label, review, goldRecs, distractors, nGold) {
         noFlag: noFlag.length,
         endorsed: endorsed.length,
         distractors: pad.length,
-        distractorsKept: distIncluded.length,
+        distractorsKept: distractorsKept.length,
         cost: cost(usage),
         binned: binned.map(r => r.pmid),
     }

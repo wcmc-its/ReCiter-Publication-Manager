@@ -129,6 +129,56 @@ async function ranksOf(query, gold) {
     return new Map(gold.map(p => [p, order.indexOf(p) < 0 ? null : order.indexOf(p) + 1]))
 }
 
+// (1) STRATEGY RECALL — the ceiling.
+async function computeStrategyRecall(query, gold) {
+    const retrieved = await retrievedBy(query, gold)
+    const missedByStrategy = gold.filter(p => !retrieved.has(p))
+    return { retrieved, missedByStrategy }
+}
+
+// (3) CAP LOSS — retrieved by the query, but never shown to the model. Kept apart from the
+// screen's own errors on purpose: the model cannot exclude what it was never handed.
+function computeCapLoss(retrieved, top) {
+    const shown = new Set(top.map(r => r.pmid))
+    const cappedOut = [...retrieved].filter(p => !shown.has(p))
+    const reachedModel = [...retrieved].filter(p => shown.has(p))
+    return { cappedOut, reachedModel }
+}
+
+// (2) SCREEN RECALL — the invisible one.
+async function computeScreenRecall(question, criteria, top, reachedModel) {
+    const { flags, usage } = await lit.screenRecords(question, criteria, top)
+    const verdict = new Map(flags.map(f => [f.pmid, f]))
+    const binned = reachedModel.filter(p => verdict.get(p) && verdict.get(p).include === false)
+    const kept = reachedModel.filter(p => verdict.get(p) && verdict.get(p).include === true)
+    // A gold study the model never returned a verdict for. It fails OPEN, so it is not LOST — but it
+    // is also not endorsed, and `screened: false` is the only thing that says so.
+    const unscreened = reachedModel.filter(p => !verdict.get(p) || verdict.get(p).screened === false)
+
+    // ONE MINUS SCREEN RECALL IS NOT ONE FAILURE, IT IS THREE, AND THEY HAVE THREE DIFFERENT FIXES.
+    // A study the model READ AND EXCLUDED is a judgement error — that is a prompt or a model problem.
+    // A study that came back with NO VERDICT is a completeness error — lost-in-the-middle, and it is
+    // REPAIRABLE by re-asking, which is what screenRecords() already does. A study that came back with
+    // no flag object AT ALL would be a harness or contract error — screenRecords() builds one flag per
+    // record it was handed, so this bucket should always be zero and it is reported precisely so that
+    // a non-zero one cannot hide inside "not kept". Pooling the three tells a reader the screen is bad
+    // without telling them which thing to go and fix.
+    const noFlag = reachedModel.filter(p => !verdict.get(p))
+    // The disjoint half of KEPT: an include the model actually GAVE, as opposed to one the fail-open
+    // default handed out on its behalf.
+    const endorsed = kept.filter(p => verdict.get(p).screened !== false)
+
+    return { usage, verdict, binned, kept, unscreened, noFlag, endorsed }
+}
+
+// WOULD A BIGGER CAP SAVE IT? The question every reader will ask on seeing the cap loss.
+async function computeRankProfile(query, retrieved) {
+    const rank = await ranksOf(query, [...retrieved])
+    const ranked = [...retrieved].map(p => rank.get(p)).filter(Boolean).sort((a, b) => a - b)
+    const beyond = retrieved.size - ranked.length
+    return { rank, ranked, beyond }
+}
+
 async function run(review) {
     const gold = review.includedPmids
 
@@ -154,39 +204,17 @@ async function run(review) {
     console.log(`  ${strategy.concepts.map(c => c.label).join(' AND ')}`)
 
     // (1) STRATEGY RECALL — the ceiling.
-    const retrieved = await retrievedBy(query, gold)
-    const missedByStrategy = gold.filter(p => !retrieved.has(p))
+    const { retrieved, missedByStrategy } = await computeStrategyRecall(query, gold)
 
     // The top 50 by relevance: precisely what the librarian is shown and what the model screens.
     const top = await lit.fetchRecords(query, lit.RECORD_CAP, 'relevance')
-    const shown = new Set(top.map(r => r.pmid))
 
-    // (3) CAP LOSS — retrieved by the query, but never shown to the model. Kept apart from the
-    // screen's own errors on purpose: the model cannot exclude what it was never handed.
-    const cappedOut = [...retrieved].filter(p => !shown.has(p))
-    const reachedModel = [...retrieved].filter(p => shown.has(p))
+    // (3) CAP LOSS — retrieved by the query, but never shown to the model.
+    const { cappedOut, reachedModel } = computeCapLoss(retrieved, top)
 
     // (2) SCREEN RECALL — the invisible one.
-    const { flags, usage: screen } = await lit.screenRecords(review.question, review.criteria || '', top)
-    const verdict = new Map(flags.map(f => [f.pmid, f]))
-    const binned = reachedModel.filter(p => verdict.get(p) && verdict.get(p).include === false)
-    const kept = reachedModel.filter(p => verdict.get(p) && verdict.get(p).include === true)
-    // A gold study the model never returned a verdict for. It fails OPEN, so it is not LOST — but it
-    // is also not endorsed, and `screened: false` is the only thing that says so.
-    const unscreened = reachedModel.filter(p => !verdict.get(p) || verdict.get(p).screened === false)
-
-    // ONE MINUS SCREEN RECALL IS NOT ONE FAILURE, IT IS THREE, AND THEY HAVE THREE DIFFERENT FIXES.
-    // A study the model READ AND EXCLUDED is a judgement error — that is a prompt or a model problem.
-    // A study that came back with NO VERDICT is a completeness error — lost-in-the-middle, and it is
-    // REPAIRABLE by re-asking, which is what screenRecords() already does. A study that came back with
-    // no flag object AT ALL would be a harness or contract error — screenRecords() builds one flag per
-    // record it was handed, so this bucket should always be zero and it is reported precisely so that
-    // a non-zero one cannot hide inside "not kept". Pooling the three tells a reader the screen is bad
-    // without telling them which thing to go and fix.
-    const noFlag = reachedModel.filter(p => !verdict.get(p))
-    // The disjoint half of KEPT: an include the model actually GAVE, as opposed to one the fail-open
-    // default handed out on its behalf.
-    const endorsed = kept.filter(p => verdict.get(p).screened !== false)
+    const { usage: screen, verdict, binned, kept, unscreened, noFlag, endorsed } =
+        await computeScreenRecall(review.question, review.criteria || '', top, reachedModel)
 
     console.log(`\n  1. STRATEGY RECALL   ${pct(retrieved.size, gold.length)}   ${retrieved.size}/${gold.length} known includes retrieved by the query`)
     console.log(`  3. CAP LOSS          ${pct(cappedOut.length, retrieved.size)}   ${cappedOut.length}/${retrieved.size} retrieved but never shown (top-${lit.RECORD_CAP} of ${hits.toLocaleString()})`)
@@ -222,9 +250,7 @@ async function run(review) {
     }
 
     // WOULD A BIGGER CAP SAVE IT? The question every reader will ask on seeing the cap loss.
-    const rank = await ranksOf(query, [...retrieved])
-    const ranked = [...retrieved].map(p => rank.get(p)).filter(Boolean).sort((a, b) => a - b)
-    const beyond = retrieved.size - ranked.length
+    const { rank, ranked, beyond } = await computeRankProfile(query, retrieved)
     if (ranked.length) {
         const med = ranked[Math.floor(ranked.length / 2)]
         // Every number on these lines is a position WITHIN THE FIRST 1000 records this query returns,
