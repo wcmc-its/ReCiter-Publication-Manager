@@ -87,6 +87,7 @@ interface Candidate {
   final_score?: number;
   confidence?: number;
   affil_dept_match?: boolean;
+  given_match?: string;
 }
 
 interface Summary {
@@ -143,6 +144,7 @@ const IconInfo = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="10" /
 const IconAlert = (p: IconProps) => <Icon {...p}><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z" /><path d="M12 9v4M12 17h.01" /></Icon>;
 const IconMore = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></Icon>;
 const IconUsers = (p: IconProps) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Icon>;
+const IconCopy = (p: IconProps) => <Icon {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></Icon>;
 
 // ---- small presentational bits -------------------------------------------
 // MUI Tooltip with a larger, more readable font (the default tooltip text is tiny).
@@ -254,13 +256,28 @@ const outLinkStyle: CSSProperties = {
 
 // PMID outbound PubMed link — lead element of an evidence panel (Item 3).
 // stopPropagation so clicking it never toggles the card (Item 6).
-const PmidLink = ({ pmid }: { pmid: number }) => (
-  <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
-    onClick={(e) => e.stopPropagation()}
-    style={{ ...outLinkStyle, marginBottom: 9 }}>
-    PMID {pmid} <IconExt size={13} />
-  </a>
-);
+const PmidLink = ({ pmid }: { pmid: number }) => {
+  const [copied, setCopied] = useState(false);
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 9 }}>
+      <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        style={outLinkStyle}>
+        PMID {pmid} <IconExt size={13} />
+      </a>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(String(pmid));
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        }}
+        title="Copy PMID" style={iconBtn()}>
+        {copied ? <IconCheck size={13} style={{ color: "#15803d" }} /> : <IconCopy size={13} />}
+      </button>
+    </span>
+  );
+};
 
 // ---- Scopus lane bits ----------------------------------------------------
 const scopusRecordUrl = (externalId?: string) =>
@@ -1352,13 +1369,21 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
 }) => {
-  // rank by IO desc; null IO sinks last
-  const ranked = [...candidates].sort((a, b) => (b.io_score ?? -1) - (a.io_score ?? -1));
+  // rank by IO desc, then matcher confidence desc (a candidate production never
+  // retrieved -- io_score null -- still carries a name/department confidence signal;
+  // without the tiebreak, an unretrieved-but-clearly-correct candidate like a full
+  // name + department match looks identical to a weak surname-only homonym).
+  const ranked = [...candidates].sort((a, b) =>
+    (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
   const scored = ranked.filter((c) => c.io_score != null);
   const unscored = ranked.filter((c) => c.io_score == null);
   const [showAll, setShowAll] = useState(false);
   const anyDeptMatch = candidates.some((c) => c.affil_dept_match);
-  const lead = scored[0];
+  // lead = the strongest candidate overall: an IO-scored one first, else the top
+  // confidence candidate IF that confidence is itself meaningful (>=0.5, i.e. at
+  // least a full given-name match) -- a flat tie among all-weak candidates should
+  // not falsely highlight #1.
+  const lead = scored[0] ?? (ranked[0] && (ranked[0].confidence ?? 0) >= 0.5 ? ranked[0] : undefined);
   // The Assign button writes the PRODUCTION gold standard, so it must reflect an
   // EXPLICIT curator pick — never a silent default. We highlight the highest-IO
   // candidate (lead) as a visual hint only; selectedCwid drives the radio state but
@@ -1396,15 +1421,29 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
                   {c.cwid && <a href={`/curate/${c.cwid}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb", textDecoration: "none", fontWeight: 400 }}>{c.cwid}</a>}
                 </span>
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
-                  {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{c.affil_dept_match ? " · dept✓" : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
+                  {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
                 </span>
+                {(c.given_match === "full" || c.affil_dept_match) && (
+                  <span style={{ display: "flex", gap: 5, marginTop: 4 }}>
+                    {c.given_match === "full" && <Chip kind="ok">Full name match</Chip>}
+                    {c.affil_dept_match && <Chip kind="ok">Dept match</Chip>}
+                  </span>
+                )}
               </span>
               <span style={{ textAlign: "right" }}>
-                <span style={{ display: "block", fontSize: 16, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: ioColor(c.io_score) }}>
-                  {fmtScore(c.io_score)}
-                </span>
-                {c.final_score != null && (
-                  <span style={{ display: "block", fontSize: 10.5, color: "#c2410c", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>Auth. Score {fmtScore(c.final_score)}</span>
+                {c.io_score != null ? (
+                  <>
+                    <span style={{ display: "block", fontSize: 16, fontWeight: 700, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: ioColor(c.io_score) }}>
+                      {fmtScore(c.io_score)}
+                    </span>
+                    {c.final_score != null && (
+                      <span style={{ display: "block", fontSize: 10.5, color: "#c2410c", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>Auth. Score {fmtScore(c.final_score)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: (c.confidence ?? 0) >= 0.5 ? "#15803d" : "#94a3b8" }}>
+                    {confBand(c.confidence)} match
+                  </span>
                 )}
               </span>
             </label>
