@@ -49,6 +49,7 @@ const {
 const mode1 = require('./literatureSearch.check.mode1')
 const mode2 = require('./literatureSearch.check.mode2')
 const mode3 = require('./literatureSearch.check.mode3')
+const mode4 = require('./literatureSearch.check.mode4')
 const rowCounts = require('./literatureSearch.check.rowCounts')
 const dialects = require('./literatureSearch.check.dialects')
 const exportsCheck = require('./literatureSearch.check.exports')
@@ -66,6 +67,7 @@ const lit = requireCompiled('controllers/literatureSearch.controller.js')
     const { q, hits } = await mode1.run(lit)
     await mode2.run(lit, { hits })
     await mode3.run(lit)
+    await mode4.run(lit)
     const { rc, rowsResult } = await rowCounts.run(lit)
     // Embase (Ovid) is asserted in two halves: the pure/dialect facts where the dialects are checked, and
     // the EXPORT in the exports section, where the renderers are loaded. This carries the run between them.
@@ -77,7 +79,9 @@ const lit = requireCompiled('controllers/literatureSearch.controller.js')
         + '\n     Mode 2 (the design derivation, the structured-abstract join, the 50-cap, count-before-fetch,'
         + '\n             the three bands, the priced narrowings, and the escape hatch)'
         + '\n     Mode 3 (the tier order incl. the SR-below-RCT inversion, the guideline tier against a real'
-        + '\n             PubMed record, the stable sort, the evidence floor, and PICO)')
+        + '\n             PubMed record, the stable sort, the evidence floor, and PICO)'
+        + '\n     Mode 4 (sharded corpus retrieval past the 50-cap, the hot-shard report, dedup, Case Report'
+        + '\n             exclusion, the case-series flag, and the Phase 4 aggregations)')
 })().catch(e => {
     cleanOutDir()
     console.error('\nFAILED:', e.message)

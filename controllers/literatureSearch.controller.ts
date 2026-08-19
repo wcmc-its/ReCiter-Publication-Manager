@@ -47,7 +47,8 @@
 // This file is now the BARREL. The implementation lives in focused modules, split by concern so no
 // single file is 2,000+ lines: strategy (query assembly + types), counting (arithmetic over PubMed
 // counts), records (fetch/shape/evidence tiers), llm (every Bedrock call), experts (the MeSH→panel
-// bridge), build (the Mode 1 multi-database orchestration). Consumers — the API route and the check
+// bridge), build (the Mode 1 multi-database orchestration), corpus (Mode 4 Phases 2-4: sharded
+// retrieval, evidence filtering, bibliometric stats). Consumers — the API route and the check
 // harnesses — import from here, so the split changed no call site.
 export * from './literatureSearch.strategy'
 export * from './literatureSearch.counting'
@@ -55,3 +56,4 @@ export * from './literatureSearch.records'
 export * from './literatureSearch.llm'
 export * from './literatureSearch.experts'
 export * from './literatureSearch.build'
+export * from './literatureSearch.corpus'

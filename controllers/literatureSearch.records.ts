@@ -187,6 +187,10 @@ export type PubRecord = {
     mesh: string[]
     // NIH percentile from iCite. DISPLAY ONLY — see withCitationMetrics(). Often absent, by design.
     nihPercentile?: number
+    // Mode 4 Phase 3 only — see flagProbableCaseSeries() in literatureSearch.corpus.ts. PubMed has
+    // no [pt] tag for case series, so this is a best-effort MeSH/text heuristic, never a tier.
+    // Undefined everywhere else; never excludes a record on its own.
+    caseSeriesProbable?: boolean
 }
 
 // ---------------------------------------------------------------------------
