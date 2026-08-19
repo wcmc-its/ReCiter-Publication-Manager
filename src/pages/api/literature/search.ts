@@ -175,321 +175,252 @@ function parseStrategy(raw: any): Strategy {
 }
 
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') {
-        return res.status(405).send({ statusCode: 405, message: 'POST only' })
-    }
+// The shared shape every extracted workflow function receives: the fields the handler destructures
+// from req.body, plus seedList — parsed and bounds-checked once in the shared prefix below, because
+// two of the six workflows (RE-COUNT and BUILD) need it and it must never be parsed twice.
+type SearchBody = {
+    mode: any
+    phase: any
+    question: any
+    criteria: any
+    seeds: any
+    dateId: any
+    typeId: any
+    sort: any
+    pmids: any
+    proceed: any
+    pico: any
+    databases: any
+    edited: any
+    seedList: Seed[]
+}
 
-    // 1. Real session auth.
-    //
-    // NO `any` ON THE TOKEN, and least of all here. getToken() returns `JWT | null`, and JWT is an
-    // index-signature type — every claim on it is `unknown`, because next-auth cannot know what our
-    // callbacks put there. Casting to `any` does not recover the knowledge, it only stops the
-    // compiler from asking for it, at the one boundary in this route where a wrong assumption is an
-    // authentication decision made on a value nobody checked.
-    //
-    // So the shape is VALIDATED rather than assumed: `username` has to actually be a non-empty
-    // string before it becomes a cwid. A claim that arrives as a number, an object or an array is
-    // not a username we recognise, and the honest answer to one is the same 401 as no token at all.
-    let cwid = ''
+// ---- SCREEN (Mode 2, phase 2). -----------------------------------------------------------------
+async function handleScreen(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { question, criteria, pmids, mode } = body
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    if (!question || !String(question).trim()) {
+        return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
+    }
     try {
-        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
-        const username = token?.username
-        if (typeof username !== 'string' || !username) {
-            return res.status(401).send({ statusCode: 401, message: 'Sign in to use Literature Search.' })
-        }
-        cwid = username.toLowerCase()
-    } catch {
-        return res.status(401).send({ statusCode: 401, message: 'Sign in to use Literature Search.' })
-    }
+        const ids = parsePmids(pmids)
+        // RE-FETCHED, never taken from the client. If PubMed will not give us the records back
+        // there is nothing honest to screen, so this one IS fatal — unlike Mode 1's seed
+        // records, where a miss costs a label and the strategy still stands.
+        const records = await fetchByPmids(ids)
+        if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
 
-    // 2. Pilot allowlist. It applies to the re-count path too: that path spends no model tokens,
-    //    but it still queries PubMed on our shared NCBI key.
-    //
-    //    THIS IS THE GATE. The sidebar hides the link from anyone this would reject, but the
-    //    sidebar is cosmetic — /literature is still reachable by URL, and this is what stops it.
-    if (!isAllowlisted(cwid)) {
-        return res.status(403).send({
-            statusCode: 403,
-            message: 'Literature Search is in a limited pilot. Contact the ReCiter team for access.',
+        // Screening is screening in both modes — an abstract either meets the criteria or it
+        // does not, and the mode does not change that. Only the cost label differs.
+        const { flags, usage } = await screenRecords(String(question), String(criteria || ''), records)
+        logCost(`${mode === 'clinical-question' ? 'clinical-question' : 'issue-review'}:screen`, cwid, usage, {
+            records: records.length,
+            included: flags.filter(f => f.include).length,
         })
+        return res.status(200).send({ statusCode: 200, flags })
+    } catch (err: any) {
+        console.error('[literature] screening failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Screening failed.' })
     }
+}
 
-    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, strategy: edited } = req.body || {}
+// ---- SYNTHESIZE (Mode 2, phase 3). -------------------------------------------------------------
+async function handleSynthesize(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { question, pmids, mode } = body
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    if (!question || !String(question).trim()) {
+        return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
+    }
+    try {
+        const ids = parsePmids(pmids)
+        const records = await fetchByPmids(ids)
+        if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
 
-    // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
-    // has no PMID at all, and a PMID-keyed seed check could only ever validate the half of Scopus
-    // that PubMed already covers. See parseSeeds.
-    //
-    // AND IT IS BOUNDED, because a seed is the most expensive character a librarian can type. Each
-    // one costs several count calls to validate, and each one the strategy MISSES costs a Bedrock
-    // Opus call to diagnose. Paste the 60-PMID "known includes" list from a previous review and a
-    // single POST becomes ~300 sequential PubMed counts (paced at 500ms = minutes) plus one Opus
-    // invocation per miss. Nothing upstream capped it: not the textarea, not parseSeeds.
-    //
-    // The whole design is built around "the 3-5 seeds a librarian already knows should come back", so
-    // a bound of 10 costs a real user nothing and turns an unbounded paid fan-out into a 400.
-    const MAX_SEEDS = 10
-    const seedList: Seed[] = parseSeeds(seeds)
-    if (seedList.length > MAX_SEEDS) {
-        return res.status(400).send({
-            statusCode: 400,
-            message: `At most ${MAX_SEEDS} known-item seeds. A seed check is a recall spot-check, not a screening pass — pick the few papers that must come back.`,
+        // THIS is where Mode 3 diverges: a PICO answer instead of a survey, over records the
+        // server has ordered by their derived evidence tier. The model never ranks.
+        const synthMode = mode === 'clinical-question' ? 'clinical-question' : 'issue-review'
+        const { synthesis, usage } = await synthesize(String(question), records, synthMode)
+        logCost(`${synthMode}:synthesize`, cwid, usage, {
+            records: records.length,
+            tableRows: synthesis.table.length,
         })
+        // cwid + date are returned so the page can stamp the synthesis with who ran it and
+        // when. An AI-assisted paragraph that ends up pasted into a document needs to say
+        // where it came from, and the client cannot be trusted to know the server's date.
+        return res.status(200).send({
+            statusCode: 200,
+            synthesis,
+            cwid,
+            date: new Date().toISOString().slice(0, 10),
+            model: process.env.BEDROCK_MODEL_ID,
+        })
+    } catch (err: any) {
+        console.error('[literature] synthesis failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Synthesis failed.' })
     }
+}
 
-    // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
-    if (phase === 'screen') {
-        if (!bedrockConfigured()) {
-            return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+// ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. --------------------
+async function handleRows(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { edited, dateId, typeId } = body
+    try {
+        const s = parseStrategy({ ...edited, dateId, typeId })
+        // An uncountable database has no Results column, and asking for one is not an error — it is
+        // a question with an empty answer. `countIn` would THROW here (deliberately), and a 502 on
+        // a column nobody can fill would put an error banner over a strategy that is perfectly
+        // fine. An empty map renders as em-dashes, which is exactly what "not counted" looks like.
+        if (!DIALECTS[s.db].countable) {
+            return res.status(200).send({ statusCode: 200, db: s.db, hits: null, rowCounts: {} })
         }
-        if (!question || !String(question).trim()) {
-            return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
-        }
-        try {
-            const ids = parsePmids(pmids)
-            // RE-FETCHED, never taken from the client. If PubMed will not give us the records back
-            // there is nothing honest to screen, so this one IS fatal — unlike Mode 1's seed
-            // records, where a miss costs a label and the strategy still stands.
-            const records = await fetchByPmids(ids)
-            if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
-
-            // Screening is screening in both modes — an abstract either meets the criteria or it
-            // does not, and the mode does not change that. Only the cost label differs.
-            const { flags, usage } = await screenRecords(String(question), String(criteria || ''), records)
-            logCost(`${mode === 'clinical-question' ? 'clinical-question' : 'issue-review'}:screen`, cwid, usage, {
-                records: records.length,
-                included: flags.filter(f => f.include).length,
-            })
-            return res.status(200).send({ statusCode: 200, flags })
-        } catch (err: any) {
-            console.error('[literature] screening failed:', err)
-            return res.status(502).send({ statusCode: 502, message: err?.message || 'Screening failed.' })
-        }
+        const query = assembleQuery(s)
+        if (!query) return res.status(200).send({ statusCode: 200, rowCounts: {} })
+        const hits = await countIn(s.db)(query)
+        const rowCounts = await countRows(s, hits)
+        return res.status(200).send({ statusCode: 200, db: s.db, hits, rowCounts })
+    } catch (err: any) {
+        console.error('[literature] row counts failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not count the lines.' })
     }
+}
 
-    // ---- SYNTHESIZE (Mode 2, phase 3). ---------------------------------------------------------
-    if (phase === 'synthesize') {
-        if (!bedrockConfigured()) {
-            return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
-        }
-        if (!question || !String(question).trim()) {
-            return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
-        }
-        try {
-            const ids = parsePmids(pmids)
-            const records = await fetchByPmids(ids)
-            if (!records.length) throw new Error('Could not re-fetch these records from PubMed.')
+// ---- RE-COUNT. No model and no cost log — but the EXPERT PANEL does change. See the dispatch ---
+// ---- condition in handler() below for the full rationale, including why `!proceed` guards it. --
+async function handleRecount(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { edited, dateId, typeId, seedList } = body
+    try {
+        const recounted = parseStrategy({ ...edited, dateId, typeId })
+        const { unsupported } = buildLimits(recounted.db, String(dateId ?? ''), String(typeId ?? ''))
+        const result = await runStrategy(recounted, seedList, unsupported)
 
-            // THIS is where Mode 3 diverges: a PICO answer instead of a survey, over records the
-            // server has ordered by their derived evidence tier. The model never ranks.
-            const synthMode = mode === 'clinical-question' ? 'clinical-question' : 'issue-review'
-            const { synthesis, usage } = await synthesize(String(question), records, synthMode)
-            logCost(`${synthMode}:synthesize`, cwid, usage, {
-                records: records.length,
-                tableRows: synthesis.table.length,
-            })
-            // cwid + date are returned so the page can stamp the synthesis with who ran it and
-            // when. An AI-assisted paragraph that ends up pasted into a document needs to say
-            // where it came from, and the client cannot be trusted to know the server's date.
-            return res.status(200).send({
-                statusCode: 200,
-                synthesis,
-                cwid,
-                date: new Date().toISOString().slice(0, 10),
-                model: process.env.BEDROCK_MODEL_ID,
-            })
-        } catch (err: any) {
-            console.error('[literature] synthesis failed:', err)
-            return res.status(502).send({ statusCode: 502, message: err?.message || 'Synthesis failed.' })
+        let experts
+        if (recounted.db === 'pubmed') {
+            const mesh = meshFromConcepts(recounted.concepts)
+            experts = mesh.length ? await findWcmExperts(mesh, 5) as any : { experts: [], total: 0 }
         }
+        return res.status(200).send({ statusCode: 200, databases: [result], ...(experts ? { experts } : {}) })
+    } catch (err: any) {
+        console.error('[literature] recount failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not re-count the strategy.' })
     }
+}
 
-    // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------
-    //
-    // Its own request because it is SLOW and the yield is not: 7 rows is 7 count calls, and the
-    // retrieval tool paces every call at 500ms (each pod is smoothed to 2/s so 4 replicas stay under
-    // NCBI's ~10/s keyed quota). Measured at 5.5s. Folding that into the re-count would have put five
-    // and a half seconds between ticking a checkbox and seeing the number you ticked it for — and
-    // that loop, free and instant, is the entire argument for Mode 1.
-    //
-    // So: the yield comes back in one call as it always did, and the column fills in behind it. No
-    // model, no cost, and it takes the same strategy guard as every other path.
-    if (phase === 'rows') {
-        try {
-            const s = parseStrategy({ ...edited, dateId, typeId })
-            // An uncountable database has no Results column, and asking for one is not an error — it is
-            // a question with an empty answer. `countIn` would THROW here (deliberately), and a 502 on
-            // a column nobody can fill would put an error banner over a strategy that is perfectly
-            // fine. An empty map renders as em-dashes, which is exactly what "not counted" looks like.
-            if (!DIALECTS[s.db].countable) {
-                return res.status(200).send({ statusCode: 200, db: s.db, hits: null, rowCounts: {} })
+// ---- BUILD + FETCH (Modes 2 AND 3, phase 1). See the dispatch condition in handler() below for --
+// ---- why Mode 3 shares this branch instead of forking. ------------------------------------------
+async function handleIssueReviewOrClinicalQuestion(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { mode, dateId, typeId, sort, question, criteria, pico, edited, proceed } = body
+    const isPico = mode === 'clinical-question'
+    try {
+        // Modes 2 and 3 are PUBMED ONLY — they order records by an evidence tier derived from
+        // PubMed's publication-type indexing, which Scopus does not have.
+        const { terms: limits } = buildLimits('pubmed', String(dateId ?? ''), String(typeId ?? ''))
+        // An unknown sort resolves to relevance, never to a guess — same rule as buildLimits.
+        // Relevance is the default because it is what makes a 50-cap defensible: the top 50 of
+        // a 300-hit precision search by PubMed's Best Match is a reading list; the newest 50
+        // is an accident of the calendar.
+        const order: Sort = sort === 'date' ? 'date' : 'relevance'
+
+        // TWO WAYS IN, and only one of them spends money.
+        //
+        // A fresh question BUILDS a strategy — PRECISION, not recall, a different prompt,
+        // deliberately (see REVIEW_PROMPT). "Retrieve the top 50 anyway" posts the strategy the
+        // librarian is ALREADY LOOKING AT — narrowings ticked, lines edited — and that path
+        // calls NO MODEL: the strategy exists, and re-drafting it would spend a call to throw
+        // the librarian's own edits away and probably hand back a different query than the one
+        // on their screen. The strategy is re-parsed and its limits re-resolved server-side
+        // (parseStrategy), so this is not a trust hole: it is the same guard the re-count uses.
+        let strategy: Strategy
+        let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+
+        // Mode 3's question is ASSEMBLED SERVER-SIDE from the PICO fields, never taken as prose
+        // from the client — so the sentence the model is asked to answer is provably the one
+        // built from the four boxes the clinician filled in.
+        let asked = String(question || '')
+        if (isPico && !edited) {
+            if (!picoComplete(pico || {})) {
+                return res.status(400).send({
+                    statusCode: 400,
+                    message: 'Population, Intervention and Outcome are required. Comparison is optional.',
+                })
             }
-            const query = assembleQuery(s)
-            if (!query) return res.status(200).send({ statusCode: 200, rowCounts: {} })
-            const hits = await countIn(s.db)(query)
-            const rowCounts = await countRows(s, hits)
-            return res.status(200).send({ statusCode: 200, db: s.db, hits, rowCounts })
-        } catch (err: any) {
-            console.error('[literature] row counts failed:', err)
-            return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not count the lines.' })
+            asked = picoQuestion(pico as Pico)
         }
-    }
 
-    // ---- RE-COUNT. No model and no cost log — but the EXPERT PANEL does change, and used not to.
-    //
-    // The old comment here said "none of them changed", and it was wrong about the panel:
-    // meshFromConcepts() reads `line.terms` straight out of the concept blocks, and a toggle or an
-    // edit is precisely a change to those blocks. So unticking both MeSH lines in the Depression
-    // block re-counted the yield, renumbered the lines — and left "top 5 of 430 faculty publishing on
-    // these MeSH terms" on screen, answering a strategy that no longer existed. A stale count with a
-    // confident caption is the same sin as a wrong one.
-    //
-    // Recomputed only for PubMed: the panel is derived from MeSH, and Scopus has no controlled
-    // vocabulary, so a Scopus toggle returns no `experts` key at all and the client leaves the panel
-    // exactly as it was rather than blanking it.
-    //
-    // This is the path a toggle takes, in BOTH modes: untick a line, tick a suggested widening,
-    // tick a priced narrowing — all of them post the strategy and get back a count. That is what
-    // makes iterating free, and it is why a narrowing is a concept block and not a new endpoint.
-    //
-    // `!proceed` is what keeps this branch from swallowing the escape hatch. Mode 2's "retrieve the
-    // top 50 anyway" ALSO posts a strategy, and it must reach the issue-review branch below and
-    // come back with RECORDS. A re-count that quietly returned zero records to a librarian who
-    // pressed Retrieve would look exactly like a search that found nothing.
-    if (edited && !proceed) {
+        if (edited) {
+            strategy = parseStrategy({ ...edited, dateId, typeId })
+        } else {
+            if (!bedrockConfigured()) {
+                return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+            }
+            if (!asked.trim()) {
+                return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
+            }
+            // ON A CLOCK, like every other model call — see MODEL_TIMEOUT_MS. A Bedrock invoke
+            // that never answers would otherwise hold this handler open until the ALB gave up
+            // 500 seconds later, occupying a Next worker the whole time and telling the
+            // librarian nothing. A rejection here lands in the catch below and comes back as the
+            // 502 that path already returns.
+            const built = await withTimeout(
+                buildStrategy(
+                    asked, limits, criteria, 'precision',
+                    isPico ? (pico as Pico) : undefined,
+                ),
+                MODEL_TIMEOUT_MS,
+                'The search strategy build',
+            )
+            strategy = built.strategy
+            usage = built.usage
+        }
+
+        // Count first, fetch second — but the count no longer decides whether we CAN fetch (the
+        // retrieval tool takes a retmax), it decides whether we SHOULD do so silently. Above
+        // NARROW_ABOVE, runReview hands back the strategy, the number, and priced narrowings
+        // instead of a top-50 nobody was told was a top-50. A 200, not a 4xx: it is not an
+        // error, it is a draft. `proceed` walks through the gate and always retrieves.
+        const result = await runReview(strategy, order, proceed === true)
+
+        let experts = { experts: [], total: 0 }
         try {
-            const recounted = parseStrategy({ ...edited, dateId, typeId })
-            const { unsupported } = buildLimits(recounted.db, String(dateId ?? ''), String(typeId ?? ''))
-            const result = await runStrategy(recounted, seedList, unsupported)
-
-            let experts
-            if (recounted.db === 'pubmed') {
-                const mesh = meshFromConcepts(recounted.concepts)
-                experts = mesh.length ? await findWcmExperts(mesh, 5) as any : { experts: [], total: 0 }
-            }
-            return res.status(200).send({ statusCode: 200, databases: [result], ...(experts ? { experts } : {}) })
-        } catch (err: any) {
-            console.error('[literature] recount failed:', err)
-            return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not re-count the strategy.' })
+            const mesh = meshFromConcepts(strategy.concepts)
+            if (mesh.length) experts = await findWcmExperts(mesh, 5) as any
+        } catch (e) {
+            // The panel is a bonus, not the deliverable. Never fail the search over it.
+            console.error('[literature] expert panel failed:', e)
         }
+
+        // Logged even when no model was called, and the zeros are the POINT: they are the proof
+        // that narrowing, re-running and taking the top 50 anyway cost nothing. If this line
+        // ever shows tokens on a `proceed` run, someone has put the model back in the loop.
+        logCost(`${isPico ? 'clinical-question' : 'issue-review'}:build`, cwid, usage, {
+            hits: result.hits,
+            records: result.records.length,
+            needsNarrowing: !!result.needsNarrowing,
+            narrowings: result.narrowings?.length ?? 0,
+            proceed: proceed === true,
+            fromEditedStrategy: !!edited,
+        })
+
+        // `question` goes back for Mode 3 so the page shows the sentence that was actually put
+        // to PubMed -- assembled from the four fields by the server, not retyped by the client.
+        return res.status(200).send({
+            statusCode: 200,
+            databases: [result],
+            experts,
+            model: process.env.BEDROCK_MODEL_ID,
+            ...(isPico && asked ? { question: asked } : {}),
+        })
+    } catch (err: any) {
+        console.error('[literature] issue review failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Search failed.' })
     }
+}
 
-    // ---- BUILD + FETCH (Modes 2 AND 3, phase 1). ----------------------------------------------
-    //
-    // Mode 3 shares this branch on purpose. Its phase 1 IS Mode 2's phase 1 — same precision
-    // strategy, same count-before-fetch, same narrowing gate, same escape hatch, same expert
-    // panel. The ONLY differences are that the question arrives as four PICO fields, and that the
-    // divergence proper happens at synthesis. Forking 60 lines to change two would just be two
-    // copies of the narrowing gate to keep in step.
-    if (mode === 'issue-review' || mode === 'clinical-question') {
-        const isPico = mode === 'clinical-question'
-        try {
-            // Modes 2 and 3 are PUBMED ONLY — they order records by an evidence tier derived from
-            // PubMed's publication-type indexing, which Scopus does not have.
-            const { terms: limits } = buildLimits('pubmed', String(dateId ?? ''), String(typeId ?? ''))
-            // An unknown sort resolves to relevance, never to a guess — same rule as buildLimits.
-            // Relevance is the default because it is what makes a 50-cap defensible: the top 50 of
-            // a 300-hit precision search by PubMed's Best Match is a reading list; the newest 50
-            // is an accident of the calendar.
-            const order: Sort = sort === 'date' ? 'date' : 'relevance'
-
-            // TWO WAYS IN, and only one of them spends money.
-            //
-            // A fresh question BUILDS a strategy — PRECISION, not recall, a different prompt,
-            // deliberately (see REVIEW_PROMPT). "Retrieve the top 50 anyway" posts the strategy the
-            // librarian is ALREADY LOOKING AT — narrowings ticked, lines edited — and that path
-            // calls NO MODEL: the strategy exists, and re-drafting it would spend a call to throw
-            // the librarian's own edits away and probably hand back a different query than the one
-            // on their screen. The strategy is re-parsed and its limits re-resolved server-side
-            // (parseStrategy), so this is not a trust hole: it is the same guard the re-count uses.
-            let strategy: Strategy
-            let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
-
-            // Mode 3's question is ASSEMBLED SERVER-SIDE from the PICO fields, never taken as prose
-            // from the client — so the sentence the model is asked to answer is provably the one
-            // built from the four boxes the clinician filled in.
-            let asked = String(question || '')
-            if (isPico && !edited) {
-                if (!picoComplete(pico || {})) {
-                    return res.status(400).send({
-                        statusCode: 400,
-                        message: 'Population, Intervention and Outcome are required. Comparison is optional.',
-                    })
-                }
-                asked = picoQuestion(pico as Pico)
-            }
-
-            if (edited) {
-                strategy = parseStrategy({ ...edited, dateId, typeId })
-            } else {
-                if (!bedrockConfigured()) {
-                    return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
-                }
-                if (!asked.trim()) {
-                    return res.status(400).send({ statusCode: 400, message: 'A question is required.' })
-                }
-                // ON A CLOCK, like every other model call — see MODEL_TIMEOUT_MS. A Bedrock invoke
-                // that never answers would otherwise hold this handler open until the ALB gave up
-                // 500 seconds later, occupying a Next worker the whole time and telling the
-                // librarian nothing. A rejection here lands in the catch below and comes back as the
-                // 502 that path already returns.
-                const built = await withTimeout(
-                    buildStrategy(
-                        asked, limits, criteria, 'precision',
-                        isPico ? (pico as Pico) : undefined,
-                    ),
-                    MODEL_TIMEOUT_MS,
-                    'The search strategy build',
-                )
-                strategy = built.strategy
-                usage = built.usage
-            }
-
-            // Count first, fetch second — but the count no longer decides whether we CAN fetch (the
-            // retrieval tool takes a retmax), it decides whether we SHOULD do so silently. Above
-            // NARROW_ABOVE, runReview hands back the strategy, the number, and priced narrowings
-            // instead of a top-50 nobody was told was a top-50. A 200, not a 4xx: it is not an
-            // error, it is a draft. `proceed` walks through the gate and always retrieves.
-            const result = await runReview(strategy, order, proceed === true)
-
-            let experts = { experts: [], total: 0 }
-            try {
-                const mesh = meshFromConcepts(strategy.concepts)
-                if (mesh.length) experts = await findWcmExperts(mesh, 5) as any
-            } catch (e) {
-                // The panel is a bonus, not the deliverable. Never fail the search over it.
-                console.error('[literature] expert panel failed:', e)
-            }
-
-            // Logged even when no model was called, and the zeros are the POINT: they are the proof
-            // that narrowing, re-running and taking the top 50 anyway cost nothing. If this line
-            // ever shows tokens on a `proceed` run, someone has put the model back in the loop.
-            logCost(`${isPico ? 'clinical-question' : 'issue-review'}:build`, cwid, usage, {
-                hits: result.hits,
-                records: result.records.length,
-                needsNarrowing: !!result.needsNarrowing,
-                narrowings: result.narrowings?.length ?? 0,
-                proceed: proceed === true,
-                fromEditedStrategy: !!edited,
-            })
-
-            // `question` goes back for Mode 3 so the page shows the sentence that was actually put
-            // to PubMed -- assembled from the four fields by the server, not retyped by the client.
-            return res.status(200).send({
-                statusCode: 200,
-                databases: [result],
-                experts,
-                model: process.env.BEDROCK_MODEL_ID,
-                ...(isPico && asked ? { question: asked } : {}),
-            })
-        } catch (err: any) {
-            console.error('[literature] issue review failed:', err)
-            return res.status(502).send({ statusCode: 502, message: err?.message || 'Search failed.' })
-        }
-    }
-
-    // ---- BUILD (Mode 1). ----------------------------------------------------------------------
+// ---- BUILD (Mode 1). ----------------------------------------------------------------------------
+async function handleBuildStrategy(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { question, criteria, seedList, dateId, typeId, databases } = body
     if (!bedrockConfigured()) {
         return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
     }
@@ -596,4 +527,133 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         logCost('search-strategy', cwid, usage, { dbs: [], failed: 'all' })
         return res.status(502).send({ statusCode: 502, message: err?.message || 'Strategy build failed.' })
     }
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    if (req.method !== 'POST') {
+        return res.status(405).send({ statusCode: 405, message: 'POST only' })
+    }
+
+    // 1. Real session auth.
+    //
+    // NO `any` ON THE TOKEN, and least of all here. getToken() returns `JWT | null`, and JWT is an
+    // index-signature type — every claim on it is `unknown`, because next-auth cannot know what our
+    // callbacks put there. Casting to `any` does not recover the knowledge, it only stops the
+    // compiler from asking for it, at the one boundary in this route where a wrong assumption is an
+    // authentication decision made on a value nobody checked.
+    //
+    // So the shape is VALIDATED rather than assumed: `username` has to actually be a non-empty
+    // string before it becomes a cwid. A claim that arrives as a number, an object or an array is
+    // not a username we recognise, and the honest answer to one is the same 401 as no token at all.
+    let cwid = ''
+    try {
+        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        const username = token?.username
+        if (typeof username !== 'string' || !username) {
+            return res.status(401).send({ statusCode: 401, message: 'Sign in to use Literature Search.' })
+        }
+        cwid = username.toLowerCase()
+    } catch {
+        return res.status(401).send({ statusCode: 401, message: 'Sign in to use Literature Search.' })
+    }
+
+    // 2. Pilot allowlist. It applies to the re-count path too: that path spends no model tokens,
+    //    but it still queries PubMed on our shared NCBI key.
+    //
+    //    THIS IS THE GATE. The sidebar hides the link from anyone this would reject, but the
+    //    sidebar is cosmetic — /literature is still reachable by URL, and this is what stops it.
+    if (!isAllowlisted(cwid)) {
+        return res.status(403).send({
+            statusCode: 403,
+            message: 'Literature Search is in a limited pilot. Contact the ReCiter team for access.',
+        })
+    }
+
+    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, strategy: edited } = req.body || {}
+
+    // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
+    // has no PMID at all, and a PMID-keyed seed check could only ever validate the half of Scopus
+    // that PubMed already covers. See parseSeeds.
+    //
+    // AND IT IS BOUNDED, because a seed is the most expensive character a librarian can type. Each
+    // one costs several count calls to validate, and each one the strategy MISSES costs a Bedrock
+    // Opus call to diagnose. Paste the 60-PMID "known includes" list from a previous review and a
+    // single POST becomes ~300 sequential PubMed counts (paced at 500ms = minutes) plus one Opus
+    // invocation per miss. Nothing upstream capped it: not the textarea, not parseSeeds.
+    //
+    // The whole design is built around "the 3-5 seeds a librarian already knows should come back", so
+    // a bound of 10 costs a real user nothing and turns an unbounded paid fan-out into a 400.
+    const MAX_SEEDS = 10
+    const seedList: Seed[] = parseSeeds(seeds)
+    if (seedList.length > MAX_SEEDS) {
+        return res.status(400).send({
+            statusCode: 400,
+            message: `At most ${MAX_SEEDS} known-item seeds. A seed check is a recall spot-check, not a screening pass — pick the few papers that must come back.`,
+        })
+    }
+
+    const body: SearchBody = { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, edited, seedList }
+
+    // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
+    if (phase === 'screen') {
+        return handleScreen(req, res, cwid, body)
+    }
+
+    // ---- SYNTHESIZE (Mode 2, phase 3). ---------------------------------------------------------
+    if (phase === 'synthesize') {
+        return handleSynthesize(req, res, cwid, body)
+    }
+
+    // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------
+    //
+    // Its own request because it is SLOW and the yield is not: 7 rows is 7 count calls, and the
+    // retrieval tool paces every call at 500ms (each pod is smoothed to 2/s so 4 replicas stay under
+    // NCBI's ~10/s keyed quota). Measured at 5.5s. Folding that into the re-count would have put five
+    // and a half seconds between ticking a checkbox and seeing the number you ticked it for — and
+    // that loop, free and instant, is the entire argument for Mode 1.
+    //
+    // So: the yield comes back in one call as it always did, and the column fills in behind it. No
+    // model, no cost, and it takes the same strategy guard as every other path.
+    if (phase === 'rows') {
+        return handleRows(req, res, cwid, body)
+    }
+
+    // ---- RE-COUNT. No model and no cost log — but the EXPERT PANEL does change, and used not to.
+    //
+    // The old comment here said "none of them changed", and it was wrong about the panel:
+    // meshFromConcepts() reads `line.terms` straight out of the concept blocks, and a toggle or an
+    // edit is precisely a change to those blocks. So unticking both MeSH lines in the Depression
+    // block re-counted the yield, renumbered the lines — and left "top 5 of 430 faculty publishing on
+    // these MeSH terms" on screen, answering a strategy that no longer existed. A stale count with a
+    // confident caption is the same sin as a wrong one.
+    //
+    // Recomputed only for PubMed: the panel is derived from MeSH, and Scopus has no controlled
+    // vocabulary, so a Scopus toggle returns no `experts` key at all and the client leaves the panel
+    // exactly as it was rather than blanking it.
+    //
+    // This is the path a toggle takes, in BOTH modes: untick a line, tick a suggested widening,
+    // tick a priced narrowing — all of them post the strategy and get back a count. That is what
+    // makes iterating free, and it is why a narrowing is a concept block and not a new endpoint.
+    //
+    // `!proceed` is what keeps this branch from swallowing the escape hatch. Mode 2's "retrieve the
+    // top 50 anyway" ALSO posts a strategy, and it must reach the issue-review branch below and
+    // come back with RECORDS. A re-count that quietly returned zero records to a librarian who
+    // pressed Retrieve would look exactly like a search that found nothing.
+    if (edited && !proceed) {
+        return handleRecount(req, res, cwid, body)
+    }
+
+    // ---- BUILD + FETCH (Modes 2 AND 3, phase 1). ----------------------------------------------
+    //
+    // Mode 3 shares this branch on purpose. Its phase 1 IS Mode 2's phase 1 — same precision
+    // strategy, same count-before-fetch, same narrowing gate, same escape hatch, same expert
+    // panel. The ONLY differences are that the question arrives as four PICO fields, and that the
+    // divergence proper happens at synthesis. Forking 60 lines to change two would just be two
+    // copies of the narrowing gate to keep in step.
+    if (mode === 'issue-review' || mode === 'clinical-question') {
+        return handleIssueReviewOrClinicalQuestion(req, res, cwid, body)
+    }
+
+    // ---- BUILD (Mode 1). ----------------------------------------------------------------------
+    return handleBuildStrategy(req, res, cwid, body)
 }
