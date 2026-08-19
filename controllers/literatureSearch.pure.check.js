@@ -78,9 +78,6 @@ const strategy = () => ({
     limits: '(2021:2026[dp]) AND (Randomized Controlled Trial[pt])',
 })
 
-const s = strategy()
-const q = lit.assembleQuery(s)
-
 // =======================================================================================
 // THE MODEL'S OWN OUTPUT IS HELD TO THE SAME CEILINGS AS THE BROWSER'S.
 //
@@ -92,32 +89,7 @@ const q = lit.assembleQuery(s)
 // checkStrategy() is exported for exactly this: it is the half of buildStrategy() that is true
 // without an LLM. The comment above it said so and NOTHING EVER ASSERTED IT — so the ceilings could
 // be raised, lowered or deleted in silence. They cannot now.
-
-assert.doesNotThrow(() => lit.checkStrategy(s), 'a strategy the route would accept must not be rejected')
-
-const conceptBlock = i => ({ label: `c${i}`, lines: [{ terms: `t${i}[tiab]`, on: true }] })
-assert.throws(
-    () => lit.checkStrategy({ ...s, concepts: Array.from({ length: lit.MAX_CONCEPTS + 1 }, (_, i) => conceptBlock(i)) }),
-    /concept blocks/,
-    `${lit.MAX_CONCEPTS + 1} concept blocks is one more than the route can re-count, so it must be REJECTED, not built`,
-)
-assert.throws(
-    () => lit.checkStrategy({
-        ...s,
-        concepts: [{ label: 'too many lines', lines: Array.from({ length: lit.MAX_LINES + 1 }, (_, i) => ({ terms: `t${i}[tiab]`, on: true })) }],
-    }),
-    /lines in one concept block/,
-    `${lit.MAX_LINES + 1} lines in one block is one more than the route can re-count`,
-)
-assert.throws(
-    () => lit.checkStrategy({
-        ...s,
-        concepts: [{ label: 'too long', lines: [{ terms: 'x'.repeat(lit.MAX_TERMS + 1), on: true }] }],
-    }),
-    /too long to be re-counted/,
-    'a term line longer than the route accepts must be rejected here too — and NEVER truncated: clipping a line mid-Boolean changes what the search MEANS',
-)
-
+//
 // THE EMPTINESS GUARD, AND WHERE IT HAS TO LIVE.
 //
 // It used to fire on the RAW model answer, ten lines before the `.filter(c => c.lines.length)` that
@@ -128,12 +100,44 @@ assert.throws(
 // So the guard belongs in checkStrategy(), which buildStrategy() calls LAST — after the filter and
 // after hoistFilters. Both halves are asserted: the empty strategy really does render as '', and
 // checkStrategy really does refuse it.
-const modelReturnedNoLines = { db: 'pubmed', limits: s.limits, concepts: [{ label: 'Adults', lines: [] }, { label: 'Depression', lines: [] }] }
-const filtered = { ...modelReturnedNoLines, concepts: modelReturnedNoLines.concepts.filter(c => c.lines.length) }
-assert.strictEqual(lit.assembleQuery(filtered), '', 'a zero-concept strategy renders as the empty query — the string that would be counted as hits: 0')
-assert.throws(() => lit.checkStrategy(filtered), /usable strategy/,
-    'a model answer whose concepts all have lines: [] must be REFUSED, not counted as zero')
-console.log(`bounds:       checkStrategy rejects >${lit.MAX_CONCEPTS} concepts, >${lit.MAX_LINES} lines, >${lit.MAX_TERMS}-char terms, and the zero-concept strategy`)
+const checkStrategyBounds = (lit) => {
+    const s = strategy()
+    const q = lit.assembleQuery(s)
+
+    assert.doesNotThrow(() => lit.checkStrategy(s), 'a strategy the route would accept must not be rejected')
+
+    const conceptBlock = i => ({ label: `c${i}`, lines: [{ terms: `t${i}[tiab]`, on: true }] })
+    assert.throws(
+        () => lit.checkStrategy({ ...s, concepts: Array.from({ length: lit.MAX_CONCEPTS + 1 }, (_, i) => conceptBlock(i)) }),
+        /concept blocks/,
+        `${lit.MAX_CONCEPTS + 1} concept blocks is one more than the route can re-count, so it must be REJECTED, not built`,
+    )
+    assert.throws(
+        () => lit.checkStrategy({
+            ...s,
+            concepts: [{ label: 'too many lines', lines: Array.from({ length: lit.MAX_LINES + 1 }, (_, i) => ({ terms: `t${i}[tiab]`, on: true })) }],
+        }),
+        /lines in one concept block/,
+        `${lit.MAX_LINES + 1} lines in one block is one more than the route can re-count`,
+    )
+    assert.throws(
+        () => lit.checkStrategy({
+            ...s,
+            concepts: [{ label: 'too long', lines: [{ terms: 'x'.repeat(lit.MAX_TERMS + 1), on: true }] }],
+        }),
+        /too long to be re-counted/,
+        'a term line longer than the route accepts must be rejected here too — and NEVER truncated: clipping a line mid-Boolean changes what the search MEANS',
+    )
+    console.log(`bounds:       checkStrategy rejects >${lit.MAX_CONCEPTS} concepts, >${lit.MAX_LINES} lines, >${lit.MAX_TERMS}-char terms, and the zero-concept strategy`)
+
+    const modelReturnedNoLines = { db: 'pubmed', limits: s.limits, concepts: [{ label: 'Adults', lines: [] }, { label: 'Depression', lines: [] }] }
+    const filtered = { ...modelReturnedNoLines, concepts: modelReturnedNoLines.concepts.filter(c => c.lines.length) }
+    assert.strictEqual(lit.assembleQuery(filtered), '', 'a zero-concept strategy renders as the empty query — the string that would be counted as hits: 0')
+    assert.throws(() => lit.checkStrategy(filtered), /usable strategy/,
+        'a model answer whose concepts all have lines: [] must be REFUSED, not counted as zero')
+
+    return { s, q }
+}
 
 // =======================================================================================
 // THE RECORDS COLUMN OF THE PRESS APPENDIX — the counts, printed, each on its own line.
@@ -147,53 +151,57 @@ console.log(`bounds:       checkStrategy rejects >${lit.MAX_CONCEPTS} concepts, 
 // So "a number printed" is NOT the property worth asserting. "Each count landed on ITS OWN line" is.
 // The counts below are synthetic and DISTINCT on purpose: with distinct values, a map shifted by one
 // line cannot agree with the table by accident. (THE TEETH, below, asserts the shifted case.)
-const numbered = lit.numberStrategy(s)
-const lines = numbered.rows.filter(r => r.n !== null)
-const lastN = lines[lines.length - 1].n
-const rc = {}
-for (const r of lines) rc[r.n] = 100000 - r.n * 777      // distinct, and >999 so toLocaleString commas are exercised
+const checkRecordsColumnRendering = (lit, xp, s, q) => {
+    const numbered = lit.numberStrategy(s)
+    const lines = numbered.rows.filter(r => r.n !== null)
+    const lastN = lines[lines.length - 1].n
+    const rc = {}
+    for (const r of lines) rc[r.n] = 100000 - r.n * 777      // distinct, and >999 so toLocaleString commas are exercised
 
-// The last line IS the whole search, so its count IS the yield printed in the header above it. If
-// those two ever disagree, one of the numbers in the appendix is describing a query we did not run.
-const hits = rc[lastN]
+    // The last line IS the whole search, so its count IS the yield printed in the header above it. If
+    // those two ever disagree, one of the numbers in the appendix is describing a query we did not run.
+    const hits = rc[lastN]
 
-const recordsOf = counts => {
-    const doc = xp.strategyDoc(
-        { ...s, query: q, hits, runDate: '2026-07-13', seeds: [], rowCounts: counts },
-        'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',
-    )
-    const t = doc.find(b => b.kind === 'table' && b.head[2] === 'Records')
-    assert.ok(t, 'the strategy appendix must carry a Records column')
-    return t.rows
+    const recordsOf = counts => {
+        const doc = xp.strategyDoc(
+            { ...s, query: q, hits, runDate: '2026-07-13', seeds: [], rowCounts: counts },
+            'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',
+        )
+        const t = doc.find(b => b.kind === 'table' && b.head[2] === 'Records')
+        assert.ok(t, 'the strategy appendix must carry a Records column')
+        return t.rows
+    }
+
+    const printed = recordsOf(rc)
+    assert.strictEqual(printed.length, lines.length,
+        'every searched line reaches the appendix — a line the librarian ran and cannot see the yield of is half an appendix')
+    for (const [n, , records] of printed) {
+        assert.strictEqual(records, rc[Number(n)].toLocaleString(),
+            `line ${n} must print ITS OWN count (${rc[Number(n)]}), not some other line's`)
+    }
+    assert.strictEqual(printed[printed.length - 1][2], hits.toLocaleString(),
+        'the last line of the appendix IS the search: its count must equal the yield in the header above it')
+
+    // THE TEETH. Hand the exporter a map shifted by one line — exactly what a renumbering bug produces —
+    // and the loop above must reject it. If this ever stops finding a mismatch, the assertion above has
+    // gone blind and the appendix can print every count one line out of place and stay green.
+    const shifted = {}
+    for (const r of lines) shifted[r.n] = rc[r.n + 1] !== undefined ? rc[r.n + 1] : rc[lines[0].n]
+    const wrong = recordsOf(shifted).filter(([n, , records]) => records !== rc[Number(n)].toLocaleString())
+    assert.ok(wrong.length > 0,
+        'a rowCounts map shifted by one line MUST fail the per-line assertion above — otherwise that assertion proves nothing')
+
+    // An UNTICKED line has no number, so it must carry no count. A count beside a line that was not
+    // searched is the same class of lie as a methods block describing an un-toggled strategy.
+    const unticked = { ...s, concepts: s.concepts.map((c, i) => (i === 1 ? { ...c, lines: c.lines.map(l => ({ ...l, on: false })) } : c)) }
+    const untickedRows = lit.numberStrategy(unticked).rows.filter(r => r.kind === 'term' && r.n === null)
+    assert.ok(untickedRows.length > 0, 'unticking a concept leaves unnumbered rows')
+    const blanks = recordsOf({}).filter(([, , records]) => records !== '')
+    assert.strictEqual(blanks.length, 0, 'no counts means BLANK cells — never a 0. An absent count is absent, not zero.')
+    console.log(`records col:  ${printed.length} lines, each carrying its own count; a shifted map fails (${wrong.length} cells); last line == yield (${hits.toLocaleString()})`)
+
+    return { hits, rc }
 }
-
-const printed = recordsOf(rc)
-assert.strictEqual(printed.length, lines.length,
-    'every searched line reaches the appendix — a line the librarian ran and cannot see the yield of is half an appendix')
-for (const [n, , records] of printed) {
-    assert.strictEqual(records, rc[Number(n)].toLocaleString(),
-        `line ${n} must print ITS OWN count (${rc[Number(n)]}), not some other line's`)
-}
-assert.strictEqual(printed[printed.length - 1][2], hits.toLocaleString(),
-    'the last line of the appendix IS the search: its count must equal the yield in the header above it')
-
-// THE TEETH. Hand the exporter a map shifted by one line — exactly what a renumbering bug produces —
-// and the loop above must reject it. If this ever stops finding a mismatch, the assertion above has
-// gone blind and the appendix can print every count one line out of place and stay green.
-const shifted = {}
-for (const r of lines) shifted[r.n] = rc[r.n + 1] !== undefined ? rc[r.n + 1] : rc[lines[0].n]
-const wrong = recordsOf(shifted).filter(([n, , records]) => records !== rc[Number(n)].toLocaleString())
-assert.ok(wrong.length > 0,
-    'a rowCounts map shifted by one line MUST fail the per-line assertion above — otherwise that assertion proves nothing')
-
-// An UNTICKED line has no number, so it must carry no count. A count beside a line that was not
-// searched is the same class of lie as a methods block describing an un-toggled strategy.
-const unticked = { ...s, concepts: s.concepts.map((c, i) => (i === 1 ? { ...c, lines: c.lines.map(l => ({ ...l, on: false })) } : c)) }
-const untickedRows = lit.numberStrategy(unticked).rows.filter(r => r.kind === 'term' && r.n === null)
-assert.ok(untickedRows.length > 0, 'unticking a concept leaves unnumbered rows')
-const blanks = recordsOf({}).filter(([, , records]) => records !== '')
-assert.strictEqual(blanks.length, 0, 'no counts means BLANK cells — never a 0. An absent count is absent, not zero.')
-console.log(`records col:  ${printed.length} lines, each carrying its own count; a shifted map fails (${wrong.length} cells); last line == yield (${hits.toLocaleString()})`)
 
 // =======================================================================================
 // THE DOCUMENTS — asserted through the MARKDOWN renderer, because that is the copy people forward.
@@ -206,61 +214,62 @@ console.log(`records col:  ${printed.length} lines, each carrying its own count;
 //
 // It renders the same Block[] now, so it cannot drift again — and this is the assertion that makes
 // that true, because until it existed literatureMarkdown.ts was not compiled by anything.
+const checkMarkdownDocuments = (xp, md, s, q, hits, rc) => {
+    const facts = {
+        db: 'pubmed',
+        query: q,
+        hits: 1391,
+        retrieved: 50,
+        runDate: '2026-07-13',
+        cwid: 'paa2013',
+        sort: 'relevance',
+        model: 'us.anthropic.claude-opus-4-8',
+    }
+    const synthesis = md.markdownDoc(xp.synthesisDoc(
+        {
+            table: [{ pmid: '37314797', study: 'Nikolova', year: '2023', journal: 'JAMA Psychiatry', design: 'Meta-Analysis', intervention: 'probiotics' }],
+            prose: 'Probiotics reduced depressive symptoms (PMID 37314797). This is not established for severe depression (PMID 99999999).',
+            invented: ['99999999'],
+        },
+        facts,
+        'Do probiotics help depression?',
+        { pico: false, screenedIn: 12, screenedOf: 50 },
+    ))
 
-const facts = {
-    db: 'pubmed',
-    query: q,
-    hits: 1391,
-    retrieved: 50,
-    runDate: '2026-07-13',
-    cwid: 'paa2013',
-    sort: 'relevance',
-    model: 'us.anthropic.claude-opus-4-8',
+    // THE WARNING TRAVELS WITH THE TEXT, OR THE FILE IS THE CLEAN-LOOKING COPY OF A CONTAMINATED SUMMARY.
+    assert.ok(/WARNING/.test(synthesis), 'the fabricated-citation warning must appear in the markdown, not only on screen')
+    assert.ok(synthesis.includes('99999999'), 'the warning must NAME the invented PMID — "some citations may be wrong" is not actionable')
+    assert.ok(synthesis.indexOf('WARNING') < synthesis.indexOf('## Synthesis'),
+        'the warning goes ABOVE the prose: a reader who scrolls past it has already read the contaminated sentence')
+
+    // The four facts that make a search reproducible, and the reason literatureExport.ts exists at all.
+    assert.ok(synthesis.includes('PubMed (via NCBI E-utilities)'), 'the markdown must name the DATABASE — a Scopus strategy pasted into PubMed reproduces nothing')
+    assert.ok(synthesis.includes('2026-07-13'), 'the markdown must carry the date searched')
+    assert.ok(synthesis.includes('1391'), 'the markdown must carry the yield')
+    assert.ok(synthesis.includes('50 — the top 50 of 1391'), 'the markdown must say the 50 is a SLICE of the yield, or a co-author writes 1,391 into a PRISMA flow diagram')
+    // The query is fenced, and that is load-bearing: a Boolean is made of the characters Markdown treats
+    // as syntax ([MeSH], *, "..."), so outside a fence what the librarian pastes back into PubMed is no
+    // longer the query that produced the count above it.
+    assert.ok(synthesis.includes('```\n' + q + '\n```'), 'the query must survive into the markdown VERBATIM, inside a fence')
+    assert.ok(/AI-ASSISTED[\s\S]*us\.anthropic\.claude-opus-4-8/.test(synthesis), 'the synthesis must name the model AND its profile id — "AI-assisted" with no version is not a declaration')
+
+    // THE PRISMA-S METHODS BLOCK, asserted on the SHARED RENDERER.
+    //
+    // At the time of writing, "Copy PRISMA-S" in LiteratureSearch.tsx still hand-builds its own string and
+    // is being rebuilt onto Block[]. So what is asserted here is the renderer it is moving to — the same
+    // strategyDoc() the .docx uses, and the only place the AI-drafted disclosure can come from. The moment
+    // the button renders blocks this assertion covers the button; until then the hand-built string in the
+    // component is asserted by nothing.
+    const methods = md.markdownDoc(xp.strategyDoc(
+        { ...s, query: q, hits, runDate: '2026-07-13', seeds: [], rowCounts: rc },
+        'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',
+    ))
+    assert.ok(/Strategy drafted by[\s\S]*us\.anthropic\.claude-opus-4-8/.test(methods),
+        'a PRISMA-S appendix that does not disclose the strategy was AI-drafted and human-reviewed is incomplete — and the QUERY is model-drafted, not just the prose')
+    assert.ok(methods.includes('reviewed and edited by'), 'the disclosure must name the human review, which is the half that makes it publishable')
+    assert.ok(methods.includes(hits.toLocaleString()), 'the per-line counts must survive the markdown renderer — the Records column is how a PRESS reviewer reads a strategy')
+    console.log(`documents:    synthesis markdown carries the invented-PMID warning, the query, the database, the yield and the date; the appendix discloses the model`)
 }
-const synthesis = md.markdownDoc(xp.synthesisDoc(
-    {
-        table: [{ pmid: '37314797', study: 'Nikolova', year: '2023', journal: 'JAMA Psychiatry', design: 'Meta-Analysis', intervention: 'probiotics' }],
-        prose: 'Probiotics reduced depressive symptoms (PMID 37314797). This is not established for severe depression (PMID 99999999).',
-        invented: ['99999999'],
-    },
-    facts,
-    'Do probiotics help depression?',
-    { pico: false, screenedIn: 12, screenedOf: 50 },
-))
-
-// THE WARNING TRAVELS WITH THE TEXT, OR THE FILE IS THE CLEAN-LOOKING COPY OF A CONTAMINATED SUMMARY.
-assert.ok(/WARNING/.test(synthesis), 'the fabricated-citation warning must appear in the markdown, not only on screen')
-assert.ok(synthesis.includes('99999999'), 'the warning must NAME the invented PMID — "some citations may be wrong" is not actionable')
-assert.ok(synthesis.indexOf('WARNING') < synthesis.indexOf('## Synthesis'),
-    'the warning goes ABOVE the prose: a reader who scrolls past it has already read the contaminated sentence')
-
-// The four facts that make a search reproducible, and the reason literatureExport.ts exists at all.
-assert.ok(synthesis.includes('PubMed (via NCBI E-utilities)'), 'the markdown must name the DATABASE — a Scopus strategy pasted into PubMed reproduces nothing')
-assert.ok(synthesis.includes('2026-07-13'), 'the markdown must carry the date searched')
-assert.ok(synthesis.includes('1391'), 'the markdown must carry the yield')
-assert.ok(synthesis.includes('50 — the top 50 of 1391'), 'the markdown must say the 50 is a SLICE of the yield, or a co-author writes 1,391 into a PRISMA flow diagram')
-// The query is fenced, and that is load-bearing: a Boolean is made of the characters Markdown treats
-// as syntax ([MeSH], *, "..."), so outside a fence what the librarian pastes back into PubMed is no
-// longer the query that produced the count above it.
-assert.ok(synthesis.includes('```\n' + q + '\n```'), 'the query must survive into the markdown VERBATIM, inside a fence')
-assert.ok(/AI-ASSISTED[\s\S]*us\.anthropic\.claude-opus-4-8/.test(synthesis), 'the synthesis must name the model AND its profile id — "AI-assisted" with no version is not a declaration')
-
-// THE PRISMA-S METHODS BLOCK, asserted on the SHARED RENDERER.
-//
-// At the time of writing, "Copy PRISMA-S" in LiteratureSearch.tsx still hand-builds its own string and
-// is being rebuilt onto Block[]. So what is asserted here is the renderer it is moving to — the same
-// strategyDoc() the .docx uses, and the only place the AI-drafted disclosure can come from. The moment
-// the button renders blocks this assertion covers the button; until then the hand-built string in the
-// component is asserted by nothing.
-const methods = md.markdownDoc(xp.strategyDoc(
-    { ...s, query: q, hits, runDate: '2026-07-13', seeds: [], rowCounts: rc },
-    'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',
-))
-assert.ok(/Strategy drafted by[\s\S]*us\.anthropic\.claude-opus-4-8/.test(methods),
-    'a PRISMA-S appendix that does not disclose the strategy was AI-drafted and human-reviewed is incomplete — and the QUERY is model-drafted, not just the prose')
-assert.ok(methods.includes('reviewed and edited by'), 'the disclosure must name the human review, which is the half that makes it publishable')
-assert.ok(methods.includes(hits.toLocaleString()), 'the per-line counts must survive the markdown renderer — the Records column is how a PRESS reviewer reads a strategy')
-console.log(`documents:    synthesis markdown carries the invented-PMID warning, the query, the database, the yield and the date; the appendix discloses the model`)
 
 // THE .XLSX MUST NOT CARRY AN AI VERDICT OVER A TRUNCATED SAMPLE.
 //
@@ -272,25 +281,32 @@ console.log(`documents:    synthesis markdown carries the invented-PMID warning,
 //
 // Guard both directions. A refusal that also fires on a COMPLETE sheet would delete a verdict the model
 // really did give over every record it was asked about, which is a different bug with the same shape.
-const recs = [{ pmid: '1', title: 't', authors: 'a', year: '2020', journal: 'j', design: 'RCT' }]
-const flags = { 1: { include: true, reason: 'an RCT in the right population', screened: true } }
-const xlFacts = f => ({ db: 'pubmed', query: q, runDate: '2026-07-13', model: 'us.anthropic.claude-opus-4-8', ...f })
+const checkXlsxTruncationGuard = (xp, q) => {
+    const recs = [{ pmid: '1', title: 't', authors: 'a', year: '2020', journal: 'j', design: 'RCT' }]
+    const flags = { 1: { include: true, reason: 'an RCT in the right population', screened: true } }
+    const xlFacts = f => ({ db: 'pubmed', query: q, runDate: '2026-07-13', model: 'us.anthropic.claude-opus-4-8', ...f })
 
-const cutSheets = xp.recordSheets(recs, flags, {}, xlFacts({ hits: 1391, retrieved: 50 }))
-assert.ok(!cutSheets[0].head.includes('AI suggested'),
-    'a TRUNCATED sheet must not carry an AI verdict column — the top 50 by relevance holds ~1% of the eligible studies (docs/RECALL-STUDY.md)')
-assert.ok(!cutSheets[0].head.includes('AI reason'), 'the reason column goes with the verdict it explains')
-assert.strictEqual(cutSheets[0].head.length, cutSheets[0].rows[0].length,
-    'dropping the columns must drop the CELLS — a head and a row of different lengths silently shifts every value into the wrong column')
-const searchSheet = JSON.stringify(cutSheets[1].rows)
-assert.ok(/NOT INCLUDED — this is not a screen/.test(searchSheet),
-    'the sheet must say IN THE FILE why there is no verdict — Covidence opens it, and that reader never saw our UI')
-assert.ok(!/AI suggestions by/.test(searchSheet), 'the sheet must not advertise an AI verdict it does not carry')
+    const cutSheets = xp.recordSheets(recs, flags, {}, xlFacts({ hits: 1391, retrieved: 50 }))
+    assert.ok(!cutSheets[0].head.includes('AI suggested'),
+        'a TRUNCATED sheet must not carry an AI verdict column — the top 50 by relevance holds ~1% of the eligible studies (docs/RECALL-STUDY.md)')
+    assert.ok(!cutSheets[0].head.includes('AI reason'), 'the reason column goes with the verdict it explains')
+    assert.strictEqual(cutSheets[0].head.length, cutSheets[0].rows[0].length,
+        'dropping the columns must drop the CELLS — a head and a row of different lengths silently shifts every value into the wrong column')
+    const searchSheet = JSON.stringify(cutSheets[1].rows)
+    assert.ok(/NOT INCLUDED — this is not a screen/.test(searchSheet),
+        'the sheet must say IN THE FILE why there is no verdict — Covidence opens it, and that reader never saw our UI')
+    assert.ok(!/AI suggestions by/.test(searchSheet), 'the sheet must not advertise an AI verdict it does not carry')
 
-const wholeSheets = xp.recordSheets(recs, flags, {}, xlFacts({ hits: 1, retrieved: 1 }))
-assert.ok(wholeSheets[0].head.includes('AI suggested'),
-    'a COMPLETE sheet keeps its verdict column — the model screened every record there was, and that verdict is real')
-assert.ok(JSON.stringify(wholeSheets[0].rows).includes('Include'), 'and the verdict itself survives')
-console.log(`exports:      the .xlsx REFUSES its AI verdict column when the sample is truncated, and keeps it when it is not`)
+    const wholeSheets = xp.recordSheets(recs, flags, {}, xlFacts({ hits: 1, retrieved: 1 }))
+    assert.ok(wholeSheets[0].head.includes('AI suggested'),
+        'a COMPLETE sheet keeps its verdict column — the model screened every record there was, and that verdict is real')
+    assert.ok(JSON.stringify(wholeSheets[0].rows).includes('Include'), 'and the verdict itself survives')
+    console.log(`exports:      the .xlsx REFUSES its AI verdict column when the sample is truncated, and keeps it when it is not`)
+}
+
+const { s, q } = checkStrategyBounds(lit)
+const { hits, rc } = checkRecordsColumnRendering(lit, xp, s, q)
+checkMarkdownDocuments(xp, md, s, q, hits, rc)
+checkXlsxTruncationGuard(xp, q)
 
 console.log('\nAll pure checks passed. No network, no model, no environment.')

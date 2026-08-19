@@ -21,7 +21,14 @@ const ROOT = path.resolve(__dirname, '..')
 // UP from the required file — from /var/folders/... it never reaches the repo and the require
 // dies with MODULE_NOT_FOUND. (The check still makes no model call; the import just has to
 // resolve.) .litcheck/ is gitignored.
-const OUT = path.join(ROOT, '.litcheck')
+//
+// A subdirectory of .litcheck/, never the top level: literatureSearch.pure.check.js keeps its own
+// compiled output and its own cleanup under .litcheck/pure, and this check's cleanOutDir() runs an
+// UNSCOPED recursive rm — if OUT were the shared .litcheck/ itself, this check's start/success/catch
+// cleanup could delete the pure check's tree out from under it (or vice versa) whenever both run
+// around the same time. .litcheck/live keeps this check's recursive delete inside its own subtree,
+// exactly as .litcheck/pure already keeps the other one inside its.
+const OUT = path.join(ROOT, '.litcheck', 'live')
 
 // A laptop keeps RECITER_PUBMED_API_URL in .env.local, which is gitignored — so on any runner that
 // checks the repo out there is no such file, and reading it unconditionally crashes with ENOENT

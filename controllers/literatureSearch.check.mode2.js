@@ -8,17 +8,10 @@
 const assert = require('node:assert')
 const { strategy } = require('./literatureSearch.check.fixtures')
 
-const run = async (lit, { hits }) => {
-    const s = strategy()
-
-    // =======================================================================================
-    // MODE 2 — "Issue review". Records, not counts. Still no LLM: everything below is either
-    // pure or a PubMed fetch, and the two things it defends are the two that silently produce
-    // a page that looks perfect and is worthless.
-
-    // ---- Pure: the design chip. -------------------------------------------------------------
-    // Derived from PubMed's OWN publication types, never from the model's read of the abstract —
-    // the chip is a claim about the evidence hierarchy, and PubMed's indexers already made it.
+// ---- Pure: the design chip. -------------------------------------------------------------
+// Derived from PubMed's OWN publication types, never from the model's read of the abstract —
+// the chip is a claim about the evidence hierarchy, and PubMed's indexers already made it.
+const checkDesignOf = (lit) => {
     assert.strictEqual(lit.designOf(['Randomized Controlled Trial', 'Journal Article']), 'RCT')
     assert.strictEqual(lit.designOf(['Journal Article', 'Review', "Research Support, Non-U.S. Gov't"]), 'Review')
     assert.strictEqual(lit.designOf(['Observational Study']), 'Observational')
@@ -34,10 +27,12 @@ const run = async (lit, { hits }) => {
     // Qualified variants are real ("Randomized Controlled Trial, Veterinary"), and the tags arrive
     // in PubMed's own casing.
     assert.strictEqual(lit.designOf(['randomized controlled trial, veterinary']), 'RCT')
+}
 
-    // ---- Pure: the structured-abstract join. ------------------------------------------------
-    // PubMed abstracts arrive in SEGMENTS. Keeping the labels is what lets a model tell a stated
-    // RESULT from a stated OBJECTIVE — the exact distinction the synthesis prompt polices.
+// ---- Pure: the structured-abstract join. ------------------------------------------------
+// PubMed abstracts arrive in SEGMENTS. Keeping the labels is what lets a model tell a stated
+// RESULT from a stated OBJECTIVE — the exact distinction the synthesis prompt polices.
+const checkAbstractJoin = (lit) => {
     assert.strictEqual(
         lit.joinAbstract([
             { abstractTextLabel: 'OBJECTIVE', abstractText: 'To test X.' },
@@ -53,60 +48,62 @@ const run = async (lit, { hits }) => {
     // are lowercase. The obvious guess parses cleanly, throws nothing, and yields an empty string:
     // 50 records screened on their titles alone, which reads plausible and is worthless.
     assert.strictEqual(lit.joinAbstract([{ abstracttext: 'wrong casing' }]), '', 'the lowercase guess yields NOTHING')
+}
 
-    // ---- Pure: the self-cancelling filter. ---------------------------------------------------
-    // Lines within a block are OR-ed. So "Humans"[MeSH] OR-ed into a study-design block is
-    // satisfied by every human paper ever indexed, and the design filter silently becomes a no-op.
-    // The model did exactly this in a live run; 31 of 50 retrieved records came back reviews.
-    {
-        const bad = {
-            db: 'pubmed',
-            limits: '(2021:2026[dp])',
-            concepts: [
-                { label: 'Probiotics', lines: [{ terms: 'Probiotics[MeSH] OR probiotic[tiab]', on: true }] },
-                { label: 'Study design', lines: [{ terms: 'Randomized Controlled Trial[pt] OR Humans[MeSH] OR placebo[tiab]', on: true }] },
-            ],
-        }
-        const fixed = lit.hoistFilters(bad)
-        const design = fixed.concepts.find(c => c.label === 'Study design')
-        assert.ok(!/Humans/i.test(design.lines[0].terms), 'Humans is pulled OUT of the design block')
-        assert.ok(/Randomized Controlled Trial\[pt\]/.test(design.lines[0].terms), 'the real design terms survive')
-        const humans = fixed.concepts.find(c => c.label === 'Humans')
-        assert.ok(humans, 'Humans gets its OWN block, so that it is AND-ed rather than OR-ed')
-        // The whole point: it must now AND, i.e. actually restrict.
-        assert.ok(lit.assembleQuery(fixed).includes(') AND (Humans[MeSH])'), 'and the AND is real in the emitted query')
-
-        // A filter already alone in its own block is left exactly as it is — no churn.
-        const good = {
-            db: 'pubmed', limits: '',
-            concepts: [{ label: 'Humans', lines: [{ terms: 'Humans[MeSH]', on: true }] }],
-        }
-        assert.deepStrictEqual(lit.hoistFilters(good), good, 'a correct strategy passes through untouched')
+// ---- Pure: the self-cancelling filter. ---------------------------------------------------
+// Lines within a block are OR-ed. So "Humans"[MeSH] OR-ed into a study-design block is
+// satisfied by every human paper ever indexed, and the design filter silently becomes a no-op.
+// The model did exactly this in a live run; 31 of 50 retrieved records came back reviews.
+const checkFilterHoisting = (lit) => {
+    const bad = {
+        db: 'pubmed',
+        limits: '(2021:2026[dp])',
+        concepts: [
+            { label: 'Probiotics', lines: [{ terms: 'Probiotics[MeSH] OR probiotic[tiab]', on: true }] },
+            { label: 'Study design', lines: [{ terms: 'Randomized Controlled Trial[pt] OR Humans[MeSH] OR placebo[tiab]', on: true }] },
+        ],
     }
+    const fixed = lit.hoistFilters(bad)
+    const design = fixed.concepts.find(c => c.label === 'Study design')
+    assert.ok(!/Humans/i.test(design.lines[0].terms), 'Humans is pulled OUT of the design block')
+    assert.ok(/Randomized Controlled Trial\[pt\]/.test(design.lines[0].terms), 'the real design terms survive')
+    const humans = fixed.concepts.find(c => c.label === 'Humans')
+    assert.ok(humans, 'Humans gets its OWN block, so that it is AND-ed rather than OR-ed')
+    // The whole point: it must now AND, i.e. actually restrict.
+    assert.ok(lit.assembleQuery(fixed).includes(') AND (Humans[MeSH])'), 'and the AND is real in the emitted query')
 
-    // ---- Live iCite: a MISSING percentile must never render as a real one. -------------------
-    // Number(null) === 0, and 0 is finite. So a finiteness check on the COERCED value cannot tell
-    // "iCite has not scored this yet" from "bottom of its field", and the first cut of this shipped
-    // 14 of 50 records — every recent trial in the set — as a confident "NIH 0th pct".
-    // 37314797 (2023) has a real percentile; 41667154 (2026) is too new to have one.
-    {
-        const scored = await lit.withCitationMetrics([
-            { pmid: '37314797', title: '', journal: '', year: '2023', authors: '', design: 'RCT', abstract: '', mesh: [] },
-            { pmid: '41667154', title: '', journal: '', year: '2026', authors: '', design: 'RCT', abstract: '', mesh: [] },
-        ])
-        const [old_, recent] = scored
-        assert.strictEqual(typeof old_.nihPercentile, 'number', 'a scored paper carries its percentile')
-        assert.ok(old_.nihPercentile > 50, 'and it is the real value, not a placeholder')
-        assert.strictEqual(recent.nihPercentile, undefined,
-            'an UNSCORED paper carries NO percentile — not 0, which would read as "bottom of its field"')
-        // The records themselves must survive regardless: this is a garnish, never the deliverable.
-        assert.strictEqual(scored.length, 2, 'iCite never drops a record')
+    // A filter already alone in its own block is left exactly as it is — no churn.
+    const good = {
+        db: 'pubmed', limits: '',
+        concepts: [{ label: 'Humans', lines: [{ terms: 'Humans[MeSH]', on: true }] }],
     }
+    assert.deepStrictEqual(lit.hoistFilters(good), good, 'a correct strategy passes through untouched')
+}
 
-    // ---- Pure: PubMed markup. It is NOT just italics, and it is not only in titles. -----------
-    // Rendered raw, this put "Psychobiotic <i>Lactobacillus plantarum</i> JYLP-326" on the screen
-    // in a live run. In an ABSTRACT the same tags never reach the DOM — they just get billed into
-    // the context window, 50 abstracts at a time.
+// ---- Live iCite: a MISSING percentile must never render as a real one. -------------------
+// Number(null) === 0, and 0 is finite. So a finiteness check on the COERCED value cannot tell
+// "iCite has not scored this yet" from "bottom of its field", and the first cut of this shipped
+// 14 of 50 records — every recent trial in the set — as a confident "NIH 0th pct".
+// 37314797 (2023) has a real percentile; 41667154 (2026) is too new to have one.
+const checkCitationMetrics = async (lit) => {
+    const scored = await lit.withCitationMetrics([
+        { pmid: '37314797', title: '', journal: '', year: '2023', authors: '', design: 'RCT', abstract: '', mesh: [] },
+        { pmid: '41667154', title: '', journal: '', year: '2026', authors: '', design: 'RCT', abstract: '', mesh: [] },
+    ])
+    const [old_, recent] = scored
+    assert.strictEqual(typeof old_.nihPercentile, 'number', 'a scored paper carries its percentile')
+    assert.ok(old_.nihPercentile > 50, 'and it is the real value, not a placeholder')
+    assert.strictEqual(recent.nihPercentile, undefined,
+        'an UNSCORED paper carries NO percentile — not 0, which would read as "bottom of its field"')
+    // The records themselves must survive regardless: this is a garnish, never the deliverable.
+    assert.strictEqual(scored.length, 2, 'iCite never drops a record')
+}
+
+// ---- Pure: PubMed markup. It is NOT just italics, and it is not only in titles. -----------
+// Rendered raw, this put "Psychobiotic <i>Lactobacillus plantarum</i> JYLP-326" on the screen
+// in a live run. In an ABSTRACT the same tags never reach the DOM — they just get billed into
+// the context window, 50 abstracts at a time.
+const checkMarkupStripping = (lit) => {
     assert.strictEqual(
         lit.plainText('Psychobiotic <i>Lactobacillus plantarum</i> JYLP-326 relieves anxiety'),
         'Psychobiotic Lactobacillus plantarum JYLP-326 relieves anxiety',
@@ -127,8 +124,10 @@ const run = async (lit, { hits }) => {
         'RESULTS: L. plantarum reduced HAMD (p<0.05).',
         'abstracts are cleaned as well as titles',
     )
+}
 
-    // ---- Live PubMed: the record parse. -----------------------------------------------------
+// ---- Live PubMed: the record parse. -----------------------------------------------------
+const checkRecordParsing = async (lit) => {
     const recs = await lit.fetchRecords('37314797[uid] OR 35654766[uid] OR 34875345[uid] OR 27793434[uid]', 4)
     assert.strictEqual(recs.length, 4, 'four PMIDs, four records')
 
@@ -156,11 +155,13 @@ const run = async (lit, { hits }) => {
 
     const sarkar = recs.find(r => r.pmid === '27793434')
     assert.strictEqual(sarkar.design, 'Review', 'Sarkar 2016 is tagged Review, not RCT')
+}
 
-    // ---- Live PubMed: the cap, and the count-before-fetch rule. ------------------------------
-    // The cap is a property of the mode, not a setting, and it is enforced HERE rather than
-    // trusted to the retrieval tool's retmax: it bounds what enters the context window, so it
-    // cannot depend on the far side of an HTTP call honouring a field.
+// ---- Live PubMed: the cap, and the count-before-fetch rule. ------------------------------
+// The cap is a property of the mode, not a setting, and it is enforced HERE rather than
+// trusted to the retrieval tool's retmax: it bounds what enters the context window, so it
+// cannot depend on the far side of an HTTP call honouring a field.
+const checkReviewCapAndBands = async (lit, s) => {
     const capped = await lit.fetchRecords(lit.assembleQuery(s), 5)
     assert.strictEqual(capped.length, 5, 'the cap is enforced on our side of the wire')
 
@@ -215,14 +216,16 @@ const run = async (lit, { hits }) => {
     assert.ok(!anyway.needsNarrowing, 'proceed walks through the gate')
     assert.strictEqual(anyway.records.length, lit.RECORD_CAP, `the top 50 of ${anyway.hits} come back regardless`)
     console.log(`proceed:      ${anyway.hits} hits -> ${anyway.records.length} records (the top 50, retrieved anyway)`)
+}
 
-    // ---- Live PubMed: suggestNarrowings — the mirror of the suggested widening. ---------------
-    // Same contract as suggestFixes, pointing the other way: a candidate is PRICED against live
-    // PubMed, and one whose number we cannot stand behind is DROPPED rather than published.
-    //
-    // SKIPPED WHEN THE QUERY ALREADY HAS IT. The fixture is already limited to 2021-2026 RCTs, so
-    // both the RCT block and the 5-year window are already in the assembled query — offering either
-    // would price it at a delta of zero, which is noise dressed up as advice.
+// ---- Live PubMed: suggestNarrowings — the mirror of the suggested widening. ---------------
+// Same contract as suggestFixes, pointing the other way: a candidate is PRICED against live
+// PubMed, and one whose number we cannot stand behind is DROPPED rather than published.
+//
+// SKIPPED WHEN THE QUERY ALREADY HAS IT. The fixture is already limited to 2021-2026 RCTs, so
+// both the RCT block and the 5-year window are already in the assembled query — offering either
+// would price it at a delta of zero, which is noise dressed up as advice.
+const checkNarrowingSuggestions = async (lit, s, hits) => {
     const onFixture = await lit.suggestNarrowings(s, hits)
     const labels = onFixture.map(n => n.label)
     assert.ok(!labels.includes('Randomized trials only'), 'the RCT limit is already in this query')
@@ -250,6 +253,24 @@ const run = async (lit, { hits }) => {
         'a narrowing that leaves the count unchanged is DROPPED, never shown as a no-op with a price on it',
     )
     console.log(`dropped:      "Randomized trials only" prices at ${cctHits} -> ${cctHits} on a trials-only query, so it is not offered`)
+}
+
+const run = async (lit, { hits }) => {
+    const s = strategy()
+
+    // =======================================================================================
+    // MODE 2 — "Issue review". Records, not counts. Still no LLM: everything below is either
+    // pure or a PubMed fetch, and the two things it defends are the two that silently produce
+    // a page that looks perfect and is worthless.
+
+    checkDesignOf(lit)
+    checkAbstractJoin(lit)
+    checkFilterHoisting(lit)
+    await checkCitationMetrics(lit)
+    checkMarkupStripping(lit)
+    await checkRecordParsing(lit)
+    await checkReviewCapAndBands(lit, s)
+    await checkNarrowingSuggestions(lit, s, hits)
 }
 
 module.exports = { run }

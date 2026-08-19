@@ -10,26 +10,24 @@ const assert = require('node:assert')
 const { strategy } = require('./literatureSearch.check.fixtures')
 const { requireCompiled } = require('./literatureSearch.check.harness')
 
-const run = async ({ q, rc, rowsResult, embaseRun }) => {
-    const s = strategy()
+// Everything a document says, flattened — table cells INCLUDED, because the query, the count and
+// the model all live in the repro TABLE, not in a paragraph. Flatten only the paragraphs and
+// this whole section would pass while asserting nothing.
+//
+// A pure, module-level helper: it closes over nothing but its own argument, so every section below
+// can call it directly without threading it through as a parameter.
+const said = blocks => blocks.flatMap(b =>
+    b.kind === 'table' ? [...b.head, ...b.rows.flat()] : [b.text]
+).join('\n')
 
-    // =======================================================================================
-    // EXPORTS. An export that cannot be re-run is not evidence — so the thing worth pinning is that
-    // every document carries the query, the count, the date, who ran it, and WHICH MODEL DRAFTED IT.
-    //
-    // Asserted over the BLOCKS, not over the rendered bytes. The blocks are what a document SAYS;
-    // .docx is a zip, and grepping a zip for a PubMed query proves nothing. The renderer that turns
-    // blocks into that zip is a different question and gets its own smoke test, below.
-
-    const xp = requireCompiled('controllers/literatureExport.js')
-
-    // Everything a document says, flattened — table cells INCLUDED, because the query, the count and
-    // the model all live in the repro TABLE, not in a paragraph. Flatten only the paragraphs and
-    // this whole section would pass while asserting nothing.
-    const said = blocks => blocks.flatMap(b =>
-        b.kind === 'table' ? [...b.head, ...b.rows.flat()] : [b.text]
-    ).join('\n')
-
+// =======================================================================================
+// EXPORTS. An export that cannot be re-run is not evidence — so the thing worth pinning is that
+// every document carries the query, the count, the date, who ran it, and WHICH MODEL DRAFTED IT.
+//
+// Asserted over the BLOCKS, not over the rendered bytes. The blocks are what a document SAYS;
+// .docx is a zip, and grepping a zip for a PubMed query proves nothing. The renderer that turns
+// blocks into that zip is a different question and gets its own smoke test, below.
+const checkModelLabel = (xp) => {
     // Prettified for the reader, but the PROFILE ID survives verbatim: the id pins the weights and
     // agrees with the Bedrock bill, the pretty name is what a reader understands, and a journal's AI
     // declaration wants both. An id this cannot parse must fall through UNCHANGED rather than vanish
@@ -73,15 +71,12 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
         assert.ok(decl.includes(id), `the profile id must survive verbatim in the declaration: ${id}`)
         assert.ok(!/\d{8}\./.test(decl), `a release date must never be printed as a version: ${id}`)
     }
+}
 
-    // THE REPRODUCIBILITY INVARIANT. A synthesis pasted into a manuscript without the query behind
-    // it is an anecdote with citations — and "AI-assisted" with no model version is not a
-    // declaration. This is the assertion that says both out loud.
-    const facts = {
-        query: 'probiotics[tiab] AND depression[tiab]', hits: 122, runDate: '2026-07-13',
-        retrieved: 50, sort: 'most relevant',
-        cwid: 'paa2013', model: 'us.anthropic.claude-opus-4-8',
-    }
+// THE REPRODUCIBILITY INVARIANT. A synthesis pasted into a manuscript without the query behind
+// it is an anecdote with citations — and "AI-assisted" with no model version is not a
+// declaration. This is the assertion that says both out loud.
+const checkReproducibilityFacts = (xp, facts) => {
     const doc = said(xp.synthesisDoc(
         { table: [{ pmid: '37314797', study: 'Nikolova et al.', year: '2023', journal: 'JAMA Psychiatry', design: 'RCT', intervention: 'Probiotic vs placebo' }],
           prose: 'Probiotics reduced symptoms [PMID 37314797].', floor: 'The strongest evidence retrieved is a randomized controlled trial.' },
@@ -111,10 +106,14 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
     ))
     assert.ok(!/top \d+ of/.test(mode1), 'Mode 1 retrieves nothing, so it must not claim a retrieved slice')
 
-    // A FABRICATED CITATION MUST TRAVEL WITH THE DOCUMENT. The server already detects a PMID the
-    // model was never given; for a while it only console.error'd it and exported the clickable link
-    // anyway. The .docx is the copy that gets mailed to a co-author, so the warning belongs IN it —
-    // and above the prose, not in a footnote under it.
+    return { doc }
+}
+
+// A FABRICATED CITATION MUST TRAVEL WITH THE DOCUMENT. The server already detects a PMID the
+// model was never given; for a while it only console.error'd it and exported the clickable link
+// anyway. The .docx is the copy that gets mailed to a co-author, so the warning belongs IN it —
+// and above the prose, not in a footnote under it.
+const checkFabricatedCitationWarning = (xp, facts, doc) => {
     const dirty = said(xp.synthesisDoc(
         { table: [], prose: 'Probiotics reduced symptoms [PMID 99999999].', invented: ['99999999'] },
         facts, 'Q?', { pico: false, screenedIn: 1, screenedOf: 50 },
@@ -125,9 +124,11 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
         'the warning must sit ABOVE the prose it contaminates — a reader must not reach the claim first')
     assert.ok(!/WARNING/.test(doc), 'a clean synthesis must carry no warning')
     console.log('synthesis:    an invented citation is flagged on the wire, on screen, and above the prose in the .docx')
+}
 
-    // The strategy export must describe the TOGGLED state, never the model's draft: an unticked line
-    // was not searched, so it must not appear in a methods section that claims it was.
+// The strategy export must describe the TOGGLED state, never the model's draft: an unticked line
+// was not searched, so it must not appear in a methods section that claims it was.
+const checkStrategyToggleState = (xp) => {
     const strategyBlocks = xp.strategyDoc({
         concepts: [
             { label: 'Probiotics', lines: [{ terms: 'probiotics[tiab]', on: true }, { terms: 'SHOULD-NOT-APPEAR[tiab]', on: false }] },
@@ -144,17 +145,23 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
     assert.ok(sDoc.includes('us.anthropic.claude-opus-4-8'),
         'the SEARCH STRATEGY export must disclose the model that drafted the query, not only the synthesis')
 
-    // THE RESULTS COLUMN, ACTUALLY PRINTED. Everything asserted about the row counts further up was
-    // asserted about the MAP; the appendix is where a PRESS reviewer reads them. Until this, no check
-    // ever handed the map to the exporter — every strategyDoc() call passed no rowCounts — so the
-    // Records column was only exercised on its BLANK branch, and a column that printed every count one
-    // line out of place would have gone green.
-    //
-    // A LINE NUMBER DOES NOT NAME A STABLE QUERY (the re-keying asserted at the top of this file), so
-    // "the right number appeared" is not the property worth checking — "each count is on ITS OWN line"
-    // is. Read the count back at the number the EXPORT derived, not at the number we counted with.
-    // The last row is the anchor: it IS the whole search, so its cell must equal the yield printed in
-    // the header above it, or the appendix and the panel are describing different queries.
+    return { strategyBlocks }
+}
+
+// THE RESULTS COLUMN, ACTUALLY PRINTED. Everything asserted about the row counts further up was
+// asserted about the MAP; the appendix is where a PRESS reviewer reads them. Until this, no check
+// ever handed the map to the exporter — every strategyDoc() call passed no rowCounts — so the
+// Records column was only exercised on its BLANK branch, and a column that printed every count one
+// line out of place would have gone green.
+//
+// A LINE NUMBER DOES NOT NAME A STABLE QUERY (the re-keying asserted at the top of this file), so
+// "the right number appeared" is not the property worth checking — "each count is on ITS OWN line"
+// is. Read the count back at the number the EXPORT derived, not at the number we counted with.
+// The last row is the anchor: it IS the whole search, so its cell must equal the yield printed in
+// the header above it, or the appendix and the panel are describing different queries.
+const checkRecordsColumn = (xp, { q, rc, rowsResult }) => {
+    const s = strategy()
+
     const counted = xp.strategyDoc(
         { ...s, query: q, hits: rowsResult.hits, runDate: '2026-07-13', seeds: [], rowCounts: rc },
         'Do probiotics help depression?', 'paa2013', 'us.anthropic.claude-opus-4-8',
@@ -172,12 +179,14 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
         'the last line of the appendix IS the search: its count must equal the yield in the header above it',
     )
     console.log(`records col:  ${recordsTable.rows.length} lines printed, each carrying its own count; last line == yield (${rowsResult.hits.toLocaleString()})`)
+}
 
-    // EMBASE (OVID): THE EXPORT IS THE ARTIFACT THAT LEAVES THE BUILDING, so it is the thing that has
-    // to say the strategy was DRAFTED and never RUN. `hits` is null here, and both of the obvious
-    // coercions are fabrications in a methods table: String(null) is the word "null", Number(null) is
-    // 0 — and "Records identified by the query: 0" beside a perfectly good strategy reads, to a reader
-    // who was not in the room, as "this search found nothing."
+// EMBASE (OVID): THE EXPORT IS THE ARTIFACT THAT LEAVES THE BUILDING, so it is the thing that has
+// to say the strategy was DRAFTED and never RUN. `hits` is null here, and both of the obvious
+// coercions are fabrications in a methods table: String(null) is the word "null", Number(null) is
+// 0 — and "Records identified by the query: 0" beside a perfectly good strategy reads, to a reader
+// who was not in the room, as "this search found nothing."
+const checkEmbaseExport = (xp, embaseRun) => {
     assert.ok(embaseRun, 'the Embase dialect section must have run before the exports section')
     const eDoc = said(xp.strategyDoc(
         { ...embaseRun.run, db: 'embase', unsupportedLimits: embaseRun.unsupported },
@@ -197,9 +206,11 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
     assert.ok(/Limits panel/i.test(eDoc),
         'Ovid CAN apply these limits, in its own panel — do not tell a librarian it cannot')
     console.log('embase export: declares DRAFTED-not-run, prints no 0/null yield, tells the librarian to test each Emtree line')
+}
 
-    // THE RENDERER. Word is the delivery format, so a Block[] it cannot render is a download button
-    // that throws in a librarian's face. Packer really zips it — a .docx is a zip, so it opens PK.
+// THE RENDERER. Word is the delivery format, so a Block[] it cannot render is a download button
+// that throws in a librarian's face. Packer really zips it — a .docx is a zip, so it opens PK.
+const checkDocxRenderer = async (xp, facts, strategyBlocks) => {
     const { Packer } = require('docx')
     const { docxDoc } = requireCompiled('controllers/literatureDocx.js')
     const buf = await Packer.toBuffer(docxDoc([...strategyBlocks, ...xp.synthesisDoc(
@@ -231,9 +242,11 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
             'no raw newline may survive inside a <w:t>: Word reads it as a space, not a break')
         console.log('docx:         a multi-paragraph synthesis emits real Word paragraphs, not one slab')
     }
+}
 
-    // The spreadsheet: a null iCite percentile is NOT a zero. Number(null) === 0, and a confident
-    // "0" against a brand-new trial is a scarlet letter we invented.
+// The spreadsheet: a null iCite percentile is NOT a zero. Number(null) === 0, and a confident
+// "0" against a brand-new trial is a scarlet letter we invented.
+const checkXlsxSheets = (xp, facts) => {
     const sheets = xp.recordSheets(
         [{ pmid: '1', title: 'T', authors: 'A', year: '2024', journal: 'J', design: 'RCT', tier: { rank: 3 } }],
         {}, {}, facts,
@@ -242,6 +255,25 @@ const run = async ({ q, rc, rowsResult, embaseRun }) => {
     assert.strictEqual(sheets[0].rows[0][pctCol], '', 'an absent percentile exports as blank, never as 0')
     assert.ok(sheets.some(s => s.name === 'Search'), 'the data file carries the query with it, or it cannot be accounted for later')
     console.log('exports:      query/count/date/who/MODEL carried (strategy too); unticked lines excluded; null pct stays blank; .docx renders')
+}
+
+const run = async ({ q, rc, rowsResult, embaseRun }) => {
+    const xp = requireCompiled('controllers/literatureExport.js')
+
+    checkModelLabel(xp)
+
+    const facts = {
+        query: 'probiotics[tiab] AND depression[tiab]', hits: 122, runDate: '2026-07-13',
+        retrieved: 50, sort: 'most relevant',
+        cwid: 'paa2013', model: 'us.anthropic.claude-opus-4-8',
+    }
+    const { doc } = checkReproducibilityFacts(xp, facts)
+    checkFabricatedCitationWarning(xp, facts, doc)
+    const { strategyBlocks } = checkStrategyToggleState(xp)
+    checkRecordsColumn(xp, { q, rc, rowsResult })
+    checkEmbaseExport(xp, embaseRun)
+    await checkDocxRenderer(xp, facts, strategyBlocks)
+    checkXlsxSheets(xp, facts)
 }
 
 module.exports = { run }

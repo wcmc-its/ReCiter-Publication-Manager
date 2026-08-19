@@ -7,22 +7,13 @@
  * from one named step to the next cannot be read before the step that produces it has run.
  */
 const assert = require('node:assert')
-const fs = require('node:fs')
-const path = require('node:path')
-const { ROOT } = require('./literatureSearch.check.harness')
+const { checkTsxDoesNotShadowParseSeeds } = require('./literatureSearch.check.staticGuards')
 
-const run = async (lit) => {
-    // =======================================================================================
-    // THE CONCEPT / RENDERING SPLIT, and the database dialects.
-    //
-    // The whole point of the split is that a LABEL crosses a database boundary and TERMS never do.
-    // Everything below is a rule that, if it broke, would break SILENTLY — a Scopus search running
-    // without the limit the librarian asked for, or a seed check that cannot see half of Scopus.
-
-    // A limit one database cannot express is DECLARED, not dropped. Scopus indexes a document type,
-    // not a study design — probed live, DOCTYPE(rct) returns 0 — so "RCT only" has NO Scopus
-    // equivalent. If this ever starts returning terms, someone has invented a fake RCT filter and
-    // the Scopus count is quietly answering a different question from the PubMed one beside it.
+// A limit one database cannot express is DECLARED, not dropped. Scopus indexes a document type,
+// not a study design — probed live, DOCTYPE(rct) returns 0 — so "RCT only" has NO Scopus
+// equivalent. If this ever starts returning terms, someone has invented a fake RCT filter and
+// the Scopus count is quietly answering a different question from the PubMed one beside it.
+const checkBuildLimits = (lit) => {
     const pmLimits = lit.buildLimits('pubmed', '5y', 'rct')
     assert.ok(pmLimits.terms.includes('[dp]') && pmLimits.terms.includes('Randomized Controlled Trial[pt]'),
         'PubMed expresses both limits natively')
@@ -35,44 +26,38 @@ const run = async (lit) => {
         'Scopus has no RCT document type, and MUST say so rather than run an unlimited search')
     assert.ok(!/randomi/i.test(scLimits.terms),
         'an inexpressible limit must not be faked with free text — that is a translation layer in disguise')
+}
 
-    // A SEED IS NOT A PMID. A Scopus-only record (a conference paper, a non-MEDLINE journal) has no
-    // PMID at all, and those are the records Scopus is FOR — so a PMID-keyed seed check could only
-    // ever validate the half of Scopus that PubMed already covers. DOIs must parse and must render
-    // in each database's own identifier syntax.
+// A SEED IS NOT A PMID. A Scopus-only record (a conference paper, a non-MEDLINE journal) has no
+// PMID at all, and those are the records Scopus is FOR — so a PMID-keyed seed check could only
+// ever validate the half of Scopus that PubMed already covers. DOIs must parse and must render
+// in each database's own identifier syntax.
+const checkSeedParsingAndRendering = (lit) => {
     const mixed = lit.parseSeeds('37314797, 10.1001/jamapsychiatry.2023.1817 not-an-id 37314797')
     assert.deepStrictEqual(mixed, [
         { id: '37314797', kind: 'pmid' },
         { id: '10.1001/jamapsychiatry.2023.1817', kind: 'doi' },
     ], 'PMIDs and DOIs both parse; junk is dropped; duplicates collapse')
 
-    // ...AND THE SCREEN MUST COUNT WITH THIS EXACT FUNCTION. The component used to keep its own
-    // PMID-only `parseSeeds` (a `/^\d{5,9}$/` filter), which meant the live "N seeds" pill and the
-    // server's validation disagreed in BOTH directions: a pasted DOI counted 0 on screen and 1 on
-    // the server, a comma-separated list of 3 counted 1, and the same PMID twice counted 2 on
-    // screen and 1 on the server. The pill is the librarian's only pre-flight evidence that their
-    // seeds registered, so a shadowing copy is a confident wrong number by construction. There is
-    // no runtime seam to assert this through (the .tsx never reaches node), so assert it at the
-    // source: the browser imports the shared parser and does not redefine one.
-    const tsx = fs.readFileSync(
-        path.join(ROOT, 'src/components/elements/Literature/LiteratureSearch.tsx'), 'utf8')
-    assert.ok(!/(?:const|function)\s+parseSeeds\b/.test(tsx),
-        'LiteratureSearch.tsx must NOT define its own parseSeeds — it shadows the shared one and the seed count stops matching what the server validates')
-    assert.ok(/^\s*parseSeeds,\s*$/m.test(tsx),
-        'LiteratureSearch.tsx must import parseSeeds from literatureSearch.strategy')
+    // Pulled out to literatureSearch.check.staticGuards.js — it greps a .tsx source file rather
+    // than asserting a dialect fact — but run here, between the parse and the render assertions,
+    // so the check order is unchanged.
+    checkTsxDoesNotShadowParseSeeds()
 
     const [pmSeed, doiSeed] = mixed
     assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(pmSeed), '37314797[uid]')
     assert.strictEqual(lit.DIALECTS.pubmed.seedQuery(doiSeed), '"10.1001/jamapsychiatry.2023.1817"[aid]')
     assert.strictEqual(lit.DIALECTS.scopus.seedQuery(pmSeed), 'PMID(37314797)')
     assert.strictEqual(lit.DIALECTS.scopus.seedQuery(doiSeed), 'DOI("10.1001/jamapsychiatry.2023.1817")')
+}
 
-    // THE DOI IS QUOTED, AND ONLY A LIVE COUNT CAN PROVE IT MATTERS. A PII-style DOI carries literal
-    // parentheses, and the seed ref is only ever counted CONCATENATED (`${ref} AND (${query})`) --
-    // where those parens become PubMed's own Boolean grouping. Unquoted, a paper the search really
-    // does retrieve is reported as a MISS, and the diagnosis then blames every concept block.
-    // The control is the same paper by PMID: if that stops returning 1, this fixture rotted rather
-    // than the quoting regressing.
+// THE DOI IS QUOTED, AND ONLY A LIVE COUNT CAN PROVE IT MATTERS. A PII-style DOI carries literal
+// parentheses, and the seed ref is only ever counted CONCATENATED (`${ref} AND (${query})`) --
+// where those parens become PubMed's own Boolean grouping. Unquoted, a paper the search really
+// does retrieve is reported as a MISS, and the diagnosis then blames every concept block.
+// The control is the same paper by PMID: if that stops returning 1, this fixture rotted rather
+// than the quoting regressing.
+const checkDoiQuotingLive = async (lit) => {
     const lancet = { id: '10.1016/S0140-6736(20)30183-5', kind: 'doi' }   // PMID 31986264
     const inQuery = q => lit.countPubmed(`${q} AND (wuhan[tiab])`)
     assert.strictEqual(await inQuery('31986264[uid]'), 1, 'control: the query does retrieve the paper by PMID')
@@ -81,11 +66,13 @@ const run = async (lit) => {
         'a parenthesised DOI seed must survive concatenation -- unquoted it counts 0 and the paper reads as a miss',
     )
     console.log('dialects:     limits native per DB; Scopus DECLARES "RCT only" as inexpressible; seeds are PMID *or* DOI')
+}
 
-    // ---- EMBASE (OVID): the database we DRAFT and never RUN. -------------------------------
-    //
-    // We have no API for it, so it produces NO NUMBER — and `strict: false` in tsconfig means the
-    // compiler will NOT stop anyone turning that null into a zero. These assertions are the only net.
+// ---- EMBASE (OVID): the database we DRAFT and never RUN. -------------------------------
+//
+// We have no API for it, so it produces NO NUMBER — and `strict: false` in tsconfig means the
+// compiler will NOT stop anyone turning that null into a zero. These assertions are the only net.
+const checkEmbaseContract = async (lit) => {
     assert.strictEqual(lit.DIALECTS.embase.countable, false, 'Embase has no API: it cannot be counted')
     assert.strictEqual(lit.DIALECTS.pubmed.countable, true)
     assert.strictEqual(lit.DIALECTS.scopus.countable, true)
@@ -132,7 +119,11 @@ const run = async (lit) => {
     console.log('embase(ovid): countable=false -> hits NULL not 0, no seed check, Ovid syntax passes through verbatim')
     console.log('seed quoting: a PII-style DOI (parens and all) counts 1 inside `AND (...)`, same as its PMID')
 
-    // ---- Live Scopus. Skipped LOUDLY when the tool is not configured. ----------------------
+    return { embaseRun }
+}
+
+// ---- Live Scopus. Skipped LOUDLY when the tool is not configured. ----------------------
+const checkLiveScopus = async (lit) => {
     if (!process.env.RECITER_SCOPUS_API_URL && !process.env.RECITER_API_BASE_URL) {
         console.log('scopus:       SKIPPED — set RECITER_SCOPUS_API_URL to check the Scopus half')
     } else {
@@ -175,6 +166,21 @@ const run = async (lit) => {
         assert.ok(!absent.failingConcepts, 'a not-in-database miss must not also blame a concept block')
         console.log(`scopus:       ${scHits} hits -> ${scNarrower} with DOCTYPE(ar); seed PMID 37314797 retrieved; a missing record reads as coverage, not as a bad query`)
     }
+}
+
+const run = async (lit) => {
+    // =======================================================================================
+    // THE CONCEPT / RENDERING SPLIT, and the database dialects.
+    //
+    // The whole point of the split is that a LABEL crosses a database boundary and TERMS never do.
+    // Everything below is a rule that, if it broke, would break SILENTLY — a Scopus search running
+    // without the limit the librarian asked for, or a seed check that cannot see half of Scopus.
+
+    checkBuildLimits(lit)
+    checkSeedParsingAndRendering(lit)
+    await checkDoiQuotingLive(lit)
+    const { embaseRun } = await checkEmbaseContract(lit)
+    await checkLiveScopus(lit)
 
     return { embaseRun }
 }
