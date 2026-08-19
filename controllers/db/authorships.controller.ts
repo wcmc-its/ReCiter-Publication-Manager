@@ -118,8 +118,20 @@ const siblingKey = (r: any) =>
 async function reciterIdentitySet(cwids: Array<string | undefined | null>): Promise<Set<string>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return new Set();
+  // Require a name: ReCiter's own POST /reciter/identity/ makes alternateNames
+  // (firstName/lastName) mandatory, so a null-name `person` row can't be a currently-valid
+  // identity — it's stale sync debris (live case: lbm2001, dateAdded=dateUpdated=2019-08-16,
+  // every descriptive field NULL). Without this guard those ghost rows pass the identity
+  // check, the curator sees a working Accept button, and the real ReCiter add 404s — the
+  // exact dead-end this guard exists to prevent, just via a different mechanism than the
+  // "never was in ReCiter" case it already covers. 157/33,091 person rows (0.47%) are
+  // affected as of 2026-08-14, several dated 2026-05-04 (the documented Analysis-corruption
+  // incident date — plausibly related, not confirmed).
   const found: any[] = await models.Person.findAll({
-    where: { personIdentifier: { [Op.in]: wanted } },
+    where: {
+      personIdentifier: { [Op.in]: wanted },
+      [Op.or]: [{ firstName: { [Op.ne]: null } }, { lastName: { [Op.ne]: null } }],
+    },
     attributes: ["personIdentifier"], raw: true,
   });
   return new Set(found.map((p) => String(p.personIdentifier)));

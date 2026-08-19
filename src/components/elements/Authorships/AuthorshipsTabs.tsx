@@ -809,8 +809,8 @@ const AuthorshipsTabs = () => {
 
       {/* scopus pub-type facet (chips from summary.pubTypes) */}
       {source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 14px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: "#94a3b8" }}>Type</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, margin: "2px 0 14px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>Type</span>
           <button onClick={() => setSelectedPubTypes([])} style={pubChipStyle(selectedPubTypes.length === 0)}>All</button>
           {(summary?.pubTypes || []).map((pt) => {
             const on = selectedPubTypes.includes(pt.type);
@@ -966,7 +966,7 @@ const kbdStyle: CSSProperties = {
 
 const pubChipStyle = (active: boolean): CSSProperties => ({
   border: `1px solid ${active ? "#c7d2fe" : "#dde3ea"}`, background: active ? "#eef2ff" : "#fff",
-  color: active ? "#4338ca" : "#475569", borderRadius: 16, padding: "3px 11px", fontSize: 12,
+  color: active ? "#4338ca" : "#475569", borderRadius: 14, padding: "2px 8px", fontSize: 11,
   fontWeight: 600, cursor: "pointer", font: "inherit",
 });
 
