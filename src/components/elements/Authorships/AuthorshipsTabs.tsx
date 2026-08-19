@@ -1183,9 +1183,14 @@ const AuthorshipCard = ({
             isMulti ? (
               <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
             ) : noIdentity ? (
-              <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted. Dismiss it via the ⋯ menu, or leave it open.`} placement="top" arrow>
-                <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
-              </Tip>
+              <>
+                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+                  <IconX size={14} /> Reject
+                </button>
+                <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted.`} placement="top" arrow>
+                  <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
+                </Tip>
+              </>
             ) : (
               <>
                 <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
