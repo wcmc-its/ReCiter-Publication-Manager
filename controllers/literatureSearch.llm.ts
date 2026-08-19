@@ -373,25 +373,23 @@ export function checkStrategy(s: Strategy): void {
     }
 }
 
-export async function buildStrategy(
+// PICO reuses REVIEW_PROMPT rather than getting a system prompt of its own, DELIBERATELY: the
+// field-tag rule lives in there and it is what makes the count reproducible against PubMed. A
+// second copy of that prompt is a second chance to relax the one rule that must never be
+// relaxed. So the PICO structure is carried in the USER message instead.
+function buildUserMessage(
     question: string,
+    criteria: string | undefined,
     limits: string,
-    criteria?: string,
-    objective: 'recall' | 'precision' = 'recall',
-    pico?: Pico,
-    db: Db = 'pubmed',
+    pico: Pico | undefined,
     // The concept LABELS the sibling strategy used, when there is one. This is the ONLY thing that
     // crosses a database boundary, and passing it is not a translation: the model still writes
     // native Scopus from the ORIGINAL QUESTION, and the labels only keep the two strategies talking
     // about the same three ideas so a human can read them side by side. Never pass the LINES.
-    sharedConcepts?: Concept[],
-): Promise<{ strategy: Strategy; usage: UsageLog }> {
+    sharedConcepts: Concept[] | undefined,
+): string {
     const parts = [`Research question: ${question}`]
 
-    // PICO reuses REVIEW_PROMPT rather than getting a system prompt of its own, DELIBERATELY: the
-    // field-tag rule lives in there and it is what makes the count reproducible against PubMed. A
-    // second copy of that prompt is a second chance to relax the one rule that must never be
-    // relaxed. So the PICO structure is carried in the USER message instead.
     if (pico) {
         const elements = [
             `Population: ${pico.population}`,
@@ -427,16 +425,20 @@ export async function buildStrategy(
         )
     }
 
-    // Scopus and Embase each get their OWN prompt, never a translation of PubMed's. Mode 1 (recall) is
-    // the only mode either is offered in — see the route — so there is no precision variant to prompt
-    // for on those two.
-    const prompt = db === 'scopus' ? SCOPUS_PROMPT
+    return parts.join('\n\n')
+}
+
+// Scopus and Embase each get their OWN prompt, never a translation of PubMed's. Mode 1 (recall) is
+// the only mode either is offered in — see the route — so there is no precision variant to prompt
+// for on those two.
+function selectPrompt(db: Db, objective: 'recall' | 'precision'): string {
+    return db === 'scopus' ? SCOPUS_PROMPT
         : db === 'embase' ? EMBASE_PROMPT
             : (objective === 'precision' ? REVIEW_PROMPT : SYSTEM_PROMPT)
+}
 
-    const { input, usage } = await invoke(prompt, STRATEGY_TOOL, parts.join('\n\n'))
-
-    const strategy: Strategy = {
+function parseStrategyResponse(input: any, db: Db, limits: string): Strategy {
+    return {
         db,
         concepts: (Array.isArray(input?.concepts) ? input.concepts : []).map((c: any) => ({
             label: String(c.label || ''),
@@ -447,6 +449,23 @@ export async function buildStrategy(
         })).filter((c: Rendering) => c.lines.length),
         limits,
     }
+}
+
+export async function buildStrategy(
+    question: string,
+    limits: string,
+    criteria?: string,
+    objective: 'recall' | 'precision' = 'recall',
+    pico?: Pico,
+    db: Db = 'pubmed',
+    sharedConcepts?: Concept[],
+): Promise<{ strategy: Strategy; usage: UsageLog }> {
+    const userMessage = buildUserMessage(question, criteria, limits, pico, sharedConcepts)
+    const prompt = selectPrompt(db, objective)
+
+    const { input, usage } = await invoke(prompt, STRATEGY_TOOL, userMessage)
+
+    const strategy = parseStrategyResponse(input, db, limits)
 
     // hoistFilters is PubMed-only, and not by oversight: the failure it repairs is a MeSH one
     // ("Humans"[MeSH] OR-ed in with real terms, silently satisfying its own block). Scopus has no
@@ -510,6 +529,112 @@ Compare the paper's ACTUAL MeSH descriptors against the block's terms — the ga
 
 Every term MUST carry an explicit PubMed field tag — [MeSH] or [tiab]. Propose terms, never a whole query: no parentheses, no AND, no limits. Widen only the block you are told excluded the paper. Return one fix per block named.`
 
+// The per-miss prompt text: the paper's own facts (title, actual MeSH descriptors) against the
+// block(s) that excluded it. Built from the ORIGINAL strategy `s`, not the strategy as it grows
+// across misses in the loop below — the description of "the block that excluded it" is about the
+// strategy the librarian is looking at, not this function's own accumulating scratch copy. In
+// practice the two never differ here anyway: everything suggestFixes appends arrives unticked,
+// and this only ever reads `l.filter(l => l.on)`.
+function buildFixPrompt(miss: SeedResult, rec: SeedRecord, strategy: Strategy): string {
+    const blocks = miss.failingConcepts!
+        .map(i => `Block ${i} ("${strategy.concepts[i].label}"):\n${strategy.concepts[i].lines.filter(l => l.on).map(l => l.terms).join('\n')}`)
+        .join('\n\n')
+
+    return `Missed paper: ${miss.kind.toUpperCase()} ${miss.id} — ${rec.label}\n`
+        + `Title: ${rec.title}\n`
+        + `Indexed in PubMed under these MeSH descriptors: ${rec.mesh.join(', ') || '(none)'}\n\n`
+        + `It was excluded by the following block(s), which it does not match:\n\n${blocks}`
+}
+
+// Re-validates, verifies and prices ONE proposed fix line against the strategy as it stands so
+// far (baseStrategy — the accumulating `out` in suggestFixes, so a block already widened by an
+// earlier miss in this same run is the base the next one is checked against). Returns the priced
+// Line to append, or null if the fix was rejected — the rejection is logged here, at the point
+// where the reason is known, exactly as it was before this was split out.
+async function verifyAndPriceFix(
+    baseStrategy: Strategy,
+    miss: SeedResult,
+    conceptIndex: number,
+    terms: string,
+    baseHits: number,
+): Promise<Line | null> {
+    const line: Line = { terms, on: false, suggestedFor: miss.id }
+    const withLine: Strategy = {
+        ...baseStrategy,
+        concepts: baseStrategy.concepts.map((c, i) =>
+            i === conceptIndex ? { ...c, lines: [...c.lines, { ...line, on: true }] } : c),
+    }
+
+    // 0. AND IT STILL HAS TO FIT. checkStrategy ran on the strategy the model BUILT; this
+    //    function then GROWS it, one line per missed seed per block, and four seeds all
+    //    failing the same block is not exotic. A block pushed past MAX_LINES (or a term line
+    //    past MAX_TERMS) yields a strategy the route will REFUSE to re-count — a 502 on every
+    //    subsequent toggle, against a strategy the librarian has already paid for. Re-validate
+    //    the strategy WITH the line in it, using the same validator both ends use, so there is
+    //    one set of ceilings and no second copy of them to drift.
+    //
+    //    Dropping the suggestion is safe: the strategy still stands, the seed still shows as a
+    //    miss with its diagnosis, and the librarian is one term line short of a fix they can
+    //    write by hand. Appending it anyway breaks the search. Cheaper here than after the two
+    //    counts below — a line we will never publish must not spend NCBI's quota being priced.
+    try {
+        checkStrategy(withLine)
+    } catch (e: any) {
+        console.log(JSON.stringify({
+            tag: 'literature-fix-rejected', seed: miss.id, conceptIndex, terms,
+            why: `the fix would not fit: ${e.message}`,
+        }))
+        return null
+    }
+
+    // 1. VERIFY AGAINST THE WHOLE STRATEGY, LIMITS AND ALL — because "tick this and the
+    //    paper comes back" is the claim the checkbox makes, so that is the claim that has
+    //    to be true. Verifying the term line ALONE (`pmid AND (terms)`) is not enough and
+    //    was a real bug: the Emotions line does make Sarkar 2016 clear the Depression
+    //    block, so it passed — but Sarkar is a 2016 review and the limits ask for
+    //    2021-2026 RCTs, so ticking it bought 531 extra records to screen and STILL did
+    //    not retrieve the paper. A widening that cannot deliver is worse than no advice:
+    //    it is a false promise with a price tag. If the seed does not come back, the
+    //    limits (or another block) are the real problem, and the seed panel says so.
+    const retrieves = await countPubmed(`${miss.id}[uid] AND (${assembleQuery(withLine)})`)
+    if (retrieves !== 1) {
+        // Say so out loud. A proposal that vanishes without a trace is how a feature
+        // quietly stops working — the page would show a miss with no fix and look fine.
+        console.log(JSON.stringify({
+            tag: 'literature-fix-rejected', seed: miss.id, conceptIndex, terms, retrieves,
+            why: 'ticking this line would not actually retrieve the seed',
+        }))
+        return null
+    }
+
+    // 2. PRICE: what does ticking this ONE line cost? Per-line on purpose — it is exactly
+    //    what the checkbox next to it does, so the number is the honest price of that
+    //    click.
+    //
+    //    THE INVARIANT. OR-ing terms into a concept block can only ever ADD records, so
+    //    `widened >= base` is arithmetic, not a hope. When it is violated the COUNT is
+    //    wrong, not the maths — a throttled esearch returns a well-formed 0 (see
+    //    countPubmed). This fired for real: a widened query that truly counts 64,604 came
+    //    back as 0 mid-build, and the page rendered the price as "+-5,714 records".
+    //
+    //    So we refuse to publish a price we cannot stand behind. The LINE still stands —
+    //    it is independently verified to retrieve the seed — it just arrives without a
+    //    number rather than with a fabricated one. Never invent a figure for a librarian
+    //    who is about to make a methods decision on it.
+    const widenedHits = await countPubmed(assembleQuery(withLine))
+    if (widenedHits >= baseHits) {
+        line.costRecords = widenedHits - baseHits
+    } else {
+        console.error(JSON.stringify({
+            tag: 'literature-price-impossible', seed: miss.id, conceptIndex,
+            baseHits, widenedHits,
+            why: 'a widening cannot shrink the result set — the count is untrustworthy, price withheld',
+        }))
+    }
+
+    return line
+}
+
 // Returns the strategy with the (verified, priced) suggested lines appended, unticked.
 export async function suggestFixes(
     s: Strategy,
@@ -541,15 +666,8 @@ export async function suggestFixes(
     let out = s
     for (const miss of misses) {
         const rec = records[miss.id]
-        const blocks = miss.failingConcepts!
-            .map(i => `Block ${i} ("${s.concepts[i].label}"):\n${s.concepts[i].lines.filter(l => l.on).map(l => l.terms).join('\n')}`)
-            .join('\n\n')
 
-        const { input, usage: u } = await invoke(FIX_PROMPT, FIX_TOOL,
-            `Missed paper: ${miss.kind.toUpperCase()} ${miss.id} — ${rec.label}\n`
-            + `Title: ${rec.title}\n`
-            + `Indexed in PubMed under these MeSH descriptors: ${rec.mesh.join(', ') || '(none)'}\n\n`
-            + `It was excluded by the following block(s), which it does not match:\n\n${blocks}`)
+        const { input, usage: u } = await invoke(FIX_PROMPT, FIX_TOOL, buildFixPrompt(miss, rec, s))
         usage.inputTokens += u.inputTokens
         usage.outputTokens += u.outputTokens
 
@@ -559,79 +677,8 @@ export async function suggestFixes(
             if (!terms || !Number.isInteger(ci) || !out.concepts[ci]) continue
             if (!miss.failingConcepts!.includes(ci)) continue    // stay inside the block we asked about
 
-            const line: Line = { terms, on: false, suggestedFor: miss.id }
-            const withLine: Strategy = {
-                ...out,
-                concepts: out.concepts.map((c, i) =>
-                    i === ci ? { ...c, lines: [...c.lines, { ...line, on: true }] } : c),
-            }
-
-            // 0. AND IT STILL HAS TO FIT. checkStrategy ran on the strategy the model BUILT; this
-            //    function then GROWS it, one line per missed seed per block, and four seeds all
-            //    failing the same block is not exotic. A block pushed past MAX_LINES (or a term line
-            //    past MAX_TERMS) yields a strategy the route will REFUSE to re-count — a 502 on every
-            //    subsequent toggle, against a strategy the librarian has already paid for. Re-validate
-            //    the strategy WITH the line in it, using the same validator both ends use, so there is
-            //    one set of ceilings and no second copy of them to drift.
-            //
-            //    Dropping the suggestion is safe: the strategy still stands, the seed still shows as a
-            //    miss with its diagnosis, and the librarian is one term line short of a fix they can
-            //    write by hand. Appending it anyway breaks the search. Cheaper here than after the two
-            //    counts below — a line we will never publish must not spend NCBI's quota being priced.
-            try {
-                checkStrategy(withLine)
-            } catch (e: any) {
-                console.log(JSON.stringify({
-                    tag: 'literature-fix-rejected', seed: miss.id, conceptIndex: ci, terms,
-                    why: `the fix would not fit: ${e.message}`,
-                }))
-                continue
-            }
-
-            // 1. VERIFY AGAINST THE WHOLE STRATEGY, LIMITS AND ALL — because "tick this and the
-            //    paper comes back" is the claim the checkbox makes, so that is the claim that has
-            //    to be true. Verifying the term line ALONE (`pmid AND (terms)`) is not enough and
-            //    was a real bug: the Emotions line does make Sarkar 2016 clear the Depression
-            //    block, so it passed — but Sarkar is a 2016 review and the limits ask for
-            //    2021-2026 RCTs, so ticking it bought 531 extra records to screen and STILL did
-            //    not retrieve the paper. A widening that cannot deliver is worse than no advice:
-            //    it is a false promise with a price tag. If the seed does not come back, the
-            //    limits (or another block) are the real problem, and the seed panel says so.
-            const retrieves = await countPubmed(`${miss.id}[uid] AND (${assembleQuery(withLine)})`)
-            if (retrieves !== 1) {
-                // Say so out loud. A proposal that vanishes without a trace is how a feature
-                // quietly stops working — the page would show a miss with no fix and look fine.
-                console.log(JSON.stringify({
-                    tag: 'literature-fix-rejected', seed: miss.id, conceptIndex: ci, terms, retrieves,
-                    why: 'ticking this line would not actually retrieve the seed',
-                }))
-                continue
-            }
-
-            // 2. PRICE: what does ticking this ONE line cost? Per-line on purpose — it is exactly
-            //    what the checkbox next to it does, so the number is the honest price of that
-            //    click.
-            //
-            //    THE INVARIANT. OR-ing terms into a concept block can only ever ADD records, so
-            //    `widened >= base` is arithmetic, not a hope. When it is violated the COUNT is
-            //    wrong, not the maths — a throttled esearch returns a well-formed 0 (see
-            //    countPubmed). This fired for real: a widened query that truly counts 64,604 came
-            //    back as 0 mid-build, and the page rendered the price as "+-5,714 records".
-            //
-            //    So we refuse to publish a price we cannot stand behind. The LINE still stands —
-            //    it is independently verified to retrieve the seed — it just arrives without a
-            //    number rather than with a fabricated one. Never invent a figure for a librarian
-            //    who is about to make a methods decision on it.
-            const widenedHits = await countPubmed(assembleQuery(withLine))
-            if (widenedHits >= result.hits) {
-                line.costRecords = widenedHits - result.hits
-            } else {
-                console.error(JSON.stringify({
-                    tag: 'literature-price-impossible', seed: miss.id, conceptIndex: ci,
-                    baseHits: result.hits, widenedHits,
-                    why: 'a widening cannot shrink the result set — the count is untrustworthy, price withheld',
-                }))
-            }
+            const line = await verifyAndPriceFix(out, miss, ci, terms, result.hits)
+            if (!line) continue
 
             out = {
                 ...out,
@@ -735,6 +782,79 @@ Rules:
 - The reason is ONE CLAUSE, specific to THIS paper, and it must let a human check your call at a glance. Good exclusions: "animal model", "no comparator arm", "editorial, not a study", "children only", "different intervention (prebiotic, not probiotic)". Good inclusions: "RCT, adults, probiotic vs placebo, depression outcome". NEVER write "does not meet the criteria" or "not relevant" — that is the verdict restated, and it cannot be checked.
 - Never state a number that is not in the abstract.`
 
+// One invoke + parse + unknown-PMID-drop over a single batch — the unit the retry loop below
+// calls repeatedly. `byPmid` is deliberately the FULL initial record set (built once in
+// screenRecords), not just this batch: that is what the original inline code checked a verdict's
+// pmid against, so a batch stays validated against everything the caller ever supplied, not only
+// what this particular re-ask sent.
+async function attemptScreenBatch(
+    question: string,
+    criteria: string,
+    batch: PubRecord[],
+    byPmid: Map<string, PubRecord>,
+): Promise<{ verdicts: Map<string, any>; usage: UsageLog }> {
+    const parts = [`Question: ${question}`]
+    if (criteria) parts.push(`Inclusion/exclusion criteria: ${criteria}`)
+    parts.push(`Screen all ${batch.length} records below. Return one verdict per record.\n\n${renderRecords(batch)}`)
+
+    const { input, usage } = await invoke(SCREEN_PROMPT, SCREEN_TOOL, parts.join('\n\n'), LONG_MAX_TOKENS)
+
+    const verdicts = new Map<string, any>()
+    for (const v of (input?.verdicts || [])) {
+        const pmid = String(v?.pmid ?? '').trim()
+        if (!byPmid.has(pmid)) {
+            // A verdict on a paper we never sent. Drop it — it cannot be shown against a record,
+            // and a PMID the model produced from memory is exactly the fabrication we are here to
+            // stop. Loud, because it means the prompt or the model has drifted.
+            console.error(JSON.stringify({ tag: 'literature-screen-unknown-pmid', pmid }))
+            continue
+        }
+        if (!verdicts.has(pmid)) verdicts.set(pmid, v)   // first verdict wins within this batch's own answer
+    }
+
+    return { verdicts, usage }
+}
+
+// Walks the RECORDS, not the verdicts: every record gets exactly one flag, in the order the page
+// already shows them, and a record the model forgot cannot silently vanish. THIS IS THE
+// SAFETY-CRITICAL PASS — an unscreened record renders `screened: false` and never silently passes
+// as endorsed.
+function assembleScreenedFlags(records: PubRecord[], verdicts: Map<string, any>): Screened[] {
+    const missing: string[] = []
+    const flags: Screened[] = records.map(r => {
+        const v = verdicts.get(r.pmid)
+        if (!v) {
+            missing.push(r.pmid)
+            return {
+                pmid: r.pmid,
+                include: true,                       // fail open — see the prompt
+                reason: 'Not screened — no verdict came back for this record. Read it yourself.',
+                design: r.design,
+                // The fail-open default STAYS: an unscreened record must not be silently dropped
+                // either. This flag is what stops it being silently KEPT — it is the difference
+                // between an unread paper the librarian can see is unread, and one wearing an
+                // endorsement no model gave it.
+                screened: false,
+            }
+        }
+        return {
+            pmid: r.pmid,
+            include: !!v.include,
+            reason: String(v.reason ?? '').trim() || 'No reason given.',
+            // Design is PUBMED'S, stamped from the record we fetched — never the model's read of
+            // the abstract. The model is not asked for it and could not be trusted with it.
+            design: r.design,
+        }
+    })
+    if (missing.length) {
+        console.error(JSON.stringify({
+            tag: 'literature-screen-missing', pmids: missing,
+            why: 'the model returned no verdict for these records; they fail open as includes',
+        }))
+    }
+    return flags
+}
+
 export async function screenRecords(
     question: string,
     criteria: string,
@@ -776,14 +896,10 @@ export async function screenRecords(
     // failure this whole work order exists to kill. A shaky answer beats a silent gap.
     let pending = records
     for (let attempt = 1; attempt <= SCREEN_ATTEMPTS && pending.length; attempt++) {
-        const parts = [`Question: ${question}`]
-        if (criteria) parts.push(`Inclusion/exclusion criteria: ${criteria}`)
-        parts.push(`Screen all ${pending.length} records below. Return one verdict per record.\n\n${renderRecords(pending)}`)
-
-        let input: any
+        let batchVerdicts: Map<string, any>
         try {
-            const res = await invoke(SCREEN_PROMPT, SCREEN_TOOL, parts.join('\n\n'), LONG_MAX_TOKENS)
-            input = res.input
+            const res = await attemptScreenBatch(question, criteria, pending, byPmid)
+            batchVerdicts = res.verdicts
             usage = {
                 inputTokens: usage.inputTokens + res.usage.inputTokens,
                 outputTokens: usage.outputTokens + res.usage.outputTokens,
@@ -805,15 +921,7 @@ export async function screenRecords(
             break
         }
 
-        for (const v of (input?.verdicts || [])) {
-            const pmid = String(v?.pmid ?? '').trim()
-            if (!byPmid.has(pmid)) {
-                // A verdict on a paper we never sent. Drop it — it cannot be shown against a record,
-                // and a PMID the model produced from memory is exactly the fabrication we are here to
-                // stop. Loud, because it means the prompt or the model has drifted.
-                console.error(JSON.stringify({ tag: 'literature-screen-unknown-pmid', pmid }))
-                continue
-            }
+        for (const [pmid, v] of batchVerdicts) {
             if (!verdicts.has(pmid)) verdicts.set(pmid, v)   // first verdict wins; a duplicate is noise
         }
 
@@ -827,42 +935,7 @@ export async function screenRecords(
         }
     }
 
-    // Built by walking the RECORDS, not the verdicts: every record gets exactly one flag, in the
-    // order the page already shows them, and a record the model forgot cannot silently vanish.
-    const missing: string[] = []
-    const flags: Screened[] = records.map(r => {
-        const v = verdicts.get(r.pmid)
-        if (!v) {
-            missing.push(r.pmid)
-            return {
-                pmid: r.pmid,
-                include: true,                       // fail open — see the prompt
-                reason: 'Not screened — no verdict came back for this record. Read it yourself.',
-                design: r.design,
-                // The fail-open default STAYS: an unscreened record must not be silently dropped
-                // either. This flag is what stops it being silently KEPT — it is the difference
-                // between an unread paper the librarian can see is unread, and one wearing an
-                // endorsement no model gave it.
-                screened: false,
-            }
-        }
-        return {
-            pmid: r.pmid,
-            include: !!v.include,
-            reason: String(v.reason ?? '').trim() || 'No reason given.',
-            // Design is PUBMED'S, stamped from the record we fetched — never the model's read of
-            // the abstract. The model is not asked for it and could not be trusted with it.
-            design: r.design,
-        }
-    })
-    if (missing.length) {
-        console.error(JSON.stringify({
-            tag: 'literature-screen-missing', pmids: missing,
-            why: 'the model returned no verdict for these records; they fail open as includes',
-        }))
-    }
-
-    return { flags, usage }
+    return { flags: assembleScreenedFlags(records, verdicts), usage }
 }
 
 // ---------------------------------------------------------------------------
@@ -967,6 +1040,48 @@ If the papers do not answer the question, your first sentence says so. "These pa
 
 Style: 3-5 short paragraphs of plain clinical prose. No headings, no bullet points, no markdown, no bold. Write for a clinician who will check your citations.`
 
+// The table is STRUCTURED data, so we can hold it to the record: the model contributes the
+// intervention and the reading order, and PubMed supplies every other cell. A row for a paper
+// that was not selected is dropped outright. `seen` is returned alongside the table (rather than
+// recomputed from it later) because it is the exact set the loop below already decided to keep —
+// same set, no second derivation to drift from the first.
+function buildSynthesisTable(
+    input: any,
+    byPmid: Map<string, PubRecord>,
+): { table: SynthRow[]; seen: Set<string> } {
+    const seen = new Set<string>()
+    const table: SynthRow[] = []
+    for (const row of (Array.isArray(input?.table) ? input.table : [])) {
+        const pmid = String(row?.pmid ?? '').trim()
+        const rec = byPmid.get(pmid)
+        if (!rec || seen.has(pmid)) {
+            if (!rec) console.error(JSON.stringify({ tag: 'literature-synth-unknown-pmid', pmid }))
+            continue
+        }
+        seen.add(pmid)
+        table.push({
+            pmid,
+            study: rec.authors || `PMID ${pmid}`,
+            year: rec.year,
+            journal: rec.journal,
+            design: rec.design,
+            rank: rec.tier.rank,
+            intervention: String(row?.intervention ?? '').trim(),
+        })
+    }
+    return { table, seen }
+}
+
+// Mode 3's derived-order re-sort, applied to the evidence table. Identical wherever it is called
+// (once after the primary table build, once after backfilling the model's omissions below) — it
+// sorts `table` IN PLACE, exactly as the inline block it replaces did, and returns the same
+// reference for convenience at the call site.
+function applyPicoOrder(table: SynthRow[], ordered: PubRecord[]): SynthRow[] {
+    const pos = new Map(ordered.map((r, i) => [r.pmid, i]))
+    table.sort((a, b) => a.rank - b.rank || (pos.get(a.pmid)! - pos.get(b.pmid)!))
+    return table
+}
+
 export async function synthesize(
     question: string,
     records: PubRecord[],
@@ -991,40 +1106,14 @@ export async function synthesize(
     const prose = String(input?.prose ?? '').trim()
     if (!prose) throw new Error('model did not return a synthesis')
 
-    // The table is STRUCTURED data, so we can hold it to the record: the model contributes the
-    // intervention and the reading order, and PubMed supplies every other cell. A row for a paper
-    // that was not selected is dropped outright.
-    //
     // The row-level defence against the SAME lost-in-the-middle drop that afflicts the screen lives
     // below, where the model's omissions are backfilled from the records we already hold.
-    const seen = new Set<string>()
-    const table: SynthRow[] = []
-    for (const row of (Array.isArray(input?.table) ? input.table : [])) {
-        const pmid = String(row?.pmid ?? '').trim()
-        const rec = byPmid.get(pmid)
-        if (!rec || seen.has(pmid)) {
-            if (!rec) console.error(JSON.stringify({ tag: 'literature-synth-unknown-pmid', pmid }))
-            continue
-        }
-        seen.add(pmid)
-        table.push({
-            pmid,
-            study: rec.authors || `PMID ${pmid}`,
-            year: rec.year,
-            journal: rec.journal,
-            design: rec.design,
-            rank: rec.tier.rank,
-            intervention: String(row?.intervention ?? '').trim(),
-        })
-    }
+    const { table, seen } = buildSynthesisTable(input, byPmid)
 
     // Mode 3: re-impose the derived order on the TABLE too. The model was told to keep it, but a
     // prompt is not a guarantee — and unlike the prose, the table is structured enough to simply
     // fix. Stable, so a model's within-tier reading order survives.
-    if (pico) {
-        const pos = new Map(ordered.map((r, i) => [r.pmid, i]))
-        table.sort((a, b) => a.rank - b.rank || (pos.get(a.pmid)! - pos.get(b.pmid)!))
-    }
+    if (pico) applyPicoOrder(table, ordered)
 
     // A PAPER THE LIBRARIAN SELECTED CANNOT VANISH FROM THE TABLE. The old code logged the drop and
     // shipped the short table anyway — so the document said "18 of 50 records were selected" above a
@@ -1048,10 +1137,7 @@ export async function synthesize(
                 intervention: '(not described by the model)',
             })
         }
-        if (pico) {
-            const pos = new Map(ordered.map((r, i) => [r.pmid, i]))
-            table.sort((a, b) => a.rank - b.rank || (pos.get(a.pmid)! - pos.get(b.pmid)!))
-        }
+        if (pico) applyPicoOrder(table, ordered)
     }
 
     // The PROSE we cannot filter, and we do not try: silently deleting a sentence would be a
