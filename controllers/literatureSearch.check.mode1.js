@@ -9,8 +9,8 @@
 const assert = require('node:assert')
 const { strategy, untickConcept } = require('./literatureSearch.check.fixtures')
 
-const run = async (lit) => {
-    // ---- Pure: assembleQuery + numberStrategy. No network. --------------------------------
+// ---- Pure: assembleQuery + numberStrategy. No network. --------------------------------
+const checkAssembleQueryPure = (lit) => {
     const s = strategy()
 
     const q = lit.assembleQuery(s)
@@ -35,9 +35,13 @@ const run = async (lit) => {
     // runStrategy refuses to count it rather than reporting a confident, meaningless zero.
     assert.strictEqual(lit.assembleQuery(untickConcept(untickConcept(s, 0), 1)), '', 'no live concepts -> no query')
 
-    // PRESS numbering is DERIVED from the selection, so it can never describe a line that was
-    // not searched: 1,2 = probiotics lines, 3 = 1 OR 2, 4,5 = depression, 6 = 4 OR 5,
-    // 7 = 3 AND 6, 8 = 7 AND limits.
+    return { s, q }
+}
+
+// PRESS numbering is DERIVED from the selection, so it can never describe a line that was
+// not searched: 1,2 = probiotics lines, 3 = 1 OR 2, 4,5 = depression, 6 = 4 OR 5,
+// 7 = 3 AND 6, 8 = 7 AND limits.
+const checkNumberStrategyPure = (lit, s) => {
     const { rows, conceptLines } = lit.numberStrategy(s)
     assert.deepStrictEqual(conceptLines, [[1, 2], [4, 5]], 'each concept occupies its own numbered lines')
     assert.deepStrictEqual(
@@ -78,8 +82,10 @@ const run = async (lit) => {
         after.get(Math.max(...after.keys())),
         'even the final row -- the whole search -- changes its number, so a stale map mislabels the yield line itself',
     )
+}
 
-    // ---- Live PubMed. ---------------------------------------------------------------------
+// ---- Live PubMed. ---------------------------------------------------------------------
+const checkDerivedMissDiagnosisLive = async (lit, s, q) => {
     const hits = await lit.countPubmed(q)
     assert.ok(Number.isFinite(hits) && hits > 0, `expected a positive yield, got ${hits}`)
     console.log(`yield: ${hits}`)
@@ -141,6 +147,10 @@ const run = async (lit) => {
         'widening the block AND dropping the limits retrieves it',
     )
 
+    return { hits, widenedDepression }
+}
+
+const checkMonotonicityInvariantLive = async (lit, s, hits, widenedDepression) => {
     // The toggle arithmetic the whole feature rests on: dropping an AND-ed block can only widen
     // the search. This is what a librarian sees when they untick the block that was killing their
     // seeds, and it is why the checkboxes are safe to hand over.
@@ -164,6 +174,13 @@ const run = async (lit) => {
         `widening a block cannot SHRINK the search — the count is untrustworthy (${hits} -> ${widenedBlockHits})`,
     )
     console.log(`widen the Depression block:  ${hits} -> ${widenedBlockHits} records (+${widenedBlockHits - hits})`)
+}
+
+const run = async (lit) => {
+    const { s, q } = checkAssembleQueryPure(lit)
+    checkNumberStrategyPure(lit, s)
+    const { hits, widenedDepression } = await checkDerivedMissDiagnosisLive(lit, s, q)
+    await checkMonotonicityInvariantLive(lit, s, hits, widenedDepression)
 
     return { q, hits }
 }
