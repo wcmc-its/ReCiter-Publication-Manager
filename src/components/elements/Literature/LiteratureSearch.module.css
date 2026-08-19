@@ -1,0 +1,1102 @@
+/* Literature Search — the page's visual system.
+ *
+ * Lifted from the signed-off mockup, which lived at docs/literature-search-form-mockup.html and was
+ * deleted once this file superseded it. Values are the mockup's, not re-derived: type sizes,
+ * spacing, radii, borders, shadows. The history is in git if the original is ever wanted back.
+ *
+ * TOKENS ARE SCOPED TO .page, NOT :root. Three of them (--text-strong/body/muted,
+ * --color-border-strong, --color-accent-soft/line) do not exist in globals.css yet, and
+ * fix/contrast-aa-tokens is landing its own text tokens on :root in parallel. Declaring these
+ * globally from a feature branch would have the two fight over the cascade. Promote them to
+ * globals.css when the two branches are reconciled -- see the note in that branch.
+ */
+
+.page {
+  /* Reuse what globals.css already defines; fall back to the mockup's literal for safety. */
+  --accent: var(--color-accent, #2563a8);
+  --accent-soft: rgba(37, 99, 168, 0.10);
+  --accent-line: rgba(37, 99, 168, 0.22);
+
+  --surface: var(--color-surface, #ffffff);
+  --border: var(--color-warm-border, #e8e2d9);
+  --border-strong: #ddd5c9;
+
+  --text-strong: #1a2133;   /* 10.6:1 on white */
+  --text-body: #33404f;     /*  8.9:1 on white */
+  --text-muted: #5a6478;    /*  5.95:1 on white — AA for body text */
+  --placeholder: #9aa2b0;
+
+  /* AA FIX, deliberately NOT the mockup's value. The mockup pairs --color-success #16a34a with
+     --color-success-bg #f0f9f2 on the armed seed pill: 3.07:1 at 11.5px bold. Bold under 18.66px
+     is not "large text", so AA wants 4.5:1 and that fails. #166534 on the same pale green is
+     6.6:1 and reads identically. The pill's whole job is to be noticed. */
+  --success: #166534;
+  --success-bg: #f0f9f2;
+
+  --danger: #991b1b;
+  --danger-bg: #fee2e2;
+
+  /* The mockup's amber, and the only pair on this page that had no token: the synthesis caveat
+     is not an error (nothing failed) and it is not a success, so neither of the pairs above can
+     carry it. Measured the same way as the success pair at :28-32 — #92400e on #fef3c7 is
+     6.4:1, AA at the 13px the caveat actually renders at. */
+  --warning: #92400e;
+  --warning-bg: #fef3c7;
+
+  --card-shadow: 0 1px 2px rgba(26, 33, 51, 0.03);
+
+  max-width: 1080px;
+  color: var(--text-body);
+  font-family: var(--font-sans);
+
+  /* NO TOP/LEFT PADDING. AppLayout's .main already supplies `padding: 20px 40px`, and /search
+     adds nothing on top of it -- its h1 lands at x=260, y=76. This page was adding another
+     30px/40px, so the same h1 sat 40px right and 30px down of every other page's. Only the
+     bottom is ours, so a long strategy does not end flush against the footer. */
+  padding: 0 0 32px;
+}
+
+/* ---------- Page head ---------- */
+/* Size and weight are deliberately NOT set here. globals.css pins `h1 { font-size: 28px
+   !important; font-weight: 500 }` app-wide (it has to, to beat Bootstrap's responsive
+   calc()), so the mockup's 23px/600 never applied -- it was dead CSS losing silently to
+   !important. The app's h1 IS the house style, and matching /search is the point. Overriding
+   it here would mean a second !important, and this page is not the place to relitigate the
+   app's type scale. */
+.title {
+  margin: 0;
+  color: var(--text-strong);
+}
+.sub {
+  margin: 4px 0 22px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.crumb {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+.crumb b { color: var(--text-strong); font-weight: 600; }
+
+/* ---------- Card ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  padding: 26px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  box-shadow: var(--card-shadow);
+}
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.help {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.help b { color: var(--text-body); font-weight: 600; }
+
+/* ---------- Mode selector ---------- */
+.modes { display: flex; gap: 10px; flex-wrap: wrap; }
+.mode {
+  flex: 1 1 190px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 15px;
+  border-radius: var(--radius-md, 6px);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+}
+.mode:hover:not(.modeDisabled) { border-color: var(--accent-line); }
+.mode input { margin-top: 2px; accent-color: var(--accent); }
+.modeSelected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.modeDisabled { opacity: .5; cursor: not-allowed; }
+.modeBody { display: flex; flex-direction: column; gap: 2px; }
+.modeTitle { font-size: 13px; font-weight: 600; color: var(--text-strong); }
+.modeTitle .soon { font-weight: 400; color: var(--text-muted); }
+.modeDesc { font-size: 12px; line-height: 1.4; color: var(--text-muted); }
+
+/* ---------- Inputs ---------- */
+.input {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text-body);
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm, 5px);
+  background: var(--surface);
+  resize: vertical;
+  transition: border-color .12s, box-shadow .12s;
+}
+.input::placeholder { color: var(--placeholder); }
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.mono { font-family: var(--font-mono); font-size: 13px; }
+
+/* ---------- Databases ---------- */
+.dbRow { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.db {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-body);
+  cursor: pointer;              /* Scopus is a real choice now, not a promise */
+  margin: 0;
+}
+.db input { accent-color: var(--accent); }
+.db input:disabled { cursor: not-allowed; }
+.dbOff { opacity: .5; cursor: not-allowed; }
+.db .soon { color: var(--text-muted); font-size: 12px; }
+
+/* ---------- The recall contract (seeds + criteria) ---------- */
+.requirement {
+  border-left: 2px solid var(--accent-line);
+  padding-left: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reqHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.seedCount {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill, 999px);
+  background: #eef1f5;
+  color: var(--text-muted);
+  transition: background .15s, color .15s;
+}
+.seedCountArmed { background: var(--success-bg); color: var(--success); }
+
+/* ---------- Controls ---------- */
+.controls { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
+.control { display: flex; flex-direction: column; gap: 5px; }
+.control label { font-size: 12px; color: var(--text-muted); }
+.spacer { flex: 1 1 40px; }
+
+.btn {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-chrome, #1a2133);
+  border: 0;
+  border-radius: var(--radius-md, 6px);
+  padding: 11px 22px;
+  cursor: pointer;
+  transition: background .12s, opacity .12s;
+}
+.btn:hover:not(:disabled) { background: var(--color-chrome-hover, #252d42); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.btnSecondary {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+  background: #fff;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm, 5px);
+  padding: 8px 15px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.btnSecondary:hover:not(:disabled) { background: var(--accent-soft); }
+.btnSecondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btnSecondary:disabled { opacity: .45; cursor: not-allowed; }
+.btnSecondaryDone { color: var(--success); border-color: var(--success); background: var(--success-bg); }
+
+.capNote {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.capNote b { color: var(--text-body); }
+
+/* ---------- Summary bar (the collapsed form) ---------- */
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  padding: 12px 18px;
+  box-shadow: var(--card-shadow);
+}
+.chip {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.summaryQ {
+  flex: 1;
+  min-width: 160px;
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.summaryN {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- The strategy (the deliverable) ---------- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  margin-top: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  animation: rise .28s ease both;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.panelTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.hits {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.hits span { font-weight: 400; font-size: 12.5px; color: var(--text-muted); }
+.hitsStale { opacity: .45; }
+.recounting { font-size: 12px; color: var(--text-muted); }
+
+/* The numbered lines. Monospace, on the mockup's off-white query surface. */
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0;                       /* the hairline separates the rows now, not a gap */
+  padding: 6px 22px 16px;
+  background: #fafaf8;
+}
+/* THE ROWS ARE A SEARCH HISTORY, AND THEY HAVE TO READ AS ONE.
+   A 2px gap was not enough: a free-text line wraps to three or four visual lines, so line 2 ran
+   straight into line 4 and the whole block read as one wall of terms with numbers loose in it —
+   you could not see where a search line ended. A hairline per row is what PubMed's and Ovid's own
+   search histories use, and it is the least ink that does the job. */
+.line {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+.lines > :first-child .line, .lines > .line:first-child { border-top: 0; }
+/* A derived line has no checkbox, but it still has to sit on the same left edge as one. */
+.lineGutter { width: 16px; flex-shrink: 0; }
+.lineCheck {
+  width: 16px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  /* Anchored to the FIRST line of the terms, not centred on the block. Centred, the checkbox for a
+     four-line term bundle floated somewhere in the middle of it and stopped reading as its control. */
+  align-self: flex-start;
+  margin-top: 3px;
+}
+.lineNum {
+  min-width: 20px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+/* The line IS the input -- no click-to-edit, no second copy of the query to drift. */
+.lineInput {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-body);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin: 0 -4px;
+  resize: none;
+  overflow: hidden;
+}
+.lineInput:focus {
+  outline: none;
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.lineOff { color: var(--text-muted); }
+/* A combination line (6 = 4 OR 5) is DERIVED: no checkbox, nothing to decide. */
+.combine {
+  /* GROWS, so the Results count is pushed out to the same right edge as every other row's. A
+     combining line's text is short ("3 AND 6"), so without this its count floated in mid-row and the
+     column stopped being a column — and a column you cannot scan down is the whole reason the
+     Results figures are there at all. */
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  padding-left: 4px;
+}
+.suggest {
+  margin: 0 0 8px 45px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--accent);
+}
+.suggest b { font-weight: 600; }
+.addLines { display: flex; gap: 14px; margin-top: 12px; padding-left: 25px; }
+.addLine {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--accent);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.addLine:hover { text-decoration: underline; }
+.empty { font-size: 13px; color: var(--danger); padding: 6px 0; }
+
+.panelFoot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+/* The buttons wrap as a GROUP or not at all. The footer text grew when it started naming the model,
+   and an unwrapped row let one button drop below the other two — which reads as a layout bug rather
+   than as a second row. */
+.footBtns { display: flex; gap: 10px; flex-shrink: 0; margin-left: auto; }
+
+/* ---------- Embase: visible, not searched ---------- */
+.pending {
+  margin-top: 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg, 8px);
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pendingHead { display: flex; align-items: baseline; gap: 10px; }
+.pendingNote { font-size: 12.5px; color: var(--text-muted); }
+
+/* ---------- Known-item validation ---------- */
+.validation { margin-top: 14px; }
+.valHead { display: flex; align-items: baseline; gap: 12px; }
+.valScore {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.valScoreWarn { color: var(--danger); font-weight: 600; }
+
+.seeds { display: flex; flex-direction: column; }
+.seed {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.seed:last-child { border-bottom: 0; }
+.seedMark { width: 16px; text-align: center; font-weight: 600; flex-shrink: 0; }
+.seedHit { color: var(--success); }
+.seedMiss { color: var(--danger); }
+.seedName { font-weight: 600; color: var(--text-strong); }
+.seedId {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.verdict { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--danger); }
+.why {
+  flex-basis: 100%;
+  margin: 5px 0 0 26px;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-radius: var(--radius-sm, 5px);
+  padding: 8px 12px;
+}
+
+/* No seeds = no recall check. Say so; do not let it pass quietly. */
+.recallLine {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+  background: var(--success);
+}
+.dotWarn { background: #d97706; }
+
+/* ---------- At Weill Cornell ---------- */
+.experts { margin-top: 14px; padding: 0; overflow: hidden; gap: 0; }
+.expertsHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.expertsCount { margin-left: auto; font-size: 12.5px; color: var(--text-muted); }
+.expertsCount b { color: var(--text-strong); font-weight: 600; }
+.expertsList { display: flex; flex-direction: column; padding: 4px 22px 10px; }
+.expert {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.expert:last-child { border-bottom: 0; }
+.expertName { font-size: 13px; font-weight: 600; color: var(--accent); }
+.expertDept { font-size: 12.5px; color: var(--text-muted); }
+.expertDeptBlank { font-style: italic; }
+.expertPubs {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.expertsFoot {
+  padding: 12px 22px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- Actions / errors ---------- */
+.actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 18px; }
+.error {
+  margin-top: 14px;
+  font-size: 13px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-radius: var(--radius-sm, 5px);
+  padding: 10px 14px;
+}
+
+/* ==========================================================================
+   ISSUE REVIEW (Mode 2) — candidates, screening, synthesis.
+   Same vocabulary as everything above: same surfaces, same borders, same type
+   scale. Nothing here is a new visual language, and the pieces that already had
+   a treatment (.why for the exclusion reason, .btnSecondary for the row actions,
+   .eyebrow for the section labels) reuse it rather than growing a twin.
+   ========================================================================== */
+
+/* ---------- The wait ----------
+   Screening 50 abstracts takes ~29s and the synthesis ~47s. Those are long enough that a bare
+   spinner reads as "hung", so the wait states carry a real label, a real elapsed count, and the
+   measured median as a bar. The bar stops at 95%: it is an estimate, and finishing early would
+   be a lie about a call that has not returned. */
+.progress {
+  margin-top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 8px);
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  box-shadow: var(--card-shadow);
+}
+.progLine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-strong);
+}
+.progLine b { font-weight: 600; }
+.progElapsed {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.bar {
+  height: 6px;
+  background: #eef1f5;
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+  max-width: 340px;
+}
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width .9s linear;
+}
+
+/* ---------- The query, read-only ----------
+   The librarian did not write this query, so they have to be able to see it. Same off-white
+   surface as the strategy's .lines block — it is the same artifact, just not editable here. */
+.queryCard { gap: 12px; }
+.query {
+  background: #fafaf8;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 6px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.queryCode {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.queryActs { display: flex; gap: 8px; flex-wrap: wrap; }
+.counts { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.counts b { color: var(--text-strong); font-weight: 600; }
+
+/* ---------- The narrowing gate ----------
+   NOT A NEW VISUAL LANGUAGE, and deliberately not a dialog. The gate is a .card like every other
+   panel on this page; its warning is the .caveat that already carries the synthesis disclaimer;
+   its settled state is the .recallLine + .dot that already says "every known include came back";
+   its checkbox is .lineCheck, the same control the strategy's term lines use — which is the point,
+   because a narrowing IS a strategy line, arriving unticked and priced.
+
+   The only genuinely new thing here is the row grid, because a price has to line up under a price
+   for "1,391 -> 118" to be readable as a column at a glance. */
+.narrowCard { margin-top: 14px; gap: 16px; }
+/* .caveat carries a 14px top margin for when it sits between cards. As the first child INSIDE one,
+   that margin lands on top of the card's own padding. Same class of positional reset as .flagline. */
+.narrowCard .caveat { margin-top: 0; }
+
+.narrowList { display: flex; flex-direction: column; }
+.narrow {
+  display: grid;
+  grid-template-columns: 16px minmax(140px, auto) auto minmax(0, 1.4fr);
+  gap: 5px 14px;
+  align-items: baseline;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.narrow:last-child { border-bottom: 0; }
+.narrowLabel { font-size: 13px; font-weight: 600; color: var(--text-strong); }
+.narrowOn .narrowLabel { color: var(--accent); }
+/* The price. Tabular figures so the arrows and the yields stack into a column. */
+.narrowPrice {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.narrowPrice b { color: var(--text-strong); font-weight: 600; }
+.narrowArrow { padding: 0 5px; color: var(--placeholder); }
+.narrowWhy { font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+/* The block that will be AND-ed into the query, in the query's own typeface. Spans from the label
+   to the end of the row: it is the evidence for everything else on the line. */
+.narrowTerms {
+  grid-column: 2 / -1;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+.narrowFoot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Screening bar ----------
+   The tally counts the HUMAN's checkboxes, never the model's flags. */
+.screenBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.tally { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tally b { color: var(--text-strong); font-weight: 600; }
+.tallyInc { color: var(--success); }
+
+/* ---------- Candidate rows ----------
+   Restyled from .seed (:428-448): same row rhythm, same divider, same PMID treatment. */
+.rows { display: flex; flex-direction: column; }
+.rec {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  transition: opacity .12s;
+}
+.rec:last-child { border-bottom: 0; }
+/* The de-emphasis of an unticked row. It follows the HUMAN's checkbox, not the model's flag —
+   re-ticking something the AI excluded restores it fully, and the AI's reason stays on the row
+   regardless. Nothing is ever hidden or collapsed: that visibility IS the integrity argument. */
+.recOff { opacity: .62; }
+.recCheck {
+  width: 16px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.recCheck:disabled { cursor: progress; }
+.recBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cite { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+.who { font-weight: 600; color: var(--text-strong); }
+.jrnl { color: var(--text-muted); }
+.recPmid {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.recPmid:hover { color: var(--accent); text-decoration: underline; }
+.recTitle { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 5px);
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+/* 5.4:1 and 5.3:1 on their own backgrounds — AA at 11px bold, which "large text" does not cover. */
+.tagDesign { background: var(--accent-soft); color: var(--accent); }
+.tagOther { background: #eef1f5; color: var(--text-muted); }
+/* The NIH percentile. Deliberately the QUIETEST chip on the row: it is context, not a verdict, and
+   it must never out-shout the design tag, which IS a claim about the evidence. Outlined rather than
+   filled, and normal weight, so it reads as an annotation. 5.1:1 on the surface — AA at 11px. */
+.tagCite {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong, #d8d2c8);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The exclusion reason. .why (:449-458) already IS this treatment, so .flagline only undoes the
+   two properties .why sets for its position inside the seed row: in .recBody's column flex,
+   flex-basis: 100% would have set its HEIGHT, not its width. */
+.flagline {
+  flex-basis: auto;
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 4px 0 0;
+}
+.flagline b { font-weight: 600; }
+
+/* ---------- Synthesis ---------- */
+.caveat {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-radius: var(--radius-md, 6px);
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.caveat b { font-weight: 600; }
+
+.synthCard { margin-top: 14px; gap: 14px; }
+.tblScroll { overflow-x: auto; }
+.sum { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sum th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.sum td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-body);
+  vertical-align: top;
+}
+.sum tbody tr:last-child td { border-bottom: 0; }
+.sum td:first-child { color: var(--text-strong); font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; }
+
+.prose { font-size: 14px; line-height: 1.65; color: var(--text-strong); max-width: 68ch; }
+.prose p { margin: 0 0 10px; }
+.prose p:last-child { margin-bottom: 0; }
+/* An inline citation chip. A claim you cannot get back to the abstract for is a claim you
+   cannot check — so every one of them is a link, and it opens the source. */
+.pmid {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm, 5px);
+  padding: 1px 5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pmid:hover { color: var(--accent); text-decoration: underline; }
+
+.provenance {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.provenance b { color: var(--text-strong); font-weight: 600; }
+
+@media (max-width: 820px) {
+  .page { padding: 24px 20px 48px; }
+  .card { padding: 22px 18px; }
+  .recPmid { margin-left: 0; }
+  /* The narrowing row stacks: the price column cannot hold its own next to a reason on a phone,
+     and the label is what you scan for. */
+  .narrow { grid-template-columns: 16px minmax(0, 1fr); }
+  .narrowPrice, .narrowWhy, .narrowTerms { grid-column: 2 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel { animation: none; }
+  .mode, .input, .btn, .btnSecondary, .seedCount, .rec { transition: none; }
+  .barFill { transition: none; }
+}
+
+/* ---------- PICO (Mode 3) ---------- */
+/* Four fields on one row at desktop, stacking on narrow. The labels and placeholders ARE the
+   PHI control: "Population / adults with type 2 diabetes and CKD" teaches that this is a clinical
+   class, not a person. Do not soften them into one "describe the case" box. */
+.pico {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.picoField { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.picoLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.picoOptional { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+/* The question the SERVER will actually ask, echoed back as it is typed. The clinician should see
+   the sentence, not just the boxes. */
+.picoEcho {
+  margin: 2px 0 0;
+  padding: 9px 12px;
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-md, 6px);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-body);
+}
+
+/* ---------- Evidence floor (Mode 3) ---------- */
+/* Derived from PubMed's publication types. No inference, so it cannot be wrong — and it is often
+   the true answer to the question. Given real weight on the page for that reason. */
+/* A database we cannot count. Deliberately NOT styled like a number — it must not read as a yield of
+   any kind, least of all a small one. */
+.notCounted {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.floor {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md, 6px);
+}
+/* The model cited a paper it was never given. Same shape as .floor, in danger — it sits above the
+   synthesis it contaminates, and it is the one thing on this screen a reader must not scroll past. */
+.invented {
+  composes: floor;
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  border-left-color: var(--danger);
+}
+.invented .floorLabel,
+.invented .floorText { color: var(--danger); }
+.floorLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.floorText {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-body);
+  font-weight: 500;
+}
+.floorHelp {
+  margin: 7px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ---------- The citation chip, and its hover card ---------- */
+/* The number is CONTEXT, not a verdict — and the chip has to say so, because a bare "80th pct"
+   next to a paper reads exactly like a score we assigned it. Hence the hover card: it explains what
+   the percentile is, and states plainly that it never sorted, filtered, or reached the model. */
+.meter {
+  display: inline-block;
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-line);
+  position: relative;
+  overflow: hidden;
+}
+.meter::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--pct, 0%);
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* Hover AND focus — a tooltip only a mouse can reach is not a tooltip. */
+.hint {
+  position: relative;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;              /* the meter must not collide with the number it describes */
+}
+
+.hintBox {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  width: 300px;
+  max-width: min(300px, 78vw);
+  padding: 10px 12px;
+  background: #1a2133;
+  color: #f2f5f9;
+  border-radius: var(--radius-md, 6px);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.28);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;      /* the chip is nowrap; the card must not inherit it */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.hintBox b { color: #ffffff; font-weight: 600; }
+
+.hint:hover .hintBox,
+.hint:focus-visible .hintBox { opacity: 1; visibility: visible; }
+
+/* ...except on the last two records, where downward would run off the end of the list. */
+.rows .rec:nth-last-child(-n + 2) .hintBox { top: auto; bottom: calc(100% + 8px); }
+
+/* An EXCLUDED record is dimmed to .62, and opacity on an ancestor cannot be escaped by a child —
+   so the hover card inherited the dimming and rendered as a translucent smear with the page text
+   bleeding through it. Un-dim the row while its card is open, which is what the reader wants
+   anyway: they are inspecting that record precisely because they are reconsidering it. */
+.recOff:has(.hint:hover),
+.recOff:has(.hint:focus-visible) { opacity: 1; }
+
+/* ---------- What a database IS, said out loud ----------
+   Scopus has no controlled vocabulary, and a limit it cannot express is not a limit it quietly
+   ignores. Both facts belong ON the panel whose count they qualify, not in a footnote somewhere —
+   two counts side by side invite the reader to compare them, and these notes are what make that
+   comparison honest. */
+.dbNote {
+  margin: 0;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+  background: #fafaf8;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.dbNote b { color: var(--text-body); font-weight: 600; }
+.dbNoteWarn {
+  background: var(--warn-soft, #fdf6ec);
+  color: var(--text-body);
+}
+
+/* The Results column of the search history. Tabular figures so the counts form a column the eye can
+   run down — that vertical scan IS the point: it is where a librarian sees the funnel narrow. */
+.rowCount {
+  flex-shrink: 0;
+  min-width: 66px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* THE COLUMN IS COMING. ~5s of em-dash used to be indistinguishable from a column that had already
+   died; the pulse says "in flight". Motion is suppressed for anyone who asked for that. */
+.rowPending {
+  color: var(--text-muted);
+  opacity: 0.55;
+  animation: rowPulse 1.4s ease-in-out infinite;
+}
+@keyframes rowPulse {
+  0%, 100% { opacity: 0.30; }
+  50%      { opacity: 0.75; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rowPending { animation: none; opacity: 0.55; }
+}
+
+/* THE COLUMN DIED. Deliberately NOT an em-dash: an em-dash means "not counted yet", and letting it
+   also mean "never coming" is how a librarian waits forever for a number that already failed. */
+.rowFailed {
+  color: var(--danger);
+  letter-spacing: 1px;
+  cursor: help;
+}
+
+.rowsFailed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: var(--radius-md, 6px);
+}
+
+.linkBtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--danger);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkBtn:hover { opacity: 0.75; }

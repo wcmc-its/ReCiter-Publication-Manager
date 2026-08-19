@@ -1,0 +1,57 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22          # what the app actually ships on: every stage of the Dockerfile is node:22-alpine.
+
+      # --ignore-scripts SKIPS THE PREINSTALL, ON PURPOSE. package.json's preinstall re-runs
+      # `npm install --package-lock-only && npx npm-force-resolutions`, which rewrites package-lock.json
+      # underneath the very command that is installing from it and pulls npm-force-resolutions off the
+      # registry on every run. It buys nothing here: the resolutions (@types/react, @types/react-dom
+      # pinned to 18.2.0) are already baked INTO the committed lockfile, so a scriptless `npm ci`
+      # installs exactly 18.2.0 anyway — verified. This is also what the Dockerfile does.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - run: npx tsc --noEmit
+
+      # `npm run build` would re-run that same preinstall dance before next build. node_modules is
+      # already installed by then, so all it can do is mutate the lockfile and cost a registry round
+      # trip. Call the build directly.
+      - run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      # THE ONLY STEP HERE THAT ASSERTS ANYTHING ABOUT THE FEATURE. The three above prove the repo
+      # COMPILES. This one proves the arithmetic behind Literature Search is still right: the ceilings
+      # the model's own output is held to, the guard that REFUSES a zero-concept strategy rather than
+      # counting it as `hits: 0`, each per-line record count landing on the line it belongs to, and the
+      # fabricated-citation warning surviving into the markdown that people forward.
+      #
+      # It needs no secret, no repository variable, no .env.local and no network — which is the whole
+      # reason it can sit here unconditionally. NOTHING IN THIS WORKFLOW MAY EVER BE MADE CONDITIONAL ON
+      # A VARIABLE BEING SET. A step that silently skips is indistinguishable, on the PR page, from a
+      # step that passed, and a green tick over a feature nothing tested is the exact failure this
+      # feature exists to prevent: something that looks considered and checked nothing.
+      - run: npm run check:literature:pure
+
+      # `npm run check:literature` — the LIVE half — IS DELIBERATELY NOT HERE, and must not be added.
+      # It drives the ReCiter PubMed Retrieval Tool on :8083 and live iCite, which a GitHub-hosted
+      # runner cannot reach; and it is FLAKY against live NCBI (measured: 2 red in 6 consecutive runs
+      # on unchanged logic). A gate that fails twice in six for reasons no commit caused is a gate
+      # people learn to re-run until it goes green — worse than no gate at all.
+      #
+      # So it is a LAPTOP step, and it is the one to run before shipping anything that touches counts,
+      # records or the seed check — a mocked PubMed would pass while the abstract path was broken,
+      # which is precisely the bug that shipped once:
+      #
+      #     npm run check:literature      # needs .env.local and the retrieval tool on :8083
+      #
+      # If it is ever automated, it needs a runner that can reach the tool (in-VPC, self-hosted) and it
+      # belongs in a SEPARATE, NON-REQUIRED job. Never as a merge gate.

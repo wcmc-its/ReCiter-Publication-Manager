@@ -20,7 +20,11 @@ declare module "next-auth" {
         nameFirst: string,
       }
       userRoles : Array,
-      adminSettings : Array
+      adminSettings : Array,
+      /** Set on the JWT from the server-only LITERATURE_SEARCH_CWIDS pilot allowlist. One boolean
+       *  about THIS user — the roster never reaches the browser. Hides the sidebar link; the API
+       *  route is the actual gate. */
+      literatureAccess? : boolean
 
     },
     adminSettings?: string

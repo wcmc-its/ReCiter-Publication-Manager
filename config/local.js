@@ -152,6 +152,16 @@ export const reciterConfig = {
     reciterScopus: {
         searchDocumentsEndpoint: process.env.RECITER_SCOPUS_API_URL + '/scopus/search/documents',
         searchAuthorsEndpoint: process.env.RECITER_SCOPUS_API_URL  + '/scopus/search/authors',
+        // Literature Search's endpoint: the query reaches Elsevier VERBATIM, so a top-level limit
+        // (AND PUBYEAR > 2020) is expressible and a search strategy can actually run.
+        // searchDocumentsEndpoint cannot do this — it force-wraps every term in TITLE-ABS-KEY().
+        // Needs ScopusTool PR #35; against an older jar this 404s. POST {query, count, start, view}.
+        //
+        // Built from RECITER_SCOPUS_API_URL ALONE, like its two siblings. This line carried a
+        // `|| RECITER_API_BASE_URL` fallback until #843 established that the fallback was never
+        // real: RECITER_API_BASE_URL serves no /scopus/* route, so falling back to it produced a
+        // confident wrong answer instead of a failure. Do not reintroduce it here.
+        searchQueryEndpoint: process.env.RECITER_SCOPUS_API_URL + '/scopus/search/query',
     },
     /**
      * PM#771 — OpenAlex is a free, keyless public API. It is queried ONLY server-side

@@ -5,6 +5,7 @@ import { findUserPermissions } from '../../../../services/db/userroles.service';
 import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
+import { isAllowlisted } from "../../../../controllers/literatureAllowlist";
 
 /*const authHandler = async (req, res) => {
     console.log('NextAuth handler called - Method:', req.method, 'URL:', req.url);
@@ -27,9 +28,25 @@ export const authOptions = {
         console.log('Direct login authorize called with username:', credentials?.username);
         if (!credentials?.username || !credentials?.password) return null;
 
-        const user = await authenticate(credentials);
-        console.log('Direct login authenticate result:', user?.statusCode);
-        if (user?.statusCode !== 200) return null;
+        // ponytail: local dev short-circuit, not a new auth mode. It cannot fire in a
+        // deployed env -- `next start` sets NODE_ENV=production, and no deployment injects
+        // a server-side LOGIN_PROVIDER (k8-deployment.yaml sets only NEXT_PUBLIC_LOGIN_PROVIDER).
+        // This is what LOGIN_PROVIDER=LOCAL was always meant to mean; it also removes the last
+        // reciter-dev dependency from the auth path.
+        const isLocalLogin =
+          process.env.NODE_ENV !== 'production' &&
+          process.env.LOGIN_PROVIDER === 'LOCAL' &&
+          !!process.env.LOCAL_DEV_PASSWORD;
+
+        let user;
+        if (isLocalLogin) {
+          if (credentials.password !== process.env.LOCAL_DEV_PASSWORD) return null;
+          user = { statusCode: 200, statusMessage: 'local dev login' };
+        } else {
+          user = await authenticate(credentials);
+          console.log('Direct login authenticate result:', user?.statusCode);
+          if (user?.statusCode !== 200) return null;
+        }
 
         const adminUser = await findOrcreateAdminUser(
           credentials.username,
@@ -39,9 +56,14 @@ export const authOptions = {
         );
 
         const assignedRoles = await grantDefaultRolesToAdminUser(adminUser);
+        // The login form collects no email, but findUserPermissions' WHERE requires
+        // (personIdentifier AND email) to match, so an empty email returned zero roles and
+        // sent every direct login to /noaccess. Key off the admin_users row we just resolved
+        // -- the same pattern grantDefaultRolesToAdminUser already uses. Roles still come
+        // only from admin_users_roles; nothing is granted that the DB does not already say.
         const userRoles = await findUserPermissions(
           ["personIdentifier", "email"],
-          [credentials.username, credentials.email || ""]
+          [adminUser?.personIdentifier || credentials.username, adminUser?.email || credentials.email || ""]
         );
 
         if (process.env.ASMS_API_BASE_URL)
@@ -193,6 +215,15 @@ export const authOptions = {
         token.picture = user.image || user.databaseUser?.profilePicture;
         console.log('JWT callback - final token created with username:', token.username);
       }
+
+      // One bit, so the sidebar can hide a link that would only dead-end in a 403. The LIST never
+      // leaves the server — only this boolean about the requesting user does. The API route is
+      // still the real gate (see controllers/literatureAllowlist.ts).
+      //
+      // Deliberately OUTSIDE the `if (user)` block: this recomputes on every token refresh, so
+      // adding someone to the pilot takes effect without making them log out and back in.
+      token.literatureAccess = isAllowlisted(token.username);
+
       return token;
     },
 

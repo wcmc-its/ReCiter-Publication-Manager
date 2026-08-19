@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LiteratureSearchInvokeInferenceProfile",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:us-east-1:665083158573:inference-profile/us.anthropic.claude-opus-4-8"
+      ]
+    },
+    {
+      "Sid": "LiteratureSearchInvokeFanoutFoundationModels",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-8",
+        "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-4-8",
+        "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-opus-4-8"
+      ]
+    }
+  ]
+}

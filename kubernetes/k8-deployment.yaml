@@ -1,3 +1,36 @@
+# Non-secret configuration for the reciter-pm-dev Deployment below. Prod's equivalent config
+# exists ONLY in the cluster and is not in this repo, so changing a value here changes DEV ONLY.
+#
+# This document MUST stay AHEAD of the Deployment. The dev buildspec `kubectl apply`s this whole
+# file, kubectl applies documents in file order, and a configMapKeyRef to a ConfigMap that does
+# not exist yet is CreateContainerConfigError — the pod never starts, and that takes down ALL of
+# reciter-pm-dev. Moving this document below the Deployment reintroduces exactly that race.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reciter-pm-dev-config
+  namespace: reciter
+  labels:
+    app: reciter-pm-dev
+    environment: dev
+    owner: szd2013
+    tier: frontend
+data:
+  # ponytail: was a plain value on the Deployment (set imperatively on the live deployment);
+  # points PM's Scopus lookups at the Scopus Retrieval Tool. Prod value is http://reciter-scopus-prod.
+  RECITER_SCOPUS_API_URL: http://reciter-scopus-dev
+  # --- Literature Search (PR #824) ---------------------------------------------------------
+  # The model id is NOT a secret: it is already on every log line this feature emits
+  # (see the logCost() line in src/pages/api/literature/search.ts). Keeping it a plain
+  # value makes it reviewable in the PR, and means a model change is a code change —
+  # which is right, because the model determines the billing rate.
+  # Without this, /api/literature/search returns a clean 503 and nothing else breaks.
+  BEDROCK_MODEL_ID: us.anthropic.claude-opus-4-8
+  # Belt-and-braces, NOT a blocker: the client already falls back to us-east-1
+  # (controllers/literatureSearch.controller.ts). Explicit because a `us.` cross-region
+  # inference profile bills the Regional CRIS tier, and that is region-dependent.
+  AWS_REGION: us-east-1
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -161,10 +194,38 @@ spec:
                 secretKeyRef:
                   name: reciter-pm-dev-secrets
                   key: RECITER_TOKEN_SECRET
-            # ponytail: plain value (set imperatively on the live deployment); points PM's
-            # Scopus lookups at the Scopus Retrieval Tool. Prod value is http://reciter-scopus-prod.
+            # The three non-secret settings below live in the reciter-pm-dev-config ConfigMap at
+            # the top of this file — read the comments there for why each is set the way it is.
             - name: RECITER_SCOPUS_API_URL
-              value: http://reciter-scopus-dev
+              valueFrom:
+                configMapKeyRef:
+                  name: reciter-pm-dev-config
+                  key: RECITER_SCOPUS_API_URL
+            # --- Literature Search (PR #824) -------------------------------------------------
+            - name: BEDROCK_MODEL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: reciter-pm-dev-config
+                  key: BEDROCK_MODEL_ID
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: reciter-pm-dev-config
+                  key: AWS_REGION
+            # The pilot roster. `optional: true` is LOAD-BEARING, twice over:
+            #   1. This repo is PUBLIC, so the roster must not be committed. It lives only in the
+            #      reciter-pm-dev-secrets Secret, and can be changed without a code deploy.
+            #   2. The dev buildspec `kubectl apply`s this manifest. A secretKeyRef to a key that
+            #      does not exist yet is CreateContainerConfigError — the pod never starts, and
+            #      that takes down ALL of reciter-pm-dev, not just Literature Search.
+            # When the key is absent the allowlist is empty, and an empty allowlist FAILS SHUT:
+            # isAllowlisted() returns false for everyone, so the route 403s. Safe, not open.
+            - name: LITERATURE_SEARCH_CWIDS
+              valueFrom:
+                secretKeyRef:
+                  name: reciter-pm-dev-secrets
+                  key: LITERATURE_SEARCH_CWIDS
+                  optional: true
           ports:
             - containerPort: 3000
               name: reciter-pm

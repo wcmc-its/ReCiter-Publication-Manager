@@ -1,0 +1,94 @@
+{
+  "_comment": [
+    "The gold standard for literatureSearch.recall.js. Three published Cochrane reviews whose INCLUDED",
+    "STUDIES ARE KNOWN, so we can ask what our tool loses.",
+    "",
+    "HOW THESE WERE BUILT, because the whole experiment is worthless if this list is wrong:",
+    "PMC full JATS XML via efetch (db=pmc&retmode=xml). Inside it, the ref-list whose <title> is",
+    "'References to studies included in this review' — sliced to the NEXT top-level section, so that",
+    "'References to studies EXCLUDED', 'ongoing studies' and 'additional references' are cut away before",
+    "parsing. The general bibliography was never touched. Each included study is its own sub-ref-list",
+    "titled with the Cochrane study id (e.g. 'Ahn 2008'), and the PMID is read from its <pub-id",
+    "pub-id-type=pmid>. Confusing the reference list with the included-studies list is the one mistake",
+    "that would invalidate every number downstream, so it was cut structurally rather than by filtering.",
+    "",
+    "MOST COCHRANE REVIEWS CANNOT BE USED FOR THIS, which is worth knowing before anyone tries again:",
+    "their PMC deposit is ABSTRACT-ONLY (efetch returns no <body>), so the included-studies list is not",
+    "retrievable at all. ~65 candidates were screened to find these three. Verified abstract-only, among",
+    "others: PMC10014114, PMC8992929, PMC10646935, PMC8655103, PMC11656514, PMC8406800.",
+    "",
+    "ONE PMID PER STUDY. Protocols, trial-registry entries, reply-letters and long-term follow-up papers",
+    "are deliberately NOT in the gold lists — they would pad the denominator with records no relevance",
+    "ranking should be expected to return. They are named in `caveats` instead of being silently dropped.",
+    "",
+    "THE CEILING IS REAL AND IT IS NOT OUR TOOL'S FAULT. Some included studies are not PubMed-indexed at",
+    "ALL (non-indexed journals, Chinese/Korean-language titles, conference items). NO PubMed strategy —",
+    "ours, a librarian's, or a perfect one — could ever retrieve them. Each was confirmed absent with a",
+    "targeted PubMed search rather than assumed. `maxRecall` is that ceiling. Judge the strategy against",
+    "IT, never against 100%.",
+    "",
+    "The `criteria` are our paraphrase of each review's own eligibility criteria, written the way a",
+    "librarian would type them into the box. They are the fairest input we can give the screen: running",
+    "it with no criteria would be testing it on a job it was never asked to do."
+  ],
+  "reviews": [
+    {
+      "title": "Intratympanic corticosteroids for sudden sensorineural hearing loss",
+      "shape": "intervention / RCT",
+      "pmid": "35867413",
+      "pmcid": "PMC9307133",
+      "cochraneId": "CD008080",
+      "question": "In adults with idiopathic sudden sensorineural hearing loss, do intratympanic corticosteroid injections improve hearing recovery compared with systemic oral or intravenous steroids, placebo, or no treatment?",
+      "criteria": "Include randomised controlled trials in adults with idiopathic sudden sensorineural hearing loss that compare intratympanic corticosteroids with systemic steroids, placebo, or no treatment, and report hearing recovery. Exclude non-randomised studies, animal studies, and studies of hearing loss with a known cause (trauma, infection, Meniere's disease, acoustic neuroma).",
+      "includedCount": 30,
+      "resolvedCount": 25,
+      "maxRecall": "25/30 = 83%",
+      "includedPmids": [
+        "17989574", "24303415", "21221047", "29149379", "18401285",
+        "21327728", "28756569", "23959817", "15235345", "19861194",
+        "33369870", "23652330", "21221620", "20948195", "23077155",
+        "18720882", "19172627", "26121830", "21610239", "26812786",
+        "32668428", "29168028", "21646929", "16730534", "21124045"
+      ],
+      "caveats": "5 of the 30 included studies are NOT PubMed-indexed, so 83% is the ceiling: Al-Shehri 2015 (Br J Med Med Res), Chang 2010 (Sichuan Medical Journal, Chinese), Choi 2011 (Korean J Audiology — indexed only from ~2014), Kosyakov 2011 (J Int Adv Otol), Rupasinghe 2017 (Ceylon J Otolaryngol). Each confirmed absent by targeted search. Secondary reports held out of the gold list: 23690085 (Lim 2013 reply-to-letter), Plontke 2009's NCT00335920 registry entry."
+    },
+    {
+      "title": "Toe-brachial index and toe systolic blood pressure for diagnosing peripheral arterial disease",
+      "shape": "diagnostic test accuracy",
+      "pmid": "39474992",
+      "pmcid": "PMC11523229",
+      "question": "How accurate are the toe-brachial index and toe systolic blood pressure for detecting peripheral arterial disease of the lower limb, particularly in people with diabetes?",
+      "criteria": "Include diagnostic test accuracy studies evaluating the toe-brachial index or toe systolic blood pressure for detecting peripheral arterial disease of the lower limb, compared against an imaging or angiographic reference standard, and reporting sensitivity and specificity or the data to compute them. Exclude studies of the ankle-brachial index alone, treatment studies, and case reports.",
+      "includedCount": 18,
+      "resolvedCount": 18,
+      "maxRecall": "18/18 = 100%",
+      "includedPmids": [
+        "31471230", "31624003", "34583809", "37120264", "34956078",
+        "37892678", "34275312", "33630461", "16860193", "22783531",
+        "38414018", "28423999", "26281971", "29270232", "34488499",
+        "23641284", "29633431", "16123491"
+      ],
+      "caveats": "NO indexing ceiling — every included study resolves to a PMID, so a perfect strategy could reach 100%. This is the cleanest of the three and the one whose strategy-recall number is most interpretable. Normahani 2020 has a protocol (32029491) and a results paper (33630461); the RESULTS paper is the gold entry."
+    },
+    {
+      "title": "Educational and psychological interventions for managing atopic dermatitis (eczema)",
+      "shape": "complex / behavioural — the fuzzy question",
+      "pmid": "39132734",
+      "pmcid": "PMC11318083",
+      "question": "Do educational or psychological interventions help people with atopic eczema, or their parents and carers, manage the condition and improve eczema severity, itch and quality of life?",
+      "criteria": "Include randomised controlled trials of educational or psychological interventions (patient or carer education, habit reversal, behavioural or stress-management therapy, self-management support) for people of any age with atopic eczema, or for their parents and carers, reporting eczema severity, itch, or quality of life. Exclude trials of drug, phototherapy or dietary interventions alone, and studies in other skin conditions.",
+      "includedCount": 37,
+      "resolvedCount": 30,
+      "maxRecall": "30/37 = 81%",
+      "includedPmids": [
+        "21236514", "21879233", "1981422", "30141340", "11952543",
+        "11405162", "23458232", "26775779", "17014636", "17506956",
+        "34009282", "16295138", "33486817", "29243849", "11737422",
+        "3778815", "19397561", "27295179", "28940213", "26616256",
+        "29505898", "24942774", "24594972", "36740888", "22983681",
+        "18304147", "29722071", "12000479", "16627509", "18422535"
+      ],
+      "caveats": "7 of the 37 included studies are NOT PubMed-indexed, so 81% is the ceiling (Fung 2020 in Research on Social Work Practice, Habib 1999 in Behaviour Change, Heratizadeh 2018 as a summary item, and others in non-indexed German/Sri Lankan journals). This is deliberately the hardest question of the three: a behavioural intervention has no clean MeSH handle, so it is where a MeSH-heavy strategy should be expected to struggle. Included on purpose — if the tool only works on drug RCTs, a librarian needs to know that."
+    }
+  ]
+}

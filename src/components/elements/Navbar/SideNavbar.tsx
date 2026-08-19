@@ -18,6 +18,7 @@ const IconReports = () => <NavIcon><path d="M2 12V4l5-2 5 2v8"/><path d="M7 14V9
 const IconPerson = () => <NavIcon><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></NavIcon>;
 const IconManageUsers = () => <NavIcon><path d="M8 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM3 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/><path d="M8 6v2M5.5 11H3.5M10.5 11h2"/></NavIcon>;
 const IconConfig = () => <NavIcon><circle cx="8" cy="8" r="2"/><path d="M8 2v1M8 13v1M2 8h1M13 8h1M3.5 3.5l.7.7M11.8 11.8l.7.7M11.8 4.2l-.7.7M4.2 11.8l-.7.7"/></NavIcon>;
+const IconLiterature = () => <NavIcon><path d="M8 4C6.7 2.9 4.8 2.5 2.5 2.5v10c2.3 0 4.2.4 5.5 1.5 1.3-1.1 3.2-1.5 5.5-1.5v-10C11.2 2.5 9.3 2.9 8 4z"/><path d="M8 4v10"/></NavIcon>;
 import SettingsIconGare from '../../../../public/images/settingsIconGare.png';
 import SettingsGareIconActive from '../../../../public/images/settingsWhite.png';
 import NestedListItem from './NestedListItem';
@@ -257,6 +258,26 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       isRequired:true
     },
     {
+      // Literature Search — sits at index 4, after Create Reports and before the Admin
+      // block. NOTE: the two .slice() calls further down are hardcoded and MUST stay in
+      // step with this array's length, or the Admin section silently swallows the last
+      // Navigation item. They were bumped from 6/6 to 7/7 when this was added.
+      title: 'Literature Search',
+      to: '/literature',
+      imgUrl: chartIcon,
+      imgUrlActive: chartIconActive,
+      muiIcon: <IconLiterature />,
+      disabled: false,
+      allowedRoleNames: ["Superuser", "Curator_All", "Reporter_All"],
+      // The role check is necessary but NOT sufficient: the API gates on the LITERATURE_SEARCH_CWIDS
+      // pilot allowlist, which is server-only. Without this the link renders for every Superuser /
+      // Curator_All / Reporter_All at WCM and dead-ends in a 403 — but only after they have typed a
+      // question and clicked Run. `literatureAccess` is one boolean set on the JWT at token time;
+      // the roster itself never reaches the browser. Hiding the link is cosmetic — the 403 is the
+      // control, because /literature is still reachable by URL.
+      isRequired: !!session.data?.literatureAccess
+    },
+    {
       title: 'Manage Notifications',
       to: `/notifications/${session.data.username}`,
       imgUrl: chartIcon,
@@ -364,7 +385,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             </Typography>
           )}
           {
-            menuItems.slice(0, 6).map((item: MenuItem, index: number) => {
+            menuItems.slice(0, 7).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?
@@ -394,7 +415,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             </Typography>
           )}
           {
-            menuItems.slice(6).map((item: MenuItem, index: number) => {
+            menuItems.slice(7).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?
