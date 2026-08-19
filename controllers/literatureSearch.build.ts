@@ -105,6 +105,80 @@ export async function buildSearchStrategy(args: {
         error: `${DIALECTS[db].name} could not be searched — its strategy could not be built or run. That is a fault in the service behind it, not in your question. Try again; if it keeps failing, tell the ReCiter team.`,
     })
 
+    // DRAFTS ONE DATABASE'S STRATEGY. The one Bedrock call on this path — timed against
+    // MODEL_TIMEOUT_MS, its tokens added to `usage` the instant it answers, and the spine resolved
+    // from its result if nothing had set one yet. All three happen together because they are one
+    // outcome: a strategy that came back successfully. `spine` is threaded through as a value and
+    // handed back rather than mutated in place, because a same-named parameter of a nested function
+    // shadows the outer binding in JS — assigning to it here would not reach the caller's `spine`,
+    // so the caller commits the returned value itself, immediately, the same way `if (!spine) spine
+    // = ...` did inline.
+    const draftStrategy = async (
+        db: Db,
+        question: string,
+        criteria: string,
+        limits: string,
+        spine: Concept[] | undefined,
+        usage: UsageLog,
+    ): Promise<{ strategy: Strategy; spine: Concept[] | undefined }> => {
+        // The one model call on this path, and therefore the one that gets the clock put on it.
+        // A build that never answers must become a failure PANEL — which is what a rejection
+        // here turns into, three lines down — rather than a request that hangs until the load
+        // balancer gives up on it 500 seconds later with nothing on the screen to explain why.
+        const built = await withTimeout(
+            buildStrategy(String(question), limits, criteria, 'recall', undefined, db, spine),
+            MODEL_TIMEOUT_MS,
+            `The ${DIALECTS[db].name} strategy build`,
+        )
+        usage.inputTokens += built.usage.inputTokens
+        usage.outputTokens += built.usage.outputTokens
+        return { strategy: built.strategy, spine: spine ?? conceptsOf(built.strategy) }
+    }
+
+    // SEEDS AND FIXES ARE ENRICHMENT, AND ENRICHMENT DEGRADES — it does not destroy. Both of these
+    // ran inside the per-database try, so a Bedrock throttle in suggestFixes — one Opus invoke per
+    // missed seed plus two counts per proposal, the flakiest link in the whole chain — threw away a
+    // strategy that had already been built, already been counted and already been PAID FOR, and
+    // replaced it with a failure panel that said the database could not be searched. It could: the
+    // search succeeded, and only the advice on top of it did not. The strategy and its count are the
+    // deliverable; everything in here is a bonus, and a bonus fails quietly. NEVER THROWS: the catch
+    // below turns any failure into a `degraded` note riding beside the untouched result, not a panel
+    // failure.
+    const enrichPubmedResult = async (
+        strategy: Strategy,
+        result: StrategyResult,
+        seedList: Seed[],
+        usage: UsageLog,
+    ): Promise<{ result: StrategyResult; degraded?: string }> => {
+        let degraded: string | undefined
+        try {
+            // Fetch the seed records themselves — one bounded call. This buys the
+            // author+year label AND the title/MeSH the fix model needs in order to see the paper
+            // it is being asked to widen for. PubMed-only: it is a PubMed record fetch, and the
+            // label it produces is reused on the Scopus panel below rather than fetched twice.
+            pubmedRecords = await seedRecords(seedList)
+
+            // For anything it missed: ask the model for the terms that would retrieve it, VERIFY
+            // that they do, PRICE what they cost, and hand the result back as an unticked line in
+            // the block it belongs to. Advice the librarian can inspect and reject, not a paragraph.
+            const fixed = await suggestFixes(strategy, result, pubmedRecords)
+            usage.inputTokens += fixed.usage.inputTokens
+            usage.outputTokens += fixed.usage.outputTokens
+            result = { ...result, concepts: fixed.strategy.concepts }
+        } catch (err: any) {
+            console.error('[literature] pubmed enrichment failed:', err)
+            usage.inputTokens += err?.usage?.inputTokens || 0
+            usage.outputTokens += err?.usage?.outputTokens || 0
+            // `degraded` IS NOT `failed`, and the difference is the whole point: the panel,
+            // the strategy, the count and the exports all stand, and this note rides beside
+            // them. It says only what is actually missing — the seed CHECK itself is run by
+            // runStrategy above and survives, so claiming the seeds went unvalidated would be
+            // the same species of false statement this fix exists to delete.
+            degraded = 'Suggested fixes for the seeds this strategy missed could not be produced, so no widening terms are proposed below. The strategy, its count and the seed check itself are unaffected.'
+        }
+        return { result, degraded }
+    }
+
     // ONE DATABASE, START TO FINISH. Lifted out of the loop body so the databases that do not depend
     // on each other can run at the same time (see below), and it NEVER THROWS: every failure it can
     // have is already a panel, which is exactly what makes it safe to hand to Promise.allSettled.
@@ -142,63 +216,24 @@ export async function buildSearchStrategy(args: {
             // PubMed count printed beside it.
             const { terms: limits, unsupported } = buildLimits(db, String(dateId ?? ''), String(typeId ?? ''))
 
-            // The one model call on this path, and therefore the one that gets the clock put on it.
-            // A build that never answers must become a failure PANEL — which is what a rejection
-            // here turns into, three lines down — rather than a request that hangs until the load
-            // balancer gives up on it 500 seconds later with nothing on the screen to explain why.
-            const built = await withTimeout(
-                buildStrategy(String(question), limits, criteria, 'recall', undefined, db, spine),
-                MODEL_TIMEOUT_MS,
-                `The ${DIALECTS[db].name} strategy build`,
-            )
-            usage.inputTokens += built.usage.inputTokens
-            usage.outputTokens += built.usage.outputTokens
-            if (!spine) spine = conceptsOf(built.strategy)
+            const drafted = await draftStrategy(db, question, criteria, limits, spine, usage)
+            const strategy = drafted.strategy
+            spine = drafted.spine
 
             // Counts + known-item validation. No records are retrieved, so this is cheap and
             // scales to a 15,000-hit strategy — in either database.
-            let result = await runStrategy(built.strategy, seedList, unsupported)
+            let result = await runStrategy(strategy, seedList, unsupported)
             let degraded: string | undefined
 
             if (db === 'pubmed') {
                 // Recorded BEFORE the enrichment below and outside its try, because the expert panel
                 // is drawn from the strategy's MeSH and has nothing to do with seeds or fixes. Set
                 // after them, as it was, a seed fetch that threw also cost the librarian the panel.
-                pubmedStrategy = built.strategy
+                pubmedStrategy = strategy
 
-                // SEEDS AND FIXES ARE ENRICHMENT, AND ENRICHMENT DEGRADES — it does not destroy.
-                // Both of these ran inside the per-database try, so a Bedrock throttle in
-                // suggestFixes — one Opus invoke per missed seed plus two counts per proposal, the
-                // flakiest link in the whole chain — threw away a strategy that had already been
-                // built, already been counted and already been PAID FOR, and replaced it with a
-                // failure panel that said the database could not be searched. It could: the search
-                // succeeded, and only the advice on top of it did not. The strategy and its count
-                // are the deliverable; everything in here is a bonus, and a bonus fails quietly.
-                try {
-                    // Fetch the seed records themselves — one bounded call. This buys the
-                    // author+year label AND the title/MeSH the fix model needs in order to see the paper
-                    // it is being asked to widen for. PubMed-only: it is a PubMed record fetch, and the
-                    // label it produces is reused on the Scopus panel below rather than fetched twice.
-                    pubmedRecords = await seedRecords(seedList)
-
-                    // For anything it missed: ask the model for the terms that would retrieve it, VERIFY
-                    // that they do, PRICE what they cost, and hand the result back as an unticked line in
-                    // the block it belongs to. Advice the librarian can inspect and reject, not a paragraph.
-                    const fixed = await suggestFixes(built.strategy, result, pubmedRecords)
-                    usage.inputTokens += fixed.usage.inputTokens
-                    usage.outputTokens += fixed.usage.outputTokens
-                    result = { ...result, concepts: fixed.strategy.concepts }
-                } catch (err: any) {
-                    console.error('[literature] pubmed enrichment failed:', err)
-                    usage.inputTokens += err?.usage?.inputTokens || 0
-                    usage.outputTokens += err?.usage?.outputTokens || 0
-                    // `degraded` IS NOT `failed`, and the difference is the whole point: the panel,
-                    // the strategy, the count and the exports all stand, and this note rides beside
-                    // them. It says only what is actually missing — the seed CHECK itself is run by
-                    // runStrategy above and survives, so claiming the seeds went unvalidated would be
-                    // the same species of false statement this fix exists to delete.
-                    degraded = 'Suggested fixes for the seeds this strategy missed could not be produced, so no widening terms are proposed below. The strategy, its count and the seed check itself are unaffected.'
-                }
+                const enriched = await enrichPubmedResult(strategy, result, seedList, usage)
+                result = enriched.result
+                degraded = enriched.degraded
             }
 
             // The label is a property of the PAPER, not of the database that found it, so a seed
