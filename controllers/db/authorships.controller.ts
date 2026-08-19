@@ -111,12 +111,17 @@ function buildWhere(body: any): any {
   } else if (dateTo) {
     and.push({ entrez_date: { [Op.lte]: dateTo } });
   }
-  // hold immature no-DOI scopus rows out of every view until they clear the floor above
+  // hold immature no-DOI scopus rows out of every view until they clear the floor above.
+  // entrez_date is nullable (aar_universe_scopus.py has no coverDate fallback) — a bare
+  // Op.gt against NULL evaluates to NULL, and NOT(NULL) is NULL too, so an unguarded
+  // clause here would make a missing-date row vanish permanently instead of just holding
+  // it. Require entrez_date to be non-null before comparing, so a NULL date falls through
+  // to "show the row" rather than "hide it forever."
   and.push({
     [Op.not]: {
       source: "scopus",
       doi: null,
-      entrez_date: { [Op.gt]: maturityCutoffStr() },
+      entrez_date: { [Op.and]: [{ [Op.ne]: null }, { [Op.gt]: maturityCutoffStr() }] },
     },
   });
 
