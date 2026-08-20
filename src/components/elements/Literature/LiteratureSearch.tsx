@@ -559,7 +559,10 @@ export default function LiteratureSearch() {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode, phase: 'm4-synthesize', question, corpus, clusters, scores, impact, fromYear, toYear }),
+                // `seeds` must ride every M4 phase POST, not just retrieve: the server re-derives
+                // the scoring shortlist from seedList each phase, and an absent seeds field makes
+                // seed-forcing silently no-op (seeds only got scored when tier rank admitted them).
+                body: JSON.stringify({ mode, phase: 'm4-synthesize', question, seeds, corpus, clusters, scores, impact, fromYear, toYear }),
             })
             const data = await res.json()
             if (!res.ok) {
@@ -587,7 +590,7 @@ export default function LiteratureSearch() {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode, phase: 'm4-score', question, criteria, corpus, clusters }),
+                body: JSON.stringify({ mode, phase: 'm4-score', question, criteria, seeds, corpus, clusters }),
             })
             const data = await res.json()
             if (!res.ok) {
