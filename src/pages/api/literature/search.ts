@@ -936,26 +936,47 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
         // receptor biology, was pulled in by an over-broad MeSH term and had nothing to do with the
         // question. We paid a model to tell us so, at length, in the deliverable.
         //
-        // The gate is the relevance score that was ALREADY computed for this cluster's shortlist, so
-        // it costs nothing new. It is a MEAN over the scored members rather than a max, because one
-        // on-topic paper in a cluster of androgen pharmacology does not make the cluster on-topic —
-        // which is exactly the shape of the failure being fixed.
+        // The gate is the relevance score ALREADY computed for this cluster's shortlist, so it costs
+        // nothing new. It is the BEST score in that shortlist, not the mean, and that choice is
+        // load-bearing — it was measured against the 2026-08-19 run's own scores rather than argued:
         //
-        // A cluster with no scored members at all is NOT gated out: that means preFilterForScoring
-        // gave it no budget, which is a statement about the cluster's size, not its relevance, and
-        // silently dropping it would hide a real topic rather than a spurious one.
+        //   A mean gate at this floor was genuinely undecidable for TEN of the run's eighteen
+        //   clusters: their 95% confidence intervals straddled 0.25, several spanning [0.03,0.59]
+        //   or wider. That is not a threshold doing work, it is a coin flip wearing a decimal point.
+        //   It would have dropped "Recovery and extubation after general inhalational anesthesia"
+        //   (43 papers, mean 0.24, one paper scoring 0.55) — an adjacent, legitimately reviewable
+        //   topic — while keeping "Rocuronium for intubation" on a mean of 0.32.
+        //
+        //   The sample is why. preFilterForScoring ranks by tier.rank, deliberately, because it is
+        //   choosing what a model should READ. That makes it a fine reading list and a badly biased
+        //   estimator of a cluster property: RCTs are 13.8% of that corpus but 43.2% of its scored
+        //   sample, and "Other" is 55% of the corpus but 8.3% of the sample. A mean over 3-7 such
+        //   papers is not an estimate of the cluster's relevance.
+        //
+        // The max asks a question the small biased sample CAN answer: did even one paper we actually
+        // read from this cluster come back on-topic? On the real run that gates exactly the four
+        // unambiguous clusters (androgen-receptor signalling at max 0.00 across 18 scored papers,
+        // androstanol steroids 0.05, Alzheimer's cholinesterase 0.20, NMJ physiology 0.15) and keeps
+        // every borderline one. It also needs no distributional assumption, which matters at n=3.
+        //
+        // The earlier worry that one on-topic paper could rescue a spurious cluster did not survive
+        // contact with the data: the 155-paper androgen cluster scored 0.00 on every single sampled
+        // paper, so the max gates it just as decisively as the mean did.
+        //
+        // A cluster with no scored members at all is NOT gated: that reflects preFilterForScoring
+        // giving it no budget, which is a statement about its size, not its relevance.
         const NARRATIVE_RELEVANCE_FLOOR = 0.25
-        const meanRelevance = (c: Cluster) => {
+        const bestRelevance = (c: Cluster) => {
             const scored = c.pmids.map(p => scores.get(p)?.score).filter((n): n is number => typeof n === 'number')
-            return scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null
+            return scored.length ? Math.max(...scored) : null
         }
 
         const realClusters = clusters.filter(c => !c.isUncategorized)
-        const skipped: Array<{ id: string; label: string; meanRelevance: number }> = []
+        const skipped: Array<{ id: string; label: string; bestRelevance: number }> = []
         const perCluster = realClusters.flatMap(c => {
-            const mean = meanRelevance(c)
-            if (mean !== null && mean < NARRATIVE_RELEVANCE_FLOOR) {
-                skipped.push({ id: c.id, label: c.label, meanRelevance: Math.round(mean * 100) / 100 })
+            const best = bestRelevance(c)
+            if (best !== null && best < NARRATIVE_RELEVANCE_FLOOR) {
+                skipped.push({ id: c.id, label: c.label, bestRelevance: Math.round(best * 100) / 100 })
                 return []
             }
             const candidates = (budget[c.id] || [])
@@ -971,7 +992,7 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
         if (skipped.length) {
             console.error(JSON.stringify({
                 tag: 'literature-narrative-skipped-offtopic', floor: NARRATIVE_RELEVANCE_FLOOR, skipped,
-                why: 'these clusters scored below the relevance floor; no narrative section was written for them',
+                why: 'not one sampled paper in these clusters reached the relevance floor; no narrative section was written for them',
             }))
         }
 
