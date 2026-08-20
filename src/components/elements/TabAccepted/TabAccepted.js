@@ -5,6 +5,7 @@ import styles from '../Tabs/TabControls.module.css';
 import Publication from '../Publication/Publication';
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
+import fullName from '../../../utils/fullName';
 
 const TabAccepted = (props) => {
     
@@ -17,6 +18,7 @@ const TabAccepted = (props) => {
 
     const identityData = useSelector((state) => state.identityData)
     const reciterData = useSelector((state) => state.reciterData)
+    const showEvidenceDefault = useSelector((state) => state.showEvidenceDefault)
 
     const handlePaginationUpdate = (e, page) => {
         setPage(page)
@@ -31,23 +33,17 @@ const TabAccepted = (props) => {
         setSort(filterState.sort)
     }
 
-    const rejectPublication = (id) => {
+    // Publication.tsx's CardFooter calls updatePublication(personIdentifier, pmid,
+    // userAssertion) for accept, reject, and undo alike; keep dispatching the same
+    // reciterUpdatePublication action the old per-assertion handlers used.
+    const updatePublication = (uid, pmid, userAssertion) => {
         const request = {
             faculty: identityData,
-            publications: [id],
-            userAssertion: 'REJECTED',
+            publications: [pmid],
+            userAssertion: userAssertion,
             manuallyAddedFlag: false
         }
-        dispatch(reciterUpdatePublication(identityData.uid, request))
-    }
-
-    const undoPublication = (id)  => {
-        const request = {
-            faculty: identityData,
-            publications: [id],
-            userAssertion: 'NULL'
-        }
-        dispatch(reciterUpdatePublication(identityData.uid, request))
+        dispatch(reciterUpdatePublication(uid, request))
     }
 
     const rejectAll = () => {
@@ -226,16 +222,24 @@ const TabAccepted = (props) => {
             </div>
             <p>Not finding what you`&apos;`re looking for? <a onClick={() => { props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
             <Pagination total={publications.filteredPublications.length} page={page} count={count} onChange={handlePaginationUpdate} />
-            <div className="table-responsive">
-                <table className="table table-striped">
-                    <tbody>
-                        {
-                            publications.paginatedPublications.map(function(item, index){
-                                return <Publication item={item} key={index} onReject={rejectPublication} onUndo={undoPublication} />;
-                            })
-                        }
-                    </tbody>
-                </table>
+            <div>
+                {
+                    publications.paginatedPublications.map((item, index) => (
+                        <Publication
+                            key={item.pmid || index}
+                            index={`page${page}${index + 1}`}
+                            reciterArticle={item}
+                            personIdentifier={identityData.uid}
+                            fullName={fullName(identityData.primaryName)}
+                            updatePublication={updatePublication}
+                            activekey="ACCEPTED"
+                            totalCount={publications.filteredPublications.length}
+                            paginatedPubsCount={publications.paginatedPublications.length}
+                            page={page}
+                            showEvidenceDefault={showEvidenceDefault}
+                        />
+                    ))
+                }
             </div>
             <Pagination total={publications.filteredPublications.length} page={page} count={count} onChange={handlePaginationUpdate} />
         </div>

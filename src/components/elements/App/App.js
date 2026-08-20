@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import appStyles from './App.module.css';
 import { useSelector, useDispatch } from "react-redux";
-import { identityFetchData, reciterFetchData, otherPublicationsFetchData } from '../../../redux/actions/actions'
+import { identityFetchData, reciterFetchData, otherPublicationsFetchData, fetchFeedbacklog } from '../../../redux/actions/actions'
 import Tabs from '../Tabs/Tabs'
 import TabAccepted from '../TabAccepted/TabAccepted';
 import TabSuggested from '../TabSuggested/TabSuggested';
@@ -48,6 +48,10 @@ const App = (props) => {
             dispatch(reciterFetchData(props.uid, false))
             dispatch(identityFetchData(props.uid))
             dispatch(otherPublicationsFetchData(props.uid))
+            // Publication.tsx's History popover reads state.feedbacklog; without this
+            // fetch it stays at its {} default (safe, but empty). Same dispatch the
+            // curator page (CurateIndividual.tsx) makes on load.
+            dispatch(fetchFeedbacklog(props.uid))
          }
     },[session])
 
