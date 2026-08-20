@@ -25,9 +25,8 @@ export async function notifyExternalArticleDisputed(params: {
     actorPersonIdentifier: string,
     addedBy: string,
     note?: string,
-    origin?: string,
 }): Promise<void> {
-    const { uid, articleId, title, actorPersonIdentifier, addedBy, note, origin } = params
+    const { uid, articleId, title, actorPersonIdentifier, addedBy, note } = params
 
     const adminUser: any = await models.AdminUser.findOne({
         where: { personIdentifier: addedBy },
@@ -42,7 +41,11 @@ export async function notifyExternalArticleDisputed(params: {
         ? '"Reciter Pub Manager" <publications@med.cornell.edu>'
         : '"Reciter Pub Manager Test" <doNotReply@med.cornell.edu>'
 
-    const curateLink = origin ? `${origin}/curate/${encodeURIComponent(uid)}` : ''
+    // Server-configured base only — never the request's Origin header, which the
+    // client controls and would let a forged request plant an arbitrary URL in an
+    // email the curator is told to click.
+    const baseUrl = (process.env.NEXTAUTH_URL || '').replace(/\/+$/, '')
+    const curateLink = baseUrl ? `${baseUrl}/curate/${encodeURIComponent(uid)}` : ''
     const emailBody = `<div style="font-family: Arial; font-size: 11pt">
         <p>${escapeHtml(actorPersonIdentifier)} has disputed an external publication that was added to ${escapeHtml(uid)}'s profile:</p>
         <p><b>${escapeHtml(title || articleId)}</b><br/>ID: ${escapeHtml(articleId)}</p>

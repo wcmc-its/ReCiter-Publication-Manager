@@ -125,6 +125,23 @@ export default async function handler(
             }
             const noteText = typeof note === 'string' && note.trim() ? note.trim() : undefined
 
+            // Snapshot the live row BEFORE the write: addedBy for the Decision-7
+            // notification, and the pre-write suppressed state so only the first
+            // REJECTED transition notifies — a repeat dispute of an already-suppressed
+            // row must not email the curator again. Best-effort: a failed read just
+            // means no notification, never a failed dispute.
+            let preRow: any = undefined
+            if (action === 'REJECTED') {
+                try {
+                    const live = await getExternalArticles(uid)
+                    preRow = live.statusCode === 200 && Array.isArray(live.statusText)
+                        ? (live.statusText as any[]).find((r: any) => r?.articleId === articleId)
+                        : undefined
+                } catch (e) {
+                    console.error('[external-article] pre-write row lookup failed (dispute proceeds, notification skipped):', e)
+                }
+            }
+
             const apiResponse = await recordExternalArticleFeedback(uid, articleId, action, actor, noteText)
             // Mirrors logScopusFeedback's status handling, but fails loud in both cases:
             // here the FeedbackLog write IS the action, so an unknown uid (404 with an
@@ -145,13 +162,15 @@ export default async function handler(
                 try {
                     const caps = getCapabilities(parseRoles(token.userRoles))
                     const isCurator = !!(caps.canCurate.all || caps.canCurate.scoped)
-                    if (!isCurator) {
-                        // Resolve addedBy from the server-side row, never the client body.
-                        const live = await getExternalArticles(uid)
-                        const row = live.statusCode === 200 && Array.isArray(live.statusText)
-                            ? (live.statusText as any[]).find((r: any) => r?.articleId === articleId)
-                            : undefined
-                        const addedBy = row?.addedBy ? String(row.addedBy) : undefined
+                    if (isCurator) {
+                        // Curator declines are routine queue work, not disputes — no email.
+                    } else if (!preRow) {
+                        console.log(`[external-article] dispute notification skipped — no live row for ${articleId}`)
+                    } else if (preRow.suppressed) {
+                        console.log(`[external-article] dispute notification skipped — ${articleId} was already suppressed (repeat dispute)`)
+                    } else {
+                        // addedBy comes from the server-side row, never the client body.
+                        const addedBy = preRow.addedBy ? String(preRow.addedBy) : undefined
                         if (!addedBy) {
                             console.log(`[external-article] dispute notification skipped — ${articleId} has no addedBy`)
                         } else if (addedBy === actor) {
@@ -160,11 +179,10 @@ export default async function handler(
                             await notifyExternalArticleDisputed({
                                 uid,
                                 articleId,
-                                title: row?.title,
+                                title: preRow.title,
                                 actorPersonIdentifier: actor,
                                 addedBy,
                                 note: noteText,
-                                origin: typeof req.headers.origin === 'string' ? req.headers.origin : undefined,
                             })
                         }
                     }
