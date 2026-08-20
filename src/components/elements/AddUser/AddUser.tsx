@@ -7,10 +7,11 @@ import { RootStateOrAny } from "../../../types/redux";
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
-import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles, getPersonTypes} from "../../../redux/actions/actions";
+import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles, getPersonTypes, fetchProxiesForUser, saveProxiesForUser} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
+import ProxyAssignmentsSection, { PersonOption } from './ProxyAssignmentsSection';
 
 /* ── Role label formatting ── */
 const ROLE_LABELS: Record<string, string> = {
@@ -67,6 +68,9 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     // scope_org_units (see PM#849).
     const [selectedPersonTypes, setSelectedPersonTypes] = useState([]);
     const [selectedScopeOrgUnits, setSelectedScopeOrgUnits] = useState([]);
+    // Individual-level proxy: specific people this user can curate regardless of role/scope
+    // (admin_users.proxy_person_ids, see PM#849). Independent of selectedScopeOrgUnits above.
+    const [selectedProxies, setSelectedProxies] = useState<PersonOption[]>([]);
     const [loading, setLoading] = useState(false);
     const isCuratorScoped = selectedRoles.includes('Curator_Scoped');
 
@@ -129,6 +133,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0] === 1) {
+                    await saveProxiesForUser(isEditUserId, selectedProxies.map(p => p.personIdentifier))
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
                     router.push("/admin/manage/users")
                 }
@@ -136,6 +141,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             else {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0].userID) {
+                    await saveProxiesForUser(resp[0].userID, selectedProxies.map(p => p.personIdentifier))
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
                     router.push("/admin/manage/users")
                 }
@@ -182,6 +188,8 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
                 setLoading(false)
             })
+
+            fetchProxiesForUser(isEditUserId).then(persons => setSelectedProxies(persons || []))
         }
     }, [router.query.userId])
 
@@ -577,6 +585,17 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                 </div>
                             )}
                             {formErrorsInst.selectedScope && <span className={styles.errorText}>{formErrorsInst.selectedScope}</span>}
+                            <div className={styles.fieldGrid} style={{ marginTop: 16 }}>
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>Proxy — additional people this user can curate</label>
+                                    <ProxyAssignmentsSection
+                                        selectedProxies={selectedProxies}
+                                        onProxiesChange={setSelectedProxies}
+                                        sx={orgUnitSx}
+                                    />
+                                    <span className={styles.fieldHint}>Grants curation access to specific people regardless of role or scope above. Leave empty for none.</span>
+                                </div>
+                            </div>
                         </div>
 
                         {/* ── Footer ── */}
