@@ -2332,6 +2332,71 @@ export const fetchUserInfoByID = (userID) =>{
         })
 }
 
+// Get the enriched proxy-person list currently saved for an admin user (PM#849 proxy grant flow)
+export const fetchProxiesForUser = (userID) => {
+    return fetch(`/api/db/admin/proxy?userID=${userID}`, {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            'Authorization': reciterConfig.backendApiKey
+        }
+    })
+        .then(response => {
+            if (response.status === 200) {
+                return response.json()
+            }
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("fetch proxies " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
+            return []
+        })
+}
+
+// Replace the full proxy_person_ids list for an admin user (PM#849 proxy grant flow)
+export const saveProxiesForUser = (userID, personIdentifiers) => {
+    return fetch(`/api/db/admin/proxy`, {
+        credentials: "same-origin",
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            "Content-Type": "application/json",
+            'Authorization': reciterConfig.backendApiKey
+        },
+        body: JSON.stringify({ userID, personIdentifiers })
+    })
+        .then(response => {
+            if (response.status === 200) {
+                return response.json()
+            }
+            throw {
+                type: response.type,
+                title: response.statusText,
+                status: response.status,
+                detail: "Error occurred with api " + response.url + ". Please, try again later "
+            }
+        })
+        .catch(error => {
+            console.log(error)
+            toast.error("save proxies " + error.title, {
+                position: "top-right",
+                autoClose: 2000,
+                theme: 'colored'
+            });
+        })
+}
+
 // Get personIdentifiers and pmids of results of Create Reports
 export const fetchReportsResultsIds = (requestBody) => dispatch => {
     dispatch({
