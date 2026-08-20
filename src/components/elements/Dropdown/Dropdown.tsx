@@ -94,7 +94,7 @@ const Dropdown: FunctionComponent<FuncProps> = (props) => {
             >
                 Sort by <span className={sortClass}>{sortBy}</span>
             </button>
-            <div className={`${styles.dropdownMenu} dropdown-menu-right ${isOpen ? " show" : ""}`} aria-labelledby="dropdownMenuButton">
+            <div className={`${styles.dropdownMenu} dropdown-menu dropdown-menu-right ${isOpen ? " show" : ""}`} aria-labelledby="dropdownMenuButton">
                 <span
                     className={(sortBy === "Score")?sortClass:""}
                     onClick={(event) => handleClick(event, "Score")}
