@@ -304,9 +304,392 @@ const checkXlsxTruncationGuard = (xp, q) => {
     console.log(`exports:      the .xlsx REFUSES its AI verdict column when the sample is truncated, and keeps it when it is not`)
 }
 
+// =======================================================================================
+// MODE 4, PHASE 5 — clusterByMesh(). PURE, deterministic, NO LLM (labelClusters(), the one
+// Bedrock call in literatureSearch.cluster.ts, is out of scope for this file by the same rule
+// everything else here follows: it needs the world).
+//
+// A minimal PubRecord-shaped fixture — clusterByMesh() only ever reads .pmid and .mesh, so that
+// is all a record needs here, the same minimalism checkXlsxTruncationGuard already uses for its
+// own record fixtures.
+const meshRec = (pmid, mesh) => ({ pmid, title: `Study ${pmid}`, mesh })
+
+// THE STOPLIST TRAP THIS FIXTURE IS SHAPED AROUND. In real PubMed data "Humans" and "Adult" are
+// the MOST common MeSH terms on the page, by a wide margin — every clinical paper about people
+// carries them. So the fixture below puts "Humans" on ALL 20 records and "Adult" on 14 of them,
+// deliberately making both terms MORE frequent than either real topic. If MESH_STOPLIST ever
+// stopped being applied before the frequency count, "Humans" (freq 20) would out-rank both real
+// seeds and swallow the entire corpus into one meaningless cluster — a bug that would look
+// completely plausible on screen (a cluster IS formed, it just isn't about anything) and would
+// never be caught by eyeballing a demo corpus too small for "Humans" to visibly dominate.
+const checkClusterByMesh = (lit) => {
+    const diabetes = Array.from({ length: 8 }, (_, i) =>
+        meshRec(`d${i + 1}`, ['Diabetes Mellitus, Type 2', 'Humans', 'Adult']))
+    const hypertension = Array.from({ length: 6 }, (_, i) =>
+        meshRec(`h${i + 1}`, ['Hypertension', 'Humans', 'Adult']))
+    // Stoplist-only: no real topic term at all, so these MUST fall through to 'uncategorized' —
+    // there is no seed they could ever match.
+    const adminOnly = [meshRec('u1', ['Humans', 'Female']), meshRec('u2', ['Humans', 'Female'])]
+    // One-off real terms: each appears on exactly one record, so freq (1) never clears the
+    // threshold (3 at this corpus size) and none of them may become its own cluster either —
+    // a corpus is not obligated to have a topic for every paper in it.
+    const rareTerms = ['Rare Condition A', 'Rare Condition B', 'Rare Condition C', 'Rare Condition D']
+    const oneOffs = rareTerms.map((t, i) => meshRec(`r${i + 1}`, [t, 'Humans']))
+
+    const records = [...diabetes, ...hypertension, ...adminOnly, ...oneOffs]   // 20 total
+
+    const result = lit.clusterByMesh(records)
+    const real = result.clusters.filter(c => !c.isUncategorized)
+    const uncategorized = result.clusters.find(c => c.isUncategorized)
+
+    assert.strictEqual(real.length, 2, 'exactly two real topics were built into this fixture (Diabetes, Hypertension) — a different count means the seed/threshold logic drifted')
+    const diabetesCluster = real.find(c => c.meshTerms[0] === 'Diabetes Mellitus, Type 2')
+    const hypertensionCluster = real.find(c => c.meshTerms[0] === 'Hypertension')
+    assert.ok(diabetesCluster && hypertensionCluster, 'both real seed terms must each head their own cluster')
+    assert.strictEqual(diabetesCluster.pmids.length, 8, 'the Diabetes cluster must claim exactly its 8 members, no more, no fewer')
+    assert.strictEqual(hypertensionCluster.pmids.length, 6, 'the Hypertension cluster must claim exactly its 6 members')
+
+    // THE STOPLIST ASSERTION ITSELF: neither real cluster's seed (meshTerms[0], set by
+    // topMeshTerms()) is an administrative checktag — if MESH_STOPLIST filtering broke, "Humans"
+    // (freq 20, the single most common raw term in this fixture) would out-rank both real seeds
+    // and this assertion is what would catch it.
+    for (const c of real) {
+        assert.ok(!['Humans', 'Adult', 'Female'].includes(c.meshTerms[0]),
+            `a cluster's seed term must never be an administrative checktag — got "${c.meshTerms[0]}" for cluster "${c.id}"`)
+    }
+
+    assert.ok(uncategorized, 'the stoplist-only and one-off records must land somewhere — an uncategorized bucket is required by this fixture')
+    assert.strictEqual(uncategorized.pmids.length, 6, 'uncategorized must hold exactly the 2 stoplist-only + 4 one-off records this fixture built for it')
+
+    // NOTHING THAT GOES IN MAY SILENTLY VANISH — the same invariant checkRecordsColumnRendering
+    // and checkXlsxTruncationGuard already police, one layer down: every pmid handed to
+    // clusterByMesh() must come back in EXACTLY ONE cluster's pmids — never dropped, never
+    // counted twice across two clusters.
+    const allOutputPmids = result.clusters.flatMap(c => c.pmids)
+    assert.strictEqual(allOutputPmids.length, records.length,
+        `every input record must appear exactly once across all clusters — got ${allOutputPmids.length} pmids total for ${records.length} input records (a mismatch means a record was dropped or double-counted)`)
+    assert.deepStrictEqual([...allOutputPmids].sort(), records.map(r => r.pmid).sort(),
+        'the SET of pmids across all clusters must equal the set of input pmids exactly — not just the same count')
+
+    // DETERMINISM. Same input, same output, byte for byte — a librarian re-running the same
+    // corpus (or the UI re-rendering after an unrelated state change) must never see the topic
+    // clusters reshuffle underneath them.
+    const again = lit.clusterByMesh(records)
+    assert.deepStrictEqual(again, result, 'clusterByMesh() must be a pure function of its input — the same corpus must produce byte-identical clusters on a second call')
+
+    console.log(`cluster:      ${real.length} real clusters (Diabetes=${diabetesCluster.pmids.length}, Hypertension=${hypertensionCluster.pmids.length}), uncategorized=${uncategorized.pmids.length}, no drops, no stoplist seed, deterministic`)
+}
+
+// =======================================================================================
+// MODE 4, PHASE 6a — preFilterForScoring(). PURE, deterministic, NO LLM. Decides which records
+// in each cluster are worth a Bedrock relevance-scoring call, under a caller-supplied budget.
+//
+// A minimal PubRecord-shaped fixture again: preFilterForScoring() (via rankForScoring()) only
+// ever reads .pmid, .tier.rank, .nihPercentile and .year.
+const scoreRec = (pmid, tierRank, opts = {}) => ({
+    pmid,
+    tier: { rank: tierRank, label: `tier${tierRank}`, phrase: `tier ${tierRank} phrase` },
+    year: opts.year ?? '2020',
+    ...(typeof opts.pct === 'number' ? { nihPercentile: opts.pct } : {}),
+})
+
+const checkPreFilterForScoring = (lit) => {
+    // A big cluster (100 members) and a small one (4 members), plus a 4-member cluster built
+    // specifically to test the missing-vs-zero-percentile ranking rule, plus an uncategorized
+    // bucket that must get nothing. budget=20 is chosen (not the 200 default) so every number
+    // below is small enough to hand-verify by arithmetic, the same posture this whole file takes.
+    const big = Array.from({ length: 100 }, (_, i) => scoreRec(`big-${i + 1}`, 5))
+    const small = Array.from({ length: 4 }, (_, i) => scoreRec(`small-${i + 1}`, 5))
+    const rankRecords = [
+        scoreRec('rt-1', 5, { pct: 80 }),
+        scoreRec('rt-2', 5, { pct: 50 }),
+        scoreRec('rt-3', 5, { pct: 0 }),      // a REAL zero — scored by iCite, genuinely at the bottom
+        scoreRec('rt-4', 5, {}),              // MISSING — never scored at all, could be excellent
+    ]
+    const uncat = Array.from({ length: 50 }, (_, i) => scoreRec(`uncat-${i + 1}`, 5))
+
+    const clusters = [
+        { id: 'big', label: 'Big', meshTerms: [], pmids: big.map(r => r.pmid) },
+        { id: 'small', label: 'Small', meshTerms: [], pmids: small.map(r => r.pmid) },
+        { id: 'ranktest', label: 'RankTest', meshTerms: [], pmids: rankRecords.map(r => r.pmid) },
+        { id: 'uncat', label: 'Uncategorized', meshTerms: [], pmids: uncat.map(r => r.pmid), isUncategorized: true },
+    ]
+    const byPmid = new Map([...big, ...small, ...rankRecords, ...uncat].map(r => [r.pmid, r]))
+
+    const budget = 20
+    const result = lit.preFilterForScoring(clusters, byPmid, budget)
+
+    // THE UNCATEGORIZED CLUSTER GETS NOTHING. It is the fallthrough for records no seed MeSH
+    // term claimed, not a topic worth spending a Bedrock call on — see preFilterForScoring()'s
+    // own comment.
+    assert.strictEqual(result.uncat, undefined, 'the isUncategorized cluster must receive zero scoring budget — it is a fallthrough bucket, not a topic')
+
+    // THE FLOOR IS RESPECTED FOR A SMALL CLUSTER. At this budget, a purely proportional split
+    // (4 members out of 108 total real-cluster members) would round DOWN TO ZERO for "small" —
+    // it is the floor, not the proportional share, that guarantees it SCORE_FLOOR records rather
+    // than none at all.
+    assert.strictEqual(result.small.length, lit.SCORE_FLOOR,
+        `a 4-record cluster must still get its floor of ${lit.SCORE_FLOOR} records scored even though its proportional share of a ${budget}-record budget rounds to zero — a small cluster must never be zeroed out by a big one's share`)
+
+    // THE TOTAL SELECTED NEVER EXCEEDS THE BUDGET — across every real cluster, not per-cluster.
+    const total = Object.values(result).reduce((a, arr) => a + arr.length, 0)
+    assert.ok(total <= budget, `preFilterForScoring must never hand back more records than the ${budget}-record budget it was given — got ${total}`)
+    // The exact arithmetic this fixture works out to (floors 3+3+3=9, then a proportional share
+    // of the remaining 11 split 100:4:4) — an exact check, not just an upper bound, so a change
+    // to the allocation formula that stays under budget but silently shortchanges every cluster
+    // still gets caught.
+    assert.strictEqual(total, 19, `expected exactly 19 records selected for this fixture's floors-then-proportional-share arithmetic, got ${total} — the allocation formula changed`)
+
+    // A RECORD WITH nihPercentile: 0 MUST NOT BE CONFUSED WITH A RECORD THAT HAS NO PERCENTILE
+    // AT ALL. Same tier, same year — the only difference is 0 (real, scored, genuinely at the
+    // bottom of its field) versus missing (never scored, could be anything). With a floor of 3
+    // out of 4 candidates, exactly one gets cut — and it must be the missing one, never the real
+    // zero, because coercing "missing" into looking like a real 0 would let an unscored record
+    // silently outrank (or wrongly tie with) one iCite actually looked at.
+    const rankedSelection = result.ranktest.map(r => r.pmid)
+    assert.ok(rankedSelection.includes('rt-3'), 'a record with a REAL nihPercentile: 0 must be kept over a same-tier record with no percentile at all — 0 is scored data, missing is not')
+    assert.ok(!rankedSelection.includes('rt-4'), 'the record with a missing nihPercentile must be the one cut when the cluster exceeds its floor, never a record with a real (even if low) percentile in its place')
+
+    console.log(`prefilter:    small cluster floor=${result.small.length}, total selected=${total}/${budget}, uncategorized=none, real-0 kept over missing-percentile`)
+}
+
+// =======================================================================================
+// MODE 4, PHASE 6a — impactScoreOf(). PURE, deterministic, NO LLM. See the file's own header
+// comment for the two-score design (this one is free arithmetic over tier + iCite; the other,
+// scoreRelevance(), is the one Bedrock call and is out of scope here).
+const checkImpactScoreOf = (lit) => {
+    // RETRACTION OVERRIDES EVERYTHING — a RETRACTED record scores exactly 0 no matter how high
+    // its citation percentile is. This mirrors tierOf()'s own override in literatureSearch.records.ts:
+    // PubMed adds "Retracted Publication" ALONGSIDE a paper's original types rather than replacing
+    // them, so a retracted RCT with a sky-high percentile must not buy back any impact score at all.
+    const retracted = scoreRec('ret-1', 9, { pct: 99 })
+    retracted.tier.label = 'RETRACTED'
+    retracted.tier.phrase = 'a RETRACTED publication, which must not be relied on'
+    const retractedResult = lit.impactScoreOf(retracted)
+    assert.strictEqual(retractedResult.score, 0, 'a RETRACTED record must score exactly 0 regardless of a high nihPercentile — retraction overrides everything, no blend, no partial credit')
+    assert.strictEqual(retractedResult.justification, retracted.tier.phrase, "the RETRACTED record's justification must be the tier's own phrase — the one thing that matters here")
+
+    // TIER ORDERING SURVIVES WHEN PERCENTILE IS ABSENT. A rank-2 (Meta-analysis) record with no
+    // percentile must still score higher than a rank-5 (Observational) record with no
+    // percentile — the tier component alone must preserve the hierarchy, not collapse to a tie
+    // just because neither record has been cited yet.
+    const metaNoPct = scoreRec('meta-1', 2)
+    const obsNoPct = scoreRec('obs-1', 5)
+    const metaScore = lit.impactScoreOf(metaNoPct).score
+    const obsScore = lit.impactScoreOf(obsNoPct).score
+    assert.ok(metaScore > obsScore, `a rank-2 (Meta-analysis) record with no percentile (scored ${metaScore}) must score HIGHER than a rank-5 (Observational) record with no percentile (scored ${obsScore}) — tier ordering must survive when percentile is absent`)
+
+    // MISSING NEVER SILENTLY BECOMES A 0. Two otherwise-identical rank-5 records: one has a
+    // GENUINE nihPercentile of 0 (iCite scored it and it sits at the bottom of its field), the
+    // other has no percentile at all (never scored — could be excellent, could be terrible, it
+    // is simply unknown). If a missing percentile were ever coerced to 0 in the blend, these two
+    // scores would come out IDENTICAL — so the assertion is exactly that they must differ.
+    const zeroPct = scoreRec('zero-1', 5, { pct: 0 })
+    const missingPct = scoreRec('missing-1', 5)
+    const zeroScore = lit.impactScoreOf(zeroPct).score
+    const missingScore = lit.impactScoreOf(missingPct).score
+    assert.notStrictEqual(zeroScore, missingScore,
+        `a record with a genuine nihPercentile: 0 (scored ${zeroScore}) must score differently from an otherwise-identical record with NO percentile at all (scored ${missingScore}) — if missing silently became 0 in the blend these would be equal, and that would brand every unscored recent paper with the same number as the worst-cited paper in the corpus`)
+    // And the missing-percentile score specifically must equal the tier component ALONE — never
+    // a blend with a phantom 0.
+    assert.strictEqual(missingScore, 0.45, 'a rank-5 record with no percentile must score exactly its tier component (0.45) — the tier alone, never blended with a percentile it does not have')
+
+    console.log(`impact:       RETRACTED=${retractedResult.score}, Meta-analysis(no pct)=${metaScore} > Observational(no pct)=${obsScore}, zero-pct=${zeroScore} != missing-pct=${missingScore}`)
+}
+
+// =======================================================================================
+// MODE 4, PHASE 7b — assembleNarrativeReview(). PURE, deterministic, NO further Bedrock call —
+// see this function's own header comment in literatureSearch.narrative.ts for why the whole-
+// review intro is assembled by arithmetic rather than one more model call that would invent the
+// connective tissue between clusters.
+const checkAssembleNarrativeReview = (lit) => {
+    const clusters = [
+        { id: 'c-small', label: 'Small topic', meshTerms: [], pmids: ['s1', 's2', 's3'] },                                             // size 3
+        { id: 'c-big', label: 'Big topic', meshTerms: [], pmids: Array.from({ length: 10 }, (_, i) => `b${i + 1}`) },                  // size 10
+        { id: 'c-mid', label: 'Mid topic', meshTerms: [], pmids: Array.from({ length: 6 }, (_, i) => `m${i + 1}`) },                   // size 6
+        { id: 'uncat', label: 'Uncategorized', meshTerms: [], pmids: ['u1', 'u2', 'u3', 'u4'], isUncategorized: true },
+    ]
+    const clusterNarratives = [
+        { clusterId: 'c-small', label: 'Small topic', paragraph: 'Small topic prose [PMID s1].', citedPmids: ['s1'] },
+        { clusterId: 'c-big', label: 'Big topic', paragraph: 'Big topic prose [PMID b1].', citedPmids: ['b1'] },
+        { clusterId: 'c-mid', label: 'Mid topic', paragraph: 'Mid topic prose [PMID m1].', citedPmids: ['m1'] },
+        // Included ON PURPOSE, exactly as the task requires: a narrative for the uncategorized
+        // bucket exists in the input, and the assertion below is that it must never reach
+        // `sections` — assembleNarrativeReview() filters sections against REAL clusters only.
+        { clusterId: 'uncat', label: 'Uncategorized', paragraph: 'This must never appear in the output.', citedPmids: [] },
+    ]
+    const corpusStats = {
+        publicationsPerYear: [{ year: '2020', count: 5 }, { year: '2021', count: 8 }],
+        evidenceMixByYear: { '2020': { RCT: 3, Observational: 2 }, '2021': { RCT: 5, Review: 3 } },
+        totalRecords: 23,
+        fromYear: 2020,
+        toYear: 2021,
+    }
+
+    const withFlags = lit.assembleNarrativeReview('Do probiotics help depression?', corpusStats, clusters, clusterNarratives, true)
+    const withoutFlags = lit.assembleNarrativeReview('Do probiotics help depression?', corpusStats, clusters, clusterNarratives, false)
+
+    // SECTIONS SORTED BY CLUSTER SIZE DESCENDING — the plan's own mockup instruction, restated
+    // as arithmetic: c-big (10) before c-mid (6) before c-small (3).
+    assert.deepStrictEqual(withFlags.sections.map(s => s.clusterId), ['c-big', 'c-mid', 'c-small'],
+        'narrative sections must be ordered by their cluster size descending — a reader expects the biggest topic first, not build order or alphabetical order')
+
+    // THE UNCATEGORIZED NARRATIVE NEVER APPEARS IN sections, even though this fixture deliberately
+    // supplied one for it — the fallthrough bucket gets a roster row (in bibliometricDoc's cluster
+    // table) but never a written section, because 'Uncategorized / no dominant MeSH topic' is not
+    // a topic a narrative paragraph can honestly be about.
+    assert.strictEqual(withFlags.sections.find(s => s.clusterId === 'uncat'), undefined,
+        'a narrative supplied for the isUncategorized cluster must never appear in `sections`, even when the caller included one in its input')
+
+    // caseSeriesNote PRESENT IFF hasCaseSeriesFlags WAS TRUE — both branches asserted, because a
+    // note that shows up regardless of the flag is exactly as wrong as one that never shows up.
+    assert.ok(typeof withFlags.caseSeriesNote === 'string' && withFlags.caseSeriesNote.length > 0,
+        'hasCaseSeriesFlags: true must produce a non-empty caseSeriesNote — the reader needs to be told case series are heuristically flagged, not confirmed')
+    assert.strictEqual(withoutFlags.caseSeriesNote, undefined,
+        'hasCaseSeriesFlags: false must produce NO caseSeriesNote — a disclosure that applies whether or not the corpus actually has any flagged records is not a disclosure, it is boilerplate')
+
+    console.log(`narrative:    sections ordered [${withFlags.sections.map(s => s.clusterId).join(', ')}], uncategorized excluded, caseSeriesNote present=${!!withFlags.caseSeriesNote}/absent=${withoutFlags.caseSeriesNote === undefined}`)
+}
+
+// =======================================================================================
+// MODE 4, PHASE 8 — corpusSheet(). PURE, deterministic — this is a renderer, not a network call
+// or a model call, the same status literatureExport.ts's other builders have.
+const checkCorpusSheet = (xp) => {
+    const scored = {
+        pmid: '1', title: 'Probiotics and depression', authors: 'Nikolova et al.', year: '2023',
+        journal: 'JAMA Psychiatry', design: 'RCT', caseSeriesProbable: true, clusterLabel: 'Probiotics / microbiome',
+        impactScore: 0.72, impactJustification: 'a randomized controlled trial; 80th percentile citation impact (iCite)',
+        relevanceScore: 0.9, relevanceJustification: 'primary RCT of the intervention in the stated population',
+    }
+    // Never sent to a scorer at all — preFilterForScoring()'s shortlist did not include it. No
+    // cluster label either, and no case-series flag: caseSeriesProbable is simply absent, the
+    // same "never screened" shape a real un-shortlisted record has.
+    const unscored = { pmid: '2', title: 'An unrelated paper', authors: 'Someone et al.', year: '2021', journal: 'J Misc', design: 'Observational' }
+    // caseSeriesProbable EXPLICITLY false — must render exactly like "absent", never a checked
+    // "No", because false here just means the heuristic did not fire, not that a human confirmed
+    // this is not a case series.
+    const explicitlyNotCaseSeries = { pmid: '3', title: 'A case report', authors: 'Third et al.', year: '2019', journal: 'J Case', design: 'Case report', caseSeriesProbable: false }
+
+    const facts = { db: 'pubmed', query: 'probiotic*[tiab] AND depress*[tiab]', hits: 500, runDate: '2026-07-13', model: 'us.anthropic.claude-opus-4-8', fromYear: 2019, toYear: 2023 }
+    const sheets = xp.corpusSheet([scored, unscored, explicitlyNotCaseSeries], facts)
+    const recordsSheet = sheets.find(s => s.name === 'Records')
+    assert.ok(recordsSheet, 'corpusSheet must produce a Records sheet')
+
+    // EVERY ROW HAS EXACTLY AS MANY CELLS AS THE HEAD — the exact same invariant, and the exact
+    // same reason, as checkXlsxTruncationGuard's assertion on recordSheets(): a short row silently
+    // shifts every later value into the wrong column, for that record alone.
+    recordsSheet.rows.forEach((row, i) => {
+        assert.strictEqual(row.length, recordsSheet.head.length,
+            `row ${i} (pmid ${row[0]}) must have exactly ${recordsSheet.head.length} cells to match the head — a short row silently shifts every later cell into the wrong column for that record alone`)
+    })
+
+    const col = name => recordsSheet.head.indexOf(name)
+    const rowFor = pmid => recordsSheet.rows.find(r => r[0] === pmid)
+
+    // AN UNSCORED RECORD'S IMPACT/RELEVANCE CELLS ARE EMPTY STRING, NEVER 0 AND NEVER "N/A" —
+    // Number(undefined) coerced to 0 would read as "scored, and scored at rock bottom," when the
+    // truth is "never sent to a scorer at all."
+    const unscoredRow = rowFor('2')
+    for (const field of ['Impact score', 'Impact justification', 'Relevance score', 'Relevance justification']) {
+        assert.strictEqual(unscoredRow[col(field)], '', `an unscored record's "${field}" cell must be the empty string, not 0 and not "N/A" — a blank cell is the only honest rendering of "not in the shortlist"`)
+    }
+
+    // A caseSeriesProbable: true RECORD'S CASE SERIES CELL IS NON-EMPTY; AN UNSET (OR EXPLICITLY
+    // FALSE) ONE'S CELL IS EMPTY STRING — NEVER A CHECKED "No". Three states, not two: the flag is
+    // a heuristic, never a confirmed verdict, so its absence must not be printed as a negative claim.
+    assert.strictEqual(rowFor('1')[col('Case series')], 'Probable', 'a caseSeriesProbable: true record must show a non-empty Case series cell')
+    assert.strictEqual(rowFor('2')[col('Case series')], '', 'a record with no caseSeriesProbable field at all must show an empty Case series cell')
+    assert.strictEqual(rowFor('3')[col('Case series')], '', 'a caseSeriesProbable: false record must ALSO show an empty Case series cell, never a checked "No" — false only means the heuristic did not fire, not that a human confirmed it is not a case series')
+
+    console.log(`corpusSheet:  ${recordsSheet.rows.length} rows all match the ${recordsSheet.head.length}-column head; unscored cells blank; case-series is Probable/blank never No`)
+}
+
+// =======================================================================================
+// MODE 4, PHASE 8 — bibliometricDoc(). PURE, deterministic.
+const checkBibliometricDoc = (xp) => {
+    // "Umbrella review" appears NOWHERE in TIERS (literatureSearch.records.ts) — it is a made-up
+    // label chosen specifically so that a HARDCODED tier-label list (e.g. one lazily copied from
+    // TIERS instead of derived from the fixture itself) would silently drop this column. If this
+    // assertion ever stops catching that, the fixture has stopped doing its job.
+    const evidenceMixByYear = {
+        '2020': { 'Umbrella review': 2, RCT: 3 },
+        '2021': { RCT: 4, Guideline: 1 },
+    }
+    const percentileTrend = [
+        { year: '2020', median: 42, n: 10, scored: 8 },
+        // A year with zero scored records: no median to report. Must render as an EMPTY cell,
+        // never "N/A" and never 0 — same rule impactScoreOf() applies to a missing percentile,
+        // one layer up.
+        { year: '2021', median: null, n: 5, scored: 0 },
+    ]
+    const clusters = [
+        { id: 'a', label: 'Cluster A', pmids: ['x1', 'x2', 'x3'] },
+        { id: 'b', label: 'Cluster B', pmids: ['y1', 'y2'] },
+    ]
+    const narrative = {
+        intro: 'This is the corpus-wide intro.',
+        sections: [
+            // Carries an invented PMID — the model cited something outside the shortlist it was
+            // actually given for this cluster (see synthesizeCluster()'s own comment).
+            { label: 'Cluster A', paragraph: 'Cluster A prose [PMID 111].', invented: ['999999'] },
+            // No invented PMID — must get NO warning block.
+            { label: 'Cluster B', paragraph: 'Cluster B prose [PMID 222].' },
+        ],
+    }
+    const facts = { db: 'pubmed', query: 'q', hits: 100, runDate: '2026-07-13', model: 'us.anthropic.claude-opus-4-8', fromYear: 2020, toYear: 2021 }
+    const stats = {
+        publicationsPerYear: [{ year: '2020', count: 5 }, { year: '2021', count: 9 }],
+        evidenceMixByYear,
+        journalDistribution: [{ journal: 'J1', count: 5 }],
+        percentileTrend,
+    }
+
+    const blocks = xp.bibliometricDoc('Do X help Y?', facts, stats, clusters, narrative)
+    const h2Index = text => blocks.findIndex(b => b.kind === 'h2' && b.text === text)
+
+    // THE EVIDENCE-MIX COLUMNS ARE THE UNION OF TIER LABELS ACTUALLY PRESENT, NOT A HARDCODED
+    // LIST — "Umbrella review" is not a real TIERS label, so if this table's columns came from an
+    // imported TIERS list rather than from `evidenceMixByYear` itself, this column would silently
+    // vanish and this assertion would fail.
+    const mixIdx = h2Index('Evidence-type mix by year')
+    assert.ok(mixIdx !== -1, 'bibliometricDoc must have an "Evidence-type mix by year" section')
+    const mixTable = blocks[mixIdx + 1]
+    assert.strictEqual(mixTable.kind, 'table', 'the evidence-mix section must be immediately followed by its table')
+    assert.deepStrictEqual(mixTable.head, ['Year', 'Guideline', 'RCT', 'Umbrella review'],
+        `the evidence-mix table's columns must be exactly the union of tier labels present in the data (sorted), including "Umbrella review" which is not a real TIERS label — got ${JSON.stringify(mixTable.head)}. If this ever passes with "Umbrella review" missing, the column list has been hardcoded against TIERS instead of derived from the fixture.`)
+
+    // A NULL PERCENTILE-TREND MEDIAN RENDERS AS AN EMPTY CELL, NOT "N/A" AND NOT 0.
+    const trendIdx = h2Index('Citation percentile trend (iCite)')
+    const trendTable = blocks[trendIdx + 1]
+    const row2021 = trendTable.rows.find(r => r[0] === '2021')
+    const row2020 = trendTable.rows.find(r => r[0] === '2020')
+    assert.strictEqual(row2021[1], '', 'a year with zero scored records (median: null) must render its median cell as the empty string, not "N/A" and not 0')
+    assert.strictEqual(row2020[1], '42', 'a year with a real median must still print it — this is the control for the assertion above')
+
+    // A CLUSTER NARRATIVE WITH AN invented PMID PRODUCES A WARNING BLOCK IN THE ACTUAL Block[] —
+    // asserted on its presence, not eyeballed.
+    const clusterAParaIdx = blocks.findIndex(b => b.kind === 'p' && b.text === 'Cluster A prose [PMID 111].')
+    assert.ok(clusterAParaIdx !== -1, "Cluster A's paragraph must appear in the document")
+    const warningIndices = blocks.reduce((acc, b, i) => (b.kind === 'h2' && /^WARNING/.test(b.text) ? [...acc, i] : acc), [])
+    assert.strictEqual(warningIndices.length, 1,
+        `exactly one WARNING block is expected — Cluster A cited an invented PMID and Cluster B did not — got ${warningIndices.length}`)
+    assert.strictEqual(warningIndices[0], clusterAParaIdx + 1,
+        "the WARNING must sit directly after the paragraph it corrects (paragraph-then-warning, per bibliometricDoc's own comment), not before it and not after Cluster B's section")
+    assert.ok(blocks[warningIndices[0] + 1].text.includes('999999'),
+        'the WARNING body must NAME the invented PMID — "some citations may be wrong" is not actionable')
+
+    console.log(`bibliometricDoc: evidence-mix columns=[${mixTable.head.slice(1).join(', ')}] (derived, not hardcoded); null median -> empty cell; 1 WARNING block, correctly placed and naming PMID 999999`)
+}
+
 const { s, q } = checkStrategyBounds(lit)
 const { hits, rc } = checkRecordsColumnRendering(lit, xp, s, q)
 checkMarkdownDocuments(xp, md, s, q, hits, rc)
 checkXlsxTruncationGuard(xp, q)
+checkClusterByMesh(lit)
+checkPreFilterForScoring(lit)
+checkImpactScoreOf(lit)
+checkAssembleNarrativeReview(lit)
+checkCorpusSheet(xp)
+checkBibliometricDoc(xp)
 
 console.log('\nAll pure checks passed. No network, no model, no environment.')
