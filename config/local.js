@@ -112,6 +112,12 @@ export const reciterConfig = {
         reciterExternalArticleEndpoint:
                 process.env.RECITER_API_BASE_URL + '/reciter/external-article/by/uid',
         /**
+         * External-article feedback (curator reject/dismiss/reopen, faculty dispute) —
+         * appends durable FeedbackLog rows on the Java side. Same ingress + admin api-key.
+         */
+        reciterExternalArticleFeedbackEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/external-article/feedback',
+        /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */
