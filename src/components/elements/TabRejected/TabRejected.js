@@ -81,7 +81,7 @@ const TabRejected = (props) => {
     const filter = () => {
         // Filter
         const filteredPublications = []
-        // ReCiter-Publication-Manager#873: reciterData.reciter undefined until fetch resolves.
+        // ReCiter-Publication-Manager#873: reciterData.reciter undefined until fetch completes.
         ;(reciterData?.reciter?.reCiterArticleFeatures || []).forEach((publication) => {
             // Check if publication is Suggested
             if(publication.userAssertion === "REJECTED") {

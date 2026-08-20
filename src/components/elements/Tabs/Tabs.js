@@ -7,12 +7,10 @@ import styles from './Tabs.module.css';
 // tab. "PubMed" is an inline label scoped to just Accepted/Suggested/Rejected — the
 // source cluster after the divider stays unlabeled on purpose (Decision 2/3).
 
-// A row counts toward its source tab unless it's a real duplicate of an accepted
-// PubMed record (suppressed by the supersede rule). A disputed-but-unresolved row
-// (suppressed by dispute, supersededByPmid still null) still counts — it renders in
-// its own tab, in the disputed visual state (Faculty tab wiring, README).
+// A row counts toward its source tab unless it's suppressed (a duplicate of an
+// accepted PubMed record, per the supersede rule) — matching what the tab renders.
 const countBySource = (rows, sourceType) => rows.filter((row) =>
-    row.sourceType === sourceType && !(row.suppressed && row.supersededByPmid != null)
+    row.sourceType === sourceType && !row.suppressed
 ).length
 
 const Tabs = (props) => {
@@ -24,7 +22,7 @@ const Tabs = (props) => {
     var rejected = 0
 
     // ReCiter-Publication-Manager#873: reciterData.reciter is undefined until the
-    // fetch resolves; unguarded .forEach crashed on first render.
+    // fetch completes; unguarded .forEach crashed on first render.
     ;(reciterData?.reciter?.reCiterArticleFeatures || []).forEach(function(publication){
         switch(publication.userAssertion) {
             case "NULL":

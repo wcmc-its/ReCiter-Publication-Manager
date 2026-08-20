@@ -191,7 +191,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const allReciterPubData = () => {
         let reciterPublications: Array<any> = []
-        // ReCiter-Publication-Manager#873: guard both -- neither is populated until the fetch resolves.
+        // ReCiter-Publication-Manager#873: guard both -- neither is populated until the fetch completes.
         ;(reciterData?.reciterPending || []).forEach(function (publication: any) {
             reciterPublications.push(publication)
         })
