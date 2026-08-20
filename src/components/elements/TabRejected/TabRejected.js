@@ -131,7 +131,7 @@ const TabRejected = (props) => {
                     onClick={acceptAll}
                 >Accept all on page</button>
             </div>
-            <p>Not finding what you`&apos;`re looking for? <a onClick={() => { props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
+            <p>Not finding what you&apos;re looking for? <a onClick={() => { props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
             <Pagination total={publications.filteredPublications.length} page={page} count={count} onChange={handlePaginationUpdate} />
             <div>
                 {
