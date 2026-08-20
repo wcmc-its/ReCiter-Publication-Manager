@@ -14,6 +14,140 @@
     background: #f7f8fa;
 }
 
+/* Faculty dispute state — mirrors Publication.tsx's statusStripAccepted/Rejected rail
+   pattern (a colored left border keyed by state) rather than a dead-end tag. */
+.cardDisputed {
+    border-left: 3px solid #c0392b;
+    background: #fdf5f4;
+}
+
+.disputedTag {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #f5e4e1;
+    color: #9c3b3b;
+}
+
+.titleDisputed {
+    text-decoration: line-through;
+    text-decoration-color: #c0392b;
+    color: #8a94a6;
+}
+
+.disputeNoteBox {
+    font-size: 12px;
+    font-style: italic;
+    color: #55607a;
+    margin-bottom: 6px;
+}
+
+.disputeForm {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #e3e8ef;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.disputeTextarea {
+    width: 100%;
+    font: inherit;
+    font-size: 12.5px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    border: 1px solid #cbd3e0;
+    background: #f7f8fa;
+    resize: vertical;
+    min-height: 44px;
+}
+
+.disputeFormRow {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.btnGhost {
+    appearance: none;
+    border: 1px solid #cbd3e0;
+    background: transparent;
+    color: #55607a;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnSolid {
+    appearance: none;
+    border: 1px solid #c0392b;
+    background: #c0392b;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnDispute {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid #e3a1a1;
+    background: #fff;
+    color: #b31b1b;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnDispute:hover {
+    background: #fdecec;
+}
+
+.btnUndoDispute {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #f5e4e1;
+    background: #f5e4e1;
+    color: #9c3b3b;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnResolve {
+    border: 1px solid #1f4e79;
+    background: #fff;
+    color: #1f4e79;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnResolve:hover {
+    background: #eef2ff;
+}
+
 .main {
     flex: 1;
     min-width: 0;

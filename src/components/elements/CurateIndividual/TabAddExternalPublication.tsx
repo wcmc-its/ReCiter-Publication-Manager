@@ -203,8 +203,31 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
             })
     }
 
-    // Suppressed rows (superseded by a PubMed record) are hidden by default.
-    const visibleExternal = externalList.filter((row) => !row.suppressed)
+    // Curator resolves a faculty dispute (Decision 6/7) — row reappears (suppressed=false),
+    // the dispute fields stay as history.
+    const doResolveDispute = (articleId: string) => {
+        fetch(`/api/reciter/external-article/${encodeURIComponent(uid)}?articleId=${encodeURIComponent(articleId)}`, {
+            credentials: "same-origin", method: "PATCH", headers: apiHeaders,
+            body: JSON.stringify({ action: "RESOLVE" }),
+        })
+            .then(async (r) => {
+                const body = await r.json().catch(() => ({}))
+                if (!r.ok) throw new Error((body && body.message) || `HTTP ${r.status}`)
+                return body
+            })
+            .then(() => {
+                toast.success("Dispute resolved.", { position: "top-right", autoClose: 2000, theme: "colored" })
+                fetchExternalList()
+            })
+            .catch((err) => {
+                toast.error("Could not resolve dispute: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+            })
+    }
+
+    // Rows superseded by an accepted PubMed record stay hidden; a disputed-but-unresolved
+    // row (suppressed by the dispute, not a supersede) still shows, in its disputed state,
+    // so the curator sees it here to resolve.
+    const visibleExternal = externalList.filter((row) => !(row.suppressed && row.supersededByPmid != null))
 
     return (
         <div style={wrap}>
@@ -263,6 +286,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                         item={row}
                         mode="list"
                         onDelete={doDelete}
+                        onResolveDispute={doResolveDispute}
                     />
                 ))
             )}

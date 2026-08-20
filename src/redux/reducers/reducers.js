@@ -147,11 +147,45 @@ export const pubmedData = (state=[], action) => {
 export const identityData = (state={}, action) => {
 
     switch(action.type) {
-        
+
         case methods.IDENTITY_CLEAR_DATA :
             return {}
 
         case methods.IDENTITY_CHANGE_DATA :
+            return action.payload
+
+        default :
+            return state
+    }
+
+}
+
+// Faculty "other publications" (Scopus/OpenAlex external rows). One fetch, filtered
+// and grouped per source tab client-side — see TabExternalSource.tsx.
+export const otherPublicationsFetching = (state=false, action) => {
+
+    switch(action.type) {
+
+        case methods.OTHERPUBS_FETCH_DATA :
+            return true
+
+        case methods.OTHERPUBS_CANCEL_FETCHING :
+            return false
+
+        default:
+            return state
+    }
+
+}
+
+export const otherPublicationsData = (state=[], action) => {
+
+    switch(action.type) {
+
+        case methods.OTHERPUBS_CLEAR_DATA :
+            return []
+
+        case methods.OTHERPUBS_CHANGE_DATA :
             return action.payload
 
         default :
@@ -851,6 +885,8 @@ export default combineReducers({
     identityAllFetching,
     reciterData,
     identityData,
+    otherPublicationsFetching,
+    otherPublicationsData,
     identityAllData,
     identityPaginatedData,
     identityPaginatedFetching,

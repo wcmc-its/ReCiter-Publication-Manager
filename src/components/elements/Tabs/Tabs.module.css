@@ -41,3 +41,25 @@
     background: var(--wcm-red);
     color: #ffffff;
 }
+
+/* Option C — inline label scoped to Accepted/Suggested/Rejected, and the divider
+   before the Scopus/OpenAlex source tabs. See Tabs.js. */
+.tabGroupLabel {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-600);
+    padding: 0 8px 0 4px;
+    align-self: center;
+}
+
+.tabDivider {
+    width: 1px;
+    align-self: stretch;
+    margin: 6px 6px;
+    background: var(--gray-200);
+    list-style: none;
+}

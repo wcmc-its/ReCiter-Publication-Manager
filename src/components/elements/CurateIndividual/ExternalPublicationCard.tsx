@@ -1,7 +1,8 @@
-import React, { FunctionComponent } from "react"
+import React, { FunctionComponent, useState } from "react"
 import styles from './ExternalPublicationCard.module.css'
 import CheckIcon from '@mui/icons-material/Check'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import UndoIcon from '@mui/icons-material/Undo'
 
 // PM#771 — a source-badged external publication row. Deliberately NO authorship
 // score tile (external pubs are not scored by ReCiter). Two modes:
@@ -55,6 +56,16 @@ interface FuncProps {
     // Dismiss a suggestion (Scopus Authorships feed only); local, not GoldStandard.
     onReject?: (item: any) => void,
     onDelete?: (articleId: string) => void,
+    // Option C (docs/README-other-publications-tab.md, Decision 3): the active source
+    // tab already names the source, so the per-card badge is redundant there.
+    hideSourceBadge?: boolean,
+    // Faculty dispute lifecycle (Decisions 4-6). onDispute/onUndoDispute are the
+    // faculty-facing actions ("This isn't mine" / "Disputed — Undo"); onResolveDispute
+    // is the curator-facing action. All three are optional — a caller passes only the
+    // ones relevant to who's viewing the card.
+    onDispute?: (articleId: string, note: string) => void,
+    onUndoDispute?: (articleId: string) => void,
+    onResolveDispute?: (articleId: string) => void,
 }
 
 // Map the server's duplicate match type(s) to a state-specific, actionable headline.
@@ -72,6 +83,8 @@ function blockedHeadline(matches?: Array<{ type?: string }>): string {
 
 const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const { item, mode, addState } = props
+    const [disputeFormOpen, setDisputeFormOpen] = useState(false)
+    const [disputeNote, setDisputeNote] = useState('')
 
     const sourceType: string = item.sourceType || 'OPENALEX'
     const sourceLabel = SOURCE_LABELS[sourceType] || sourceType
@@ -90,6 +103,11 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const doi = item.doi
     const pmid = item.pmid
     const suppressed = mode === 'list' && !!item.suppressed
+    // A suppressed row is either superseded (real duplicate of an accepted PubMed
+    // record) or disputed (Decision 6/Faculty tab wiring) — never both in practice,
+    // since dispute never touches supersededByPmid.
+    const disputed = suppressed && item.disputedBy != null && item.supersededByPmid == null
+    const superseded = suppressed && item.supersededByPmid != null
     const status = addState?.status || 'idle'
 
     // The work is in PubMed if OpenAlex gave us a PMID, or a DOI lookup found one.
@@ -102,23 +120,27 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const recStatus = (pubmedPmid && props.recordStatusOf) ? props.recordStatusOf(pubmedPmid) : null
 
     return (
-        <div className={`${styles.card} ${suppressed ? styles.cardSuppressed : ''}`}>
+        <div className={`${styles.card} ${superseded ? styles.cardSuppressed : ''} ${disputed ? styles.cardDisputed : ''}`}>
             <div className={styles.main}>
                 <div className={styles.headerRow}>
-                    <span className={styles.sourceBadge}>{sourceLabel}</span>
+                    {!props.hideSourceBadge && <span className={styles.sourceBadge}>{sourceLabel}</span>}
                     <span className={styles.noScoreBadge}>No authorship score</span>
-                    {suppressed && (
+                    {superseded && (
                         <span className={styles.suppressedTag}>
                             Superseded{item.supersededByPmid ? ` by PMID ${item.supersededByPmid}` : ''}
                         </span>
                     )}
+                    {disputed && <span className={styles.disputedTag}>Disputed</span>}
                 </div>
 
-                <div className={styles.title}>{item.title || '(untitled)'}</div>
+                <div className={`${styles.title} ${disputed ? styles.titleDisputed : ''}`}>{item.title || '(untitled)'}</div>
 
                 <div className={styles.authors}>
                     {authorsText ? authorsText : 'No authors listed'}
                 </div>
+                {disputed && item.disputeNote && (
+                    <div className={styles.disputeNoteBox}>&ldquo;{item.disputeNote}&rdquo;</div>
+                )}
 
                 <div className={styles.meta}>
                     {venue && <span className={styles.venue}>{venue}</span>}
@@ -135,6 +157,33 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                             : item.articleId}</span>
                     )}
                 </div>
+
+                {/* "This isn't mine" note field — faculty only, closed by default */}
+                {mode === 'list' && !disputed && props.onDispute && disputeFormOpen && (
+                    <div className={styles.disputeForm}>
+                        <textarea
+                            className={styles.disputeTextarea}
+                            placeholder="Optional note for the curator (e.g. “different person, not me”)"
+                            value={disputeNote}
+                            onChange={(e) => setDisputeNote(e.target.value)}
+                        />
+                        <div className={styles.disputeFormRow}>
+                            <button className={styles.btnGhost} onClick={() => { setDisputeFormOpen(false); setDisputeNote('') }}>
+                                Cancel
+                            </button>
+                            <button
+                                className={styles.btnSolid}
+                                onClick={() => {
+                                    props.onDispute && props.onDispute(item.articleId, disputeNote)
+                                    setDisputeFormOpen(false)
+                                    setDisputeNote('')
+                                }}
+                            >
+                                Submit
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Already in this person's record — inform, no add */}
                 {mode === 'preview' && pubmedPmid && recStatus && status !== 'added' && (
@@ -230,7 +279,31 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         Reject
                     </button>
                 )}
-                {mode === 'list' && (
+                {mode === 'list' && disputed && props.onUndoDispute && (
+                    <button
+                        className={styles.btnUndoDispute}
+                        onClick={() => props.onUndoDispute && props.onUndoDispute(item.articleId)}
+                    >
+                        <UndoIcon style={{ fontSize: 14 }} /> Disputed &mdash; Undo
+                    </button>
+                )}
+                {mode === 'list' && disputed && props.onResolveDispute && (
+                    <button
+                        className={styles.btnResolve}
+                        onClick={() => props.onResolveDispute && props.onResolveDispute(item.articleId)}
+                    >
+                        Resolve
+                    </button>
+                )}
+                {mode === 'list' && !disputed && props.onDispute && (
+                    <button
+                        className={styles.btnDispute}
+                        onClick={() => setDisputeFormOpen((open) => !open)}
+                    >
+                        This isn&rsquo;t mine
+                    </button>
+                )}
+                {mode === 'list' && props.onDelete && (
                     <button
                         className={styles.btnDelete}
                         onClick={() => props.onDelete && props.onDelete(item.articleId)}

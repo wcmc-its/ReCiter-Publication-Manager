@@ -4,6 +4,8 @@ import {
     getExternalArticles,
     addExternalArticle,
     deleteExternalArticle,
+    updateExternalArticleDispute,
+    notifyDispute,
 } from '../../../../../controllers/externalArticle.controller'
 import { reciterConfig } from '../../../../../config/local'
 
@@ -11,10 +13,13 @@ import { reciterConfig } from '../../../../../config/local'
 //   GET    ?uid=<uid>                       -> all external rows (incl suppressed)
 //   POST   ?uid=<uid>[&force=true]  body    -> add one (201, or 409 BLOCKED/WARNING)
 //   DELETE ?uid=<uid>&articleId=<id>        -> revoke one
+//   PATCH  ?uid=<uid>&articleId=<id>  body {action: DISPUTE|RETRACT|RESOLVE, disputeNote?}
+//          -> faculty dispute lifecycle (docs/README-other-publications-tab.md)
 // Gated on the app backendApiKey, matching every other /api/reciter route on this
 // branch. addedBy (curator CWID) is resolved best-effort from the JWT server-side and
 // never trusted from the client. (Per-person curation-scope authz is an AAR-line
-// feature not present on this branch — see the PR notes.)
+// feature not present on this branch — see the PR notes.) PATCH's actingUid is
+// resolved the same way — see Trust boundary #2 in the README.
 
 type Error = {
     statusCode: number,
@@ -31,8 +36,8 @@ export default async function handler(
     res: NextApiResponse<Error | Data>
 ) {
     const method = req.method || ''
-    if (method !== 'GET' && method !== 'POST' && method !== 'DELETE') {
-        return res.status(400).send({ statusCode: 400, message: 'HTTP Methods supported are GET, POST, DELETE' })
+    if (method !== 'GET' && method !== 'POST' && method !== 'DELETE' && method !== 'PATCH') {
+        return res.status(400).send({ statusCode: 400, message: 'HTTP Methods supported are GET, POST, DELETE, PATCH' })
     }
 
     if (req.headers.authorization === undefined) {
@@ -65,6 +70,45 @@ export default async function handler(
             }
             const apiResponse = await deleteExternalArticle(uid, articleId)
             if (apiResponse.statusCode === 200) {
+                return res.status(200).send({ statusCode: 200, external: apiResponse.statusText })
+            }
+            return res.status(apiResponse.statusCode || 502).send({ statusCode: apiResponse.statusCode || 502, message: apiResponse.statusText })
+        }
+
+        if (method === 'PATCH') {
+            const articleIdParam = req.query.articleId
+            const articleId = Array.isArray(articleIdParam) ? articleIdParam[0] : articleIdParam
+            if (!articleId) {
+                return res.status(400).send({ statusCode: 400, message: 'articleId is required for dispute update' })
+            }
+            const action = req.body && req.body.action
+            if (action !== 'DISPUTE' && action !== 'RETRACT' && action !== 'RESOLVE') {
+                return res.status(400).send({ statusCode: 400, message: "action must be one of DISPUTE, RETRACT, RESOLVE" })
+            }
+
+            // Never trust a client-supplied actingUid — resolve from the session JWT.
+            let actingUid: string | undefined = undefined
+            try {
+                const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+                if (token && token.username) actingUid = String(token.username)
+            } catch (e) {
+                // fall through — actingUid stays undefined, handled below
+            }
+            if (!actingUid) {
+                return res.status(401).send({ statusCode: 401, message: 'Could not resolve the acting user from the session' })
+            }
+
+            const disputeNote = typeof req.body?.disputeNote === 'string' ? req.body.disputeNote : undefined
+            const apiResponse = await updateExternalArticleDispute(uid, articleId, actingUid, action, disputeNote)
+            if (apiResponse.statusCode === 200) {
+                // Decision 7 — notify the row's addedBy on DISPUTE only (not on retract/resolve).
+                if (action === 'DISPUTE') {
+                    const row: any = apiResponse.statusText
+                    if (row && row.addedBy) {
+                        notifyDispute(row.addedBy, uid, row.title || articleId, actingUid, disputeNote)
+                            .catch((e) => console.log('[external-article] notifyDispute failed: ' + e))
+                    }
+                }
                 return res.status(200).send({ statusCode: 200, external: apiResponse.statusText })
             }
             return res.status(apiResponse.statusCode || 502).send({ statusCode: apiResponse.statusCode || 502, message: apiResponse.statusText })
