@@ -5,7 +5,7 @@
 // It is a factory rather than a hook because it holds nothing. Everything it needs is passed in on
 // one context object, once per render, exactly as the closures did when they lived in the page —
 // so no builder here can read a value the screen is not currently showing.
-import { strategyDoc, synthesisDoc, recordSheets } from '../../../../controllers/literatureExport'
+import { strategyDoc, synthesisDoc, recordSheets, corpusSheet, bibliometricDoc } from '../../../../controllers/literatureExport'
 import type { Block, RunFacts } from '../../../../controllers/literatureExport'
 // THE CLIPBOARD IS A DOCUMENT TOO. It renders the same Block[] as the .docx — see
 // literatureMarkdown.ts for why the hand-built string it replaced was the most dangerous artifact
@@ -13,7 +13,7 @@ import type { Block, RunFacts } from '../../../../controllers/literatureExport'
 import { markdownDoc } from '../../../../controllers/literatureMarkdown'
 import type { PubRecord, Screened, Synthesis } from '../../../../controllers/literatureSearch.controller'
 import { saveDocx, saveText, saveXlsx, stamp } from './download'
-import type { DbResult } from './LiteratureSearch.types'
+import type { Cluster, CorpusStats, DbResult, M4Record, NarrativeReview } from './LiteratureSearch.types'
 
 export type DownloadContext = {
     results: DbResult[]
@@ -29,6 +29,15 @@ export type DownloadContext = {
     provenance: { cwid: string; date: string } | null
     session: any
     setErr: (message: string) => void
+    // MODE 4 ONLY. Absent (undefined) on every other mode's render — dlCorpus/dlBibliometricDoc
+    // guard on m4Narrative below and are never wired to a button outside that mode's result screen.
+    m4Corpus?: M4Record[]
+    m4Clusters?: Cluster[]
+    m4Narrative?: NarrativeReview | null
+    m4Stats?: CorpusStats | null
+    m4Query?: string
+    m4FromYear?: number
+    m4ToYear?: number
 }
 
 // ---- DOWNLOADS. --------------------------------------------------------------------------
@@ -44,6 +53,7 @@ export function makeDownloads(ctx: DownloadContext) {
     const {
         results, records, flags, picked, synthesis, included,
         question, model, isPico, sortLabel, provenance, session, setErr,
+        m4Corpus, m4Clusters, m4Narrative, m4Stats, m4Query, m4FromYear, m4ToYear,
     } = ctx
 
     // Built from `result`, NEVER from the live `strategy` — the export must describe the toggled
@@ -159,5 +169,45 @@ export function makeDownloads(ctx: DownloadContext) {
         }
     }
 
-    return { dlStrategy, dlQuery, dlRecords, dlSynthesis, markdown, prismaBlock, dlPacket }
+    // ---- MODE 4 EXPORTS. -----------------------------------------------------------------------
+    //
+    // Same "every artifact carries the query, the count and the date" rule as every export above,
+    // adapted for the one fact those don't have: `fromYear`/`toYear` instead of a single `hits`.
+    // See corpusSheet.ts's own "RECORDS IN CORPUS IS records.length, NOT facts.hits" for why hits
+    // and retrieved are both set to the corpus size here — Mode 4 retrieves EVERY record its
+    // per-year queries matched, so unlike Modes 2/3's ranked slice, "hits = retrieved" is true, not
+    // a rounding of the truth.
+    const m4RunFacts = (): RunFacts & { fromYear: number; toYear: number } => ({
+        db: 'pubmed',
+        query: m4Query || '',
+        hits: m4Corpus?.length ?? 0,
+        retrieved: m4Corpus?.length ?? 0,
+        runDate: provenance?.date || new Date().toISOString().slice(0, 10),
+        cwid: provenance?.cwid || (session?.data?.username as string | undefined),
+        model,
+        fromYear: m4FromYear ?? new Date().getFullYear() - 10,
+        toYear: m4ToYear ?? new Date().getFullYear(),
+    })
+
+    const dlCorpus = () => {
+        if (!m4Corpus) return
+        saveXlsx(corpusSheet(m4Corpus, m4RunFacts()), `${stamp('bibliometric-corpus', provenance?.date || '')}.xlsx`)
+            .catch(() => setErr('Could not build the spreadsheet.'))
+    }
+
+    const dlBibliometricDoc = () => {
+        if (!m4Narrative || !m4Stats || !m4Clusters) return
+        saveDocx(
+            bibliometricDoc(question, m4RunFacts(), m4Stats, m4Clusters, m4Narrative),
+            `${stamp('bibliometric-review', provenance?.date || '')}.docx`,
+        ).catch(docxFailed)
+    }
+
+    const m4Markdown = () => (
+        m4Narrative && m4Stats && m4Clusters
+            ? markdownDoc(bibliometricDoc(question, m4RunFacts(), m4Stats, m4Clusters, m4Narrative))
+            : ''
+    )
+
+    return { dlStrategy, dlQuery, dlRecords, dlSynthesis, markdown, prismaBlock, dlPacket, dlCorpus, dlBibliometricDoc, m4Markdown }
 }

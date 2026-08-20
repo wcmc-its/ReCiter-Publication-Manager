@@ -5,8 +5,8 @@
 // unmounts and remounts it, and LineInput would lose the caret mid-word.
 import { useEffect, useRef } from 'react'
 import { DIALECTS, RECORD_CAP as CAP } from '../../../../controllers/literatureSearch.strategy'
-import { STAGES } from './LiteratureSearch.constants'
-import type { DbFailure, DbResult, ExpertList, RowState, Stage } from './LiteratureSearch.types'
+import { M4_STEPS, STAGES } from './LiteratureSearch.constants'
+import type { DbFailure, DbResult, ExpertList, M4Stage, RowState, Stage } from './LiteratureSearch.types'
 import s from './LiteratureSearch.module.css'
 
 export function RowCount({ n, counts, stale, state }: {
@@ -118,6 +118,35 @@ export function ProgressPanel({ stage, elapsed, records, included }: {
     )
 }
 
+// MODE 4's PROGRESS SCREEN — a step list (done/running/pending), not a single spinner. Unlike
+// ProgressPanel, there is no measured `expect` seconds per step: a decade-scale retrieval's
+// wall-clock depends on how many years clear PubMed's per-year cap, which is not a fixed median the
+// way a 50-record screen call is (see M4_STEPS' own comment). So each step gets a state, not a bar.
+export function M4ProgressPanel({ stage }: { stage: M4Stage }) {
+    if (stage === 'idle') return null
+    const order = M4_STEPS.map(x => x.stage)
+    const at = order.indexOf(stage)
+    return (
+        <div className={s.progress} aria-live="polite">
+            {M4_STEPS.map((step, i) => {
+                const state = i < at ? 'done' : i === at ? 'running' : 'pending'
+                return (
+                    <div className={s.progLine} key={step.stage}>
+                        <span className={s.m4StepMark} data-state={state} aria-hidden="true">
+                            {state === 'done' ? '✓' : state === 'running' ? '…' : ''}
+                        </span>
+                        <b className={state === 'pending' ? s.m4StepPending : ''}>{step.label}</b>
+                    </div>
+                )
+            })}
+            <p className={s.help}>
+                This can take several minutes — it&rsquo;s pulling and classifying a decade of records,
+                not a single query.
+            </p>
+        </div>
+    )
+}
+
 // AT WEILL CORNELL — works with no records at all, straight off the query's MeSH. Shown on
 // the strategy, the candidates and the synthesis: the "who here already knows this" question
 // is the one thing this page can answer that PubMed cannot.
@@ -147,7 +176,7 @@ export function ExpertsPanel({ experts }: { experts: ExpertList }) {
     )
 }
 
-export function PageHead({ showForm, isSR, crumb }: { showForm: boolean; isSR: boolean; crumb: string }) {
+export function PageHead({ showForm, isSR, isM4, crumb }: { showForm: boolean; isSR: boolean; isM4: boolean; crumb: string }) {
     if (!showForm) {
         return <div className={s.crumb}>Literature Search &nbsp;&rsaquo;&nbsp; <b>{crumb}</b></div>
     }
@@ -155,9 +184,11 @@ export function PageHead({ showForm, isSR, crumb }: { showForm: boolean; isSR: b
         <>
             <h1 className={s.title}>Literature Search</h1>
             <p className={s.sub}>
-                {isSR
-                    ? 'Build a reproducible search strategy for a systematic review — not a finished answer.'
-                    : 'Retrieve, screen and synthesize the top 50 records — an orientation, not a systematic review.'}
+                {isM4
+                    ? 'Pull, classify and cluster a decade of the corpus into a narrative bibliometric review — trends, keyword clusters, and a cited section per cluster.'
+                    : isSR
+                        ? 'Build a reproducible search strategy for a systematic review — not a finished answer.'
+                        : 'Retrieve, screen and synthesize the top 50 records — an orientation, not a systematic review.'}
             </p>
         </>
     )
@@ -165,19 +196,24 @@ export function PageHead({ showForm, isSR, crumb }: { showForm: boolean; isSR: b
 
 // What the form collapses to once there is a deliverable. It keeps the question on screen, because
 // a count with no question beside it is a number nobody can check.
-export function SummaryBar({ isSR, question, result, recounting, inFlight, onNewSearch }: {
+export function SummaryBar({ isSR, isM4, question, result, corpusSize, recounting, inFlight, onNewSearch }: {
     isSR: boolean
+    isM4: boolean
     question: string
     result: DbResult | null
+    corpusSize?: number
     recounting: boolean
     inFlight: boolean
     onNewSearch: () => void
 }) {
     return (
         <div className={s.summary}>
-            <span className={s.chip}>{isSR ? 'Search strategy' : 'Issue review'}</span>
+            <span className={s.chip}>{isM4 ? 'Bibliometric review' : isSR ? 'Search strategy' : 'Issue review'}</span>
             <span className={s.summaryQ}>&ldquo;{question}&rdquo;</span>
-            {!isSR && result && (
+            {isM4 && typeof corpusSize === 'number' && (
+                <span className={s.summaryN}>{corpusSize.toLocaleString()} records</span>
+            )}
+            {!isSR && !isM4 && result && (
                 <span className={`${s.summaryN} ${recounting ? s.hitsStale : ''}`}>
                     {result.hits.toLocaleString()} records
                 </span>

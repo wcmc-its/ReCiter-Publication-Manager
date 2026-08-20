@@ -2,10 +2,18 @@
 // is too big to slice honestly, and the fifty records with the model's flags on them. Presentation
 // only — every checkbox here reports upwards, because the tally and the synthesis follow the
 // HUMAN's selection and this file must not be able to hold a second opinion about what is ticked.
+//
+// CorpusTablePanel, at the bottom, is MODE 4's table — reused FILE, not the same component: this
+// mode has no checkbox and no synthesize button (it is a report, not a filter — see
+// scoreRelevance()'s own "YOUR SCORE IS A SUGGESTION, not a filter"), and a corpus can run into the
+// thousands where Modes 2/3 cap at RECORD_CAP, so it needs pagination CandidatesPanel has never
+// needed. What IS shared: the row rhythm (.rec/.recBody/.cite/.tag), same as the plan's own "reads
+// like a grouped variant of CandidatesView.tsx's row rendering, not a new visual language."
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { RECORD_CAP as CAP } from '../../../../controllers/literatureSearch.strategy'
 import type { PubRecord, Screened, Narrowing } from '../../../../controllers/literatureSearch.controller'
-import type { DbResult, Stage } from './LiteratureSearch.types'
+import type { DbResult, M4Record, Stage } from './LiteratureSearch.types'
 import s from './LiteratureSearch.module.css'
 
 export function QueryCard({ result, gate, retrieved, sortLabel, recounting, copiedQuery, onCopyQuery, onNewSearch, inFlight }: {
@@ -382,6 +390,98 @@ export function CandidatesPanel({
                 <b>The flags are suggestions; the checkbox is yours.</b> Re-tick anything it got wrong —
                 the count above, and what gets synthesized, follow you and not the model.
             </p>
+        </div>
+    )
+}
+
+// ============ MODE 4 — CORPUS TABLE ============
+const PAGE_SIZE = 50
+
+function CorpusRow({ r }: { r: M4Record }) {
+    return (
+        <div className={s.rec}>
+            <div className={s.recBody}>
+                <div className={s.cite}>
+                    <span className={s.who}>{r.authors} ({r.year})</span>
+                    <span className={s.jrnl}>{r.journal}</span>
+                    <a className={s.recPmid} href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`} target="_blank" rel="noopener noreferrer">
+                        PMID {r.pmid}
+                    </a>
+                </div>
+                <div className={s.recTitle}>{r.title}</div>
+                <div className={s.meta}>
+                    <span className={`${s.tag} ${s.tagDesign}`}>{r.design}</span>
+                    {r.clusterLabel && <span className={`${s.tag} ${s.tagOther}`}>{r.clusterLabel}</span>}
+                    {r.caseSeriesProbable && <span className={`${s.tag} ${s.tagOther}`}>Case series (probable)</span>}
+                    {typeof r.impactScore === 'number' && (
+                        <span className={`${s.tag} ${s.tagCite}`} title={r.impactJustification}>
+                            Impact {r.impactScore.toFixed(2)}
+                        </span>
+                    )}
+                    {typeof r.relevanceScore === 'number' && (
+                        <span className={`${s.tag} ${s.tagCite}`} title={r.relevanceJustification}>
+                            Relevance {r.relevanceScore.toFixed(2)}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Read-only, paginated, filterable by evidence type and cluster — the "thousands of rows, no
+// checkbox" shape the plan's own UI section asks for. Filter/page selection is LOCAL state: unlike
+// CandidatesPanel's ticks, nothing else on the page depends on which page or filter is showing, so
+// there is nothing here for the orchestrator to hold an opinion about.
+export function CorpusTablePanel({ corpus }: { corpus: M4Record[] }) {
+    const [evidenceFilter, setEvidenceFilter] = useState('')
+    const [clusterFilter, setClusterFilter] = useState('')
+    const [page, setPage] = useState(0)
+
+    const evidenceTypes = useMemo(() => [...new Set(corpus.map(r => r.design))].sort(), [corpus])
+    const clusterLabels = useMemo(() => [...new Set(corpus.map(r => r.clusterLabel).filter(Boolean))].sort() as string[], [corpus])
+
+    const filtered = useMemo(() => corpus.filter(r =>
+        (!evidenceFilter || r.design === evidenceFilter) && (!clusterFilter || r.clusterLabel === clusterFilter),
+    ), [corpus, evidenceFilter, clusterFilter])
+
+    const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    const clampedPage = Math.min(page, pageCount - 1)
+    const shown = filtered.slice(clampedPage * PAGE_SIZE, (clampedPage + 1) * PAGE_SIZE)
+
+    const onFilter = (fn: () => void) => { fn(); setPage(0) }
+
+    return (
+        <div className={s.card}>
+            <div className={s.screenBar}>
+                <div className={s.tally}>Corpus table ({filtered.length.toLocaleString()} record{filtered.length === 1 ? '' : 's'})</div>
+                <span className={s.spacer} />
+                <select className={s.input} value={evidenceFilter} onChange={e => onFilter(() => setEvidenceFilter(e.target.value))}>
+                    <option value="">All evidence types</option>
+                    {evidenceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <select className={s.input} value={clusterFilter} onChange={e => onFilter(() => setClusterFilter(e.target.value))}>
+                    <option value="">All clusters</option>
+                    {clusterLabels.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+            </div>
+
+            <div className={s.rows}>
+                {shown.map(r => <CorpusRow key={r.pmid} r={r} />)}
+                {!shown.length && <div className={s.empty}>No records match this filter.</div>}
+            </div>
+
+            {pageCount > 1 && (
+                <div className={s.narrowFoot}>
+                    <button className={s.btnSecondary} onClick={() => setPage(p => Math.max(0, p - 1))} disabled={clampedPage === 0}>
+                        &larr; Previous
+                    </button>
+                    <span className={s.counts}>Page {clampedPage + 1} of {pageCount}</span>
+                    <button className={s.btnSecondary} onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))} disabled={clampedPage >= pageCount - 1}>
+                        Next &rarr;
+                    </button>
+                </div>
+            )}
         </div>
     )
 }

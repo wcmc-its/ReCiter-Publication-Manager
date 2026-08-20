@@ -128,6 +128,37 @@ export const flagProbableCaseSeries = (records: PubRecord[]): PubRecord[] =>
         return meshHit || titleHit ? { ...r, caseSeriesProbable: true } : r
     })
 
+// THE SEARCHFORM'S EVIDENCE-TIER CHECKLIST (one row per tier, all six checked except Case
+// Reports by default) needs a general per-tier keep/drop, not just the hardcoded Case Reports
+// drop above. Same posture as excludeCaseReports: server-derived from tierOf()'s own label, never
+// asked of the model. A record whose tier label is not in `keep` is dropped; `caseSeriesProbable`
+// is untouched by this — it is a disclosure flag on records that ARE kept, not a filter of its own,
+// so ticking off "Case series (probable)" removes them by their real tier label (almost always
+// "Other", the same bucket flagProbableCaseSeries() reads), not by the flag.
+export const filterByEvidenceTiers = (records: PubRecord[], keep: Set<string>): PubRecord[] =>
+    records.filter(r => keep.has(r.tier.label))
+
+// The checklist's "Case series (probable)" row, separately: caseSeriesProbable is a HEURISTIC
+// FLAG on top of the 'Other' tier (see flagProbableCaseSeries() above), never a tier of its own —
+// so it needs its own filter rather than a tier label filterByEvidenceTiers() could match on.
+export const excludeCaseSeries = (records: PubRecord[]): PubRecord[] =>
+    records.filter(r => !r.caseSeriesProbable)
+
+// MODE 4'S DATE RANGE, AS INTEGERS. fetchCorpus() shards by literal year, but the SearchForm's
+// existing date dropdown (shared with Modes 1-3, see DIALECTS.pubmed.dateLimits() in
+// literatureSearch.strategy.ts) hands back a PubMed-syntax term string ("2016:2026[dp]"), not a
+// (fromYear, toYear) pair — nothing needed one until this mode's per-year shard loop did. 'any'
+// has no real span for a per-year-sharded fetch, so it resolves to the same 10-year default as
+// '10y': a decade is this mode's whole premise, and an unbounded corpus pull has no upper bound
+// to shard against. A fresh `Date` read per call, not a module-level constant — the same reason
+// strategy.ts's own `year()` is a function: a pod that stays up over New Year must not shard a
+// stale year range.
+export function yearRangeFor(dateId: string): { fromYear: number; toYear: number } {
+    const toYear = new Date().getFullYear()
+    const fromYear = dateId === '5y' ? toYear - 5 : toYear - 10
+    return { fromYear, toYear }
+}
+
 // ---------------------------------------------------------------------------
 // PHASE 4 — bibliometric statistics. Pure aggregation over whatever corpus it is handed — no LLM,
 // no network, no ranking, so the recall-collapse trap the rest of this feature is built around

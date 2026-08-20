@@ -88,15 +88,18 @@ import type { Db, Rendering } from '../../../../controllers/literatureSearch.str
 // second, hand-copied copy of these four shapes is exactly how a UI ends up reading a field the
 // server stopped sending.
 import type { PubRecord, Screened, Synthesis, Narrowing } from '../../../../controllers/literatureSearch.controller'
-import { ROWS_RETRY_MS, SORTS } from './LiteratureSearch.constants'
+import { EVIDENCE_TIERS, ROWS_RETRY_MS, SORTS } from './LiteratureSearch.constants'
 import { isFailure } from './LiteratureSearch.types'
-import type { DbFailure, DbResult, Expert, RowState } from './LiteratureSearch.types'
-import { ExpertsPanel, FailedDatabases, PageHead, ProgressPanel, SummaryBar } from './LiteratureSearch.parts'
+import type { Cluster, CorpusStats, DbFailure, DbResult, Expert, M4Record, M4Stage, NarrativeReview, RowState } from './LiteratureSearch.types'
+import { ExpertsPanel, FailedDatabases, M4ProgressPanel, PageHead, ProgressPanel, SummaryBar } from './LiteratureSearch.parts'
 import { makeDownloads } from './LiteratureSearch.downloads'
-import { CapNote, CriteriaField, DatabasePicker, LimitsRow, ModePicker, QuestionFields, SeedsField } from './SearchForm'
+import { CapNote, CriteriaField, DatabasePicker, EvidenceTierPicker, LimitsRow, ModePicker, QuestionFields, SeedsField } from './SearchForm'
 import { StrategyResults } from './StrategyResults'
-import { CandidatesPanel, NarrowingGate, QueryCard } from './CandidatesView'
+import { CandidatesPanel, CorpusTablePanel, NarrowingGate, QueryCard } from './CandidatesView'
 import { SynthesisView } from './SynthesisView'
+import { TrendPanel } from './TrendPanel'
+import { ClusterBrowser } from './ClusterBrowser'
+import { NarrativeReviewView } from './NarrativeReviewView'
 import s from './LiteratureSearch.module.css'
 
 // Fully self-contained: nothing else in the page reads or writes `copied`, and `copy` needs
@@ -195,6 +198,31 @@ export default function LiteratureSearch() {
     const [baseStrategy, setBaseStrategy] = useState<Strategy | null>(null)
     const [baseHits, setBaseHits] = useState(0)
 
+    // ---- Mode 4 ("Bibliometric review") ----
+    //
+    // THREE SCREENS, not Mode 2's four — form, progress (the step list), results (the four tabs).
+    // `m4Stage` is what the server is doing right now, the same relationship `stage` has to `phase`
+    // above, just against M4_STEPS' four names instead of STAGES' three.
+    const [m4Phase, setM4Phase] = useState<'form' | 'progress' | 'results'>('form')
+    const [m4Stage, setM4Stage] = useState<M4Stage>('idle')
+    const [m4Tab, setM4Tab] = useState<'overview' | 'clusters' | 'narrative' | 'corpus'>('overview')
+    // Metadata-only until the final phase lands — see search.ts's file-level comment above
+    // handleM4Retrieve for why abstract text never enters this state at all. Replaced wholesale by
+    // the decorated version (clusterLabel/impactScore/relevanceScore) once handleM4Synthesize
+    // returns; nothing merges the two by hand.
+    const [m4Corpus, setM4Corpus] = useState<M4Record[]>([])
+    const [m4Clusters, setM4Clusters] = useState<Cluster[]>([])
+    const [m4Stats, setM4Stats] = useState<CorpusStats | null>(null)
+    const [m4Narrative, setM4Narrative] = useState<NarrativeReview | null>(null)
+    const [m4Query, setM4Query] = useState('')
+    const [m4FromYear, setM4FromYear] = useState(0)
+    const [m4ToYear, setM4ToYear] = useState(0)
+    const [m4Seeds, setM4Seeds] = useState<{ total: number; retrieved: number } | null>(null)
+    const [m4HotYears, setM4HotYears] = useState<Array<{ year: number; hits: number; error: string }>>([])
+    // Keyed by EVIDENCE_TIERS' own `id` — the checklist's concern, not the server's. An id absent
+    // from this map reads as its own `defaultOn`, so a fresh Mode 4 form needs no pre-population.
+    const [m4EvidenceChecked, setM4EvidenceChecked] = useState<Record<string, boolean>>({})
+
     const [experts, setExperts] = useState<{ experts: Expert[]; total: number } | null>(null)
     // ponytail: inline error state, not a toast. This page's failure paths (403 not-on-the-
     // allowlist, 503 unconfigured, 502 model error) were all routed through toast.error, but
@@ -209,8 +237,9 @@ export default function LiteratureSearch() {
 
     const isSR = mode === 'search-strategy'
     const isPico = mode === 'clinical-question'
+    const isM4 = mode === 'bibliometric-review'
     const seedList = parseSeeds(seeds)
-    const inFlight = busy || stage !== 'idle'
+    const inFlight = busy || stage !== 'idle' || m4Stage !== 'idle'
     // The mockup's gate: a question shorter than 8 characters is not a question. Mode 3 has no one
     // question box, so its gate is the required PICO fields instead — P, I and O. Comparison is
     // optional, because plenty of real clinical questions have no comparator and demanding one
@@ -499,6 +528,143 @@ export default function LiteratureSearch() {
             setErr('Could not reach the server.')
         } finally {
             setStage('idle')
+        }
+    }
+
+    // ---- MODE 4, FOUR SEQUENTIAL POSTS, AUTOMATED (no human gate between them — see search.ts's
+    // handleM4* file-level comment for why four, not the mockup's six visual steps). Each function
+    // below THREADS its own results into the next call's arguments rather than reading them back out
+    // of state, same discipline `screen()`'s own comment documents for Mode 3's question: state
+    // setters have not applied yet when the next call in the same tick would need them.
+    const resetM4State = () => {
+        setM4Phase('form')
+        setM4Stage('idle')
+        setM4Tab('overview')
+        setM4Corpus([])
+        setM4Clusters([])
+        setM4Stats(null)
+        setM4Narrative(null)
+        setM4Query('')
+        setM4FromYear(0)
+        setM4ToYear(0)
+        setM4Seeds(null)
+        setM4HotYears([])
+    }
+
+    const runM4Synthesize = async (corpus: M4Record[], clusters: Cluster[], scores: any[], fromYear: number, toYear: number) => {
+        setM4Stage('synthesizing')
+        try {
+            const res = await fetch('/api/literature/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, phase: 'm4-synthesize', question, corpus, clusters, scores, fromYear, toYear }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                setErr(data?.message || 'Could not write the narrative review.')
+                setM4Phase('form')
+                setM4Stage('idle')
+                return
+            }
+            setModel(data.model || '')
+            setM4Narrative(data.narrative)
+            setM4Corpus(data.corpus || corpus)   // now decorated: clusterLabel/impactScore/relevanceScore
+            setProvenance({ cwid: data.cwid, date: data.date })
+            setM4Phase('results')
+        } catch {
+            setErr('Could not reach the server.')
+            setM4Phase('form')
+        } finally {
+            setM4Stage('idle')
+        }
+    }
+
+    const runM4Score = async (corpus: M4Record[], clusters: Cluster[], fromYear: number, toYear: number) => {
+        setM4Stage('scoring')
+        try {
+            const res = await fetch('/api/literature/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, phase: 'm4-score', question, criteria, corpus, clusters }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                setErr(data?.message || 'Could not score the corpus.')
+                setM4Phase('form')
+                setM4Stage('idle')
+                return
+            }
+            await runM4Synthesize(corpus, clusters, data.scores || [], fromYear, toYear)
+        } catch {
+            setErr('Could not reach the server.')
+            setM4Phase('form')
+            setM4Stage('idle')
+        }
+    }
+
+    const runM4Cluster = async (corpus: M4Record[], fromYear: number, toYear: number) => {
+        setM4Stage('clustering')
+        try {
+            const res = await fetch('/api/literature/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, phase: 'm4-cluster', corpus }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                setErr(data?.message || 'Could not cluster the corpus.')
+                setM4Phase('form')
+                setM4Stage('idle')
+                return
+            }
+            setM4Clusters(data.clusters || [])
+            await runM4Score(corpus, data.clusters || [], fromYear, toYear)
+        } catch {
+            setErr('Could not reach the server.')
+            setM4Phase('form')
+            setM4Stage('idle')
+        }
+    }
+
+    // POST 1 of 4: strategy build + full-corpus retrieval + evidence classification + Phase 4
+    // stats. Dominated by PubMed retrieval time — a decade at a few hundred records/year is
+    // minutes, not the ~2s a single Mode 1 count call takes.
+    const runM4Retrieve = async () => {
+        if (!canBuild) return
+        setErr('')
+        resetM4State()
+        setM4Phase('progress')
+        setM4Stage('retrieving')
+        try {
+            const evidenceTiers = EVIDENCE_TIERS
+                .filter(t => t.tierLabel && (m4EvidenceChecked[t.id] ?? t.defaultOn))
+                .map(t => t.tierLabel)
+            const caseSeries = m4EvidenceChecked['case-series'] ?? true
+            const res = await fetch('/api/literature/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, question, criteria, seeds, dateId, evidenceTiers, caseSeries }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                setErr(data?.message || 'Could not build the corpus.')
+                setM4Phase('form')
+                setM4Stage('idle')
+                return
+            }
+            setModel(data.model || '')
+            setM4Query(data.query || '')
+            setM4FromYear(data.fromYear || 0)
+            setM4ToYear(data.toYear || 0)
+            setM4Corpus(data.corpus || [])
+            setM4Stats(data.corpusStats || null)
+            setM4Seeds(data.seeds || null)
+            setM4HotYears(data.hotYears || [])
+            await runM4Cluster(data.corpus || [], data.fromYear, data.toYear)
+        } catch {
+            setErr('Could not reach the server.')
+            setM4Phase('form')
+            setM4Stage('idle')
         }
     }
 
@@ -851,11 +1017,17 @@ export default function LiteratureSearch() {
         setTicked({})
         setBaseStrategy(null)
         setBaseHits(0)
+        resetM4State()
     }
 
     const pickMode = (id: string) => {
         if (id === mode) return
         setMode(id)
+        // MODE 4's WHOLE PREMISE IS "THE LAST 10 YEARS" — the same dropdown Modes 1-3 default to
+        // "Any date", nudged just this once on entry, exactly the plan's own SearchForm bullet.
+        // One-directional on purpose: leaving Mode 4 does not reset it back, matching how dateId
+        // already survives every OTHER mode switch on this page.
+        if (id === 'bibliometric-review') setDateId('10y')
         newSearch()
     }
 
@@ -887,9 +1059,13 @@ export default function LiteratureSearch() {
     // The documents this run can leave as, built in LiteratureSearch.downloads.ts. Rebuilt on every
     // render from the values above, exactly as the closures were when they lived here: a builder
     // that could read a stale `included` would export a different set from the one on screen.
-    const { dlStrategy, dlQuery, dlRecords, dlSynthesis, markdown, prismaBlock, dlPacket } = makeDownloads({
+    const {
+        dlStrategy, dlQuery, dlRecords, dlSynthesis, markdown, prismaBlock, dlPacket,
+        dlCorpus, dlBibliometricDoc, m4Markdown,
+    } = makeDownloads({
         results, records, flags, picked, synthesis, included,
         question, model, isPico, sortLabel, provenance, session, setErr,
+        m4Corpus, m4Clusters, m4Narrative, m4Stats, m4Query, m4FromYear, m4ToYear,
     })
 
     // The wait. ProgressPanel draws nothing while the stage is idle, so the two guards below are
@@ -906,62 +1082,72 @@ export default function LiteratureSearch() {
         <ExpertsPanel experts={experts} />
     )
 
-    const showForm = isSR ? !result : phase === 'form'
-    const crumb = phase === 'synthesis' ? 'Synthesis' : isSR ? 'Search strategy' : 'Candidates'
+    const showForm = isM4 ? m4Phase === 'form' : isSR ? !result : phase === 'form'
+    const crumb = isM4
+        ? (m4Phase === 'progress' ? 'Building the review' : m4Tab === 'overview' ? 'Overview' : m4Tab === 'clusters' ? 'Clusters' : m4Tab === 'narrative' ? 'Narrative review' : 'Corpus table')
+        : phase === 'synthesis' ? 'Synthesis' : isSR ? 'Search strategy' : 'Candidates'
 
     return (
         <div className={s.page}>
-            <PageHead showForm={showForm} isSR={isSR} crumb={crumb} />
+            <PageHead showForm={showForm} isSR={isSR} isM4={isM4} crumb={crumb} />
 
             {/* THE FORM. Collapses to a one-line summary bar once there is a deliverable — on a
                 laptop it otherwise sits below the fold, under a form nobody is reading any more.
                 "New search" brings it back, with the question still in it. */}
             {showForm ? (
                 <div className={s.card}>
-                    <ModePicker mode={mode} isSR={isSR} isPico={isPico} inFlight={inFlight} onPick={pickMode} />
+                    <ModePicker mode={mode} isSR={isSR} isPico={isPico} isM4={isM4} inFlight={inFlight} onPick={pickMode} />
 
                     <QuestionFields isPico={isPico} pico={pico} setPico={setPico}
                         question={question} setQuestion={setQuestion} />
 
                     <DatabasePicker isSR={isSR} dbs={dbs} setDbs={setDbs} />
 
-                    {/* THE RECALL CONTRACT. Search-strategy mode only: a known-item check is how you
-                        prove a strategy did not silently miss half the literature, and it is
-                        meaningless against a top-50 slice, which is not trying to be exhaustive.
-                        The seed count is live and turns green once armed — a strategy with no seeds
-                        cannot be validated, and the pill is the cheapest possible way to say so
-                        before the librarian has spent a model call. */}
-                    {isSR && <SeedsField seeds={seeds} setSeeds={setSeeds} count={seedList.length} />}
+                    {/* THE RECALL CONTRACT. Search-strategy and bibliometric-review modes only: a
+                        known-item check is how you prove a strategy did not silently miss half the
+                        literature, and it is meaningless against a top-50 slice, which is not
+                        trying to be exhaustive. The seed count is live and turns green once armed —
+                        a strategy with no seeds cannot be validated, and the pill is the cheapest
+                        possible way to say so before the librarian has spent a model call. */}
+                    {(isSR || isM4) && <SeedsField seeds={seeds} setSeeds={setSeeds} count={seedList.length} />}
 
                     <CriteriaField isSR={isSR} criteria={criteria} setCriteria={setCriteria} />
 
+                    {/* MODE 4 ONLY — replaces LimitsRow's Publication type dropdown (see
+                        EvidenceTierPicker's own comment for why this mode needs a checklist, not
+                        one dropdown value, to express "RCT/meta-analysis/... in, case reports
+                        out"). */}
+                    {isM4 && <EvidenceTierPicker checked={m4EvidenceChecked} setChecked={setM4EvidenceChecked} />}
+
                     <LimitsRow
-                        isSR={isSR} dates={dates} types={types} dateId={dateId} typeId={typeId} sort={sort}
+                        isSR={isSR} isM4={isM4} dates={dates} types={types} dateId={dateId} typeId={typeId} sort={sort}
                         busy={busy} inFlight={inFlight} canBuild={canBuild}
                         onDate={v => changeLimits(() => setDateId(v))}
                         onType={v => changeLimits(() => setTypeId(v))}
                         onSort={setSort}
-                        onRun={isSR ? build : findRecords}
+                        onRun={isSR ? build : isM4 ? runM4Retrieve : findRecords}
                     />
 
-                    <CapNote isSR={isSR} isPico={isPico} />
+                    <CapNote isSR={isSR} isM4={isM4} isPico={isPico} />
                 </div>
             ) : (
-                <SummaryBar isSR={isSR} question={question} result={result}
+                <SummaryBar isSR={isSR} isM4={isM4} question={question} result={result}
+                    corpusSize={isM4 ? m4Corpus.length : undefined}
                     recounting={recounting} inFlight={inFlight} onNewSearch={newSearch} />
             )}
 
             {/* The wait, before there is anything else to look at. Not gated on `showForm` any
                 more: retrieving from the narrowing gate happens with the form already collapsed,
                 and that fetch deserves the same progress line as the one from the form. */}
-            {stage === 'fetching' && progressPanel}
+            {!isM4 && stage === 'fetching' && progressPanel}
+            {isM4 && m4Phase === 'progress' && <M4ProgressPanel stage={m4Stage} />}
 
             {err && <div role="alert" className={s.error}>{err}</div>}
 
             <FailedDatabases failures={failures} />
 
             {/* ============ MODE 1 — THE STRATEGY ============ */}
-            {isSR && results.length > 0 && (
+            {!isM4 && isSR && results.length > 0 && (
                 <StrategyResults
                     results={results} liveStrategies={liveStrategies} recounting={recounting}
                     rowState={rowState} model={model} copied={copied} expertsPanel={expertsPanel}
@@ -973,7 +1159,7 @@ export default function LiteratureSearch() {
             )}
 
             {/* ============ MODE 2, SCREEN 3 — CANDIDATES + SCREENING ============ */}
-            {!isSR && phase === 'candidates' && result && (
+            {!isM4 && !isSR && phase === 'candidates' && result && (
                 <>
                     <QueryCard
                         result={result} gate={gate} retrieved={records.length} sortLabel={sortLabel}
@@ -1003,7 +1189,7 @@ export default function LiteratureSearch() {
             )}
 
             {/* ============ MODE 2, SCREEN 4 — SYNTHESIS ============ */}
-            {!isSR && phase === 'synthesis' && synthesis && (
+            {!isM4 && !isSR && phase === 'synthesis' && synthesis && (
                 <SynthesisView
                     synthesis={synthesis} result={result} model={model} isPico={isPico}
                     included={included.length} total={records.length} provenance={provenance}
@@ -1012,6 +1198,70 @@ export default function LiteratureSearch() {
                     onCopyMarkdown={r => copy(markdown(r), 'md')}
                     onDlSynthesis={dlSynthesis} onDlPacket={dlPacket}
                 />
+            )}
+
+            {/* ============ MODE 4 — RESULTS: four tabs on one run ============ */}
+            {isM4 && m4Phase === 'results' && m4Stats && (
+                <>
+                    <div className={s.m4Tabs} role="tablist" aria-label="Bibliometric review sections">
+                        {(['overview', 'clusters', 'narrative', 'corpus'] as const).map(t => (
+                            <button
+                                key={t}
+                                role="tab"
+                                aria-selected={m4Tab === t}
+                                className={`${s.m4Tab} ${m4Tab === t ? s.m4TabActive : ''}`}
+                                onClick={() => setM4Tab(t)}
+                            >
+                                {t === 'overview' ? 'Overview' : t === 'clusters' ? 'Clusters' : t === 'narrative' ? 'Narrative review' : 'Corpus table'}
+                            </button>
+                        ))}
+                    </div>
+
+                    {m4HotYears.length > 0 && (
+                        <div className={s.caveat}>
+                            <span aria-hidden="true">&#9888;</span>
+                            <span>
+                                <b>{m4HotYears.length} year{m4HotYears.length === 1 ? '' : 's'} could not be pulled whole.</b>{' '}
+                                {m4HotYears.map(y => `${y.year} (${y.hits.toLocaleString()} hits)`).join(', ')} exceeded the
+                                per-year retrieval cap and {m4HotYears.length === 1 ? 'is' : 'are'} excluded from this
+                                corpus. Narrow the question or a librarian can sub-shard that year by evidence type.
+                            </span>
+                        </div>
+                    )}
+                    {m4Seeds && m4Seeds.total > 0 && m4Seeds.retrieved < m4Seeds.total && (
+                        <div className={s.caveat}>
+                            <span aria-hidden="true">&#9888;</span>
+                            <span>
+                                <b>{m4Seeds.retrieved} of {m4Seeds.total} known-item seeds retrieved.</b> A strategy
+                                that misses a known include is broken — check the missing ones by hand.
+                            </span>
+                        </div>
+                    )}
+
+                    {m4Tab === 'overview' && (
+                        <>
+                            <TrendPanel stats={m4Stats} />
+                            <ClusterBrowser clusters={m4Clusters} corpus={m4Corpus} limit={5} onViewAll={() => setM4Tab('clusters')} />
+                        </>
+                    )}
+                    {m4Tab === 'clusters' && <ClusterBrowser clusters={m4Clusters} corpus={m4Corpus} />}
+                    {m4Tab === 'narrative' && m4Narrative && (
+                        <NarrativeReviewView narrative={m4Narrative} model={model} expertsPanel={expertsPanel} />
+                    )}
+                    {m4Tab === 'corpus' && <CorpusTablePanel corpus={m4Corpus} />}
+
+                    <div className={s.provenance}>
+                        {provenance && (
+                            <span><b>{m4Corpus.length.toLocaleString()}</b> records, run by <b>{provenance.cwid}</b> on {provenance.date}.</span>
+                        )}
+                        <span className={s.spacer} />
+                        <button className={`${s.btnSecondary} ${copied === 'md' ? s.btnSecondaryDone : ''}`} onClick={() => copy(m4Markdown(), 'md')}>
+                            {copied === 'md' ? '✓ Copied' : 'Copy Markdown'}
+                        </button>
+                        <button className={s.btnSecondary} onClick={dlBibliometricDoc}>Export narrative (.docx)</button>
+                        <button className={s.btn} onClick={dlCorpus}>Export corpus (.xlsx)</button>
+                    </div>
+                </>
             )}
         </div>
     )

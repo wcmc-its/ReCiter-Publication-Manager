@@ -2,7 +2,8 @@
 // that the page file is about what the screen DOES and this one is about what a result IS. Every
 // import here is `import type` and therefore erased at transpile: none of it reaches the browser.
 import type { Db, Rendering, SeedKind } from '../../../../controllers/literatureSearch.strategy'
-import type { PubRecord, Narrowing } from '../../../../controllers/literatureSearch.controller'
+import type { PubRecord, Narrowing, Cluster, ClusterNarrative } from '../../../../controllers/literatureSearch.controller'
+import type { ScoredRecordLike } from '../../../../controllers/literatureExport'
 
 // A KNOWN ITEM, AND IT IS NOT A PMID BY ASSUMPTION. A Scopus-only record — a conference paper, a
 // non-MEDLINE journal — has no PMID at all, and those are the records Scopus is here for. So a seed
@@ -98,3 +99,40 @@ export type ExpertList = { experts: Expert[]; total: number }
 // `phase`). Named here only so the presentational panels can be handed it without re-typing the
 // union in four places and letting one of them drift.
 export type Stage = 'idle' | 'fetching' | 'screening' | 'synthesizing'
+
+// ---------------------------------------------------------------------------
+// MODE 4 ("Bibliometric review"). A separate stage union, not a widened `Stage` — Mode 2/3's
+// three names are keyed into STAGES' measured expect-seconds and ProgressPanel's per-name label
+// switch, and Mode 4's four automated phases (see search.ts's handleM4* quartet) do not share a
+// clock with any of them. Kept apart rather than merged into one long union everything has to
+// switch on for names it will never see.
+export type M4Stage = 'idle' | 'retrieving' | 'clustering' | 'scoring' | 'synthesizing'
+
+// The corpus, as the client ever holds it: METADATA ONLY, never an abstract — see search.ts's
+// file-level comment above handleM4Retrieve for why. `ScoredRecordLike` (literatureExport, the
+// same type corpusSheet() takes) already carries the extra clusterLabel/impactScore/
+// relevanceScore fields the decorated corpus (returned by the final synthesize phase) adds on
+// top of a plain PubRecord — reused rather than re-declared, same "one shape, both ends" reason
+// PubRecord/Screened/Synthesis are imported instead of retyped above.
+export type M4Record = ScoredRecordLike
+
+// One cluster's finished write-up plus the deterministic whole-review intro — the exact shape
+// assembleNarrativeReview() returns, given a name here because that function's return type is
+// inline rather than exported.
+export type NarrativeReview = { intro: string; sections: ClusterNarrative[]; caseSeriesNote?: string }
+
+export type { Cluster, ClusterNarrative }
+
+// Phase 4's stats, corpus-scale — the shape handleM4Retrieve's response and bibliometricDoc()'s
+// `stats` param share. journalDistribution/percentileTrend arrive later than publicationsPerYear/
+// evidenceMixByYear only in the sense that all four are computed together in one POST; there is no
+// partial-stats state on this page.
+export type CorpusStats = {
+    publicationsPerYear: Array<{ year: string; count: number }>
+    evidenceMixByYear: Record<string, Record<string, number>>
+    journalDistribution: Array<{ journal: string; count: number }>
+    percentileTrend: Array<{ year: string; median: number | null; n: number; scored: number }>
+    totalRecords: number
+    fromYear: number
+    toYear: number
+}

@@ -35,6 +35,11 @@ const MESH_STOPLIST = new Set([
     'rats', 'mice', 'pregnancy', 'retrospective studies', 'prospective studies',
     'follow-up studies', 'treatment outcome', 'cross-sectional studies', 'double-blind method',
     'randomized controlled trials as topic', 'reproducibility of results', 'time factors',
+    // Added after the 2026-08-19 live probe: 'risk factors' seeded a 5-record cluster labeled
+    // "COVID-19 transmission and infection control" whose real content was 1 tangential paper —
+    // a generic checktag doing exactly the damage this stoplist exists to prevent. See
+    // PROBE-RESULTS-mode4-bibliometric-review.md's "Phase 5-8 live-validation probe" section.
+    'risk factors',
 ])
 
 export type Cluster = { id: string; label: string; meshTerms: string[]; pmids: string[]; isUncategorized?: boolean }
