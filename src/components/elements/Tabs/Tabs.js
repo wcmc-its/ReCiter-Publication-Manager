@@ -7,10 +7,12 @@ import styles from './Tabs.module.css';
 // tab. "PubMed" is an inline label scoped to just Accepted/Suggested/Rejected — the
 // source cluster after the divider stays unlabeled on purpose (Decision 2/3).
 
-// A row counts toward its source tab unless it's suppressed (a duplicate of an
-// accepted PubMed record, per the supersede rule) — matching what the tab renders.
+// A row counts toward its source tab unless it's superseded (suppressed as a duplicate
+// of an accepted PubMed record) — matching what the tab renders. Dispute-suppressed
+// rows (suppressed with no superseding PMID) still render in the disputed state, so
+// they still count.
 const countBySource = (rows, sourceType) => rows.filter((row) =>
-    row.sourceType === sourceType && !row.suppressed
+    row.sourceType === sourceType && !(row.suppressed && row.supersededByPmid != null)
 ).length
 
 const Tabs = (props) => {

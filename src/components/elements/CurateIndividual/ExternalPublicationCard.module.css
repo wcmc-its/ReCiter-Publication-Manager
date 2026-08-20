@@ -297,3 +297,157 @@
 .btnReject:hover {
     background: #f1f3f7;
 }
+
+/* Faculty dispute lifecycle (docs/README-other-publications-tab.md). The left rail
+   mirrors Publication.tsx's statusStrip convention, keyed by dispute state; the row
+   stays in its own source tab, struck through + muted, never moved to another list. */
+.cardDisputed {
+    border-left: 3px solid #dc2626;
+}
+
+.cardDisputed .title {
+    text-decoration: line-through;
+    text-decoration-color: #dc2626;
+    color: #8a94a6;
+}
+
+.cardDisputed .authors,
+.cardDisputed .meta {
+    color: #a9b1c2;
+}
+
+.disputedTag {
+    font-size: 11px;
+    font-weight: 700;
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 10px;
+    padding: 2px 8px;
+}
+
+.selfTag {
+    font-size: 11px;
+    font-weight: 600;
+    color: #3538cd;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 10px;
+    padding: 2px 8px;
+}
+
+.disputedNote {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #b45309;
+}
+
+.btnDispute {
+    border: 1px solid #cbd3e0;
+    background: #fff;
+    color: #b31b1b;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnDispute:hover {
+    background: #fdecec;
+    border-color: #fdecec;
+}
+
+.btnDispute:disabled {
+    color: #d9a0a0;
+    cursor: default;
+}
+
+/* Reversible, compact — mirrors Publication.tsx's "Accepted — Undo" pattern */
+.btnUndoDispute {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnUndoDispute:hover {
+    filter: brightness(0.97);
+}
+
+.btnUndoDispute:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.disputeForm {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #e3e8ef;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.disputeTextarea {
+    width: 100%;
+    font: inherit;
+    font-size: 12.5px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #cbd3e0;
+    background: #f7f8fa;
+    color: #1f2733;
+    resize: vertical;
+    min-height: 44px;
+}
+
+.disputeFormRow {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.btnGhost {
+    border: 1px solid #cbd3e0;
+    background: transparent;
+    color: #55607a;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnGhost:hover {
+    background: #f1f3f7;
+}
+
+.btnSolid {
+    border: none;
+    background: #b31b1b;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnSolid:hover {
+    background: #991616;
+}
+
+.btnSolid:disabled {
+    background: #e3a1a1;
+    cursor: default;
+}
