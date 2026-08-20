@@ -6,6 +6,7 @@ import Publication from '../Publication/Publication';
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
 import fullName from '../../../utils/fullName';
+import filterPublicationsBySearchText from '../../../utils/filterPublicationsBySearchText';
 
 const TabAccepted = (props) => {
     
@@ -75,120 +76,30 @@ const TabAccepted = (props) => {
     }
 
     const filter = () => {
-        // Filter
-        const filteredPublications = []
         // ReCiter-Publication-Manager#873: reciterData.reciter undefined until fetch completes.
-        ;(reciterData?.reciter?.reCiterArticleFeatures || []).forEach((publication) => {
-            // Check if publication is Suggested
-            if(publication.userAssertion === "ACCEPTED") {
-                // Check search and sort
-                if(search !== "") {
-                    if(/^[0-9 ]*$/.test(search)) {
-                        var pmids = search.split(" ");
-                        if(pmids.some(pmid => Number(pmid) === publication.pmid )){
-                            filteredPublications.push(publication);
-                        }
-                    }else {
-                        var addPublication = true;
-                        // check filter search
-                        if (search !== "") {
-                            addPublication = false;
-                            //pmcid
-                            if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //publicationTypeCanonical
-                            if(publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //scopusDocID
-                            if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //journalTitleISOabbreviation
-                            if(publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //journalTitleVerbose
-                            if(publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //publication date display
-                            if(publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //doi
-                            if(publication.doi !== undefined && publication.doi.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            // title
-                            if (publication.title.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true;
-                            }
-                            // journal
-                            if (publication.journal.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true;
-                            }
-                            //issn
-                            if(publication.issn !== undefined) {
-                                var issnArray = publication.issn.map((issn, issnIndex) => {
-                                    return issn.issn
-                                })
-                                if(issnArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                            // authors
-                            if (publication.authors !== undefined) {
-                                var authorsArray = publication.authors.map(function (author, authorIndex) {
-                                    return author.authorName;
-                                });
-                                if (authorsArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                            //evidence
-                            if (publication.evidence !== undefined) {
-                                var evidenceArticleArray = publication.evidence.map(function (evidence, evidenceIndex) {
-                                    return evidence.articleData;
-                                });
-                                var evidenceInstArray = publication.evidence.map(function (evidence, evidenceIndex) {
-                                    return evidence.institutionalData;
-                                });
-                                if (evidenceInstArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                                if (evidenceArticleArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                        }
-                        if (addPublication) {
-                            filteredPublications.push(publication);
-                        }
-                    }
-                }else {
-                    filteredPublications.push(publication);
-                }
-            }
-        })
+        const accepted = (reciterData?.reciter?.reCiterArticleFeatures || []).filter(
+            (publication) => publication.userAssertion === "ACCEPTED"
+        )
+        // The hand-rolled search here read fields this article shape doesn't have
+        // (title, journal, array-shaped evidence) and threw on the first non-numeric
+        // search character; the curator flow's shared util guards the real field names.
+        const filteredPublications = filterPublicationsBySearchText(accepted, search)
 
         // Sort
         filteredPublications.sort((a, b) => {
             switch(sort) {
                 case "0":
-                    return b.standardScore - a.standardScore;
+                    return b.authorshipLikelihoodScore - a.authorshipLikelihoodScore;
                 case "1":
-                    return a.standardScore - b.standardScore;
+                    return a.authorshipLikelihoodScore - b.authorshipLikelihoodScore;
                 case "2":
-                    return new Date(b.standardDate) - new Date(a.standardDate);
+                    return new Date(b.publicationDateStandardized) - new Date(a.publicationDateStandardized);
                 case "3":
-                    return new Date(a.standardDate) - new Date(b.standardDate);
+                    return new Date(a.publicationDateStandardized) - new Date(b.publicationDateStandardized);
                 default:
-                    return b.standardScore - a.standardScore;
+                    return b.authorshipLikelihoodScore - a.authorshipLikelihoodScore;
             }
         });
-
 
         var from = (parseInt(page, 10) - 1) * parseInt(count, 10);
         var to = from + parseInt(count, 10) - 1;
