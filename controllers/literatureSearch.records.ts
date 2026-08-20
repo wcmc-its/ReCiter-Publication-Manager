@@ -187,6 +187,21 @@ export type PubRecord = {
     mesh: string[]
     // NIH percentile from iCite. DISPLAY ONLY — see withCitationMetrics(). Often absent, by design.
     nihPercentile?: number
+    // The other two iCite signals, fetched in the SAME response as the percentile (so they cost
+    // nothing extra) and carried for one reason: Mode 4's impact scorer feeds all three to the
+    // model, exactly as ReciterAI's build_impact_user_content() does. Not displayed anywhere —
+    // nihPercentile above is still the only one a reader sees, because it is the only one that
+    // needs no footnote. Both absent for very recent papers, on the same schedule as the percentile.
+    citationCount?: number
+    rcr?: number
+    // iCite's Approximate Potential to Translate — a 0-1 score computed from the citing-paper
+    // network's structure, not from accumulated citation COUNT, so unlike nihPercentile it is
+    // available immediately rather than needing years of citation history. Verified live against
+    // the 2026-08-19 corpus's own PMIDs (see PLAN-mode4-relevance-and-impact.md): iCite returns
+    // apt for essentially the whole corpus, including the 2025-26 records nihPercentile has
+    // nothing for. Used ONLY as impactScoreOf()'s fallback when nihPercentile is absent — never
+    // displayed on its own, same posture as citationCount/rcr above.
+    apt?: number
     // Mode 4 Phase 3 only — see flagProbableCaseSeries() in literatureSearch.corpus.ts. PubMed has
     // no [pt] tag for case series, so this is a best-effort MeSH/text heuristic, never a tier.
     // Undefined everywhere else; never excludes a record on its own.
@@ -213,26 +228,61 @@ export type PubRecord = {
 //
 // ponytail: nih_percentile, not RCR. Both are on the response, and the percentile is the one a
 // human can read without a footnote — "97th percentile" needs no explanation, "RCR 14.06" needs a
-// paragraph. Free, keyless, one bulk call for all 50 PMIDs.
+// paragraph. Free, keyless, batched (see ICITE_BATCH below).
 //
 // IT IS ROUTINELY ABSENT, AND THAT IS CORRECT, NOT BROKEN. The percentile is field- and
 // year-normalised, so it needs citation history: a 2025 trial comes back `nih_percentile: null`
 // (verified live — that same paper has an RCR, but no percentile). Our top-50 skews recent by
 // design, so expect blanks and render them as nothing at all — never "N/A", never a zero, and
 // above all never treat a missing percentile as a low one.
+// ONE GET PER 150 PMIDS, not one GET for the whole set. Mode 2/3 hand this a top-50 shortlist, so a
+// single bulk call was always enough there; Mode 4 hands it a corpus that runs into the thousands,
+// and 2,320 PMIDs in a query string is a ~25KB URL. 150 is the batch size ReCiterDB's own production
+// iCite client uses (update/retrieveNIH.py) against this same endpoint — matching it rather than
+// picking a new number keeps one answer to "how hard do we hit iCite" across the two repos.
+const ICITE_BATCH = 150
+
 export async function withCitationMetrics(records: PubRecord[]): Promise<PubRecord[]> {
     const pmids = records.map(r => r.pmid).filter(p => /^\d+$/.test(p))
     if (!pmids.length) return records
 
     try {
-        const res = await fetch(`https://icite.od.nih.gov/api/pubs?pmids=${pmids.join(',')}`, {
-            headers: { 'User-Agent': 'reciter-pub-manager-server' },
-        })
-        if (!res.ok) throw new Error(`icite HTTP ${res.status}`)
-        const body: any = await res.json()
+        const batches: string[][] = []
+        for (let i = 0; i < pmids.length; i += ICITE_BATCH) batches.push(pmids.slice(i, i + ICITE_BATCH))
 
+        const data: any[] = []
+        for (const batch of batches) {
+            const res = await fetch(`https://icite.od.nih.gov/api/pubs?pmids=${batch.join(',')}`, {
+                headers: { 'User-Agent': 'reciter-pub-manager-server' },
+            })
+            if (!res.ok) throw new Error(`icite HTTP ${res.status}`)
+            const body: any = await res.json()
+            if (Array.isArray(body?.data)) data.push(...body.data)
+        }
+
+        // Same absent-vs-zero rule for all three fields, which is why it is a helper rather than
+        // three copies: a citation count of 0 and an RCR of 0 are both legitimate values for a real
+        // paper nobody has cited yet, and both are indistinguishable from "not scored" after a
+        // Number() coercion. See the percentile note below for the incident that established this.
+        const num = (raw: any): number | undefined => {
+            if (raw === null || raw === undefined || raw === '') return undefined
+            const n = Number(raw)
+            return Number.isFinite(n) ? n : undefined
+        }
+
+        const cites = new Map<string, number>()
+        const rcrs = new Map<string, number>()
         const pct = new Map<string, number>()
-        for (const p of (Array.isArray(body?.data) ? body.data : [])) {
+        const apts = new Map<string, number>()
+        for (const p of data) {
+            const key = String(p?.pmid)
+            const c = num(p?.citation_count)
+            if (c !== undefined) cites.set(key, c)
+            const r = num(p?.relative_citation_ratio)
+            if (r !== undefined) rcrs.set(key, r)
+            const a = num(p?.apt)
+            if (a !== undefined) apts.set(key, a)
+
             const raw = p?.nih_percentile
             // REJECT null BEFORE COERCING, and never the other way round. `Number(null)` is `0`,
             // and `0` is finite — so a finiteness check applied to the coerced value cannot tell
@@ -244,11 +294,17 @@ export async function withCitationMetrics(records: PubRecord[]): Promise<PubReco
             //
             // 0 IS a legitimate percentile, so it must still survive. Hence: reject the absent
             // values explicitly, then test what remains.
-            if (raw === null || raw === undefined || raw === '') continue
-            const n = Number(raw)
-            if (Number.isFinite(n)) pct.set(String(p?.pmid), n)
+            const n = num(raw)
+            if (n !== undefined) pct.set(key, n)
         }
-        return records.map(r => (pct.has(r.pmid) ? { ...r, nihPercentile: pct.get(r.pmid) } : r))
+        return records.map(r => {
+            const out = { ...r }
+            if (pct.has(r.pmid)) out.nihPercentile = pct.get(r.pmid)
+            if (cites.has(r.pmid)) out.citationCount = cites.get(r.pmid)
+            if (rcrs.has(r.pmid)) out.rcr = rcrs.get(r.pmid)
+            if (apts.has(r.pmid)) out.apt = apts.get(r.pmid)
+            return out
+        })
     } catch (e) {
         // Never fatal. This is a garnish on a row; the records, the screening and the synthesis are
         // the deliverable. Loud in the log, invisible on the page — the same contract as the WCM

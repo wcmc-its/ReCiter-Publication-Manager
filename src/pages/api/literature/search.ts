@@ -78,6 +78,31 @@ import {
     MODEL_TIMEOUT_MS,
     wasSearched,
     hasFailed,
+    // ---- Mode 4 (bibliometric review), Phases 1-8. See the four handleM4* functions below for
+    // how these compose — the phase split there mirrors this import list, one group per phase.
+    PubRecord,
+    fetchCorpus,
+    narrowForBudget,
+    NarrowingStep,
+    excludeCaseReports,
+    flagProbableCaseSeries,
+    excludeCaseSeries,
+    filterByEvidenceTiers,
+    yearRangeFor,
+    publicationsPerYear,
+    evidenceMixByYear,
+    journalDistribution,
+    percentileTrend,
+    Cluster,
+    clusterByMesh,
+    labelClusters,
+    impactScoreOf,
+    preFilterForScoring,
+    scoreRelevance,
+    scoreImpact,
+    ClusterNarrative,
+    synthesizeCluster,
+    assembleNarrativeReview,
 } from '../../../../controllers/literatureSearch.controller'
 import {
     buildLimits, picoQuestion, picoComplete, parseSeeds, DIALECTS,
@@ -86,6 +111,12 @@ import {
 } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../services/db/wcmExperts.service'
 import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
+
+// Next's default request-body limit (1mb) is fine for Modes 1-3 — a 50-record PMID list or an
+// edited strategy is a few KB. Mode 4's corpus echo (see the file-level comment above
+// handleM4Retrieve) is metadata for a decade-scale corpus, a few thousand records without
+// abstracts — comfortably under this raised limit, nowhere near the default.
+export const config = { api: { bodyParser: { sizeLimit: '6mb' } } }
 
 // Usage visibility. One structured line per model call; grep the pod logs.
 //
@@ -193,6 +224,21 @@ type SearchBody = {
     databases: any
     edited: any
     seedList: Seed[]
+    // ---- Mode 4 only. `corpus`/`clusters`/`scores` are ECHOED BACK by the client between phases
+    // — see the handleM4* functions below for why that is safe (never abstract text, always
+    // re-fetched by PMID before a Bedrock call touches it) and bounded (parseM4Corpus).
+    evidenceTiers: any
+    caseSeries: any
+    corpus: any
+    clusters: any
+    scores: any
+    // Echoed back on every POST after the first, from POST 1's own response — so Phase 4's
+    // recomputed stats and the final assembleNarrativeReview() call describe the SAME window the
+    // corpus was actually pulled for, not a guessed default. See handleM4Synthesize's fallback for
+    // what happens if either arrives malformed: the same 10-years-ending-now default yearRangeFor()
+    // itself would have picked for a 'not sent' dateId.
+    fromYear: any
+    toYear: any
 }
 
 // ---- SCREEN (Mode 2, phase 2). -----------------------------------------------------------------
@@ -529,6 +575,483 @@ async function handleBuildStrategy(req: NextApiRequest, res: NextApiResponse, cw
     }
 }
 
+// ==================================================================================================
+// MODE 4 ("Bibliometric review"). FOUR SEQUENTIAL BLOCKING POSTS, not five human-gated ones like
+// Mode 2 — the plan's "retrieve → classify → cluster → score → synthesize" step list maps onto four
+// network round trips because the first three of those six visual steps (strategy validation,
+// retrieval, evidence classification) are all deterministic-or-one-model-call and naturally finish
+// together; splitting them into separate POSTs would buy no real progress granularity, only extra
+// round trips. No SSE — see the plan's own "reach for SSE only if real usage shows the step list
+// feels stuck" and Mode 2/3's precedent: a blocking POST per named phase was already enough there.
+//
+// THE CORPUS IS ECHOED, NOT RE-FETCHED, BETWEEN PHASES — the one real departure from Mode 2/3's
+// "never trust record text from the client" rule, and it is narrower than it looks:
+//   - What round-trips is METADATA ONLY (pmid, title, authors, journal, year, mesh, tier,
+//     nihPercentile, caseSeriesProbable) — `abstract` is stripped before the corpus ever leaves the
+//     server (parseM4Corpus forces it back to '' even if a tampered payload smuggled one in) and is
+//     never sent to the browser at all in this mode. A corpus of 2,000-4,000 records with full
+//     abstracts would also blow well past a sane request-body limit on every later phase.
+//   - The two calls that actually spend Bedrock on this data — scoreRelevance() and
+//     synthesizeCluster() — NEVER read the echoed metadata as their input text. Both re-fetch the
+//     real abstracts server-side by PMID (fetchByPmids, same call Mode 2/3's screen/synthesize
+//     phases already use) for exactly the shortlist preFilterForScoring() picked. So the one thing
+//     that must never come from the client — the text a paid model call reads — still never does.
+//   - labelClusters() DOES read client-echoed data (each cluster's MeSH terms), but MeSH terms are
+//     short, controlled-vocabulary-shaped strings with none of the injection surface free-text
+//     abstract content has, and the worst case of a tampered one is a mislabeled cluster, not a
+//     fabricated citation or a hijacked prompt. Same bounded-trust posture parseStrategy() already
+//     takes on a re-counted query's term lines.
+// parseM4Corpus/parseM4Clusters/parseM4Scores below are the guards: bounded size, coerced types,
+// abstract forcibly blanked — the same posture parseStrategy/parsePmids already take on this route.
+
+const MAX_M4_RECORDS = 20000   // well above any real decade-scale corpus (the plan's own ballpark
+                                 // tops out around 5,000-6,000) — a defensive ceiling, not a design cap.
+
+function s(v: any, max: number): string {
+    return String(v ?? '').slice(0, max)
+}
+
+// Metadata-only PubRecord, coerced field by field — never trust the shape of an echoed array.
+// `abstract` is ALWAYS '', regardless of what arrived: this mode never lets abstract text complete
+// a round trip through the browser (see the file-level comment above).
+function parseM4Corpus(raw: any): PubRecord[] {
+    if (!Array.isArray(raw)) throw new Error('malformed corpus')
+    if (raw.length > MAX_M4_RECORDS) throw new Error('corpus is larger than this route will process')
+    return raw.map((r: any): PubRecord => ({
+        pmid: s(r?.pmid, 20),
+        title: s(r?.title, 500),
+        journal: s(r?.journal, 300),
+        year: s(r?.year, 8),
+        authors: s(r?.authors, 200),
+        design: s(r?.design, 40),
+        tier: { rank: Number(r?.tier?.rank) || 8, label: s(r?.tier?.label, 40), phrase: s(r?.tier?.phrase, 120) },
+        types: Array.isArray(r?.types) ? r.types.slice(0, 20).map((t: any) => s(t, 60)) : [],
+        abstract: '',
+        mesh: Array.isArray(r?.mesh) ? r.mesh.slice(0, 40).map((m: any) => s(m, 120)) : [],
+        ...(Number.isFinite(r?.nihPercentile) ? { nihPercentile: Number(r.nihPercentile) } : {}),
+        ...(r?.caseSeriesProbable === true ? { caseSeriesProbable: true } : {}),
+    }))
+}
+
+function parseM4Clusters(raw: any): Cluster[] {
+    if (!Array.isArray(raw)) throw new Error('malformed clusters')
+    return raw.map((c: any): Cluster => ({
+        id: s(c?.id, 60),
+        label: s(c?.label, 200),
+        meshTerms: Array.isArray(c?.meshTerms) ? c.meshTerms.slice(0, 10).map((m: any) => s(m, 120)) : [],
+        pmids: Array.isArray(c?.pmids) ? c.pmids.slice(0, MAX_M4_RECORDS).map((p: any) => s(p, 20)) : [],
+        ...(c?.isUncategorized === true ? { isUncategorized: true } : {}),
+    }))
+}
+
+function parseM4Scores(raw: any): Map<string, { score: number; justification: string }> {
+    const out = new Map<string, { score: number; justification: string }>()
+    if (!Array.isArray(raw)) return out
+    for (const x of raw) {
+        const pmid = s(x?.pmid, 20)
+        const score = Number(x?.score)
+        if (pmid && Number.isFinite(score)) {
+            out.set(pmid, { score: Math.min(1, Math.max(0, score)), justification: s(x?.justification, 400) })
+        }
+    }
+    return out
+}
+
+// The model-judged impact axis, on the same metadata round-trip as the relevance scores above.
+// Clamped and rounded on the way back IN as well as on the way out, for the same reason every other
+// parseM4* function re-validates: this value has been through the client, and a value that has left
+// the server is an input again when it returns, whatever it was when it left.
+function parseM4Impact(raw: any): Map<string, { score: number; justification: string }> {
+    const out = new Map<string, { score: number; justification: string }>()
+    if (!Array.isArray(raw)) return out
+    for (const x of raw) {
+        const pmid = s(x?.pmid, 20)
+        const score = Number(x?.score)
+        if (pmid && Number.isFinite(score)) {
+            out.set(pmid, {
+                score: Math.max(0, Math.min(100, Math.round(score))),
+                justification: s(x?.justification, 400),
+            })
+        }
+    }
+    return out
+}
+
+// The six real evidence tiers the SearchForm checklist controls (see EVIDENCE_TIERS in
+// LiteratureSearch.constants.ts — that file owns the id/label/default the checkboxes render, this
+// is just the label set filterByEvidenceTiers() needs to resolve "everything except what got
+// unticked"). Guideline/Review/Other/Protocol/RETRACTED are not on the checklist and are always
+// kept — the plan's own mockup lists seven rows, not eleven, and Phase 4's evidence-mix chart needs
+// the full tier range to stay meaningful (see filterByEvidenceTiers()'s own comment).
+const CHECKLIST_TIERS = ['RCT', 'Clinical trial', 'Meta-analysis', 'Systematic review', 'Observational', 'Case report']
+const ALWAYS_KEPT_TIERS = ['Guideline', 'Review', 'Other', 'Protocol', 'RETRACTED']
+
+function resolveKeepTiers(evidenceTiers: any): Set<string> {
+    const checked = new Set((Array.isArray(evidenceTiers) ? evidenceTiers : []).map((t: any) => String(t)))
+    return new Set([...ALWAYS_KEPT_TIERS, ...CHECKLIST_TIERS.filter(t => checked.has(t))])
+}
+
+// impactScoreOf() is PURE and free, so it runs over the WHOLE corpus, not just the scored
+// shortlist — the Corpus table's Impact column would otherwise be blank for the ~90% of records
+// preFilterForScoring() never picked, for no reason: nothing about computing it costs a Bedrock
+// call. relevanceScore stays sparse on purpose (see corpusSheet.ts's own "blank = not in the
+// shortlist" contract) — it is the one column this function does NOT fill in for every row.
+function decorateCorpus(
+    corpus: PubRecord[], clusters: Cluster[],
+    scores: Map<string, { score: number; justification: string }>,
+    impactJudged: Map<string, { score: number; justification: string }> = new Map(),
+) {
+    const clusterLabelByPmid = new Map<string, string>()
+    for (const c of clusters) for (const p of c.pmids) clusterLabelByPmid.set(p, c.label)
+
+    return corpus.map(r => {
+        const prior = impactScoreOf(r)
+        const rel = scores.get(r.pmid)
+        const judged = impactJudged.get(r.pmid)
+        return {
+            ...r,
+            clusterLabel: clusterLabelByPmid.get(r.pmid) ?? '',
+            // THREE AXES, KEPT APART ON THE ROW. `evidenceScore` is the free deterministic prior
+            // (evidence tier blended with the iCite percentile) and covers 100% of the corpus;
+            // `impactScore` is the model's ReciterAI-calibrated 0-100 judgment and covers only the
+            // shortlist; `relevanceScore` is topic fit, same shortlist. None is derived from
+            // another and none is blended into a composite here — a composite is a query-time
+            // decision the table makes when a reader picks a sort, not a number baked into the row.
+            evidenceScore: prior.score,
+            evidenceJustification: prior.justification,
+            ...(judged ? { impactScore: judged.score, impactJustification: judged.justification } : {}),
+            ...(rel ? { relevanceScore: rel.score, relevanceJustification: rel.justification } : {}),
+        }
+    })
+}
+
+// A small bounded-concurrency map — synthesizeCluster() is one call PER CLUSTER (see its own "the
+// caller is expected to fire these in whatever concurrency it can afford" comment), and a real
+// corpus can produce 15-25 of them. Firing them one at a time (the probe script's own choice, for
+// simplicity there) would put several minutes between "Scoring" finishing and the narrative
+// landing; firing all of them at once risks tripping Bedrock's own per-account concurrency limit.
+// ponytail: a fixed concurrency of 4, not a tuned/adaptive pool — no library for this at four call
+// sites in the repo, and four Opus calls in flight at once is a reasonable default with no
+// production signal yet to tune it against.
+async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+    const out: R[] = new Array(items.length)
+    let i = 0
+    async function worker() {
+        while (i < items.length) {
+            const mine = i++
+            out[mine] = await fn(items[mine])
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+    return out
+}
+
+// ---- MODE 4, POST 1 of 4: build the recall strategy, pull the full corpus (sharded by year),
+// classify evidence type, compute Phase 4 stats. Dominated by PubMed retrieval time — a decade at
+// a few hundred records/year is a few minutes, not the ~2s Mode 1's single count call takes.
+async function handleM4Retrieve(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { question, criteria, dateId, evidenceTiers, caseSeries, seedList } = body
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    if (!question || !String(question).trim()) {
+        return res.status(400).send({ statusCode: 400, message: 'A research question is required.' })
+    }
+    const usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+    try {
+        // Empty limits, deliberately: Mode 4's date bound is applied per-year inside fetchCorpus()
+        // (the `[dp]` shard clause), not baked into the strategy the way Modes 1-3's dateId is —
+        // this mode has no "Any date" that means anything to a per-year shard loop. See
+        // yearRangeFor()'s own comment.
+        const built = await withTimeout(
+            buildStrategy(String(question), '', criteria, 'recall', undefined, 'pubmed', undefined),
+            MODEL_TIMEOUT_MS,
+            'The search strategy build',
+        )
+        usage.inputTokens += built.usage.inputTokens
+        usage.outputTokens += built.usage.outputTokens
+
+        const { fromYear, toYear } = yearRangeFor(String(dateId ?? ''))
+        const pmidSeeds = seedList.filter(sd => sd.kind === 'pmid')
+
+        const ladder = await narrowForBudget(built.strategy, pmidSeeds, fromYear, toYear)
+        const corpus = await fetchCorpus(ladder.strategy, fromYear, toYear)
+
+        const keepTiers = resolveKeepTiers(evidenceTiers)
+        let records = filterByEvidenceTiers(corpus.records, keepTiers)
+        // Case Reports is the one tier this mode drops by a DIFFERENT rule than the checklist's own
+        // keep-set (it is the plan's hardcoded Phase 3 default, unticked and off by default) — but a
+        // librarian who explicitly re-ticks it on the checklist gets it back, via keepTiers already
+        // including 'Case report'. excludeCaseReports() only runs when it is NOT already kept above.
+        if (!keepTiers.has('Case report')) records = excludeCaseReports(records)
+        records = flagProbableCaseSeriesOrExclude(records, caseSeries !== false)
+
+        // KNOWN-ITEM SEEDS. PMID-kind only — Mode 4 retrieves from PubMed alone, and a DOI seed
+        // (meaningful for Scopus, which has no PMID index) has nothing to check here. Aggregate
+        // count only, matching the mockup's single step-list line ("4 of 4 known-item seeds
+        // retrieved") rather than Mode 1's per-seed panel, which this mode has no screen for.
+        // (pmidSeeds is hoisted above — the narrowing ladder needs it too, and this is a post-hoc
+        // check against the FINAL evidence-tier-filtered corpus, a different and still-useful check.)
+        const corpusPmids = new Set(records.map(r => r.pmid))
+        const seedsRetrieved = pmidSeeds.filter(sd => corpusPmids.has(sd.id)).length
+
+        const hotYears = corpus.shards.filter((sh): sh is Extract<typeof sh, { ok: false }> => !sh.ok)
+
+        logCost('bibliometric-review:retrieve', cwid, usage, {
+            fromYear, toYear, corpusSize: records.length, hotYears: hotYears.length,
+            seeds: pmidSeeds.length, seedsRetrieved, narrowingSteps: ladder.dropped.length,
+        })
+
+        return res.status(200).send({
+            statusCode: 200,
+            model: process.env.BEDROCK_MODEL_ID,
+            // The BASE query, one year's worth — see corpusSheet.ts's own "Boolean query" row for
+            // why this mode has no single query the way Modes 1-3 do. Carried in state and threaded
+            // into every export's RunFacts, same field name, so the export builders need no
+            // Mode-4-specific branch to find it.
+            // corpus.query, NOT assembleQuery(built.strategy) — fetchCorpus appends the humans
+            // filter, so re-deriving here would print a query that does not reproduce the count
+            // printed beside it.
+            query: corpus.query,
+            narrowing: ladder.dropped.map(d =>
+                `dropped '${d.dropped}' (${d.concept}): ${d.before.toLocaleString()} → ${d.after.toLocaleString()}`),
+            fromYear, toYear,
+            corpus: records,
+            hotYears: hotYears.map(sh => ({ year: sh.year, hits: sh.hits, error: sh.error })),
+            corpusStats: {
+                publicationsPerYear: publicationsPerYear(records),
+                evidenceMixByYear: evidenceMixByYear(records),
+                journalDistribution: journalDistribution(records),
+                percentileTrend: percentileTrend(records),
+                totalRecords: records.length, fromYear, toYear,
+            },
+            seeds: { total: pmidSeeds.length, retrieved: seedsRetrieved },
+        })
+    } catch (err: any) {
+        console.error('[literature] bibliometric retrieve failed:', err)
+        logCost('bibliometric-review:retrieve', cwid, usage, { failed: true })
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not build the corpus.' })
+    }
+}
+
+// Case-series disclosure is a FLAG on records already kept, not a tier — see excludeCaseSeries()'s
+// own comment. `keep` here is the checklist's "Case series (probable)" box: on (default) flags and
+// keeps them, off drops them from the corpus entirely.
+function flagProbableCaseSeriesOrExclude(records: PubRecord[], keep: boolean): PubRecord[] {
+    const flagged = flagProbableCaseSeries(records)
+    return keep ? flagged : excludeCaseSeries(flagged)
+}
+
+// ---- MODE 4, POST 2 of 4: cluster the corpus by MeSH co-occurrence, then name each cluster in
+// ONE Bedrock call. Fast — clusterByMesh() is pure, labelClusters() is a single short call.
+async function handleM4Cluster(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    try {
+        const corpus = parseM4Corpus(body.corpus)
+        const { clusters: raw } = clusterByMesh(corpus)
+        const { clusters, usage } = await labelClusters(raw)
+        logCost('bibliometric-review:cluster', cwid, usage, { corpusSize: corpus.length, clusters: clusters.length })
+        return res.status(200).send({ statusCode: 200, clusters })
+    } catch (err: any) {
+        console.error('[literature] bibliometric cluster failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not cluster the corpus.' })
+    }
+}
+
+// ---- MODE 4, POST 3 of 4: pick a ~200-record, per-cluster-allocated scoring shortlist (free), then
+// score it for topical relevance (the one Bedrock call this phase makes) — see
+// preFilterForScoring()'s own comment for why the budget is capped and allocated by cluster rather
+// than a flat corpus-wide cut.
+async function handleM4Score(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { question, criteria, seedList } = body
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    try {
+        const corpus = parseM4Corpus(body.corpus)
+        const clusters = parseM4Clusters(body.clusters)
+        const byPmid = new Map(corpus.map(r => [r.pmid, r]))
+        const seedPmids = new Set(seedList.filter(sd => sd.kind === 'pmid').map(sd => sd.id))
+        const budget = preFilterForScoring(clusters, byPmid, 200, seedPmids)
+        const shortlistPmids = Object.values(budget).flat().map(r => r.pmid)
+
+        // RE-FETCHED, never taken from the echoed corpus — the metadata round-trip never carries an
+        // abstract (parseM4Corpus forces it blank), so scoring the actual text means going back to
+        // PubMed for it, same discipline Mode 2/3's screen/synthesize phases already apply.
+        const withAbstracts = shortlistPmids.length ? await fetchByPmids(shortlistPmids) : []
+
+        // TWO INDEPENDENT AXES, SCORED CONCURRENTLY. Relevance answers "is this paper about the
+        // topic the librarian typed"; impact answers "how strong a paper is it, on its own terms".
+        // Neither reads the other's answer, so there is no reason to pay for them serially — a
+        // shortlist of 200 is 4 batches each way, and running them in sequence would put the second
+        // set of round-trips on the clock a librarian is already waiting through.
+        //
+        // Both are Promise.all-safe because neither ever rejects: each catches its own batch
+        // failures and returns whatever it managed to score (see scoreRelevance's own comment on
+        // why a scoring gap must never propagate). A rejection here would lose BOTH axes.
+        const [rel, imp] = await Promise.all([
+            scoreRelevance(String(question || ''), criteria, withAbstracts),
+            scoreImpact(withAbstracts),
+        ])
+        const { scores, usage } = rel
+
+        const totalUsage = {
+            inputTokens: usage.inputTokens + imp.usage.inputTokens,
+            outputTokens: usage.outputTokens + imp.usage.outputTokens,
+        }
+        logCost('bibliometric-review:score', cwid, totalUsage, {
+            shortlist: shortlistPmids.length, scored: scores.size, impactScored: imp.scores.size,
+        })
+        return res.status(200).send({
+            statusCode: 200,
+            scores: Array.from(scores, ([pmid, v]) => ({ pmid, ...v })),
+            impact: Array.from(imp.scores, ([pmid, v]) => ({ pmid, ...v })),
+        })
+    } catch (err: any) {
+        console.error('[literature] bibliometric score failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not score the corpus.' })
+    }
+}
+
+// ---- MODE 4, POST 4 of 4: one synthesis paragraph per real cluster (bounded concurrency), then
+// the deterministic whole-review assembly — no further Bedrock call, see
+// assembleNarrativeReview()'s own comment for why that stitch step was deliberately dropped.
+async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const { question, seedList } = body
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    try {
+        const corpus = parseM4Corpus(body.corpus)
+        const clusters = parseM4Clusters(body.clusters)
+        const scores = parseM4Scores(body.scores)
+        const impactJudged = parseM4Impact((body as any).impact)
+        const byPmid = new Map(corpus.map(r => [r.pmid, r]))
+        const topic = String(question || '')
+
+        // The SAME shortlist logic Phase 6 used to decide who got scored, re-derived rather than
+        // trusted from the client — it is pure and cheap, and re-deriving it here means a tampered
+        // `clusters`/`corpus` payload can shrink or reorder the candidate pool but cannot forge a
+        // synthesis shortlist the deterministic rules would not themselves have picked. Must use the
+        // IDENTICAL seedPmids the score phase did, or the re-derived budget disagrees with what was
+        // actually scored.
+        const seedPmids = new Set(seedList.filter(sd => sd.kind === 'pmid').map(sd => sd.id))
+        const budget = preFilterForScoring(clusters, byPmid, 200, seedPmids)
+
+        // A CLUSTER THAT IS NOT ABOUT THE TOPIC DOES NOT GET A PAID PARAGRAPH. On the 2026-08-19
+        // run every one of the 18 real clusters got a full 8,000-token call, and at least five of
+        // the resulting sections consisted entirely of a courteous explanation that the cluster was
+        // irrelevant — "the cluster is therefore not informative for the stated review question and
+        // is summarized here only for completeness". The largest of those, 155 papers of androgen-
+        // receptor biology, was pulled in by an over-broad MeSH term and had nothing to do with the
+        // question. We paid a model to tell us so, at length, in the deliverable.
+        //
+        // The gate is the relevance score ALREADY computed for this cluster's shortlist, so it costs
+        // nothing new. It is the BEST score in that shortlist, not the mean, and that choice is
+        // load-bearing — it was measured against the 2026-08-19 run's own scores rather than argued:
+        //
+        //   A mean gate at this floor was genuinely undecidable for TEN of the run's eighteen
+        //   clusters: their 95% confidence intervals straddled 0.25, several spanning [0.03,0.59]
+        //   or wider. That is not a threshold doing work, it is a coin flip wearing a decimal point.
+        //   It would have dropped "Recovery and extubation after general inhalational anesthesia"
+        //   (43 papers, mean 0.24, one paper scoring 0.55) — an adjacent, legitimately reviewable
+        //   topic — while keeping "Rocuronium for intubation" on a mean of 0.32.
+        //
+        //   The sample is why. preFilterForScoring ranks by tier.rank, deliberately, because it is
+        //   choosing what a model should READ. That makes it a fine reading list and a badly biased
+        //   estimator of a cluster property: RCTs are 13.8% of that corpus but 43.2% of its scored
+        //   sample, and "Other" is 55% of the corpus but 8.3% of the sample. A mean over 3-7 such
+        //   papers is not an estimate of the cluster's relevance.
+        //
+        // The max asks a question the small biased sample CAN answer: did even one paper we actually
+        // read from this cluster come back on-topic? On the real run that gates exactly the four
+        // unambiguous clusters (androgen-receptor signalling at max 0.00 across 18 scored papers,
+        // androstanol steroids 0.05, Alzheimer's cholinesterase 0.20, NMJ physiology 0.15) and keeps
+        // every borderline one. It also needs no distributional assumption, which matters at n=3.
+        //
+        // The earlier worry that one on-topic paper could rescue a spurious cluster did not survive
+        // contact with the data: the 155-paper androgen cluster scored 0.00 on every single sampled
+        // paper, so the max gates it just as decisively as the mean did.
+        //
+        // A cluster with no scored members at all is NOT gated: that reflects preFilterForScoring
+        // giving it no budget, which is a statement about its size, not its relevance.
+        const NARRATIVE_RELEVANCE_FLOOR = 0.25
+        const bestRelevance = (c: Cluster) => {
+            const scored = c.pmids.map(p => scores.get(p)?.score).filter((n): n is number => typeof n === 'number')
+            return scored.length ? Math.max(...scored) : null
+        }
+
+        const realClusters = clusters.filter(c => !c.isUncategorized)
+        const skipped: Array<{ id: string; label: string; bestRelevance: number }> = []
+        const perCluster = realClusters.flatMap(c => {
+            const best = bestRelevance(c)
+            if (best !== null && best < NARRATIVE_RELEVANCE_FLOOR) {
+                skipped.push({ id: c.id, label: c.label, bestRelevance: Math.round(best * 100) / 100 })
+                return []
+            }
+            const candidates = (budget[c.id] || [])
+                .map(r => ({ r, rank: impactScoreOf(r).score + (scores.get(r.pmid)?.score || 0) }))
+                .sort((a, b) => b.rank - a.rank)
+            return [{ cluster: c, top: candidates.slice(0, 10).map(x => x.r.pmid) }]
+        })
+
+        // NEVER SILENTLY. A cluster that was dropped still appears in the cluster roster, the corpus
+        // table and every bibliometric count — only its paid narrative section is skipped — but a
+        // reader must be able to find out that a section they might have expected is missing, and
+        // why. Logged here; disclosed to the reader by assembleNarrativeReview's own intro.
+        if (skipped.length) {
+            console.error(JSON.stringify({
+                tag: 'literature-narrative-skipped-offtopic', floor: NARRATIVE_RELEVANCE_FLOOR, skipped,
+                why: 'not one sampled paper in these clusters reached the relevance floor; no narrative section was written for them',
+            }))
+        }
+
+        // ONE BATCHED RE-FETCH for every cluster's shortlist at once, not one fetchByPmids() call
+        // per cluster — the same "batch, don't loop" instinct labelClusters() already applies to
+        // naming, just moved to the abstract re-fetch instead of the Bedrock call.
+        const allPmids = Array.from(new Set(perCluster.flatMap(x => x.top)))
+        const withAbstracts = allPmids.length ? await fetchByPmids(allPmids) : []
+        const abstractByPmid = new Map(withAbstracts.map(r => [r.pmid, r]))
+
+        let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
+        const narratives: ClusterNarrative[] = (await mapLimit(perCluster, 4, async ({ cluster, top }) => {
+            const records = top.map(p => abstractByPmid.get(p)).filter((r): r is PubRecord => !!r)
+            if (!records.length) return null
+            const { narrative, usage: u } = await synthesizeCluster(topic, cluster, records)
+            usage = { inputTokens: usage.inputTokens + u.inputTokens, outputTokens: usage.outputTokens + u.outputTokens }
+            return narrative
+        })).filter((n): n is ClusterNarrative => !!n)
+
+        const hasCaseSeriesFlags = corpus.some(r => r.caseSeriesProbable)
+        const narrative = assembleNarrativeReview(
+            topic,
+            {
+                publicationsPerYear: publicationsPerYear(corpus),
+                evidenceMixByYear: evidenceMixByYear(corpus),
+                totalRecords: corpus.length,
+                fromYear: Number(body.fromYear) || new Date().getFullYear() - 10,
+                toYear: Number(body.toYear) || new Date().getFullYear(),
+            },
+            clusters, narratives, hasCaseSeriesFlags,
+        )
+
+        logCost('bibliometric-review:synthesize', cwid, usage, { clusters: narratives.length })
+        return res.status(200).send({
+            statusCode: 200,
+            model: process.env.BEDROCK_MODEL_ID,
+            narrative,
+            corpus: decorateCorpus(corpus, clusters, scores, impactJudged),
+            cwid,
+            date: new Date().toISOString().slice(0, 10),
+        })
+    } catch (err: any) {
+        console.error('[literature] bibliometric synthesize failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Could not write the narrative review.' })
+    }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
         return res.status(405).send({ statusCode: 405, message: 'POST only' })
@@ -569,7 +1092,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
     }
 
-    const { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, strategy: edited } = req.body || {}
+    const {
+        mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases,
+        strategy: edited,
+        // Mode 4 only.
+        evidenceTiers, caseSeries, corpus, clusters, scores, fromYear, toYear,
+    } = req.body || {}
 
     // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
     // has no PMID at all, and a PMID-keyed seed check could only ever validate the half of Scopus
@@ -592,7 +1120,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
     }
 
-    const body: SearchBody = { mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, edited, seedList }
+    const body: SearchBody = {
+        mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, edited, seedList,
+        evidenceTiers, caseSeries, corpus, clusters, scores, fromYear, toYear,
+    }
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
     if (phase === 'screen') {
@@ -602,6 +1133,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // ---- SYNTHESIZE (Mode 2, phase 3). ---------------------------------------------------------
     if (phase === 'synthesize') {
         return handleSynthesize(req, res, cwid, body)
+    }
+
+    // ---- MODE 4 ("Bibliometric review"), all four phases. Gated on `mode` as well as `phase` —
+    // belt and braces, since these four phase strings are unique to this mode and nothing else on
+    // this route could ever send one, but a route this dense is worth being explicit in.
+    if (mode === 'bibliometric-review' && phase === 'm4-cluster') {
+        return handleM4Cluster(req, res, cwid, body)
+    }
+    if (mode === 'bibliometric-review' && phase === 'm4-score') {
+        return handleM4Score(req, res, cwid, body)
+    }
+    if (mode === 'bibliometric-review' && phase === 'm4-synthesize') {
+        return handleM4Synthesize(req, res, cwid, body)
+    }
+    if (mode === 'bibliometric-review' && !phase) {
+        return handleM4Retrieve(req, res, cwid, body)
     }
 
     // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------

@@ -8,9 +8,10 @@
 // PubMed only. Scopus/Embase corpus retrieval is explicitly out of scope for v1 (Scopus has no
 // MeSH — the clustering half of this feature needs it — and Embase is Ovid-only, no API), so this
 // file never takes a `db` parameter the way strategy.ts's Dialect table does.
-import { Strategy, assembleQuery } from './literatureSearch.strategy'
-import { PubRecord, fetchRecords } from './literatureSearch.records'
-import { countPubmed } from './literatureSearch.counting'
+import { Strategy, Line, Seed, assembleQuery } from './literatureSearch.strategy'
+import { PubRecord, fetchRecords, withCitationMetrics } from './literatureSearch.records'
+import { countPubmed, validateSeeds, SeedResult } from './literatureSearch.counting'
+import { appendHumansFilter } from './literatureSearch.llm'
 
 // ---------------------------------------------------------------------------
 // PHASE 2 — full-corpus retrieval, sharded by year.
@@ -39,6 +40,12 @@ export type Corpus = {
     shards: YearShard[]             // one entry per year, in order — the trend axis for Phase 4
     duplicates: number              // PMIDs seen in more than one shard (MEDLINE entry-date vs.
                                      // print-date can straddle a year boundary)
+    // THE QUERY ACTUALLY RUN, minus the per-year [dp] shard — returned rather than left for the
+    // caller to re-derive with its own assembleQuery() call. This function no longer just assembles
+    // the strategy: it appends the humans filter too, so a caller re-deriving the query would print
+    // one thing in the reproducibility appendix and have searched another. A "paste this into PubMed
+    // to reproduce the count above" line that does not reproduce the count is worse than no line.
+    query: string
 }
 
 // A transient fetch failure on ONE year must not lose the other nine — retry the shard a few
@@ -58,7 +65,12 @@ async function fetchShard(query: string, cap: number, attempts = 3): Promise<Pub
 }
 
 export async function fetchCorpus(strategy: Strategy, fromYear: number, toYear: number): Promise<Corpus> {
-    const base = assembleQuery(strategy)
+    // Mode 4 builds on the maximum-recall prompt, which never asks for a humans block and whose
+    // stated posture is that retrieving irrelevant records is fine because a human screens them
+    // later. That trade is right for Mode 1, where a librarian reads the yield; it is wrong here,
+    // where the "screening" is a model paid per paper and the yield goes straight into a document.
+    // See appendHumansFilter for why this is a string append and not a concept block.
+    const base = appendHumansFilter(assembleQuery(strategy))
     const shards: YearShard[] = []
 
     for (let y = fromYear; y <= toYear; y++) {
@@ -94,7 +106,21 @@ export async function fetchCorpus(strategy: Strategy, fromYear: number, toYear: 
         }
     }
 
-    return { records: [...byPmid.values()], shards, duplicates: seen - byPmid.size }
+    // ENRICH ONCE, OVER THE DEDUPED CORPUS — not per shard. iCite is keyless and free, so the only
+    // cost is HTTP round-trips, and enriching here is one batched pass over N unique PMIDs instead
+    // of a pass per year over PMIDs we are about to dedup anyway.
+    //
+    // This call is why impactScoreOf() has a percentile to blend at all. Mode 2/3 got its enrichment
+    // from runReview(); Mode 4 retrieves through this function and had no equivalent step, so every
+    // record reached scoring with `nihPercentile` undefined, impactScoreOf() took its
+    // missing-percentile branch on all of them, and the "impact score" collapsed into a restatement
+    // of the evidence tier. Verified against the live API on the 2026-08-19 run's own 2,320 PMIDs:
+    // iCite scores 100% of 2016-2024 and 0% of 2025-26, so this recovers a real percentile on ~81%
+    // of a decade-wide corpus. The remaining recent papers stay legitimately unscored — see
+    // withCitationMetrics's own comment on why missing must never render as zero.
+    const records = await withCitationMetrics([...byPmid.values()])
+
+    return { records, shards, duplicates: seen - byPmid.size, query: base }
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +153,37 @@ export const flagProbableCaseSeries = (records: PubRecord[]): PubRecord[] =>
         const titleHit = CASE_SERIES_TITLE.test(r.title)
         return meshHit || titleHit ? { ...r, caseSeriesProbable: true } : r
     })
+
+// THE SEARCHFORM'S EVIDENCE-TIER CHECKLIST (one row per tier, all six checked except Case
+// Reports by default) needs a general per-tier keep/drop, not just the hardcoded Case Reports
+// drop above. Same posture as excludeCaseReports: server-derived from tierOf()'s own label, never
+// asked of the model. A record whose tier label is not in `keep` is dropped; `caseSeriesProbable`
+// is untouched by this — it is a disclosure flag on records that ARE kept, not a filter of its own,
+// so ticking off "Case series (probable)" removes them by their real tier label (almost always
+// "Other", the same bucket flagProbableCaseSeries() reads), not by the flag.
+export const filterByEvidenceTiers = (records: PubRecord[], keep: Set<string>): PubRecord[] =>
+    records.filter(r => keep.has(r.tier.label))
+
+// The checklist's "Case series (probable)" row, separately: caseSeriesProbable is a HEURISTIC
+// FLAG on top of the 'Other' tier (see flagProbableCaseSeries() above), never a tier of its own —
+// so it needs its own filter rather than a tier label filterByEvidenceTiers() could match on.
+export const excludeCaseSeries = (records: PubRecord[]): PubRecord[] =>
+    records.filter(r => !r.caseSeriesProbable)
+
+// MODE 4'S DATE RANGE, AS INTEGERS. fetchCorpus() shards by literal year, but the SearchForm's
+// existing date dropdown (shared with Modes 1-3, see DIALECTS.pubmed.dateLimits() in
+// literatureSearch.strategy.ts) hands back a PubMed-syntax term string ("2016:2026[dp]"), not a
+// (fromYear, toYear) pair — nothing needed one until this mode's per-year shard loop did. 'any'
+// has no real span for a per-year-sharded fetch, so it resolves to the same 10-year default as
+// '10y': a decade is this mode's whole premise, and an unbounded corpus pull has no upper bound
+// to shard against. A fresh `Date` read per call, not a module-level constant — the same reason
+// strategy.ts's own `year()` is a function: a pod that stays up over New Year must not shard a
+// stale year range.
+export function yearRangeFor(dateId: string): { fromYear: number; toYear: number } {
+    const toYear = new Date().getFullYear()
+    const fromYear = dateId === '5y' ? toYear - 5 : toYear - 10
+    return { fromYear, toYear }
+}
 
 // ---------------------------------------------------------------------------
 // PHASE 4 — bibliometric statistics. Pure aggregation over whatever corpus it is handed — no LLM,
@@ -185,4 +242,131 @@ export function percentileTrend(records: PubRecord[]): PercentilePoint[] {
         const scored = byYear.get(year) || []
         return { year, median: scored.length ? median(scored) : null, n: totalByYear.get(year)!, scored: scored.length }
     })
+}
+
+// ---------------------------------------------------------------------------
+// THE NARROWING LADDER. PLAN-mode4-relevance-and-impact.md, rev 3: "narrow only if the count
+// warrants it" — drop the highest-yield free-text LINE, cheapest-signal-first, while every named
+// seed stays retrievable. Deterministic: countPubmed and validateSeeds are both count calls, no
+// model involved, so this costs nothing but PubMed round-trips.
+//
+// Suggested trigger from the plan's own "what counts as too many" analysis: a 200-record scoring
+// budget is 10% coverage at 2,000 records and 4% at 5,000 — 3,000 is where that thinness starts
+// being a judgment call worth surfacing rather than silently accepting.
+export const NARROW_LADDER_ABOVE = 3000
+
+export type NarrowingStep = { concept: string; dropped: string; before: number; after: number }
+
+// A candidate the ladder MAY try dropping: an ON, non-empty, free-text ([tiab]) line that is NOT
+// the sole surviving live line in its concept block. That last guard is load-bearing — assembleQuery()
+// drops a concept out of the AND entirely once it has no live lines, so dropping a concept's only
+// active line does not narrow the search, it REMOVES A WHOLE CONSTRAINT and can silently broaden it.
+// PURE: no network, so this is directly unit-testable without mocking anything.
+export function freeTextCandidates(s: Strategy): Array<{ ci: number; li: number; label: string; line: Line }> {
+    const out: Array<{ ci: number; li: number; label: string; line: Line }> = []
+    s.concepts.forEach((c, ci) => {
+        const liveCount = c.lines.filter(l => l.on && l.terms.trim()).length
+        if (liveCount < 2) return   // dropping the only live line would empty the concept, not narrow it
+        c.lines.forEach((line, li) => {
+            if (line.on && line.terms.trim() && /\[tiab\]/i.test(line.terms)) {
+                out.push({ ci, li, label: c.label, line })
+            }
+        })
+    })
+    return out
+}
+
+// Toggle exactly one line off, immutably.
+function withLineOff(s: Strategy, ci: number, li: number): Strategy {
+    return {
+        ...s,
+        concepts: s.concepts.map((c, i) => i !== ci ? c : {
+            ...c,
+            lines: c.lines.map((l, j) => j !== li ? l : { ...l, on: false }),
+        }),
+    }
+}
+
+// DEPENDENCY-INJECTED, not because this needs to be generic — it needs to be testable by the
+// no-network pure-check harness (literatureSearch.pure.check.js) against the ONE invariant that
+// actually matters here: the ladder never drops a line a seed depends on. Production always calls
+// this with the defaults (real countPubmed/validateSeeds); the check harness supplies fakes.
+export type LadderDeps = {
+    count: (query: string) => Promise<number>
+    checkSeeds: (s: Strategy, seeds: Seed[]) => Promise<SeedResult[]>
+}
+const REAL_DEPS: LadderDeps = { count: countPubmed, checkSeeds: validateSeeds }
+
+// The corpus query the ladder measures against — SAME SHAPE fetchCorpus() will actually retrieve
+// (humans-filtered base AND the whole year span at once, not per-year-sharded), so "over threshold"
+// is a truthful preview of what is about to be pulled, not an estimate.
+const spanQuery = (s: Strategy, fromYear: number, toYear: number) =>
+    `${appendHumansFilter(assembleQuery(s))} AND ${fromYear}:${toYear}[dp]`
+
+export async function narrowForBudget(
+    strategy: Strategy,
+    seeds: Seed[],
+    fromYear: number,
+    toYear: number,
+    threshold = NARROW_LADDER_ABOVE,
+    deps: LadderDeps = REAL_DEPS,
+): Promise<{ strategy: Strategy; count: number; dropped: NarrowingStep[] }> {
+    let s = strategy
+    let total = await deps.count(spanQuery(s, fromYear, toYear))
+    const dropped: NarrowingStep[] = []
+
+    while (total > threshold) {
+        const candidates = freeTextCandidates(s)
+        if (!candidates.length) break   // nothing left to try — report what we have, over threshold or not
+
+        // RANK BY OWN YIELD, MEASURED. The plan's own evidence for this (revers*/antagonis*/
+        // Androstanols admitting 662 records between them vs. TOF[tiab] admitting only 23 despite
+        // looking just as broad) is why this is a count, not a pattern match on the term text.
+        // SEQUENTIAL, never Promise.all — same reason suggestNarrowings() in literatureSearch.llm.ts
+        // counts sequentially: a burst trips unkeyed NCBI's 3req/s limit and a throttled esearch
+        // comes back as a well-formed (wrong) number.
+        const withYield: Array<{ ci: number; li: number; label: string; line: Line; yield: number }> = []
+        for (const c of candidates) withYield.push({ ...c, yield: await deps.count(c.line.terms) })
+        withYield.sort((a, b) => b.yield - a.yield)
+
+        let accepted = false
+        for (const cand of withYield) {
+            const candidate = withLineOff(s, cand.ci, cand.li)
+            const candidateTotal = await deps.count(spanQuery(candidate, fromYear, toYear))
+
+            // Same arithmetic guard suggestNarrowings() applies in the opposite direction: dropping
+            // a line can only ever SHRINK or hold the query — a count that grew or landed at zero is
+            // an untrustworthy (likely throttled) count, not a real result, and must not be acted on.
+            if (candidateTotal === 0 || candidateTotal >= total) {
+                console.log(JSON.stringify({
+                    tag: 'literature-m4-ladder-rejected', reason: 'untrustworthy-count',
+                    concept: cand.label, term: cand.line.terms, before: total, after: candidateTotal,
+                }))
+                continue
+            }
+
+            const seedResults = await deps.checkSeeds(candidate, seeds)
+            if (!seedResults.every(r => r.retrieved)) {
+                console.log(JSON.stringify({
+                    tag: 'literature-m4-ladder-rejected', reason: 'seed-lost',
+                    concept: cand.label, term: cand.line.terms,
+                    missed: seedResults.filter(r => !r.retrieved).map(r => r.id),
+                }))
+                continue
+            }
+
+            dropped.push({ concept: cand.label, dropped: cand.line.terms, before: total, after: candidateTotal })
+            s = candidate
+            total = candidateTotal
+            accepted = true
+            console.log(JSON.stringify({
+                tag: 'literature-m4-ladder-dropped', concept: cand.label, term: cand.line.terms,
+                before: dropped[dropped.length - 1].before, after: candidateTotal,
+            }))
+            break
+        }
+        if (!accepted) break   // every candidate this round was rejected — stop rather than loop forever
+    }
+
+    return { strategy: s, count: total, dropped }
 }

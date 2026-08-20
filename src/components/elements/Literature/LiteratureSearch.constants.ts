@@ -17,6 +17,7 @@ export const MODES = [
     { id: 'search-strategy', label: 'Search strategy', desc: 'Recall · uncapped · produces a strategy, not a synthesis', ready: true },
     { id: 'issue-review', label: 'Issue review', desc: 'Precision · top 50 · narrative synthesis', ready: true },
     { id: 'clinical-question', label: 'Clinical question', desc: 'Precision · top 50 · PICO answer', ready: true },
+    { id: 'bibliometric-review', label: 'Bibliometric review', desc: 'Recall · full corpus (10y) · trends, clusters, narrative review', ready: true },
 ]
 
 // SCOPUS IS SEARCH-STRATEGY ONLY, and that is principled rather than unfinished. Modes 2 and 3
@@ -49,3 +50,35 @@ export const STAGES: Record<string, { expect: number }> = {
     screening: { expect: 30 },
     synthesizing: { expect: 48 },
 }
+
+// MODE 4's checklist, replacing Modes 1-3's "Publication type" dropdown for this mode only (see
+// SearchForm.tsx's DatabasePicker for the checkbox-row pattern this copies). `tierLabel` is the
+// EXACT string tierOf() returns (literatureSearch.records.ts's TIERS table) — the server resolves
+// keep/drop by that label, never by `id`, so the two must never drift. `caseSeries` is not a real
+// tier — see excludeCaseSeries()'s own comment — so it carries no `tierLabel` and the client sends
+// it back as a separate boolean, not folded into the tier list.
+export const EVIDENCE_TIERS: Array<{ id: string; label: string; tierLabel?: string; defaultOn: boolean }> = [
+    { id: 'rct', label: 'Randomized controlled trial', tierLabel: 'RCT', defaultOn: true },
+    { id: 'clinical-trial', label: 'Clinical trial (all phases)', tierLabel: 'Clinical trial', defaultOn: true },
+    { id: 'meta-analysis', label: 'Meta-analysis', tierLabel: 'Meta-analysis', defaultOn: true },
+    { id: 'systematic-review', label: 'Systematic review', tierLabel: 'Systematic review', defaultOn: true },
+    { id: 'observational', label: 'Observational study', tierLabel: 'Observational', defaultOn: true },
+    { id: 'case-series', label: 'Case series (probable — see note)', defaultOn: true },
+    { id: 'case-reports', label: 'Case reports', tierLabel: 'Case report', defaultOn: false },
+]
+
+// The four real network round trips (see search.ts's handleM4* quartet) mapped onto the mockup's
+// six-row step list — "Strategy validated" / "Retrieving corpus" / "Classifying evidence type"
+// collapse into one step because all three finish together in ONE blocking POST (deterministic-
+// or-one-model-call, no per-shard progress without SSE — see the plan's own "no SSE" call). No
+// `expect` seconds here the way STAGES has them: a decade-scale retrieval's wall-clock depends on
+// how many years clear PubMed's per-year cap, not a fixed median the way a 50-record screen call is.
+export const M4_STEPS: Array<{ stage: string; label: string }> = [
+    { stage: 'retrieving', label: 'Validating strategy & retrieving corpus' },
+    { stage: 'clustering', label: 'Clustering keywords' },
+    { stage: 'scoring', label: 'Scoring impact & relevance' },
+    { stage: 'synthesizing', label: 'Synthesizing narrative review' },
+]
+
+export const CASE_SERIES_NOTE_COPY =
+    "Case series can't be cleanly tagged in PubMed; papers matching this are marked \"probable,\" not confirmed."

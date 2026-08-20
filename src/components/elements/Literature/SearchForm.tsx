@@ -15,11 +15,11 @@ import {
     picoComplete,
 } from '../../../../controllers/literatureSearch.strategy'
 import type { Db, LimitOption } from '../../../../controllers/literatureSearch.strategy'
-import { DATABASES, MODES, SORTS } from './LiteratureSearch.constants'
+import { DATABASES, EVIDENCE_TIERS, CASE_SERIES_NOTE_COPY, MODES, SORTS } from './LiteratureSearch.constants'
 import s from './LiteratureSearch.module.css'
 
-export function ModePicker({ mode, isSR, isPico, inFlight, onPick }: {
-    mode: string; isSR: boolean; isPico: boolean; inFlight: boolean; onPick: (id: string) => void
+export function ModePicker({ mode, isSR, isPico, isM4, inFlight, onPick }: {
+    mode: string; isSR: boolean; isPico: boolean; isM4: boolean; inFlight: boolean; onPick: (id: string) => void
 }) {
     return (
         <>
@@ -59,7 +59,14 @@ export function ModePicker({ mode, isSR, isPico, inFlight, onPick }: {
                     ))}
                 </div>
                 <p className={s.help}>
-                    {isSR ? (
+                    {isM4 ? (
+                        <>
+                            Bibliometric review pulls a full decade of the corpus, classifies and clusters it by
+                            keyword, and writes one narrative section per cluster &mdash; <b>a characterization of a
+                            whole literature, not an answer to one question.</b> Verify every claim against the
+                            sources.
+                        </>
+                    ) : isSR ? (
                         <>
                             Search strategy produces a reproducible, peer-reviewable query. Screen and synthesize
                             the results in Covidence.
@@ -203,6 +210,37 @@ export function DatabasePicker({ isSR, dbs, setDbs }: {
     )
 }
 
+// MODE 4 ONLY — replaces LimitsRow's "Publication type" dropdown for this mode (see LimitsRow's
+// own isSR-style guard, extended to skip that dropdown when isM4). Same checkbox-row pattern
+// DatabasePicker already uses, not a new visual language. `checked` is keyed by EVIDENCE_TIERS'
+// own `id`, not `tierLabel` — the id is this component's concern, the label is the server's.
+export function EvidenceTierPicker({ checked, setChecked }: {
+    checked: Record<string, boolean>; setChecked: (fn: (cur: Record<string, boolean>) => Record<string, boolean>) => void
+}) {
+    return (
+        <div className={s.field}>
+            <span className={s.eyebrow}>Evidence to include</span>
+            <div className={s.dbRow}>
+                {EVIDENCE_TIERS.map(t => {
+                    const on = checked[t.id] ?? t.defaultOn
+                    return (
+                        <label key={t.id} htmlFor={`lit-tier-${t.id}`} className={s.db}>
+                            <input
+                                id={`lit-tier-${t.id}`}
+                                type="checkbox"
+                                checked={on}
+                                onChange={() => setChecked(cur => ({ ...cur, [t.id]: !on }))}
+                            />
+                            {t.label}
+                        </label>
+                    )
+                })}
+            </div>
+            <p className={s.help}>{CASE_SERIES_NOTE_COPY}</p>
+        </div>
+    )
+}
+
 export function SeedsField({ seeds, setSeeds, count }: {
     seeds: string; setSeeds: (v: string) => void; count: number
 }) {
@@ -256,9 +294,10 @@ export function CriteriaField({ isSR, criteria, setCriteria }: {
 }
 
 export function LimitsRow({
-    isSR, dates, types, dateId, typeId, sort, busy, inFlight, canBuild, onDate, onType, onSort, onRun,
+    isSR, isM4, dates, types, dateId, typeId, sort, busy, inFlight, canBuild, onDate, onType, onSort, onRun,
 }: {
     isSR: boolean
+    isM4: boolean
     dates: LimitOption[]
     types: LimitOption[]
     dateId: string
@@ -291,13 +330,19 @@ export function LimitsRow({
                         {dates.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
                     </select>
                 </div>
-                <div className={s.control}>
-                    <label htmlFor="lit-type">Publication type</label>
-                    <select id="lit-type" className={s.input} value={typeId} onChange={e => onType(e.target.value)}>
-                        {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select>
-                </div>
-                {!isSR && (
+                {/* MODE 4 ONLY: no Publication type dropdown here — EvidenceTierPicker (rendered
+                    above this row, see LiteratureSearch.tsx) replaces it with a per-tier checklist,
+                    the same way it replaces Modes 1-3's single dropdown with something this mode's
+                    checklist can express and that one could not. */}
+                {!isM4 && (
+                    <div className={s.control}>
+                        <label htmlFor="lit-type">Publication type</label>
+                        <select id="lit-type" className={s.input} value={typeId} onChange={e => onType(e.target.value)}>
+                            {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                        </select>
+                    </div>
+                )}
+                {!isSR && !isM4 && (
                     <div className={s.control}>
                         <label htmlFor="lit-sort">Rank by</label>
                         <select id="lit-sort" className={s.input} value={sort} onChange={e => onSort(e.target.value)}>
@@ -309,17 +354,24 @@ export function LimitsRow({
                 <button className={s.btn} onClick={onRun} disabled={!canBuild}>
                     {isSR
                         ? (busy ? 'Building strategy…' : 'Build strategy')
-                        : (inFlight ? 'Working…' : 'Find records')}
+                        : isM4
+                            ? (inFlight ? 'Building…' : 'Build corpus review')
+                            : (inFlight ? 'Working…' : 'Find records')}
                 </button>
             </div>
         </>
     )
 }
 
-export function CapNote({ isSR, isPico }: { isSR: boolean; isPico: boolean }) {
+export function CapNote({ isSR, isM4, isPico }: { isSR: boolean; isM4: boolean; isPico: boolean }) {
     return (
         <p className={s.capNote}>
-            {isSR ? (
+            {isM4 ? (
+                <>
+                    <b>No result cap in this mode.</b> A 10-year corpus pull is designed to over-retrieve,
+                    then sharded, classified and clustered &mdash; not ranked and cut.
+                </>
+            ) : isSR ? (
                 <>
                     <b>No result cap in this mode.</b> A systematic-review search is designed to over-retrieve:
                     a 5,000-record yield is a success, not an error.
