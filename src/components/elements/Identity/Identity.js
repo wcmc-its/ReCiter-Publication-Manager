@@ -16,7 +16,11 @@ const Identity = (props) => {
         }
     }
 
-    if (props.identityFetching || props.identityData.length <= 0) {
+    // ReCiter-Publication-Manager#873: identityData is an object ({} default,
+    // {primaryName, title, ...} once loaded), not an array -- .length on it was
+    // always undefined, so this guard never actually caught the not-yet-loaded
+    // state and the render below crashed on identityData.primaryName.
+    if (props.identityFetching || !props.identityData || !props.identityData.primaryName) {
         return (
                 <div className={appStyles.appLoader}> </div>
         );

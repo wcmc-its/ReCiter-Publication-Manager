@@ -23,7 +23,9 @@ const Tabs = (props) => {
     var accepted = 0
     var rejected = 0
 
-    reciterData.reciter.forEach(function(publication){
+    // ReCiter-Publication-Manager#873: reciterData.reciter is undefined until the
+    // fetch resolves; unguarded .forEach crashed on first render.
+    ;(reciterData?.reciter?.reCiterArticleFeatures || []).forEach(function(publication){
         switch(publication.userAssertion) {
             case "NULL":
                 suggested++

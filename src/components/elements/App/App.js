@@ -10,7 +10,8 @@ import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import TabExternalSource from '../TabExternalSource/TabExternalSource';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import {getSession } from "next-auth/react"
+import { useSession } from "next-auth/react"
+import { getCapabilities } from "../../../utils/constants"
 
 const App = (props) => {
 
@@ -25,18 +26,30 @@ const App = (props) => {
 
     const [tabActive, setTabActive] = useState("Suggested")
     const [identityData, setIdentityData] = useState({})
-    const session = getSession();
+    // ReCiter-Publication-Manager#873: this was `getSession()` (unawaited Promise,
+    // .data always undefined) with a dead `userPermissions`/`allowedPermissions`
+    // reference below it -- the fetch never fired for anyone. useSession() is the
+    // hook every other component in this codebase already uses for client-side
+    // session data (see Header.tsx, CurateIndividual.tsx).
+    const { data: session } = useSession()
 
     useEffect(() => {
-        // Call only if user has curator_self role. otherwise, we should not call these APIs.
-        if(session && session.data && session.data.userRoles && session.data.userRoles.length > 0 
-            && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) 
+        // Self-service faculty view (Curator_Self) or an admin previewing/testing
+        // a record (Curator_All / Superuser) -- not curator-scoped, which is a
+        // proxy-for-specific-people grant this page doesn't check against props.uid.
+        // session.data.userRoles is a JSON string, not an array (matches the
+        // JSON.parse(session.data.userRoles) pattern already used in Search.js /
+        // middleware.ts) -- getCapabilities() silently no-ops on a raw string.
+        const rawUserRoles = session && session.data && session.data.userRoles
+        const userRoles = rawUserRoles ? JSON.parse(rawUserRoles) : []
+        const caps = getCapabilities(userRoles)
+        if (userRoles.length > 0 && (caps.canCurate.self || caps.canCurate.all))
          {
             dispatch(reciterFetchData(props.uid, false))
             dispatch(identityFetchData(props.uid))
             dispatch(otherPublicationsFetchData(props.uid))
          }
-    },[])
+    },[session])
 
     const tabClickHandler = (str = 'Suggested') => {
        setTabActive(str)
@@ -101,7 +114,7 @@ const App = (props) => {
                     />
                 </div>
                 <div className={appStyles.tabContainer}>
-                    {reciterData.reciterPending.length > 0 ? (
+                    {reciterData?.reciterPending?.length > 0 ? (
                         <div className={appStyles.reciterPendingBanner}>
                             <span>You have provided feedback on </span>
                             <strong>{`${
