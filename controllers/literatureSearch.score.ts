@@ -3,15 +3,27 @@
 // Projects/ReCiter-Publication-Manager/literature-search/PLAN-literature-mode4-bibliometric-review.md
 // (not in this repo — planning docs live in Projects, code lives here).
 //
-// TWO SCORES, TWO DIFFERENT SOURCES, and the split is the whole design:
+// TWO SCORES IN THIS FILE, TWO DIFFERENT SOURCES, and the split is the whole design:
 //
-//   impactScoreOf() is PURE — no network, no LLM. "How strong is this evidence" is a question
-//   PubMed and iCite already answer for free, on every record: the evidence tier (tierOf(), in
-//   literatureSearch.records.ts) and the NIH percentile citation metric. Asking a model to judge
-//   the same thing would just be re-deriving a number that is already sitting on the record —
-//   see ReciterAI's impact.py:score_impact() for this design doc's own precedent of exactly that
-//   move: score what is structured and free deterministically, and spend inference only on what
-//   genuinely needs judgment.
+//   impactScoreOf() is PURE — no network, no LLM. "How strong is this evidence, and how cited is
+//   it" is a question PubMed and iCite already answer for free, on every record: the evidence tier
+//   (tierOf(), in literatureSearch.records.ts) blended with the NIH percentile. It covers 100% of
+//   the corpus at zero marginal cost, which is exactly what a 2,000-record table needs.
+//
+//   CORRECTION, 2026-08-19 — this comment used to cite ReciterAI's impact.py:score_impact() as
+//   precedent for scoring impact deterministically rather than asking a model. That was a
+//   misreading, and it is worth recording because it shaped this file. score_impact() IS a model
+//   call: one Bedrock request per publication returning a single 0-100 integer, calibrated against
+//   ~90 anchor examples in pipeline_enrichment/prompts.py. The iCite numbers are inputs to its
+//   PROMPT, not terms in a formula. ReciterAI's actual position is the opposite of the one claimed
+//   here: research impact is a judgment, and it pays a model to make it.
+//
+//   So the ported version now lives in literatureSearch.impact.ts as a THIRD, separate axis, and
+//   this function keeps its own job rather than being replaced by it. What survives of the original
+//   argument is the part that was always true: this score is free and universal, that one is paid
+//   and selective, and neither is a substitute for the other. They are not blended here — see
+//   decorateCorpus() in the route, and [[feedback_distinct_axis_scores]]'s rule about not
+//   pre-collapsing a multi-axis ranker.
 //
 //   scoreRelevance() is the one Bedrock call this file makes. "How on-topic is this paper, for
 //   THIS review's topic" is not on the record anywhere — it depends on a topic the librarian typed
