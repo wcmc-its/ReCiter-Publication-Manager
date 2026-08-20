@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
-import { addExternalArticle, deleteExternalArticle, recordExternalArticleFeedback } from "../externalArticle.controller";
+import { addExternalArticle, deleteExternalArticle, getExternalArticles, recordExternalArticleFeedback } from "../externalArticle.controller";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -289,14 +289,27 @@ function dupConflict(body: any): { blocked: boolean; message: string } {
 // Durable FeedbackLog write for a scopus row — the MySQL status column is overwritten on
 // every transition, so this is the only lasting record of a reject/dismiss/reopen (the
 // original AAR durability gap). Gates like writeGoldStandard: a failed write fails the
-// action, EXCEPT 404 (uid unknown to ReCiter — departed/inactive): the local queue action
-// is still valid for such a person, so note it and proceed. Returns false after replying.
+// action with 502 before the MySQL update. Two deliberate skip-and-proceed cases:
+// - the article is already live in the person's record (manual-add or the other env's
+//   queue — dev and prod share the ExternalArticle table): the queue action is pure
+//   housekeeping then, and a REJECTED row would both contradict the live accept and
+//   suppress the visible publication (the Java PATCH flips suppressed on existing rows);
+// - the uid is unknown to ReCiter (departed/inactive faculty): matched on the endpoint's
+//   INVALID body, not the bare 404, so an unrouted endpoint (e.g. not yet deployed) still
+//   fails loudly instead of silently disabling every write.
 async function logScopusFeedback(
   res: NextApiResponse, uid: string, externalId: any, action: "REJECTED" | "PENDING", actor: string,
 ): Promise<boolean> {
   if (!externalId) { console.log(`[authorships] feedback ${action} skipped — row has no external_id`); return true; }
-  const resp = await recordExternalArticleFeedback(uid, `SCOPUS:${externalId}`, action, actor);
-  if (resp.statusCode === 404) {
+  const articleId = `SCOPUS:${externalId}`;
+  const live = await getExternalArticles(uid);
+  if (live.statusCode === 200 && Array.isArray(live.statusText)
+      && (live.statusText as any[]).some((r: any) => r?.articleId === articleId)) {
+    console.log(`[authorships] feedback ${action} skipped — ${articleId} already live in ${uid}'s record`);
+    return true;
+  }
+  const resp = await recordExternalArticleFeedback(uid, articleId, action, actor);
+  if (resp.statusCode === 404 && (resp.statusText as any)?.status === "INVALID") {
     console.log(`[authorships] feedback ${action} skipped — ${uid} not in ReCiter Identity`);
     return true;
   }
