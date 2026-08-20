@@ -194,6 +194,14 @@ export type PubRecord = {
     // needs no footnote. Both absent for very recent papers, on the same schedule as the percentile.
     citationCount?: number
     rcr?: number
+    // iCite's Approximate Potential to Translate — a 0-1 score computed from the citing-paper
+    // network's structure, not from accumulated citation COUNT, so unlike nihPercentile it is
+    // available immediately rather than needing years of citation history. Verified live against
+    // the 2026-08-19 corpus's own PMIDs (see PLAN-mode4-relevance-and-impact.md): iCite returns
+    // apt for essentially the whole corpus, including the 2025-26 records nihPercentile has
+    // nothing for. Used ONLY as impactScoreOf()'s fallback when nihPercentile is absent — never
+    // displayed on its own, same posture as citationCount/rcr above.
+    apt?: number
     // Mode 4 Phase 3 only — see flagProbableCaseSeries() in literatureSearch.corpus.ts. PubMed has
     // no [pt] tag for case series, so this is a best-effort MeSH/text heuristic, never a tier.
     // Undefined everywhere else; never excludes a record on its own.
@@ -265,12 +273,15 @@ export async function withCitationMetrics(records: PubRecord[]): Promise<PubReco
         const cites = new Map<string, number>()
         const rcrs = new Map<string, number>()
         const pct = new Map<string, number>()
+        const apts = new Map<string, number>()
         for (const p of data) {
             const key = String(p?.pmid)
             const c = num(p?.citation_count)
             if (c !== undefined) cites.set(key, c)
             const r = num(p?.relative_citation_ratio)
             if (r !== undefined) rcrs.set(key, r)
+            const a = num(p?.apt)
+            if (a !== undefined) apts.set(key, a)
 
             const raw = p?.nih_percentile
             // REJECT null BEFORE COERCING, and never the other way round. `Number(null)` is `0`,
@@ -291,6 +302,7 @@ export async function withCitationMetrics(records: PubRecord[]): Promise<PubReco
             if (pct.has(r.pmid)) out.nihPercentile = pct.get(r.pmid)
             if (cites.has(r.pmid)) out.citationCount = cites.get(r.pmid)
             if (rcrs.has(r.pmid)) out.rcr = rcrs.get(r.pmid)
+            if (apts.has(r.pmid)) out.apt = apts.get(r.pmid)
             return out
         })
     } catch (e) {

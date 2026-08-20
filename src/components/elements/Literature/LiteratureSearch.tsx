@@ -219,6 +219,7 @@ export default function LiteratureSearch() {
     const [m4ToYear, setM4ToYear] = useState(0)
     const [m4Seeds, setM4Seeds] = useState<{ total: number; retrieved: number } | null>(null)
     const [m4HotYears, setM4HotYears] = useState<Array<{ year: number; hits: number; error: string }>>([])
+    const [m4Narrowing, setM4Narrowing] = useState<string[]>([])
     // Keyed by EVIDENCE_TIERS' own `id` — the checklist's concern, not the server's. An id absent
     // from this map reads as its own `defaultOn`, so a fresh Mode 4 form needs no pre-population.
     const [m4EvidenceChecked, setM4EvidenceChecked] = useState<Record<string, boolean>>({})
@@ -549,6 +550,7 @@ export default function LiteratureSearch() {
         setM4ToYear(0)
         setM4Seeds(null)
         setM4HotYears([])
+        setM4Narrowing([])
     }
 
     const runM4Synthesize = async (corpus: M4Record[], clusters: Cluster[], scores: any[], impact: any[], fromYear: number, toYear: number) => {
@@ -660,6 +662,7 @@ export default function LiteratureSearch() {
             setM4Stats(data.corpusStats || null)
             setM4Seeds(data.seeds || null)
             setM4HotYears(data.hotYears || [])
+            setM4Narrowing(data.narrowing || [])
             await runM4Cluster(data.corpus || [], data.fromYear, data.toYear)
         } catch {
             setErr('Could not reach the server.')
@@ -1065,7 +1068,7 @@ export default function LiteratureSearch() {
     } = makeDownloads({
         results, records, flags, picked, synthesis, included,
         question, model, isPico, sortLabel, provenance, session, setErr,
-        m4Corpus, m4Clusters, m4Narrative, m4Stats, m4Query, m4FromYear, m4ToYear,
+        m4Corpus, m4Clusters, m4Narrative, m4Stats, m4Query, m4FromYear, m4ToYear, m4Narrowing,
     })
 
     // The wait. ProgressPanel draws nothing while the stage is idle, so the two guards below are
@@ -1234,6 +1237,19 @@ export default function LiteratureSearch() {
                             <span>
                                 <b>{m4Seeds.retrieved} of {m4Seeds.total} known-item seeds retrieved.</b> A strategy
                                 that misses a known include is broken — check the missing ones by hand.
+                            </span>
+                        </div>
+                    )}
+                    {m4Narrowing.length > 0 && (
+                        <div className={s.caveat}>
+                            <span aria-hidden="true">&#9888;</span>
+                            <span>
+                                <b>Search narrowed automatically:</b> the corpus was too large to score in full, so
+                                the lowest-value free-text lines were dropped one at a time, each checked against
+                                your seeds before being kept.
+                                <ul>
+                                    {m4Narrowing.map((line, i) => <li key={i}>{line}</li>)}
+                                </ul>
                             </span>
                         </div>
                     )}

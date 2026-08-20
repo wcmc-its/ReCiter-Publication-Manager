@@ -305,6 +305,110 @@ const checkXlsxTruncationGuard = (xp, q) => {
 }
 
 // =======================================================================================
+// MODE 4, PHASES 2-3 — THE NARROWING LADDER: freeTextCandidates() and narrowForBudget(), both in
+// literatureSearch.corpus.ts. freeTextCandidates() is fully pure. narrowForBudget() is async and
+// takes its PubMed calls through an injected LadderDeps (count/checkSeeds) for exactly this
+// reason — see that type's own comment — so this check supplies small fake deps, closing over
+// plain conditionals instead of hitting the network, and asserts the ladder's actual LOGIC: it
+// narrows when it safely can, and it NEVER disables a line a seed depends on.
+const ladderConcept = (label, lines) => ({ label, lines })
+
+// freeTextCandidates(): Concept A carries a MeSH line, a live [tiab] line, AND an OFF [tiab]
+// line — so both guards get exercised (MeSH is never a candidate; an OFF line is never a
+// candidate even though its terms match [tiab]). Concept B carries ONLY a [tiab] line, on, no
+// MeSH — its sole live line must never be offered, because dropping it would empty Concept B's
+// block entirely (assembleQuery() drops an empty concept out of the AND, which BROADENS the
+// search — the opposite of narrowing it, and exactly the guard this function exists to enforce).
+const twoConceptStrategy = () => ({
+    db: 'pubmed',
+    concepts: [
+        ladderConcept('ConceptA', [
+            { terms: '"Some MeSH Term"[MeSH]', on: true },
+            { terms: 'freetextA[tiab]', on: true },
+            { terms: 'offterm[tiab]', on: false },
+        ]),
+        ladderConcept('ConceptB', [
+            { terms: 'freetextB[tiab]', on: true },
+        ]),
+    ],
+    limits: '(2021:2026[dp])',
+})
+
+// A ONE-CANDIDATE fixture for narrowForBudget() below: a single concept with a MeSH line and
+// exactly one droppable [tiab] line, so there is only ever one line the ladder could try — the
+// two scenarios differ only in whether the fake checkSeeds allows dropping it.
+const oneCandidateStrategy = () => ({
+    db: 'pubmed',
+    concepts: [
+        ladderConcept('OnlyConcept', [
+            { terms: '"Term"[MeSH]', on: true },
+            { terms: 'droppable[tiab]', on: true },
+        ]),
+    ],
+    limits: '(2021:2026[dp])',
+})
+
+const checkNarrowingLadder = async (lit) => {
+    // --- freeTextCandidates() ---------------------------------------------------------------
+    const twoConcept = twoConceptStrategy()
+    const candidates = lit.freeTextCandidates(twoConcept)
+
+    assert.strictEqual(candidates.length, 1,
+        `exactly one line in this fixture is safe to drop — got ${candidates.length} (${JSON.stringify(candidates.map(c => c.line.terms))})`)
+    assert.strictEqual(candidates[0].line.terms, 'freetextA[tiab]', "Concept A's live [tiab] line must be the one candidate offered")
+    assert.ok(!candidates.some(c => /\[MeSH\]/.test(c.line.terms)), 'a MeSH line must never be offered as a droppable free-text candidate')
+    assert.ok(!candidates.some(c => c.line.terms === 'offterm[tiab]'), 'an OFF line must never be offered, even though its terms match [tiab]')
+    assert.ok(!candidates.some(c => c.line.terms === 'freetextB[tiab]'),
+        "Concept B's sole live line must never be offered — dropping it would empty Concept B's block entirely, which is exactly the guard freeTextCandidates() exists to enforce")
+
+    // --- narrowForBudget() ------------------------------------------------------------------
+    const seeds = [{ id: 'seed-1', kind: 'pmid' }]
+    const threshold = 1000
+    const fromYear = 2021, toYear = 2026
+
+    // Scenario (a): dropping the line shrinks the count (5000 -> 800: nonzero, and strictly less
+    // than the pre-drop total — the exact arithmetic narrowForBudget() itself checks before it
+    // will ever act on a count), and checkSeeds says the seed is STILL retrieved without the
+    // line. The ladder must drop it.
+    const acceptDeps = {
+        count: async (query) => {
+            if (query === 'droppable[tiab]') return 500          // the candidate's own yield (ranking only)
+            if (query.includes('droppable[tiab]')) return 5000   // the span query, line still present
+            return 800                                            // the span query, line dropped
+        },
+        checkSeeds: async (_s, seedsArg) => seedsArg.map(sd => ({ ...sd, retrieved: true })),
+    }
+    const accepted = await lit.narrowForBudget(oneCandidateStrategy(), seeds, fromYear, toYear, threshold, acceptDeps)
+
+    assert.strictEqual(accepted.dropped.length, 1, 'the one droppable line must be dropped when it shrinks the count and no seed depends on it')
+    assert.strictEqual(accepted.dropped[0].dropped, 'droppable[tiab]', 'the dropped step must name the actual line text that was turned off')
+    const acceptedLine = accepted.strategy.concepts[0].lines.find(l => l.terms === 'droppable[tiab]')
+    assert.strictEqual(acceptedLine.on, false,
+        "the returned strategy must carry the dropped line's on: false — the ladder's decision must be visible in the strategy it hands back, not just in the dropped[] log")
+    assert.strictEqual(accepted.count, 800, 'the returned count must be the post-drop count, not the pre-drop one')
+
+    // Scenario (b): IDENTICAL count arithmetic (so a count-side rejection cannot explain the
+    // difference), but checkSeeds now reports the seed is LOST once this specific line is
+    // dropped — simulating "this seed depends on that line". This is the load-bearing assertion
+    // PLAN-mode4-relevance-and-impact.md calls out by name: "the ladder never disables a line
+    // while a seed depends on it."
+    const rejectDeps = {
+        count: acceptDeps.count,
+        checkSeeds: async (candidateStrategy, seedsArg) => {
+            const lineStillOn = candidateStrategy.concepts.some(c => c.lines.some(l => l.terms === 'droppable[tiab]' && l.on))
+            return seedsArg.map(sd => ({ ...sd, retrieved: lineStillOn }))
+        },
+    }
+    const rejected = await lit.narrowForBudget(oneCandidateStrategy(), seeds, fromYear, toYear, threshold, rejectDeps)
+
+    assert.strictEqual(rejected.dropped.length, 0, 'a line a seed depends on must NEVER be dropped, even though the count arithmetic alone would have accepted it')
+    assert.deepStrictEqual(rejected.strategy, oneCandidateStrategy(), 'when nothing is dropped, the returned strategy must be unchanged from the input')
+    assert.strictEqual(rejected.count, 5000, 'when nothing is dropped, the returned count must be the ORIGINAL (pre-drop) count, never one the ladder considered and rejected')
+
+    console.log(`ladder:       freeTextCandidates offers 1 of ${twoConcept.concepts.flatMap(c => c.lines).length} lines (MeSH/off/sole-live-line excluded); narrowForBudget drops when the count shrinks and the seed survives (dropped=1, count=800), refuses when the seed would be lost (dropped=${rejected.dropped.length}, count=${rejected.count})`)
+}
+
+// =======================================================================================
 // MODE 4, PHASE 5 — clusterByMesh(). PURE, deterministic, NO LLM (labelClusters(), the one
 // Bedrock call in literatureSearch.cluster.ts, is out of scope for this file by the same rule
 // everything else here follows: it needs the world).
@@ -396,8 +500,9 @@ const scoreRec = (pmid, tierRank, opts = {}) => ({
 const checkPreFilterForScoring = (lit) => {
     // A big cluster (100 members) and a small one (4 members), plus a 4-member cluster built
     // specifically to test the missing-vs-zero-percentile ranking rule, plus an uncategorized
-    // bucket that must get nothing. budget=20 is chosen (not the 200 default) so every number
-    // below is small enough to hand-verify by arithmetic, the same posture this whole file takes.
+    // bucket (50 members) that must now ALSO get a share of the budget — see the assertion below.
+    // budget=20 is chosen (not the 200 default) so every number below is small enough to
+    // hand-verify by arithmetic, the same posture this whole file takes.
     const big = Array.from({ length: 100 }, (_, i) => scoreRec(`big-${i + 1}`, 5))
     const small = Array.from({ length: 4 }, (_, i) => scoreRec(`small-${i + 1}`, 5))
     const rankRecords = [
@@ -419,26 +524,35 @@ const checkPreFilterForScoring = (lit) => {
     const budget = 20
     const result = lit.preFilterForScoring(clusters, byPmid, budget)
 
-    // THE UNCATEGORIZED CLUSTER GETS NOTHING. It is the fallthrough for records no seed MeSH
-    // term claimed, not a topic worth spending a Bedrock call on — see preFilterForScoring()'s
-    // own comment.
-    assert.strictEqual(result.uncat, undefined, 'the isUncategorized cluster must receive zero scoring budget — it is a fallthrough bucket, not a topic')
+    // THE UNCATEGORIZED CLUSTER NOW GETS BUDGET TOO — REVERSED FROM THIS FUNCTION'S ORIGINAL
+    // DESIGN, which special-cased isUncategorized out entirely. PLAN-mode4-relevance-and-impact.md:
+    // "the shortlist should be drawn from the whole corpus" — a genuinely on-topic paper that
+    // happened to land in the fallthrough bucket (no seed MeSH term claimed it) must still be
+    // eligible for a relevance/impact call, so it gets the same SCORE_FLOOR every real cluster does.
+    assert.ok(result.uncat && result.uncat.length >= lit.SCORE_FLOOR,
+        `the uncategorized cluster must now receive at least its floor of ${lit.SCORE_FLOOR} scoring slots, like any other cluster — got ${result.uncat ? result.uncat.length : 'undefined'}`)
 
     // THE FLOOR IS RESPECTED FOR A SMALL CLUSTER. At this budget, a purely proportional split
-    // (4 members out of 108 total real-cluster members) would round DOWN TO ZERO for "small" —
-    // it is the floor, not the proportional share, that guarantees it SCORE_FLOOR records rather
-    // than none at all.
+    // (4 members out of 158 total real-cluster members, now that uncategorized counts too) would
+    // round DOWN TO ZERO for "small" — it is the floor, not the proportional share, that
+    // guarantees it SCORE_FLOOR records rather than none at all.
     assert.strictEqual(result.small.length, lit.SCORE_FLOOR,
         `a 4-record cluster must still get its floor of ${lit.SCORE_FLOOR} records scored even though its proportional share of a ${budget}-record budget rounds to zero — a small cluster must never be zeroed out by a big one's share`)
 
     // THE TOTAL SELECTED NEVER EXCEEDS THE BUDGET — across every real cluster, not per-cluster.
     const total = Object.values(result).reduce((a, arr) => a + arr.length, 0)
     assert.ok(total <= budget, `preFilterForScoring must never hand back more records than the ${budget}-record budget it was given — got ${total}`)
-    // The exact arithmetic this fixture works out to (floors 3+3+3=9, then a proportional share
-    // of the remaining 11 split 100:4:4) — an exact check, not just an upper bound, so a change
-    // to the allocation formula that stays under budget but silently shortchanges every cluster
-    // still gets caught.
-    assert.strictEqual(total, 19, `expected exactly 19 records selected for this fixture's floors-then-proportional-share arithmetic, got ${total} — the allocation formula changed`)
+    // The exact arithmetic this fixture now works out to, with FOUR clusters sharing the floor
+    // (big/small/ranktest/uncat) instead of three: floors 3+3+3+3=12, then the remaining budget
+    // (20-12=8) split proportionally by member count across all four (100:4:4:50, total 158):
+    //   big:      floor(8 * 100/158) = 5  ->  3+5 = 8
+    //   small:    floor(8 *   4/158) = 0  ->  3+0 = 3
+    //   ranktest: floor(8 *   4/158) = 0  ->  3+0 = 3
+    //   uncat:    floor(8 *  50/158) = 2  ->  3+2 = 5
+    // total = 8+3+3+5 = 19. An exact check, not just an upper bound, so a change to the allocation
+    // formula that stays under budget but silently shortchanges every cluster still gets caught.
+    assert.strictEqual(total, 19,
+        `expected exactly 19 records selected for this fixture's floors-then-proportional-share arithmetic (now over FOUR clusters, including uncategorized), got ${total} — the allocation formula changed`)
 
     // A RECORD WITH nihPercentile: 0 MUST NOT BE CONFUSED WITH A RECORD THAT HAS NO PERCENTILE
     // AT ALL. Same tier, same year — the only difference is 0 (real, scored, genuinely at the
@@ -450,7 +564,62 @@ const checkPreFilterForScoring = (lit) => {
     assert.ok(rankedSelection.includes('rt-3'), 'a record with a REAL nihPercentile: 0 must be kept over a same-tier record with no percentile at all — 0 is scored data, missing is not')
     assert.ok(!rankedSelection.includes('rt-4'), 'the record with a missing nihPercentile must be the one cut when the cluster exceeds its floor, never a record with a real (even if low) percentile in its place')
 
-    console.log(`prefilter:    small cluster floor=${result.small.length}, total selected=${total}/${budget}, uncategorized=none, real-0 kept over missing-percentile`)
+    console.log(`prefilter:    small cluster floor=${result.small.length}, uncategorized floor=${result.uncat.length}, total selected=${total}/${budget}, real-0 kept over missing-percentile`)
+
+    // Handed to checkPreFilterForScoringSeeds() so its "seed-forcing changes nothing with no
+    // seeds" assertion reuses this EXACT fixture and its hand-worked total, rather than a second,
+    // possibly-drifted copy of the same arithmetic.
+    return { clusters, byPmid, budget, total }
+}
+
+// =======================================================================================
+// MODE 4, PHASE 6a — preFilterForScoring()'s SEED-FORCING. PLAN-mode4-relevance-and-impact.md:
+// "the librarian gets to see what the tool thinks of the papers they already trust, which is the
+// fastest way to calibrate trust in the rest." Split out from checkPreFilterForScoring above
+// because it needs its own purpose-built fixture: one where the ordinary floor+share ranking
+// would NEVER pick the seed on its own, so forcing it in is the only way it can appear.
+const checkPreFilterForScoringSeeds = (lit, mainFixture) => {
+    // A single cluster of 10 members. Nine of them beat the tenth on EVERY criterion
+    // rankForScoring() sorts by (tier rank ascending, then nihPercentile descending, missing
+    // sorting last): tier 3 with real percentiles 90 down to 10. The tenth — the seed — is built
+    // to lose on both axes at once: tier 8 (worse than every other member's tier 3) AND no
+    // percentile at all (sorts below even a real 0). rankForScoring() must therefore place it
+    // dead last, at index 9 of 10.
+    const ranked = Array.from({ length: 9 }, (_, i) => scoreRec(`hi-${i + 1}`, 3, { pct: 90 - i * 10 }))
+    const seedRec = scoreRec('seed-lowest', 8, {})
+    const members = [...ranked, seedRec]
+    const clusters = [{ id: 'seedtest', label: 'SeedTest', meshTerms: [], pmids: members.map(r => r.pmid) }]
+    const byPmid = new Map(members.map(r => [r.pmid, r]))
+
+    // budget == SCORE_FLOOR, and this is the only cluster, so the floor consumes the entire
+    // budget (remaining = 0) — the ordinary slice is exactly rankForScoring()'s top 3, and the
+    // seed, sorted last, cannot be among them. Asserted first as a sanity check on the fixture
+    // itself: if this ever fails, the fixture is not testing what it claims to.
+    const budget = lit.SCORE_FLOOR
+    const withoutSeed = lit.preFilterForScoring(clusters, byPmid, budget)
+    assert.ok(!withoutSeed.seedtest.some(r => r.pmid === 'seed-lowest'),
+        'fixture sanity check: WITHOUT seed-forcing, the ordinary floor+share ranking must NOT have picked the worst-ranked seed record')
+
+    // THE SEED-FORCING ITSELF: same clusters, same budget, only a seedPmids Set added — and the
+    // seed pmid must now be present despite not making the ordinary cut.
+    const withSeed = lit.preFilterForScoring(clusters, byPmid, budget, new Set(['seed-lowest']))
+    assert.ok(withSeed.seedtest.some(r => r.pmid === 'seed-lowest'),
+        'a named seed pmid must be present in the shortlist even though the ordinary floor+share ranking would have cut it')
+
+    // SEED-FORCING IS A STRICT ADDITION, NEVER A BEHAVIOR CHANGE, WHEN THERE ARE NO SEEDS. Rerun
+    // the MAIN fixture from checkPreFilterForScoring — big/small/ranktest/uncategorized, budget
+    // 20 — once with the 4th argument omitted entirely and once with an explicit empty Set, and
+    // both must total the exact same 19 records that fixture's own hand-worked arithmetic produces.
+    const { clusters: mainClusters, byPmid: mainByPmid, budget: mainBudget, total: mainTotal } = mainFixture
+    const totalOf = r => Object.values(r).reduce((a, arr) => a + arr.length, 0)
+    const omitted = lit.preFilterForScoring(mainClusters, mainByPmid, mainBudget)
+    const emptySet = lit.preFilterForScoring(mainClusters, mainByPmid, mainBudget, new Set())
+    assert.strictEqual(totalOf(omitted), mainTotal,
+        'omitting seedPmids entirely must reproduce the exact same total as before seed-forcing existed — seed-forcing must never change behavior when there is nothing to force')
+    assert.strictEqual(totalOf(emptySet), mainTotal,
+        'an explicit empty Set must behave IDENTICALLY to omitting the argument — seed-forcing is strictly additive, never a silent behavior change when there are zero seeds')
+
+    console.log(`prefilter seeds: worst-ranked seed excluded without forcing, included with forcing (seedtest=${withSeed.seedtest.length}); omitted/empty seedPmids both reproduce the unforced total (${mainTotal})`)
 }
 
 // =======================================================================================
@@ -504,6 +673,11 @@ const checkImpactScoreOf = (lit) => {
     const retractedResult = lit.impactScoreOf(retracted)
     assert.strictEqual(retractedResult.score, 0, 'a RETRACTED record must score exactly 0 regardless of a high nihPercentile — retraction overrides everything, no blend, no partial credit')
     assert.strictEqual(retractedResult.justification, retracted.tier.phrase, "the RETRACTED record's justification must be the tier's own phrase — the one thing that matters here")
+    // EVERY RETURNED OBJECT NOW CARRIES evidenceBasis. The RETRACTED short-circuit is the very
+    // first branch in impactScoreOf() and reports 'tier-only' — the same label the ordinary
+    // no-percentile-no-apt path reports below — because retraction is decided off the tier alone,
+    // even though this record DOES carry a (99th) percentile that is never consulted.
+    assert.strictEqual(retractedResult.evidenceBasis, 'tier-only', "a RETRACTED record's evidenceBasis must be 'tier-only' — its percentile is never consulted")
 
     // TIER ORDERING SURVIVES WHEN PERCENTILE IS ABSENT. A rank-2 (Meta-analysis) record with no
     // percentile must still score higher than a rank-5 (Observational) record with no
@@ -511,9 +685,13 @@ const checkImpactScoreOf = (lit) => {
     // just because neither record has been cited yet.
     const metaNoPct = scoreRec('meta-1', 2)
     const obsNoPct = scoreRec('obs-1', 5)
-    const metaScore = lit.impactScoreOf(metaNoPct).score
-    const obsScore = lit.impactScoreOf(obsNoPct).score
+    const metaResult = lit.impactScoreOf(metaNoPct)
+    const obsResult = lit.impactScoreOf(obsNoPct)
+    const metaScore = metaResult.score
+    const obsScore = obsResult.score
     assert.ok(metaScore > obsScore, `a rank-2 (Meta-analysis) record with no percentile (scored ${metaScore}) must score HIGHER than a rank-5 (Observational) record with no percentile (scored ${obsScore}) — tier ordering must survive when percentile is absent`)
+    assert.strictEqual(metaResult.evidenceBasis, 'tier-only', 'a record with no nihPercentile and no apt must report evidenceBasis "tier-only"')
+    assert.strictEqual(obsResult.evidenceBasis, 'tier-only', 'same for the Observational record — neither has a percentile or an apt to fall back on')
 
     // MISSING NEVER SILENTLY BECOMES A 0. Two otherwise-identical rank-5 records: one has a
     // GENUINE nihPercentile of 0 (iCite scored it and it sits at the bottom of its field), the
@@ -522,15 +700,45 @@ const checkImpactScoreOf = (lit) => {
     // scores would come out IDENTICAL — so the assertion is exactly that they must differ.
     const zeroPct = scoreRec('zero-1', 5, { pct: 0 })
     const missingPct = scoreRec('missing-1', 5)
-    const zeroScore = lit.impactScoreOf(zeroPct).score
-    const missingScore = lit.impactScoreOf(missingPct).score
+    const zeroResult = lit.impactScoreOf(zeroPct)
+    const missingResult = lit.impactScoreOf(missingPct)
+    const zeroScore = zeroResult.score
+    const missingScore = missingResult.score
     assert.notStrictEqual(zeroScore, missingScore,
         `a record with a genuine nihPercentile: 0 (scored ${zeroScore}) must score differently from an otherwise-identical record with NO percentile at all (scored ${missingScore}) — if missing silently became 0 in the blend these would be equal, and that would brand every unscored recent paper with the same number as the worst-cited paper in the corpus`)
     // And the missing-percentile score specifically must equal the tier component ALONE — never
     // a blend with a phantom 0.
     assert.strictEqual(missingScore, 0.45, 'a rank-5 record with no percentile must score exactly its tier component (0.45) — the tier alone, never blended with a percentile it does not have')
+    // evidenceBasis is the field that makes the distinction above CHECKABLE rather than inferred
+    // from the number: a real percentile (even 0) reports 'percentile'; nothing at all reports
+    // 'tier-only'.
+    assert.strictEqual(zeroResult.evidenceBasis, 'percentile', 'a record with a real nihPercentile (even 0) must report evidenceBasis "percentile"')
+    assert.strictEqual(missingResult.evidenceBasis, 'tier-only', 'a record with neither a percentile nor an apt must report evidenceBasis "tier-only"')
 
-    console.log(`impact:       RETRACTED=${retractedResult.score}, Meta-analysis(no pct)=${metaScore} > Observational(no pct)=${obsScore}, zero-pct=${zeroScore} != missing-pct=${missingScore}`)
+    // A THIRD SOURCE: iCite's apt (Approximate Potential to Translate) — the fallback for a
+    // record with NO nihPercentile yet but WITH an apt, e.g. a 2025-26 paper too new for a
+    // citation-based percentile but not too new for iCite's structural signal (see
+    // literatureSearch.score.ts's own comment on impactScoreOf()'s apt branch). scoreRec() does
+    // not set apt (opts.pct is the only optional field it wires up), so it is added here directly
+    // rather than teaching the shared fixture builder a shape only this one case needs.
+    const aptOnly = { ...scoreRec('apt-1', 5), apt: 0.8 }
+    const aptResult = lit.impactScoreOf(aptOnly)
+    const aptScore = aptResult.score
+    assert.strictEqual(aptResult.evidenceBasis, 'apt', 'a record with an apt value and no nihPercentile must report evidenceBasis "apt"')
+    // MISSING MUST NOT SILENTLY LOOK LIKE A KNOWN VALUE — the same principle the zero-vs-missing
+    // percentile assertion already tests one layer up, applied here to apt vs. nothing: an
+    // apt-based score must not collapse to the tier-only score just because the path is a
+    // fallback rather than the ordinary percentile branch.
+    assert.notStrictEqual(aptScore, missingScore,
+        `an apt-based score (${aptScore}) must differ from the tier-only score (${missingScore}) — an apt value is real iCite signal and must move the number, not get silently dropped`)
+    // THE EXACT ARITHMETIC: impactScoreOf() runs apt through the SAME 0.6/0.4 blend it uses for a
+    // real percentile, with apt (0.8) standing in for percentile/100 — so a rank-5 record with
+    // apt: 0.8 must score exactly round2(clamp01(0.6 * 0.45 + 0.4 * 0.8)) = 0.59. An exact check,
+    // not a range, so a change to the apt blend weight or the tier component table still gets
+    // caught even if it happens to leave the score on the correct side of missingScore.
+    assert.strictEqual(aptScore, 0.59, `a rank-5 record with apt: 0.8 and no percentile must score exactly 0.59 (round2(clamp01(0.6*0.45 + 0.4*0.8))) — got ${aptScore}`)
+
+    console.log(`impact:       RETRACTED=${retractedResult.score}/${retractedResult.evidenceBasis}, Meta(no pct)=${metaScore} > Obs(no pct)=${obsScore} (both tier-only), zero-pct=${zeroScore}/${zeroResult.evidenceBasis} != missing-pct=${missingScore}/${missingResult.evidenceBasis}, apt-only=${aptScore}/${aptResult.evidenceBasis}`)
 }
 
 // =======================================================================================
@@ -733,16 +941,28 @@ const checkBibliometricDoc = (xp) => {
     console.log(`bibliometricDoc: evidence-mix columns=[${mixTable.head.slice(1).join(', ')}] (derived, not hardcoded); null median -> empty cell; 1 WARNING block, correctly placed and naming PMID 999999`)
 }
 
-const { s, q } = checkStrategyBounds(lit)
-const { hits, rc } = checkRecordsColumnRendering(lit, xp, s, q)
-checkMarkdownDocuments(xp, md, s, q, hits, rc)
-checkXlsxTruncationGuard(xp, q)
-checkClusterByMesh(lit)
-checkPreFilterForScoring(lit)
-checkStripScaffolding(lit)
-checkImpactScoreOf(lit)
-checkAssembleNarrativeReview(lit)
-checkCorpusSheet(xp)
-checkBibliometricDoc(xp)
+// An async IIFE, not a bare top-level await: this file runs as plain CommonJS (no "type":
+// "module" in package.json), and only checkNarrowingLadder needs to await anything — it is the
+// only function here exercising an (fake-dep-injected) async production function. Every failure
+// still fails the process the same way a thrown assertion always has: caught below, printed, and
+// exited non-zero, so this stays a real CI gate rather than a check whose async half can go quiet.
+;(async () => {
+    const { s, q } = checkStrategyBounds(lit)
+    const { hits, rc } = checkRecordsColumnRendering(lit, xp, s, q)
+    checkMarkdownDocuments(xp, md, s, q, hits, rc)
+    checkXlsxTruncationGuard(xp, q)
+    await checkNarrowingLadder(lit)
+    checkClusterByMesh(lit)
+    const pf = checkPreFilterForScoring(lit)
+    checkPreFilterForScoringSeeds(lit, pf)
+    checkStripScaffolding(lit)
+    checkImpactScoreOf(lit)
+    checkAssembleNarrativeReview(lit)
+    checkCorpusSheet(xp)
+    checkBibliometricDoc(xp)
 
-console.log('\nAll pure checks passed. No network, no model, no environment.')
+    console.log('\nAll pure checks passed. No network, no model, no environment.')
+})().catch(err => {
+    console.error(err)
+    process.exit(1)
+})

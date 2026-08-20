@@ -45,7 +45,7 @@ export type ScoredRecordLike = RecordLike & {
     // question they actually have — "what is the strongest evidence here", "what are the most
     // important papers", "what is most on-topic" are three different questions with three different
     // answers, and a composite would answer none of them.
-    evidenceScore?: number; evidenceJustification?: string
+    evidenceScore?: number; evidenceJustification?: string; evidenceBasis?: string
     impactScore?: number; impactJustification?: string
     relevanceScore?: number; relevanceJustification?: string
     nihPercentile?: number
@@ -60,11 +60,11 @@ export function corpusSheet(
             name: 'Records',
             head: [
                 'PMID', 'Title', 'Authors', 'Year', 'Journal', 'Evidence type', 'Case series',
-                'Cluster', 'NIH percentile', 'Evidence score', 'Evidence justification',
+                'Cluster', 'NIH percentile', 'Evidence score', 'Evidence justification', 'Evidence basis',
                 'Impact score (0-100)', 'Impact justification', 'Relevance score',
                 'Relevance justification', 'Link',
             ],
-            // Every row has exactly 16 cells, matching the 16-column head above — no conditional
+            // Every row has exactly 17 cells, matching the 17-column head above — no conditional
             // spread here (unlike recordSheets' `cut` branch), because unlike that sheet nothing
             // about THIS sheet's shape ever changes row to row or run to run. A short row would
             // silently shift every later cell one column left for that record alone (see sheets.ts's
@@ -95,6 +95,7 @@ export function corpusSheet(
                 typeof r.nihPercentile === 'number' ? r.nihPercentile : '',
                 typeof r.evidenceScore === 'number' ? r.evidenceScore : '',
                 r.evidenceJustification ?? '',
+                r.evidenceBasis ?? '',
                 typeof r.impactScore === 'number' ? r.impactScore : '',
                 r.impactJustification ?? '',
                 typeof r.relevanceScore === 'number' ? r.relevanceScore : '',
@@ -122,6 +123,9 @@ export function corpusSheet(
                 // one number guaranteed to equal the row count of the Records sheet sitting right
                 // next to this one — which is the whole point of a sheet that carries its own facts.
                 ['Records in corpus', records.length],
+                ...(facts.narrowing?.length
+                    ? [['Narrowing ladder', facts.narrowing.join('; ')]]
+                    : []),
                 ...(facts.model
                     ? [['Model (query drafting, cluster labeling, relevance scoring, narrative)', modelDisclosure(facts.model)]]
                     : []),

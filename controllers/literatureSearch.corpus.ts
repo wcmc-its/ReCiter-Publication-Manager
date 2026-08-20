@@ -8,9 +8,9 @@
 // PubMed only. Scopus/Embase corpus retrieval is explicitly out of scope for v1 (Scopus has no
 // MeSH — the clustering half of this feature needs it — and Embase is Ovid-only, no API), so this
 // file never takes a `db` parameter the way strategy.ts's Dialect table does.
-import { Strategy, assembleQuery } from './literatureSearch.strategy'
+import { Strategy, Line, Seed, assembleQuery } from './literatureSearch.strategy'
 import { PubRecord, fetchRecords, withCitationMetrics } from './literatureSearch.records'
-import { countPubmed } from './literatureSearch.counting'
+import { countPubmed, validateSeeds, SeedResult } from './literatureSearch.counting'
 import { appendHumansFilter } from './literatureSearch.llm'
 
 // ---------------------------------------------------------------------------
@@ -242,4 +242,131 @@ export function percentileTrend(records: PubRecord[]): PercentilePoint[] {
         const scored = byYear.get(year) || []
         return { year, median: scored.length ? median(scored) : null, n: totalByYear.get(year)!, scored: scored.length }
     })
+}
+
+// ---------------------------------------------------------------------------
+// THE NARROWING LADDER. PLAN-mode4-relevance-and-impact.md, rev 3: "narrow only if the count
+// warrants it" — drop the highest-yield free-text LINE, cheapest-signal-first, while every named
+// seed stays retrievable. Deterministic: countPubmed and validateSeeds are both count calls, no
+// model involved, so this costs nothing but PubMed round-trips.
+//
+// Suggested trigger from the plan's own "what counts as too many" analysis: a 200-record scoring
+// budget is 10% coverage at 2,000 records and 4% at 5,000 — 3,000 is where that thinness starts
+// being a judgment call worth surfacing rather than silently accepting.
+export const NARROW_LADDER_ABOVE = 3000
+
+export type NarrowingStep = { concept: string; dropped: string; before: number; after: number }
+
+// A candidate the ladder MAY try dropping: an ON, non-empty, free-text ([tiab]) line that is NOT
+// the sole surviving live line in its concept block. That last guard is load-bearing — assembleQuery()
+// drops a concept out of the AND entirely once it has no live lines, so dropping a concept's only
+// active line does not narrow the search, it REMOVES A WHOLE CONSTRAINT and can silently broaden it.
+// PURE: no network, so this is directly unit-testable without mocking anything.
+export function freeTextCandidates(s: Strategy): Array<{ ci: number; li: number; label: string; line: Line }> {
+    const out: Array<{ ci: number; li: number; label: string; line: Line }> = []
+    s.concepts.forEach((c, ci) => {
+        const liveCount = c.lines.filter(l => l.on && l.terms.trim()).length
+        if (liveCount < 2) return   // dropping the only live line would empty the concept, not narrow it
+        c.lines.forEach((line, li) => {
+            if (line.on && line.terms.trim() && /\[tiab\]/i.test(line.terms)) {
+                out.push({ ci, li, label: c.label, line })
+            }
+        })
+    })
+    return out
+}
+
+// Toggle exactly one line off, immutably.
+function withLineOff(s: Strategy, ci: number, li: number): Strategy {
+    return {
+        ...s,
+        concepts: s.concepts.map((c, i) => i !== ci ? c : {
+            ...c,
+            lines: c.lines.map((l, j) => j !== li ? l : { ...l, on: false }),
+        }),
+    }
+}
+
+// DEPENDENCY-INJECTED, not because this needs to be generic — it needs to be testable by the
+// no-network pure-check harness (literatureSearch.pure.check.js) against the ONE invariant that
+// actually matters here: the ladder never drops a line a seed depends on. Production always calls
+// this with the defaults (real countPubmed/validateSeeds); the check harness supplies fakes.
+export type LadderDeps = {
+    count: (query: string) => Promise<number>
+    checkSeeds: (s: Strategy, seeds: Seed[]) => Promise<SeedResult[]>
+}
+const REAL_DEPS: LadderDeps = { count: countPubmed, checkSeeds: validateSeeds }
+
+// The corpus query the ladder measures against — SAME SHAPE fetchCorpus() will actually retrieve
+// (humans-filtered base AND the whole year span at once, not per-year-sharded), so "over threshold"
+// is a truthful preview of what is about to be pulled, not an estimate.
+const spanQuery = (s: Strategy, fromYear: number, toYear: number) =>
+    `${appendHumansFilter(assembleQuery(s))} AND ${fromYear}:${toYear}[dp]`
+
+export async function narrowForBudget(
+    strategy: Strategy,
+    seeds: Seed[],
+    fromYear: number,
+    toYear: number,
+    threshold = NARROW_LADDER_ABOVE,
+    deps: LadderDeps = REAL_DEPS,
+): Promise<{ strategy: Strategy; count: number; dropped: NarrowingStep[] }> {
+    let s = strategy
+    let total = await deps.count(spanQuery(s, fromYear, toYear))
+    const dropped: NarrowingStep[] = []
+
+    while (total > threshold) {
+        const candidates = freeTextCandidates(s)
+        if (!candidates.length) break   // nothing left to try — report what we have, over threshold or not
+
+        // RANK BY OWN YIELD, MEASURED. The plan's own evidence for this (revers*/antagonis*/
+        // Androstanols admitting 662 records between them vs. TOF[tiab] admitting only 23 despite
+        // looking just as broad) is why this is a count, not a pattern match on the term text.
+        // SEQUENTIAL, never Promise.all — same reason suggestNarrowings() in literatureSearch.llm.ts
+        // counts sequentially: a burst trips unkeyed NCBI's 3req/s limit and a throttled esearch
+        // comes back as a well-formed (wrong) number.
+        const withYield: Array<{ ci: number; li: number; label: string; line: Line; yield: number }> = []
+        for (const c of candidates) withYield.push({ ...c, yield: await deps.count(c.line.terms) })
+        withYield.sort((a, b) => b.yield - a.yield)
+
+        let accepted = false
+        for (const cand of withYield) {
+            const candidate = withLineOff(s, cand.ci, cand.li)
+            const candidateTotal = await deps.count(spanQuery(candidate, fromYear, toYear))
+
+            // Same arithmetic guard suggestNarrowings() applies in the opposite direction: dropping
+            // a line can only ever SHRINK or hold the query — a count that grew or landed at zero is
+            // an untrustworthy (likely throttled) count, not a real result, and must not be acted on.
+            if (candidateTotal === 0 || candidateTotal >= total) {
+                console.log(JSON.stringify({
+                    tag: 'literature-m4-ladder-rejected', reason: 'untrustworthy-count',
+                    concept: cand.label, term: cand.line.terms, before: total, after: candidateTotal,
+                }))
+                continue
+            }
+
+            const seedResults = await deps.checkSeeds(candidate, seeds)
+            if (!seedResults.every(r => r.retrieved)) {
+                console.log(JSON.stringify({
+                    tag: 'literature-m4-ladder-rejected', reason: 'seed-lost',
+                    concept: cand.label, term: cand.line.terms,
+                    missed: seedResults.filter(r => !r.retrieved).map(r => r.id),
+                }))
+                continue
+            }
+
+            dropped.push({ concept: cand.label, dropped: cand.line.terms, before: total, after: candidateTotal })
+            s = candidate
+            total = candidateTotal
+            accepted = true
+            console.log(JSON.stringify({
+                tag: 'literature-m4-ladder-dropped', concept: cand.label, term: cand.line.terms,
+                before: dropped[dropped.length - 1].before, after: candidateTotal,
+            }))
+            break
+        }
+        if (!accepted) break   // every candidate this round was rejected — stop rather than loop forever
+    }
+
+    return { strategy: s, count: total, dropped }
 }

@@ -82,6 +82,8 @@ import {
     // how these compose — the phase split there mirrors this import list, one group per phase.
     PubRecord,
     fetchCorpus,
+    narrowForBudget,
+    NarrowingStep,
     excludeCaseReports,
     flagProbableCaseSeries,
     excludeCaseSeries,
@@ -770,7 +772,10 @@ async function handleM4Retrieve(req: NextApiRequest, res: NextApiResponse, cwid:
         usage.outputTokens += built.usage.outputTokens
 
         const { fromYear, toYear } = yearRangeFor(String(dateId ?? ''))
-        const corpus = await fetchCorpus(built.strategy, fromYear, toYear)
+        const pmidSeeds = seedList.filter(sd => sd.kind === 'pmid')
+
+        const ladder = await narrowForBudget(built.strategy, pmidSeeds, fromYear, toYear)
+        const corpus = await fetchCorpus(ladder.strategy, fromYear, toYear)
 
         const keepTiers = resolveKeepTiers(evidenceTiers)
         let records = filterByEvidenceTiers(corpus.records, keepTiers)
@@ -785,7 +790,8 @@ async function handleM4Retrieve(req: NextApiRequest, res: NextApiResponse, cwid:
         // (meaningful for Scopus, which has no PMID index) has nothing to check here. Aggregate
         // count only, matching the mockup's single step-list line ("4 of 4 known-item seeds
         // retrieved") rather than Mode 1's per-seed panel, which this mode has no screen for.
-        const pmidSeeds = seedList.filter(sd => sd.kind === 'pmid')
+        // (pmidSeeds is hoisted above — the narrowing ladder needs it too, and this is a post-hoc
+        // check against the FINAL evidence-tier-filtered corpus, a different and still-useful check.)
         const corpusPmids = new Set(records.map(r => r.pmid))
         const seedsRetrieved = pmidSeeds.filter(sd => corpusPmids.has(sd.id)).length
 
@@ -793,7 +799,7 @@ async function handleM4Retrieve(req: NextApiRequest, res: NextApiResponse, cwid:
 
         logCost('bibliometric-review:retrieve', cwid, usage, {
             fromYear, toYear, corpusSize: records.length, hotYears: hotYears.length,
-            seeds: pmidSeeds.length, seedsRetrieved,
+            seeds: pmidSeeds.length, seedsRetrieved, narrowingSteps: ladder.dropped.length,
         })
 
         return res.status(200).send({
@@ -807,6 +813,8 @@ async function handleM4Retrieve(req: NextApiRequest, res: NextApiResponse, cwid:
             // filter, so re-deriving here would print a query that does not reproduce the count
             // printed beside it.
             query: corpus.query,
+            narrowing: ladder.dropped.map(d =>
+                `dropped '${d.dropped}' (${d.concept}): ${d.before.toLocaleString()} → ${d.after.toLocaleString()}`),
             fromYear, toYear,
             corpus: records,
             hotYears: hotYears.map(sh => ({ year: sh.year, hits: sh.hits, error: sh.error })),
@@ -857,7 +865,7 @@ async function handleM4Cluster(req: NextApiRequest, res: NextApiResponse, cwid: 
 // preFilterForScoring()'s own comment for why the budget is capped and allocated by cluster rather
 // than a flat corpus-wide cut.
 async function handleM4Score(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
-    const { question, criteria } = body
+    const { question, criteria, seedList } = body
     if (!bedrockConfigured()) {
         return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
     }
@@ -865,7 +873,8 @@ async function handleM4Score(req: NextApiRequest, res: NextApiResponse, cwid: st
         const corpus = parseM4Corpus(body.corpus)
         const clusters = parseM4Clusters(body.clusters)
         const byPmid = new Map(corpus.map(r => [r.pmid, r]))
-        const budget = preFilterForScoring(clusters, byPmid, 200)
+        const seedPmids = new Set(seedList.filter(sd => sd.kind === 'pmid').map(sd => sd.id))
+        const budget = preFilterForScoring(clusters, byPmid, 200, seedPmids)
         const shortlistPmids = Object.values(budget).flat().map(r => r.pmid)
 
         // RE-FETCHED, never taken from the echoed corpus — the metadata round-trip never carries an
@@ -910,7 +919,7 @@ async function handleM4Score(req: NextApiRequest, res: NextApiResponse, cwid: st
 // the deterministic whole-review assembly — no further Bedrock call, see
 // assembleNarrativeReview()'s own comment for why that stitch step was deliberately dropped.
 async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
-    const { question } = body
+    const { question, seedList } = body
     if (!bedrockConfigured()) {
         return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
     }
@@ -925,8 +934,11 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
         // The SAME shortlist logic Phase 6 used to decide who got scored, re-derived rather than
         // trusted from the client — it is pure and cheap, and re-deriving it here means a tampered
         // `clusters`/`corpus` payload can shrink or reorder the candidate pool but cannot forge a
-        // synthesis shortlist the deterministic rules would not themselves have picked.
-        const budget = preFilterForScoring(clusters, byPmid, 200)
+        // synthesis shortlist the deterministic rules would not themselves have picked. Must use the
+        // IDENTICAL seedPmids the score phase did, or the re-derived budget disagrees with what was
+        // actually scored.
+        const seedPmids = new Set(seedList.filter(sd => sd.kind === 'pmid').map(sd => sd.id))
+        const budget = preFilterForScoring(clusters, byPmid, 200, seedPmids)
 
         // A CLUSTER THAT IS NOT ABOUT THE TOPIC DOES NOT GET A PAID PARAGRAPH. On the 2026-08-19
         // run every one of the 18 real clusters got a full 8,000-token call, and at least five of

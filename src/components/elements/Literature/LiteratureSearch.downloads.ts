@@ -38,6 +38,7 @@ export type DownloadContext = {
     m4Query?: string
     m4FromYear?: number
     m4ToYear?: number
+    m4Narrowing?: string[]
 }
 
 // ---- DOWNLOADS. --------------------------------------------------------------------------
@@ -53,7 +54,7 @@ export function makeDownloads(ctx: DownloadContext) {
     const {
         results, records, flags, picked, synthesis, included,
         question, model, isPico, sortLabel, provenance, session, setErr,
-        m4Corpus, m4Clusters, m4Narrative, m4Stats, m4Query, m4FromYear, m4ToYear,
+        m4Corpus, m4Clusters, m4Narrative, m4Stats, m4Query, m4FromYear, m4ToYear, m4Narrowing,
     } = ctx
 
     // Built from `result`, NEVER from the live `strategy` — the export must describe the toggled
@@ -187,6 +188,7 @@ export function makeDownloads(ctx: DownloadContext) {
         model,
         fromYear: m4FromYear ?? new Date().getFullYear() - 10,
         toYear: m4ToYear ?? new Date().getFullYear(),
+        narrowing: m4Narrowing,
     })
 
     const dlCorpus = () => {

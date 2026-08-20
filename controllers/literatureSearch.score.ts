@@ -34,7 +34,7 @@
 // records are worth spending a Bedrock call on at all. See its own comment below.
 import { PubRecord } from './literatureSearch.records'
 import { Cluster } from './literatureSearch.cluster'
-import { UsageLog, invoke, renderRecords, LONG_MAX_TOKENS } from './literatureSearch.llm'
+import { UsageLog, invoke, renderRecords, LONG_MAX_TOKENS, SCORING_MODEL_ID } from './literatureSearch.llm'
 import { RECORD_CAP } from './literatureSearch.strategy'
 
 // ---------------------------------------------------------------------------
@@ -75,38 +75,45 @@ const TIER_COMPONENT: Record<number, number> = {
 // can return today (1-9) is accounted for above or special-cased below.
 const FALLBACK_COMPONENT = TIER_COMPONENT[8]
 
-export function impactScoreOf(record: PubRecord): { score: number; justification: string } {
+export function impactScoreOf(record: PubRecord): { score: number; justification: string; evidenceBasis: 'percentile' | 'apt' | 'tier-only' } {
     // RETRACTED OVERRIDES EVERYTHING, unconditionally. See RETRACTED in literatureSearch.records.ts
     // for why: PubMed adds "Retracted Publication" ALONGSIDE a paper's original types rather than
     // replacing them, so a retracted RCT is still, truthfully, an RCT — and a blended score would
     // let that original design buy it a nonzero impact number. It must not. The justification is
     // exactly the tier's own phrase, which already says the one thing that matters here.
-    if (record.tier.rank === 9) return { score: 0, justification: record.tier.phrase }
+    if (record.tier.rank === 9) return { score: 0, justification: record.tier.phrase, evidenceBasis: 'tier-only' }
 
     const tierComponent = TIER_COMPONENT[record.tier.rank] ?? FALLBACK_COMPONENT
 
-    // MISSING IS NOT ZERO — the same rule withCitationMetrics() enforces one layer down, for the
-    // same reason. A 2024-2026 paper routinely has no iCite percentile yet, simply because it has
-    // not accumulated enough citation history to be scored — not because it scored badly. Folding
-    // that absence into the blend as a 0 would brand exactly the newest, most clinically current
-    // papers on the page as the weakest ones, which is the opposite of true. So an absent percentile
-    // falls back to the tier component ALONE — never a zero blended in, never omitted silently.
-    if (typeof record.nihPercentile !== 'number') {
+    if (typeof record.nihPercentile === 'number') {
+        const percentileComponent = record.nihPercentile / 100
+        const score = round2(clamp01(0.6 * tierComponent + 0.4 * percentileComponent))
         return {
-            score: round2(tierComponent),
-            justification: `${record.tier.phrase}; no iCite percentile yet — recent or unscored`,
+            score,
+            justification: `${record.tier.phrase}; ${record.nihPercentile}th percentile citation impact (iCite)`,
+            evidenceBasis: 'percentile',
         }
     }
 
-    // Both components are already within [0,1], so 0.6*tierComponent + 0.4*(pct/100) cannot
-    // mathematically leave [0,1] given a real 0-100 percentile — the clamp is defensive, not load-
-    // bearing, the same posture buildStrategy() takes with checkStrategy() after a value it already
-    // expects to be in range.
-    const percentileComponent = record.nihPercentile / 100
-    const score = round2(clamp01(0.6 * tierComponent + 0.4 * percentileComponent))
+    // NO PERCENTILE — a 2024-2026 paper has no citation history yet (see withCitationMetrics's own
+    // comment), but iCite's apt (Approximate Potential to Translate) is computed from the citing
+    // network's STRUCTURE rather than accumulated count, so it is available immediately. Falls back
+    // to the same 0.6/0.4 blend on this substitute rather than collapsing to the tier component alone
+    // — see PLAN-mode4-relevance-and-impact.md's "fix the recency skew" item.
+    if (typeof record.apt === 'number') {
+        const aptComponent = clamp01(record.apt)
+        const score = round2(clamp01(0.6 * tierComponent + 0.4 * aptComponent))
+        return {
+            score,
+            justification: `${record.tier.phrase}; ${Math.round(record.apt * 100)}% potential-to-translate (iCite, no percentile yet)`,
+            evidenceBasis: 'apt',
+        }
+    }
+
     return {
-        score,
-        justification: `${record.tier.phrase}; ${record.nihPercentile}th percentile citation impact (iCite)`,
+        score: round2(tierComponent),
+        justification: `${record.tier.phrase}; no iCite percentile or APT yet — recent or unscored`,
+        evidenceBasis: 'tier-only',
     }
 }
 
@@ -147,14 +154,18 @@ export function preFilterForScoring(
     clusters: Cluster[],
     byPmid: Map<string, PubRecord>,
     budget = 200,
+    seedPmids: Set<string> = new Set(),
 ): ScoreBudget {
-    // The uncategorized bucket gets no scoring budget — it is the fallthrough for records no seed
-    // MeSH term claimed, not a topic worth spending Bedrock on. A cluster whose pmids all fell out
-    // of byPmid (should not happen by construction — byPmid is built from the same corpus the
-    // clusters were, but this is cheap insurance) contributes nothing and is dropped here too, so
-    // the budget math below never divides by a cluster with no real members.
+    // THE UNCATEGORIZED BUCKET IS NO LONGER EXCLUDED — see PLAN-mode4-relevance-and-impact.md:
+    // "the shortlist should be drawn from the whole corpus." It used to get zero budget on the
+    // theory that a fallthrough bucket isn't a topic worth spending Bedrock on, but that meant 35%
+    // of a real corpus (819 records) couldn't be scored at all, and recent work skewed heavily into
+    // it. It is now just another cluster in `withMembers`, subject to the same floor+share rule as
+    // every real one. A cluster whose pmids all fell out of byPmid (should not happen by
+    // construction — byPmid is built from the same corpus the clusters were, but this is cheap
+    // insurance) still contributes nothing and is dropped below, so the budget math never divides
+    // by a cluster with no real members.
     const withMembers = clusters
-        .filter(c => !c.isUncategorized)
         .map(c => ({ id: c.id, members: c.pmids.map(p => byPmid.get(p)).filter((r): r is PubRecord => !!r) }))
         .filter(c => c.members.length)
 
@@ -189,6 +200,23 @@ export function preFilterForScoring(
         const share = totalMembers ? Math.floor(remaining * (c.members.length / totalMembers)) : 0
         const n = Math.min(c.members.length, floor + share)
         if (n) out[c.id] = rankForScoring(c.members).slice(0, n)
+    }
+
+    // SEEDED PMIDS ARE FORCED IN, regardless of what the deterministic ranker inside each cluster's
+    // slice picked — PLAN-mode4-relevance-and-impact.md: "the librarian gets to see what the tool
+    // thinks of the papers they already trust, which is the fastest way to calibrate trust in the
+    // rest." This is a deliberate, small exception to "no cluster exceeds its share" — a seed is a
+    // handful of records the librarian explicitly named, not the ranker's own allocation.
+    if (seedPmids.size) {
+        const clusterOf = new Map<string, string>()
+        for (const c of withMembers) for (const r of c.members) if (!clusterOf.has(r.pmid)) clusterOf.set(r.pmid, c.id)
+        for (const pmid of seedPmids) {
+            const clusterId = clusterOf.get(pmid)
+            const record = byPmid.get(pmid)
+            if (!clusterId || !record) continue   // not in this corpus at all — nothing to force
+            out[clusterId] ??= []
+            if (!out[clusterId].some(r => r.pmid === pmid)) out[clusterId].push(record)
+        }
     }
     return out
 }
@@ -333,7 +361,7 @@ async function attemptScoreBatch(
     if (criteria) parts.push(`Inclusion/exclusion criteria: ${criteria}`)
     parts.push(`Score all ${batch.length} records below. Return one score per record.\n\n${renderRecords(batch)}`)
 
-    const { input, usage } = await invoke(RELEVANCE_PROMPT, RELEVANCE_TOOL, parts.join('\n\n'), LONG_MAX_TOKENS)
+    const { input, usage } = await invoke(RELEVANCE_PROMPT, RELEVANCE_TOOL, parts.join('\n\n'), LONG_MAX_TOKENS, SCORING_MODEL_ID)
 
     const scores = new Map<string, { score: number; justification: string }>()
     for (const s of (input?.scores || [])) {

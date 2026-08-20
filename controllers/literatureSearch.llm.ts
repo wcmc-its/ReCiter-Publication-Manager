@@ -34,6 +34,13 @@ import {
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'us-east-1' })
 
+// Mode 4's relevance/impact scoring pins Sonnet 5 explicitly rather than inheriting whatever
+// BEDROCK_MODEL_ID holds — see PLAN-mode4-relevance-and-impact.md's "Sonnet 5 vs Opus 4.8"
+// decision: ReciterAI calibrated its impact anchors on Sonnet 4.6, so Sonnet 5 stays closest to
+// that calibration, at ~40% of Opus 4.8's cost. Verified live against AWS Bedrock
+// (list-inference-profiles, us-east-1, 2026-08-19) — this is a real CRIS id, not a guess.
+export const SCORING_MODEL_ID = 'us.anthropic.claude-sonnet-5'
+
 export function bedrockConfigured(): boolean {
     return !!process.env.BEDROCK_MODEL_ID
 }
@@ -55,12 +62,12 @@ const billed = (message: string, usage: UsageLog) => Object.assign(new Error(mes
 // Exported so Mode 4 Phase 5's labelClusters() (literatureSearch.cluster.ts) can make its own
 // forced-tool Bedrock call without a second copy of this primitive — same STRATEGY_TOOL/SCREEN_TOOL
 // convention (system prompt + one forced tool + a user message), just a different tool.
-export async function invoke(system: string, tool: any, user: string, maxTokens = 2000) {
-    const modelId = process.env.BEDROCK_MODEL_ID
-    if (!modelId) throw new Error('BEDROCK_MODEL_ID is not configured')
+export async function invoke(system: string, tool: any, user: string, maxTokens = 2000, modelId?: string) {
+    const model = modelId || process.env.BEDROCK_MODEL_ID
+    if (!model) throw new Error('BEDROCK_MODEL_ID is not configured')
 
     const res = await bedrock.send(new InvokeModelCommand({
-        modelId,                                    // command parameter, NOT a body field
+        modelId: model,                              // command parameter, NOT a body field
         contentType: 'application/json',
         accept: 'application/json',
         body: JSON.stringify({

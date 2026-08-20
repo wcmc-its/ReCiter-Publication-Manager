@@ -70,6 +70,11 @@ export type RunFacts = {
     sort?: string
     model?: string             // the Bedrock profile id, verbatim
     unsupportedLimits?: string[]
+    // MODE 4 ONLY. Each entry is one narrowing-ladder step already rendered as a human-readable
+    // line ("dropped 'revers*[tiab]' (Reversal agents): 2,666 → 2,364") — see narrowForBudget()
+    // in literatureSearch.corpus.ts, which produces the structured steps this is built from. Absent
+    // (or empty) means the ladder never fired: the corpus came back under threshold on the first count.
+    narrowing?: string[]
 }
 
 export function reproHeader(f: RunFacts): Block[] {
@@ -111,6 +116,9 @@ export function reproHeader(f: RunFacts): Block[] {
                 ? [['Limits NOT applied', dialect.countable
                     ? `${f.unsupportedLimits.join('; ')} — ${dialect.name} cannot express this limit, so the count above is not restricted by it`
                     : `${f.unsupportedLimits.join('; ')} — apply these in Ovid's own Limits panel after running the strategy. They are not part of the query text above.`]]
+                : []),
+            ...(f.narrowing?.length
+                ? [['Narrowing ladder', f.narrowing.join('; ')]]
                 : []),
             ...(f.sort ? [['Ranking', f.sort]] : []),
             ...(f.cwid ? [['Searched by', f.cwid]] : []),

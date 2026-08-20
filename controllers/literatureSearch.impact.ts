@@ -32,7 +32,7 @@
 // its axes into one scalar. impactScoreOf() is free, deterministic, and covers 100% of the corpus;
 // this is paid, judged, and covers the shortlist. A reader gets to sort on either.
 import { PubRecord } from './literatureSearch.records'
-import { UsageLog, invoke, LONG_MAX_TOKENS } from './literatureSearch.llm'
+import { UsageLog, invoke, LONG_MAX_TOKENS, SCORING_MODEL_ID } from './literatureSearch.llm'
 import { RECORD_CAP } from './literatureSearch.strategy'
 
 // ReciterAI's own prompt-version marker, carried across so a score can be traced to the wording that
@@ -281,7 +281,7 @@ async function attemptImpactBatch(
     const userMsg = `Score all ${batch.length} papers below. Return one entry per paper.\n\n`
         + batch.map(renderForImpact).join('\n\n---\n\n')
 
-    const { input, usage } = await invoke(IMPACT_PROMPT, IMPACT_TOOL, userMsg, LONG_MAX_TOKENS)
+    const { input, usage } = await invoke(IMPACT_PROMPT, IMPACT_TOOL, userMsg, LONG_MAX_TOKENS, SCORING_MODEL_ID)
 
     const scores = new Map<string, ImpactJudgment>()
     for (const s of (input?.scores || [])) {
