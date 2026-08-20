@@ -335,6 +335,41 @@ export function hoistFilters(s: Strategy): Strategy {
     }
 }
 
+// ADDING a humans filter, where hoistFilters() above only ever RELOCATES one.
+//
+// The distinction mattered more than it looks. hoistFilters returns the strategy untouched when it
+// finds nothing to hoist, and the only prompt that ever ASKS for a humans block is REVIEW_PROMPT —
+// which Mode 4 does not use (it builds on the maximum-recall SYSTEM_PROMPT, whose whole instruction
+// is that a yield in the thousands is a success). So on the Mode 4 path a humans filter was not
+// merely absent from one run: it was structurally unreachable. The 2026-08-19 corpus accordingly
+// carried 24 papers from Vet Anaesth Analg, a review of crocodilian sedation, and a clove-oil
+// anaesthesia study in three Amazon fish species, in a review about adult surgical patients.
+//
+// THE FORM OF THE FILTER IS THE WHOLE CARE HERE. A bare `AND Humans[MeSH]` is the obvious version
+// and it is wrong for this feature: MeSH is applied by human indexers months after publication, so
+// an AND against it silently drops every record not yet indexed — which is disproportionately the
+// most recent work, the papers a decade-wide review most wants. On the 2026-08-19 corpus that is
+// the 2025-26 records, roughly a fifth of the set.
+//
+// `NOT (animals[mh] NOT humans[mh])` is the standard idiom precisely because it excludes only what
+// has been POSITIVELY indexed as animal-only. An unindexed record matches neither side of the inner
+// NOT, so it survives — absence of evidence does not become exclusion.
+//
+// IT IS A STRING TRANSFORM ON THE ASSEMBLED QUERY, NOT A CONCEPT BLOCK, and that is forced rather
+// than chosen: assembleQuery() wraps every concept in parentheses and joins them with AND, which
+// would yield `... AND (NOT (...))`. PubMed's parser takes NOT as a binary operator and rejects it
+// with no left operand, so the clause has to sit at the top level of the finished query. Putting it
+// in `limits` fails the same way — that path emits `AND <limits>`, giving `AND NOT`.
+export const HUMANS_NOT_CLAUSE = 'NOT ("Animals"[Mesh] NOT "Humans"[Mesh])'
+
+export function appendHumansFilter(query: string): string {
+    if (!query) return query
+    // Already scoped by the strategy itself — don't double up, and don't override a librarian who
+    // deliberately went looking for animal work.
+    if (/\banimals?\s*\[(mesh|mh)\]/i.test(query)) return query
+    return `${query} ${HUMANS_NOT_CLAUSE}`
+}
+
 // THE MODEL'S ANSWER IS INPUT TOO, AND IT GETS THE SAME BOUNDS THE BROWSER'S DOES.
 //
 // The route bounds the strategy the browser POSTS BACK for a re-count; nothing bounded what the
@@ -722,6 +757,33 @@ export async function suggestFixes(
 // batch-of-50-justifications call the same ceiling, rather than hand-copying the number and the
 // reasoning behind it.
 export const LONG_MAX_TOKENS = 8000
+
+// SCAFFOLDING THE MODEL EMITS ABOUT ITS OWN TOOL CALL IS NOT PROSE, AND MUST NEVER REACH A READER.
+// Observed in the 2026-08-19 bibliometric run: one cluster's paragraph ended with a literal
+// `</parameter>` and was followed by a literal `</invoke>` — the model closing tags it had opened in
+// its own head. Both were written verbatim into word/document.xml, XML-escaped by the docx writer
+// and rendered to the reader as visible garbage in the middle of a clinical document.
+//
+// This strips only the tool-call vocabulary — the `antml:`-namespaced tags and the four bare tag
+// names Anthropic tool syntax uses — never arbitrary angle-bracketed text, because real biomedical
+// prose contains `<0.001` and `p<0.05` and stripping those would corrupt the findings we are here
+// to report. Anything not on this list survives untouched.
+//
+// It is a NET, NOT A FIX: the model should not emit these at all, and a run that trips this is worth
+// knowing about, so it logs. Deliberately unlike the invented-PMID check next door, which only ever
+// reports — that one alters meaning if it edits, this one only removes text that never had any.
+const SCAFFOLD_TAG = /<\/?\s*(?:antml:[a-z_-]+|function_calls|invoke|parameter|thinking)\b[^>]*>/gi
+
+export function stripScaffolding(text: string, where: string): string {
+    if (!SCAFFOLD_TAG.test(text)) return text
+    SCAFFOLD_TAG.lastIndex = 0
+    const cleaned = text.replace(SCAFFOLD_TAG, '').replace(/[ \t]+\n/g, '\n').trim()
+    console.error(JSON.stringify({
+        tag: 'literature-model-scaffolding-stripped', where,
+        why: 'the model emitted tool-call syntax inside its prose; removed before export',
+    }))
+    return cleaned
+}
 
 // One first pass plus two re-asks. Three, not "until complete": a model that has skipped the same record
 // twice is telling you something, and an unbounded loop over a paid call is how a screen quietly costs
@@ -1116,7 +1178,7 @@ export async function synthesize(
         LONG_MAX_TOKENS,
     )
 
-    const prose = String(input?.prose ?? '').trim()
+    const prose = stripScaffolding(String(input?.prose ?? '').trim(), 'synthesize')
     if (!prose) throw new Error('model did not return a synthesis')
 
     // The row-level defence against the SAME lost-in-the-middle drop that afflicts the screen lives

@@ -14,7 +14,7 @@
 //   See its own comment below for why that is deliberate, not merely convenient.
 import { PubRecord } from './literatureSearch.records'
 import { Cluster } from './literatureSearch.cluster'
-import { UsageLog, invoke, renderRecords, LONG_MAX_TOKENS, SYNTH_RULES_HEAD } from './literatureSearch.llm'
+import { UsageLog, invoke, renderRecords, LONG_MAX_TOKENS, SYNTH_RULES_HEAD, stripScaffolding } from './literatureSearch.llm'
 import { YearCount, EvidenceMixByYear } from './literatureSearch.corpus'
 
 // ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ export async function synthesizeCluster(
         LONG_MAX_TOKENS,
     )
 
-    const paragraph = String(input?.paragraph ?? '').trim()
+    const paragraph = stripScaffolding(String(input?.paragraph ?? '').trim(), `cluster:${cluster.id}`)
     if (!paragraph) throw new Error('model did not return a synthesis')
 
     // Same detection synthesize() runs on its prose: regex out every [PMID \d+], compare against
@@ -185,11 +185,22 @@ export function assembleNarrativeReview(
     // No evidenceMixByYear data is not "0% everything" — that would read as three arithmetic-
     // looking percentages that do not actually describe anything. Say nothing about the mix rather
     // than publish a headline with no records behind it.
+    // THE REMAINDER IS SUBTRACTED, NOT ROUNDED. Rounding all three independently produced
+    // "17% ... 6% ... 78%" on the 2026-08-19 run — 101% in a document whose whole claim is that its
+    // numbers are checkable. Two are rounded and the third is whatever is left, so the three always
+    // sum to exactly 100.
+    //
+    // "Clinical trial" (non-randomized) genuinely is not RCT/meta-analysis/systematic-review
+    // evidence, so it stays out of the first bucket — but it is also not a guideline or a case
+    // report, and the old wording filed it under those. The third bucket is now named for what it
+    // actually holds rather than listed as if it were exhaustive.
+    const higherPct = pct(higherTier, mixTotal)
+    const obsPct = pct(observational, mixTotal)
     const mixSentence = mixTotal
-        ? ` Of the evidence indexed by year, ${pct(higherTier, mixTotal)}% is RCT, meta-analysis or `
-        + `systematic-review evidence; ${pct(observational, mixTotal)}% is observational; the `
-        + `remaining ${pct(otherDesign, mixTotal)}% is guidelines, narrative reviews, case reports `
-        + `and other designs.`
+        ? ` Of the evidence indexed by year, ${higherPct}% is RCT, meta-analysis or `
+        + `systematic-review evidence; ${obsPct}% is observational; the `
+        + `remaining ${100 - higherPct - obsPct}% is other designs — non-randomized clinical trials, `
+        + `guidelines, narrative reviews, case reports and records PubMed has not indexed with a study design.`
         : ''
 
     // Optional trend note: mean of the first half of publicationsPerYear vs. the second half.
@@ -197,12 +208,6 @@ export function assembleNarrativeReview(
     // belongs here. Skipped outright below two years of data (nothing to compare) or when both
     // halves are empty (nothing happened either way).
     const trendSentence = trendNote(corpusStats.publicationsPerYear)
-
-    const intro = `This review covers ${corpusStats.totalRecords.toLocaleString()} records published `
-        + `between ${corpusStats.fromYear} and ${corpusStats.toYear}, organized into `
-        + `${realClusters.length} topic cluster${realClusters.length === 1 ? '' : 's'}.`
-        + mixSentence
-        + trendSentence
 
     // clusterNarratives filtered to real clusters (a narrative for the uncategorized bucket, or for
     // any id that is no longer a real cluster, is simply absent from `sizeById` and drops out here),
@@ -213,6 +218,26 @@ export function assembleNarrativeReview(
     const sections = clusterNarratives
         .filter(n => sizeById.has(n.clusterId))
         .sort((a, b) => (sizeById.get(b.clusterId)! - sizeById.get(a.clusterId)!) || a.clusterId.localeCompare(b.clusterId))
+
+    // A MISSING SECTION IS DISCLOSED, NOT JUST OMITTED. The caller may decline to write a narrative
+    // for a cluster that scored below its relevance floor (see handleM4Synthesize) — which is the
+    // point, since paying a model to write "this cluster is not relevant" is what this replaced. But
+    // a reader looking at a roster of 18 clusters and finding 13 write-ups must be told why, or the
+    // five missing ones look like a failure. Derived from the two counts this function already
+    // holds, so nothing new has to be threaded through to say it.
+    const unwritten = realClusters.length - sections.length
+    const skipSentence = unwritten > 0
+        ? ` ${unwritten} cluster${unwritten === 1 ? '' : 's'} scored too far off-topic for a written `
+        + `summary and ${unwritten === 1 ? 'is' : 'are'} listed in the cluster table without one; `
+        + `${unwritten === 1 ? 'its' : 'their'} papers remain in every count and in the corpus table.`
+        : ''
+
+    const intro = `This review covers ${corpusStats.totalRecords.toLocaleString()} records published `
+        + `between ${corpusStats.fromYear} and ${corpusStats.toYear}, organized into `
+        + `${realClusters.length} topic cluster${realClusters.length === 1 ? '' : 's'}.`
+        + mixSentence
+        + trendSentence
+        + skipSentence
 
     return {
         intro,

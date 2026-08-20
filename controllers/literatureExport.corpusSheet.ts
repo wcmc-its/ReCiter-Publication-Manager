@@ -38,8 +38,17 @@ import { Sheet, RecordLike } from './literatureExport.sheets'
 export type ScoredRecordLike = RecordLike & {
     caseSeriesProbable?: boolean
     clusterLabel?: string
+    // THREE AXES, THREE COLUMN PAIRS, NEVER PRE-BLENDED INTO ONE. evidenceScore is the free
+    // deterministic prior (evidence tier x iCite percentile), computed for every record; impactScore
+    // is the model's ReciterAI-calibrated 0-100 judgment and relevanceScore is topic fit, both only
+    // for the shortlist. Keeping them apart is what lets a reader sort the sheet by whichever
+    // question they actually have — "what is the strongest evidence here", "what are the most
+    // important papers", "what is most on-topic" are three different questions with three different
+    // answers, and a composite would answer none of them.
+    evidenceScore?: number; evidenceJustification?: string
     impactScore?: number; impactJustification?: string
     relevanceScore?: number; relevanceJustification?: string
+    nihPercentile?: number
 }
 
 export function corpusSheet(
@@ -51,10 +60,11 @@ export function corpusSheet(
             name: 'Records',
             head: [
                 'PMID', 'Title', 'Authors', 'Year', 'Journal', 'Evidence type', 'Case series',
-                'Cluster', 'Impact score', 'Impact justification', 'Relevance score',
+                'Cluster', 'NIH percentile', 'Evidence score', 'Evidence justification',
+                'Impact score (0-100)', 'Impact justification', 'Relevance score',
                 'Relevance justification', 'Link',
             ],
-            // Every row has exactly 13 cells, matching the 13-column head above — no conditional
+            // Every row has exactly 16 cells, matching the 16-column head above — no conditional
             // spread here (unlike recordSheets' `cut` branch), because unlike that sheet nothing
             // about THIS sheet's shape ever changes row to row or run to run. A short row would
             // silently shift every later cell one column left for that record alone (see sheets.ts's
@@ -79,6 +89,12 @@ export function corpusSheet(
                 // Number(undefined) coerced to 0 would read as "scored, and scored at rock bottom,"
                 // when the truth is "never sent to a scorer at all." A blank cell is the only honest
                 // rendering of "not in the shortlist."
+                // The raw iCite percentile, first, because it is the one number here that is a
+                // MEASUREMENT rather than a judgment — no model touched it. Blank for the recent
+                // papers iCite has not scored yet, never 0.
+                typeof r.nihPercentile === 'number' ? r.nihPercentile : '',
+                typeof r.evidenceScore === 'number' ? r.evidenceScore : '',
+                r.evidenceJustification ?? '',
                 typeof r.impactScore === 'number' ? r.impactScore : '',
                 r.impactJustification ?? '',
                 typeof r.relevanceScore === 'number' ? r.relevanceScore : '',

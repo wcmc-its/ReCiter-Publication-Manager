@@ -9,8 +9,9 @@
 // MeSH — the clustering half of this feature needs it — and Embase is Ovid-only, no API), so this
 // file never takes a `db` parameter the way strategy.ts's Dialect table does.
 import { Strategy, assembleQuery } from './literatureSearch.strategy'
-import { PubRecord, fetchRecords } from './literatureSearch.records'
+import { PubRecord, fetchRecords, withCitationMetrics } from './literatureSearch.records'
 import { countPubmed } from './literatureSearch.counting'
+import { appendHumansFilter } from './literatureSearch.llm'
 
 // ---------------------------------------------------------------------------
 // PHASE 2 — full-corpus retrieval, sharded by year.
@@ -39,6 +40,12 @@ export type Corpus = {
     shards: YearShard[]             // one entry per year, in order — the trend axis for Phase 4
     duplicates: number              // PMIDs seen in more than one shard (MEDLINE entry-date vs.
                                      // print-date can straddle a year boundary)
+    // THE QUERY ACTUALLY RUN, minus the per-year [dp] shard — returned rather than left for the
+    // caller to re-derive with its own assembleQuery() call. This function no longer just assembles
+    // the strategy: it appends the humans filter too, so a caller re-deriving the query would print
+    // one thing in the reproducibility appendix and have searched another. A "paste this into PubMed
+    // to reproduce the count above" line that does not reproduce the count is worse than no line.
+    query: string
 }
 
 // A transient fetch failure on ONE year must not lose the other nine — retry the shard a few
@@ -58,7 +65,12 @@ async function fetchShard(query: string, cap: number, attempts = 3): Promise<Pub
 }
 
 export async function fetchCorpus(strategy: Strategy, fromYear: number, toYear: number): Promise<Corpus> {
-    const base = assembleQuery(strategy)
+    // Mode 4 builds on the maximum-recall prompt, which never asks for a humans block and whose
+    // stated posture is that retrieving irrelevant records is fine because a human screens them
+    // later. That trade is right for Mode 1, where a librarian reads the yield; it is wrong here,
+    // where the "screening" is a model paid per paper and the yield goes straight into a document.
+    // See appendHumansFilter for why this is a string append and not a concept block.
+    const base = appendHumansFilter(assembleQuery(strategy))
     const shards: YearShard[] = []
 
     for (let y = fromYear; y <= toYear; y++) {
@@ -94,7 +106,21 @@ export async function fetchCorpus(strategy: Strategy, fromYear: number, toYear: 
         }
     }
 
-    return { records: [...byPmid.values()], shards, duplicates: seen - byPmid.size }
+    // ENRICH ONCE, OVER THE DEDUPED CORPUS — not per shard. iCite is keyless and free, so the only
+    // cost is HTTP round-trips, and enriching here is one batched pass over N unique PMIDs instead
+    // of a pass per year over PMIDs we are about to dedup anyway.
+    //
+    // This call is why impactScoreOf() has a percentile to blend at all. Mode 2/3 got its enrichment
+    // from runReview(); Mode 4 retrieves through this function and had no equivalent step, so every
+    // record reached scoring with `nihPercentile` undefined, impactScoreOf() took its
+    // missing-percentile branch on all of them, and the "impact score" collapsed into a restatement
+    // of the evidence tier. Verified against the live API on the 2026-08-19 run's own 2,320 PMIDs:
+    // iCite scores 100% of 2016-2024 and 0% of 2025-26, so this recovers a real percentile on ~81%
+    // of a decade-wide corpus. The remaining recent papers stay legitimately unscored — see
+    // withCitationMetrics's own comment on why missing must never render as zero.
+    const records = await withCitationMetrics([...byPmid.values()])
+
+    return { records, shards, duplicates: seen - byPmid.size, query: base }
 }
 
 // ---------------------------------------------------------------------------

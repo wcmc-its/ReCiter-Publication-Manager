@@ -413,9 +413,18 @@ function CorpusRow({ r }: { r: M4Record }) {
                     <span className={`${s.tag} ${s.tagDesign}`}>{r.design}</span>
                     {r.clusterLabel && <span className={`${s.tag} ${s.tagOther}`}>{r.clusterLabel}</span>}
                     {r.caseSeriesProbable && <span className={`${s.tag} ${s.tagOther}`}>Case series (probable)</span>}
+                    {/* THE MEASUREMENT BEFORE THE JUDGMENTS. The percentile is iCite's, not a
+                        model's, and it is the only number on this row a reader can go and verify
+                        against a public API — so it leads, and it renders as nothing at all when
+                        absent rather than as a zero (see withCitationMetrics on why). */}
+                    {typeof r.nihPercentile === 'number' && (
+                        <span className={`${s.tag} ${s.tagCite}`} title="NIH iCite field- and year-normalised citation percentile">
+                            NIH {r.nihPercentile}th pct
+                        </span>
+                    )}
                     {typeof r.impactScore === 'number' && (
                         <span className={`${s.tag} ${s.tagCite}`} title={r.impactJustification}>
-                            Impact {r.impactScore.toFixed(2)}
+                            Impact {r.impactScore}
                         </span>
                     )}
                     {typeof r.relevanceScore === 'number' && (
@@ -441,9 +450,30 @@ export function CorpusTablePanel({ corpus }: { corpus: M4Record[] }) {
     const evidenceTypes = useMemo(() => [...new Set(corpus.map(r => r.design))].sort(), [corpus])
     const clusterLabels = useMemo(() => [...new Set(corpus.map(r => r.clusterLabel).filter(Boolean))].sort() as string[], [corpus])
 
-    const filtered = useMemo(() => corpus.filter(r =>
-        (!evidenceFilter || r.design === evidenceFilter) && (!clusterFilter || r.clusterLabel === clusterFilter),
-    ), [corpus, evidenceFilter, clusterFilter])
+    // SORTED, BECAUSE THE UNSORTED ORDER WAS ACTIVELY MISLEADING. This used to render in whatever
+    // order fetchCorpus's dedup map happened to produce — year-shard ascending — so the first page a
+    // reader saw was the oldest records in the corpus, which on the 2026-08-19 run meant three
+    // off-topic 2017 papers above the fold and the corpus's single most-cited paper (a Cochrane
+    // review, 268 citations, 99th percentile) buried thousands of rows down.
+    //
+    // Scored records first, best first; everything else keeps its retrieval order behind them. The
+    // key is deliberately the two SHORTLIST axes and not the corpus-wide evidence prior: a reader
+    // opening this table wants the papers a model actually read and vouched for at the top, and
+    // ranking on the prior would just re-sort the whole corpus by study design, which the evidence
+    // filter above already does better and on demand.
+    const filtered = useMemo(() => {
+        const rank = (r: M4Record) =>
+            typeof r.impactScore === 'number' || typeof r.relevanceScore === 'number'
+                ? (r.impactScore ?? 0) / 100 + (r.relevanceScore ?? 0)
+                : -1
+        return corpus
+            .filter(r => (!evidenceFilter || r.design === evidenceFilter) && (!clusterFilter || r.clusterLabel === clusterFilter))
+            .map((r, i) => ({ r, i, k: rank(r) }))
+            // Index as the final tie-break keeps this a STABLE sort across engines — the unscored
+            // tail all share k = -1, and without it their order could differ between browsers.
+            .sort((a, b) => (b.k - a.k) || (a.i - b.i))
+            .map(x => x.r)
+    }, [corpus, evidenceFilter, clusterFilter])
 
     const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
     const clampedPage = Math.min(page, pageCount - 1)

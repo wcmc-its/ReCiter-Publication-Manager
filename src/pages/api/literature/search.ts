@@ -97,6 +97,7 @@ import {
     impactScoreOf,
     preFilterForScoring,
     scoreRelevance,
+    scoreImpact,
     ClusterNarrative,
     synthesizeCluster,
     assembleNarrativeReview,
@@ -654,6 +655,26 @@ function parseM4Scores(raw: any): Map<string, { score: number; justification: st
     return out
 }
 
+// The model-judged impact axis, on the same metadata round-trip as the relevance scores above.
+// Clamped and rounded on the way back IN as well as on the way out, for the same reason every other
+// parseM4* function re-validates: this value has been through the client, and a value that has left
+// the server is an input again when it returns, whatever it was when it left.
+function parseM4Impact(raw: any): Map<string, { score: number; justification: string }> {
+    const out = new Map<string, { score: number; justification: string }>()
+    if (!Array.isArray(raw)) return out
+    for (const x of raw) {
+        const pmid = s(x?.pmid, 20)
+        const score = Number(x?.score)
+        if (pmid && Number.isFinite(score)) {
+            out.set(pmid, {
+                score: Math.max(0, Math.min(100, Math.round(score))),
+                justification: s(x?.justification, 400),
+            })
+        }
+    }
+    return out
+}
+
 // The six real evidence tiers the SearchForm checklist controls (see EVIDENCE_TIERS in
 // LiteratureSearch.constants.ts — that file owns the id/label/default the checkboxes render, this
 // is just the label set filterByEvidenceTiers() needs to resolve "everything except what got
@@ -674,19 +695,29 @@ function resolveKeepTiers(evidenceTiers: any): Set<string> {
 // call. relevanceScore stays sparse on purpose (see corpusSheet.ts's own "blank = not in the
 // shortlist" contract) — it is the one column this function does NOT fill in for every row.
 function decorateCorpus(
-    corpus: PubRecord[], clusters: Cluster[], scores: Map<string, { score: number; justification: string }>,
+    corpus: PubRecord[], clusters: Cluster[],
+    scores: Map<string, { score: number; justification: string }>,
+    impactJudged: Map<string, { score: number; justification: string }> = new Map(),
 ) {
     const clusterLabelByPmid = new Map<string, string>()
     for (const c of clusters) for (const p of c.pmids) clusterLabelByPmid.set(p, c.label)
 
     return corpus.map(r => {
-        const impact = impactScoreOf(r)
+        const prior = impactScoreOf(r)
         const rel = scores.get(r.pmid)
+        const judged = impactJudged.get(r.pmid)
         return {
             ...r,
             clusterLabel: clusterLabelByPmid.get(r.pmid) ?? '',
-            impactScore: impact.score,
-            impactJustification: impact.justification,
+            // THREE AXES, KEPT APART ON THE ROW. `evidenceScore` is the free deterministic prior
+            // (evidence tier blended with the iCite percentile) and covers 100% of the corpus;
+            // `impactScore` is the model's ReciterAI-calibrated 0-100 judgment and covers only the
+            // shortlist; `relevanceScore` is topic fit, same shortlist. None is derived from
+            // another and none is blended into a composite here — a composite is a query-time
+            // decision the table makes when a reader picks a sort, not a number baked into the row.
+            evidenceScore: prior.score,
+            evidenceJustification: prior.justification,
+            ...(judged ? { impactScore: judged.score, impactJustification: judged.justification } : {}),
             ...(rel ? { relevanceScore: rel.score, relevanceJustification: rel.justification } : {}),
         }
     })
@@ -772,7 +803,10 @@ async function handleM4Retrieve(req: NextApiRequest, res: NextApiResponse, cwid:
             // why this mode has no single query the way Modes 1-3 do. Carried in state and threaded
             // into every export's RunFacts, same field name, so the export builders need no
             // Mode-4-specific branch to find it.
-            query: assembleQuery(built.strategy),
+            // corpus.query, NOT assembleQuery(built.strategy) — fetchCorpus appends the humans
+            // filter, so re-deriving here would print a query that does not reproduce the count
+            // printed beside it.
+            query: corpus.query,
             fromYear, toYear,
             corpus: records,
             hotYears: hotYears.map(sh => ({ year: sh.year, hits: sh.hits, error: sh.error })),
@@ -838,12 +872,33 @@ async function handleM4Score(req: NextApiRequest, res: NextApiResponse, cwid: st
         // abstract (parseM4Corpus forces it blank), so scoring the actual text means going back to
         // PubMed for it, same discipline Mode 2/3's screen/synthesize phases already apply.
         const withAbstracts = shortlistPmids.length ? await fetchByPmids(shortlistPmids) : []
-        const { scores, usage } = await scoreRelevance(String(question || ''), criteria, withAbstracts)
 
-        logCost('bibliometric-review:score', cwid, usage, { shortlist: shortlistPmids.length, scored: scores.size })
+        // TWO INDEPENDENT AXES, SCORED CONCURRENTLY. Relevance answers "is this paper about the
+        // topic the librarian typed"; impact answers "how strong a paper is it, on its own terms".
+        // Neither reads the other's answer, so there is no reason to pay for them serially — a
+        // shortlist of 200 is 4 batches each way, and running them in sequence would put the second
+        // set of round-trips on the clock a librarian is already waiting through.
+        //
+        // Both are Promise.all-safe because neither ever rejects: each catches its own batch
+        // failures and returns whatever it managed to score (see scoreRelevance's own comment on
+        // why a scoring gap must never propagate). A rejection here would lose BOTH axes.
+        const [rel, imp] = await Promise.all([
+            scoreRelevance(String(question || ''), criteria, withAbstracts),
+            scoreImpact(withAbstracts),
+        ])
+        const { scores, usage } = rel
+
+        const totalUsage = {
+            inputTokens: usage.inputTokens + imp.usage.inputTokens,
+            outputTokens: usage.outputTokens + imp.usage.outputTokens,
+        }
+        logCost('bibliometric-review:score', cwid, totalUsage, {
+            shortlist: shortlistPmids.length, scored: scores.size, impactScored: imp.scores.size,
+        })
         return res.status(200).send({
             statusCode: 200,
             scores: Array.from(scores, ([pmid, v]) => ({ pmid, ...v })),
+            impact: Array.from(imp.scores, ([pmid, v]) => ({ pmid, ...v })),
         })
     } catch (err: any) {
         console.error('[literature] bibliometric score failed:', err)
@@ -863,6 +918,7 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
         const corpus = parseM4Corpus(body.corpus)
         const clusters = parseM4Clusters(body.clusters)
         const scores = parseM4Scores(body.scores)
+        const impactJudged = parseM4Impact((body as any).impact)
         const byPmid = new Map(corpus.map(r => [r.pmid, r]))
         const topic = String(question || '')
 
@@ -872,13 +928,52 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
         // synthesis shortlist the deterministic rules would not themselves have picked.
         const budget = preFilterForScoring(clusters, byPmid, 200)
 
+        // A CLUSTER THAT IS NOT ABOUT THE TOPIC DOES NOT GET A PAID PARAGRAPH. On the 2026-08-19
+        // run every one of the 18 real clusters got a full 8,000-token call, and at least five of
+        // the resulting sections consisted entirely of a courteous explanation that the cluster was
+        // irrelevant — "the cluster is therefore not informative for the stated review question and
+        // is summarized here only for completeness". The largest of those, 155 papers of androgen-
+        // receptor biology, was pulled in by an over-broad MeSH term and had nothing to do with the
+        // question. We paid a model to tell us so, at length, in the deliverable.
+        //
+        // The gate is the relevance score that was ALREADY computed for this cluster's shortlist, so
+        // it costs nothing new. It is a MEAN over the scored members rather than a max, because one
+        // on-topic paper in a cluster of androgen pharmacology does not make the cluster on-topic —
+        // which is exactly the shape of the failure being fixed.
+        //
+        // A cluster with no scored members at all is NOT gated out: that means preFilterForScoring
+        // gave it no budget, which is a statement about the cluster's size, not its relevance, and
+        // silently dropping it would hide a real topic rather than a spurious one.
+        const NARRATIVE_RELEVANCE_FLOOR = 0.25
+        const meanRelevance = (c: Cluster) => {
+            const scored = c.pmids.map(p => scores.get(p)?.score).filter((n): n is number => typeof n === 'number')
+            return scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : null
+        }
+
         const realClusters = clusters.filter(c => !c.isUncategorized)
-        const perCluster = realClusters.map(c => {
+        const skipped: Array<{ id: string; label: string; meanRelevance: number }> = []
+        const perCluster = realClusters.flatMap(c => {
+            const mean = meanRelevance(c)
+            if (mean !== null && mean < NARRATIVE_RELEVANCE_FLOOR) {
+                skipped.push({ id: c.id, label: c.label, meanRelevance: Math.round(mean * 100) / 100 })
+                return []
+            }
             const candidates = (budget[c.id] || [])
                 .map(r => ({ r, rank: impactScoreOf(r).score + (scores.get(r.pmid)?.score || 0) }))
                 .sort((a, b) => b.rank - a.rank)
-            return { cluster: c, top: candidates.slice(0, 10).map(x => x.r.pmid) }
+            return [{ cluster: c, top: candidates.slice(0, 10).map(x => x.r.pmid) }]
         })
+
+        // NEVER SILENTLY. A cluster that was dropped still appears in the cluster roster, the corpus
+        // table and every bibliometric count — only its paid narrative section is skipped — but a
+        // reader must be able to find out that a section they might have expected is missing, and
+        // why. Logged here; disclosed to the reader by assembleNarrativeReview's own intro.
+        if (skipped.length) {
+            console.error(JSON.stringify({
+                tag: 'literature-narrative-skipped-offtopic', floor: NARRATIVE_RELEVANCE_FLOOR, skipped,
+                why: 'these clusters scored below the relevance floor; no narrative section was written for them',
+            }))
+        }
 
         // ONE BATCHED RE-FETCH for every cluster's shortlist at once, not one fetchByPmids() call
         // per cluster — the same "batch, don't loop" instinct labelClusters() already applies to
@@ -914,7 +1009,7 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
             statusCode: 200,
             model: process.env.BEDROCK_MODEL_ID,
             narrative,
-            corpus: decorateCorpus(corpus, clusters, scores),
+            corpus: decorateCorpus(corpus, clusters, scores, impactJudged),
             cwid,
             date: new Date().toISOString().slice(0, 10),
         })

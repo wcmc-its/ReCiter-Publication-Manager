@@ -37,13 +37,18 @@ function yearCountsFor(pmids: Set<string>, corpus: M4Record[]): number[] {
 function ClusterRow({ cluster, corpus }: { cluster: Cluster; corpus: M4Record[] }) {
     const pmidSet = new Set(cluster.pmids)
     const trend = trendWord(yearCountsFor(pmidSet, corpus))
-    // Representative papers: the same rank the synthesis shortlist used server-side
-    // (impactScore + relevanceScore), top 3, shown as a quick "what's in here" sample — not a
-    // claim about which papers the narrative actually cited (see the cluster's own narrative
-    // section for that, in citedPmids).
+    // Representative papers: impact and relevance summed, top 3, shown as a quick "what's in here"
+    // sample — not a claim about which papers the narrative actually cited (see the cluster's own
+    // narrative section for that, in citedPmids).
+    //
+    // impactScore is a 0-100 integer and relevanceScore is a 0-1 float, so the impact term is
+    // divided by 100 before they are added. Summing them raw would make relevance a rounding error
+    // against a number a hundred times its size, and the "representative" papers would silently
+    // become "the three most impactful papers, on-topic or not" — which is exactly the failure the
+    // rest of this review is about.
     const top = corpus
         .filter(r => pmidSet.has(r.pmid))
-        .map(r => ({ r, rank: (r.impactScore || 0) + (r.relevanceScore || 0) }))
+        .map(r => ({ r, rank: (r.impactScore || 0) / 100 + (r.relevanceScore || 0) }))
         .sort((a, b) => b.rank - a.rank)
         .slice(0, 3)
         .map(x => x.r)

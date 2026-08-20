@@ -457,6 +457,42 @@ const checkPreFilterForScoring = (lit) => {
 // MODE 4, PHASE 6a — impactScoreOf(). PURE, deterministic, NO LLM. See the file's own header
 // comment for the two-score design (this one is free arithmetic over tier + iCite; the other,
 // scoreRelevance(), is the one Bedrock call and is out of scope here).
+const checkStripScaffolding = (lit) => {
+    // THIS SHIPPED. The 2026-08-19 bibliometric run put a literal `</parameter>` at the end of one
+    // cluster's paragraph and a literal `</invoke>` in the paragraph after it, straight into
+    // word/document.xml — the model closing tags it had opened in its own head, XML-escaped by the
+    // docx writer and rendered to the reader as visible garbage mid-document.
+    const leaked = 'Taken together, these four papers provide no direct evidence [PMID 39201735].</parameter>\n</invoke>'
+    const cleaned = lit.stripScaffolding(leaked, 'check')
+    assert.ok(!/<\/?(parameter|invoke)>/.test(cleaned),
+        `tool-call scaffolding must not survive into exported prose — got ${JSON.stringify(cleaned)}`)
+    assert.ok(cleaned.includes('[PMID 39201735]'),
+        'stripping scaffolding must not take the surrounding prose or its citation with it')
+
+    // THE REGRESSION THAT WOULD BE WORSE THAN THE BUG. Biomedical prose is FULL of angle brackets
+    // that are data, not markup — every p-value and every threshold in a clinical corpus. A
+    // stripper written as "remove anything in angle brackets" would silently rewrite findings, which
+    // is a far worse failure than the visible garbage it was meant to fix. So: real statistics must
+    // pass through byte-identical.
+    const stats = 'Mortality fell (p<0.001) and the TOF ratio was <0.9 in 30% of patients, RR 0.60, 95% CI 0.49<x<0.74.'
+    assert.strictEqual(lit.stripScaffolding(stats, 'check'), stats,
+        'prose containing p<0.001 and <0.9 must pass through UNCHANGED — the stripper removes tool-call vocabulary, never arbitrary angle-bracketed text')
+
+    // A clean paragraph must be returned as the very same value, not a rebuilt copy — the strip
+    // path is the exception, not the default.
+    const clean = 'Sugammadex reversed blockade faster than neostigmine [PMID 28806470].'
+    assert.strictEqual(lit.stripScaffolding(clean, 'check'), clean, 'untouched prose must pass through unchanged')
+
+    // The regex is module-level and GLOBAL, so its lastIndex persists between calls. If the test
+    // that guards the fast path failed to reset it, the SECOND call on identical input would
+    // disagree with the first — the classic global-regex bug, and exactly the kind of thing that
+    // shows up as "it only leaks every other cluster".
+    assert.strictEqual(lit.stripScaffolding(leaked, 'check'), cleaned,
+        'stripScaffolding must be idempotent across calls — a global regex whose lastIndex is not reset would leak on alternating invocations')
+
+    console.log(`scaffolding:  </parameter> and </invoke> stripped, p<0.001 and <0.9 preserved, stable across repeat calls`)
+}
+
 const checkImpactScoreOf = (lit) => {
     // RETRACTION OVERRIDES EVERYTHING — a RETRACTED record scores exactly 0 no matter how high
     // its citation percentile is. This mirrors tierOf()'s own override in literatureSearch.records.ts:
@@ -558,7 +594,9 @@ const checkCorpusSheet = (xp) => {
     const scored = {
         pmid: '1', title: 'Probiotics and depression', authors: 'Nikolova et al.', year: '2023',
         journal: 'JAMA Psychiatry', design: 'RCT', caseSeriesProbable: true, clusterLabel: 'Probiotics / microbiome',
-        impactScore: 0.72, impactJustification: 'a randomized controlled trial; 80th percentile citation impact (iCite)',
+        nihPercentile: 80,
+        evidenceScore: 0.77, evidenceJustification: 'a randomized controlled trial; 80th percentile citation impact (iCite)',
+        impactScore: 66, impactJustification: 'phase 3 RCT, high-impact general medical journal',
         relevanceScore: 0.9, relevanceJustification: 'primary RCT of the intervention in the stated population',
     }
     // Never sent to a scorer at all — preFilterForScoring()'s shortlist did not include it. No
@@ -590,9 +628,23 @@ const checkCorpusSheet = (xp) => {
     // Number(undefined) coerced to 0 would read as "scored, and scored at rock bottom," when the
     // truth is "never sent to a scorer at all."
     const unscoredRow = rowFor('2')
-    for (const field of ['Impact score', 'Impact justification', 'Relevance score', 'Relevance justification']) {
+    for (const field of ['Impact score (0-100)', 'Impact justification', 'Relevance score', 'Relevance justification', 'NIH percentile']) {
+        assert.ok(col(field) !== -1, `the Records sheet must have a "${field}" column — this list and corpusSheet's own head must not drift apart`)
         assert.strictEqual(unscoredRow[col(field)], '', `an unscored record's "${field}" cell must be the empty string, not 0 and not "N/A" — a blank cell is the only honest rendering of "not in the shortlist"`)
     }
+
+    // THE THREE AXES ARE THREE COLUMNS, AND NONE OF THEM IS THE SAME NUMBER AS ANOTHER. The whole
+    // point of the 2026-08-19 rework: "Impact score" had become a pure restatement of "Evidence
+    // type" (0.30 = Other, 0.75 = RCT, ...) because the iCite percentile it was supposed to blend
+    // never arrived, so a reader saw a confident two-decimal number that carried no information the
+    // column two positions to its left did not already carry. A model-judged 0-100 impact and a
+    // deterministic evidence prior must never collapse back into one column.
+    for (const field of ['Evidence score', 'Impact score (0-100)', 'Relevance score', 'NIH percentile']) {
+        assert.ok(col(field) !== -1, `"${field}" must be its own column — the three scoring axes stay distinct, never pre-blended into one composite`)
+    }
+    const scoredRow = rowFor('1')
+    assert.notStrictEqual(scoredRow[col('Evidence score')], scoredRow[col('Impact score (0-100)')],
+        'the deterministic evidence prior and the model-judged impact score must be distinct values on a scored row — if these are ever equal, one of them has silently become a copy of the other')
 
     // A caseSeriesProbable: true RECORD'S CASE SERIES CELL IS NON-EMPTY; AN UNSET (OR EXPLICITLY
     // FALSE) ONE'S CELL IS EMPTY STRING — NEVER A CHECKED "No". Three states, not two: the flag is
@@ -687,6 +739,7 @@ checkMarkdownDocuments(xp, md, s, q, hits, rc)
 checkXlsxTruncationGuard(xp, q)
 checkClusterByMesh(lit)
 checkPreFilterForScoring(lit)
+checkStripScaffolding(lit)
 checkImpactScoreOf(lit)
 checkAssembleNarrativeReview(lit)
 checkCorpusSheet(xp)

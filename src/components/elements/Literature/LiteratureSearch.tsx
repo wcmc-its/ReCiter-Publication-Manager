@@ -551,13 +551,13 @@ export default function LiteratureSearch() {
         setM4HotYears([])
     }
 
-    const runM4Synthesize = async (corpus: M4Record[], clusters: Cluster[], scores: any[], fromYear: number, toYear: number) => {
+    const runM4Synthesize = async (corpus: M4Record[], clusters: Cluster[], scores: any[], impact: any[], fromYear: number, toYear: number) => {
         setM4Stage('synthesizing')
         try {
             const res = await fetch('/api/literature/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode, phase: 'm4-synthesize', question, corpus, clusters, scores, fromYear, toYear }),
+                body: JSON.stringify({ mode, phase: 'm4-synthesize', question, corpus, clusters, scores, impact, fromYear, toYear }),
             })
             const data = await res.json()
             if (!res.ok) {
@@ -594,7 +594,7 @@ export default function LiteratureSearch() {
                 setM4Stage('idle')
                 return
             }
-            await runM4Synthesize(corpus, clusters, data.scores || [], fromYear, toYear)
+            await runM4Synthesize(corpus, clusters, data.scores || [], data.impact || [], fromYear, toYear)
         } catch {
             setErr('Could not reach the server.')
             setM4Phase('form')

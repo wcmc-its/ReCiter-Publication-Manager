@@ -56,12 +56,28 @@ export function bibliometricDoc(
         { kind: 'table', head: ['Journal', 'Count'], rows:
             stats.journalDistribution.map(j => [j.journal, String(j.count)]) },
 
-        { kind: 'h2', text: 'Citation percentile trend (iCite)' },
-        { kind: 'table', head: ['Year', 'Median percentile', 'N', 'Scored'], rows:
-            // A null median is NOT "N/A" and NOT 0 — same rule impactScoreOf()/percentileTrend()
-            // itself already applies to a missing nihPercentile: a year with zero scored records has
-            // no median to report, and printing one would be arithmetic over an empty set.
-            stats.percentileTrend.map(p => [p.year, p.median === null ? '' : String(p.median), String(p.n), String(p.scored)]) },
+        // A TABLE WITH NOTHING IN IT IS WORSE THAN NO TABLE. If not one record in the corpus carries
+        // an iCite percentile, this used to print a full-height table of blank medians with
+        // "Scored: 0" on every row — eleven rows of nothing, under a heading promising a trend,
+        // which reads as "iCite scored these papers at nothing" rather than "we have no data". The
+        // screen already got this right (TrendPanel renders a one-line explanation instead); the
+        // document did not. Same rule, both surfaces now.
+        //
+        // The threshold is "any year scored at all", not "every year": a decade-wide corpus whose
+        // recent years are legitimately unscored (iCite needs citation history — see
+        // withCitationMetrics) still has a real trend across the years that ARE scored, and the
+        // per-row `Scored` column is what discloses which those are.
+        ...(stats.percentileTrend.some(p => p.scored > 0) ? [
+            { kind: 'h2' as const, text: 'Citation percentile trend (iCite)' },
+            { kind: 'table' as const, head: ['Year', 'Median percentile', 'N', 'Scored'], rows:
+                // A null median is NOT "N/A" and NOT 0 — same rule impactScoreOf()/percentileTrend()
+                // itself already applies to a missing nihPercentile: a year with zero scored records has
+                // no median to report, and printing one would be arithmetic over an empty set.
+                stats.percentileTrend.map(p => [p.year, p.median === null ? '' : String(p.median), String(p.n), String(p.scored)]) },
+        ] : [
+            { kind: 'h2' as const, text: 'Citation percentile trend (iCite)' },
+            { kind: 'p' as const, text: 'No record in this corpus carries an NIH iCite percentile yet, so there is no citation trend to report. iCite needs citation history to score a paper, so this is expected for a corpus of very recent work and does not mean these papers were scored poorly.' },
+        ]),
 
         { kind: 'h2', text: 'Keyword clusters' },
         ...clusterTable(clusters),
