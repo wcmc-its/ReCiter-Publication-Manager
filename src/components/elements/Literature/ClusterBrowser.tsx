@@ -13,8 +13,9 @@ import s from './LiteratureSearch.module.css'
 // Same "first half vs second half, 10% dead band" trend rule assembleNarrativeReview()'s own
 // trendNote() applies to the whole corpus — reused here per cluster rather than reinvented, so a
 // cluster row's "rising"/"declining" means the same thing the intro paragraph's own trend
-// sentence does.
-function trendWord(counts: number[]): string {
+// sentence does. Exported: TrendPanel's publications-per-year summary line uses the same rule,
+// for the same one-taxonomy reason, rather than growing a third copy.
+export function trendWord(counts: number[]): string {
     if (counts.length < 2) return ''
     const mid = Math.floor(counts.length / 2)
     const mean = (xs: number[]) => xs.reduce((a, n) => a + n, 0) / xs.length

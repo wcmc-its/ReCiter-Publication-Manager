@@ -62,6 +62,7 @@ import {
     runStrategy,
     runReview,
     fetchByPmids,
+    withCitationMetrics,
     screenRecords,
     synthesize,
     bedrockConfigured,
@@ -100,6 +101,7 @@ import {
     preFilterForScoring,
     scoreRelevance,
     scoreImpact,
+    SCORING_MODEL_ID,
     ClusterNarrative,
     synthesizeCluster,
     assembleNarrativeReview,
@@ -224,14 +226,15 @@ type SearchBody = {
     databases: any
     edited: any
     seedList: Seed[]
-    // ---- Mode 4 only. `corpus`/`clusters`/`scores` are ECHOED BACK by the client between phases
-    // — see the handleM4* functions below for why that is safe (never abstract text, always
+    // ---- Mode 4 only. `corpus`/`clusters`/`scores`/`impact` are ECHOED BACK by the client between
+    // phases — see the handleM4* functions below for why that is safe (never abstract text, always
     // re-fetched by PMID before a Bedrock call touches it) and bounded (parseM4Corpus).
     evidenceTiers: any
     caseSeries: any
     corpus: any
     clusters: any
     scores: any
+    impact: any
     // Echoed back on every POST after the first, from POST 1's own response — so Phase 4's
     // recomputed stats and the final assembleNarrativeReview() call describe the SAME window the
     // corpus was actually pulled for, not a guessed default. See handleM4Synthesize's fallback for
@@ -596,11 +599,12 @@ async function handleBuildStrategy(req: NextApiRequest, res: NextApiResponse, cw
 //     real abstracts server-side by PMID (fetchByPmids, same call Mode 2/3's screen/synthesize
 //     phases already use) for exactly the shortlist preFilterForScoring() picked. So the one thing
 //     that must never come from the client — the text a paid model call reads — still never does.
-//   - labelClusters() DOES read client-echoed data (each cluster's MeSH terms), but MeSH terms are
-//     short, controlled-vocabulary-shaped strings with none of the injection surface free-text
-//     abstract content has, and the worst case of a tampered one is a mislabeled cluster, not a
-//     fabricated citation or a hijacked prompt. Same bounded-trust posture parseStrategy() already
-//     takes on a re-counted query's term lines.
+//   - labelClusters() DOES read client-echoed data (each cluster's MeSH terms, plus a small sample
+//     of record titles), but those are short, length-capped strings (parseM4Corpus bounds a title
+//     at 500 chars) with none of the injection surface free-text abstract content has, and the
+//     worst case of a tampered one is a mislabeled cluster, not a fabricated citation or a
+//     hijacked prompt. Same bounded-trust posture parseStrategy() already takes on a re-counted
+//     query's term lines.
 // parseM4Corpus/parseM4Clusters/parseM4Scores below are the guards: bounded size, coerced types,
 // abstract forcibly blanked — the same posture parseStrategy/parsePmids already take on this route.
 
@@ -629,6 +633,10 @@ function parseM4Corpus(raw: any): PubRecord[] {
         abstract: '',
         mesh: Array.isArray(r?.mesh) ? r.mesh.slice(0, 40).map((m: any) => s(m, 120)) : [],
         ...(Number.isFinite(r?.nihPercentile) ? { nihPercentile: Number(r.nihPercentile) } : {}),
+        // apt must survive the round-trip or impactScoreOf()'s 'apt' fallback can never fire on the
+        // final decorated corpus — the 2025-26 rows iCite has no percentile for would all land on
+        // 'tier-only', which is exactly what the first live run showed before this line existed.
+        ...(Number.isFinite(r?.apt) ? { apt: Number(r.apt) } : {}),
         ...(r?.caseSeriesProbable === true ? { caseSeriesProbable: true } : {}),
     }))
 }
@@ -719,6 +727,10 @@ function decorateCorpus(
             // decision the table makes when a reader picks a sort, not a number baked into the row.
             evidenceScore: prior.score,
             evidenceJustification: prior.justification,
+            // Which SOURCE the prior was computed from ('percentile' | 'apt' | 'tier-only') — the
+            // field that makes a blank-vs-zero percentile distinguishable in the xlsx (see the
+            // "Evidence basis" column in corpusSheet.ts) rather than inferred from the number.
+            evidenceBasis: prior.evidenceBasis,
             ...(judged ? { impactScore: judged.score, impactJustification: judged.justification } : {}),
             ...(rel ? { relevanceScore: rel.score, relevanceJustification: rel.justification } : {}),
         }
@@ -851,7 +863,11 @@ async function handleM4Cluster(req: NextApiRequest, res: NextApiResponse, cwid: 
     try {
         const corpus = parseM4Corpus(body.corpus)
         const { clusters: raw } = clusterByMesh(corpus)
-        const { clusters, usage } = await labelClusters(raw)
+        // The record map is what lets labelClusters() see sample TITLES, not just MeSH — three
+        // shipped section headings on the 2026-08-19 run were named blind from MeSH alone and
+        // opened by disowning themselves. Titles are client-echoed like the MeSH terms, and
+        // bounded the same way (parseM4Corpus caps them at 500 chars).
+        const { clusters, usage } = await labelClusters(raw, new Map(corpus.map(r => [r.pmid, r])))
         logCost('bibliometric-review:cluster', cwid, usage, { corpusSize: corpus.length, clusters: clusters.length })
         return res.status(200).send({ statusCode: 200, clusters })
     } catch (err: any) {
@@ -880,7 +896,13 @@ async function handleM4Score(req: NextApiRequest, res: NextApiResponse, cwid: st
         // RE-FETCHED, never taken from the echoed corpus — the metadata round-trip never carries an
         // abstract (parseM4Corpus forces it blank), so scoring the actual text means going back to
         // PubMed for it, same discipline Mode 2/3's screen/synthesize phases already apply.
-        const withAbstracts = shortlistPmids.length ? await fetchByPmids(shortlistPmids) : []
+        // AND RE-ENRICHED: fetchByPmids alone returns no iCite fields (only fetchCorpus applies
+        // withCitationMetrics), so without this wrap renderForImpact's Citation Count / NIH
+        // Percentile / RCR lines were silently absent from every impact prompt — the one signal the
+        // ReciterAI anchors calibrate on. ~200 PMIDs is two batched iCite GETs, free.
+        const withAbstracts = shortlistPmids.length
+            ? await withCitationMetrics(await fetchByPmids(shortlistPmids))
+            : []
 
         // TWO INDEPENDENT AXES, SCORED CONCURRENTLY. Relevance answers "is this paper about the
         // topic the librarian typed"; impact answers "how strong a paper is it, on its own terms".
@@ -903,6 +925,12 @@ async function handleM4Score(req: NextApiRequest, res: NextApiResponse, cwid: st
         }
         logCost('bibliometric-review:score', cwid, totalUsage, {
             shortlist: shortlistPmids.length, scored: scores.size, impactScored: imp.scores.size,
+            // OVERRIDES logCost's default `model` (the `...extra` spread lands after it). Both
+            // scoring calls are pinned to Sonnet (see SCORING_MODEL_ID's own comment in
+            // literatureSearch.llm.ts), not to BEDROCK_MODEL_ID — and the log line's whole value
+            // is that its tokens can be priced later BY ITS MODEL FIELD (see logCost's header),
+            // so a line that says Opus for a Sonnet call misprices every token on it.
+            model: SCORING_MODEL_ID,
         })
         return res.status(200).send({
             statusCode: 200,
@@ -927,7 +955,7 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
         const corpus = parseM4Corpus(body.corpus)
         const clusters = parseM4Clusters(body.clusters)
         const scores = parseM4Scores(body.scores)
-        const impactJudged = parseM4Impact((body as any).impact)
+        const impactJudged = parseM4Impact(body.impact)
         const byPmid = new Map(corpus.map(r => [r.pmid, r]))
         const topic = String(question || '')
 
@@ -1033,6 +1061,9 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
                 totalRecords: corpus.length,
                 fromYear: Number(body.fromYear) || new Date().getFullYear() - 10,
                 toYear: Number(body.toYear) || new Date().getFullYear(),
+                // The clock stays HERE, on the route — assembleNarrativeReview() is pure and
+                // pure-checked, so it takes the year as data rather than reading new Date() itself.
+                currentYear: new Date().getFullYear(),
             },
             clusters, narratives, hasCaseSeriesFlags,
         )
@@ -1096,7 +1127,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases,
         strategy: edited,
         // Mode 4 only.
-        evidenceTiers, caseSeries, corpus, clusters, scores, fromYear, toYear,
+        evidenceTiers, caseSeries, corpus, clusters, scores, impact, fromYear, toYear,
     } = req.body || {}
 
     // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
@@ -1122,7 +1153,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const body: SearchBody = {
         mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, edited, seedList,
-        evidenceTiers, caseSeries, corpus, clusters, scores, fromYear, toYear,
+        evidenceTiers, caseSeries, corpus, clusters, scores, impact, fromYear, toYear,
     }
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
