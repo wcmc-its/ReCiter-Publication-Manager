@@ -101,6 +101,53 @@ export const identityFetchData = uid => dispatch => {
         })
 }
 
+// Faculty "other publications" — Scopus/OpenAlex external rows for this uid, unfiltered
+// (includes suppressed). Grouping/filtering per source tab happens client-side in
+// TabExternalSource.tsx; this is one fetch feeding all source tabs, dispatched
+// alongside identityFetchData/reciterFetchData in App.js's load effect.
+export const otherPublicationsFetchData = uid => dispatch => {
+    dispatch({
+        type: methods.OTHERPUBS_FETCH_DATA
+    })
+    fetchWithTimeout('/api/reciter/external-article/' + uid, {
+        credentials: "same-origin",
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            'Authorization': reciterConfig.backendApiKey
+        }
+    }, 300000)
+        .then(response => {
+            if (response.status === 200) {
+                return response.json()
+            } else {
+                throw {
+                    type: response.type,
+                    title: response.statusText,
+                    status: response.status,
+                    detail: "Error occurred with api " + response.url + ". Please, try again later "
+                }
+            }
+        })
+        .then(data => {
+            dispatch({
+                type: methods.OTHERPUBS_CHANGE_DATA,
+                payload: Array.isArray(data.external) ? data.external : []
+            })
+
+            dispatch({
+                type: methods.OTHERPUBS_CANCEL_FETCHING
+            })
+        })
+        .catch(error => {
+            console.log(error)
+
+            dispatch({
+                type: methods.OTHERPUBS_CANCEL_FETCHING
+            })
+        })
+}
+
 export const identityFetchAllData = (request) => dispatch => {
     dispatch({
         type: methods.IDENTITY_FETCH_ALL_DATA

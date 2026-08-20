@@ -55,6 +55,9 @@ interface FuncProps {
     // Dismiss a suggestion (Scopus Authorships feed only); local, not GoldStandard.
     onReject?: (item: any) => void,
     onDelete?: (articleId: string) => void,
+    // Option C (docs/README-other-publications-tab.md, Decision 3): the active source
+    // tab already names the source, so the per-card badge is redundant there.
+    hideSourceBadge?: boolean,
 }
 
 // Map the server's duplicate match type(s) to a state-specific, actionable headline.
@@ -105,7 +108,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
         <div className={`${styles.card} ${suppressed ? styles.cardSuppressed : ''}`}>
             <div className={styles.main}>
                 <div className={styles.headerRow}>
-                    <span className={styles.sourceBadge}>{sourceLabel}</span>
+                    {!props.hideSourceBadge && <span className={styles.sourceBadge}>{sourceLabel}</span>}
                     <span className={styles.noScoreBadge}>No authorship score</span>
                     {suppressed && (
                         <span className={styles.suppressedTag}>
@@ -230,7 +233,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         Reject
                     </button>
                 )}
-                {mode === 'list' && (
+                {mode === 'list' && props.onDelete && (
                     <button
                         className={styles.btnDelete}
                         onClick={() => props.onDelete && props.onDelete(item.articleId)}

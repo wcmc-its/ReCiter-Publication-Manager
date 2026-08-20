@@ -97,7 +97,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         const pubmedPublications: any = [];
         let updatedpubs: any = [];
         // let newReciterData = reciterData.reciter.reCiterArticleFeatures
-        let reCiterArticleFeatures = reciterData.reciter.reCiterArticleFeatures
+        let reCiterArticleFeatures = reciterData?.reciter?.reCiterArticleFeatures
         let newReciterData = reCiterArticleFeatures && reCiterArticleFeatures.length > 0 ? reCiterArticleFeatures : []
         pubmedData.forEach(function (publication: any) {
             if (publication.pmid === id) {
@@ -133,7 +133,7 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         const pubmedPublications: any = []
         let updatedpubs: any = [];
         // let newReciterData = reciterData.reciter.reCiterArticleFeatures
-        let reCiterArticleFeatures = reciterData.reciter.reCiterArticleFeatures
+        let reCiterArticleFeatures = reciterData?.reciter?.reCiterArticleFeatures
         let newReciterData = reCiterArticleFeatures && reCiterArticleFeatures.length > 0 ? reCiterArticleFeatures : []
         pubmedData.forEach(function (publication: any) {
             if (publication.pmid === id) {
@@ -191,11 +191,12 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
 
     const allReciterPubData = () => {
         let reciterPublications: Array<any> = []
-        reciterData.reciterPending.forEach(function (publication: any) {
+        // ReCiter-Publication-Manager#873: guard both -- neither is populated until the fetch completes.
+        ;(reciterData?.reciterPending || []).forEach(function (publication: any) {
             reciterPublications.push(publication)
         })
 
-        reciterData.reciter.reCiterArticleFeatures.forEach(function (publication: any) {
+        ;(reciterData?.reciter?.reCiterArticleFeatures || []).forEach(function (publication: any) {
             reciterPublications.push(publication)
         })
         return reciterPublications
