@@ -58,15 +58,37 @@ export async function addExternalArticle(uid: string, body: any, addedBy: string
         })
 }
 
-// DELETE (= revoke) an external article by articleId.
-export async function deleteExternalArticle(uid: string, articleId: string) {
-    return fetch(`${base()}?uid=${encodeURIComponent(uid)}&articleId=${encodeURIComponent(articleId)}`, {
+// DELETE (= revoke) an external article by articleId. actorPersonIdentifier (curator CWID
+// from the JWT, never the client) lets the Java side stamp its PENDING FeedbackLog row.
+export async function deleteExternalArticle(uid: string, articleId: string, actorPersonIdentifier?: string) {
+    let uri = `${base()}?uid=${encodeURIComponent(uid)}&articleId=${encodeURIComponent(articleId)}`
+    if (actorPersonIdentifier) uri += `&actorPersonIdentifier=${encodeURIComponent(actorPersonIdentifier)}`
+    return fetch(uri, {
         method: 'DELETE',
         headers: javaHeaders(),
     })
         .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
         .catch((error) => {
             console.log('ReCiter external-article DELETE is not reachable: ' + error)
+            return { statusCode: error.status || 500, statusText: error }
+        })
+}
+
+// PATCH feedback (durable FeedbackLog row on the Java side): curator reject/dismiss log
+// REJECTED, reopen logs PENDING, dispute-retract/resolve log ACCEPTED — who acted is the
+// discriminator, so actorPersonIdentifier is stamped from the JWT, never the client.
+export async function recordExternalArticleFeedback(
+    uid: string, articleId: string, action: 'ACCEPTED' | 'REJECTED' | 'PENDING',
+    actorPersonIdentifier: string, note?: string,
+) {
+    return fetch(reciterConfig.reciter.reciterExternalArticleFeedbackEndpoint, {
+        method: 'PATCH',
+        headers: javaHeaders(),
+        body: JSON.stringify({ uid, articleId, action, actorPersonIdentifier, note }),
+    })
+        .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
+        .catch((error) => {
+            console.log('ReCiter external-article feedback PATCH is not reachable: ' + error)
             return { statusCode: error.status || 500, statusText: error }
         })
 }

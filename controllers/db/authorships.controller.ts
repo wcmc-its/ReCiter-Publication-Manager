@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
-import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
+import { addExternalArticle, deleteExternalArticle, getExternalArticles, recordExternalArticleFeedback } from "../externalArticle.controller";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -286,6 +286,40 @@ function dupConflict(body: any): { blocked: boolean; message: string } {
   };
 }
 
+// Durable FeedbackLog write for a scopus row — the MySQL status column is overwritten on
+// every transition, so this is the only lasting record of a reject/dismiss/reopen (the
+// original AAR durability gap). Gates like writeGoldStandard: a failed write fails the
+// action with 502 before the MySQL update. Two deliberate skip-and-proceed cases:
+// - the article is already live in the person's record (manual-add or the other env's
+//   queue — dev and prod share the ExternalArticle table): the queue action is pure
+//   housekeeping then, and a REJECTED row would both contradict the live accept and
+//   suppress the visible publication (the Java PATCH flips suppressed on existing rows);
+// - the uid is unknown to ReCiter (departed/inactive faculty): matched on the endpoint's
+//   INVALID body, not the bare 404, so an unrouted endpoint (e.g. not yet deployed) still
+//   fails loudly instead of silently disabling every write.
+async function logScopusFeedback(
+  res: NextApiResponse, uid: string, externalId: any, action: "REJECTED" | "PENDING", actor: string,
+): Promise<boolean> {
+  if (!externalId) { console.log(`[authorships] feedback ${action} skipped — row has no external_id`); return true; }
+  const articleId = `SCOPUS:${externalId}`;
+  const live = await getExternalArticles(uid);
+  if (live.statusCode === 200 && Array.isArray(live.statusText)
+      && (live.statusText as any[]).some((r: any) => r?.articleId === articleId)) {
+    console.log(`[authorships] feedback ${action} skipped — ${articleId} already live in ${uid}'s record`);
+    return true;
+  }
+  const resp = await recordExternalArticleFeedback(uid, articleId, action, actor);
+  if (resp.statusCode === 404 && (resp.statusText as any)?.status === "INVALID") {
+    console.log(`[authorships] feedback ${action} skipped — ${uid} not in ReCiter Identity`);
+    return true;
+  }
+  if (resp.statusCode !== 200) {
+    res.status(502).send(`Feedback log write failed (${resp.statusCode})`);
+    return false;
+  }
+  return true;
+}
+
 // ExternalArticle payload for a scopus row (no PMID → not gold standard). articleId is
 // "SCOPUS:<numericId>" where numericId = external_id (dc:identifier minus SCOPUS_ID:).
 function scopusExternalPayload(row: any) {
@@ -387,7 +421,9 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         if (!cwid) return res.status(409).send("No proposed identity to reject");
         if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
         if (isScopus) {
-          // scopus reject = local dismissal, never gold standard (no PMID to reject).
+          // scopus reject: never gold standard (no PMID), but durably logged as REJECTED
+          // in FeedbackLog — the actor being a curator is what marks it a curator reject.
+          if (!(await logScopusFeedback(res, cwid, row.external_id, "REJECTED", reviewer))) return;
           await models.AuthorshipReview.update({ status: "rejected", reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
@@ -404,16 +440,27 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         break;
       }
       case "dismiss": {
+        // Dismiss and reject are deliberately one REJECTED value in FeedbackLog (design
+        // decision, 2026-08-20). Only scopus rows with a proposed identity have a uid to
+        // log against; pmid dismisses stay queue-local (they never touch gold standard).
+        if (isScopus && cwid) {
+          if (!(await logScopusFeedback(res, cwid, row.external_id, "REJECTED", reviewer))) return;
+        }
         await models.AuthorshipReview.update({ status: "dismissed", reviewer, resolved_at: new Date() }, { where: { id } });
         break;
       }
       case "reopen": {
         const reverseCwid = row.resolution_cwid || cwid;
         if (isScopus) {
-          // undo a scopus accept/assign = revoke the ExternalArticle (reject/dismiss wrote none).
+          // undo a scopus accept/assign = revoke the ExternalArticle (reject/dismiss wrote
+          // none); the Java delete path logs PENDING with the actor passed here.
           if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-            const resp = await deleteExternalArticle(reverseCwid, `SCOPUS:${row.external_id}`);
+            const resp = await deleteExternalArticle(reverseCwid, `SCOPUS:${row.external_id}`, reviewer);
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
+          } else if ((row.status === "rejected" || row.status === "dismissed") && reverseCwid) {
+            // undo a scopus reject/dismiss: no row to restore, but the reopen belongs in
+            // the durable history (PENDING = back to no assertion).
+            if (!(await logScopusFeedback(res, reverseCwid, row.external_id, "PENDING", reviewer))) return;
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
           const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
