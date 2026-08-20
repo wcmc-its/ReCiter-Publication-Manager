@@ -5,6 +5,8 @@ import styles from '../Tabs/TabControls.module.css';
 import Publication from '../Publication/Publication';
 import Pagination from '../Pagination/Pagination';
 import Filter from '../Filter/Filter';
+import fullName from '../../../utils/fullName';
+import filterPublicationsBySearchText from '../../../utils/filterPublicationsBySearchText';
 
 const TabRejected = (props) => {
     
@@ -17,6 +19,7 @@ const TabRejected = (props) => {
 
     const identityData = useSelector((state) => state.identityData)
     const reciterData = useSelector((state) => state.reciterData)
+    const showEvidenceDefault = useSelector((state) => state.showEvidenceDefault)
 
     const handlePaginationUpdate = (e, page) => {
         setPage(page)
@@ -31,23 +34,17 @@ const TabRejected = (props) => {
         setSort(filterState.sort)
     }
 
-    const acceptPublication = (id) => {
+    // Publication.tsx's CardFooter calls updatePublication(personIdentifier, pmid,
+    // userAssertion) for accept, reject, and undo alike; keep dispatching the same
+    // reciterUpdatePublication action the old per-assertion handlers used.
+    const updatePublication = (uid, pmid, userAssertion) => {
         const request = {
             faculty: identityData,
-            publications: [id],
-            userAssertion: 'ACCEPTED',
+            publications: [pmid],
+            userAssertion: userAssertion,
             manuallyAddedFlag: false
         }
-        dispatch(reciterUpdatePublication(identityData.uid, request))
-    }
-
-    const undoPublication = (id)  => {
-        const request = {
-            faculty: identityData,
-            publications: [id],
-            userAssertion: 'NULL'
-        }
-        dispatch(reciterUpdatePublication(identityData.uid, request))
+        dispatch(reciterUpdatePublication(uid, request))
     }
 
     const acceptAll = () => {
@@ -79,120 +76,30 @@ const TabRejected = (props) => {
     }
 
     const filter = () => {
-        // Filter
-        const filteredPublications = []
         // ReCiter-Publication-Manager#873: reciterData.reciter undefined until fetch completes.
-        ;(reciterData?.reciter?.reCiterArticleFeatures || []).forEach((publication) => {
-            // Check if publication is Suggested
-            if(publication.userAssertion === "REJECTED") {
-                // Check search and sort
-                if(search !== "") {
-                    if(/^[0-9 ]*$/.test(search)) {
-                        var pmids = search.split(" ");
-                        if(pmids.some(pmid => Number(pmid) === publication.pmid )){
-                            filteredPublications.push(publication);
-                        }
-                    }else {
-                        var addPublication = true;
-                        // check filter search
-                        if (search !== "") {
-                            addPublication = false;
-                            //pmcid
-                            if(publication.pmcid !== undefined && publication.pmcid.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //publicationTypeCanonical
-                            if(publication.publicationTypeCanonical !== undefined && publication.publicationTypeCanonical.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //scopusDocID
-                            if(publication.scopusDocID !== undefined && publication.scopusDocID.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //journalTitleISOabbreviation
-                            if(publication.journalTitleISOabbreviation !== undefined && publication.journalTitleISOabbreviation.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //journalTitleVerbose
-                            if(publication.journalTitleVerbose !== undefined && publication.journalTitleVerbose.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //publication date display
-                            if(publication.displayDate !== undefined && publication.displayDate.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            //doi
-                            if(publication.doi !== undefined && publication.doi.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true
-                            }
-                            // title
-                            if (publication.title.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true;
-                            }
-                            // journal
-                            if (publication.journal.toLowerCase().includes(search.toLowerCase())) {
-                                addPublication = true;
-                            }
-                            //issn
-                            if(publication.issn !== undefined) {
-                                var issnArray = publication.issn.map((issn, issnIndex) => {
-                                    return issn.issn
-                                })
-                                if(issnArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                            // authors
-                            if (publication.authors !== undefined) {
-                                var authorsArray = publication.authors.map(function (author, authorIndex) {
-                                    return author.authorName;
-                                });
-                                if (authorsArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                            //evidence
-                            if (publication.evidence !== undefined) {
-                                var evidenceArticleArray = publication.evidence.map(function (evidence, evidenceIndex) {
-                                    return evidence.articleData;
-                                });
-                                var evidenceInstArray = publication.evidence.map(function (evidence, evidenceIndex) {
-                                    return evidence.institutionalData;
-                                });
-                                if (evidenceInstArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                                if (evidenceArticleArray.join().toLowerCase().includes(search.toLowerCase())) {
-                                    addPublication = true;
-                                }
-                            }
-                        }
-                        if (addPublication) {
-                            filteredPublications.push(publication);
-                        }
-                    }
-                }else {
-                    filteredPublications.push(publication);
-                }
-            }
-        })
+        const rejected = (reciterData?.reciter?.reCiterArticleFeatures || []).filter(
+            (publication) => publication.userAssertion === "REJECTED"
+        )
+        // The hand-rolled search here read fields this article shape doesn't have
+        // (title, journal, array-shaped evidence) and threw on the first non-numeric
+        // search character; the curator flow's shared util guards the real field names.
+        const filteredPublications = filterPublicationsBySearchText(rejected, search)
 
         // Sort
         filteredPublications.sort((a, b) => {
             switch(sort) {
                 case "0":
-                    return b.standardScore - a.standardScore;
+                    return b.authorshipLikelihoodScore - a.authorshipLikelihoodScore;
                 case "1":
-                    return a.standardScore - b.standardScore;
+                    return a.authorshipLikelihoodScore - b.authorshipLikelihoodScore;
                 case "2":
-                    return new Date(b.standardDate) - new Date(a.standardDate);
+                    return new Date(b.publicationDateStandardized) - new Date(a.publicationDateStandardized);
                 case "3":
-                    return new Date(a.standardDate) - new Date(b.standardDate);
+                    return new Date(a.publicationDateStandardized) - new Date(b.publicationDateStandardized);
                 default:
-                    return b.standardScore - a.standardScore;
+                    return b.authorshipLikelihoodScore - a.authorshipLikelihoodScore;
             }
         });
-
 
         var from = (parseInt(page, 10) - 1) * parseInt(count, 10);
         var to = from + parseInt(count, 10) - 1;
@@ -226,16 +133,24 @@ const TabRejected = (props) => {
             </div>
             <p>Not finding what you`&apos;`re looking for? <a onClick={() => { props.tabClickHandler("Add Publication"); } }>Search PubMed...</a></p>
             <Pagination total={publications.filteredPublications.length} page={page} count={count} onChange={handlePaginationUpdate} />
-            <div className="table-responsive">
-                <table className="table table-striped">
-                    <tbody>
-                        {
-                            publications.paginatedPublications.map(function(item, index){
-                                return <Publication item={item} key={index} onAccept={acceptPublication} onUndo={undoPublication} />;
-                            })
-                        }
-                    </tbody>
-                </table>
+            <div>
+                {
+                    publications.paginatedPublications.map((item, index) => (
+                        <Publication
+                            key={item.pmid || index}
+                            index={`page${page}${index + 1}`}
+                            reciterArticle={item}
+                            personIdentifier={identityData.uid}
+                            fullName={fullName(identityData.primaryName)}
+                            updatePublication={updatePublication}
+                            activekey="REJECTED"
+                            totalCount={publications.filteredPublications.length}
+                            paginatedPubsCount={publications.paginatedPublications.length}
+                            page={page}
+                            showEvidenceDefault={showEvidenceDefault}
+                        />
+                    ))
+                }
             </div>
             <Pagination total={publications.filteredPublications.length} page={page} count={count} onChange={handlePaginationUpdate} />
         </div>
