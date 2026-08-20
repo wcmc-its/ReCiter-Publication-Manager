@@ -21,11 +21,15 @@
 // lets `npm run check:literature` assert what a document SAYS with no dependency and no model call.
 
 //
-// This file is now the BARREL. The builders live in four focused modules, split by concern so no
-// single file is 400+ lines: blocks (Block type, repro header, model label), strategyDoc (the
-// PRISMA-S appendix), synthesisDoc (issue-review / clinical-question), sheets (the .xlsx). The
-// renderers and consumers import from here, so the split changed no call site.
+// This file is now the BARREL. The builders live in focused modules, split by concern so no single
+// file is 400+ lines: blocks (Block type, repro header, model label), strategyDoc (the PRISMA-S
+// appendix), synthesisDoc (issue-review / clinical-question), sheets (Mode 2/3's .xlsx),
+// corpusSheet (Mode 4's .xlsx — a sibling of sheets, not a modification of it), bibliometricDoc
+// (Mode 4's review document — a sibling of synthesisDoc). The renderers and consumers import from
+// here, so the split changed no call site.
 export * from './literatureExport.blocks'
 export * from './literatureExport.strategyDoc'
 export * from './literatureExport.synthesisDoc'
 export * from './literatureExport.sheets'
+export * from './literatureExport.corpusSheet'
+export * from './literatureExport.bibliometricDoc'

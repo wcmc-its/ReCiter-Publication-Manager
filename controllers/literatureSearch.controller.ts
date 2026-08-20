@@ -48,8 +48,10 @@
 // single file is 2,000+ lines: strategy (query assembly + types), counting (arithmetic over PubMed
 // counts), records (fetch/shape/evidence tiers), llm (every Bedrock call), experts (the MeSH→panel
 // bridge), build (the Mode 1 multi-database orchestration), corpus (Mode 4 Phases 2-4: sharded
-// retrieval, evidence filtering, bibliometric stats). Consumers — the API route and the check
-// harnesses — import from here, so the split changed no call site.
+// retrieval, evidence filtering, bibliometric stats), cluster (Mode 4 Phase 5: keyword/topic
+// clustering), score (Mode 4 Phase 6: impact/relevance scoring + justifications), narrative (Mode 4
+// Phase 7: per-cluster synthesis + deterministic whole-review assembly). Consumers — the API route
+// and the check harnesses — import from here, so the split changed no call site.
 export * from './literatureSearch.strategy'
 export * from './literatureSearch.counting'
 export * from './literatureSearch.records'
@@ -57,3 +59,6 @@ export * from './literatureSearch.llm'
 export * from './literatureSearch.experts'
 export * from './literatureSearch.build'
 export * from './literatureSearch.corpus'
+export * from './literatureSearch.cluster'
+export * from './literatureSearch.score'
+export * from './literatureSearch.narrative'

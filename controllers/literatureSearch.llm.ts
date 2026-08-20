@@ -51,7 +51,11 @@ const billed = (message: string, usage: UsageLog) => Object.assign(new Error(mes
 // a 30-record synthesis was measured at 4.0k output tokens, hit max_tokens=4000 exactly, and
 // stopped mid-sentence. A truncated synthesis does not look broken — it looks like prose. Give
 // the long calls 8000 (see LONG_MAX_TOKENS).
-async function invoke(system: string, tool: any, user: string, maxTokens = 2000) {
+//
+// Exported so Mode 4 Phase 5's labelClusters() (literatureSearch.cluster.ts) can make its own
+// forced-tool Bedrock call without a second copy of this primitive — same STRATEGY_TOOL/SCREEN_TOOL
+// convention (system prompt + one forced tool + a user message), just a different tool.
+export async function invoke(system: string, tool: any, user: string, maxTokens = 2000) {
     const modelId = process.env.BEDROCK_MODEL_ID
     if (!modelId) throw new Error('BEDROCK_MODEL_ID is not configured')
 
@@ -713,7 +717,11 @@ export async function suggestFixes(
 // Double it. Screening gets the same ceiling: 50 one-clause reasons is nowhere near 8,000 tokens,
 // but a run that silently drops the last eight verdicts is the same failure wearing a different
 // hat, and the ceiling costs nothing when it is not reached.
-const LONG_MAX_TOKENS = 8000
+//
+// Exported so Mode 4 Phase 6's scoreRelevance() (literatureSearch.score.ts) can give its own
+// batch-of-50-justifications call the same ceiling, rather than hand-copying the number and the
+// reasoning behind it.
+export const LONG_MAX_TOKENS = 8000
 
 // One first pass plus two re-asks. Three, not "until complete": a model that has skipped the same record
 // twice is telling you something, and an unbounded loop over a paid call is how a screen quietly costs
@@ -1000,7 +1008,12 @@ const SYNTH_TOOL = {
 // Rules 1-4 and 6 are IDENTICAL for both synthesis modes and are therefore written ONCE. A
 // paraphrase in a second prompt would drift, and rule 2 is the sentence standing between this
 // feature and an invented effect size on a grand rounds slide. Only rule 5 differs — see below.
-const SYNTH_RULES_HEAD = `1. EVERY claim cites the paper it came from, inline, as [PMID 12345678]. A sentence that makes a claim and carries no PMID is a sentence you may not write. Cite multiple PMIDs when several papers support the same point.
+//
+// Exported so Mode 4 Phase 7's synthesizeCluster() (literatureSearch.narrative.ts) can reuse it
+// VERBATIM for its own per-cluster synthesis call, rather than hand-copying rules 1-4 into a
+// second prompt that could quietly drift from this one — see this comment's own point, one
+// paragraph up, about why a paraphrase is not acceptable here.
+export const SYNTH_RULES_HEAD = `1. EVERY claim cites the paper it came from, inline, as [PMID 12345678]. A sentence that makes a claim and carries no PMID is a sentence you may not write. Cite multiple PMIDs when several papers support the same point.
 2. NEVER state a number that is not written in the abstract you were given. No effect sizes, no risk ratios, no confidence intervals, no p values, no sample sizes, no percentages — unless that exact figure appears in the abstract, in which case state it and cite it. If the abstracts do not report an effect size, SAY that they do not. Do not estimate it, pool it, average it, or infer it from the direction of the findings.
 3. NEVER mention a paper you were not given, and never a PMID that is not in the list supplied. You have no other sources.
 4. Where the papers disagree, say so plainly and cite both sides. Do not resolve a disagreement the evidence does not resolve, and do not smooth it into a consensus.`
@@ -1177,7 +1190,11 @@ export async function synthesize(
 //
 // "(no abstract in PubMed)" is stated rather than left blank, because an empty field invites the
 // model to fill it in from memory, and a blank line invites it to assume the record was truncated.
-function renderRecords(records: PubRecord[]): string {
+//
+// Exported so Mode 4 Phase 6's scoreRelevance() (literatureSearch.score.ts) renders its own batches
+// through the exact same block — one place that knows how a PubRecord becomes model-readable text,
+// not a second copy of this that could drift from what screenRecords()/synthesize() actually see.
+export function renderRecords(records: PubRecord[]): string {
     return records.map(r => [
         `PMID ${r.pmid} | ${r.design} | ${r.authors || 'unknown author'} | ${r.journal || 'unknown journal'} ${r.year}`,
         `TITLE: ${r.title}`,
