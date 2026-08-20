@@ -6,9 +6,11 @@
 // TWO FUNCTIONS, TWO DIFFERENT SHAPES, and the split is the whole design, the same instinct
 // impactScoreOf() / scoreRelevance() and clusterByMesh() / labelClusters() already apply:
 //
-//   synthesizeCluster() is the one Bedrock call this file makes. It writes ONE cited paragraph
+//   synthesizeCluster() is the one Bedrock call this file makes. It writes ONE cited section
 //   over a small shortlist of records for a SINGLE cluster — the same job synthesize() does for
 //   Mode 2, reusing its own canonical rules (SYNTH_RULES_HEAD) rather than a paraphrased copy.
+//   (The field is still named `paragraph` — see ClusterNarrative — though the prose is now 2-4
+//   short paragraphs; renaming it would ripple through every renderer for no reader-visible gain.)
 //
 //   assembleNarrativeReview() is PURE — no network, no LLM, no further model call of any kind.
 //   See its own comment below for why that is deliberate, not merely convenient.
@@ -33,13 +35,13 @@ export type ClusterNarrative = {
 
 const CLUSTER_SYNTH_TOOL = {
     name: 'submit_cluster_synthesis',
-    description: 'Return a narrative paragraph synthesizing the supplied papers for ONE cluster of a larger bibliometric review.',
+    description: 'Return a short narrative synthesis of the supplied papers for ONE cluster of a larger bibliometric review.',
     input_schema: {
         type: 'object' as const,
         properties: {
             paragraph: {
                 type: 'string',
-                description: 'The narrative synthesis for this cluster only. Every claim cites its source inline as [PMID 12345678]. Plain prose, one paragraph, no headings, no markdown.',
+                description: 'The narrative synthesis for this cluster only. Every claim cites its source inline as [PMID 12345678]. Plain prose, 2-4 short paragraphs separated by a blank line, no headings, no markdown.',
             },
         },
         required: ['paragraph'],
@@ -52,15 +54,15 @@ const CLUSTER_SYNTH_TOOL = {
 // never sees in full: it has no idea what the other clusters say, and nothing stops it reaching for
 // a comparison ("unlike the surgical-management cluster...") that sounds plausible and is entirely
 // invented, since it was never shown that cluster's papers.
-const RULE_5_CLUSTER = `5. This paragraph is ONE SECTION of a larger bibliometric review. It covers ONLY the cluster named below. Do not generalize beyond it, and do not compare it to other clusters — you have not been shown their papers and cannot know what they say.`
+const RULE_5_CLUSTER = `5. This section is ONE SECTION of a larger bibliometric review. It covers ONLY the cluster named below. Do not generalize beyond it, and do not compare it to other clusters — you have not been shown their papers and cannot know what they say.`
 
-const CLUSTER_SYNTH_PROMPT = `You are writing one section of a bibliometric literature review: a narrative paragraph synthesizing the papers in ONE topic cluster. You are given the same abstracts a clinician would read, and nothing else.
+const CLUSTER_SYNTH_PROMPT = `You are writing one section of a bibliometric literature review: a short narrative synthesis of the papers in ONE topic cluster. You are given the same abstracts a clinician would read, and nothing else.
 
 THESE RULES ARE ABSOLUTE. They are the reason this tool exists:
 ${SYNTH_RULES_HEAD}
 ${RULE_5_CLUSTER}
 
-Style: ONE paragraph of plain clinical prose. No headings, no bullet points, no markdown, no bold. Write for a clinician who will check your citations.`
+Style: 2-4 short paragraphs of plain clinical prose, separated by a blank line. No headings, no bullet points, no markdown, no bold. Write for a clinician who will check your citations.`
 
 // ONE CALL PER CLUSTER, unlike labelClusters()'s one-call-for-all-clusters. The two are not the same
 // shape: labelClusters() reads a few MeSH terms per cluster (cheap, and every cluster benefits from
@@ -162,6 +164,11 @@ export function assembleNarrativeReview(
         totalRecords: number
         fromYear: number
         toYear: number
+        // Supplied by the CALLER, never read from the clock here — this function is pure and
+        // pure-checked (see literatureSearch.pure.check.js), and a new Date() inside it would make
+        // the check's answer depend on the day it ran. trendNote() needs it to keep the partial
+        // current year out of a mean — see its own comment below.
+        currentYear: number
     },
     clusters: Cluster[],
     clusterNarratives: ClusterNarrative[],
@@ -205,9 +212,9 @@ export function assembleNarrativeReview(
 
     // Optional trend note: mean of the first half of publicationsPerYear vs. the second half.
     // Simple, no forecasting — see the function's own header comment for why nothing fancier
-    // belongs here. Skipped outright below two years of data (nothing to compare) or when both
-    // halves are empty (nothing happened either way).
-    const trendSentence = trendNote(corpusStats.publicationsPerYear)
+    // belongs here. Skipped outright below two complete years of data (nothing to compare) or when
+    // both halves are empty (nothing happened either way).
+    const trendSentence = trendNote(corpusStats.publicationsPerYear, corpusStats.currentYear)
 
     // clusterNarratives filtered to real clusters (a narrative for the uncategorized bucket, or for
     // any id that is no longer a real cluster, is simply absent from `sizeById` and drops out here),
@@ -248,13 +255,18 @@ export function assembleNarrativeReview(
 
 const pct = (n: number, total: number): number => Math.round((n / total) * 100)
 
-function trendNote(years: YearCount[]): string {
-    if (years.length < 2) return ''
+function trendNote(years: YearCount[], currentYear: number): string {
+    // COMPLETE YEARS ONLY. The current year is a partial count — a corpus pulled in August holds
+    // eight months of it — and folding it into the later-half mean reads every mid-year run as a
+    // publication cliff that never happened. A count is not a mean: the per-year tables and charts
+    // still show the partial year; only this comparison drops it.
+    const complete = years.filter(y => Number(y.year) < currentYear)
+    if (complete.length < 2) return ''
 
-    const mid = Math.floor(years.length / 2)
+    const mid = Math.floor(complete.length / 2)
     const mean = (xs: YearCount[]) => xs.reduce((a, y) => a + y.count, 0) / xs.length
-    const firstMean = mean(years.slice(0, mid))
-    const secondMean = mean(years.slice(mid))
+    const firstMean = mean(complete.slice(0, mid))
+    const secondMean = mean(complete.slice(mid))
     if (firstMean === 0 && secondMean === 0) return ''
 
     const round1 = (n: number) => Math.round(n * 10) / 10
@@ -265,6 +277,14 @@ function trendNote(years: YearCount[]): string {
     const ratio = firstMean === 0 ? Infinity : secondMean / firstMean
     const direction = ratio > 1.1 ? 'increased' : ratio < 0.9 ? 'declined' : 'held roughly steady'
 
-    return ` Yearly publication volume ${direction} across the window — a mean of ${round1(firstMean)} `
-        + `per year in the earlier half of the range versus ${round1(secondMean)} in the later half.`
+    // The sentence names the window it actually measured, and discloses the exclusion only when a
+    // partial year was really in the data — a review whose range ended years ago excluded nothing,
+    // and saying otherwise would be a false disclaimer in a document whose claim is checkability.
+    const first = complete[0].year
+    const last = complete[complete.length - 1].year
+    const excludedPartial = complete.length < years.length
+    return ` Yearly publication volume ${direction} across ${first}–${last} — a mean of ${round1(firstMean)} `
+        + `per year in the earlier half of that range versus ${round1(secondMean)} in the later half`
+        + (excludedPartial ? ` (${currentYear} is excluded from this comparison as an incomplete year)` : '')
+        + `.`
 }

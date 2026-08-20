@@ -153,10 +153,12 @@ export function clusterByMesh(
 }
 
 // ---------------------------------------------------------------------------
-// PHASE 5b — the one Bedrock call this file makes: turn each cluster's MeSH terms into a phrase a
-// human would actually say. "Laryngoscopy, Video; Intubation, Intratracheal" is a MeSH heading
-// list; "Videolaryngoscopy vs. direct laryngoscopy" is a topic label. Only a model does that
-// rewrite.
+// PHASE 5b — the one Bedrock call this file makes: turn each cluster's MeSH terms plus a sample of
+// its own titles into a phrase a human would actually say. "Laryngoscopy, Video; Intubation,
+// Intratracheal" is a MeSH heading list; "Videolaryngoscopy vs. direct laryngoscopy" is a topic
+// label. Only a model does that rewrite — and it needs the titles, not just the headings, because a
+// seed MeSH term is how the papers were FILED, not necessarily what they are ABOUT (measured: three
+// shipped sections opened by disowning their own MeSH-named heading).
 //
 // ONE CALL FOR ALL CLUSTERS, NOT ONE PER CLUSTER. An earlier draft of the design doc had this as a
 // per-cluster call; that is the same "batch, don't loop" instinct screenRecords() already applies
@@ -188,7 +190,7 @@ const CLUSTER_LABEL_TOOL = {
     },
 }
 
-const CLUSTER_LABEL_PROMPT = `You are naming the topic clusters found in a corpus of biomedical literature, from each cluster's own dominant MeSH descriptors and record count. You have not been shown the papers themselves — only their shared MeSH headings.
+const CLUSTER_LABEL_PROMPT = `You are naming the topic clusters found in a corpus of biomedical literature. For each cluster you are shown its dominant MeSH descriptors, its record count, and a sample of its own papers' titles.
 
 Rules:
 - Return a label for EVERY cluster supplied. Never skip one, never merge two, never invent a cluster id.
@@ -196,15 +198,27 @@ Rules:
   Good: "Videolaryngoscopy vs. direct laryngoscopy"
   Bad: "Laryngoscopy, Video; Intubation, Intratracheal" (that is just the MeSH terms restated)
   Bad: "cluster-laryngoscopy-video" (that is the id)
-- Base the label only on the MeSH terms and record count given for that cluster. You have no other information about it.`
+- Base the label on the MeSH terms AND the sample titles given for that cluster. Where they disagree, believe the titles: MeSH is how an indexer filed the papers, the titles are what the papers are actually about.`
 
-function buildClusterPrompt(clusters: Cluster[]): string {
+// Up to 8 sample titles per cluster, in the cluster's own pmid order — enough for the model to
+// notice when the members are not about what the seed MeSH term suggests (the 2026-08-19 run
+// shipped three sections whose MeSH-only names their own text immediately disowned), and cheap
+// enough that the batch stays one short call. Clusters without a record map (or whose pmids miss
+// it) degrade to the MeSH-only line rather than failing.
+function buildClusterPrompt(clusters: Cluster[], byPmid?: Map<string, PubRecord>): string {
     return clusters
-        .map(c => `Cluster ${c.id} (${c.pmids.length} records) — top MeSH terms: ${c.meshTerms.join(', ')}`)
+        .map(c => {
+            const titles = c.pmids.slice(0, 8)
+                .map(p => byPmid?.get(p)?.title)
+                .filter(Boolean)
+                .join(' | ')
+            return `Cluster ${c.id} (${c.pmids.length} records) — top MeSH terms: ${c.meshTerms.join(', ')}`
+                + (titles ? ` — sample titles: ${titles}` : '')
+        })
         .join('\n')
 }
 
-export async function labelClusters(clusters: Cluster[]): Promise<{ clusters: Cluster[]; usage: UsageLog }> {
+export async function labelClusters(clusters: Cluster[], byPmid?: Map<string, PubRecord>): Promise<{ clusters: Cluster[]; usage: UsageLog }> {
     // 'uncategorized' is a fixed label, never sent to the model and never overwritten.
     const labelable = clusters.filter(c => !c.isUncategorized)
     if (!labelable.length) return { clusters, usage: { inputTokens: 0, outputTokens: 0 } }
@@ -213,7 +227,7 @@ export async function labelClusters(clusters: Cluster[]): Promise<{ clusters: Cl
     // of ONE-LINE labels, not 50 records' worth of one-clause screening reasons (SCREEN_TOOL, which
     // was measured at 4.0k+ output tokens and is why LONG_MAX_TOKENS exists at all). A phrase per
     // cluster is an order of magnitude smaller than a reason per record.
-    const { input, usage } = await invoke(CLUSTER_LABEL_PROMPT, CLUSTER_LABEL_TOOL, buildClusterPrompt(labelable))
+    const { input, usage } = await invoke(CLUSTER_LABEL_PROMPT, CLUSTER_LABEL_TOOL, buildClusterPrompt(labelable, byPmid))
 
     const labels = new Map<string, string>()
     for (const l of (input?.labels || [])) {

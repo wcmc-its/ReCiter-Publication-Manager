@@ -768,6 +768,9 @@ const checkAssembleNarrativeReview = (lit) => {
         totalRecords: 23,
         fromYear: 2020,
         toYear: 2021,
+        // Both years above are COMPLETE relative to this — the exclusion assertions further down
+        // use their own stats, where the partial year is actually present.
+        currentYear: 2022,
     }
 
     const withFlags = lit.assembleNarrativeReview('Do probiotics help depression?', corpusStats, clusters, clusterNarratives, true)
@@ -792,7 +795,45 @@ const checkAssembleNarrativeReview = (lit) => {
     assert.strictEqual(withoutFlags.caseSeriesNote, undefined,
         'hasCaseSeriesFlags: false must produce NO caseSeriesNote — a disclosure that applies whether or not the corpus actually has any flagged records is not a disclosure, it is boilerplate')
 
-    console.log(`narrative:    sections ordered [${withFlags.sections.map(s => s.clusterId).join(', ')}], uncategorized excluded, caseSeriesNote present=${!!withFlags.caseSeriesNote}/absent=${withoutFlags.caseSeriesNote === undefined}`)
+    // THE PARTIAL CURRENT YEAR NEVER ENTERS THE TREND MEANS. A corpus pulled in August holds eight
+    // months of the current year, and folding that count into the later-half mean reads every
+    // mid-year run as a publication cliff — a decline that is really a calendar. The per-year
+    // tables keep the partial year — a count is not a mean — so the assertion is on the intro's
+    // comparison sentence alone. The fixture is built so
+    // the leak would FLIP the verdict, not just nudge a decimal: four complete years at a steady 5
+    // read "held roughly steady"; let the 1-record partial 2022 into the later half and the mean
+    // drops to 3.67, through the 10% dead band, and the sentence claims a decline.
+    const partialStats = {
+        ...corpusStats,
+        publicationsPerYear: [
+            { year: '2018', count: 5 }, { year: '2019', count: 5 },
+            { year: '2020', count: 5 }, { year: '2021', count: 5 },
+            { year: '2022', count: 1 },   // the partial current year — 1 record SO FAR, not a collapse
+        ],
+        toYear: 2022,
+        currentYear: 2022,
+    }
+    const partial = lit.assembleNarrativeReview('Do probiotics help depression?', partialStats, clusters, clusterNarratives, false)
+    assert.ok(partial.intro.includes('held roughly steady') && !partial.intro.includes('declined'),
+        `a steady 5/year over the complete years must read "held roughly steady" — a "declined" here means the partial current year leaked into the later-half mean. Intro was: ${partial.intro}`)
+    assert.ok(partial.intro.includes('2018–2021'),
+        `the trend sentence must name the window it actually measured (2018–2021), not the corpus window that includes the partial year. Intro was: ${partial.intro}`)
+    assert.ok(partial.intro.includes('2022 is excluded'),
+        `when a partial current year was dropped from the comparison, the sentence must disclose the exclusion. Intro was: ${partial.intro}`)
+
+    // AND NO FALSE DISCLAIMER THE OTHER WAY: the base fixture's years are all complete, so its
+    // intro must not claim an exclusion that never happened.
+    assert.ok(!withFlags.intro.includes('excluded'),
+        `a corpus whose window ended before the current year excluded nothing, and its intro must not say otherwise. Intro was: ${withFlags.intro}`)
+
+    // FEWER THAN TWO COMPLETE YEARS = NO TREND SENTENCE AT ALL — one complete year plus a partial
+    // one is nothing to compare, and half a comparison is worse than none.
+    const oneComplete = lit.assembleNarrativeReview('Do probiotics help depression?',
+        { ...corpusStats, currentYear: 2021 }, clusters, clusterNarratives, false)
+    assert.ok(!oneComplete.intro.includes('Yearly publication volume'),
+        `with only one complete year (2020) and a partial 2021, no trend sentence belongs in the intro. Intro was: ${oneComplete.intro}`)
+
+    console.log(`narrative:    sections ordered [${withFlags.sections.map(s => s.clusterId).join(', ')}], uncategorized excluded, caseSeriesNote present=${!!withFlags.caseSeriesNote}/absent=${withoutFlags.caseSeriesNote === undefined}, partial-year excluded from trend means`)
 }
 
 // =======================================================================================
