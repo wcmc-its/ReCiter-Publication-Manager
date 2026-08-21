@@ -3,9 +3,12 @@ import sequelize from "../../src/db/db";
 // Data access for a user's roles. The WHERE is fixed; only the replacements (personIdentifier, email)
 // vary, and they are always bound parameters — never interpolated — so this stays injection-safe.
 // A user is matched by (personIdentifier AND email), or by an email that is unique across admin_users.
+// A row with no stored email matches on personIdentifier alone -- requiring email equality there
+// stranded email-less accounts with zero roles forever (their proxy grants vanished at login too).
 export function queryUserPermissions(replacements: Record<string, any>) {
     const whereClause = `
-        (au.personIdentifier = :personIdentifier AND au.email = :email)
+        (au.personIdentifier = :personIdentifier
+         AND (au.email = :email OR au.email IS NULL OR au.email = ''))
         OR
         (
         au.email = :email
