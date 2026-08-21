@@ -1,68 +1,41 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import models from '../../src/db/sequelize'
+import { querySettingsGrouped, upsertSettings, queryOneSetting } from '../../repositories/db/admin.settings.repository'
 
 export const listAdminSettings = async (req: NextApiRequest, res: NextApiResponse) => {
     let adminSettings = {};
     try {
-         adminSettings = await models.AdminSettings.findAll({
-            attributes: ["viewName","viewAttributes","viewLabel"
-            //[Sequelize.fn("JSON_ARRAYAGG", Sequelize.col('AdminSettings.viewAttributes')),"viewAttributes"]
-        ],
-        group: `viewName`
-        });
+        adminSettings = await querySettingsGrouped(['viewName', 'viewAttributes', 'viewLabel']);
         res.send(adminSettings);
     } catch (e) {
         console.log(e)
     }
-  
 };
+
 export const fetchUpdatedAdminSettings = async () => {
     let adminSettings = [];
     try {
-         adminSettings = await models.AdminSettings.findAll({
-            attributes: ["viewName","viewAttributes"
-            //[Sequelize.fn("JSON_ARRAYAGG", Sequelize.col('AdminSettings.viewAttributes')),"viewAttributes"]
-        ],
-        group: `viewName`
-        });
+        adminSettings = await querySettingsGrouped(['viewName', 'viewAttributes']);
         return JSON.stringify(adminSettings);
     } catch (e) {
         console.log(e)
     }
-  
 };
 
 export const updateAdminSettings = async (req: NextApiRequest, res: NextApiResponse) => {
-    const { data: payload } = req.body ;
+    const { data: payload } = req.body;
     try {
-        const adminSettings = await models.AdminSettings.bulkCreate(payload, { updateOnDuplicate: ["viewAttributes"], fields:["viewName", "viewAttributes"]})
+        const adminSettings = await upsertSettings(payload)
         res.send(adminSettings);
     } catch (e) {
         console.log(e)
     }
 };
+
 export const findOneAdminSettings = async (viewName: string) => {
-    
     try {
-        const adminSettings = await models.AdminSettings.findOne({
-            where: {
-                viewName : viewName
-            },
-            attributes: ["viewName", "viewAttributes", "viewLabel"]
-        });
+        const adminSettings = await queryOneSetting(viewName);
         return adminSettings
     } catch (e) {
         console.log(e)
     }
-    
 };
-
-
-
-
-
-
-
-
-
-

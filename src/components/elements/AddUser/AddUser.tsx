@@ -7,10 +7,11 @@ import { RootStateOrAny } from "../../../types/redux";
 import styles from './AddUser.module.css';
 import Loader from '../Common/Loader';
 import TextField from '@mui/material/TextField';
-import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles} from "../../../redux/actions/actions";
+import { createAdminUser, createORupdateUserIDAction, fetchUserInfoByID, getAdminDepartments, getAdminRoles, getPersonTypes, fetchProxiesForUser, saveProxiesForUser} from "../../../redux/actions/actions";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ToastContainerWrapper from '../ToastContainerWrapper/ToastContainerWrapper';
+import ProxyAssignmentsSection, { PersonOption } from './ProxyAssignmentsSection';
 
 /* ── Role label formatting ── */
 const ROLE_LABELS: Record<string, string> = {
@@ -19,6 +20,7 @@ const ROLE_LABELS: Record<string, string> = {
     'Curator_Self': 'Curator \u2014 Self',
     'Curator_Department': 'Curator \u2014 Department',
     'Curator_Department_Delegate': 'Curator \u2014 Department Delegate',
+    'Curator_Scoped': 'Curator \u2014 Scoped',
     'Reporter_All': 'Reporter \u2014 All',
 };
 const ROLE_DESCS: Record<string, string> = {
@@ -27,6 +29,7 @@ const ROLE_DESCS: Record<string, string> = {
     'Curator_Self': 'Can only curate their own publications.',
     'Curator_Department': 'Can curate publications for their managed org units.',
     'Curator_Department_Delegate': 'Delegated curation access for specific departments.',
+    'Curator_Scoped': 'Can curate publications only for people matching the person type(s) and/or org unit(s) selected below.',
     'Reporter_All': 'Can generate and export reports for all users.',
 };
 const formatRoleLabel = (slug: string) => ROLE_LABELS[slug] || slug.replace(/_/g, ' ');
@@ -42,6 +45,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
 
     const adminDepartments = useSelector((state: RootStateOrAny) => state.AllAdminDepatments);
     const allAdminRoles = useSelector((state: RootStateOrAny) => state.AllAdminRoles);
+    const personTypesData = useSelector((state: RootStateOrAny) => state.personTypesData);
 
     const [state, setState] = useState({
         cwid: "",
@@ -58,7 +62,17 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     const [selectedRoles, setSelectedRoles] = useState([]);
     const [formErrorsInst, setformErrInst] = useState<{[key: string]: any}>({});
     const [selectedDepartments, setSelectedDepartments] = useState([]);
+    // Curator_Scoped's own personType/orgUnit scope -- deliberately separate from
+    // selectedDepartments above, which writes to the older AdminUsersDepartment join
+    // table used by Curator_Department. These write to admin_users.scope_person_types /
+    // scope_org_units (see PM#849).
+    const [selectedPersonTypes, setSelectedPersonTypes] = useState([]);
+    const [selectedScopeOrgUnits, setSelectedScopeOrgUnits] = useState([]);
+    // Individual-level proxy: specific people this user can curate regardless of role/scope
+    // (admin_users.proxy_person_ids, see PM#849). Independent of selectedScopeOrgUnits above.
+    const [selectedProxies, setSelectedProxies] = useState<PersonOption[]>([]);
     const [loading, setLoading] = useState(false);
+    const isCuratorScoped = selectedRoles.includes('Curator_Scoped');
 
     const router = useRouter()
     const isEdit = router.query.userId ? true : false;
@@ -80,6 +94,12 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         if ( !firstName || firstName === '' || firstName.trim().length === 0 ) formErrInst.firstName = 'Please enter valid first Name!'
         if ( !lastName || lastName === '' || lastName.trim().length === 0 ) formErrInst.lastName = 'Please enter valid last Name!'
         if ( !selectedRoles || selectedRoles.length === 0  ) formErrInst.selectedRole = 'Please select atleast one role!'
+        // A Curator_Scoped user saved with no scope on either axis is denied everyone server-side
+        // (canCurate fails closed on an empty scope, not "unrestricted") -- catch it here instead
+        // of letting an admin save a silently-nonfunctional user.
+        if ( isCuratorScoped && selectedPersonTypes.length === 0 && selectedScopeOrgUnits.length === 0 ) {
+            formErrInst.selectedScope = 'Curator — Scoped needs at least one person type or org unit selected below.'
+        }
         setformErrInst(formErrInst)
         return formErrInst
     }
@@ -104,11 +124,20 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             let selectedRoleIds = roleIds || [];
             let departmentIds = departMentIds || [];
             let isEditUserId = router.query.userId;
-            let createOrUpdatePayload = { cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId }
+            let createOrUpdatePayload = {
+                cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId,
+                // Always save whatever's entered, regardless of role -- the fields are now
+                // unconditionally visible (not just for Curator_Scoped), so gating the save on
+                // isCuratorScoped would silently drop a value the admin can see on screen.
+                // Harmless when unused: only canCurate's Curator_Scoped branch reads these.
+                scopePersonTypes: selectedPersonTypes,
+                scopeOrgUnits: selectedScopeOrgUnits,
+            }
 
             if (isEditUserId) {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0] === 1) {
+                    await saveProxiesForUser(isEditUserId, selectedProxies.map(p => p.personIdentifier))
                     dispatch(createORupdateUserIDAction("UserID " + isEditUserId + " has been Updated"))
                     router.push("/admin/manage/users")
                 }
@@ -116,6 +145,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             else {
                 let resp = await createAdminUser(createOrUpdatePayload)
                 if (resp && resp.length > 0 && resp[0].userID) {
+                    await saveProxiesForUser(resp[0].userID, selectedProxies.map(p => p.personIdentifier))
                     dispatch(createORupdateUserIDAction("UserID " + resp[0].userID + " has been Created"))
                     router.push("/admin/manage/users")
                 }
@@ -126,6 +156,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
     useEffect(() => {
         dispatch(getAdminRoles());
         dispatch(getAdminDepartments());
+        dispatch(getPersonTypes());
     },[])
 
     useEffect(() => {
@@ -134,7 +165,7 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
         if (isEditUserId) {
             setLoading(true)
             let userDetails = fetchUserInfoByID(isEditUserId).then(result => {
-                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier } = result && result[0];
+                const { adminUsersDepartments, adminUsersRoles, email, nameFirst, nameLast, nameMiddle, personIdentifier, scope_person_types, scope_org_units } = result && result[0];
                 if (adminUsersRoles) {
                     let roleNames = [];
                     allAdminRoles.map(role => {
@@ -155,9 +186,14 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                     setSelectedDepartments(departmentNames ? departmentNames : [])
                 }
 
+                setSelectedPersonTypes(scope_person_types || [])
+                setSelectedScopeOrgUnits(scope_org_units || [])
+
                 setState(state => ({ ...state, cwid: personIdentifier, lastName: nameLast, firstName: nameFirst, email, middleName: nameMiddle }))
                 setLoading(false)
             })
+
+            fetchProxiesForUser(isEditUserId).then(persons => setSelectedProxies(persons || []))
         }
     }, [router.query.userId])
 
@@ -494,6 +530,72 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     />
                                     <span className={styles.fieldHint}>Roles control what this user can access. At least one role is required.</span>
                                     {formErrorsInst.selectedRole && <span className={styles.errorText}>{formErrorsInst.selectedRole}</span>}
+                                </div>
+                            </div>
+                            <div className={styles.fieldGrid} style={{ marginTop: 16 }}>
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>Person type(s) user can manage</label>
+                                    <Autocomplete
+                                        freeSolo
+                                        multiple
+                                        id="scopePersonTypes"
+                                        disableClearable
+                                        value={selectedPersonTypes}
+                                        options={personTypesData.map((option) => option.personType)}
+                                        onChange={(event, value) => setSelectedPersonTypes(value as string[])}
+                                        sx={orgUnitSx}
+                                        renderTags={renderOrgTags}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                variant="outlined"
+                                                {...params}
+                                                placeholder={selectedPersonTypes.length === 0 ? "Search and select person types..." : ""}
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    type: 'search',
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    <span className={styles.fieldHint}>Only takes effect for Curator — Scoped (see Role(s) above). A person matches if they have any of the selected types. Leave empty for no person-type restriction.</span>
+                                </div>
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>Org unit(s) for scoped access</label>
+                                    <Autocomplete
+                                        freeSolo
+                                        multiple
+                                        id="scopeOrgUnits"
+                                        disableClearable
+                                        value={selectedScopeOrgUnits}
+                                        options={adminDepartments.map((option) => option.departmentLabel)}
+                                        onChange={(event, value) => setSelectedScopeOrgUnits(value as string[])}
+                                        sx={orgUnitSx}
+                                        renderTags={renderOrgTags}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                variant="outlined"
+                                                {...params}
+                                                placeholder={selectedScopeOrgUnits.length === 0 ? "Search and select departments..." : ""}
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    type: 'search',
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    <span className={styles.fieldHint}>Only takes effect for Curator — Scoped (see Role(s) above). Separate from &ldquo;Organizational unit(s) user can manage&rdquo; above (that field is for Curator — Department). Leave empty for no org-unit restriction.</span>
+                                </div>
+                            </div>
+                            {formErrorsInst.selectedScope && <span className={styles.errorText}>{formErrorsInst.selectedScope}</span>}
+                            <div className={styles.fieldGrid} style={{ marginTop: 16 }}>
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>Proxy — additional people this user can curate</label>
+                                    <ProxyAssignmentsSection
+                                        selectedProxies={selectedProxies}
+                                        onProxiesChange={setSelectedProxies}
+                                        sx={orgUnitSx}
+                                    />
+                                    <span className={styles.fieldHint}>Grants curation access to specific people regardless of role or scope above. Leave empty for none.</span>
                                 </div>
                             </div>
                         </div>

@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials"
 import { authenticate } from "../../../../controllers/authentication.controller";
-import { findUserPermissions } from '../../../../controllers/db/userroles.controller';
+import { findUserPermissions } from '../../../../services/db/userroles.service';
 import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
@@ -164,6 +164,30 @@ export const authOptions = {
         token.email = user.email || '';
         token.databaseUser = user.databaseUser || null;
         token.userRoles = user.userRoles || [];
+
+        // scope_person_types/scope_org_units/proxy_person_ids (admin_users, see PM#849) come back
+        // on every role row from findUserPermissions, identical per row since they're per-user, not
+        // per-role -- so the first row is enough. Stored as MariaDB JSON-alias-for-LONGTEXT columns,
+        // so a raw (non-Model) query returns them as JSON text, not pre-parsed values; parse before
+        // re-stringifying onto the token, or Search.js's single JSON.parse(session.data.scopeData)
+        // would hand back strings-of-arrays instead of arrays.
+        const parseJsonColumn = (value) => {
+          if (value == null) return null;
+          if (typeof value !== 'string') return value;
+          try { return JSON.parse(value); } catch { return null; }
+        };
+        // Read the three columns from the user's own admin_users row (already fetched by
+        // findOrcreateAdminUser above), NOT from a role row: they are per-user values, and a
+        // user with zero resolved roles (or a proxy grant and nothing else) would otherwise
+        // lose their scope/proxy data at login even though the DB has it.
+        const dbUser = (user.databaseUser && typeof user.databaseUser.get === 'function')
+          ? user.databaseUser.get({ plain: true })
+          : (user.databaseUser || {});
+        token.scopeData = JSON.stringify({
+          personTypes: parseJsonColumn(dbUser.scope_person_types),
+          orgUnits: parseJsonColumn(dbUser.scope_org_units),
+        });
+        token.proxyPersonIds = JSON.stringify(parseJsonColumn(dbUser.proxy_person_ids) || []);
 
         token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
         token.picture = user.image || user.databaseUser?.profilePicture;

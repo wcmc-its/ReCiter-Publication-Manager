@@ -14,11 +14,12 @@ import ReciterTabs from "./ReciterTabs";
 import Image from "next/image";
 import Profile from "../Profile/Profile";
 import { useSession } from "next-auth/react";
-import { allowedPermissions, toastMessage } from "../../../utils/constants";
+import { allowedPermissions, toastMessage, getCapabilities } from "../../../utils/constants";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
 import { reciterConfig } from "../../../../config/local";
 import { toast } from "react-toastify";
 import { reportError } from "../../../utils/reportError";
+import GrantProxyModal from "./GrantProxyModal";
 
 
 
@@ -50,6 +51,11 @@ const CurateIndividual = () => {
   const [headShot, setHeadShot] = useState<any>([]);
   const [showNoPermitError, setShowNoPermitError] = useState(false)
   const [headShotLoaded, setHeadShotLoaded] = useState(false)
+  const [grantProxyShow, setGrantProxyShow] = useState(false);
+  // Grant Proxy hits Superuser-only API routes (see PM#849 / proxy.controller.ts) -- match
+  // that gate here so the button isn't shown to someone who'd just get a 403.
+  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  const canManageUsers = getCapabilities(userRoles).canManageUsers;
 
   useEffect(() => {
 
@@ -205,6 +211,9 @@ const CurateIndividual = () => {
                 }
               </div>
               <div className={styles.personActions}>
+                {canManageUsers && (
+                  <button className={styles.viewProfileBtn} onClick={() => setGrantProxyShow(true)}>Grant Proxy</button>
+                )}
                 <button className={styles.viewProfileBtn} onClick={handleShow}>View Profile</button>
               </div>
             </div>
@@ -224,6 +233,15 @@ const CurateIndividual = () => {
             headShotLabelData={headShot}
             reciterData={reciterData}
           />
+          {canManageUsers && (
+            <GrantProxyModal
+              show={grantProxyShow}
+              onHide={() => setGrantProxyShow(false)}
+              personIdentifier={String(id)}
+              personName={personFullName}
+              onSave={() => {}}
+            />
+          )}
         </>
       }
     </div>
