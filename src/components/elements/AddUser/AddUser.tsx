@@ -126,8 +126,12 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
             let isEditUserId = router.query.userId;
             let createOrUpdatePayload = {
                 cwid, email, firstName, lastName, middleName, division, title, selectedRoleIds, departmentIds, isEditUserId,
-                scopePersonTypes: isCuratorScoped ? selectedPersonTypes : [],
-                scopeOrgUnits: isCuratorScoped ? selectedScopeOrgUnits : [],
+                // Always save whatever's entered, regardless of role -- the fields are now
+                // unconditionally visible (not just for Curator_Scoped), so gating the save on
+                // isCuratorScoped would silently drop a value the admin can see on screen.
+                // Harmless when unused: only canCurate's Curator_Scoped branch reads these.
+                scopePersonTypes: selectedPersonTypes,
+                scopeOrgUnits: selectedScopeOrgUnits,
             }
 
             if (isEditUserId) {
@@ -528,62 +532,60 @@ const AddUser: FunctionComponent<FuncProps> = (props) => {
                                     {formErrorsInst.selectedRole && <span className={styles.errorText}>{formErrorsInst.selectedRole}</span>}
                                 </div>
                             </div>
-                            {isCuratorScoped && (
-                                <div className={styles.fieldGrid} style={{ marginTop: 16 }}>
-                                    <div className={styles.field}>
-                                        <label className={styles.fieldLabel}>Person type(s) user can manage</label>
-                                        <Autocomplete
-                                            freeSolo
-                                            multiple
-                                            id="scopePersonTypes"
-                                            disableClearable
-                                            value={selectedPersonTypes}
-                                            options={personTypesData.map((option) => option.personType)}
-                                            onChange={(event, value) => setSelectedPersonTypes(value as string[])}
-                                            sx={orgUnitSx}
-                                            renderTags={renderOrgTags}
-                                            renderInput={(params) => (
-                                                <TextField
-                                                    variant="outlined"
-                                                    {...params}
-                                                    placeholder={selectedPersonTypes.length === 0 ? "Search and select person types..." : ""}
-                                                    InputProps={{
-                                                        ...params.InputProps,
-                                                        type: 'search',
-                                                    }}
-                                                />
-                                            )}
-                                        />
-                                        <span className={styles.fieldHint}>A person matches if they have any of the selected types. Leave empty for no person-type restriction.</span>
-                                    </div>
-                                    <div className={styles.field}>
-                                        <label className={styles.fieldLabel}>Org unit(s) for scoped access</label>
-                                        <Autocomplete
-                                            freeSolo
-                                            multiple
-                                            id="scopeOrgUnits"
-                                            disableClearable
-                                            value={selectedScopeOrgUnits}
-                                            options={adminDepartments.map((option) => option.departmentLabel)}
-                                            onChange={(event, value) => setSelectedScopeOrgUnits(value as string[])}
-                                            sx={orgUnitSx}
-                                            renderTags={renderOrgTags}
-                                            renderInput={(params) => (
-                                                <TextField
-                                                    variant="outlined"
-                                                    {...params}
-                                                    placeholder={selectedScopeOrgUnits.length === 0 ? "Search and select departments..." : ""}
-                                                    InputProps={{
-                                                        ...params.InputProps,
-                                                        type: 'search',
-                                                    }}
-                                                />
-                                            )}
-                                        />
-                                        <span className={styles.fieldHint}>Separate from &ldquo;Organizational unit(s) user can manage&rdquo; above (that field is for Curator — Department). Leave empty for no org-unit restriction.</span>
-                                    </div>
+                            <div className={styles.fieldGrid} style={{ marginTop: 16 }}>
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>Person type(s) user can manage</label>
+                                    <Autocomplete
+                                        freeSolo
+                                        multiple
+                                        id="scopePersonTypes"
+                                        disableClearable
+                                        value={selectedPersonTypes}
+                                        options={personTypesData.map((option) => option.personType)}
+                                        onChange={(event, value) => setSelectedPersonTypes(value as string[])}
+                                        sx={orgUnitSx}
+                                        renderTags={renderOrgTags}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                variant="outlined"
+                                                {...params}
+                                                placeholder={selectedPersonTypes.length === 0 ? "Search and select person types..." : ""}
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    type: 'search',
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    <span className={styles.fieldHint}>Only takes effect for Curator — Scoped (see Role(s) above). A person matches if they have any of the selected types. Leave empty for no person-type restriction.</span>
                                 </div>
-                            )}
+                                <div className={styles.field}>
+                                    <label className={styles.fieldLabel}>Org unit(s) for scoped access</label>
+                                    <Autocomplete
+                                        freeSolo
+                                        multiple
+                                        id="scopeOrgUnits"
+                                        disableClearable
+                                        value={selectedScopeOrgUnits}
+                                        options={adminDepartments.map((option) => option.departmentLabel)}
+                                        onChange={(event, value) => setSelectedScopeOrgUnits(value as string[])}
+                                        sx={orgUnitSx}
+                                        renderTags={renderOrgTags}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                variant="outlined"
+                                                {...params}
+                                                placeholder={selectedScopeOrgUnits.length === 0 ? "Search and select departments..." : ""}
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    type: 'search',
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    <span className={styles.fieldHint}>Only takes effect for Curator — Scoped (see Role(s) above). Separate from &ldquo;Organizational unit(s) user can manage&rdquo; above (that field is for Curator — Department). Leave empty for no org-unit restriction.</span>
+                                </div>
+                            </div>
                             {formErrorsInst.selectedScope && <span className={styles.errorText}>{formErrorsInst.selectedScope}</span>}
                             <div className={styles.fieldGrid} style={{ marginTop: 16 }}>
                                 <div className={styles.field}>
