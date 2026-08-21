@@ -41,7 +41,18 @@ export async function middleware(request: NextRequest) {
             let isSuperUser = userRoles.some((role) => role.roleLabel === allowedPermissions.Superuser)
             let isCuratorAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Curator_All)
             let isReporterAll = userRoles.some((role) => role.roleLabel === allowedPermissions.Reporter_All)
-            if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser)
+            // A proxy grant (admin_users.proxy_person_ids, PM#849) allows curating the named
+            // people regardless of role, so /curate/<granted-uid> must not be bounced by the
+            // role-based rules below. canCurate on the write API stays the real enforcement;
+            // this only stops the middleware from redirecting a page the API would allow.
+            let proxyPersonIds = [];
+            try {
+              const parsed = JSON.parse((decodedTokenJson as any)?.proxyPersonIds || '[]');
+              if (Array.isArray(parsed)) proxyPersonIds = parsed;
+            } catch (e) { /* malformed token field -> no proxy allowance */ }
+            const curateTarget = pathName.startsWith('/curate/') ? decodeURIComponent(pathName.split('/')[2] || '') : '';
+            const isProxiedTarget = curateTarget.length > 0 && proxyPersonIds.includes(curateTarget);
+            if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser && !isProxiedTarget)
             {
                 if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {
                   return redirectToLandingPage(request,'/search');
