@@ -198,18 +198,18 @@ export const authOptions = {
           if (typeof value !== 'string') return value;
           try { return JSON.parse(value); } catch { return null; }
         };
-        let firstRole = {};
-        try {
-          const rolesArr = JSON.parse(token.userRoles || '[]');
-          firstRole = rolesArr[0] || {};
-        } catch (e) {
-          console.warn('JWT callback: could not parse userRoles for scope data', e);
-        }
+        // Read the three columns from the user's own admin_users row (already fetched by
+        // findOrcreateAdminUser above), NOT from a role row: they are per-user values, and a
+        // user with zero resolved roles (or a proxy grant and nothing else) would otherwise
+        // lose their scope/proxy data at login even though the DB has it.
+        const dbUser = (user.databaseUser && typeof user.databaseUser.get === 'function')
+          ? user.databaseUser.get({ plain: true })
+          : (user.databaseUser || {});
         token.scopeData = JSON.stringify({
-          personTypes: parseJsonColumn(firstRole.scope_person_types),
-          orgUnits: parseJsonColumn(firstRole.scope_org_units),
+          personTypes: parseJsonColumn(dbUser.scope_person_types),
+          orgUnits: parseJsonColumn(dbUser.scope_org_units),
         });
-        token.proxyPersonIds = JSON.stringify(parseJsonColumn(firstRole.proxy_person_ids) || []);
+        token.proxyPersonIds = JSON.stringify(parseJsonColumn(dbUser.proxy_person_ids) || []);
 
         token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
         token.picture = user.image || user.databaseUser?.profilePicture;

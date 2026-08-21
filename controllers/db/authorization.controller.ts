@@ -48,14 +48,13 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     if (caps.canCurate.all) return true
     if (caps.canCurate.self && caps.canCurate.personIdentifier === targetUid) return true
 
-    // Proxy delegation only extends a role that already has some curate capability (matches
-    // the existing client-side intent in Search.js, which only ever surfaces proxy access
-    // nested under a curator role) -- it is not an independent grant. Without this gate, a
-    // Reporter_All user (canCurate: false) with a stray proxy_person_ids entry could curate.
-    if (caps.canCurate.self || caps.canCurate.scoped) {
-        const proxyPersonIds = safeJsonParse(token?.proxyPersonIds, [])
-        if (isProxyFor(proxyPersonIds, targetUid)) return true
-    }
+    // A proxy grant is an independent, person-scoped delegation -- it does not require the
+    // grantee to hold any curate-capable role. This matches the shipped admin UI ("Grants
+    // curation access to specific people regardless of role or scope above") and is safe
+    // because proxy_person_ids is only writable through isAuthorizedAdmin-gated routes: every
+    // entry is a deliberate Superuser grant, never user-controlled.
+    const proxyPersonIds = safeJsonParse(token?.proxyPersonIds, [])
+    if (isProxyFor(proxyPersonIds, targetUid)) return true
 
     if (caps.canCurate.scoped) {
         const scopeData = safeJsonParse(token?.scopeData, null)
