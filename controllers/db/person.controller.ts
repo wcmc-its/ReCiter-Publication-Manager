@@ -23,12 +23,16 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 
                 }
                 else if(where[Op.and] && apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length <= reciterConstants.nameCWIDSpaceCountThreshold) {
-                    apiBody.filters.nameOrUids.forEach((name: string) => {
-                            where[Op.and].push({[Op.or]:[{'$Person.firstName$': { [Op.like]: `%${name}%`}},
-                          {'$Person.middleName$': { [Op.like]: `%${name}%`}},
+                    // ponytail: OR an exact-CWID IN against the existing AND-of-names, so 2-3 pasted CWIDs match (#886).
+                    // Strictly additive: name search keeps the same AND semantics, exact-CWID rows are only added.
+                    where[Op.and].push({[Op.or]:[
+                        {'$Person.personIdentifier$': { [Op.in]: apiBody.filters.nameOrUids }},
+                        {[Op.and]: apiBody.filters.nameOrUids.map((name: string) => ({[Op.or]:[
+                            {'$Person.firstName$': { [Op.like]: `%${name}%`}},
+                            {'$Person.middleName$': { [Op.like]: `%${name}%`}},
                             {'$Person.lastName$': { [Op.like]: `%${name}%`}},
-                            {'$Person.personIdentifier$': { [Op.like]: `%${name}%`}}]})
-                        })
+                            {'$Person.personIdentifier$': { [Op.like]: `%${name}%`}}]}))},
+                    ]})
                      }
                // }
                 if(apiBody.filters.institutions) {
