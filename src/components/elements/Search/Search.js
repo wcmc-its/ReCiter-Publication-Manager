@@ -412,7 +412,11 @@ const Search = () => {
       setTotalCount(countAllData);
     }
     if (searchText) {
-      let searchWords = searchText.trim().split(' ');
+      // Split on any run of whitespace or commas, not just a single space, so a CWID
+      // list pasted from a spreadsheet column (newline-separated) or a comma-separated
+      // list parses into one token per person instead of collapsing into one mangled
+      // string that then misses the bulk-CWID threshold below.
+      let searchWords = searchText.trim().split(/[\s,]+/).filter(Boolean);
       dispatch(updateAuthorFilter(searchWords.join(),10));
 
       updatedFilters = { ...updatedFilters, nameOrUids: searchWords };
