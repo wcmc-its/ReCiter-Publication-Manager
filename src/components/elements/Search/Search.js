@@ -13,7 +13,7 @@ import { updatePubFiltersFromSearch } from "../../../redux/actions/actions";
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { styled } from '@mui/material/styles';
-import { Table,Button,Dropdown} from "react-bootstrap";
+import { Table,Button} from "react-bootstrap";
 import SplitDropdown from "../Dropdown/SplitDropdown";
 import Loader from "../Common/Loader";
 import { reciterConfig } from "../../../../config/local";
@@ -604,52 +604,11 @@ const Search = () => {
     if (isCuratorSelf) return pid === loggedInPersonIdentifier;
     return false;
   };			 
-  const RoleSplitDropdown = (identity) => {
-    
-    if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorSelf && !isReporterAll && !isCuratorAll && !isSuperUser && (loggedInPersonIdentifier === identity.identity.personIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier))) 
-    {
-        return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
-    }
-    else if(dropdownTitle && dropdownTitle =='Create Report' && isReporterAll && !isCuratorAll && !isSuperUser && !isCuratorSelf)
-    {
-		 if (isProxyFor(proxyPersonIds, identity.identity.personIdentifier)) {
-          return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
-        }
-        return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("report", identity.identity)}>{"Create Reports"}</Button>
-    }
-    else if(dropdownTitle && dropdownTitle =='Curate Publications' && isCuratorAll && !isReporterAll && !isSuperUser && !isCuratorSelf) 
-    {
-        return <Button className="secondary" variant="secondary" onClick={() => redirectToCurate("individual", identity.identity.personIdentifier)}>{"Curate Publications"}</Button>
-    }
-    else if(isCuratorSelf && isReporterAll && !isCuratorAll && !isSuperUser)
-    {
-		const canCurateRow = identity && (identity.identity.personIdentifier === loggedInPersonIdentifier || isProxyFor(proxyPersonIds, identity.identity.personIdentifier));			 
-      return  <SplitDropdown
-        title={canCurateRow ? "Curate Publications" : "Create Reports"}
-        onDropDownClick={canCurateRow ? (e) => redirectToCurate("individual",identity.identity.personIdentifier,e) : (e) => redirectToCurate("report", identity.identity.personIdentifier,e)}
-        id={`curate-publications_${identity.identity.personIdentifier}`}
-        listItems={canCurateRow ? dropdownMenuItems : []}
-        secondary={true}
-        onClick={canCurateRow ? (e) => redirectToCurate("report", identity.identity,e): "undefined"}/>
-    }
-    else if((isCuratorAll && isReporterAll && isCuratorSelf) ||isSuperUser || (isCuratorAll && isReporterAll))
-    {
-      return  <SplitDropdown
-        title={"Curate Publications"}
-        //{isUserRole && isUserRole === allowedPermissions.Reporter_All ? "Create Reports" : "Curate Publications"}
-        // to={`/curate/${identity.personIdentifier}`}
-        //onDropDownClick={isUserRole && isUserRole === allowedPermissions.Reporter_All ? () => redirectToCurate("report",identity.personIdentifier) : () => redirectToCurate("individual", identity.personIdentifier)}
-        onDropDownClick={(e) => redirectToCurate("individual",identity.identity.personIdentifier,e)}
-        id={`curate-publications_${identity.identity.personIdentifier}`}
-        listItems={dropdownMenuItems} 
-        secondary={true}
-        onClick={(e) => redirectToCurate("report", identity.identity,e)}/>
-    }
-    else
-       return null;
-  
-  
-  }
+  // Note: an earlier RoleSplitDropdown() helper duplicated this same role-branching logic to
+  // render the Actions dropdown, but was never actually called -- the real Actions cell (in
+  // tableBody below) used a separate raw react-bootstrap Dropdown instead, which is why it
+  // didn't match Manage Users' styling. Removed the dead helper rather than leave two
+  // implementations of the same decision to drift out of sync again.
 
 
 
@@ -684,16 +643,24 @@ const Search = () => {
         </td>
          : ""}
         <td key={`${identityIndex}__actions`} width="24%" className={styles.actionsCell}>
-          <Dropdown className="d-inline-block">
-            <Dropdown.Toggle variant="primary" id={`actions_${identity.personIdentifier}`}>
-              {rowCanCurate ? "Curate Publications" : "Create Reports"}
-            </Dropdown.Toggle>
-            <Dropdown.Menu className={styles.actionMenu} popperConfig={{ strategy: 'fixed' }} renderOnMount>
-              {rowCanCurate && <Dropdown.Item className={styles.actionMenuItem} onClick={() => onClickProfile(identity.personIdentifier)}>Curate Publications</Dropdown.Item>}
-              <Dropdown.Item className={styles.actionMenuItem} onClick={() => redirectToCurate("report", identity)}>Create Reports</Dropdown.Item>
-              <Dropdown.Item className={styles.actionMenuItem} onClick={() => { setShowprofileID(identity.personIdentifier); handleShow(); }}>View Profile</Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown>
+          {/* Was a raw react-bootstrap Dropdown (bootstrap variant="primary" styling) -- switched
+              to the shared SplitDropdown component so this matches the Manage Users row action
+              button (dark-navy split button, icons, "Actions for this person" header). */}
+          <SplitDropdown
+            title={rowCanCurate ? "Curate Publications" : "Create Reports"}
+            onDropDownClick={rowCanCurate ? () => onClickProfile(identity.personIdentifier) : () => redirectToCurate("report", identity)}
+            id={`actions_${identity.personIdentifier}`}
+            listItems={rowCanCurate
+              ? [
+                  { title: 'Create Reports', onClick: () => redirectToCurate("report", identity) },
+                  { title: 'View Profile', onClick: () => { setShowprofileID(identity.personIdentifier); handleShow(); } },
+                ]
+              : [
+                  { title: 'View Profile', onClick: () => { setShowprofileID(identity.personIdentifier); handleShow(); } },
+                ]
+            }
+            secondary={true}
+          />
         </td>
       </tr>;;
     })
