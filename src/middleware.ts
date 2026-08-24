@@ -5,22 +5,37 @@ import { getToken } from "next-auth/jwt";
 
 //middleware should run for these router paths
 export const config = {
-  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*','/authorships/:path*'],
+  matcher: ['/manageusers/:path*', '/curate/:path*','/report','/search','/configuration','/notifications/:path*','/manageprofile/:path*','/authorships/:path*','/api/db/:path*'],
 }
-					 
+
+// Every /api/db/** route today only checks req.headers.authorization against
+// NEXT_PUBLIC_RECITER_BACKEND_API_KEY -- a NEXT_PUBLIC_ env var Next.js inlines into the
+// client bundle, so it is not a secret (and is "" in this deployment, meaning an absent
+// header satisfies the check). This gate is the real authorization control for those routes:
+// any /api/db request without a valid, signed next-auth session gets a 401 here before the
+// handler runs. It intentionally does not add role checks -- handlers keep their own
+// (e.g. authorships/action.ts's canCurate logic); this only proves "a logged-in user", same
+// bar the page middleware already applies to /curate, /authorships, etc.
+function unauthorizedJson() {
+  return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+    status: 401,
+    headers: { 'content-type': 'application/json' },
+  })
+}
 
 export async function middleware(request: NextRequest) {
   try {
     const res = NextResponse.next();
     const pathName = request.nextUrl.pathname;
+    const isApiDbRoute = pathName.startsWith('/api/db');
 
     if (pathName && pathName.includes('.git')) { //redirect to forbidden if any request contains .git in the path.
       return new NextResponse(null, { status: 403 })
     }
-   
+
     // 1. SKIP LOGIC: Define paths that should never be blocked or checked for roles
   const isAuthRoute = pathName.startsWith('/api/auth') ||
-                     pathName.startsWith('/api/saml') || 
+                     pathName.startsWith('/api/saml') ||
                      pathName.startsWith('/auth/finalize');
   if (isAuthRoute) {
     return NextResponse.next();
@@ -145,19 +160,22 @@ export async function middleware(request: NextRequest) {
     }
     else // redirects to error page when no roles found in access token
     {
+      if (isApiDbRoute) return unauthorizedJson();
       redirectToLandingPage(request,'/error');
     }
   }
   else
   {
+    if (isApiDbRoute) return unauthorizedJson();
     const loginUrl = new URL('/login', request.url)
     // redirect to the new URL
     return NextResponse.redirect(loginUrl)
-	 
+
   }
   return res;
   } catch (error) {
     console.error("[MIDDLEWARE]", error);
+    if (request.nextUrl.pathname.startsWith('/api/db')) return unauthorizedJson();
     const errorUrl = request.nextUrl.clone();
     errorUrl.pathname = '/error';
     errorUrl.searchParams.set('code', 'AUTH_MIDDLEWARE');
