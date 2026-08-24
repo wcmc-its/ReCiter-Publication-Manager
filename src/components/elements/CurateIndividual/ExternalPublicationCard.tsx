@@ -1,4 +1,4 @@
-import React, { FunctionComponent } from "react"
+import React, { FunctionComponent, useState } from "react"
 import styles from './ExternalPublicationCard.module.css'
 import CheckIcon from '@mui/icons-material/Check'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
@@ -14,6 +14,22 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 //               (un-reject) affordance driven by the parent's suppressed state
 const doiUrl = 'https://doi.org/'
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/'
+
+// Inline (not a CSS module class — kept out of ExternalPublicationCard.module.css, which
+// is outside this fix's write set) styling for the list-mode Reject note textarea.
+const rejectNoteInputStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    marginTop: 8,
+    border: '1px solid #cbd3e0',
+    borderRadius: 6,
+    padding: '6px 8px',
+    fontSize: 12,
+    fontFamily: 'inherit',
+    color: '#384152',
+    resize: 'vertical',
+    boxSizing: 'border-box',
+}
 
 const SOURCE_LABELS: Record<string, string> = {
     OPENALEX: 'OpenAlex',
@@ -55,15 +71,19 @@ interface FuncProps {
     // Current status of a PMID in this person's record, for annotating search results.
     recordStatusOf?: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
     // preview mode: dismiss a suggestion (Scopus Authorships feed only); local, not
-    // persisted. list mode: reject an already-added row (persists via the feedback route,
-    // reversible with onAccept).
-    onReject?: (item: any) => void,
+    // persisted, `note` is always undefined here. list mode: reject an already-added row
+    // (persists via the feedback route, reversible with onAccept); `note` carries the
+    // optional reject-reason text from the list-mode note field below.
+    onReject?: (item: any, note?: string) => void,
     // list mode only — un-reject a suppressed row (persists via the feedback route).
     onAccept?: (item: any) => void,
     onDelete?: (articleId: string) => void,
     // Curate per-source tabs (Option C Phase 1) — the source tab already names the
     // source, so its cards drop the redundant badge.
     hideSourceBadge?: boolean,
+    // list mode only — the signed-in curator's CWID, threaded down from ReciterTabs'
+    // useSession(). Gates the Delete button to the row's own adder (item.addedBy).
+    viewerCwid?: string,
 }
 
 // Map the server's duplicate match type(s) to a state-specific, actionable headline.
@@ -81,6 +101,9 @@ function blockedHeadline(matches?: Array<{ type?: string }>): string {
 
 const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const { item, mode, addState } = props
+    // list-mode Reject note — optional, threaded through onReject on click. Preview-mode
+    // onReject (TabAddExternalPublication / TabScopusAuthorships dismiss) doesn't use this.
+    const [rejectNote, setRejectNote] = useState('')
 
     const sourceType: string = item.sourceType || 'OPENALEX'
     const sourceLabel = SOURCE_LABELS[sourceType] || sourceType
@@ -183,6 +206,17 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                     </div>
                 )}
 
+                {/* list mode, not-yet-rejected — optional note captured before Reject */}
+                {mode === 'list' && !suppressed && props.onReject && (
+                    <textarea
+                        style={rejectNoteInputStyle}
+                        placeholder="Optional note for this rejection…"
+                        value={rejectNote}
+                        onChange={(e) => setRejectNote(e.target.value)}
+                        rows={2}
+                    />
+                )}
+
                 {/* 409 WARNING — suspected duplicate side-by-side, explicit Add anyway */}
                 {mode === 'preview' && status === 'warning' && (
                     <div className={styles.warningBox}>
@@ -242,7 +276,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                 {mode === 'list' && !suppressed && props.onReject && (
                     <button
                         className={styles.btnReject}
-                        onClick={() => props.onReject && props.onReject(item)}
+                        onClick={() => props.onReject && props.onReject(item, rejectNote.trim() || undefined)}
                     >
                         Reject
                     </button>
@@ -255,7 +289,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         <CheckIcon style={{ fontSize: 14 }} /> Accept
                     </button>
                 )}
-                {mode === 'list' && (
+                {mode === 'list' && !!props.viewerCwid && item.addedBy === props.viewerCwid && (
                     <button
                         className={styles.btnDelete}
                         onClick={() => props.onDelete && props.onDelete(item.articleId)}

@@ -20,6 +20,9 @@ export type SourceKind = 'SCOPUS' | 'OPENALEX' | 'MANUAL'
 interface FuncProps {
     uid: string,
     source: SourceKind,
+    // Signed-in curator's CWID (from ReciterTabs' useSession()), threaded down to gate
+    // ExternalPublicationCard's Delete button to the row's own adder.
+    viewerCwid?: string,
 }
 
 const apiHeaders = {
@@ -49,7 +52,7 @@ const matchesSource = (row: any, source: SourceKind): boolean => {
     return st !== 'SCOPUS' && st !== 'OPENALEX'
 }
 
-const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source }) => {
+const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source, viewerCwid }) => {
     const [segment, setSegment] = useState<'ACCEPTED' | 'REJECTED'>('ACCEPTED')
     const [externalList, setExternalList] = useState<any[]>([])
     const [loading, setLoading] = useState<boolean>(false)
@@ -83,15 +86,16 @@ const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source }) => {
     const rejectedCount = sourceRows.filter((r) => !!r.suppressed).length
 
     // Optimistic: flip suppressed locally so the row moves segments immediately, persist
-    // via the feedback route, then reconcile with a refetch. No note field / confirm
-    // dialog in v1 — Reject is reversible via Accept. ponytail: deferred note input.
-    const sendFeedback = (articleId: string, action: 'ACCEPTED' | 'REJECTED') => {
+    // via the feedback route, then reconcile with a refetch. Reject is reversible via
+    // Accept. `note` is optional and Reject-only (see ExternalPublicationCard's list-mode
+    // note field) — the server route + Java PATCH already forward it, this just supplies it.
+    const sendFeedback = (articleId: string, action: 'ACCEPTED' | 'REJECTED', note?: string) => {
         setExternalList((prev) => prev.map((r) => (
             r.articleId === articleId ? { ...r, suppressed: action === 'REJECTED' } : r
         )))
         fetch(`/api/db/external-article/feedback`, {
             credentials: "same-origin", method: "POST", headers: apiHeaders,
-            body: JSON.stringify({ uid, articleId, action }),
+            body: JSON.stringify({ uid, articleId, action, ...(note ? { note } : {}) }),
         })
             .then(async (r) => {
                 const body = await r.json().catch(() => ({}))
@@ -156,8 +160,9 @@ const SourceArticleTab: FunctionComponent<FuncProps> = ({ uid, source }) => {
                         item={row}
                         mode="list"
                         hideSourceBadge
+                        viewerCwid={viewerCwid}
                         onDelete={doDelete}
-                        onReject={!row.suppressed ? () => sendFeedback(row.articleId, 'REJECTED') : undefined}
+                        onReject={!row.suppressed ? (_item, note) => sendFeedback(row.articleId, 'REJECTED', note) : undefined}
                         onAccept={row.suppressed ? () => sendFeedback(row.articleId, 'ACCEPTED') : undefined}
                     />
                 ))
