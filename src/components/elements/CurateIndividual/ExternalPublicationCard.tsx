@@ -9,7 +9,9 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 //               If the work is in PubMed (PMID from OpenAlex, or found via DOI lookup)
 //               we steer the curator to the scored PubMed path instead of adding an
 //               unscored external record.
-//   'list'    — an already-added external pub, with a Delete (= revoke) affordance
+//   'list'    — an already-added external pub, with a Delete (= revoke) affordance, plus
+//               (curate per-source tabs, Option C Phase 1) a reversible Reject / Accept
+//               (un-reject) affordance driven by the parent's suppressed state
 const doiUrl = 'https://doi.org/'
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/'
 
@@ -52,9 +54,16 @@ interface FuncProps {
     onAddViaPubMed?: (pmid: number, item: any) => void,
     // Current status of a PMID in this person's record, for annotating search results.
     recordStatusOf?: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
-    // Dismiss a suggestion (Scopus Authorships feed only); local, not GoldStandard.
+    // preview mode: dismiss a suggestion (Scopus Authorships feed only); local, not
+    // persisted. list mode: reject an already-added row (persists via the feedback route,
+    // reversible with onAccept).
     onReject?: (item: any) => void,
+    // list mode only — un-reject a suppressed row (persists via the feedback route).
+    onAccept?: (item: any) => void,
     onDelete?: (articleId: string) => void,
+    // Curate per-source tabs (Option C Phase 1) — the source tab already names the
+    // source, so its cards drop the redundant badge.
+    hideSourceBadge?: boolean,
 }
 
 // Map the server's duplicate match type(s) to a state-specific, actionable headline.
@@ -105,7 +114,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
         <div className={`${styles.card} ${suppressed ? styles.cardSuppressed : ''}`}>
             <div className={styles.main}>
                 <div className={styles.headerRow}>
-                    <span className={styles.sourceBadge}>{sourceLabel}</span>
+                    {!props.hideSourceBadge && <span className={styles.sourceBadge}>{sourceLabel}</span>}
                     <span className={styles.noScoreBadge}>No authorship score</span>
                     {suppressed && (
                         <span className={styles.suppressedTag}>
@@ -228,6 +237,22 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         onClick={() => props.onReject && props.onReject(item)}
                     >
                         Reject
+                    </button>
+                )}
+                {mode === 'list' && !suppressed && props.onReject && (
+                    <button
+                        className={styles.btnReject}
+                        onClick={() => props.onReject && props.onReject(item)}
+                    >
+                        Reject
+                    </button>
+                )}
+                {mode === 'list' && suppressed && props.onAccept && (
+                    <button
+                        className={styles.btnAdd}
+                        onClick={() => props.onAccept && props.onAccept(item)}
+                    >
+                        <CheckIcon style={{ fontSize: 14 }} /> Accept
                     </button>
                 )}
                 {mode === 'list' && (

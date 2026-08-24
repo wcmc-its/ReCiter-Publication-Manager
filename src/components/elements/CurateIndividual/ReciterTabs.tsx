@@ -8,6 +8,7 @@ import { RootStateOrAny } from "../../../types/redux";
 import TabAddPublication from "../TabAddPublication/TabAddPublication";
 import TabAddExternalPublication from "./TabAddExternalPublication";
 import TabScopusAuthorships from "./TabScopusAuthorships";
+import SourceArticleTab, { SourceKind } from "./SourceArticleTab";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { allowedPermissions } from "../../../utils/constants";
@@ -37,6 +38,17 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
 
   const addnewtabName = <p id="addnewtabName" className="noSpace" >Add New record:</p>
   const pubMedTabName = <p id="pubMedTabName" className="text-primary noSpace" ><span >PubMed</span></p>
+
+  // Curate per-source tabs (Option C), Phase 1 — one browse tab per external source,
+  // grouped visually apart from the PubMed-based tabs below. The "Scopus" tab here browses
+  // already-added ExternalArticle rows (source=SCOPUS); it is a DIFFERENT surface from the
+  // "ScopusAuth" tab (the AAR authorship-suggestion queue) reachable from the Add menu —
+  // hence the distinct tooltip.
+  const EXTERNAL_SOURCE_TABS: { value: string, label: string, source: SourceKind, title?: string }[] = [
+    { value: 'Ext_SCOPUS', label: 'Scopus', source: 'SCOPUS', title: 'Publications added to this record from Scopus search — separate from the Scopus Authorships review queue.' },
+    { value: 'Ext_OPENALEX', label: 'OpenAlex', source: 'OPENALEX', title: 'Publications added to this record from OpenAlex search.' },
+    { value: 'Ext_MANUAL', label: 'Manual', source: 'MANUAL', title: 'Publications added to this record from other/manual sources.' },
+  ]
 
   const tabsData = [
     { name: 'Suggested', value: 'NULL',allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"] },
@@ -186,6 +198,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     <>
       {/* Custom tab bar */}
       <div className={styles.tabsBar}>
+        <span className={styles.tabGroupLabel}>PubMed</span>
         {['NULL', 'ACCEPTED', 'REJECTED'].map((value) => {
           const label = value === 'NULL' ? 'Suggested' : value === 'ACCEPTED' ? 'Accepted' : 'Rejected';
           return (
@@ -199,6 +212,18 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
             </button>
           );
         })}
+        <div className={styles.tabDivider} />
+        <span className={styles.tabGroupLabel}>External</span>
+        {EXTERNAL_SOURCE_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            className={key === tab.value ? styles.tabActive : styles.tab}
+            onClick={() => onTabChange(tab.value)}
+            title={tab.title}
+          >
+            {tab.label}
+          </button>
+        ))}
         <div className={styles.tabSpacer} />
         <div className={styles.tabBarActions}>
           {netChangedCount > 0 && (
@@ -290,6 +315,11 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           fullName={fullName}
           onAddViaPubMed={handleAddViaPubMed}
           getPmidStatus={getPmidStatus}
+        />
+      ) : EXTERNAL_SOURCE_TABS.some((tab) => tab.value === key) ? (
+        <SourceArticleTab
+          uid={reciterData.reciter?.personIdentifier}
+          source={EXTERNAL_SOURCE_TABS.find((tab) => tab.value === key)!.source}
         />
       ) : activeTabData ? (
         <ReciterTabContent

@@ -112,6 +112,13 @@ export const reciterConfig = {
         reciterExternalArticleEndpoint:
                 process.env.RECITER_API_BASE_URL + '/reciter/external-article/by/uid',
         /**
+         * Curate per-source tabs (Option C, Phase 1) — Accept / Reject (un-reject) an
+         * already-added external article. PATCH sets suppressed=true on REJECTED / clears
+         * it on ACCEPTED and logs to FeedbackLog (live in prod).
+         */
+        reciterExternalArticleFeedbackEndpoint:
+                process.env.RECITER_API_BASE_URL + '/reciter/external-article/feedback',
+        /**
          * This endpoints serves to do CRUD on user feedback. This is used to track the publication feedback in the application. When refreshed
          * the feedback is erased from the database.
          */

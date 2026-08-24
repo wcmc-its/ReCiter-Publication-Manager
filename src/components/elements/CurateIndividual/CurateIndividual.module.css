@@ -389,6 +389,28 @@
   color: #991b1b;
 }
 
+/* Curate per-source tabs (Option C) — group labels + divider between the PubMed-based
+   tabs (Suggested/Accepted/Rejected) and the per-source external tabs (Scopus/OpenAlex/
+   Manual). */
+.tabGroupLabel {
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b8bfcc;
+  padding: 0 8px 0 14px;
+  white-space: nowrap;
+}
+
+.tabDivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 8px 4px;
+  background: #e8e2d9;
+}
+
 .tabSpacer {
   flex: 1;
 }
