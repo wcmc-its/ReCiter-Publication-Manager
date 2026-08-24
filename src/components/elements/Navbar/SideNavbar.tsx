@@ -253,7 +253,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       imgUrlActive: chartIconActive,
       muiIcon: <IconReports />,
       disabled: false,
-      allowedRoleNames: ["Superuser","Reporter_All" ],
+      allowedRoleNames: ["Superuser","Reporter_All","Curator_All","Curator_Self","Curator_Scoped" ],
       isRequired:true
     },
     {
