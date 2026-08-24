@@ -161,7 +161,7 @@ export async function middleware(request: NextRequest) {
     else // redirects to error page when no roles found in access token
     {
       if (isApiDbRoute) return unauthorizedJson();
-      redirectToLandingPage(request,'/error');
+      return redirectToLandingPage(request,'/error');
     }
   }
   else
