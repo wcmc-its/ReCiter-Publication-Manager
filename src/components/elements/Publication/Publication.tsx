@@ -123,7 +123,18 @@ const Publication: FunctionComponent<FuncProps> = (props) => {
 
     const formatClogDate = (timestamp: string | Date) => {
       const d = new Date(timestamp);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      // Include time-of-day (seconds included) so rapid same-day actions -- e.g. a
+      // curator clicking through several accept/reject/undo actions within seconds --
+      // remain distinguishable in the history list, instead of collapsing onto one
+      // calendar-date-only entry.
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+      });
     };
 
     const toogleEvidence = (pubExpEvidenceNumber) => {

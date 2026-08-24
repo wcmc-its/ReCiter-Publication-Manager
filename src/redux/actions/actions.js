@@ -167,6 +167,29 @@ export const identityClearAllData = () => dispatch => {
     })
 }
 
+// Clears identityData/reciterData when a uid navigation starts, so a previous uid's
+// state cannot survive into the new uid's render before its own fetches resolve.
+export const identityClearData = () => dispatch => {
+    dispatch({
+        type: methods.IDENTITY_CLEAR_DATA
+    })
+}
+
+export const reciterClearData = () => dispatch => {
+    dispatch({
+        type: methods.RECITER_CLEAR_DATA
+    })
+}
+
+// Full reset of the identity/feature-gen error array (no payload => clear all), used
+// on uid navigation so a previous uid's error (e.g. a real identity-404) cannot bleed
+// into a newly-navigated-to, otherwise-valid uid.
+export const clearIdentityORFeatureGenError = () => dispatch => {
+    dispatch({
+        type: methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR
+    })
+}
+
 export const identityFetchPaginatedData = (page, limit,filters) => dispatch => {
     const offset = (page - 1) * limit;
     const request = { limit, offset, filters };
@@ -264,9 +287,13 @@ export const reciterFetchData = (uid, refresh) => dispatch => {
                 payload: data
             })
 
-            // NEW: clear any stale identity/feature-gen error flag on a successful fetch
+            // Clear only this fetch's own error marker -- a successful feature-generator
+            // fetch must not blanket-clear the whole error array, since a different,
+            // still-failed fetch (e.g. identity) may have set a still-valid entry moments
+            // earlier.
             dispatch({
-                type: methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR
+                type: methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR,
+                payload: "Feature-Generator-Error"
             })
 
             dispatch({
