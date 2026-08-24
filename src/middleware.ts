@@ -94,12 +94,12 @@ export async function middleware(request: NextRequest) {
             }
             else if (pathName && pathName.startsWith('/report')  && !isReporterAll && !isSuperUser)
             {
-                if (userRoles.length == 1 && isCuratorSelf  && !isCuratorAll)
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
-                else if (userRoles.length == 1 && !isCuratorSelf  && isCuratorAll)
-                      return redirectToLandingPage(request,'/search');
-                else if (userRoles.length == 2 && isCuratorSelf  && isCuratorAll)
-                      return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
+                // Report access is a baseline capability for every authenticated user
+                // (ROLE_CAPABILITIES.canReport in src/utils/constants.js is OR-merged and
+                // never overridden to false), so Curator_Self-only, Curator_All-only, and
+                // Curator_Self+Curator_All all fall through here with no redirect --
+                // matching how Curator_Scoped already reaches /report by not matching any
+                // of these role combinations.
             }
             else if (pathName && pathName.startsWith('/notifications'))
             {
@@ -161,7 +161,7 @@ export async function middleware(request: NextRequest) {
     else // redirects to error page when no roles found in access token
     {
       if (isApiDbRoute) return unauthorizedJson();
-      redirectToLandingPage(request,'/error');
+      return redirectToLandingPage(request,'/error');
     }
   }
   else
