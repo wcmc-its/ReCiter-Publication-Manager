@@ -17,6 +17,9 @@ interface FuncProps {
     onAddViaPubMed: (pmid: number, item: any) => void,
     // Current status of a PMID in this person's record, to annotate search results.
     getPmidStatus: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
+    // Signed-in curator's CWID, from useSession(). Gates the Delete button to the row's
+    // own adder (item.addedBy) on ExternalPublicationCard.
+    viewerCwid?: string,
 }
 
 const apiHeaders = {
@@ -263,6 +266,7 @@ const TabAddExternalPublication: FunctionComponent<FuncProps> = (props) => {
                         item={row}
                         mode="list"
                         onDelete={doDelete}
+                        viewerCwid={props.viewerCwid}
                     />
                 ))
             )}

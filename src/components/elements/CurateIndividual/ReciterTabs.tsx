@@ -308,6 +308,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           personIdentifier={reciterData.reciter?.personIdentifier}
           onAddViaPubMed={handleAddViaPubMed}
           getPmidStatus={getPmidStatus}
+          viewerCwid={session?.data?.username}
         />
       ) : key === 'ScopusAuth' ? (
         <TabScopusAuthorships
