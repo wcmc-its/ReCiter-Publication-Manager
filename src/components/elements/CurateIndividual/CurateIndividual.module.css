@@ -253,7 +253,7 @@
 /* weight tiers */
 .kwHigh   { font-weight: 600; color: #1a2133; border-color: #ccc6bc; }
 .kwMedium { font-weight: 500; }
-.kwLow    { opacity: 0.7; }
+.kwLow    { background: #fbfaf8; border-color: #e6e1d9; color: #7a8396; }
 
 /* tooltip */
 .kwTip {
