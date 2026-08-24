@@ -58,6 +58,28 @@ export async function addExternalArticle(uid: string, body: any, addedBy: string
         })
 }
 
+// PATCH Accept / Reject (or un-reject) feedback on an already-added external article.
+// Curate per-source tabs (Option C, Phase 1). actorPersonIdentifier is resolved from the
+// JWT in the route and never trusted from the client body.
+export async function recordExternalArticleFeedback(
+    uid: string,
+    articleId: string,
+    action: 'ACCEPTED' | 'REJECTED' | 'PENDING',
+    actorPersonIdentifier: string | undefined,
+    note?: string,
+) {
+    return fetch(reciterConfig.reciter.reciterExternalArticleFeedbackEndpoint, {
+        method: 'PATCH',
+        headers: javaHeaders(),
+        body: JSON.stringify({ uid, articleId, action, actorPersonIdentifier, note }),
+    })
+        .then(async (res) => ({ statusCode: res.status, statusText: await readBody(res) }))
+        .catch((error) => {
+            console.log('ReCiter external-article feedback PATCH is not reachable: ' + error)
+            return { statusCode: error.status || 500, statusText: error }
+        })
+}
+
 // DELETE (= revoke) an external article by articleId.
 export async function deleteExternalArticle(uid: string, articleId: string) {
     return fetch(`${base()}?uid=${encodeURIComponent(uid)}&articleId=${encodeURIComponent(articleId)}`, {
