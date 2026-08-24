@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Form, Container, InputGroup } from "react-bootstrap";
+import { Button, Form, InputGroup } from "react-bootstrap";
 import { orgUnitsFetchAllData, institutionsFetchAllData, personTypesFetchAllData } from '../../../redux/actions/actions';
 import { useSelector, useDispatch } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
@@ -84,7 +84,7 @@ useEffect(() => {
 
 
   return (
-    <Container className={styles.searchFormContainer}>
+    <div className={styles.searchFormContainer}>
       <Form onSubmit={onFormSubmit}>
         <Form.Group style={{ marginBottom: 0 }}>
           <Form.Label className={styles.searchFormLabel}> {allLabelSettings?.cwidLabel ? `Name or ${allLabelSettings?.cwidLabel}(s)` : `Name` }</Form.Label>
@@ -143,7 +143,7 @@ useEffect(() => {
           </div>
         </Form.Group>
       </Form>
-    </Container>
+    </div>
   )
 }
 
