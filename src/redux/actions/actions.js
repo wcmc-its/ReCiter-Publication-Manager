@@ -86,8 +86,12 @@ export const identityFetchData = uid => dispatch => {
                 theme: 'colored'
             });
 
+            // Only a genuine 404 means "this uid has no identity". Any other failure
+            // (500, network error, timeout -- none of which carry a 404 status) is a
+            // transient/unknown outage and must not be mistaken for a missing identity,
+            // so carry the status through in the marker itself.
             dispatch(
-                addIdentityORFeatureGenError("Identity-Error")
+                addIdentityORFeatureGenError(error && error.status === 404 ? "Identity-Error-404" : "Identity-Error")
             )
 
             // dispatch(

@@ -79,12 +79,14 @@ const CurateIndividual = () => {
     fetchData();
   }, [id])
 
-  // Show the "no identity" message only for a real identity-404, not for a generic
-  // feature-generator failure -- and clear it once the error condition clears (e.g.
+  // Show the "no identity" message only for a real identity-404 -- not for a generic
+  // feature-generator failure, and not for any other identity-fetch failure (500,
+  // network error, timeout), which falls through to the generic "temporarily
+  // unavailable" message below instead. Clears once the error condition clears (e.g.
   // on navigating to a valid uid).
   useEffect(() => {
     const hasIdentityNotFoundError = Array.isArray(identityORFeatureGenError) &&
-      identityORFeatureGenError.includes("Identity-Error");
+      identityORFeatureGenError.includes("Identity-Error-404");
     setShowNoPermitError(hasIdentityNotFoundError);
   }, [identityORFeatureGenError])
 
