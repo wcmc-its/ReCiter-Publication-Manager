@@ -39,7 +39,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
         if (token && token.username) actorPersonIdentifier = String(token.username)
     } catch (e) {
-        // Leave actorPersonIdentifier undefined -> ReCiter records it as unknown.
+        // token decode failed -> no actor resolved; handled by the guard below.
+    }
+    // The Java endpoint rejects a blank actor with a 400. Fail fast with a clear
+    // re-login hint instead of surfacing that as an opaque error mid-curation.
+    if (!actorPersonIdentifier) {
+        return res.status(401).send({ statusCode: 401, message: 'Your session has expired. Please sign in again.' })
     }
 
     try {
