@@ -332,6 +332,12 @@
   align-items: stretch;
   padding: 0 24px;
   gap: 0;
+  /* Below the row's fit-width, scroll horizontally instead of clipping tabs/actions.
+     overflow-x: auto also zeroes this item's automatic min-width, so it no longer
+     forces the enclosing grid column to blow out past the viewport (which is what
+     was getting silently clipped by #__next's overflow-x: hidden in globals.css). */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .tab {
@@ -350,6 +356,7 @@
   gap: 8px;
   transition: color 0.15s, border-color 0.15s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab:hover {
@@ -402,6 +409,7 @@
   color: #b8bfcc;
   padding: 0 8px 0 14px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tabDivider {
@@ -409,6 +417,7 @@
   align-self: stretch;
   margin: 8px 4px;
   background: #e8e2d9;
+  flex-shrink: 0;
 }
 
 .tabSpacer {
@@ -420,6 +429,7 @@
   align-items: center;
   gap: 8px;
   align-self: center;
+  flex-shrink: 0;
 }
 
 /* ── Refresh Suggestions button ── */
