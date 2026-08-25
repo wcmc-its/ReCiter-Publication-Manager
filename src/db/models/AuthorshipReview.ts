@@ -34,6 +34,9 @@ export interface AuthorshipReviewAttributes {
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
+  authors_json?: string;
+  dup_flag?: boolean;
+  dup_reason?: string;
   status: 'open' | 'assigned' | 'accepted' | 'rejected' | 'dismissed' | 'snoozed';
   resolution_cwid?: string;
   reviewer?: string;
@@ -47,7 +50,7 @@ export interface AuthorshipReviewAttributes {
 
 export type AuthorshipReviewPk = "id";
 export type AuthorshipReviewId = AuthorshipReview[AuthorshipReviewPk];
-export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
+export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
 export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttributes, AuthorshipReviewOptionalAttributes>;
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
@@ -80,6 +83,9 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   n_candidates?: number;
   single_candidate?: boolean;
   candidate_cwids_json?: string;
+  authors_json?: string;
+  dup_flag?: boolean;
+  dup_reason?: string;
   status!: 'open' | 'assigned' | 'accepted' | 'rejected' | 'dismissed' | 'snoozed';
   resolution_cwid?: string;
   reviewer?: string;
@@ -121,6 +127,9 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       n_candidates: { type: DataTypes.INTEGER, allowNull: true },
       single_candidate: { type: DataTypes.BOOLEAN, allowNull: true },
       candidate_cwids_json: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },
+      authors_json: { type: DataTypes.TEXT({ length: 'long' }), allowNull: true },
+      dup_flag: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      dup_reason: { type: DataTypes.STRING(255), allowNull: true },
       status: { type: DataTypes.ENUM('open', 'assigned', 'accepted', 'rejected', 'dismissed', 'snoozed'), allowNull: false, defaultValue: 'open' },
       resolution_cwid: { type: DataTypes.STRING(32), allowNull: true },
       reviewer: { type: DataTypes.STRING(64), allowNull: true },

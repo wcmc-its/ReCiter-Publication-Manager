@@ -28,6 +28,9 @@ interface AuthorshipRow {
   title?: string;
   journal?: string;
   doi?: string;
+  // Full byline ([{given,surname}, ...] as a JSON string) — scopus rows only, "[]" if the
+  // document had no author field, never populated (undefined) for pubmed rows.
+  authors_json?: string;
   classification?: "assigned" | "suggested" | "buried" | "absent";
   top_cwid?: string;
   top_name?: string;
@@ -48,6 +51,11 @@ interface AuthorshipRow {
   // true → top_cwid already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
   top_already_rejected?: boolean;
+  // Informational heads-up only (both source lanes) — producer already found a matching
+  // ExternalArticle by DOI. Does not gate Accept/Assign; the live 409 at click time is the
+  // actual safety net.
+  dup_flag?: boolean;
+  dup_reason?: string;
   status?: string;
   snooze_until?: string;
   reviewer?: string;
@@ -233,6 +241,27 @@ const parseCandidates = (json?: string): Candidate[] => {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+};
+
+// Full Scopus byline from authors_json ([{given,surname}, ...]) as a comma-joined
+// "Given Surname" string. "" for absent/malformed/empty input — never throws.
+const formatAuthorsJson = (json?: string): string => {
+  if (!json) return "";
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return "";
+    return parsed
+      .map((a: any) => {
+        const given = (a?.given || "").trim();
+        const surname = (a?.surname || "").trim();
+        if (given && surname) return `${given} ${surname}`;
+        return given || surname || "";
+      })
+      .filter(Boolean)
+      .join(", ");
+  } catch {
+    return "";
   }
 };
 
@@ -1328,6 +1357,25 @@ const AuthorshipCard = ({
               <span style={scopusBadgeStyle}>Scopus</span>
               <span style={notInPubmedPillStyle}>Not in PubMed</span>
               {r.pub_type && <Chip kind="neutral" style={{ fontSize: 10, padding: "1px 7px" }}>{r.pub_type}</Chip>}
+              {r.dup_flag && (
+                <Tip title={r.dup_reason || "Possible duplicate — already added as an external article"} placement="top" arrow>
+                  <span><Chip kind="warn"><IconAlert size={12} /> Possible duplicate</Chip></span>
+                </Tip>
+              )}
+            </div>
+          )}
+          {r.source !== "scopus" && r.dup_flag && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+              <Tip title={r.dup_reason || "Possible duplicate — already added as an external article"} placement="top" arrow>
+                <span><Chip kind="warn"><IconAlert size={12} /> Possible duplicate</Chip></span>
+              </Tip>
+            </div>
+          )}
+
+          {/* Scopus byline — full author list from authors_json, quiet/muted like the L3 meta line */}
+          {r.source === "scopus" && formatAuthorsJson(r.authors_json) && (
+            <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={formatAuthorsJson(r.authors_json)}>
+              {formatAuthorsJson(r.authors_json)}
             </div>
           )}
 
