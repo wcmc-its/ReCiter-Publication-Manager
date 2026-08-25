@@ -240,6 +240,17 @@ export const createOrUpdateAdminUser = async (
   };
 
   try {
+    // A saved scope with no Curator_Scoped role is inert -- canCurate's scoped branch checks
+    // the scope itself now, but the admin roster/role columns should still reflect reality.
+    // Looked up dynamically by roleLabel, never hardcoded, since roleID is environment data.
+    let effectiveRoleIds: any[] = Array.isArray(selectedRoleIds) ? [...selectedRoleIds] : [];
+    if (scopeFields.scope_person_types || scopeFields.scope_org_units) {
+      const curatorScopedRole: any = await models.AdminRole.findOne({ where: { roleLabel: 'Curator_Scoped' }, raw: true });
+      if (curatorScopedRole?.roleID != null && !effectiveRoleIds.includes(curatorScopedRole.roleID)) {
+        effectiveRoleIds.push(curatorScopedRole.roleID);
+      }
+    }
+
     if (isEditUserId) {
       //Update admin user Payload
       let updateUserPayload = {
@@ -284,7 +295,7 @@ export const createOrUpdateAdminUser = async (
                 departmentData.push(assigneDepartments)
               })
 
-              selectedRoleIds?.map((id) => {
+              effectiveRoleIds?.map((id) => {
                 let assignRolePayload = {
                   'userID': isEditUserId,
                   'roleID': id,
@@ -340,7 +351,7 @@ export const createOrUpdateAdminUser = async (
                       }
                       departmentData.push(assigneDepartments)
                     })
-                    selectedRoleIds?.map((id) => {
+                    effectiveRoleIds?.map((id) => {
                       let assignRolePayload = {
                         'userID': isAdminUserCreated.userID,
                         'roleID': id,
