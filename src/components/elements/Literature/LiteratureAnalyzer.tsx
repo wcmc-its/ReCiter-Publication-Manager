@@ -1,10 +1,13 @@
-// Literature Analyzer — Phase 1: a REAL Synopsize step.
+// Literature Analyzer — Phase 2: a REAL Score Relevance step, on top of Phase 1's Synopsize.
 //
 // FIVE INDEPENDENT TOP-LEVEL STEPS (plan decision 17), not one screen with internal stages: a
 // person can run Synopsize, leave, and come back for Score Relevance later without losing
-// anything. This file owns only the current-step state and the tab row; every step's actual logic
-// is its own later phase's job. Genuinely separate from LiteratureSearch.tsx's Modes 1-4 — see this
-// feature's own controller-free, page-free footprint — not grown onto that 74KB file.
+// anything (within this browser session — see synopsisResult's own comment below for the one
+// accepted limitation that carries). This file owns the current-step state, the tab row, AND now
+// the one piece of cross-step state a later step needs (Synopsize's finished synopses); every
+// step's actual scoring/theming logic still lives in its own component. Genuinely separate from
+// LiteratureSearch.tsx's Modes 1-4 — see this feature's own controller-free, page-free footprint —
+// not grown onto that 74KB file.
 //
 //   LiteratureAnalyzer.constants.ts   the five steps, in tab order
 //   LiteratureAnalyzer.types.ts       CheckpointStatus, ChunkedProgressState
@@ -12,17 +15,26 @@
 //   LiteratureAnalyzer.module.css     the step-tab row + loss-count disclosures — everything else
 //                                     reuses LiteratureSearch.module.css's existing classes
 //
-// SYNOPSIZE IS NOW WIRED FOR REAL: a PMID paste box (SeedsField, reused verbatim per decision 18),
-// a cost/time estimate computed from the pilot-measured $/record rate, real chunked HTTP requests
-// against POST /api/literature/search {mode:'literature-analyzer', phase:'synopsize'}, and a done
-// screen with decision 30's two loss-count disclosures. FOUR OF THE FIVE TABS ARE STILL INERT
-// PLACEHOLDERS — Score Relevance, Score Impact, Themes, Summarize Themes are later phases' jobs.
-import { useMemo, useState } from 'react'
+// SYNOPSIZE (Phase 1): a PMID paste box (SeedsField, reused verbatim per decision 18), a cost/time
+// estimate computed from the pilot-measured $/record rate, real chunked HTTP requests against
+// POST /api/literature/search {mode:'literature-analyzer', phase:'synopsize'}, a done screen with
+// decision 30's two loss-count disclosures, and now (Phase 2) its own [Export] CSV button — the
+// small gap Phase 1 shipped without, closed here since this file was already being touched.
+//
+// SCORE RELEVANCE (Phase 2, new): same CheckpointScreen/useChunkedProgress shape as Synopsize, a
+// topic + optional criteria form, batched POSTs against phase:'score-relevance' (backend built and
+// committed in the previous ticket — see controllers/literatureSearch.analyzerRelevance.ts), a
+// failed-records disclosure with decision 29's [Retry these N] button, a relevance-floor slider
+// with a live "N of M qualify" count, its own [Export] CSV button, and a "Continue to Score
+// Impact →" button that stores the qualifying set and switches tabs. Score Impact, Themes, and
+// Summarize Themes remain later phases' jobs.
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ANALYZER_PMID_CAP, STEPS, WIRED_STEP } from './LiteratureAnalyzer.constants'
 import type { StepId } from './LiteratureAnalyzer.constants'
 import { CheckpointScreen, StepTabs, useChunkedProgress } from './LiteratureAnalyzer.parts'
 import { SeedsField } from './SearchForm'
 import { parseSeeds } from '../../../../controllers/literatureSearch.strategy'
+import { saveText, stamp } from './download'
 import ls from './LiteratureSearch.module.css'
 import s from './LiteratureAnalyzer.module.css'
 
@@ -108,20 +120,145 @@ async function fetchSynopsizeBatch(pmids: string[]): Promise<SynopsizeBatchRespo
 }
 
 // ---------------------------------------------------------------------------
+// CSV, HAND-BUILT (decision 20 — every step exports its own artifact). No CSV builder exists
+// elsewhere in this Literature folder to match — LiteratureSearch.downloads.ts's exports are all
+// .docx/.xlsx, built with the docx/exceljs dependencies already on the page — and adding a
+// dependency for two small CSVs is not worth it (MUST NOT list). Standard RFC 4180 quoting: a cell
+// is only wrapped in quotes when it actually contains a comma, a quote, or a newline, and an
+// embedded quote is doubled — the minimum that keeps a title with a comma in it from splitting a
+// column in Excel. `\r\n` row endings, same convention Excel expects.
+function csvCell(v: string | number): string {
+    const str = String(v ?? '')
+    return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
+}
+function toCsv(headers: string[], rows: (string | number)[][]): string {
+    return [headers, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n')
+}
+// No `provenance`/`runDate` reaches this page today (Phase 0/1 built no server round-trip that
+// returns one, unlike LiteratureSearch.tsx's DownloadContext) — today's date is the honest
+// fallback, same one m4RunFacts() in LiteratureSearch.downloads.ts falls back to when its own
+// provenance is absent.
+function today(): string {
+    return new Date().toISOString().slice(0, 10)
+}
+
+// ---------------------------------------------------------------------------
+// SCORE RELEVANCE (Phase 2). Same batch-POST shape Synopsize's own fetchSynopsizeBatch uses, one
+// call against phase:'score-relevance' — see controllers/literatureSearch.analyzerRelevance.ts
+// (the previous ticket, already committed) for the request/response contract this mirrors exactly:
+// { question, criteria, synopses: [{pmid, synopsis}] } in, { scores: [{pmid, relevanceScore,
+// relevanceExplanation}], failed: string[] } out.
+
+// Score Relevance batches to the SAME limit the server enforces (RELEVANCE_BATCH_SIZE in
+// controllers/literatureSearch.analyzerRelevance.ts) — duplicated here rather than imported,
+// because that controller pulls in @aws-sdk/client-bedrock-runtime and server-only config through
+// literatureSearch.llm.ts, which must never reach the browser bundle. Same reasoning
+// ANALYZER_PMID_CAP's own comment gives for living in constants.ts (no server imports) instead of
+// search.ts.
+const RELEVANCE_BATCH_SIZE = 20
+
+// $0.00139/record measured rate — see controllers/literatureSearch.analyzerRelevance.ts's own
+// citation (PLAN's measured 87.4 in / 109.2 out tokens per record's share of a 20-batch,
+// SCORING_MODEL_ID) — same "pilot-measured, honestly labeled" discipline as
+// MEASURED_COST_PER_RECORD above, cited the same way.
+const MEASURED_COST_PER_RECORD_RELEVANCE = 0.00139
+
+// FIRST-CUT DEFAULTS, flagged the same way CLIENT_BATCH_CONCURRENCY is above — decision 23's
+// route-concurrency question is still open, neither number below has production signal behind it.
+//
+// RELEVANCE_CLIENT_CONCURRENCY: kept at 3, same as Synopsize's — but a Score Relevance batch is a
+// single Sonnet 5 call over up to 20 synopses at once (RELEVANCE_BASE_TOKENS=1500 + 200/item, per
+// the controller's own comment), not Synopsize's one-record-per-call Haiku shape, so 3 in flight is
+// already a heavier concurrent load per worker than Synopsize's 3 — not raised further on a first
+// cut with zero timing data.
+const RELEVANCE_CLIENT_CONCURRENCY = 3
+// A LABELED GUESS, NOT A MEASUREMENT — no real timing data exists yet for this route either (same
+// caveat as ROUGH_SECONDS_PER_BATCH above). Wider band than Synopsize's, and shifted higher: a
+// 20-item batched Sonnet 5 call is doing far more per request than Synopsize's single-record Haiku
+// call.
+const ROUGH_SECONDS_PER_RELEVANCE_BATCH: readonly [number, number] = [20, 45]
+
+// The mockup's default — see CheckpointScreen usage below for the live "N of M qualify" recompute.
+const DEFAULT_RELEVANCE_FLOOR = 60
+
+type RelevanceScore = { pmid: string; relevanceScore: number; relevanceExplanation: string }
+type RelevanceBatchResponse = {
+    scores: RelevanceScore[]
+    // Both PER-RECORD scoring failures the backend reports explicitly (its own `failed` list — see
+    // the controller's header for why that step, unlike Synopsize, never drops a record silently)
+    // AND pmids from a batch that failed outright (network/502 — see the `.catch` at the call site)
+    // land here, in the SAME list: from this screen's point of view both are "no score yet, worth
+    // retrying," and decision 29's retry button acts on exactly that list.
+    failed: string[]
+    error?: string
+}
+// What Score Relevance hands the next step (Score Impact) once a person continues past it — the
+// synopsis fields carried along so a later phase does not have to re-join against Synopsize's
+// output a second time.
+type RelevanceRecord = {
+    pmid: string; title: string; synopsis: string
+    relevanceScore: number; relevanceExplanation: string
+}
+
+async function fetchRelevanceBatch(
+    topic: string,
+    criteria: string,
+    batch: Array<{ pmid: string; synopsis: string }>,
+): Promise<RelevanceBatchResponse> {
+    const res = await fetch('/api/literature/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            mode: 'literature-analyzer', phase: 'score-relevance',
+            question: topic, criteria: criteria || undefined, synopses: batch,
+        }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.message || 'Relevance scoring failed for this batch.')
+    return {
+        scores: Array.isArray(data.scores) ? data.scores : [],
+        failed: Array.isArray(data.failed) ? data.failed : [],
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ONE EXPANDABLE LOSS SECTION (decision 30). The count is always visible in <summary>, even
 // collapsed — see LiteratureAnalyzer.module.css's own comment for why this is a native <details>
 // rather than built disclosure state.
-function LossSection({ label, pmids }: { label: string; pmids: string[] }) {
+//
+// `onRetry` (decision 29, Score Relevance only): an optional button next to the count, for a loss
+// category that is actually re-askable — Synopsize's two disclosures (not fetched / no abstract)
+// are PubMed facts, not worth re-asking; Score Relevance's failed-scoring list is a model call that
+// may just succeed on a second try, so it is the one caller that passes this prop.
+function LossSection({ label, pmids, onRetry }: { label: string; pmids: string[]; onRetry?: () => void }) {
     if (!pmids.length) return <p className={ls.help}>{label}: 0.</p>
     return (
         <details className={s.lossDetails}>
-            <summary className={s.lossSummary}><b>{pmids.length}</b> {label} <span className={ls.help}>— click to view</span></summary>
+            <summary className={s.lossSummary}>
+                <b>{pmids.length}</b> {label} <span className={ls.help}>— click to view</span>
+                {onRetry && (
+                    // stopPropagation, not just preventDefault: a click that reaches <summary> at
+                    // all toggles the <details> open/closed as its native activation behavior — the
+                    // button must never let the click bubble there, or "Retry" also collapses the list.
+                    <button
+                        type="button"
+                        className={`${ls.btnSecondary} ${s.lossRetryBtn}`}
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); onRetry() }}
+                    >
+                        Retry these {pmids.length}
+                    </button>
+                )}
+            </summary>
             <p className={`${ls.help} ${s.lossList}`}>{pmids.join(', ')}</p>
         </details>
     )
 }
 
-function SynopsizeStep() {
+// `onDone` fires ONCE per completed run, with the flat synopses array — the lift-up that lets
+// ScoreRelevanceStep read this step's output (see the effect below and this file's own header).
+// `onContinue` is the "Continue to Score Relevance →" button's handler — just a tab switch, owned
+// by the parent (LiteratureAnalyzer) the same way StepTabs' onSelect is.
+function SynopsizeStep({ onDone, onContinue }: { onDone: (synopses: Synopsis[]) => void; onContinue: () => void }) {
     const [pmidsRaw, setPmidsRaw] = useState('')
     const [formErr, setFormErr] = useState('')
     const { state, run, reset } = useChunkedProgress<SynopsizeBatchResponse>(CLIENT_BATCH_CONCURRENCY)
@@ -170,6 +307,20 @@ function SynopsizeStep() {
     const allNoAbstract = Array.from(new Set(state.results.flatMap(r => r?.noAbstract || [])))
     const batchFailures = state.results.filter(r => r?.error)
     const elapsedSeconds = Math.round(state.elapsedMs / 1000)
+
+    // THE LIFT-UP. Fires once per completed run — guarded on state.status alone (not on
+    // flatSynopses, which is a fresh array literal every render and would re-fire this on every
+    // render while done, not just the one transition into it) — see this file's header for why
+    // ScoreRelevanceStep needs this rather than reading SynopsizeStep's own local state.
+    useEffect(() => {
+        if (state.status === 'done') onDone(flatSynopses)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.status])
+
+    const exportSynopses = () => {
+        const csv = toCsv(['PMID', 'Title', 'Synopsis'], flatSynopses.map(r => [r.pmid, r.title, r.synopsis]))
+        saveText(csv, `${stamp('literature-synopses', today())}.csv`)
+    }
 
     const doneSummary = `${pmids.length.toLocaleString()} PMID${pmids.length === 1 ? '' : 's'} pasted — `
         + `${flatSynopses.length.toLocaleString()} synopsized in ${elapsedSeconds}s`
@@ -230,21 +381,249 @@ function SynopsizeStep() {
             </div>
             <div className={ls.actions}>
                 <button className={ls.btnSecondary} onClick={reset}>Run again</button>
+                <button className={ls.btnSecondary} onClick={exportSynopses} disabled={!flatSynopses.length}>Export</button>
+                <button className={ls.btn} onClick={onContinue} disabled={!flatSynopses.length}>Continue to Score Relevance →</button>
             </div>
         </CheckpointScreen>
     )
 }
 
-function PlaceholderStep({ label }: { label: string }) {
+// ---------------------------------------------------------------------------
+// SCORE RELEVANCE (Phase 2). Same CheckpointScreen/useChunkedProgress shape as SynopsizeStep, over
+// a different input: `synopses` is Synopsize's OWN finished output, lifted through the parent (see
+// this file's header) rather than re-fetched or re-derived here.
+//
+// `synopses` empty is a REAL, CURRENTLY-ACCEPTED product limitation, not a bug: this page persists
+// nothing across a reload (out of scope per this ticket), so a person who refreshes or never ran
+// Synopsize this session has nothing to score. The early return below says so plainly instead of
+// rendering a topic form over zero records.
+function ScoreRelevanceStep({ synopses, onContinue }: {
+    synopses: Synopsis[]
+    onContinue: (qualifying: RelevanceRecord[]) => void
+}) {
+    const [topic, setTopic] = useState('')
+    const [criteria, setCriteria] = useState('')
+    const [formErr, setFormErr] = useState('')
+    const [floor, setFloor] = useState(DEFAULT_RELEVANCE_FLOOR)
+    const [scores, setScores] = useState<Map<string, RelevanceScore>>(new Map())
+    const [failed, setFailed] = useState<string[]>([])
+    // WHICH PMIDS THE CURRENTLY-RESOLVING (or just-resolved) run actually asked for — the FIRST run
+    // asks for every synopsis; a retry (decision 29) asks for only the still-failed subset. The
+    // merge effect below reads this to know which pmids to reconcile against `scores`/`failed`,
+    // rather than assuming a run is always "everything".
+    const runTargets = useRef<string[]>([])
+    const { state, run, reset } = useChunkedProgress<RelevanceBatchResponse>(RELEVANCE_CLIENT_CONCURRENCY)
+
+    // EVERY HOOK ABOVE THIS LINE RUNS UNCONDITIONALLY, EVERY RENDER — the empty-synopses early
+    // return lives further down, AFTER the last hook, on purpose: this component only ever mounts
+    // fresh per tab switch (see LiteratureAnalyzer's ternary below), so `synopses` cannot actually
+    // flip from empty to non-empty mid-mount today, but hooks must never be conditional regardless
+    // of what happens to be true right now.
+    const synopsisByPmid = useMemo(() => new Map(synopses.map(x => [x.pmid, x])), [synopses])
+    const batches = useMemo(() => chunk(synopses, RELEVANCE_BATCH_SIZE), [synopses])
+
+    const cost = synopses.length * MEASURED_COST_PER_RECORD_RELEVANCE
+    const [loSecPerBatch, hiSecPerBatch] = ROUGH_SECONDS_PER_RELEVANCE_BATCH
+    const loSeconds = batches.length * loSecPerBatch
+    const hiSeconds = batches.length * hiSecPerBatch
+
+    const estimate = `${synopses.length.toLocaleString()} synopsis${synopses.length === 1 ? '' : 'es'} carried forward · `
+        + `${batches.length} batch${batches.length === 1 ? '' : 'es'} of up to ${RELEVANCE_BATCH_SIZE} · `
+        + `est. $${cost.toFixed(2)} (pilot-measured $${MEASURED_COST_PER_RECORD_RELEVANCE}/record) · `
+        + `~${loSeconds}-${hiSeconds}s (ROUGH GUESS — no real timing data exists yet for this route)`
+
+    const fire = (items: Array<{ pmid: string; synopsis: string }>) => {
+        runTargets.current = items.map(it => it.pmid)
+        void run(chunk(items, RELEVANCE_BATCH_SIZE).map(batch => () => (
+            fetchRelevanceBatch(topic.trim(), criteria.trim(), batch).catch((e: any) => ({
+                scores: [], failed: batch.map(it => it.pmid), error: e?.message || 'Batch failed.',
+            }))
+        )))
+    }
+
+    const runScoring = () => {
+        setFormErr('')
+        if (!topic.trim()) { setFormErr('A review topic is required.'); return }
+        setScores(new Map())
+        setFailed([])
+        fire(synopses.map(x => ({ pmid: x.pmid, synopsis: x.synopsis })))
+    }
+
+    // decision 29 — retries ONLY the still-failed pmids, not the whole corpus, so a mostly-good run
+    // never re-spends on records that already scored.
+    const retryFailed = () => {
+        if (!failed.length) return
+        fire(failed.map(pmid => ({ pmid, synopsis: synopsisByPmid.get(pmid)?.synopsis || '' })))
+    }
+
+    // THE MERGE. Fires once per completed run (initial or retry) — reconciles `scores`/`failed`
+    // against exactly the pmids THIS run targeted (runTargets.current), so a retry's successes
+    // move from `failed` into `scores` and a retry's repeat failures stay in `failed`, without
+    // touching any pmid this run never asked about.
+    useEffect(() => {
+        if (state.status !== 'done') return
+        const targets = runTargets.current
+        const got = new Map<string, RelevanceScore>()
+        for (const r of state.results) for (const sc of (r?.scores || [])) got.set(sc.pmid, sc)
+        if (got.size) {
+            setScores(prev => {
+                const next = new Map(prev)
+                for (const [pmid, sc] of got) next.set(pmid, sc)
+                return next
+            })
+        }
+        setFailed(prev => {
+            const untouched = prev.filter(p => !targets.includes(p))
+            const stillFailing = targets.filter(p => !got.has(p))
+            return Array.from(new Set([...untouched, ...stillFailing]))
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.status])
+
+    const scoredRows = useMemo(() => Array.from(scores.entries())
+        .map(([pmid, sc]) => ({
+            pmid, ...sc,
+            title: synopsisByPmid.get(pmid)?.title || '',
+            synopsis: synopsisByPmid.get(pmid)?.synopsis || '',
+        }))
+        .sort((a, b) => b.relevanceScore - a.relevanceScore), [scores, synopsisByPmid])
+
+    const qualifying = useMemo(() => scoredRows.filter(r => r.relevanceScore >= floor), [scoredRows, floor])
+
+    const elapsedSeconds = Math.round(state.elapsedMs / 1000)
+    const doneSummary = `${synopses.length.toLocaleString()} synopsis${synopses.length === 1 ? '' : 'es'} carried forward — `
+        + `${scores.size.toLocaleString()} scored, ${failed.length.toLocaleString()} failed, in ${elapsedSeconds}s`
+
+    const exportScores = () => {
+        const csv = toCsv(
+            ['PMID', 'Title', 'Relevance Score', 'Explanation', `Qualifies (floor ${floor})`],
+            scoredRows.map(r => [r.pmid, r.title, r.relevanceScore, r.relevanceExplanation, r.relevanceScore >= floor ? 'yes' : 'no']),
+        )
+        saveText(csv, `${stamp('relevance-scores', today())}.csv`)
+    }
+
+    // A REAL, CURRENTLY-ACCEPTED PRODUCT LIMITATION, not a bug: this page persists nothing across a
+    // reload (out of scope per this ticket), so a person who refreshes or never ran Synopsize this
+    // session has nothing to score. Say so plainly instead of rendering a topic form over zero
+    // records.
+    if (!synopses.length) {
+        return (
+            <div className={ls.card}>
+                <p className={s.placeholder}>
+                    Score Relevance reads the synopses Synopsize just produced, and none are
+                    available this session yet. Run Synopsize first, then come back to this tab.
+                </p>
+            </div>
+        )
+    }
+
+    return (
+        <CheckpointScreen
+            status={state.status}
+            estimate={estimate}
+            actionLabel="Score relevance for this corpus"
+            onRun={runScoring}
+            canRun={!!topic.trim()}
+            progressDone={state.done}
+            progressTotal={state.total}
+            elapsedSeconds={elapsedSeconds}
+            doneSummary={doneSummary}
+            beforeExtra={
+                <>
+                    <div className={ls.field}>
+                        <label className={ls.eyebrow} htmlFor="relevance-topic">Review topic</label>
+                        <textarea
+                            id="relevance-topic"
+                            className={ls.input}
+                            rows={2}
+                            value={topic}
+                            onChange={e => setTopic(e.target.value)}
+                            placeholder="e.g. Do probiotics reduce symptoms of depression in adults?"
+                        />
+                        <p className={ls.help}>
+                            Sent to an external AI service alongside each synopsis — do not include
+                            patient identifiers.
+                        </p>
+                    </div>
+                    <div className={ls.field}>
+                        <label className={ls.eyebrow} htmlFor="relevance-criteria">Inclusion / exclusion criteria — optional</label>
+                        <textarea
+                            id="relevance-criteria"
+                            className={ls.input}
+                            rows={2}
+                            value={criteria}
+                            onChange={e => setCriteria(e.target.value)}
+                            placeholder="e.g. RCTs only; adults; exclude preclinical"
+                        />
+                        <p className={ls.help}>
+                            Binding: a record matching an exclusion criterion scores low regardless
+                            of how close its field is to the topic.
+                        </p>
+                    </div>
+                    {formErr && <div role="alert" className={ls.error}>{formErr}</div>}
+                </>
+            }
+        >
+            <div className={s.lossRow}>
+                <LossSection label="failed scoring" pmids={failed} onRetry={failed.length ? retryFailed : undefined} />
+            </div>
+
+            <div className={s.floorRow}>
+                <label className={ls.eyebrow} htmlFor="relevance-floor">Relevance floor</label>
+                <input
+                    id="relevance-floor"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={floor}
+                    onChange={e => setFloor(Number(e.target.value))}
+                    className={s.floorSlider}
+                />
+                <span className={s.floorValue}>{floor}</span>
+                <span className={ls.help}><b>{qualifying.length}</b> of <b>{scoredRows.length}</b> qualify</span>
+            </div>
+
+            <div className={ls.lines}>
+                {scoredRows.map(r => (
+                    <div className={ls.line} key={r.pmid}>
+                        <div className={ls.field}>
+                            <b>{r.title || `PMID ${r.pmid}`}</b>{' '}
+                            <span className={ls.help}>
+                                PMID {r.pmid} · score {r.relevanceScore}
+                                {r.relevanceScore < floor ? ' (below floor)' : ''}
+                            </span>
+                            <p className={ls.help}>{r.relevanceExplanation}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className={ls.actions}>
+                <button className={ls.btnSecondary} onClick={() => { reset(); setScores(new Map()); setFailed([]) }}>Run again</button>
+                <button className={ls.btnSecondary} onClick={exportScores} disabled={!scoredRows.length}>Export</button>
+                <button className={ls.btn} onClick={() => onContinue(qualifying)} disabled={!qualifying.length}>Continue to Score Impact →</button>
+            </div>
+        </CheckpointScreen>
+    )
+}
+
+function PlaceholderStep({ label, note }: { label: string; note?: string }) {
     return (
         <div className={ls.card}>
-            <p className={s.placeholder}>{label} — built in a later phase.</p>
+            <p className={s.placeholder}>{label} — built in a later phase.{note ? ` ${note}` : ''}</p>
         </div>
     )
 }
 
 export default function LiteratureAnalyzer() {
     const [current, setCurrent] = useState<StepId>(WIRED_STEP)
+    // LIFTED STATE (this file's header): the one place Synopsize's finished output and Score
+    // Relevance's qualifying set live once their own steps are done, so a later-selected tab can
+    // read what an earlier one produced. Neither survives a reload — see ScoreRelevanceStep's own
+    // empty-state comment for why that is accepted, not a bug to fix here.
+    const [synopsisResult, setSynopsisResult] = useState<Synopsis[]>([])
+    const [qualifyingRelevance, setQualifyingRelevance] = useState<RelevanceRecord[]>([])
     const step = STEPS.find(x => x.id === current)!
 
     return (
@@ -257,9 +636,27 @@ export default function LiteratureAnalyzer() {
 
             <StepTabs current={current} onSelect={setCurrent} />
 
-            {current === WIRED_STEP
-                ? <SynopsizeStep />
-                : <PlaceholderStep label={step.label} />}
+            {current === 'synopsize' ? (
+                <SynopsizeStep
+                    onDone={setSynopsisResult}
+                    onContinue={() => setCurrent('score-relevance')}
+                />
+            ) : current === 'score-relevance' ? (
+                <ScoreRelevanceStep
+                    synopses={synopsisResult}
+                    onContinue={qualifying => {
+                        setQualifyingRelevance(qualifying)
+                        setCurrent('score-impact')
+                    }}
+                />
+            ) : (
+                <PlaceholderStep
+                    label={step.label}
+                    note={current === 'score-impact' && qualifyingRelevance.length
+                        ? `${qualifyingRelevance.length} qualifying record${qualifyingRelevance.length === 1 ? '' : 's'} staged from Score Relevance.`
+                        : undefined}
+                />
+            )}
         </div>
     )
 }
