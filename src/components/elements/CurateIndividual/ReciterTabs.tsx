@@ -308,6 +308,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           personIdentifier={reciterData.reciter?.personIdentifier}
           onAddViaPubMed={handleAddViaPubMed}
           getPmidStatus={getPmidStatus}
+          viewerCwid={session?.data?.username}
         />
       ) : key === 'ScopusAuth' ? (
         <TabScopusAuthorships
@@ -320,6 +321,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
         <SourceArticleTab
           uid={reciterData.reciter?.personIdentifier}
           source={EXTERNAL_SOURCE_TABS.find((tab) => tab.value === key)!.source}
+          viewerCwid={session?.data?.username}
         />
       ) : activeTabData ? (
         <ReciterTabContent
