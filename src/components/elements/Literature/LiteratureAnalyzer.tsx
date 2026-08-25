@@ -427,7 +427,7 @@ function ScoreRelevanceStep({ synopses, onContinue }: {
     const loSeconds = batches.length * loSecPerBatch
     const hiSeconds = batches.length * hiSecPerBatch
 
-    const estimate = `${synopses.length.toLocaleString()} synopsis${synopses.length === 1 ? '' : 'es'} carried forward · `
+    const estimate = `${synopses.length.toLocaleString()} ${synopses.length === 1 ? 'synopsis' : 'synopses'} carried forward · `
         + `${batches.length} batch${batches.length === 1 ? '' : 'es'} of up to ${RELEVANCE_BATCH_SIZE} · `
         + `est. $${cost.toFixed(2)} (pilot-measured $${MEASURED_COST_PER_RECORD_RELEVANCE}/record) · `
         + `~${loSeconds}-${hiSeconds}s (ROUGH GUESS — no real timing data exists yet for this route)`
@@ -491,7 +491,7 @@ function ScoreRelevanceStep({ synopses, onContinue }: {
     const qualifying = useMemo(() => scoredRows.filter(r => r.relevanceScore >= floor), [scoredRows, floor])
 
     const elapsedSeconds = Math.round(state.elapsedMs / 1000)
-    const doneSummary = `${synopses.length.toLocaleString()} synopsis${synopses.length === 1 ? '' : 'es'} carried forward — `
+    const doneSummary = `${synopses.length.toLocaleString()} ${synopses.length === 1 ? 'synopsis' : 'synopses'} carried forward — `
         + `${scores.size.toLocaleString()} scored, ${failed.length.toLocaleString()} failed, in ${elapsedSeconds}s`
 
     const exportScores = () => {
