@@ -5,11 +5,25 @@
 
 export type StepId = 'synopsize' | 'score-relevance' | 'score-impact' | 'themes' | 'summarize-themes'
 
+// THE SAME NUMBER THE SERVER ENFORCES (src/pages/api/literature/search.ts), imported there from
+// here rather than duplicated as a second literal. Every other model-calling path in that route
+// bounds its input somewhere upstream of the Bedrock call — Mode 1/2's RECORD_CAP (50 records,
+// fetched), Mode 4's preFilterForScoring budget (200 records, scored) — but the Analyzer has no
+// strategy, no count-before-fetch gate, nothing standing between a pasted PMID list and a real
+// bill. 200 anchors to preFilterForScoring's own 200-record scoring budget (literatureSearch.score.ts)
+// — there is no other existing precedent in this codebase that fits better — and it is a DELIBERATE
+// PHASE-1 SAFETY DEFAULT, not a tuned or final product number. Revisit once real usage exists.
+//
+// Defined HERE, not in search.ts, so the client (LiteratureAnalyzer.tsx) can enforce it BEFORE any
+// batching starts, without importing an API route module (which would pull next-auth/server-only
+// code into the browser bundle) — this file has no such imports, so it is safe for both sides.
+export const ANALYZER_PMID_CAP = 200
+
 export const STEPS: Array<{ id: StepId; label: string; info: string }> = [
     {
         id: 'synopsize',
         label: 'Synopsize',
-        info: 'One model call per batch of records, producing a short plain-language synopsis of each.',
+        info: 'One model call per record, producing a short plain-language synopsis of each.',
     },
     {
         id: 'score-relevance',

@@ -57,6 +57,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getToken } from 'next-auth/jwt'
+import { ANALYZER_PMID_CAP } from '../../../components/elements/Literature/LiteratureAnalyzer.constants'
 import {
     buildStrategy,
     runStrategy,
@@ -174,14 +175,9 @@ function parsePmids(raw: any): string[] {
     return Array.from(new Set(ids))
 }
 
-// THE INPUT-SIZE CAP THE ANALYZER OTHERWISE WOULD NOT HAVE. Every other model-calling path in this
-// file bounds its input somewhere upstream of the Bedrock call — Mode 1/2's RECORD_CAP (50 records,
-// fetched), Mode 4's preFilterForScoring budget (200 records, scored) — but the Analyzer has no
-// strategy, no count-before-fetch gate, nothing standing between a pasted PMID list and a real
-// bill. 200 anchors to preFilterForScoring's own 200-record scoring budget (literatureSearch.score.ts)
-// — there is no other existing precedent in this codebase that fits better — and it is a DELIBERATE
-// PHASE-1 SAFETY DEFAULT, not a tuned or final product number. Revisit once real usage exists.
-const ANALYZER_PMID_CAP = 200
+// THE INPUT-SIZE CAP THE ANALYZER OTHERWISE WOULD NOT HAVE — full derivation now lives with the
+// value itself in LiteratureAnalyzer.constants.ts (imported above), so the client can enforce the
+// SAME number before it ever starts batching, instead of only finding out 200 PMIDs in.
 
 // The PMID list the Literature Analyzer's Synopsize step posts — a literal list, never a strategy
 // or a question (this feature has neither yet). PMID-shaped only: unlike parseSeeds (which also

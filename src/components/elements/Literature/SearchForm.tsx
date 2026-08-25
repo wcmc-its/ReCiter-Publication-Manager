@@ -15,6 +15,7 @@ import {
     picoComplete,
 } from '../../../../controllers/literatureSearch.strategy'
 import type { Db, LimitOption } from '../../../../controllers/literatureSearch.strategy'
+import type { ReactNode } from 'react'
 import { DATABASES, EVIDENCE_TIERS, CASE_SERIES_NOTE_COPY, MODES, SORTS } from './LiteratureSearch.constants'
 import s from './LiteratureSearch.module.css'
 
@@ -241,13 +242,18 @@ export function EvidenceTierPicker({ checked, setChecked }: {
     )
 }
 
-export function SeedsField({ seeds, setSeeds, count }: {
+// `label` and `caption` are optional overrides — every existing call site (LiteratureSearch.tsx)
+// omits them and keeps this component's original known-item-seeds copy exactly as-is. Added so
+// LiteratureAnalyzer.tsx's Synopsize step, which reuses this same textarea for a different purpose
+// (a corpus paste, not a recall spot-check), can supply copy that fits its own context instead.
+export function SeedsField({ seeds, setSeeds, count, label, caption }: {
     seeds: string; setSeeds: (v: string) => void; count: number
+    label?: ReactNode; caption?: ReactNode
 }) {
     return (
         <div className={s.requirement}>
             <div className={s.reqHead}>
-                <label className={s.eyebrow} htmlFor="lit-seeds">Known-item seeds</label>
+                <label className={s.eyebrow} htmlFor="lit-seeds">{label ?? 'Known-item seeds'}</label>
                 <span className={`${s.seedCount} ${count ? s.seedCountArmed : ''}`}>
                     {count === 1 ? '1 seed' : `${count} seeds`}
                 </span>
@@ -263,8 +269,8 @@ export function SeedsField({ seeds, setSeeds, count }: {
                 placeholder="PMIDs or DOIs, one per line — papers this search MUST retrieve"
             />
             <p className={s.help}>
-                We run the strategy and report whether each one came back.{' '}
-                <b>A strategy that misses a known include is broken.</b>
+                {caption ?? <>We run the strategy and report whether each one came back.{' '}
+                    <b>A strategy that misses a known include is broken.</b></>}
             </p>
         </div>
     )

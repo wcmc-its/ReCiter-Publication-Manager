@@ -18,7 +18,7 @@
 // screen with decision 30's two loss-count disclosures. FOUR OF THE FIVE TABS ARE STILL INERT
 // PLACEHOLDERS — Score Relevance, Score Impact, Themes, Summarize Themes are later phases' jobs.
 import { useMemo, useState } from 'react'
-import { STEPS, WIRED_STEP } from './LiteratureAnalyzer.constants'
+import { ANALYZER_PMID_CAP, STEPS, WIRED_STEP } from './LiteratureAnalyzer.constants'
 import type { StepId } from './LiteratureAnalyzer.constants'
 import { CheckpointScreen, StepTabs, useChunkedProgress } from './LiteratureAnalyzer.parts'
 import { SeedsField } from './SearchForm'
@@ -128,6 +128,13 @@ function SynopsizeStep() {
 
     const { pmids, invalid } = useMemo(() => validatePmidInput(pmidsRaw), [pmidsRaw])
     const batches = useMemo(() => chunk(pmids, ANALYZER_BATCH_SIZE), [pmids])
+    // THE SAME CAP THE SERVER ENFORCES (search.ts's ANALYZER_PMID_CAP, imported from
+    // LiteratureAnalyzer.constants.ts so there is only one literal). Checked BEFORE any batching or
+    // running starts — without this, a paste far over the cap still gets chunked into
+    // ANALYZER_BATCH_SIZE-sized batches and every batch still fires as a real, separately-billed
+    // request; the server only ever sees and rejects the FIRST one over the line, after the other
+    // ~N/20 have already gone out and been paid for.
+    const overCap = pmids.length > ANALYZER_PMID_CAP
 
     const cost = pmids.length * MEASURED_COST_PER_RECORD
     const [loSecPerBatch, hiSecPerBatch] = ROUGH_SECONDS_PER_BATCH
@@ -146,6 +153,10 @@ function SynopsizeStep() {
         if (!pmids.length) { setFormErr('Paste at least one PMID.'); return }
         if (invalid.length) {
             setFormErr(`Not a PMID — fix or remove: ${invalid.slice(0, 15).join(', ')}${invalid.length > 15 ? ', …' : ''}`)
+            return
+        }
+        if (overCap) {
+            setFormErr(`Too many PMIDs — at most ${ANALYZER_PMID_CAP} per run (${pmids.length.toLocaleString()} pasted).`)
             return
         }
         void run(batches.map(batch => () => fetchSynopsizeBatch(batch).catch((e: any) => ({
@@ -172,22 +183,32 @@ function SynopsizeStep() {
             estimate={estimate}
             actionLabel="Synopsize records in this corpus"
             onRun={runSynopsize}
-            canRun={pmids.length > 0 && invalid.length === 0}
+            canRun={pmids.length > 0 && invalid.length === 0 && !overCap}
             progressDone={state.done}
             progressTotal={state.total}
             elapsedSeconds={elapsedSeconds}
             doneSummary={doneSummary}
             beforeExtra={
                 <>
-                    <SeedsField seeds={pmidsRaw} setSeeds={setPmidsRaw} count={pmids.length} />
+                    <SeedsField
+                        seeds={pmidsRaw}
+                        setSeeds={setPmidsRaw}
+                        count={pmids.length}
+                        label="PMIDs to synopsize"
+                        caption={<>Each one gets fetched from PubMed and sent for a plain-language
+                            synopsis. <b>At most {ANALYZER_PMID_CAP} per run</b> — this route spends
+                            real money on every PMID.</>}
+                    />
                     <p className={ls.help}>
                         PMIDs only — separate with commas, spaces, or new lines, any mix. A pasted DOI
                         or other non-PMID line is rejected, not silently accepted. Papers with no
                         abstract available are left out after fetching.
                     </p>
-                    {(formErr || invalid.length > 0) && (
+                    {(formErr || invalid.length > 0 || overCap) && (
                         <div role="alert" className={ls.error}>
-                            {formErr || `Not a PMID — fix or remove: ${invalid.slice(0, 15).join(', ')}${invalid.length > 15 ? ', …' : ''}`}
+                            {formErr
+                                || (invalid.length > 0 && `Not a PMID — fix or remove: ${invalid.slice(0, 15).join(', ')}${invalid.length > 15 ? ', …' : ''}`)
+                                || `Too many PMIDs — at most ${ANALYZER_PMID_CAP} per run (${pmids.length.toLocaleString()} pasted).`}
                         </div>
                     )}
                 </>
