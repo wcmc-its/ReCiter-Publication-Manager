@@ -56,16 +56,23 @@ export const canCurate = async (token: any, targetUid: any): Promise<boolean> =>
     const proxyPersonIds = safeJsonParse(token?.proxyPersonIds, [])
     if (isProxyFor(proxyPersonIds, targetUid)) return true
 
-    if (caps.canCurate.scoped) {
-        const scopeData = safeJsonParse(token?.scopeData, null)
-        // isPersonInScope treats a scope with neither dimension set as "no restriction," which
-        // is the right default for other callers but wrong here: a Curator_Scoped user who was
-        // saved with no scope configured (both fields left empty in the UI) must be denied
-        // everyone, not treated as Curator_All. Fail closed instead of delegating to that default.
-        const hasScope = scopeData && (
-            (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
-            (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
-        )
+    const scopeData = safeJsonParse(token?.scopeData, null)
+    // isPersonInScope treats a scope with neither dimension set as "no restriction," which
+    // is the right default for other callers but wrong here: a Curator_Scoped user who was
+    // saved with no scope configured (both fields left empty in the UI) must be denied
+    // everyone, not treated as Curator_All. Fail closed instead of delegating to that default.
+    const hasScope = scopeData && (
+        (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
+        (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
+    )
+
+    // A configured scope is self-sufficient, the same way proxy_person_ids is above: it does
+    // not require the token to also carry the Curator_Scoped role. A half-configured admin user
+    // (scope saved, role not assigned in admin_users_roles) still has a real, admin-gated,
+    // self-limiting scope -- deny-by-missing-role would make that configuration silently inert.
+    // The existing empty-scope fail-closed is unchanged: a Curator_Scoped role with no scope
+    // configured is still denied everyone.
+    if (caps.canCurate.scoped || hasScope) {
         if (!hasScope) return false
         const target = await findPersonScopeAttributes(targetUid)
         return isPersonInScope(scopeData, target.orgUnit, target.personTypes)
