@@ -84,7 +84,7 @@ const Search = () => {
   const [showProfileID, setShowprofileID] = useState("");
   const [headShot, setHeadShot] = useState([]);
   const [viewProfileLabels, setViewProfileLabels] = useState([])
-  const [selectedAction, setSelectedAction] = useState("Curate Publications")
+  const [selectedAction, setSelectedAction] = useState("Create Reports")
   const [scopeFilterChecked, setScopeFilterChecked] = useState(true); // Default checked for scoped curators (D-14)
   //ref
   const searchValue = useRef()
@@ -485,10 +485,7 @@ const Search = () => {
 
   const handleGoAction = () => {
     dispatch(updatePubFiltersFromSearch());
-    if (selectedAction === "Curate Publications") {
-      dispatch(curateIdsFromSearch(identities.paginatedIdentities))
-      router.push({ pathname: '/curate' })
-    } else if (selectedAction === "Create Reports") {
+    if (selectedAction === "Create Reports") {
       router.push('/report');
     }
   }
@@ -726,10 +723,7 @@ const Search = () => {
                           value={selectedAction}
                           onChange={(e) => setSelectedAction(e.target.value)}
                         >
-                          <option value="Curate Publications">Curate Publications</option>
-                          {dropdownMenuItems.filter(i => i.title).map(item => (
-                            <option key={item.title} value={item.title}>{item.title}</option>
-                          ))}
+                          <option value="Create Reports">Create Reports</option>
                         </select>
                       </div>
                       <button className={styles.btnGo} onClick={handleGoAction}>
