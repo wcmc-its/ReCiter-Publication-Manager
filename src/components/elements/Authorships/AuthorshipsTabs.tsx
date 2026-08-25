@@ -45,6 +45,9 @@ interface AuthorshipRow {
   pmid_sibling_count?: number;
   // false → proposed identity is not in ReCiter (departed/inactive); Accept is impossible
   identity_in_reciter?: boolean;
+  // true → top_cwid already rejected this exact pmid via their own /curate page
+  // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
+  top_already_rejected?: boolean;
   status?: string;
   snooze_until?: string;
   reviewer?: string;
@@ -87,6 +90,8 @@ interface ActivityEntry {
   title?: string;
   wcm_author?: string;
   top_name?: string;
+  top_cwid?: string;
+  resolution_cwid?: string;
   status?: string;
   reviewer?: string;
   resolved_at?: string;
@@ -105,6 +110,9 @@ interface Candidate {
   confidence?: number;
   affil_dept_match?: boolean;
   given_match?: string;
+  // true → this candidate already rejected this exact pmid via their own /curate page
+  // (GoldStandard.rejectedpmids) — must never be the highlighted lead, radio stays disabled.
+  already_rejected?: boolean;
 }
 
 interface Summary {
@@ -338,6 +346,12 @@ const noIdentityPillStyle: CSSProperties = {
   borderRadius: 20, background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", whiteSpace: "nowrap",
   cursor: "help",
 };
+// replaces the Accept button when the proposed identity already rejected this exact pmid
+const alreadyRejectedPillStyle: CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "5px 10px",
+  borderRadius: 20, background: "#fef2f2", color: "#b42318", border: "1px solid #fecaca", whiteSpace: "nowrap",
+  cursor: "help",
+};
 
 // Scopus evidence lead: no PMID — Scopus record + DOI links (mirrors PmidLink's slot).
 const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
@@ -530,6 +544,28 @@ const AuthorshipsTabs = () => {
       .catch(() => setRecentActivity([]));
   }, []);
 
+  // Undo a resolved row straight from the "Recent activity" panel. Deliberately NOT
+  // doActionAsync/doAction: those optimistically mutate the CURRENT PAGE's rows/count
+  // (filtering the row out, decrementing count) — wrong here, since an activity entry
+  // usually isn't part of the current page's filtered/paginated result set at all, and
+  // reusing them would silently corrupt an unrelated row's count. This posts directly and
+  // just re-pulls everything that could have changed.
+  const undoRecentActivity = useCallback((entry: ActivityEntry) => {
+    fetch("/api/db/authorships/action", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ id: entry.id, action: "reopen" }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        // reopened row drops out of the resolved-only feed and may now belong on the
+        // currently-viewed page/statusView; summary counts change too.
+        fetchRecentActivity();
+        fetchData();
+        fetchSummary();
+      })
+      .catch((e) => setErrorMsg(`Couldn't undo "${entry.title || entry.wcm_author || entry.id}" — ${String(e?.message || e)}`));
+  }, [fetchRecentActivity, fetchData, fetchSummary]);
+
   // live-filter: debounce the search box so the queue narrows as you type (no Enter needed)
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -700,8 +736,8 @@ const AuthorshipsTabs = () => {
   }, []);
 
   const toggleSelect = useCallback((row: AuthorshipRow) => {
-    // multi rows and no-ReCiter-identity rows aren't bulk-selectable
-    if (!row.single_candidate || row.identity_in_reciter === false || statusView !== "open") return;
+    // multi rows, no-ReCiter-identity rows, and already-rejected rows aren't bulk-selectable
+    if (!row.single_candidate || row.identity_in_reciter === false || row.top_already_rejected || statusView !== "open") return;
     setSelected((s) => {
       const next = new Set(s);
       next.has(row.id) ? next.delete(row.id) : next.add(row.id);
@@ -799,7 +835,7 @@ const AuthorshipsTabs = () => {
   const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && (r.top_io_score ?? 0) >= 95);
   const selectedRows = rows.filter((r) => selected.has(r.id));
   // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
-  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false) : [];
+  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && !r.top_already_rejected) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
   const toggleSelectAllEligible = useCallback(() => {
@@ -1148,14 +1184,35 @@ const AuthorshipsTabs = () => {
           const verb = STATUS_LABEL[entry.status || ""] || entry.status || "Resolved";
           const label = entry.title
             || (entry.source === "scopus" && entry.external_id ? `Scopus ${entry.external_id}` : entry.pmid ? `PMID ${entry.pmid}` : "Untitled");
+          // subject of the authorship — resolution_cwid is the identity actually resolved onto
+          // (set for accept/assign; reject/dismiss never set it, so top_cwid is always the right
+          // fallback there). ponytail: the displayed NAME (top_name) can rarely be stale relative
+          // to this cwid in the multi-candidate "assign to a non-top candidate" edge case — an
+          // accepted simplification, not a bug to chase.
+          const subjectCwid = entry.resolution_cwid || entry.top_cwid;
           return (
             <MenuItem key={entry.id} dense disableRipple
               style={{ whiteSpace: "normal", display: "block", padding: "8px 14px", cursor: "default" }}>
               <div style={{ fontSize: 12.5, color: "#0f172a" }}>
                 <strong>{verb}</strong> — {label}
               </div>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                {entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}
+              {(entry.top_name || subjectCwid) && (
+                <div style={{ fontSize: 11.5, color: "#475569", marginTop: 2 }}>
+                  {entry.top_name || "—"}{" "}
+                  {subjectCwid && (
+                    <a href={`/curate/${subjectCwid}`} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "none" }}>
+                      {subjectCwid}
+                    </a>
+                  )}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                <span>{entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); undoRecentActivity(entry); }}
+                  style={{ marginLeft: "auto", background: "none", border: "none", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, font: "inherit" }}>
+                  Undo
+                </button>
               </div>
             </MenuItem>
           );
@@ -1204,6 +1261,7 @@ const AuthorshipCard = ({
 }: CardProps) => {
   const isMulti = !r.single_candidate && (r.n_candidates ?? 0) > 1;
   const noIdentity = r.identity_in_reciter === false;
+  const alreadyRejected = r.top_already_rejected === true;
   const isAbsent = r.top_io_score == null;
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
@@ -1223,10 +1281,10 @@ const AuthorshipCard = ({
     <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
         {/* selection checkbox — single-candidate open rows with a ReCiter identity only */}
-        <input type="checkbox" disabled={!r.single_candidate || noIdentity || statusView !== "open"}
+        <input type="checkbox" disabled={!r.single_candidate || noIdentity || alreadyRejected || statusView !== "open"}
           checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
           aria-label={`select ${r.wcm_author || ""}`}
-          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && !noIdentity && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && !noIdentity && statusView === "open" ? 1 : 0.3 }} />
+          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && !noIdentity && !alreadyRejected && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && !noIdentity && !alreadyRejected && statusView === "open" ? 1 : 0.3 }} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* L1 — WCM author + position */}
@@ -1309,6 +1367,15 @@ const AuthorshipCard = ({
                 </button>
                 <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted.`} placement="top" arrow>
                   <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
+                </Tip>
+              </>
+            ) : alreadyRejected ? (
+              <>
+                <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
+                  <IconX size={14} /> Reject
+                </button>
+                <Tip title={`${r.top_name || r.top_cwid} already rejected this exact article via their own curation page, so this authorship can't be accepted.`} placement="top" arrow>
+                  <span style={alreadyRejectedPillStyle} onClick={(e) => e.stopPropagation()}>Already rejected by this person</span>
                 </Tip>
               </>
             ) : (
@@ -1476,7 +1543,12 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   // retrieved -- io_score null -- still carries a name/department confidence signal;
   // without the tiebreak, an unretrieved-but-clearly-correct candidate like a full
   // name + department match looks identical to a weak surname-only homonym).
-  const ranked = [...candidates].sort((a, b) =>
+  // Candidates who already rejected this exact pmid (GoldStandard.rejectedpmids) must never
+  // become the visually-highlighted lead — rank/lead computation runs over this filtered set —
+  // but they stay VISIBLE in the rendered list below (`visible` is still built from the raw
+  // `candidates` prop) so a curator who remembers "5 candidates" isn't confused by only 4.
+  const eligibleForLead = candidates.filter((c) => !c.already_rejected);
+  const ranked = [...eligibleForLead].sort((a, b) =>
     (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
   const scored = ranked.filter((c) => c.io_score != null);
   const unscored = ranked.filter((c) => c.io_score == null);
@@ -1494,7 +1566,11 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   const selectedCwid = pickedCwid;
   // when no candidate has an IO score, there is nothing to show in the default view —
   // auto-expand the unscored list so the curator always has a visible choice to pick.
-  const visible = showAll || scored.length === 0 ? ranked : scored;
+  // Already-rejected candidates are appended unconditionally (not gated by showAll) so they
+  // stay visible for transparency even though they're excluded from the ranked/lead logic above.
+  const rejectedCandidates = candidates.filter((c) => c.already_rejected)
+    .sort((a, b) => (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
+  const visible = [...(showAll || scored.length === 0 ? ranked : scored), ...rejectedCandidates];
 
   return (
     <>
@@ -1509,13 +1585,16 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
         {visible.map((c, i) => {
           const isLead = c.cwid === lead?.cwid;
           const checked = c.cwid === selectedCwid;
+          const rejected = c.already_rejected === true;
           return (
             <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
               display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
-              border: `1px solid ${isLead ? "#bbf7d0" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7, cursor: "pointer",
-              background: isLead ? "#f0fdf4" : "#fff",
+              border: `1px solid ${isLead ? "#bbf7d0" : rejected ? "#fecaca" : "#e8edf2"}`, borderRadius: 7, marginBottom: 7,
+              cursor: rejected ? "not-allowed" : "pointer",
+              background: isLead ? "#f0fdf4" : rejected ? "#fef2f2" : "#fff",
+              opacity: rejected ? 0.8 : 1,
             }}>
-              <input type="radio" name={`m${r.id}`} checked={checked} onChange={() => onPick(c.cwid)}
+              <input type="radio" name={`m${r.id}`} checked={checked} disabled={rejected} onChange={() => onPick(c.cwid)}
                 onClick={(e) => e.stopPropagation()}
                 style={{ accentColor: "#2563eb", flex: "none" }} />
               <span style={{ flex: 1, minWidth: 0 }}>
@@ -1526,8 +1605,10 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
                   {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
                 </span>
-                {(c.given_match === "full" || c.affil_dept_match) && (
-                  <span style={{ display: "flex", gap: 5, marginTop: 4 }}>
+                {(c.given_match === "full" || c.affil_dept_match || rejected) && (
+                  <span style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
+                    {/* already-rejected (GoldStandard) takes precedence — shown ahead of any match chips */}
+                    {rejected && <Chip kind="warn">Already rejected</Chip>}
                     {c.given_match === "full" && <Chip kind="ok">Full name match</Chip>}
                     {c.affil_dept_match && <Chip kind="ok">Dept match</Chip>}
                   </span>
@@ -1559,7 +1640,10 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
         )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <button style={btn("accept", acting || !pickedCwid)} disabled={acting || !pickedCwid}
+        {/* defense in depth: the radio being disabled already prevents picking a rejected
+            candidate through the UI, but this closes any edge-case gap cheaply. */}
+        <button style={btn("accept", acting || !pickedCwid || candidates.find((c) => c.cwid === pickedCwid)?.already_rejected)}
+          disabled={acting || !pickedCwid || candidates.find((c) => c.cwid === pickedCwid)?.already_rejected}
           onClick={(e) => { e.stopPropagation(); pickedCwid && onAction("assign", { cwid: pickedCwid }); }}>
           <IconCheck /> Assign selected
         </button>

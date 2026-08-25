@@ -5,6 +5,7 @@ import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
+import { getRejectedPmidsByCwid } from "../../src/lib/goldStandardRejections";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -203,10 +204,42 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       scopusSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
     }
     const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
+
+    // Cross-check pubmed rows' candidates + top_cwid against GoldStandard.rejectedpmids: a
+    // candidate who already rejected this EXACT pmid via their own /curate page must never be
+    // silently recommended as the lead candidate or accepted through the single-candidate
+    // card — top_cwid/candidate_cwids_json are computed once at AAR producer time and never
+    // cross-checked against gold standard otherwise. Scopus rows have no pmid, so this can
+    // never apply to them (same reasoning as "scopus reject = local dismissal, never gold
+    // standard" on the reject action below). candidateCwidsFromRow gives the exact
+    // top_cwid+candidates union already used for reject/reopen. Purely additive/annotative
+    // here, like identity_in_reciter above — no re-ranking, no dropped rows, no count change;
+    // the frontend decides what to do visually.
+    const pubmedRows = rows.filter((r: any) => r.source !== "scopus" && r.pmid != null);
+    const rejectionCwids = new Set<string>();
+    for (const r of pubmedRows) candidateCwidsFromRow(r).forEach((c) => rejectionCwids.add(c));
+    const rejectedByCwid = await getRejectedPmidsByCwid([...rejectionCwids]);
+    const rejectionCheckIds = new Set(pubmedRows.map((r: any) => r.id));
+
     const out = rows.map((r: any) => {
       const map = r.source === "scopus" ? scopusSib : pmidSib;
+      const json: any = r.toJSON();
+      if (rejectionCheckIds.has(r.id)) {
+        const pmidNum = Number(r.pmid);
+        let candidates: any[] = [];
+        try { candidates = JSON.parse(json.candidate_cwids_json || "[]"); } catch { candidates = []; }
+        if (Array.isArray(candidates)) {
+          json.candidate_cwids_json = JSON.stringify(candidates.map((c: any) => {
+            if (!c || typeof c !== "object" || !c.cwid) return c;
+            return rejectedByCwid[String(c.cwid)]?.has(pmidNum) ? { ...c, already_rejected: true } : c;
+          }));
+        }
+        if (r.top_cwid && rejectedByCwid[String(r.top_cwid)]?.has(pmidNum)) {
+          json.top_already_rejected = true;
+        }
+      }
       return {
-        ...r.toJSON(),
+        ...json,
         pmid_sibling_count: map[siblingKey(r)] || 1,
         // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
         identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
@@ -258,7 +291,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 export const authorshipRecentActivity = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const rows = await models.AuthorshipReview.findAll({
-      attributes: ["id", "title", "wcm_author", "top_name", "status", "reviewer", "resolved_at", "source", "pmid", "external_id"],
+      attributes: ["id", "title", "wcm_author", "top_name", "top_cwid", "resolution_cwid", "status", "reviewer", "resolved_at", "source", "pmid", "external_id"],
       where: { resolved_at: { [Op.ne]: null } },
       order: [["resolved_at", "DESC"]],
       limit: 15,
@@ -415,6 +448,11 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           await models.AuthorshipReview.update({ status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() }, { where: { id } });
           break; // no AdminFeedbackLog / pending-count for scopus (PMID-keyed)
         }
+        // Data-integrity guard: never let an accept add pmid to knownpmids while it's still
+        // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
+        if ((await getRejectedPmidsByCwid([cwid]))[cwid]?.has(pmid as number)) {
+          return res.status(409).send(`${row.top_name || cwid} already rejected this article — cannot accept without reviewing that rejection first`);
+        }
         const gs = await writeGoldStandard(cwid, pmid as number, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
         await models.AuthorshipReview.update({ status: "accepted", resolution_cwid: cwid, reviewer, resolved_at: new Date() }, { where: { id } });
@@ -442,6 +480,11 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           }
           await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
           break;
+        }
+        // Data-integrity guard: never let an assign add pmid to knownpmids while it's still
+        // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
+        if ((await getRejectedPmidsByCwid([chosen]))[chosen]?.has(pmid as number)) {
+          return res.status(409).send(`${chosen} already rejected this article — cannot assign without reviewing that rejection first`);
         }
         const gs = await writeGoldStandard(chosen, pmid as number, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
