@@ -16,7 +16,7 @@ const LIST_ATTRIBUTES = [
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
   "top_given_match", "top_affil_match", "n_candidates", "single_candidate",
-  "candidate_cwids_json", "status", "snooze_until", "reviewer", "resolved_at",
+  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "status", "snooze_until", "reviewer", "resolved_at",
 ];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -380,6 +380,30 @@ function dupConflict(body: any): { blocked: boolean; message: string; matches: a
   };
 }
 
+// Full byline from authors_json ([{given,surname}, ...], every author on the document) as
+// "Given Surname" strings — undefined if the field is empty/absent, unparseable, or parses
+// to a non-array/empty array, so the ExternalArticle payload just omits `authors` rather
+// than sending a malformed value.
+function scopusAuthorsFromRow(row: any): string[] | undefined {
+  if (!row.authors_json) return undefined;
+  let parsed: any;
+  try {
+    parsed = JSON.parse(row.authors_json);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(parsed)) return undefined;
+  const names = parsed
+    .map((a: any) => {
+      const given = (a?.given || "").trim();
+      const surname = (a?.surname || "").trim();
+      if (given && surname) return `${given} ${surname}`;
+      return given || surname || "";
+    })
+    .filter(Boolean);
+  return names.length ? names : undefined;
+}
+
 // ExternalArticle payload for a scopus row (no PMID → not gold standard). articleId is
 // "SCOPUS:<numericId>" where numericId = external_id (dc:identifier minus SCOPUS_ID:).
 function scopusExternalPayload(row: any) {
@@ -392,6 +416,7 @@ function scopusExternalPayload(row: any) {
     journalOrVenue: row.journal || undefined,
     pubDate: row.entrez_date || undefined,
     publicationType: row.pub_type || undefined,
+    authors: scopusAuthorsFromRow(row),
   };
 }
 
