@@ -12,9 +12,29 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
     
     try {
         let apiBody:PersonApiBody =  req.body
+
+        // Curator_Scoped's personType/orgUnit scope, sent by Search.js's "Show only people I
+        // can curate" checkbox (checked by default for scoped curators). Combined with an
+        // explicit personTypes/orgUnits facet filter by intersection -- not a second join --
+        // so a scoped curator narrowing by facet never sees people outside their scope, and a
+        // facet that shares nothing with scope correctly returns zero rows rather than being
+        // ignored.
+        const scopePersonTypes: Array<string> = Array.isArray(apiBody.filters?.scopePersonTypes) ? apiBody.filters.scopePersonTypes : []
+        const scopeOrgUnits: Array<string> = Array.isArray(apiBody.filters?.scopeOrgUnits) ? apiBody.filters.scopeOrgUnits : []
+        const effectivePersonTypes = scopePersonTypes.length > 0
+            ? (apiBody.filters?.personTypes && apiBody.filters.personTypes.length > 0
+                ? apiBody.filters.personTypes.filter((pt) => scopePersonTypes.includes(pt))
+                : scopePersonTypes)
+            : apiBody.filters?.personTypes
+        const effectiveOrgUnits = scopeOrgUnits.length > 0
+            ? (apiBody.filters?.orgUnits && apiBody.filters.orgUnits.length > 0
+                ? apiBody.filters.orgUnits.filter((ou) => scopeOrgUnits.includes(ou))
+                : scopeOrgUnits)
+            : apiBody.filters?.orgUnits
+
         const where = {}
         if(apiBody.filters) {
-            if(apiBody.filters.personTypes || apiBody.filters.institutions || apiBody.filters.orgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
+            if(effectivePersonTypes || apiBody.filters.institutions || effectiveOrgUnits || apiBody.filters.nameOrUids || apiBody.filters.showOnlyPending) {
                 where[Op.and] = []
                 if(apiBody.filters.nameOrUids && apiBody.filters.nameOrUids.length > reciterConstants.nameCWIDSpaceCountThreshold) {
                     where[Op.and].push({[Op.or]:[
@@ -38,8 +58,8 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
                 if(apiBody.filters.institutions) {
                     where[Op.and].push({'$Person.primaryInstitution$': { [Op.in]: apiBody.filters.institutions }})
                 }
-                if(apiBody.filters.orgUnits) {
-                    where[Op.and].push({'$Person.primaryOrganizationalUnit$': { [Op.in]: apiBody.filters.orgUnits }})
+                if(effectiveOrgUnits) {
+                    where[Op.and].push({'$Person.primaryOrganizationalUnit$': { [Op.in]: effectiveOrgUnits }})
                 }
                 if(apiBody.filters.showOnlyPending) {
                     where[Op.and].push({'$Person.countPendingArticles$': { [Op.gt]: 0 }})
@@ -48,10 +68,10 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
             }
         }
         let joinWhere = {}
-        if(apiBody.filters && apiBody.filters.personTypes) {
+        if(apiBody.filters && effectivePersonTypes) {
             joinWhere = {
                 personType: {
-                    [Op.in]: apiBody.filters.personTypes
+                    [Op.in]: effectivePersonTypes
                 }
             }
         }
@@ -59,7 +79,7 @@ export const findAll  = async (req: NextApiRequest, res: NextApiResponse) => {
         var users= {};
 
 
-        if(apiBody.filters?.personTypes) {
+        if(effectivePersonTypes) {
             const { count,rows } =  await models.Person.findAndCountAll({
                 attributes: ['id','personIdentifier','firstName','middleName','lastName','title','primaryOrganizationalUnit','primaryInstitution','dateAdded',
                 'dateUpdated','precision','recall','countSuggestedArticles','countPendingArticles','overallAccuracy','mode','primaryEmail'],
