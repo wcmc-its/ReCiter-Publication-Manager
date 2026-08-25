@@ -119,6 +119,11 @@ import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
 // module is small enough, and new enough, that adding it to that barrel is not part of this
 // ticket's write set — see literatureSearch.synopsize.ts's own header for what it ports).
 import { synopsize, SYNOPSIS_MODEL_ID } from '../../../../controllers/literatureSearch.synopsize'
+// Literature Analyzer's Score Relevance step — same barrel-bypass reasoning as the synopsize
+// import just above; see literatureSearch.analyzerRelevance.ts's own header for what it
+// generalizes (the pilot's validated V2 rubric) and what it invents (the topic-agnostic ladder).
+import { scoreAnalyzerRelevance, RELEVANCE_BATCH_SIZE } from '../../../../controllers/literatureSearch.analyzerRelevance'
+import type { AnalyzerRelevanceItem } from '../../../../controllers/literatureSearch.analyzerRelevance'
 
 // Next's default request-body limit (1mb) is fine for Modes 1-3 — a 50-record PMID list or an
 // edited strategy is a few KB. Mode 4's corpus echo (see the file-level comment above
@@ -197,6 +202,30 @@ function parseAnalyzerPmids(raw: any): string[] {
     return unique
 }
 
+// The {pmid, synopsis} batch the Literature Analyzer's Score Relevance step posts — already-
+// validated objects the client produced in the Synopsize step, not raw text needing a parser, but
+// the shape is still validated server-side: the sidebar (and the client's own batching) is
+// cosmetic, the route is the gate, same discipline as everywhere else in this file. The batch
+// bound is RELEVANCE_BATCH_SIZE exactly — the client chunks to that size, so anything larger is
+// not a page we wrote, and rejecting outright beats silently scoring a prefix. Synopses are
+// client-supplied text entering a paid model call; the count cap and the per-item length cap
+// below are what bound that surface (a real synopsis is <=10 words — 300 chars is generous).
+function parseAnalyzerSynopses(raw: any): AnalyzerRelevanceItem[] {
+    const items = (Array.isArray(raw) ? raw : [])
+        .map((it: any) => ({
+            pmid: String(it?.pmid ?? '').trim(),
+            synopsis: String(it?.synopsis ?? '').trim().slice(0, 300),
+        }))
+        .filter((it: AnalyzerRelevanceItem) => /^\d+$/.test(it.pmid) && !!it.synopsis)
+    const seen = new Set<string>()
+    const unique = items.filter((it: AnalyzerRelevanceItem) => !seen.has(it.pmid) && (seen.add(it.pmid), true))
+    if (!unique.length) throw new Error('No synopses were supplied.')
+    if (unique.length > RELEVANCE_BATCH_SIZE) {
+        throw new Error(`At most ${RELEVANCE_BATCH_SIZE} synopses can be scored per call — the client batches to this size.`)
+    }
+    return unique
+}
+
 // The re-count path takes a strategy straight from the browser and puts its text into a PubMed
 // query, so it is a trust boundary and gets a real guard. The bounds are not paranoia about the
 // librarian: each toggle costs 1 + N count calls, so a strategy with 200 lines in it would turn
@@ -254,6 +283,9 @@ type SearchBody = {
     databases: any
     edited: any
     seedList: Seed[]
+    // ---- Literature Analyzer, Score Relevance only. The {pmid, synopsis} batch the client
+    // produced in the Synopsize step — validated by parseAnalyzerSynopses, never trusted as-is.
+    synopses: any
     // ---- Mode 4 only. `corpus`/`clusters`/`scores`/`impact` are ECHOED BACK by the client between
     // phases — see the handleM4* functions below for why that is safe (never abstract text, always
     // re-fetched by PMID before a Bedrock call touches it) and bounded (parseM4Corpus).
@@ -1155,6 +1187,56 @@ async function handleAnalyzerSynopsize(req: NextApiRequest, res: NextApiResponse
     }
 }
 
+// ---- LITERATURE ANALYZER, STEP 2 ("Score Relevance"). mode:'literature-analyzer',
+// phase:'score-relevance'. Body: { question, criteria?, synopses: [{pmid, synopsis}] } — ONE batch
+// of at most RELEVANCE_BATCH_SIZE per POST (the client chunks, exactly as it already does for
+// Synopsize; parseAnalyzerSynopses is the server-side backstop). `question`/`criteria` are the
+// same fields every other topic-taking phase on this route already uses — see
+// literatureSearch.analyzerRelevance.ts's own header for the rubric and what it generalizes.
+async function handleAnalyzerScoreRelevance(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    // Shape problems are the CALLER's fault and get a 400, not the 502 the catch below reserves
+    // for a scoring run that actually failed — a page that sends an oversized or empty batch is
+    // not a page we wrote, and it should hear so in a status it can distinguish.
+    const topic = String(body.question ?? '').trim()
+    if (!topic) {
+        return res.status(400).send({ statusCode: 400, message: 'A review topic is required to score relevance.' })
+    }
+    let batch: AnalyzerRelevanceItem[]
+    try {
+        batch = parseAnalyzerSynopses(body.synopses)
+    } catch (err: any) {
+        return res.status(400).send({ statusCode: 400, message: err?.message || 'Malformed synopses.' })
+    }
+    try {
+        const criteria = typeof body.criteria === 'string' && body.criteria.trim() ? body.criteria.trim() : undefined
+        // `failed` IS PART OF THE ANSWER, not just a log line — the standing design decision for
+        // this step (unlike Synopsize's older, flagged-as-a-gap silent drop): every PMID with no
+        // usable score after the retries goes back to the client explicitly.
+        const { scores, failed, usage } = await scoreAnalyzerRelevance(topic, criteria, batch)
+
+        logCost('literature-analyzer:score-relevance', cwid, usage, {
+            requested: batch.length, scored: scores.size, failed: failed.length,
+            // OVERRIDES logCost's default `model` (the `...extra` spread lands after it) — this
+            // step is pinned to Sonnet (SCORING_MODEL_ID), never to BEDROCK_MODEL_ID, so the log
+            // line's tokens can be priced later by the model that actually ran, same reasoning
+            // handleAnalyzerSynopsize applies for SYNOPSIS_MODEL_ID just above.
+            model: SCORING_MODEL_ID,
+        })
+
+        return res.status(200).send({
+            statusCode: 200,
+            scores: Array.from(scores, ([pmid, v]) => ({ pmid, ...v })),
+            failed,
+        })
+    } catch (err: any) {
+        console.error('[literature] analyzer score-relevance failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Relevance scoring failed.' })
+    }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
         return res.status(405).send({ statusCode: 405, message: 'POST only' })
@@ -1200,6 +1282,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         strategy: edited,
         // Mode 4 only.
         evidenceTiers, caseSeries, corpus, clusters, scores, impact, fromYear, toYear,
+        // Literature Analyzer, Score Relevance only.
+        synopses,
     } = req.body || {}
 
     // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
@@ -1226,6 +1310,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const body: SearchBody = {
         mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, edited, seedList,
         evidenceTiers, caseSeries, corpus, clusters, scores, impact, fromYear, toYear,
+        synopses,
     }
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
@@ -1258,6 +1343,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // and-braces reasoning as the Mode 4 branches just above — `synopsize` is unique to this mode.
     if (mode === 'literature-analyzer' && phase === 'synopsize') {
         return handleAnalyzerSynopsize(req, res, cwid, body)
+    }
+
+    // ---- LITERATURE ANALYZER, STEP 2 ("Score Relevance"). Same belt-and-braces `mode` + `phase`
+    // gating as every branch above — `score-relevance` is unique to this mode.
+    if (mode === 'literature-analyzer' && phase === 'score-relevance') {
+        return handleAnalyzerScoreRelevance(req, res, cwid, body)
     }
 
     // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------
