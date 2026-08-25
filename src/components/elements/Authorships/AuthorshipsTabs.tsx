@@ -78,6 +78,23 @@ interface ConflictEntry {
   ts: number;
 }
 
+// One resolved row for the server-backed "Recent activity" panel — a global, cross-curator,
+// cross-session feed off authorship_review.resolved_at (see authorshipRecentActivity), not to
+// be confused with ConflictEntry above (session-local, client-side conflict history) or the
+// per-person /curate "Recent activity" panel (CurateIndividual.tsx, a different feed/page).
+interface ActivityEntry {
+  id: number;
+  title?: string;
+  wcm_author?: string;
+  top_name?: string;
+  status?: string;
+  reviewer?: string;
+  resolved_at?: string;
+  source?: "pubmed" | "scopus";
+  pmid?: number;
+  external_id?: string;
+}
+
 interface Candidate {
   cwid: string;
   name?: string;
@@ -118,6 +135,13 @@ const ACTION_LABEL: Record<string, string> = {
   accept: "Accepted", reject: "Rejected", snooze: "Snoozed for 90 days", dismiss: "Dismissed", assign: "Assigned",
 };
 
+// row STATUS -> display verb for the "Recent activity" panel. Distinct from ACTION_LABEL above
+// (action verbs the curator clicked, e.g. "accept") — these are the terminal values persisted
+// in authorship_review.status once resolved_at is set (never "open"/"snoozed" here).
+const STATUS_LABEL: Record<string, string> = {
+  accepted: "Accepted", assigned: "Assigned", rejected: "Rejected", dismissed: "Dismissed",
+};
+
 // noun for the summary total — the count is scoped to the active status view, so the label must
 // follow it (Snoozed/Dismissed counts aren't "unassigned").
 const SUMMARY_TOTAL_LABEL: Record<"open" | "snoozed" | "dismissed", string> = {
@@ -145,6 +169,7 @@ const IconAlert = (p: IconProps) => <Icon {...p}><path d="m21.7 18-8-14a2 2 0 0 
 const IconMore = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></Icon>;
 const IconUsers = (p: IconProps) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></Icon>;
 const IconCopy = (p: IconProps) => <Icon {...p}><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></Icon>;
+const IconClock = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></Icon>;
 
 // ---- small presentational bits -------------------------------------------
 // MUI Tooltip with a larger, more readable font (the default tooltip text is tiny).
@@ -182,6 +207,16 @@ const fmtScore = (v?: number) => (v == null ? "—" : Number.isInteger(v) ? Stri
 const confBand = (c?: number) => (c == null ? "—" : c >= 0.8 ? "High" : c >= 0.5 ? "Medium" : "Low");
 // days in a given month (0-indexed) — used to clamp the day when shifting date presets across months
 const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+// resolved_at formatting for the "Recent activity" panel — date + time-of-day, seconds included,
+// so rapid same-day resolutions stay distinguishable. Mirrors CurateIndividual's
+// formatActivityDate (same options), kept as a local copy since the two components don't share
+// a helpers module.
+const formatActivityDate = (timestamp?: string): string => {
+  if (!timestamp) return "—";
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
+};
 
 const parseCandidates = (json?: string): Candidate[] => {
   if (!json) return [];
@@ -364,6 +399,11 @@ const AuthorshipsTabs = () => {
   const [conflicts, setConflicts] = useState<Record<number, ConflictEntry>>({});
   const [conflictLog, setConflictLog] = useState<ConflictEntry[]>([]);
   const [historyAnchor, setHistoryAnchor] = useState<HTMLElement | null>(null);
+  // server-backed "Recent activity" feed (the 15 most-recently-resolved rows, global across
+  // curators/sessions) — parallel to conflictLog/historyAnchor above, but fetched rather than
+  // accumulated client-side.
+  const [recentActivity, setRecentActivity] = useState<ActivityEntry[]>([]);
+  const [activityAnchor, setActivityAnchor] = useState<HTMLElement | null>(null);
   const clearConflict = useCallback((id: number) => {
     setConflicts((c) => { if (!(id in c)) return c; const n = { ...c }; delete n[id]; return n; });
   }, []);
@@ -478,6 +518,18 @@ const AuthorshipsTabs = () => {
   // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
   // current status/search/date scope — no need to refetch it on source-segment changes.
 
+  // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
+  // needs to re-key off the queue's own filter state.
+  const fetchRecentActivity = useCallback(() => {
+    fetch("/api/db/authorships/recent-activity", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({}),
+    })
+      .then((r) => r.json())
+      .then((d) => setRecentActivity(d.rows || []))
+      .catch(() => setRecentActivity([]));
+  }, []);
+
   // live-filter: debounce the search box so the queue narrows as you type (no Enter needed)
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -501,6 +553,7 @@ const AuthorshipsTabs = () => {
     fetchData();
   }, [fetchData, datesReady]);
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
+  useEffect(() => { fetchRecentActivity(); }, [fetchRecentActivity]);
   // clear transient per-page UI state on deliberate navigation only (filter/sort/status/page) —
   // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
@@ -567,6 +620,7 @@ const AuthorshipsTabs = () => {
         if (action !== "reopen") setUndo({ rows: [row], label: ACTION_LABEL[action] || "Done" });
         topUp();      // refill so the next pending authorship slides into the freed slot
         fetchSummary();
+        fetchRecentActivity();
       })
       .catch((e) => {
         // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
@@ -584,7 +638,7 @@ const AuthorshipsTabs = () => {
         fetchData(); // restore the optimistically-removed row
       })
       .finally(() => setActingId(null));
-  }, [doActionAsync, fetchData, fetchSummary, topUp]);
+  }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
 
   // F5: bulk orchestration — accept a batch of rows, collect into one Undo batch
   const doBulkAccept = useCallback((batch: AuthorshipRow[]) => {
@@ -611,9 +665,10 @@ const AuthorshipsTabs = () => {
         }
         else topUp();
         fetchSummary();
+        fetchRecentActivity();
       });
     setSelected(new Set());
-  }, [doActionAsync, fetchData, fetchSummary, topUp]);
+  }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
 
   // undo = reopen over the whole batch (F4: extends PR-1's single-row undo)
   const doUndo = useCallback(() => {
@@ -627,8 +682,8 @@ const AuthorshipsTabs = () => {
       }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
     )).then((results) => {
       if (results.some((r) => r.status === "rejected")) setErrorMsg("Undo failed for one or more rows");
-    }).finally(() => { fetchData(); fetchSummary(); });
-  }, [undo, fetchData, fetchSummary]);
+    }).finally(() => { fetchData(); fetchSummary(); fetchRecentActivity(); });
+  }, [undo, fetchData, fetchSummary, fetchRecentActivity]);
 
   // F12: clicking "+N more" narrows the view to the pmid. The sibling count is scoped
   // only to the status view (it deliberately ignores lane/classification/type/date), so to
@@ -767,13 +822,25 @@ const AuthorshipsTabs = () => {
         small as the diagnosis. Expand a card for the affiliation and evidence.
       </p>
 
-      {conflictLog.length > 0 && (
-        <button onClick={(ev) => setHistoryAnchor(ev.currentTarget)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 14, padding: "5px 11px",
-            border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", borderRadius: 7,
-            fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
-          ⚠ Recent duplicate conflicts ({conflictLog.length})
-        </button>
+      {(conflictLog.length > 0 || recentActivity.length > 0) && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {conflictLog.length > 0 && (
+            <button onClick={(ev) => setHistoryAnchor(ev.currentTarget)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px",
+                border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", borderRadius: 7,
+                fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
+              ⚠ Recent duplicate conflicts ({conflictLog.length})
+            </button>
+          )}
+          {recentActivity.length > 0 && (
+            <button onClick={(ev) => setActivityAnchor(ev.currentTarget)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px",
+                border: "1px solid #dde3ea", background: "#fff", color: "#475569", borderRadius: 7,
+                fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
+              <IconClock size={13} /> Recent activity ({recentActivity.length})
+            </button>
+          )}
+        </div>
       )}
 
       {/* summary */}
@@ -1064,6 +1131,31 @@ const AuthorshipsTabs = () => {
               <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>{entry.message}</div>
               <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
                 {new Date(entry.ts).toLocaleTimeString()}
+              </div>
+            </MenuItem>
+          );
+        })}
+      </Menu>
+
+      {/* server-backed "Recent activity" — the 15 most-recently-resolved authorships across the
+          whole queue (global, cross-curator, cross-session; see authorshipRecentActivity).
+          Read-only lookback: resolved rows have no view left to jump to, so entries are
+          display-only, not clickable, unlike historyAnchor's jump-to-card entries above. */}
+      <Menu anchorEl={activityAnchor} open={!!activityAnchor} onClose={() => setActivityAnchor(null)}
+        PaperProps={{ style: { maxWidth: 420, maxHeight: 420 } }}>
+        {recentActivity.length === 0 && <MenuItem disabled>No recent activity</MenuItem>}
+        {recentActivity.map((entry) => {
+          const verb = STATUS_LABEL[entry.status || ""] || entry.status || "Resolved";
+          const label = entry.title
+            || (entry.source === "scopus" && entry.external_id ? `Scopus ${entry.external_id}` : entry.pmid ? `PMID ${entry.pmid}` : "Untitled");
+          return (
+            <MenuItem key={entry.id} dense disableRipple
+              style={{ whiteSpace: "normal", display: "block", padding: "8px 14px", cursor: "default" }}>
+              <div style={{ fontSize: 12.5, color: "#0f172a" }}>
+                <strong>{verb}</strong> — {label}
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                {entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}
               </div>
             </MenuItem>
           );

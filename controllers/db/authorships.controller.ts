@@ -247,6 +247,29 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
   }
 };
 
+// POST /api/db/authorships/recent-activity — the 15 most-recently-resolved authorships across
+// the whole queue. accept/assign/reject/dismiss all stamp resolved_at (reopen clears it back
+// to null; snooze never sets it), so filtering on resolved_at IS NOT NULL is exactly those four
+// terminal curator actions. Global and cross-curator/cross-session (unlike the per-person
+// /curate "Recent activity" panel, which reads AdminFeedbackLog for one uid) — once a row here
+// leaves the open/snoozed/dismissed status views it has no other view on the page, so this is
+// the only lookback for "what did curators just do". Fixed-size feed, no filters/pagination —
+// mirrors summary.ts's simplicity; body is accepted but ignored.
+export const authorshipRecentActivity = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const rows = await models.AuthorshipReview.findAll({
+      attributes: ["id", "title", "wcm_author", "top_name", "status", "reviewer", "resolved_at", "source", "pmid", "external_id"],
+      where: { resolved_at: { [Op.ne]: null } },
+      order: [["resolved_at", "DESC"]],
+      limit: 15,
+    });
+    res.send({ rows });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
 // ---- Phase C: curator actions -------------------------------------------------
 // Resolve the curator's identity server-side from the next-auth JWT. On dev the /api
 // routes are gated by the shared backendApiKey and the page by middleware; the per-route
