@@ -74,6 +74,8 @@ export function CheckpointScreen({
     elapsedSeconds,
     doneSummary,
     children,
+    beforeExtra,
+    canRun = true,
 }: {
     status: CheckpointStatus
     estimate: string
@@ -84,13 +86,25 @@ export function CheckpointScreen({
     elapsedSeconds?: number
     doneSummary?: string
     children?: ReactNode
+    // BEFORE-state content ABOVE the estimate line — Phase 0 had nothing here because its one wired
+    // step took no input at all (dummy records, no form). Synopsize is the first real step with a
+    // BEFORE-state input of its own (the PMID paste box), and it will not be the last: Score
+    // Relevance's own before-screen needs a topic/criteria pair (see the mockup). A generic slot
+    // here means every later phase reuses this component instead of forking it for one input field.
+    beforeExtra?: ReactNode
+    // Disables the run button without hiding it — e.g. Synopsize disables this while its PMID input
+    // is empty or contains a rejected (non-PMID) line, so a person cannot fire a run the server
+    // would just 502 on. Defaults true so every step that has no such precondition (i.e. every
+    // placeholder today) is unaffected.
+    canRun?: boolean
 }) {
     if (status === 'before') {
         return (
             <div className={ls.card}>
+                {beforeExtra}
                 <p className={ls.help}>{estimate}</p>
                 <div>
-                    <button className={ls.btn} onClick={onRun}>{actionLabel}</button>
+                    <button className={ls.btn} onClick={onRun} disabled={!canRun}>{actionLabel}</button>
                 </div>
             </div>
         )

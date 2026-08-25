@@ -74,3 +74,37 @@
   color: var(--text-muted);
   font-size: 13px;
 }
+
+/* ---------- Loss-count disclosures (decision 30) ----------
+ * No precedent elsewhere in this app for an expandable PMID list, so this is new: a native
+ * <details>/<summary> pair rather than built disclosure state, matching the codebase's existing
+ * "native tooltip over built popover" instinct (see StepTabs' own (i) comment) for the same reason
+ * — no extra state, no extra click-outside handling, and the count in <summary> stays visible
+ * whether or not the list beneath it is expanded (the mockup's own "visible by default" rule).
+ */
+.lossRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.lossDetails {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 5px);
+  padding: 8px 12px;
+}
+
+.lossSummary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-body);
+}
+.lossSummary:hover { color: var(--text-strong); }
+
+.lossList {
+  margin-top: 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  word-break: break-word;
+}

@@ -113,6 +113,11 @@ import {
 } from '../../../../controllers/literatureSearch.strategy'
 import { findWcmExperts } from '../../../../services/db/wcmExperts.service'
 import { isAllowlisted } from '../../../../controllers/literatureAllowlist'
+// Literature Analyzer's Synopsize step — its own file, its own barrel-bypass import (this route
+// already imports everything else through the literatureSearch.controller.ts barrel; this one new
+// module is small enough, and new enough, that adding it to that barrel is not part of this
+// ticket's write set — see literatureSearch.synopsize.ts's own header for what it ports).
+import { synopsize, SYNOPSIS_MODEL_ID } from '../../../../controllers/literatureSearch.synopsize'
 
 // Next's default request-body limit (1mb) is fine for Modes 1-3 — a 50-record PMID list or an
 // edited strategy is a few KB. Mode 4's corpus echo (see the file-level comment above
@@ -167,6 +172,33 @@ function parsePmids(raw: any): string[] {
     if (!ids.length) throw new Error('No records were selected.')
     if (ids.length > RECORD_CAP) throw new Error(`At most ${RECORD_CAP} records can be processed at once.`)
     return Array.from(new Set(ids))
+}
+
+// THE INPUT-SIZE CAP THE ANALYZER OTHERWISE WOULD NOT HAVE. Every other model-calling path in this
+// file bounds its input somewhere upstream of the Bedrock call — Mode 1/2's RECORD_CAP (50 records,
+// fetched), Mode 4's preFilterForScoring budget (200 records, scored) — but the Analyzer has no
+// strategy, no count-before-fetch gate, nothing standing between a pasted PMID list and a real
+// bill. 200 anchors to preFilterForScoring's own 200-record scoring budget (literatureSearch.score.ts)
+// — there is no other existing precedent in this codebase that fits better — and it is a DELIBERATE
+// PHASE-1 SAFETY DEFAULT, not a tuned or final product number. Revisit once real usage exists.
+const ANALYZER_PMID_CAP = 200
+
+// The PMID list the Literature Analyzer's Synopsize step posts — a literal list, never a strategy
+// or a question (this feature has neither yet). PMID-shaped only: unlike parseSeeds (which also
+// accepts a DOI), this pipeline's contract is PMIDs-only (decision 14), so anything not a bare
+// digit string is simply not in `raw` by the time it reaches here — the client (LiteratureAnalyzer.tsx)
+// is what rejects a DOI or garbage line with a message the person can see; this is the server-side
+// backstop, same shape validation as parsePmids above.
+function parseAnalyzerPmids(raw: any): string[] {
+    const ids = (Array.isArray(raw) ? raw : [])
+        .map((p: any) => String(p ?? '').trim())
+        .filter((p: string) => /^\d+$/.test(p))
+    const unique = Array.from(new Set(ids))
+    if (!unique.length) throw new Error('No PMIDs were supplied.')
+    if (unique.length > ANALYZER_PMID_CAP) {
+        throw new Error(`At most ${ANALYZER_PMID_CAP} PMIDs can be synopsized at once.`)
+    }
+    return unique
 }
 
 // The re-count path takes a strategy straight from the browser and puts its text into a PubMed
@@ -1083,6 +1115,50 @@ async function handleM4Synthesize(req: NextApiRequest, res: NextApiResponse, cwi
     }
 }
 
+// ---- LITERATURE ANALYZER, STEP 1 ("Synopsize"). mode:'literature-analyzer', phase:'synopsize'. --
+// Body: { pmids: string[] } — a literal PMID list pasted by the analyst (decision 14), not a
+// question or a strategy. See literatureSearch.synopsize.ts's own header for the ported prompt and
+// why it stays one Bedrock call per record (never batched — batching would invalidate the
+// $0.00089/record figure already cited in PLAN's Models section).
+async function handleAnalyzerSynopsize(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    try {
+        const ids = parseAnalyzerPmids(body.pmids)
+        const records = await fetchByPmids(ids)
+
+        // LOSS (a) of decision 30's two disclosures — PMIDs that never fetched from PubMed at all.
+        // fetchByPmids() SILENTLY DROPS whatever PubMed did not resolve (see that function's own
+        // header comment): it returns only the records it found, so the PMIDs that never came back
+        // are whatever is in `ids` and not among the returned records' own pmids. Computed HERE,
+        // not in synopsize() — that function only ever sees the records fetchByPmids() already
+        // found and has no way to know what was asked for and never returned. See its own comment.
+        const fetchedPmids = new Set(records.map(r => r.pmid))
+        const notFetched = ids.filter(id => !fetchedPmids.has(id))
+
+        // LOSS (b) — fetched, but PubMed had no abstract — is computed inside synopsize() itself,
+        // because that is also where decision 14's exclusion happens: a no-abstract record is
+        // dropped before it ever reaches the model, never synopsized from the title alone.
+        const { synopses, usage, noAbstract } = await synopsize(records)
+
+        logCost('literature-analyzer:synopsize', cwid, usage, {
+            requested: ids.length, synopsized: synopses.length,
+            notFetched: notFetched.length, noAbstract: noAbstract.length,
+            // OVERRIDES logCost's default `model` (the `...extra` spread lands after it) — this
+            // step is pinned to Haiku (see SYNOPSIS_MODEL_ID's own comment), never to
+            // BEDROCK_MODEL_ID, so the log line's tokens can be priced later by the model that
+            // actually ran, same reasoning handleM4Score already applies for SCORING_MODEL_ID.
+            model: SYNOPSIS_MODEL_ID,
+        })
+
+        return res.status(200).send({ statusCode: 200, synopses, notFetched, noAbstract })
+    } catch (err: any) {
+        console.error('[literature] analyzer synopsize failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Synopsize failed.' })
+    }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
         return res.status(405).send({ statusCode: 405, message: 'POST only' })
@@ -1180,6 +1256,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (mode === 'bibliometric-review' && !phase) {
         return handleM4Retrieve(req, res, cwid, body)
+    }
+
+    // ---- LITERATURE ANALYZER, STEP 1 ("Synopsize"). Gated on both `mode` and `phase`, same belt-
+    // and-braces reasoning as the Mode 4 branches just above — `synopsize` is unique to this mode.
+    if (mode === 'literature-analyzer' && phase === 'synopsize') {
+        return handleAnalyzerSynopsize(req, res, cwid, body)
     }
 
     // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------
