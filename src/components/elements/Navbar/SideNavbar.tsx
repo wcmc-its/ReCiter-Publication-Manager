@@ -261,7 +261,8 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       // Literature Search — sits at index 4, after Create Reports and before the Admin
       // block. NOTE: the two .slice() calls further down are hardcoded and MUST stay in
       // step with this array's length, or the Admin section silently swallows the last
-      // Navigation item. They were bumped from 6/6 to 7/7 when this was added.
+      // Navigation item. They were bumped from 6/6 to 7/7 when this was added, and to
+      // 8/8 when Literature Analyzer was added right after it.
       title: 'Literature Search',
       to: '/literature',
       imgUrl: chartIcon,
@@ -275,6 +276,20 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       // question and clicked Run. `literatureAccess` is one boolean set on the JWT at token time;
       // the roster itself never reaches the browser. Hiding the link is cosmetic — the 403 is the
       // control, because /literature is still reachable by URL.
+      isRequired: !!session.data?.literatureAccess
+    },
+    {
+      // Literature Analyzer — same pilot gating as Literature Search above (same role list,
+      // same literatureAccess JWT flag): there is no separate access gate built for the
+      // Analyzer yet, so it reuses Search's until a real Librarian-role gate exists. Reuses
+      // Search's icon for now too, as a placeholder pending a distinct one.
+      title: 'Literature Analyzer',
+      to: '/literature/analyzer',
+      imgUrl: chartIcon,
+      imgUrlActive: chartIconActive,
+      muiIcon: <IconLiterature />,
+      disabled: false,
+      allowedRoleNames: ["Superuser", "Curator_All", "Reporter_All"],
       isRequired: !!session.data?.literatureAccess
     },
     {
@@ -385,7 +400,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             </Typography>
           )}
           {
-            menuItems.slice(0, 7).map((item: MenuItem, index: number) => {
+            menuItems.slice(0, 8).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?
@@ -415,7 +430,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             </Typography>
           )}
           {
-            menuItems.slice(7).map((item: MenuItem, index: number) => {
+            menuItems.slice(8).map((item: MenuItem, index: number) => {
               const matchedRoles = userPermissions.filter(role => item.allowedRoleNames.includes(role.roleLabel));
               if(matchedRoles.length >= 1 && item.isRequired){
               return item.nestedMenu ?

@@ -1,0 +1,76 @@
+/* Literature Analyzer — the few classes NOT already in LiteratureSearch.module.css.
+ *
+ * Everything else (.page, .card, .btn/.btnSecondary, .help, .progress/.progLine/.progElapsed/
+ * .bar/.barFill, .eyebrow) is imported from that module and reused verbatim — see
+ * LiteratureAnalyzer.parts.tsx's own header. This file exists only for the step-tab row, which has
+ * no precedent on the search page: .mode is a card-grid radio selector for a one-time form choice,
+ * not a horizontal tab row a person switches between repeatedly while a run is live on another tab.
+ *
+ * Uses the SAME custom properties LiteratureSearch.module.css declares on .page (--text-strong,
+ * --accent, --border, etc.) — they are ordinary CSS custom properties, so they cascade to any
+ * descendant of .page regardless of which stylesheet module wrote the rule using them. The analyzer
+ * page always renders its tab row inside an ls.page wrapper, so this is safe.
+ */
+
+.stepTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.stepTab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-md, 6px) var(--radius-md, 6px) 0 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: color .12s, border-color .12s, background .12s;
+}
+.stepTab:hover { color: var(--text-strong); background: var(--accent-soft); }
+.stepTab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.stepTabActive {
+  color: var(--text-strong);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+.stepTabActive:hover { background: transparent; }
+
+.stepMark {
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.stepLabel { white-space: nowrap; }
+
+.stepInfo {
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+/* ---------- Placeholder tabs (Score Relevance / Score Impact / Themes / Summarize Themes) ---------- */
+.placeholder {
+  padding: 40px 30px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
