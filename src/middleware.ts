@@ -157,6 +157,11 @@ export async function middleware(request: NextRequest) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
             }
     }
+    else // redirects to error page when userRoles decodes to an empty array
+    {
+      if (isApiDbRoute) return unauthorizedJson();
+      return redirectToLandingPage(request,'/error');
+    }
     }
     else // redirects to error page when no roles found in access token
     {
