@@ -333,7 +333,7 @@ function scopusExternalPayload(row: any) {
     method: "scopus-authorships-tab",
     doi: row.doi || undefined,
     title: row.title || undefined,
-    venue: row.journal || undefined,
+    journalOrVenue: row.journal || undefined,
     pubDate: row.entrez_date || undefined,
     publicationType: row.pub_type || undefined,
   };
