@@ -393,9 +393,11 @@ const AuthorshipsTabs = () => {
   const rowsRef = useRef<AuthorshipRow[]>([]);
   const focusedIdRef = useRef<number | null>(null);
   const statusViewRef = useRef(statusView);
+  const undoRef = useRef<{ rows: AuthorshipRow[]; label: string } | null>(null);
   // latest action handlers, so the stable keydown listener invokes the current closures
   const doActionRef = useRef<(row: AuthorshipRow, action: string, extra?: Record<string, any>) => void>();
   const toggleSelectRef = useRef<(row: AuthorshipRow) => void>();
+  const doUndoRef = useRef<() => void>();
 
   const filterBody = useCallback(() => ({
     feed: "unassigned",
@@ -415,6 +417,7 @@ const AuthorshipsTabs = () => {
   useEffect(() => { rowsRef.current = rows; }, [rows]);
   useEffect(() => { focusedIdRef.current = focusedId; }, [focusedId]);
   useEffect(() => { statusViewRef.current = statusView; }, [statusView]);
+  useEffect(() => { undoRef.current = undo; }, [undo]);
 
   const fetchData = useCallback(() => {
     const myId = ++seqRef.current;
@@ -653,6 +656,7 @@ const AuthorshipsTabs = () => {
 
   useEffect(() => { doActionRef.current = doAction; }, [doAction]);
   useEffect(() => { toggleSelectRef.current = toggleSelect; }, [toggleSelect]);
+  useEffect(() => { doUndoRef.current = doUndo; }, [doUndo]);
 
   // Item 8: date preset → sets dateFrom/dateTo client-side. entrez_date is DATEONLY;
   // backend buildWhere already handles ranges, so no backend change. "Custom..." reveals
@@ -705,6 +709,7 @@ const AuthorshipsTabs = () => {
       const k = e.key.toLowerCase();
       if (k === "j") { focus(idx + 1); e.preventDefault(); return; }
       if (k === "k") { focus(idx < 0 ? 0 : idx - 1); e.preventDefault(); return; }
+      if (k === "u") { if (undoRef.current) doUndoRef.current?.(); e.preventDefault(); return; }
       if (focusedId == null) return;
       const row = visible.find((r) => r.id === focusedId);
       if (!row) return;
@@ -1018,7 +1023,7 @@ const AuthorshipsTabs = () => {
       </Menu>
 
       {/* undo (immediate reversal, batched) */}
-      <Snackbar open={!!undo} autoHideDuration={6000} onClose={() => setUndo(null)}
+      <Snackbar open={!!undo} autoHideDuration={12000} onClose={() => setUndo(null)}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         message={undo ? undo.label : ""}
         action={
