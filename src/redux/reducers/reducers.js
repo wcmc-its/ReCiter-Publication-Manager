@@ -833,8 +833,15 @@ export const identityORFeatureGenError = (state=[], action) => {
               ...state,
               action.payload
           ]
-      case methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR :   // <-- ADD THIS
-          return []                                      // <-- ADD THIS
+      case methods.CLEAR_IDENTITY_FEATURE_GEN_ERROR :
+          // A payload identifies which fetch's error marker to clear (e.g. only the
+          // feature-generator's own "Feature-Generator-Error" entry) so a successful
+          // fetch never wipes a still-valid error set moments earlier by a different,
+          // still-failed fetch (e.g. identity's "Identity-Error"). No payload means a
+          // full reset (used on uid navigation).
+          return action.payload
+              ? state.filter((entry) => entry !== action.payload)
+              : []
       default:
           return state
   }
