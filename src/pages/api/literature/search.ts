@@ -129,11 +129,26 @@ import type { AnalyzerRelevanceItem } from '../../../../controllers/literatureSe
 // what it orchestrates (impactScoreOf() and scoreImpact(), both already built) and does not
 // invent.
 import { scoreAnalyzerImpact } from '../../../../controllers/literatureSearch.analyzerImpact'
+// Literature Analyzer's Themes step (Phase 4: Discovery + Classification + Extension) — same
+// barrel-bypass reasoning as the three imports just above; see literatureSearch.analyzerThemes.ts's
+// own header for the ported prompts and the four deliberate divergences from the pilot that
+// validated them.
+import {
+    discoverThemes, classifyThemesBatch, extendThemes, CLASSIFY_BATCH_SIZE,
+} from '../../../../controllers/literatureSearch.analyzerThemes'
+import type { DiscoveryActivity, ClassifyActivity } from '../../../../controllers/literatureSearch.analyzerThemes'
+import type { Theme } from '../../../../controllers/literatureSearch.analyzerThemes.pure'
 
 // Next's default request-body limit (1mb) is fine for Modes 1-3 — a 50-record PMID list or an
 // edited strategy is a few KB. Mode 4's corpus echo (see the file-level comment above
 // handleM4Retrieve) is metadata for a decade-scale corpus, a few thousand records without
 // abstracts — comfortably under this raised limit, nowhere near the default.
+//
+// CHECKED FOR PHASE 4 ("Themes" discovery): a discover-themes payload can legitimately carry up to
+// THEMES_DISCOVERY_SANITY_CAP (4,000) activities, each {pmid, title, synopsis,
+// relevanceExplanation, impactScore, impactJustification} — a few hundred bytes apiece, so even at
+// the cap the JSON body lands well under 2MB, comfortably inside the 6mb already raised here for
+// Mode 4. No further raise needed.
 export const config = { api: { bodyParser: { sizeLimit: '6mb' } } }
 
 // Usage visibility. One structured line per model call; grep the pod logs.
@@ -248,6 +263,87 @@ function parseImpactPmids(raw: any): string[] {
     return unique
 }
 
+// A CSV-uploaded working set can legitimately carry well over 1,000 records (the reference pilot
+// corpus: 1,168) — ANALYZER_PMID_CAP (200) is a Phase 1 paste-box safety default and DELIBERATELY
+// does not apply to Discovery (see this route's own comment above handleAnalyzerDiscoverThemes).
+// 4,000 is a generous sanity ceiling against a client bug or a hostile payload, not a real
+// corpus-size expectation — see this file's own bodyParser comment for why a payload at this cap
+// still comfortably fits inside the 6mb limit.
+const THEMES_DISCOVERY_SANITY_CAP = 4000
+
+// The {pmid, title, synopsis, relevanceExplanation, impactScore, impactJustification} activity
+// shape Discovery and Extension both take (PLAN Step A / variant A) — validated server-side the
+// same way every other client-supplied batch on this route is: shape-checked, deduped by pmid,
+// never trusted as-is. impactScore is clamped to the 0-100 integer range the prompt promises the
+// model, rather than rejecting a row outright for a slightly-off value the client itself computed.
+function parseDiscoveryActivity(it: any): DiscoveryActivity | null {
+    const pmid = String(it?.pmid ?? '').trim()
+    if (!/^\d+$/.test(pmid)) return null
+    const impactScoreRaw = Number(it?.impactScore)
+    return {
+        pmid,
+        title: String(it?.title ?? '').trim(),
+        synopsis: String(it?.synopsis ?? '').trim(),
+        relevanceExplanation: String(it?.relevanceExplanation ?? '').trim(),
+        impactScore: Number.isFinite(impactScoreRaw) ? Math.max(0, Math.min(100, Math.round(impactScoreRaw))) : 0,
+        impactJustification: String(it?.impactJustification ?? '').trim(),
+    }
+}
+
+function parseDiscoveryActivities(raw: any, cap: number): DiscoveryActivity[] {
+    const items = (Array.isArray(raw) ? raw : [])
+        .map(parseDiscoveryActivity)
+        .filter((it: DiscoveryActivity | null): it is DiscoveryActivity => !!it)
+    const seen = new Set<string>()
+    const unique = items.filter(it => !seen.has(it.pmid) && (seen.add(it.pmid), true))
+    if (!unique.length) throw new Error('No activities were supplied.')
+    if (unique.length > cap) {
+        throw new Error(`At most ${cap} activities can be sent to Theme Discovery at once (a sanity ceiling, not a real corpus-size expectation).`)
+    }
+    return unique
+}
+
+// The theme list Classification and Extension both take — {id, label, description} triples
+// Discovery already produced (echoed back by the client, same discipline as Mode 4's
+// echoed-back corpus/clusters/scores: never abstract text, always a small structured shape the
+// server re-validates rather than trusts). `seed_pmids` is accepted but not required — Classification
+// and Extension only ever read id/label/description off a theme.
+function parseThemesList(raw: any): Theme[] {
+    const items = (Array.isArray(raw) ? raw : [])
+        .map((t: any): Theme => ({
+            id: String(t?.id ?? '').trim(),
+            label: String(t?.label ?? '').trim(),
+            description: String(t?.description ?? '').trim(),
+            seed_pmids: Array.isArray(t?.seed_pmids) ? t.seed_pmids.map((p: any) => String(p)) : [],
+        }))
+        .filter((t: Theme) => !!t.id)
+    const seen = new Set<string>()
+    const unique = items.filter(t => !seen.has(t.id) && (seen.add(t.id), true))
+    if (!unique.length) throw new Error('No themes were supplied.')
+    return unique
+}
+
+// The {pmid, title, synopsis} batch Classification takes (decision 39 — no impactScore reaches
+// this phase). The bound is CLASSIFY_BATCH_SIZE exactly, same discipline as
+// parseAnalyzerSynopses's RELEVANCE_BATCH_SIZE bound above: the client chunks to this size, so an
+// oversized batch is rejected outright rather than silently classified as a truncated prefix.
+function parseClassifyBatch(raw: any): ClassifyActivity[] {
+    const items = (Array.isArray(raw) ? raw : [])
+        .map((it: any): ClassifyActivity => ({
+            pmid: String(it?.pmid ?? '').trim(),
+            title: String(it?.title ?? '').trim(),
+            synopsis: String(it?.synopsis ?? '').trim(),
+        }))
+        .filter((it: ClassifyActivity) => /^\d+$/.test(it.pmid))
+    const seen = new Set<string>()
+    const unique = items.filter(it => !seen.has(it.pmid) && (seen.add(it.pmid), true))
+    if (!unique.length) throw new Error('No activities were supplied.')
+    if (unique.length > CLASSIFY_BATCH_SIZE) {
+        throw new Error(`At most ${CLASSIFY_BATCH_SIZE} activities can be classified per call — the client batches to this size.`)
+    }
+    return unique
+}
+
 // The re-count path takes a strategy straight from the browser and puts its text into a PubMed
 // query, so it is a trust boundary and gets a real guard. The bounds are not paranoia about the
 // librarian: each toggle costs 1 + N count calls, so a strategy with 200 lines in it would turn
@@ -314,6 +410,20 @@ type SearchBody = {
     // handleAnalyzerScoreImpact below.
     impactPmids: any
     paid: any
+    // ---- Literature Analyzer, Themes only (Phase 4). `activities` is discover-themes' full
+    // working set (validated by parseDiscoveryActivities, THEMES_DISCOVERY_SANITY_CAP-bounded);
+    // `targetThemeCount` is discoverThemes()'s own 2-50/default-12 clamp; `themes` (classify-themes
+    // and extend-themes) is the theme list Discovery already produced, echoed back by the client;
+    // `batch` is classify-themes' <=CLASSIFY_BATCH_SIZE activity batch; `uncoveredActivities`,
+    // `extensionCap` and `currentCoveragePct` are extend-themes-only — decision 38's client-measured
+    // coverage figure and the uncovered slice it is calling this phase to cover.
+    activities: any
+    targetThemeCount: any
+    themes: any
+    batch: any
+    uncoveredActivities: any
+    extensionCap: any
+    currentCoveragePct: any
     // ---- Mode 4 only. `corpus`/`clusters`/`scores`/`impact` are ECHOED BACK by the client between
     // phases — see the handleM4* functions below for why that is safe (never abstract text, always
     // re-fetched by PMID before a Bedrock call touches it) and bounded (parseM4Corpus).
@@ -1319,6 +1429,121 @@ async function handleAnalyzerScoreImpact(req: NextApiRequest, res: NextApiRespon
     }
 }
 
+// ---- LITERATURE ANALYZER, STEP 4a ("Themes" — Discovery). mode:'literature-analyzer',
+// phase:'discover-themes'. Body: { question, criteria?, targetThemeCount?, activities: [...] } —
+// ONE Sonnet call over the WHOLE working set (never chunked, unlike Classification — see
+// literatureSearch.analyzerThemes.ts's own header). DELIBERATELY NOT gated by ANALYZER_PMID_CAP
+// (200): a CSV-uploaded working set can legitimately carry well over 1,000 records (the reference
+// pilot corpus: 1,168) — see THEMES_DISCOVERY_SANITY_CAP's own comment for the real ceiling this
+// uses instead.
+async function handleAnalyzerDiscoverThemes(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    const topic = String(body.question ?? '').trim()
+    let activities: DiscoveryActivity[]
+    try {
+        activities = parseDiscoveryActivities(body.activities, THEMES_DISCOVERY_SANITY_CAP)
+    } catch (err: any) {
+        return res.status(400).send({ statusCode: 400, message: err?.message || 'Malformed activities.' })
+    }
+    try {
+        const criteria = typeof body.criteria === 'string' && body.criteria.trim() ? body.criteria.trim() : undefined
+        const { themes, uncovered, coveragePct, usage } = await discoverThemes(topic, criteria, Number(body.targetThemeCount), activities)
+
+        logCost('literature-analyzer:discover-themes', cwid, usage, {
+            activities: activities.length, themes: themes.length, uncovered: uncovered.length,
+            coveragePct: Number(coveragePct.toFixed(4)),
+            // OVERRIDES logCost's default `model` — same reasoning every other analyzer phase
+            // above applies for SCORING_MODEL_ID: this step is pinned to Sonnet, never to
+            // BEDROCK_MODEL_ID.
+            model: SCORING_MODEL_ID,
+        })
+
+        return res.status(200).send({ statusCode: 200, themes, uncovered, coveragePct })
+    } catch (err: any) {
+        console.error('[literature] analyzer discover-themes failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Theme discovery failed.' })
+    }
+}
+
+// ---- LITERATURE ANALYZER, STEP 4b ("Themes" — Classification). mode:'literature-analyzer',
+// phase:'classify-themes'. Body: { question, criteria?, themes: [...], batch: [...] } — ONE batch
+// of at most CLASSIFY_BATCH_SIZE per POST, the client chunks (same discipline as Score Relevance's
+// RELEVANCE_BATCH_SIZE). filter_valid_assignments already ran server-side inside
+// classifyThemesBatch() by the time this handler sees its result — the confidences on each
+// assignment are already floor-and-valid-id filtered.
+async function handleAnalyzerClassifyThemes(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    const topic = String(body.question ?? '').trim()
+    let themes: Theme[]
+    let batch: ClassifyActivity[]
+    try {
+        themes = parseThemesList(body.themes)
+        batch = parseClassifyBatch(body.batch)
+    } catch (err: any) {
+        return res.status(400).send({ statusCode: 400, message: err?.message || 'Malformed request.' })
+    }
+    try {
+        const criteria = typeof body.criteria === 'string' && body.criteria.trim() ? body.criteria.trim() : undefined
+        const { assignments, failed, usage } = await classifyThemesBatch(topic, criteria, themes, batch)
+
+        logCost('literature-analyzer:classify-themes', cwid, usage, {
+            requested: batch.length, assigned: assignments.length, failed: failed.length,
+            model: SCORING_MODEL_ID,
+        })
+
+        return res.status(200).send({ statusCode: 200, assignments, failed })
+    } catch (err: any) {
+        console.error('[literature] analyzer classify-themes failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Theme classification failed.' })
+    }
+}
+
+// ---- LITERATURE ANALYZER, STEP 4c ("Themes" — Extension). mode:'literature-analyzer',
+// phase:'extend-themes'. Body: { question, criteria?, themes: [...], uncoveredActivities: [...],
+// extensionCap?, currentCoveragePct }. CLIENT-DRIVEN (decision 38): the client measures coverage
+// after Classification and decides whether to call this phase at all — this route runs exactly
+// the one extension pass it is asked for, never a coverage-checking loop of its own. See
+// literatureSearch.analyzerThemes.ts's own header for the full reasoning.
+async function handleAnalyzerExtendThemes(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    const topic = String(body.question ?? '').trim()
+    let themes: Theme[]
+    let uncoveredActivities: DiscoveryActivity[]
+    try {
+        themes = parseThemesList(body.themes)
+        uncoveredActivities = parseDiscoveryActivities(body.uncoveredActivities, THEMES_DISCOVERY_SANITY_CAP)
+    } catch (err: any) {
+        return res.status(400).send({ statusCode: 400, message: err?.message || 'Malformed request.' })
+    }
+    try {
+        const criteria = typeof body.criteria === 'string' && body.criteria.trim() ? body.criteria.trim() : undefined
+        const extensionCapNum = Number(body.extensionCap)
+        const extensionCap = Number.isFinite(extensionCapNum) && extensionCapNum > 0 ? Math.round(extensionCapNum) : 15
+        const currentCoveragePctNum = Number(body.currentCoveragePct)
+        const currentCoveragePct = Number.isFinite(currentCoveragePctNum) ? currentCoveragePctNum : 0
+
+        const { newThemes, stillUncovered, usage } = await extendThemes(
+            topic, criteria, themes, uncoveredActivities, extensionCap, currentCoveragePct,
+        )
+
+        logCost('literature-analyzer:extend-themes', cwid, usage, {
+            uncovered: uncoveredActivities.length, newThemes: newThemes.length, stillUncovered: stillUncovered.length,
+            model: SCORING_MODEL_ID,
+        })
+
+        return res.status(200).send({ statusCode: 200, newThemes, stillUncovered })
+    } catch (err: any) {
+        console.error('[literature] analyzer extend-themes failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Theme extension failed.' })
+    }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
         return res.status(405).send({ statusCode: 405, message: 'POST only' })
@@ -1368,6 +1593,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         synopses,
         // Literature Analyzer, Score Impact only.
         impactPmids, paid,
+        // Literature Analyzer, Themes only (Phase 4).
+        activities, targetThemeCount, themes, batch, uncoveredActivities, extensionCap, currentCoveragePct,
     } = req.body || {}
 
     // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
@@ -1396,6 +1623,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         evidenceTiers, caseSeries, corpus, clusters, scores, impact, fromYear, toYear,
         synopses,
         impactPmids, paid,
+        activities, targetThemeCount, themes, batch, uncoveredActivities, extensionCap, currentCoveragePct,
     }
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
@@ -1440,6 +1668,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // gating as every branch above — `score-impact` is unique to this mode.
     if (mode === 'literature-analyzer' && phase === 'score-impact') {
         return handleAnalyzerScoreImpact(req, res, cwid, body)
+    }
+
+    // ---- LITERATURE ANALYZER, STEP 4a ("Themes" — Discovery). Same belt-and-braces `mode` +
+    // `phase` gating as every branch above — `discover-themes` is unique to this mode.
+    if (mode === 'literature-analyzer' && phase === 'discover-themes') {
+        return handleAnalyzerDiscoverThemes(req, res, cwid, body)
+    }
+
+    // ---- LITERATURE ANALYZER, STEP 4b ("Themes" — Classification). Same belt-and-braces `mode` +
+    // `phase` gating as every branch above — `classify-themes` is unique to this mode.
+    if (mode === 'literature-analyzer' && phase === 'classify-themes') {
+        return handleAnalyzerClassifyThemes(req, res, cwid, body)
+    }
+
+    // ---- LITERATURE ANALYZER, STEP 4c ("Themes" — Extension). Same belt-and-braces `mode` +
+    // `phase` gating as every branch above — `extend-themes` is unique to this mode.
+    if (mode === 'literature-analyzer' && phase === 'extend-themes') {
+        return handleAnalyzerExtendThemes(req, res, cwid, body)
     }
 
     // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------

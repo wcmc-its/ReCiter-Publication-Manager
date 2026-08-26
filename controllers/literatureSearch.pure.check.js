@@ -47,13 +47,18 @@ fs.rmSync(OUT, { recursive: true, force: true })
 // request gets.
 execSync(
     `npx tsc controllers/literatureSearch.controller.ts controllers/literatureExport.ts ` +
-    `controllers/literatureMarkdown.ts --outDir ${OUT} ` +
+    `controllers/literatureMarkdown.ts controllers/literatureSearch.analyzerThemes.pure.ts --outDir ${OUT} ` +
     `--module commonjs --target es2020 --esModuleInterop --skipLibCheck --allowJs`,
     { cwd: ROOT, stdio: 'inherit' },
 )
 const lit = require(path.join(OUT, 'controllers/literatureSearch.controller.js'))
 const xp = require(path.join(OUT, 'controllers/literatureExport.js'))
 const md = require(path.join(OUT, 'controllers/literatureMarkdown.js'))
+// literatureSearch.analyzerThemes.pure.ts — Phase 4 ("Themes"). NOT re-exported through the
+// controller barrel (same barrel-bypass reasoning as analyzerRelevance/analyzerImpact — see
+// literatureSearch.analyzerThemes.ts's own header), so it is compiled and required as its own
+// target here, exactly like literatureExport.js and literatureMarkdown.js above.
+const th = require(path.join(OUT, 'controllers/literatureSearch.analyzerThemes.pure.js'))
 
 // The same shape the model is prompted to emit, and the same one the live check uses: PRESS-style,
 // each concept split into its MeSH line and its free-text line, limits held separately.
@@ -982,6 +987,181 @@ const checkBibliometricDoc = (xp) => {
     console.log(`bibliometricDoc: evidence-mix columns=[${mixTable.head.slice(1).join(', ')}] (derived, not hardcoded); null median -> empty cell; 1 WARNING block, correctly placed and naming PMID 999999`)
 }
 
+// =======================================================================================
+// PHASE 4 ("THEMES") — literatureSearch.analyzerThemes.pure.ts.
+//
+// THE HARD-RANGE REWRITE IS THE LOAD-BEARING MECHANISM OF DISCOVERY (decision 37) — an appended
+// soft-preference addendum was TESTED and FAILED (both A/B pilot variants asked for ~12 themes and
+// got back 24), so hardRangePrompt() rewriting the source prompt's own numbered rule is the entire
+// fix. An assertion that only checks "it returns SOME string" would pass even if the low/high
+// numbers baked into that string were wrong, or if the drift-guard silently stopped firing — both
+// of which would ship the exact 8-25-in-force bug decision 37 exists to prevent, with a green check
+// on top of it.
+const checkHardRangeRewrite = (th) => {
+    const rewritten = th.hardRangePrompt(lit_discoveryPromptFixture(), 10, 14)
+    assert.ok(
+        rewritten.includes('cluster these activities into 10 to 14 coherent thematic subtopics'),
+        'the prose lead-in must carry the COMPUTED low/high, not the source prompt\'s original 8/25',
+    )
+    assert.ok(
+        rewritten.includes('1. Produce between 10 and 14 subtopics. Do not go below 10 or above 14.'),
+        'RULES item 1 must ALSO carry the computed low/high — this is the rule the pilot found actually dominates model behavior, so a fix that only touched the prose lead-in would be no fix at all',
+    )
+    // The un-narrowed originals must be GONE, not merely joined by the new text — a rewrite that
+    // appended instead of replacing would leave both the old "8 to 25" and the new "10 to 14" in
+    // the same prompt, and a model reading both has no reason to prefer the second one.
+    assert.ok(!rewritten.includes('8 to 25 coherent'), 'the original 8-25 prose must not survive the rewrite')
+    assert.ok(!rewritten.includes('Produce between 8 and 25'), 'the original 8-25 rule must not survive the rewrite')
+
+    // THE DRIFT GUARD. Feed hardRangePrompt a prompt where the expected substring has drifted
+    // (simulating an upstream ReciterAI edit this port has not been re-derived against) and it must
+    // THROW, never silently pass the untouched 8-25 text through — a silent no-op here is exactly
+    // the failure decision 37 exists to prevent, and it would look identical to success unless
+    // something is watching for it.
+    assert.throws(
+        () => th.hardRangePrompt('some prompt with no matching substring at all', 10, 14),
+        /has drifted/,
+        'a prompt missing the expected verbatim substring must THROW, not silently return the input unchanged',
+    )
+    console.log('hard-range:   rewrites BOTH the prose lead-in and RULES item 1 to the computed low/high; throws on a drifted/tampered source prompt')
+}
+
+// A minimal stand-in carrying only the two substrings hardRangePrompt() actually looks for — not
+// the full ~2.6KB DISCOVERY_SYSTEM_PROMPT, which this pure-check target does not import (that lives
+// in literatureSearch.analyzerThemes.ts, which pulls in @aws-sdk/client-bedrock-runtime through
+// literatureSearch.llm.ts and is therefore NOT one of this check's compile targets — see this
+// file's own header for why that boundary exists). Exercising hardRangePrompt() against a fixture
+// carrying its two real anchor strings is what actually asserts the mechanism; a compile-time
+// import of the full prompt would only prove the constant exists, not that the function transforms
+// it correctly.
+function lit_discoveryPromptFixture() {
+    return 'Your goal is to cluster these activities into 8 to 25 coherent thematic subtopics that reflect the data.\n\n'
+        + 'RULES:\n1. Produce between 8 and 25 subtopics. Do not go below 8 or above 25.\n2. Every cluster MUST have at least 3 seed_pmids.'
+}
+
+// filter_valid_assignments — floor, unknown id, dedup-max. Ported from the pilot's own function of
+// the same name (run_classification.py), which is itself a port of ReciterAI's
+// _filter_valid_assignments.
+const checkFilterValidAssignments = (th) => {
+    const validIds = new Set(['theme_a', 'theme_b'])
+    const kept = th.filterValidAssignments([
+        { subtopic_id: 'theme_a', confidence: 0.9 },
+        { subtopic_id: 'theme_a', confidence: 0.4 },     // dedup: theme_a already seen at 0.9 -- MAX must win, not first-or-last
+        { subtopic_id: 'theme_b', confidence: 0.29 },    // below the 0.3 floor -- dropped
+        { subtopic_id: 'ghost_theme', confidence: 0.99 },// not in validIds -- a model-invented id, dropped regardless of confidence
+        { subtopic_id: 'theme_b', confidence: 'not-a-number' }, // unparseable confidence -- dropped
+    ], validIds)
+
+    assert.strictEqual(kept.size, 1, 'exactly one subtopic_id should survive: theme_a (theme_b never clears the floor with a valid confidence)')
+    assert.strictEqual(kept.get('theme_a'), 0.9, 'dedup must keep the MAX confidence seen for a repeated subtopic_id (0.9), not the first or the last (0.4)')
+    assert.strictEqual(kept.has('ghost_theme'), false, 'a subtopic_id not in validIds must be dropped even at confidence 0.99 -- this is the model-fabrication guard')
+    assert.strictEqual(kept.has('theme_b'), false, 'theme_b never has a confidence that is both a valid number AND >= the 0.3 floor, so it must not appear at all')
+    console.log(`filter-valid: floor=0.3 drops below-floor + unparseable, unknown ids dropped regardless of confidence, dedup keeps MAX (kept=${JSON.stringify(Object.fromEntries(kept))})`)
+}
+
+// resolvePrimary — clear winner; tie broken by aggregate; tie broken alphabetically when aggregates
+// are ALSO equal. Ported from the pilot's resolve_primary (itself ReciterAI's
+// _resolve_primary_on_tie with the aggregate-confidence tiebreak substituted in, per this
+// feature's own spec).
+const checkResolvePrimary = (th) => {
+    // 1. A CLEAR WINNER — no tie logic should ever engage.
+    const clear = th.resolvePrimary({ theme_a: 0.9, theme_b: 0.5 }, {})
+    assert.strictEqual(clear, 'theme_a', 'the strictly higher confidence must win outright')
+
+    // 2. A TIE (within TIE_EPSILON=0.001) broken by higher AGGREGATE confidence across the corpus.
+    const tieByAggregate = th.resolvePrimary(
+        { theme_a: 0.8, theme_b: 0.8 },
+        { theme_a: 12.0, theme_b: 40.0 },   // theme_b has far more corpus-wide support
+    )
+    assert.strictEqual(tieByAggregate, 'theme_b', 'a tied confidence must be broken by the HIGHER aggregate confidence across the corpus')
+
+    // 3. A tie where the aggregates ALSO tie — falls through to ASCENDING alphabetical id.
+    const tieByAlpha = th.resolvePrimary(
+        { theme_z: 0.75, theme_a: 0.751 },   // within TIE_EPSILON of each other (diff = 0.001, the boundary itself)
+        { theme_z: 5.0, theme_a: 5.0 },      // aggregates ALSO tied
+    )
+    assert.strictEqual(tieByAlpha, 'theme_a', 'when confidences AND aggregates both tie, the ASCENDING alphabetical id must win (theme_a before theme_z)')
+
+    // A single candidate never engages tie logic at all, and an empty map is not an error.
+    assert.strictEqual(th.resolvePrimary({ theme_only: 0.5 }, {}), 'theme_only', 'a single candidate is trivially primary')
+    assert.strictEqual(th.resolvePrimary({}, {}), null, 'no candidates resolves to null, never a thrown error or a fabricated id')
+
+    console.log('resolve-pri:  clear winner wins outright; ties (<=0.001) broken by higher aggregate; aggregate ties broken by ascending alphabetical id')
+}
+
+// The assignments CSV — a downloaded artifact that MUST re-parse into the exact rows it was built
+// from, because decision 10's whole design is that a librarian edits this file and re-uploads it.
+// A round-trip that silently drops or reshapes a field is indistinguishable, on the page, from a
+// working feature — until an edited row comes back with the wrong theme.
+const checkAssignmentsCsvRoundTrip = (th) => {
+    const rows = [
+        {
+            pmid: '111', title: 'A plain title', primaryTheme: 'theme_a',
+            secondaryThemes: ['theme_b', 'theme_c'], confidences: { theme_a: 0.91, theme_b: 0.55, theme_c: 0.31 },
+            uncovered: false,
+        },
+        {
+            // A title carrying a comma, an embedded quote, AND a newline all at once — the RFC 4180
+            // stress case csvCell/toCsv exist for, ported from LiteratureAnalyzer.tsx's own
+            // convention rather than re-invented.
+            pmid: '222', title: 'A "quoted", multi-line\ntitle', primaryTheme: 'theme_b',
+            secondaryThemes: [], confidences: { theme_b: 0.42 }, uncovered: false,
+        },
+        {
+            pmid: '333', title: 'Uncovered record', primaryTheme: '', secondaryThemes: [], confidences: {}, uncovered: true,
+        },
+    ]
+
+    const csv = th.assignmentsToCsv(rows)
+    assert.ok(csv.includes('\r\n'), 'rows must be joined with \\r\\n, the same convention csvCell/toCsv already use elsewhere in this codebase')
+
+    const roundTripped = th.assignmentsFromCsv(csv)
+    assert.deepStrictEqual(roundTripped, rows, 'assignmentsFromCsv(assignmentsToCsv(rows)) must equal rows EXACTLY -- a librarian re-uploading an untouched export must get back what they downloaded')
+    console.log(`csv-roundtrp: ${rows.length} rows (incl. a comma+quote+newline title) survive stringify -> parse unchanged`)
+}
+
+// The working-set CSV upload — decision 34's validation report. One case per row class: loaded-as-is,
+// missing synopsis (regardless of impactScore), missing impactScore only, and malformed/duplicate
+// pmid. THE REAL SCORE IMPACT EXPORT CARRIES NO SYNOPSIS COLUMN AT ALL (see LiteratureAnalyzer.tsx's
+// exportImpact — PMID/Title/Relevance Score/Impact Score/Impact Source/Impact Justification/NIH
+// Percentile/Citation Count/RCR, no Synopsis) — this fixture therefore mirrors decision 34's
+// hand-edited-offline path (a Synopsis column added back in) so all four classes are reachable in
+// one file, and separately asserts the real Score-Impact-shaped header on its own.
+const checkWorkingSetValidation = (th) => {
+    const csv = [
+        'PMID,Title,Synopsis,Impact Score',
+        '111,Loaded fine,"A short synopsis.",72',      // loaded-as-is
+        '222,No synopsis here,,55',                     // missing synopsis (impactScore present, does not rescue it)
+        '333,No impact score,"Has a synopsis.",',        // missing impact score only
+        'not-a-pmid,Bad pmid,"Has a synopsis.",50',      // malformed pmid
+        '111,Duplicate of row 1,"Another synopsis.",80', // duplicate pmid (111 already seen)
+    ].join('\r\n')
+
+    const { rows, report } = th.parseWorkingSetCsv(csv)
+
+    assert.strictEqual(report.loadedAsIs, 1, 'exactly one row has both synopsis and a parseable impactScore')
+    assert.deepStrictEqual(report.missingSynopsis, ['222'], 'pmid 222 has no synopsis and must land in missingSynopsis regardless of its impactScore being present')
+    assert.deepStrictEqual(report.missingImpactScoreOnly, ['333'], 'pmid 333 has a synopsis but no parseable impactScore')
+    assert.deepStrictEqual(report.malformedOrDuplicate, ['not-a-pmid', '111'],
+        'a non-numeric pmid AND a repeated pmid must both be counted+LISTED here, never silently dropped (decision 34 explicitly diverges from parseSeeds\' silent token-drop)')
+    assert.strictEqual(rows.length, 3, 'only the three well-formed, non-duplicate pmids (111 first-seen, 222, 333) become rows; the malformed and the duplicate do not')
+
+    // THE REAL SHIPPED SCHEMA: the Score Impact export's own header, verbatim, with no Synopsis
+    // column at all. Every row must land in missingSynopsis -- an honest report of what that export
+    // actually contains, not a parser bug (see the pure module's own header comment for the finding
+    // and decision 34's two prescribed remedies).
+    const realExportCsv = [
+        'PMID,Title,Relevance Score,Impact Score,Impact Source,Impact Justification,NIH Percentile,Citation Count,RCR',
+        '444,Some paper,75,60,floor,"Because reasons",50,10,1.2',
+    ].join('\r\n')
+    const realExportResult = th.parseWorkingSetCsv(realExportCsv)
+    assert.deepStrictEqual(realExportResult.report.missingSynopsis, ['444'],
+        'the Score Impact export as actually shipped has no Synopsis column, so re-uploading it verbatim must report EVERY row as missing synopsis, not silently accept it as loaded-as-is')
+    assert.strictEqual(realExportResult.report.loadedAsIs, 0, 'zero rows can be loaded-as-is from a CSV with no Synopsis column')
+
+    console.log(`working-set:  loaded-as-is=${report.loadedAsIs}, missingSynopsis=${JSON.stringify(report.missingSynopsis)}, missingImpactScoreOnly=${JSON.stringify(report.missingImpactScoreOnly)}, malformedOrDuplicate=${JSON.stringify(report.malformedOrDuplicate)}; real Score-Impact-shaped header -> all rows missingSynopsis (honest finding, not a bug)`)
+}
+
 // An async IIFE, not a bare top-level await: this file runs as plain CommonJS (no "type":
 // "module" in package.json), and only checkNarrowingLadder needs to await anything — it is the
 // only function here exercising an (fake-dep-injected) async production function. Every failure
@@ -1001,6 +1181,11 @@ const checkBibliometricDoc = (xp) => {
     checkAssembleNarrativeReview(lit)
     checkCorpusSheet(xp)
     checkBibliometricDoc(xp)
+    checkHardRangeRewrite(th)
+    checkFilterValidAssignments(th)
+    checkResolvePrimary(th)
+    checkAssignmentsCsvRoundTrip(th)
+    checkWorkingSetValidation(th)
 
     console.log('\nAll pure checks passed. No network, no model, no environment.')
 })().catch(err => {
