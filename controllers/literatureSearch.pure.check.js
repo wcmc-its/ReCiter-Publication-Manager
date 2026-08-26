@@ -1076,8 +1076,14 @@ const checkResolvePrimary = (th) => {
     assert.strictEqual(tieByAggregate, 'theme_b', 'a tied confidence must be broken by the HIGHER aggregate confidence across the corpus')
 
     // 3. A tie where the aggregates ALSO tie — falls through to ASCENDING alphabetical id.
+    // theme_z deliberately holds the HIGHER within-epsilon confidence: the confidence sort puts it
+    // first, so only the alphabetical secondary key can flip the result to theme_a. (With the
+    // confidences the other way round, a stable sort would return theme_a even if the alphabetical
+    // key were deleted — the assertion would be vacuous.) The gap is 0.0005, comfortably inside
+    // TIE_EPSILON: an exactly-0.001 gap is NOT a safe fixture, since 0.751-0.75 in float64 lands a
+    // hair ABOVE 0.001 and the tie never engages.
     const tieByAlpha = th.resolvePrimary(
-        { theme_z: 0.75, theme_a: 0.751 },   // within TIE_EPSILON of each other (diff = 0.001, the boundary itself)
+        { theme_z: 0.7505, theme_a: 0.75 },
         { theme_z: 5.0, theme_a: 5.0 },      // aggregates ALSO tied
     )
     assert.strictEqual(tieByAlpha, 'theme_a', 'when confidences AND aggregates both tie, the ASCENDING alphabetical id must win (theme_a before theme_z)')
