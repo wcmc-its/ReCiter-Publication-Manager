@@ -292,7 +292,10 @@ const CurateIndividual = () => {
             </div>
           }
 
-          {recentActivity.length > 0 && (
+          {/* ponytail: hidden per request -- the header row rendered regardless of
+              showRecentActivity's default, so collapsing it wasn't enough to hide it.
+              Restore by dropping the `false &&` below if the section is wanted back. */}
+          {false && recentActivity.length > 0 && (
             <div style={{ margin: '0 0 16px', border: '1px solid #e2e5ea', borderRadius: 8, background: 'var(--card-bg, #fff)' }}>
               <button
                 type="button"
