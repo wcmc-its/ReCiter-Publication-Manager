@@ -37,6 +37,7 @@ import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-
 import { useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/router';
 
 
 type SideNavBarProps = {
@@ -191,6 +192,7 @@ const StyledList = styled(List)({
 
 const SideNavbar: React.FC<SideNavBarProps> = () => {
   const theme = useTheme();
+  const router = useRouter();
   const [open, setOpen] = React.useState(true);
   const filters = useSelector((state: RootStateOrAny) => state.filters)
   const updatedAdminSettings = useSelector((state: RootStateOrAny) => state.updatedAdminSettings)
@@ -369,6 +371,31 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   //   }
   ]
 
+  // Longest-match-wins selection: sibling menu items can nest (e.g. '/literature' and
+  // '/literature/analyzer'), so matching each item against the route in isolation (as
+  // MenuListItem's propless fallback does) double-highlights whenever a route matches
+  // more than one item's `to`. Compute the winner ONCE across every item here, using the
+  // same three-clause match semantics as that fallback, and let only the longest matching
+  // `to` win; both render passes below pass the result down as `selected`.
+  const customRouterPathNames = (routerPath) => {
+    if (routerPath === "/notifications/[userId]") { return "/notifications" }
+    else if (routerPath === "/manageprofile/[userId]") { return "/manageprofile" }
+    else return router.pathname
+  }
+  const pathName = customRouterPathNames(router.pathname);
+  const winnerTo = menuItems.reduce((winner: string | undefined, item) => {
+    const to = item.to as unknown as string;
+    if (!to) return winner;
+    const matches =
+      to === pathName ||
+      pathName.startsWith(to + '/') ||
+      to.startsWith(pathName + '/');
+    if (matches && (!winner || to.length > winner.length)) {
+      return to;
+    }
+    return winner;
+  }, undefined as string | undefined);
+
   const expandNavCotext = React.useContext(ExpandNavContext);
 
   const handleDrawerToggle = () => {
@@ -420,6 +447,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                   imgUrlActive={item.imgUrlActive}
                   muiIcon={item.muiIcon}
                   disabled={item.disabled}
+                  selected={item.to === winnerTo}
                 />
               }
             })
@@ -450,6 +478,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
                   imgUrlActive={item.imgUrlActive}
                   muiIcon={item.muiIcon}
                   disabled={item.disabled}
+                  selected={item.to === winnerTo}
                 />
               }
             })
