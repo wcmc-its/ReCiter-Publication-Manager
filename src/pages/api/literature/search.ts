@@ -124,6 +124,11 @@ import { synopsize, SYNOPSIS_MODEL_ID } from '../../../../controllers/literature
 // generalizes (the pilot's validated V2 rubric) and what it invents (the topic-agnostic ladder).
 import { scoreAnalyzerRelevance, RELEVANCE_BATCH_SIZE } from '../../../../controllers/literatureSearch.analyzerRelevance'
 import type { AnalyzerRelevanceItem } from '../../../../controllers/literatureSearch.analyzerRelevance'
+// Literature Analyzer's Score Impact step — same barrel-bypass reasoning as the synopsize and
+// score-relevance imports just above; see literatureSearch.analyzerImpact.ts's own header for
+// what it orchestrates (impactScoreOf() and scoreImpact(), both already built) and does not
+// invent.
+import { scoreAnalyzerImpact } from '../../../../controllers/literatureSearch.analyzerImpact'
 
 // Next's default request-body limit (1mb) is fine for Modes 1-3 — a 50-record PMID list or an
 // edited strategy is a few KB. Mode 4's corpus echo (see the file-level comment above
@@ -226,6 +231,23 @@ function parseAnalyzerSynopses(raw: any): AnalyzerRelevanceItem[] {
     return unique
 }
 
+// The PMID list the Literature Analyzer's Score Impact step posts — every PMID that cleared
+// Phase 2's relevance floor, however many that is. Same PMID-shaped validation as
+// parseAnalyzerPmids above, DELIBERATELY NOT that function: ANALYZER_PMID_CAP (200) is a
+// Phase-1-specific safety default for a paste-box workflow and does not apply here — this step's
+// free floor is explicitly meant to run uncapped over however many records qualified (a pure,
+// free, in-memory computation plus a PubMed/iCite read, never a paid call, so there is nothing to
+// bound it against). The paid pass IS bounded, separately, in handleAnalyzerScoreImpact below —
+// by RECORD_CAP, not by this function.
+function parseImpactPmids(raw: any): string[] {
+    const ids = (Array.isArray(raw) ? raw : [])
+        .map((p: any) => String(p ?? '').trim())
+        .filter((p: string) => /^\d+$/.test(p))
+    const unique = Array.from(new Set(ids))
+    if (!unique.length) throw new Error('No PMIDs were supplied.')
+    return unique
+}
+
 // The re-count path takes a strategy straight from the browser and puts its text into a PubMed
 // query, so it is a trust boundary and gets a real guard. The bounds are not paranoia about the
 // librarian: each toggle costs 1 + N count calls, so a strategy with 200 lines in it would turn
@@ -286,6 +308,12 @@ type SearchBody = {
     // ---- Literature Analyzer, Score Relevance only. The {pmid, synopsis} batch the client
     // produced in the Synopsize step — validated by parseAnalyzerSynopses, never trusted as-is.
     synopses: any
+    // ---- Literature Analyzer, Score Impact only. `impactPmids` is every PMID that cleared the
+    // relevance floor — validated by parseImpactPmids, never trusted as-is. `paid` gates whether
+    // scoreImpact()'s Bedrock call runs on top of the always-on free floor; see
+    // handleAnalyzerScoreImpact below.
+    impactPmids: any
+    paid: any
     // ---- Mode 4 only. `corpus`/`clusters`/`scores`/`impact` are ECHOED BACK by the client between
     // phases — see the handleM4* functions below for why that is safe (never abstract text, always
     // re-fetched by PMID before a Bedrock call touches it) and bounded (parseM4Corpus).
@@ -1237,6 +1265,60 @@ async function handleAnalyzerScoreRelevance(req: NextApiRequest, res: NextApiRes
     }
 }
 
+// ---- LITERATURE ANALYZER, STEP 3 ("Score Impact"). mode:'literature-analyzer',
+// phase:'score-impact'. Body: { impactPmids: string[], paid: boolean }. Every qualifying PMID
+// gets impactScoreOf()'s free floor unconditionally (no fixed record budget — the relevance floor
+// already gated this list); a `paid` request additionally spends one bounded scoreImpact() call on
+// top of that. See literatureSearch.analyzerImpact.ts for the orchestration itself.
+async function handleAnalyzerScoreImpact(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    const paid = !!body.paid
+    // Bedrock is only needed for the paid upgrade — the free floor is a pure, free, in-memory
+    // computation plus a PubMed/iCite read, so an unconfigured environment should not block it.
+    if (paid && !bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    let ids: string[]
+    try {
+        ids = parseImpactPmids(body.impactPmids)
+    } catch (err: any) {
+        return res.status(400).send({ statusCode: 400, message: err?.message || 'Malformed PMIDs.' })
+    }
+    // BELT AND BRACES, same reasoning as parseAnalyzerSynopses's own cap right above: a paid batch
+    // spends real money per record, so an oversized one is rejected outright rather than silently
+    // scoring a prefix. A paid:false (free-floor) request has no such limit — see parseImpactPmids.
+    if (paid && ids.length > RECORD_CAP) {
+        return res.status(400).send({
+            statusCode: 400,
+            message: `At most ${RECORD_CAP} PMIDs can be paid-scored per call — narrow the selection.`,
+        })
+    }
+    try {
+        const { records, failed, usage } = await scoreAnalyzerImpact(ids, paid)
+
+        // NO MODEL, NO COST LOG when this request spent nothing — same convention the re-count
+        // path documents for itself further down this file ("No model and no cost log"). A
+        // paid:false request is a pure PubMed/iCite read; there is no dollar figure to attribute
+        // to a model on that path.
+        if (paid) {
+            const scoredPaid = records.filter(r => r.impactSource === 'paid').length
+            logCost('literature-analyzer:score-impact', cwid, usage, {
+                requested: ids.length, paid, scoredPaid, failed: failed.length,
+                // OVERRIDES logCost's default `model` (the `...extra` spread lands after it) — same
+                // reasoning handleAnalyzerScoreRelevance and handleAnalyzerSynopsize already apply
+                // for SCORING_MODEL_ID / SYNOPSIS_MODEL_ID above: this step is pinned to Sonnet, not
+                // to BEDROCK_MODEL_ID, so the log line's tokens can be priced later by the model
+                // that actually ran.
+                model: SCORING_MODEL_ID,
+            })
+        }
+
+        return res.status(200).send({ statusCode: 200, records, failed, usage })
+    } catch (err: any) {
+        console.error('[literature] analyzer score-impact failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Impact scoring failed.' })
+    }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
         return res.status(405).send({ statusCode: 405, message: 'POST only' })
@@ -1284,6 +1366,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         evidenceTiers, caseSeries, corpus, clusters, scores, impact, fromYear, toYear,
         // Literature Analyzer, Score Relevance only.
         synopses,
+        // Literature Analyzer, Score Impact only.
+        impactPmids, paid,
     } = req.body || {}
 
     // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
@@ -1311,6 +1395,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         mode, phase, question, criteria, seeds, dateId, typeId, sort, pmids, proceed, pico, databases, edited, seedList,
         evidenceTiers, caseSeries, corpus, clusters, scores, impact, fromYear, toYear,
         synopses,
+        impactPmids, paid,
     }
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
@@ -1349,6 +1434,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // gating as every branch above — `score-relevance` is unique to this mode.
     if (mode === 'literature-analyzer' && phase === 'score-relevance') {
         return handleAnalyzerScoreRelevance(req, res, cwid, body)
+    }
+
+    // ---- LITERATURE ANALYZER, STEP 3 ("Score Impact"). Same belt-and-braces `mode` + `phase`
+    // gating as every branch above — `score-impact` is unique to this mode.
+    if (mode === 'literature-analyzer' && phase === 'score-impact') {
+        return handleAnalyzerScoreImpact(req, res, cwid, body)
     }
 
     // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------
