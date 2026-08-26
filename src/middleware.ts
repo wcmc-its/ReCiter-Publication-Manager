@@ -67,7 +67,28 @@ export async function middleware(request: NextRequest) {
             } catch (e) { /* malformed token field -> no proxy allowance */ }
             const curateTarget = pathName.startsWith('/curate/') ? decodeURIComponent(pathName.split('/')[2] || '') : '';
             const isProxiedTarget = curateTarget.length > 0 && proxyPersonIds.includes(curateTarget);
-            if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser && !isProxiedTarget)
+            // A configured Curator_Scoped scope (admin_users.scope_person_types/scope_org_units)
+            // is self-sufficient the same way a proxy grant is, above -- and got the same gap:
+            // canCurate.ts and Search.js were both updated to let a non-empty scope through
+            // regardless of role assignment (#909/#911), but this /curate redirect was never
+            // touched, so a scoped curator with e.g. Reporter_All+Curator_Self (2 roles, no
+            // Curator_Scoped role row -- exactly est4003's case) still got bounced back to their
+            // own /curate/<uid> before ever reaching the target profile. Mirrors hasScope's exact
+            // definition in authorization.controller.ts/Search.js. Unlike isProxiedTarget this is
+            // NOT narrowed to the specific target's actual scope membership -- doing that here
+            // would need a DB lookup of the target's personType/orgUnit, which this Edge
+            // middleware doesn't have. canCurate on the write API is what actually enforces scope
+            // membership per-target; this only stops the middleware from redirecting a page the
+            // API would allow, exactly like the proxy-grant comment above already establishes.
+            let scopeData: { personTypes?: string[] | null; orgUnits?: string[] | null } | null = null;
+            try {
+              scopeData = JSON.parse((decodedTokenJson as any)?.scopeData || 'null');
+            } catch (e) { /* malformed token field -> no scope allowance */ }
+            const hasScope = !!scopeData && (
+              (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
+              (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
+            );
+            if (pathName && pathName.startsWith('/curate')  &&  !isCuratorAll  && !isSuperUser && !isProxiedTarget && !hasScope)
             {
                 if (userRoles.length == 1 && isReporterAll  && !isCuratorSelf) {
                   return redirectToLandingPage(request,'/search');
