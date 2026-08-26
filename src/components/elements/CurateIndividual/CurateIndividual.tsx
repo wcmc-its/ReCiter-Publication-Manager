@@ -51,7 +51,7 @@ const CurateIndividual = () => {
   const [isLoading, setLoading] = useState(false);
   const [headShot, setHeadShot] = useState<any>([]);
   const [showNoPermitError, setShowNoPermitError] = useState(false)
-  const [showRecentActivity, setShowRecentActivity] = useState(true)
+  const [showRecentActivity, setShowRecentActivity] = useState(false) // collapsed by default; the Hide/Show toggle still lets a curator open it
   const [headShotLoaded, setHeadShotLoaded] = useState(false)
   const [grantProxyShow, setGrantProxyShow] = useState(false);
   // Grant Proxy hits Superuser-only API routes (see PM#849 / proxy.controller.ts) -- match
