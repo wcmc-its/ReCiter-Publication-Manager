@@ -403,6 +403,16 @@ export type WorkingSetRow = {
     relevanceExplanation?: string
     impactScore?: number
     impactJustification?: string
+    // OPTIONAL — Phase 5 backend's own requirement (Summarize Themes' year-count strip needs a
+    // publication year per record). Absent when the uploaded CSV carries no 'Year' column at all
+    // (every working set before this ticket), in which case the caller treats the record as
+    // 'unknown' the same way literatureSearch.analyzerSynthesis.pure.ts's yearCounts() already
+    // does for a missing/empty year — this parser does not itself default the string, it simply
+    // leaves the field off. Adding this column is NOT one of the four existing validation
+    // classes below (loadedAsIs / missingSynopsis / missingImpactScoreOnly / malformedOrDuplicate)
+    // and must never become one: a missing Year column is not a data-quality problem the way a
+    // missing synopsis or impact score is, it is simply older data that predates this field.
+    year?: string
 }
 
 export type WorkingSetValidationReport = {
@@ -431,6 +441,11 @@ const WORKING_SET_HEADER_ALIASES: Record<string, keyof WorkingSetRow> = {
     relevanceexplanation: 'relevanceExplanation',
     impactscore: 'impactScore',
     impactjustification: 'impactJustification',
+    // OPTIONAL — see WorkingSetRow.year's own comment. Absent from every working-set CSV that
+    // predates this ticket, and that absence must change nothing about the four validation
+    // classes below: a file with no 'Year' column parses exactly as it always has, just without
+    // ever setting this field.
+    year: 'year',
 }
 
 export function parseWorkingSetCsv(text: string): { rows: WorkingSetRow[]; report: WorkingSetValidationReport } {
@@ -480,6 +495,11 @@ export function parseWorkingSetCsv(text: string): { rows: WorkingSetRow[]; repor
             ...(cell(r, 'relevanceExplanation') ? { relevanceExplanation: cell(r, 'relevanceExplanation') } : {}),
             ...(hasImpactScore ? { impactScore: impactScoreNum } : {}),
             ...(cell(r, 'impactJustification') ? { impactJustification: cell(r, 'impactJustification') } : {}),
+            // Optional — present only when the CSV actually carried a 'Year' column with a
+            // non-blank value for this row. Never affects loadedAsIs/missingSynopsis/
+            // missingImpactScoreOnly/malformedOrDuplicate below, which are computed the same way
+            // regardless of whether this field is set.
+            ...(cell(r, 'year').trim() ? { year: cell(r, 'year').trim() } : {}),
         })
 
         if (!synopsis) {

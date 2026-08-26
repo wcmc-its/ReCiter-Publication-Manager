@@ -71,7 +71,16 @@ const SYNOPSIS_TOOL = {
 // pilot's measured cost — the ceiling is headroom, not a target.
 const SYNOPSIS_MAX_TOKENS = 150
 
-export type SynopsisResult = { pmid: string; title: string; synopsis: string }
+// `year` ADDED (Phase 5 backend, decision: Summarize Themes' year-count strip needs a publication
+// year per record, which nothing upstream of Synopsize otherwise carries into the Analyzer's own
+// state chain). PubRecord.year is already a string, never null/undefined (see that type's own
+// comment) — defaulted to '' here only for the case where synopsize() is ever called with a
+// record fetchByPmids() did not itself produce, which should not happen in practice but must not
+// throw. This is the BACKEND touch point only — threading `year` through the client's own working-
+// set state (so it survives into Score Relevance/Impact/Themes and reaches Summarize Themes at
+// all) is the follow-on frontend ticket's job, the same four-touch-points pattern Mode 4's own
+// round-trip fields already hit (see PR #874's own note on that).
+export type SynopsisResult = { pmid: string; title: string; synopsis: string; year: string }
 
 // One first pass plus one retry. Cheaper than the batch-call retry budgets elsewhere in this file
 // (IMPACT_ATTEMPTS/SCREEN_ATTEMPTS = 3) because a failure here costs one record, not a whole batch —
@@ -164,7 +173,7 @@ export async function synopsize(records: PubRecord[]): Promise<{
         usage = { inputTokens: usage.inputTokens + r.usage.inputTokens, outputTokens: usage.outputTokens + r.usage.outputTokens }
         if (!r.synopsis) continue   // decision 1: synopsis required, non-null — no entry rather than a blank one
         const rec = byPmid.get(r.pmid)
-        synopses.push({ pmid: r.pmid, title: rec?.title || '', synopsis: r.synopsis })
+        synopses.push({ pmid: r.pmid, title: rec?.title || '', synopsis: r.synopsis, year: rec?.year || '' })
     }
 
     return { synopses, usage, noAbstract }

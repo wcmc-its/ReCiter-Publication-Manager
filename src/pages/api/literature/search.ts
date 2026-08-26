@@ -138,6 +138,12 @@ import {
 } from '../../../../controllers/literatureSearch.analyzerThemes'
 import type { DiscoveryActivity, ClassifyActivity } from '../../../../controllers/literatureSearch.analyzerThemes'
 import type { Theme } from '../../../../controllers/literatureSearch.analyzerThemes.pure'
+// Literature Analyzer's Summarize Themes step (Phase 5: per-theme synthesis) — same barrel-bypass
+// reasoning as the four analyzer imports just above; see literatureSearch.analyzerSynthesis.ts's
+// own header for the ported prompt, its honest test status (17/24, target not met), and why
+// SYNTH_RECORD_CAP is 15, not the design doc's still-unvalidated 20-30 range.
+import { synthesizeTheme, SYNTH_RECORD_CAP } from '../../../../controllers/literatureSearch.analyzerSynthesis'
+import type { ThemeInput, ThemeSynthesisRecord } from '../../../../controllers/literatureSearch.analyzerSynthesis'
 
 // Next's default request-body limit (1mb) is fine for Modes 1-3 — a 50-record PMID list or an
 // edited strategy is a few KB. Mode 4's corpus echo (see the file-level comment above
@@ -344,6 +350,48 @@ function parseClassifyBatch(raw: any): ClassifyActivity[] {
     return unique
 }
 
+// The {id, label, description} theme Summarize Themes posts — echoed back by the client, same
+// discipline as parseThemesList right above (never trust a model-shaped object handed back by the
+// browser, re-validate the three fields this phase actually reads). `seed_pmids` is not part of
+// this shape at all: synthesizeTheme() never reads it.
+function parseSynthesisTheme(raw: any): ThemeInput {
+    const id = String(raw?.id ?? '').trim()
+    const label = String(raw?.label ?? '').trim()
+    const description = String(raw?.description ?? '').trim()
+    if (!id || !label) throw new Error('A theme id and label are required.')
+    return { id, label, description }
+}
+
+// The {pmid, title, synopsis, relevanceExplanation, impactJustification} records Summarize Themes
+// posts for ONE theme — the client's own topNByOverallScore()-ranked, SYNTH_RECORD_CAP-capped
+// selection (literatureSearch.analyzerSynthesis.pure.ts), re-validated and RE-CAPPED here rather
+// than trusted, same belt-and-braces discipline as parseAnalyzerSynopses's RELEVANCE_BATCH_SIZE
+// bound: an over-cap batch is REJECTED outright (400), never silently truncated to a prefix — a
+// silently-dropped record is a record the theme's own weight and citations would then disagree
+// about with no explanation on screen.
+function parseSynthesisRecords(raw: any, cap: number): ThemeSynthesisRecord[] {
+    const items = (Array.isArray(raw) ? raw : [])
+        .map((it: any): ThemeSynthesisRecord | null => {
+            const pmid = String(it?.pmid ?? '').trim()
+            if (!/^\d+$/.test(pmid)) return null
+            return {
+                pmid,
+                title: String(it?.title ?? '').trim(),
+                synopsis: String(it?.synopsis ?? '').trim(),
+                relevanceExplanation: String(it?.relevanceExplanation ?? '').trim(),
+                impactJustification: String(it?.impactJustification ?? '').trim(),
+            }
+        })
+        .filter((it: ThemeSynthesisRecord | null): it is ThemeSynthesisRecord => !!it)
+    const seen = new Set<string>()
+    const unique = items.filter(it => !seen.has(it.pmid) && (seen.add(it.pmid), true))
+    if (!unique.length) throw new Error('No records were supplied for this theme.')
+    if (unique.length > cap) {
+        throw new Error(`At most ${cap} records can be synthesized per theme per call — the client ranks and caps to this size before sending.`)
+    }
+    return unique
+}
+
 // The re-count path takes a strategy straight from the browser and puts its text into a PubMed
 // query, so it is a trust boundary and gets a real guard. The bounds are not paranoia about the
 // librarian: each toggle costs 1 + N count calls, so a strategy with 200 lines in it would turn
@@ -424,6 +472,16 @@ type SearchBody = {
     uncoveredActivities: any
     extensionCap: any
     currentCoveragePct: any
+    // ---- Literature Analyzer, Summarize Themes only (Phase 5). `topic` is accepted but never
+    // read by synthesizeTheme() itself (see that function's own comment on the pilot's tested user
+    // message never mentioning it) — kept in the body shape for logging/attribution parity with
+    // every other analyzer phase. `theme` is the {id,label,description} triple Discovery already
+    // produced for this one theme; `records` is the client's own topNByOverallScore()-ranked,
+    // SYNTH_RECORD_CAP-capped shortlist for it — both re-validated by parseSynthesisTheme /
+    // parseSynthesisRecords, never trusted as-is.
+    topic: any
+    theme: any
+    records: any
     // ---- Mode 4 only. `corpus`/`clusters`/`scores`/`impact` are ECHOED BACK by the client between
     // phases — see the handleM4* functions below for why that is safe (never abstract text, always
     // re-fetched by PMID before a Bedrock call touches it) and bounded (parseM4Corpus).
@@ -1544,6 +1602,55 @@ async function handleAnalyzerExtendThemes(req: NextApiRequest, res: NextApiRespo
     }
 }
 
+// ---- LITERATURE ANALYZER, STEP 5 ("Summarize Themes"). mode:'literature-analyzer',
+// phase:'synthesize-theme'. Body: { topic?, criteria, theme: {id,label,description},
+// records: [...] } — ONE theme per request, the client chains across themes exactly the way it
+// already chains Score Relevance/Score Impact/Classification batches. `criteria` IS ACCEPTED IN
+// THE BODY SHAPE but deliberately never read here: synthesizeTheme()'s ported user message
+// (literatureSearch.analyzerSynthesis.ts) never mentions the topic OR the criteria at all — that
+// is the pilot's own TESTED configuration, and adding either would depart from it. `records` is
+// the client's own topNByOverallScore()-ranked, SYNTH_RECORD_CAP-capped shortlist for this one
+// theme — re-validated and re-capped server-side (parseSynthesisRecords), never silently truncated.
+async function handleAnalyzerSynthesizeTheme(req: NextApiRequest, res: NextApiResponse, cwid: string, body: SearchBody) {
+    if (!bedrockConfigured()) {
+        return res.status(503).send({ statusCode: 503, message: 'Literature Search is not configured on this environment.' })
+    }
+    const topic = String(body.topic ?? body.question ?? '').trim()
+    let theme: ThemeInput
+    let records: ThemeSynthesisRecord[]
+    try {
+        theme = parseSynthesisTheme(body.theme)
+        records = parseSynthesisRecords(body.records, SYNTH_RECORD_CAP)
+    } catch (err: any) {
+        return res.status(400).send({ statusCode: 400, message: err?.message || 'Malformed request.' })
+    }
+    try {
+        const { synthesis, usage } = await synthesizeTheme(topic, theme, records)
+
+        // NO `model` OVERRIDE HERE, DELIBERATELY — unlike every other analyzer phase's logCost call
+        // above. Those phases pin SYNOPSIS_MODEL_ID/SCORING_MODEL_ID and override logCost's default
+        // so the log line prices correctly against the model that actually ran. Phase 5 passes NO
+        // modelId to invoke() at all (see synthesizeTheme()'s own comment) — it runs on the
+        // environment default (BEDROCK_MODEL_ID), which is exactly what logCost's own default
+        // `model: process.env.BEDROCK_MODEL_ID` already reports, so overriding it here would be
+        // reporting a value this call never pinned.
+        logCost('literature-analyzer:synthesize-theme', cwid, usage, {
+            themeId: theme.id, records: records.length,
+            cited: synthesis.citedPmids.length, invented: synthesis.invented?.length || 0,
+        })
+
+        return res.status(200).send({
+            statusCode: 200,
+            paragraph: synthesis.paragraph,
+            citedPmids: synthesis.citedPmids,
+            ...(synthesis.invented ? { invented: synthesis.invented } : {}),
+        })
+    } catch (err: any) {
+        console.error('[literature] analyzer synthesize-theme failed:', err)
+        return res.status(502).send({ statusCode: 502, message: err?.message || 'Theme synthesis failed.' })
+    }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
         return res.status(405).send({ statusCode: 405, message: 'POST only' })
@@ -1595,6 +1702,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         impactPmids, paid,
         // Literature Analyzer, Themes only (Phase 4).
         activities, targetThemeCount, themes, batch, uncoveredActivities, extensionCap, currentCoveragePct,
+        // Literature Analyzer, Summarize Themes only (Phase 5).
+        topic, theme, records,
     } = req.body || {}
 
     // A seed is an identifier WITH A KIND (PMID or DOI), never a bare PMID — a Scopus-only record
@@ -1624,6 +1733,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         synopses,
         impactPmids, paid,
         activities, targetThemeCount, themes, batch, uncoveredActivities, extensionCap, currentCoveragePct,
+        topic, theme, records,
     }
 
     // ---- SCREEN (Mode 2, phase 2). ------------------------------------------------------------
@@ -1686,6 +1796,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // `phase` gating as every branch above — `extend-themes` is unique to this mode.
     if (mode === 'literature-analyzer' && phase === 'extend-themes') {
         return handleAnalyzerExtendThemes(req, res, cwid, body)
+    }
+
+    // ---- LITERATURE ANALYZER, STEP 5 ("Summarize Themes"). Same belt-and-braces `mode` + `phase`
+    // gating as every branch above — `synthesize-theme` is unique to this mode. ONE theme per
+    // request; the client chains across themes.
+    if (mode === 'literature-analyzer' && phase === 'synthesize-theme') {
+        return handleAnalyzerSynthesizeTheme(req, res, cwid, body)
     }
 
     // ---- THE RESULTS COLUMN. A record count per PRESS line, fetched on its own. ---------------

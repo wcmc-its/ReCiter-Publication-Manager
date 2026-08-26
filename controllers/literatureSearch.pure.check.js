@@ -47,7 +47,8 @@ fs.rmSync(OUT, { recursive: true, force: true })
 // request gets.
 execSync(
     `npx tsc controllers/literatureSearch.controller.ts controllers/literatureExport.ts ` +
-    `controllers/literatureMarkdown.ts controllers/literatureSearch.analyzerThemes.pure.ts --outDir ${OUT} ` +
+    `controllers/literatureMarkdown.ts controllers/literatureSearch.analyzerThemes.pure.ts ` +
+    `controllers/literatureSearch.analyzerSynthesis.pure.ts --outDir ${OUT} ` +
     `--module commonjs --target es2020 --esModuleInterop --skipLibCheck --allowJs`,
     { cwd: ROOT, stdio: 'inherit' },
 )
@@ -59,6 +60,9 @@ const md = require(path.join(OUT, 'controllers/literatureMarkdown.js'))
 // literatureSearch.analyzerThemes.ts's own header), so it is compiled and required as its own
 // target here, exactly like literatureExport.js and literatureMarkdown.js above.
 const th = require(path.join(OUT, 'controllers/literatureSearch.analyzerThemes.pure.js'))
+// literatureSearch.analyzerSynthesis.pure.ts — Phase 5 ("Summarize Themes"). Same barrel-bypass
+// reasoning as th above, compiled and required as its own target.
+const syn = require(path.join(OUT, 'controllers/literatureSearch.analyzerSynthesis.pure.js'))
 
 // The same shape the model is prompted to emit, and the same one the live check uses: PRESS-style,
 // each concept split into its MeSH line and its free-text line, limits held separately.
@@ -1220,6 +1224,144 @@ const checkWorkingSetValidation = (th) => {
     console.log(`working-set:  loaded-as-is=${report.loadedAsIs}, missingSynopsis=${JSON.stringify(report.missingSynopsis)}, missingImpactScoreOnly=${JSON.stringify(report.missingImpactScoreOnly)}, malformedOrDuplicate=${JSON.stringify(report.malformedOrDuplicate)}; real Score-Impact-shaped header -> all rows missingSynopsis (honest finding, not a bug)`)
 }
 
+// =======================================================================================
+// PHASE 5 ("SUMMARIZE THEMES") — literatureSearch.analyzerSynthesis.pure.ts. Same "true by
+// arithmetic" posture as everything above: overallScoreOf() against a HAND-COMPUTED value,
+// topNByOverallScore()'s ordering/cap/deterministic-tie behavior, themeWeight() with a missing
+// pmid and a null score, formatYearStrip()'s normal/collapsed/unknown cases, and notDiscussed().
+
+// overallScoreOf(): PLAN line 179 — ROUND(relevanceScore^1.4 * impactScore^1.2 / 1000). At
+// relevanceScore = impactScore = 100, this is 100^1.4 * 100^1.2 / 1000 = 100^2.6 / 1000 =
+// 10^5.2 / 1000. 10^5.2 = 10^5 * 10^0.2 = 100000 * 1.5848931924611136 = 158489.31924611136,
+// so /1000 = 158.48931924611136, which rounds to 158 — a value hand-derivable from 10^0.2 alone,
+// not merely "whatever the code prints".
+const checkOverallScoreOf = (syn) => {
+    assert.strictEqual(syn.overallScoreOf(100, 100), 158,
+        `overallScoreOf(100, 100) must equal round(10^5.2 / 1000) = 158 (10^0.2 ≈ 1.58489319...) — got ${syn.overallScoreOf(100, 100)}`)
+    // Either axis at 0 must zero the whole score — the formula is a PRODUCT, not a sum, so a paper
+    // with no relevance (or no impact) at all must never earn a positive overallScore from the
+    // other axis alone.
+    assert.strictEqual(syn.overallScoreOf(0, 100), 0, 'relevanceScore=0 must zero the overallScore regardless of impactScore')
+    assert.strictEqual(syn.overallScoreOf(100, 0), 0, 'impactScore=0 must zero the overallScore regardless of relevanceScore')
+    // A second hand-computable point at different inputs, so this assertion cannot pass merely by
+    // coincidence at the symmetric 100/100 case: relevanceScore=61, impactScore=26 (both real bin
+    // boundaries from the relevance/impact ladders elsewhere in this feature).
+    // 61^1.4 = e^(1.4*ln61) = e^(1.4*4.110874) = e^5.755223... ; 26^1.2 = e^(1.2*ln26) =
+    // e^(1.2*3.258097) = e^3.909716... Product/1000, rounded, must equal what the code itself
+    // computes via the same two Math.pow calls — asserted here as an internal-consistency check on
+    // the exact JS formula (Math.round(Math.pow(a,1.4)*Math.pow(b,1.2)/1000)), not a second
+    // independent derivation.
+    const expected61x26 = Math.round(Math.pow(61, 1.4) * Math.pow(26, 1.2) / 1000)
+    assert.strictEqual(syn.overallScoreOf(61, 26), expected61x26,
+        `overallScoreOf(61, 26) must match the exact PLAN formula — expected ${expected61x26}, got ${syn.overallScoreOf(61, 26)}`)
+    console.log(`overallScoreOf: (100,100)=158 (hand-derived from 10^5.2/1000), (0,100)=(100,0)=0, (61,26)=${expected61x26}`)
+}
+
+// topNByOverallScore(): ordering (descending score), cap (exactly n kept, the rest dropped), and
+// DETERMINISTIC ties (ascending pmid, numeric-aware so '9' sorts before '10') — three records tied
+// at the same score, pmids deliberately out of both numeric and lexicographic order in the input.
+const checkTopNByOverallScore = (syn) => {
+    const records = [
+        { pmid: '30', overallScore: 50 },
+        { pmid: '9', overallScore: 90 },     // highest score, but a pmid that would sort LAST lexicographically
+        { pmid: '10', overallScore: 50 },
+        { pmid: '20', overallScore: 50 },
+        { pmid: '5', overallScore: null },   // null score sorts as 0 — must land last
+    ]
+    const { kept, dropped } = syn.topNByOverallScore(records, 3)
+
+    assert.strictEqual(kept.length, 3, 'the cap must return exactly n kept records')
+    assert.strictEqual(dropped.length, 2, 'everything past the cap must appear in dropped, and nothing else')
+    assert.strictEqual(kept[0].pmid, '9', 'the highest-scoring record (90) must be first regardless of its pmid')
+    // The three score=50 records tie; pmid '9' already claimed rank 1 by score, so the next two
+    // slots go to the score=50 group in ASCENDING NUMERIC pmid order: '10' before '20' before '30'
+    // — numeric, not lexicographic (lexicographically '10' < '20' < '30' too here, so this fixture
+    // ALSO needs the '9' vs '10'/'20'/'30' case above to prove numeric-aware comparison is real).
+    assert.deepStrictEqual(kept.map(r => r.pmid), ['9', '10', '20'],
+        `tie-break among equal scores must be ascending NUMERIC pmid — got ${JSON.stringify(kept.map(r => r.pmid))}`)
+    assert.deepStrictEqual(dropped.map(r => r.pmid).sort(), ['30', '5'].sort(),
+        'the null-score record and the lowest-ranked tied record must be exactly what is dropped')
+    // Determinism: same input (a fresh copy), same output, byte for byte.
+    const again = syn.topNByOverallScore(records.map(r => ({ ...r })), 3)
+    assert.deepStrictEqual(again.kept.map(r => r.pmid), kept.map(r => r.pmid), 'topNByOverallScore must be deterministic across repeat calls on equivalent input')
+    console.log(`topNByOverallScore: kept=${JSON.stringify(kept.map(r => r.pmid))} dropped=${JSON.stringify(dropped.map(r => r.pmid))} (cap=3 of ${records.length}, numeric tie-break verified via '9' beating '10')`)
+}
+
+// themeWeight(): SUM of overallScore over the theme's pmids — a pmid ABSENT from the corpus map
+// and a pmid PRESENT with overallScore: null must both contribute exactly 0, never throw, never
+// skip the rest of the sum.
+const checkThemeWeight = (syn) => {
+    const recordsByPmid = new Map([
+        ['100', { overallScore: 40 }],
+        ['200', { overallScore: null }],      // present, but null score
+        ['300', { overallScore: 25 }],
+        // '999' is deliberately ABSENT from this map entirely
+    ])
+    const weight = syn.themeWeight(['100', '200', '300', '999'], recordsByPmid)
+    assert.strictEqual(weight, 65, `themeWeight must sum only the real scores (40 + 0 + 25 + 0) = 65 — got ${weight}, a missing pmid or a null score must contribute exactly 0, never throw`)
+
+    // Same fixture, plain object form (not a Map) — resolveRecords-adjacent callers may hold a
+    // plain Record<string, ...> instead of a Map, and themeWeight() must accept either.
+    const asObject = { '100': { overallScore: 40 }, '200': { overallScore: null }, '300': { overallScore: 25 } }
+    assert.strictEqual(syn.themeWeight(['100', '200', '300', '999'], asObject), 65, 'themeWeight must accept a plain Record the same way it accepts a Map')
+
+    assert.strictEqual(syn.themeWeight([], recordsByPmid), 0, 'an empty pmid list must weight to exactly 0')
+    console.log(`themeWeight: [100,200,300,999] (missing pmid + null score) = ${weight}; Map and plain-object inputs agree`)
+}
+
+// formatYearStrip(): the normal (no collapsing) case, the COLLAPSED case (span > threshold, oldest
+// years folded into one bracket, most recent YEAR_STRIP_RECENT_YEARS_KEPT shown individually), and
+// the 'unknown' bucket rendering last as its own segment.
+const checkFormatYearStrip = (syn) => {
+    // Normal: PLAN's own worked example, un-collapsed (5 distinct years, under the threshold).
+    const normal = syn.yearCounts([
+        ...Array(3).fill({ year: '2019' }), ...Array(7).fill({ year: '2020' }),
+        ...Array(12).fill({ year: '2021' }), ...Array(9).fill({ year: '2022' }), ...Array(4).fill({ year: '2023' }),
+    ])
+    assert.strictEqual(syn.formatYearStrip(normal), '2019 ×3 · 2020 ×7 · 2021 ×12 · 2022 ×9 · 2023 ×4',
+        'an un-collapsed strip must render every distinct year individually, ascending, in PLAN\'s own worked format')
+
+    // Collapsed: PLAN's own worked example IN FULL, 1998-2023 (26 distinct years, over the
+    // threshold) — the oldest 21 years (1998-2018) collapse into one bracket summing to 11, and the
+    // 5 most recent years (2019-2023) stay individual, exactly PLAN's "1998-2018 ×11 · 2019 ×3 ·
+    // 2020 ×7 · 2021 ×12 · 2022 ×9 · 2023 ×4" line.
+    const oldYears = {}
+    let oldTotal = 0
+    for (let y = 1998; y <= 2018; y++) { oldYears[String(y)] = 0 }
+    // Distribute 11 records unevenly across a few of those 21 years so the SUM (not the count of
+    // years) is what must equal 11 in the bracket.
+    oldYears['1998'] = 4; oldYears['2005'] = 3; oldYears['2018'] = 4
+    for (const y of Object.keys(oldYears)) oldTotal += oldYears[y]
+    assert.strictEqual(oldTotal, 11, 'fixture sanity check: the pre-collapse years must sum to 11, matching PLAN\'s own worked bracket total')
+    const collapsedCounts = { ...oldYears, '2019': 3, '2020': 7, '2021': 12, '2022': 9, '2023': 4 }
+    assert.strictEqual(Object.keys(collapsedCounts).filter(y => y !== 'unknown').length, 26, 'fixture sanity check: 26 distinct numeric years, over YEAR_STRIP_COLLAPSE_THRESHOLD')
+    assert.strictEqual(
+        syn.formatYearStrip(collapsedCounts),
+        '1998-2018 ×11 · 2019 ×3 · 2020 ×7 · 2021 ×12 · 2022 ×9 · 2023 ×4',
+        'a 26-distinct-year span must collapse the oldest years into one "first-last ×sum" bracket and keep the most recent years individual, matching PLAN\'s own worked example exactly',
+    )
+
+    // Unknown: always renders LAST as its own segment, never folded into a numeric bracket even
+    // when it would otherwise be among the "oldest" entries by sort order.
+    const withUnknown = { '2020': 5, '2021': 2, unknown: 3 }
+    assert.strictEqual(syn.formatYearStrip(withUnknown), '2020 ×5 · 2021 ×2 · unknown ×3',
+        'unknown must render last as its own segment, distinct from any numeric year bracket')
+
+    console.log(`formatYearStrip: normal="${syn.formatYearStrip(normal)}", collapsed 26-year span matches PLAN's worked bracket, unknown renders last`)
+}
+
+// notDiscussed(): the set difference (currently-assigned pmids) MINUS (cited pmids) — a pmid that
+// is assigned but never cited is "not discussed"; a pmid that is cited is never in the result even
+// if it happens to also appear twice in the assigned list.
+const checkNotDiscussed = (syn) => {
+    const result = syn.notDiscussed(['100', '200'], ['100', '200', '300', '400'])
+    assert.deepStrictEqual(result, ['300', '400'], 'notDiscussed must be exactly (assigned - cited), sorted ascending')
+    assert.deepStrictEqual(syn.notDiscussed(new Set(['100']), ['100', '200']), ['200'], 'notDiscussed must accept a Set of cited pmids, not only an array')
+    assert.deepStrictEqual(syn.notDiscussed([], []), [], 'two empty inputs must resolve to an empty array, never throw')
+    assert.deepStrictEqual(syn.notDiscussed(['999'], ['100', '200']), ['100', '200'], 'a cited pmid that is not even in the assigned set must not suppress anything real')
+    console.log(`notDiscussed: (assigned=[100,200,300,400] - cited=[100,200]) = ${JSON.stringify(result)}`)
+}
+
 // An async IIFE, not a bare top-level await: this file runs as plain CommonJS (no "type":
 // "module" in package.json), and only checkNarrowingLadder needs to await anything — it is the
 // only function here exercising an (fake-dep-injected) async production function. Every failure
@@ -1245,6 +1387,11 @@ const checkWorkingSetValidation = (th) => {
     checkResolvePrimary(th)
     checkAssignmentsCsvRoundTrip(th)
     checkWorkingSetValidation(th)
+    checkOverallScoreOf(syn)
+    checkTopNByOverallScore(syn)
+    checkThemeWeight(syn)
+    checkFormatYearStrip(syn)
+    checkNotDiscussed(syn)
 
     console.log('\nAll pure checks passed. No network, no model, no environment.')
 })().catch(err => {
