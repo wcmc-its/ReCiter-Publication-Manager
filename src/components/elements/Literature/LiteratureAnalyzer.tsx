@@ -34,6 +34,17 @@ import type { StepId } from './LiteratureAnalyzer.constants'
 import { CheckpointScreen, StepTabs, useChunkedProgress } from './LiteratureAnalyzer.parts'
 import { SeedsField } from './SearchForm'
 import { parseSeeds } from '../../../../controllers/literatureSearch.strategy'
+// Themes (Phase 4) — the PURE half only (see that file's own header for why it is a separate
+// module from controllers/literatureSearch.analyzerThemes.ts): resolveRecords/assignmentsToCsv/
+// parseWorkingSetCsv are IMPORTED, never reimplemented (this ticket's own MUST NOT) — the whole
+// point of that split is that a browser component can pull this file in without dragging
+// @aws-sdk/client-bedrock-runtime along through literatureSearch.llm.ts.
+import {
+    resolveRecords, assignmentsToCsv, parseWorkingSetCsv,
+} from '../../../../controllers/literatureSearch.analyzerThemes.pure'
+import type {
+    Theme, ResolvedRow, WorkingSetRow, WorkingSetValidationReport,
+} from '../../../../controllers/literatureSearch.analyzerThemes.pure'
 import { saveText, stamp } from './download'
 import ls from './LiteratureSearch.module.css'
 import s from './LiteratureAnalyzer.module.css'
@@ -334,8 +345,17 @@ function LossSection({ label, pmids, onRetry }: { label: string; pmids: string[]
 // ScoreRelevanceStep read this step's output (see the effect below and this file's own header).
 // `onContinue` is the "Continue to Score Relevance →" button's handler — just a tab switch, owned
 // by the parent (LiteratureAnalyzer) the same way StepTabs' onSelect is.
-function SynopsizeStep({ onDone, onContinue }: { onDone: (synopses: Synopsis[]) => void; onContinue: () => void }) {
-    const [pmidsRaw, setPmidsRaw] = useState('')
+function SynopsizeStep({ onDone, onContinue, initialPmids }: {
+    onDone: (synopses: Synopsis[]) => void
+    onContinue: () => void
+    // Themes' CSV validation report "Score these N first" (decision 34) lands here: those pmids,
+    // pre-filled into the paste box. Read ONLY at mount — this component unmounts whenever the
+    // tab switches away (see LiteratureAnalyzer's own ternary; no `key` forces a remount within
+    // the SAME tab), so a fresh mount on switching back into 'synopsize' is exactly when this
+    // needs to take effect, and a plain useState initializer is enough — no effect/ref needed.
+    initialPmids?: string[]
+}) {
+    const [pmidsRaw, setPmidsRaw] = useState(initialPmids && initialPmids.length ? initialPmids.join('\n') : '')
     const [formErr, setFormErr] = useState('')
     const { state, run, reset } = useChunkedProgress<SynopsizeBatchResponse>(CLIENT_BATCH_CONCURRENCY)
 
@@ -475,7 +495,12 @@ function SynopsizeStep({ onDone, onContinue }: { onDone: (synopses: Synopsis[]) 
 // rendering a topic form over zero records.
 function ScoreRelevanceStep({ synopses, onContinue }: {
     synopses: Synopsis[]
-    onContinue: (qualifying: RelevanceRecord[]) => void
+    // Themes (Phase 4) needs the review topic/criteria too — the mockup's own Themes screens carry
+    // no topic field of their own (Discovery/Classification use whatever topic scored relevance),
+    // so this step is where that pair has to be lifted from. Added alongside `qualifying` rather
+    // than a separate onDone-style callback, since it only ever matters at the same "continue past
+    // this step" moment qualifying already fires on.
+    onContinue: (qualifying: RelevanceRecord[], topic: string, criteria: string) => void
 }) {
     const [topic, setTopic] = useState('')
     const [criteria, setCriteria] = useState('')
@@ -678,7 +703,7 @@ function ScoreRelevanceStep({ synopses, onContinue }: {
             <div className={ls.actions}>
                 <button className={ls.btnSecondary} onClick={() => { reset(); setScores(new Map()); setFailed([]) }}>Run again</button>
                 <button className={ls.btnSecondary} onClick={exportScores} disabled={!scoredRows.length}>Export</button>
-                <button className={ls.btn} onClick={() => onContinue(qualifying)} disabled={!qualifying.length}>Continue to Score Impact →</button>
+                <button className={ls.btn} onClick={() => onContinue(qualifying, topic.trim(), criteria.trim())} disabled={!qualifying.length}>Continue to Score Impact →</button>
             </div>
         </CheckpointScreen>
     )
@@ -986,6 +1011,934 @@ function ScoreImpactStep({ qualifying, onContinue }: {
     )
 }
 
+// ---------------------------------------------------------------------------
+// THEMES (Phase 4). Discovery (one call over the whole working set) + Classification (batched
+// CLASSIFY_BATCH_SIZE, concurrency 3) + a client-driven single extension pass on a coverage
+// shortfall (decision 38) — see controllers/literatureSearch.analyzerThemes.ts's own header for
+// the full backend contract this mirrors, and its point 4 in particular for why the coverage
+// check/extension DECISION belongs here, on the client, and not in that route.
+
+// Discovery/Classification's own input shape (PLAN Step A field-list variant A) — carried on
+// ImpactRecord already for path (a) (Score Impact's "Continue with these N"), or parsed off an
+// uploaded CSV for path (b). Declared locally, same "own request/response types, not imported from
+// the server module" discipline every earlier step on this page already follows (RelevanceRecord,
+// ImpactRow, etc.) — literatureSearch.analyzerThemes.ts's own DiscoveryActivity/ClassifyActivity
+// types are not reused here for exactly the reason its own header gives: that file pulls in
+// @aws-sdk/client-bedrock-runtime through literatureSearch.llm.ts, which must never reach the
+// browser bundle (a `import type` would erase at compile time and be safe, but keeping this page's
+// own local-type convention consistent end to end is simpler than explaining two different rules).
+type ThemeActivity = {
+    pmid: string; title: string; synopsis: string
+    relevanceExplanation: string; impactScore: number; impactJustification: string
+}
+type ClassifyActivityLite = { pmid: string; title: string; synopsis: string }
+// The ALREADY-SERVER-FILTERED shape classify-themes hands back (filterValidAssignments already ran
+// inside classifyThemesBatch() by the time this reaches the client — see that function's own
+// comment) — a map, not the raw {subtopic_id, confidence}[] array resolveRecords' own
+// RawBatchResult type expects. See buildRawResultsEntry() below for the (harmless) reconstruction.
+type ThemesBatchAssignment = { pmid: string; confidences: Record<string, number> }
+
+// CLASSIFY_BATCH_SIZE = 10, duplicated from controllers/literatureSearch.analyzerThemes.ts — same
+// import-boundary reasoning RELEVANCE_BATCH_SIZE/IMPACT_BATCH_SIZE's own comments give above (that
+// module pulls in @aws-sdk/client-bedrock-runtime through literatureSearch.llm.ts). This is a USER
+// decision overriding PLAN decision 40's own locked-in batch-20 — see that constant's own comment
+// for the two measured points (batch 20 and single-call) 10 sits between, itself unmeasured; if
+// this number ever moves, move it there first and duplicate the new value here.
+const CLASSIFY_BATCH_SIZE = 10
+// Same "kept at 3, first-cut default, no production signal yet" caveat as RELEVANCE_CLIENT_CONCURRENCY
+// above — decision 23's route-concurrency question is still open. Explicitly NOT Score Impact's
+// sequential 1 (this ticket's own instruction): a batched Sonnet call over up to 10 synopses is
+// closer to Score Relevance's shape than Score Impact's, so it gets Score Relevance's concurrency.
+const CLASSIFY_CLIENT_CONCURRENCY = 3
+
+// DISCOVERY_MIN/MAX/DEFAULT_TARGET and THEME_COUNT_TOLERANCE, duplicated from
+// controllers/literatureSearch.analyzerThemes.ts — same reasoning as CLASSIFY_BATCH_SIZE above.
+// THEME_COUNT_TOLERANCE is decision 37's hard-range ± — the input's own caption recomputes
+// target±2 live off whatever the person has typed, not a fixed band.
+const THEME_COUNT_MIN = 2
+const THEME_COUNT_MAX = 50
+const THEME_COUNT_DEFAULT = 12
+const THEME_COUNT_TOLERANCE = 2
+// Decision 33's cold-start floor (ReciterAI's own `min_activities = 30`) — warn-and-allow, not
+// refuse; see the below-floor branch in ThemesStep's before-screen.
+const THEME_COLD_START_FLOOR = 30
+// extend-themes' own default cap when the caller sends none (extendThemes()'s own
+// EXTENSION_CAP_DEFAULT) — duplicated here so the client's call always sends an explicit number
+// rather than relying on the server's fallback silently, same "be explicit across the wire"
+// instinct as every other phase on this page.
+const EXTENSION_CAP_DEFAULT = 15
+// Decision 38 — 95% coverage target, measured AFTER Classification (never at Discovery time — see
+// this file's header and computeCoverage's own comment in the pure module for why Discovery's own
+// coveragePct is not used for this check at all).
+const COVERAGE_TARGET = 0.95
+const MIN_UNCOVERED_FOR_EXTENSION = 3
+// A generous sanity ceiling against a client bug or a hostile CSV, duplicated from
+// src/pages/api/literature/search.ts's own THEMES_DISCOVERY_SANITY_CAP — checked HERE, before any
+// request fires, same "the client enforces the same bound the server does, before spending
+// anything" discipline ANALYZER_PMID_CAP's own comment describes for Synopsize.
+const THEMES_DISCOVERY_SANITY_CAP = 4000
+
+// MEASURED, per the ticket's own decided figures — Discovery's $0.578 total on a 1,168-record pilot
+// run (2026-08-24), scaled linearly per record; Classification's $0.0017/record, MEASURED AT BATCH
+// 20 (the pilot's own tested rate) — this build classifies in batches of CLASSIFY_BATCH_SIZE (10),
+// a later, unmeasured user decision, so the (i) copy below says plainly that actuals may run
+// somewhat higher than this figure rather than repeating the mockup's own "batched-20 locked in"
+// line (which is no longer true at batch 10).
+const DISCOVERY_MEASURED_TOTAL_USD = 0.578
+const DISCOVERY_MEASURED_RECORDS = 1168
+const CLASSIFY_MEASURED_USD_PER_RECORD_AT_BATCH20 = 0.0017
+
+// LABELED GUESSES, same "no real timing data exists yet for this route" discipline as every other
+// ROUGH_SECONDS_* constant on this page. Discovery is one call regardless of corpus size, so this
+// stays flat (the pilot's own measured "~2-3 min" for its 1,168-record run) rather than a per-record
+// scale nobody has evidence for.
+const ROUGH_SECONDS_DISCOVERY: readonly [number, number] = [120, 180]
+const ROUGH_SECONDS_PER_CLASSIFY_BATCH: readonly [number, number] = [15, 30]
+
+const DEFAULT_VISIBLE_THEMES = 5
+const DEFAULT_VISIBLE_IN_THEME = 3
+// Not a real theme id — the "Move to…" dropdown's own option for "leave/send to Didn't fit a
+// theme", and the pmid the request bundles as one used in the discovered themes screens.
+const UNCOVERED_SENTINEL = '__uncovered__'
+
+function clamp(n: number, lo: number, hi: number): number {
+    return Math.min(hi, Math.max(lo, n))
+}
+
+// "0:01:40" — minutes:seconds, no hours (matches the mockup's own "Elapsed 0:01:40" — this route
+// has never run long enough to need an hours place, and adding one for a case that has not
+// happened yet is not worth the extra branch).
+function formatElapsed(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+    const m = Math.floor(totalSeconds / 60)
+    const sec = totalSeconds % 60
+    return `${m}:${String(sec).padStart(2, '0')}`
+}
+
+async function fetchDiscoverThemes(
+    topic: string, criteria: string, targetThemeCount: number, activities: ThemeActivity[],
+): Promise<{ themes: Theme[]; uncovered: string[]; coveragePct: number }> {
+    const res = await fetch('/api/literature/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            mode: 'literature-analyzer', phase: 'discover-themes',
+            question: topic, criteria: criteria || undefined, targetThemeCount, activities,
+        }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.message || 'Theme discovery failed.')
+    return {
+        themes: Array.isArray(data.themes) ? data.themes : [],
+        uncovered: Array.isArray(data.uncovered) ? data.uncovered : [],
+        coveragePct: Number(data.coveragePct) || 0,
+    }
+}
+
+async function fetchClassifyBatch(
+    topic: string, criteria: string, themes: Theme[], batch: ClassifyActivityLite[],
+): Promise<{ assignments: ThemesBatchAssignment[]; failed: string[] }> {
+    const res = await fetch('/api/literature/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            mode: 'literature-analyzer', phase: 'classify-themes',
+            question: topic, criteria: criteria || undefined, themes, batch,
+        }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.message || 'Theme classification failed for this batch.')
+    return {
+        assignments: Array.isArray(data.assignments) ? data.assignments : [],
+        failed: Array.isArray(data.failed) ? data.failed : [],
+    }
+}
+
+async function fetchExtendThemes(
+    topic: string, criteria: string, themes: Theme[], uncoveredActivities: ThemeActivity[],
+    extensionCap: number, currentCoveragePct: number,
+): Promise<{ newThemes: Theme[]; stillUncovered: string[] }> {
+    const res = await fetch('/api/literature/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            mode: 'literature-analyzer', phase: 'extend-themes',
+            question: topic, criteria: criteria || undefined, themes, uncoveredActivities,
+            extensionCap, currentCoveragePct,
+        }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.message || 'Theme extension failed.')
+    return {
+        newThemes: Array.isArray(data.newThemes) ? data.newThemes : [],
+        stillUncovered: Array.isArray(data.stillUncovered) ? data.stillUncovered : [],
+    }
+}
+
+// Reconstructs resolveRecords' own RawBatchResult shape from classify-themes' already-filtered
+// `confidences` map — filterValidAssignments runs a second, harmless time inside resolveRecords
+// (every entry is already a valid id above the floor, so nothing changes) rather than this
+// component re-deriving the primary/secondary/aggregate logic itself, which is exactly the
+// reimplementation this ticket's MUST NOT forbids.
+function rawAssignmentsEntry(confidences: Record<string, number>): { raw_assignments: any } {
+    return { raw_assignments: Object.entries(confidences).map(([subtopic_id, confidence]) => ({ subtopic_id, confidence })) }
+}
+
+function readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result ?? ''))
+        reader.onerror = () => reject(new Error('Could not read that file.'))
+        reader.readAsText(file)
+    })
+}
+
+// One bucket of decision 34's validation report — same <details>/onRetry-in-<summary> shape as
+// LossSection above, generalized to a caller-supplied action label (Score Relevance's own
+// LossSection is Retry-only; this report has one action-bearing bucket and two view-only ones) and
+// an optional static note (the malformed bucket's "(not loaded — fix and re-upload to include)").
+function ValidationBucket({ label, pmids, action, note }: {
+    label: string
+    pmids: string[]
+    action?: { label: string; onClick: () => void }
+    note?: string
+}) {
+    if (!pmids.length) return null
+    return (
+        <details className={s.lossDetails}>
+            <summary className={s.lossSummary}>
+                <b>{pmids.length}</b> {label} <span className={ls.help}>— click to view</span>
+                {action && (
+                    <button
+                        type="button"
+                        className={`${ls.btnSecondary} ${s.lossRetryBtn}`}
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); action.onClick() }}
+                    >
+                        {action.label}
+                    </button>
+                )}
+                {note && <span className={ls.help}> ({note})</span>}
+            </summary>
+            <p className={`${ls.help} ${s.lossList}`}>{pmids.join(', ')}</p>
+        </details>
+    )
+}
+
+type PipelineStage = 'before' | 'discover' | 'classify' | 'extend' | 'reclassify' | 'done' | 'error'
+type PipelineErr = { stage: 'discover' | 'extend'; message: string }
+// Snapshot taken right before an extend-themes call fires — what a "Retry" (after an extend
+// failure) or "View results without extension" needs to either re-attempt the same call or accept
+// the pre-extension results as final, without re-deriving them.
+type PendingExtension = { themes: Theme[]; uncoveredActivities: ThemeActivity[]; coverage: number; failed: string[] }
+
+// `qualifyingImpact` empty is the SAME real, accepted, this-session-only limitation
+// ScoreRelevanceStep/ScoreImpactStep's own empty-state comments describe — but Themes' own empty
+// state is not a dead end the way theirs are: decision 2026-08-23 gives it a second entry path (a
+// CSV upload) precisely so a person resuming a session, or starting from someone else's export, is
+// not forced back through Synopsize/Score Relevance/Score Impact just to reach this step. Path (a)
+// (`qualifyingImpact` non-empty) skips this screen entirely — see `workingSet` below.
+function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExists, onScoreThese, onGoToScoreImpact, onSummarize }: {
+    qualifyingImpact: ImpactRecord[]
+    reviewTopic: string
+    reviewCriteria: string
+    // Phase 5 ("Summarize Themes") is not built yet — this is always false today. Wired so
+    // Rediscover's confirm-if-a-write-up-exists guard (mockup, 2026-08-24) is dormant rather than
+    // absent: once Phase 5 lands and starts setting its own write-up state to non-null, this prop
+    // starts doing something without Rediscover's own code changing at all.
+    writeUpExists: boolean
+    onScoreThese: (pmids: string[]) => void
+    onGoToScoreImpact: () => void
+    onSummarize: (themes: Theme[], assignmentRows: ResolvedRow[]) => void
+}) {
+    // ---- Path (b): CSV upload. ----
+    const [csvFileName, setCsvFileName] = useState('')
+    const [csvRows, setCsvRows] = useState<WorkingSetRow[]>([])
+    const [csvReport, setCsvReport] = useState<WorkingSetValidationReport | null>(null)
+    const [uploadErr, setUploadErr] = useState('')
+    const [dragOver, setDragOver] = useState(false)
+    const [csvWorkingSet, setCsvWorkingSet] = useState<ThemeActivity[] | null>(null)
+    const [csvContinuing, setCsvContinuing] = useState(false)
+    const [csvContinueErr, setCsvContinueErr] = useState('')
+
+    // ---- The checkpoint's own input. ----
+    const [targetThemeCount, setTargetThemeCount] = useState(THEME_COUNT_DEFAULT)
+
+    // ---- The pipeline. ----
+    const [stage, setStage] = useState<PipelineStage>('before')
+    const [pipelineErr, setPipelineErr] = useState<PipelineErr | null>(null)
+    const [themes, setThemes] = useState<Theme[]>([])
+    const [resolvedRows, setResolvedRows] = useState<Record<string, ResolvedRow>>({})
+    const [failedClassifyPmids, setFailedClassifyPmids] = useState<string[]>([])
+    const [retryingFailed, setRetryingFailed] = useState(false)
+    const [finalCoverage, setFinalCoverage] = useState(0)
+    const [pipelineElapsedMs, setPipelineElapsedMs] = useState(0)
+
+    // Mutable accumulators a running pipeline needs across several awaited stages — kept in refs,
+    // not state, because nothing renders off them directly (resolvedRows/themes/etc. above are what
+    // renders; these are working storage for the orchestration functions below).
+    const rawByPmidRef = useRef<Record<string, { raw_assignments: any }>>({})
+    const workingSetRef = useRef<ThemeActivity[]>([])
+    const pipelineStartRef = useRef(0)
+    const pendingExtensionRef = useRef<PendingExtension | null>(null)
+
+    const discoverRun = useChunkedProgress<{ themes: Theme[]; uncovered: string[]; coveragePct: number; error?: string }>(1)
+    const classifyRun = useChunkedProgress<{ assignments: ThemesBatchAssignment[]; failed: string[]; error?: string }>(CLASSIFY_CLIENT_CONCURRENCY)
+    const extendRun = useChunkedProgress<{ newThemes: Theme[]; stillUncovered: string[]; error?: string }>(1)
+    const reclassifyRun = useChunkedProgress<{ assignments: ThemesBatchAssignment[]; failed: string[]; error?: string }>(CLASSIFY_CLIENT_CONCURRENCY)
+
+    // ---- Discovered / Theme-opened view state. ----
+    const [openedThemeId, setOpenedThemeId] = useState<string | null>(null)
+    const [showAllThemes, setShowAllThemes] = useState(false)
+    const [searchWithin, setSearchWithin] = useState('')
+    const [showAllInTheme, setShowAllInTheme] = useState(false)
+
+    // THE WORKING SET. `csvWorkingSet` (once "Continue with N →" has run) wins if present;
+    // otherwise path (a)'s `qualifyingImpact`, mapped straight across (same field names Score
+    // Impact already produces) — this is what makes path (a) "skip straight past the empty state":
+    // if a person arrived here with a qualifying set already in hand, `workingSet.length` is
+    // already non-zero on the very first render.
+    const workingSet: ThemeActivity[] = csvWorkingSet ?? (qualifyingImpact.length
+        ? qualifyingImpact.map(r => ({
+            pmid: r.pmid, title: r.title, synopsis: r.synopsis,
+            relevanceExplanation: r.relevanceExplanation,
+            impactScore: r.impactScore, impactJustification: r.impactJustification,
+        }))
+        : [])
+
+    const belowFloor = workingSet.length > 0 && workingSet.length < THEME_COLD_START_FLOOR
+    const overSanityCap = workingSet.length > THEMES_DISCOVERY_SANITY_CAP
+    const rangeLow = clamp(targetThemeCount - THEME_COUNT_TOLERANCE, THEME_COUNT_MIN, THEME_COUNT_MAX)
+    const rangeHigh = clamp(targetThemeCount + THEME_COUNT_TOLERANCE, THEME_COUNT_MIN, THEME_COUNT_MAX)
+
+    const discoveryCost = (DISCOVERY_MEASURED_TOTAL_USD / DISCOVERY_MEASURED_RECORDS) * workingSet.length
+    const classifyBatchCount = Math.ceil(workingSet.length / CLASSIFY_BATCH_SIZE)
+    const classifyCost = workingSet.length * CLASSIFY_MEASURED_USD_PER_RECORD_AT_BATCH20
+    const [loDisc, hiDisc] = ROUGH_SECONDS_DISCOVERY
+    const [loClassBatch, hiClassBatch] = ROUGH_SECONDS_PER_CLASSIFY_BATCH
+    const loClassify = classifyBatchCount * loClassBatch
+    const hiClassify = classifyBatchCount * hiClassBatch
+
+    const estimateText = `Discovery ~$${discoveryCost.toFixed(2)} (measured, 2026-08-24 pilot, `
+        + `scaled to this corpus size), ~${loDisc}-${hiDisc}s. Classification ~$${classifyCost.toFixed(2)} `
+        + `(${classifyBatchCount} batch${classifyBatchCount === 1 ? '' : 'es'} of up to ${CLASSIFY_BATCH_SIZE}), `
+        + `~${loClassify}-${hiClassify}s.`
+    const estimateInfo = `Discovery's estimate is measured ($${DISCOVERY_MEASURED_TOTAL_USD}, `
+        + `2026-08-24 pilot run, ${DISCOVERY_MEASURED_RECORDS.toLocaleString()} records — scaled `
+        + `linearly to your working set here). Classification's $${CLASSIFY_MEASURED_USD_PER_RECORD_AT_BATCH20}`
+        + `/record is measured too, but at batch 20 — this build classifies in batches of `
+        + `${CLASSIFY_BATCH_SIZE} instead (a later, unmeasured product decision), so actuals may run `
+        + `somewhat higher than this figure.`
+
+    // ---- CSV upload. ----
+    function handleFiles(files: FileList | null) {
+        const file = files && files[0]
+        if (!file) return
+        setUploadErr('')
+        setCsvFileName(file.name)
+        readFileAsText(file)
+            .then(text => {
+                const { rows, report } = parseWorkingSetCsv(text)
+                setCsvRows(rows)
+                setCsvReport(report)
+            })
+            .catch((e: any) => setUploadErr(e?.message || 'Could not read that file.'))
+    }
+
+    function resetCsv() {
+        setCsvFileName('')
+        setCsvRows([])
+        setCsvReport(null)
+        setCsvContinueErr('')
+    }
+
+    // decision 34's Continue: everything except the missing-synopsis rows (no auto-fill exists for
+    // a missing synopsis) and the already-excluded malformed rows (parseWorkingSetCsv never put
+    // those in `rows` to begin with). Rows missing ONLY an impact score get the free floor — one
+    // score-impact, paid:false call, reusing fetchImpactBatch (Score Impact's own fetcher, above)
+    // rather than a second implementation of that request.
+    async function continueWithCsv() {
+        if (!csvReport) return
+        setCsvContinueErr('')
+        setCsvContinuing(true)
+        try {
+            const missingSynopsisSet = new Set(csvReport.missingSynopsis)
+            const usable = csvRows.filter(r => !missingSynopsisSet.has(r.pmid))
+            const needsFloor = usable.filter(r => r.impactScore === undefined).map(r => r.pmid)
+            let floorByPmid = new Map<string, ImpactRow>()
+            if (needsFloor.length) {
+                const res = await fetchImpactBatch(needsFloor, false)
+                floorByPmid = new Map(res.records.map(row => [row.pmid, row]))
+            }
+            const activities: ThemeActivity[] = usable.map(r => {
+                const floor = floorByPmid.get(r.pmid)
+                return {
+                    pmid: r.pmid,
+                    title: r.title,
+                    synopsis: r.synopsis,
+                    relevanceExplanation: r.relevanceExplanation || '',
+                    impactScore: r.impactScore ?? floor?.impactScore ?? 0,
+                    impactJustification: r.impactJustification || floor?.impactJustification || '',
+                }
+            })
+            setCsvWorkingSet(activities)
+        } catch (e: any) {
+            setCsvContinueErr(e?.message || 'Could not fill in the missing impact scores — try again.')
+        } finally {
+            setCsvContinuing(false)
+        }
+    }
+
+    // ---- Coverage + resolution, from whatever is in rawByPmidRef right now. Decision 38: coverage
+    // is measured from RESOLVED rows, post-classification — never Discovery's own coveragePct (see
+    // this file's header). A pmid still in `failedClassifyPmids` (never resolved at all) counts
+    // against coverage the same way an uncovered one does — an honest lower figure until its batch
+    // is retried, not a number that quietly excludes what has not been tried yet.
+    function recompute(themesNow: Theme[]) {
+        const titleByPmid = Object.fromEntries(workingSetRef.current.map(w => [w.pmid, w.title]))
+        const resolved = resolveRecords(rawByPmidRef.current, themesNow, titleByPmid)
+        const total = workingSetRef.current.length
+        const coveredCount = Object.values(resolved).filter(r => !r.uncovered).length
+        const coverage = total ? coveredCount / total : 0
+        const uncoveredPmids = Object.values(resolved).filter(r => r.uncovered).map(r => r.pmid)
+        return { resolved, coverage, uncoveredPmids }
+    }
+
+    async function finishPipeline(finalThemes: Theme[], resolved: Record<string, ResolvedRow>, failed: string[], coverage: number) {
+        setThemes(finalThemes)
+        setResolvedRows(resolved)
+        setFailedClassifyPmids(failed)
+        setFinalCoverage(coverage)
+        setPipelineElapsedMs(Date.now() - pipelineStartRef.current)
+        setStage('done')
+    }
+
+    // The single extension pass (decision 38) — reclassifies ONLY the previously-uncovered records,
+    // against the FULL extended theme list (old + new). Callable both from the main pipeline and
+    // from the error screen's "Retry" after an extend-themes failure (pendingExtensionRef carries
+    // exactly the inputs needed either way).
+    async function runExtensionAndReclassify(themesSoFar: Theme[], uncoveredActivities: ThemeActivity[], coverageSoFar: number, failedSoFar: string[]) {
+        pendingExtensionRef.current = { themes: themesSoFar, uncoveredActivities, coverage: coverageSoFar, failed: failedSoFar }
+        setStage('extend')
+        setPipelineErr(null)
+        let extendResult: { newThemes: Theme[]; stillUncovered: string[] }
+        try {
+            const [r] = await extendRun.run([() => fetchExtendThemes(
+                reviewTopic, reviewCriteria, themesSoFar, uncoveredActivities, EXTENSION_CAP_DEFAULT, coverageSoFar,
+            ).catch((e: any) => ({ newThemes: [], stillUncovered: uncoveredActivities.map(a => a.pmid), error: e?.message || 'Theme extension failed.' }))])
+            if (r.error) throw new Error(r.error)
+            extendResult = r
+        } catch (e: any) {
+            setPipelineErr({ stage: 'extend', message: e?.message || 'Theme extension failed.' })
+            setStage('error')
+            return
+        }
+
+        const mergedThemes = [...themesSoFar, ...extendResult.newThemes]
+        setStage('reclassify')
+        const reBatches = chunk(uncoveredActivities.map((a): ClassifyActivityLite => ({ pmid: a.pmid, title: a.title, synopsis: a.synopsis })), CLASSIFY_BATCH_SIZE)
+        const reResults = await reclassifyRun.run(reBatches.map(batch => () => (
+            fetchClassifyBatch(reviewTopic, reviewCriteria, mergedThemes, batch).catch((e: any) => ({
+                assignments: [], failed: batch.map(b => b.pmid), error: e?.message || 'Batch failed.',
+            }))
+        )))
+        const failedNow = new Set(failedSoFar)
+        for (const r of reResults) {
+            for (const a of r.assignments) rawByPmidRef.current[a.pmid] = rawAssignmentsEntry(a.confidences)
+            for (const f of r.failed) failedNow.add(f)
+        }
+        const { resolved, coverage } = recompute(mergedThemes)
+        await finishPipeline(mergedThemes, resolved, Array.from(failedNow), coverage)
+    }
+
+    // THE MAIN RUN. Discovery (one call) → Classification (every record, batched) → measure
+    // coverage → maybe one extension round (decision 38) → done. A Discovery failure is retryable
+    // right here (re-runs the whole thing — nothing downstream of it exists yet to preserve).
+    async function runPipeline() {
+        setPipelineErr(null)
+        pipelineStartRef.current = Date.now()
+        rawByPmidRef.current = {}
+        workingSetRef.current = workingSet
+        setFailedClassifyPmids([])
+        setOpenedThemeId(null)
+        setShowAllThemes(false)
+
+        setStage('discover')
+        let discoverResult: { themes: Theme[]; uncovered: string[]; coveragePct: number }
+        try {
+            const [r] = await discoverRun.run([() => fetchDiscoverThemes(reviewTopic, reviewCriteria, targetThemeCount, workingSet)
+                .catch((e: any) => ({ themes: [], uncovered: [], coveragePct: 0, error: e?.message || 'Theme discovery failed.' }))])
+            if (r.error) throw new Error(r.error)
+            discoverResult = r
+        } catch (e: any) {
+            setPipelineErr({ stage: 'discover', message: e?.message || 'Theme discovery failed.' })
+            setStage('error')
+            return
+        }
+
+        const themesFromDiscovery = discoverResult.themes
+        setStage('classify')
+        const batches = chunk(workingSet, CLASSIFY_BATCH_SIZE)
+        const classifyResults = await classifyRun.run(batches.map(batch => () => (
+            fetchClassifyBatch(reviewTopic, reviewCriteria, themesFromDiscovery, batch.map((w): ClassifyActivityLite => ({ pmid: w.pmid, title: w.title, synopsis: w.synopsis })))
+                .catch((e: any) => ({ assignments: [], failed: batch.map(w => w.pmid), error: e?.message || 'Batch failed.' }))
+        )))
+        const failed = new Set<string>()
+        for (const r of classifyResults) {
+            for (const a of r.assignments) rawByPmidRef.current[a.pmid] = rawAssignmentsEntry(a.confidences)
+            for (const f of r.failed) failed.add(f)
+        }
+
+        const { resolved, coverage, uncoveredPmids } = recompute(themesFromDiscovery)
+
+        if (coverage < COVERAGE_TARGET && uncoveredPmids.length >= MIN_UNCOVERED_FOR_EXTENSION) {
+            const uncoveredSet = new Set(uncoveredPmids)
+            const uncoveredActivities = workingSet.filter(w => uncoveredSet.has(w.pmid))
+            await runExtensionAndReclassify(themesFromDiscovery, uncoveredActivities, coverage, Array.from(failed))
+            return
+        }
+
+        await finishPipeline(themesFromDiscovery, resolved, Array.from(failed), coverage)
+    }
+
+    function retryPipelineError() {
+        if (!pipelineErr) return
+        if (pipelineErr.stage === 'discover') { void runPipeline(); return }
+        if (pipelineErr.stage === 'extend' && pendingExtensionRef.current) {
+            const { themes: t, uncoveredActivities, coverage, failed } = pendingExtensionRef.current
+            void runExtensionAndReclassify(t, uncoveredActivities, coverage, failed)
+        }
+    }
+
+    // Accepts the pre-extension results as final rather than retrying extend-themes again — the
+    // coverage gap is already an accepted outcome per decision 38 ("one round max"), so a person who
+    // does not want to wait on a second extend attempt is not stuck.
+    function skipExtensionAndFinish() {
+        if (!pendingExtensionRef.current) return
+        const { themes: t, coverage, failed } = pendingExtensionRef.current
+        const { resolved } = recompute(t)
+        void finishPipeline(t, resolved, failed, coverage)
+    }
+
+    // decision 29's own retry shape, one more time: re-sends ONLY the still-failed subset, against
+    // the CURRENT (possibly extended) theme list.
+    async function retryFailedClassify() {
+        if (!failedClassifyPmids.length) return
+        setRetryingFailed(true)
+        try {
+            const targets = new Set(failedClassifyPmids)
+            const activities = workingSetRef.current.filter(w => targets.has(w.pmid))
+            const batches = chunk(activities.map((w): ClassifyActivityLite => ({ pmid: w.pmid, title: w.title, synopsis: w.synopsis })), CLASSIFY_BATCH_SIZE)
+            const results = await classifyRun.run(batches.map(batch => () => (
+                fetchClassifyBatch(reviewTopic, reviewCriteria, themes, batch).catch((e: any) => ({
+                    assignments: [], failed: batch.map(b => b.pmid), error: e?.message || 'Batch failed.',
+                }))
+            )))
+            const stillFailed = new Set<string>()
+            for (const r of results) {
+                for (const a of r.assignments) rawByPmidRef.current[a.pmid] = rawAssignmentsEntry(a.confidences)
+                for (const f of r.failed) stillFailed.add(f)
+            }
+            const { resolved, coverage } = recompute(themes)
+            setResolvedRows(resolved)
+            setFinalCoverage(coverage)
+            setFailedClassifyPmids(Array.from(stillFailed))
+        } finally {
+            setRetryingFailed(false)
+        }
+    }
+
+    // Rediscover (mockup, 2026-08-24): confirms first ONLY if a write-up already exists (dormant
+    // today — see writeUpExists' own comment above), then re-runs the whole pipeline at whatever
+    // target count is currently in the input. window.confirm, not a new dialog component (MUST
+    // NOT) — same precedent as Score Impact's own cost-confirm above. window.confirm only ever
+    // offers OK/Cancel, not the mockup's own "[Rediscover anyway]"/"[Cancel]" button labels — a
+    // native-dialog limitation, not a rewording choice.
+    function handleRediscover() {
+        if (writeUpExists) {
+            const ok = window.confirm(`This replaces your current ${themes.length} themes. Your existing write-up won't match the new ones.`)
+            if (!ok) return
+        }
+        void runPipeline()
+    }
+
+    function moveAssignment(pmid: string, targetId: string) {
+        setResolvedRows(prev => {
+            const row = prev[pmid]
+            if (!row) return prev
+            const uncovered = targetId === UNCOVERED_SENTINEL
+            return { ...prev, [pmid]: { ...row, primaryTheme: uncovered ? '' : targetId, uncovered } }
+        })
+    }
+
+    function exportAssignments() {
+        const csv = assignmentsToCsv(Object.values(resolvedRows))
+        saveText(csv, `${stamp('theme-assignments', today())}.csv`)
+    }
+
+    const themeCounts = useMemo(() => {
+        const counts: Record<string, number> = {}
+        for (const t of themes) counts[t.id] = 0
+        for (const r of Object.values(resolvedRows)) {
+            if (!r.uncovered && counts[r.primaryTheme] !== undefined) counts[r.primaryTheme] += 1
+        }
+        return counts
+    }, [themes, resolvedRows])
+    const sortedThemes = useMemo(
+        () => [...themes].sort((a, b) => (themeCounts[b.id] || 0) - (themeCounts[a.id] || 0)),
+        [themes, themeCounts],
+    )
+    const uncoveredCount = useMemo(() => Object.values(resolvedRows).filter(r => r.uncovered).length, [resolvedRows])
+
+    // =========================================================================================
+    // RENDER. Every hook above this line runs unconditionally, every render (ScoreRelevanceStep/
+    // ScoreImpactStep's own convention) — every early return below it.
+
+    // ---- Theme, opened — takes over whichever screen would otherwise show once a theme (or the
+    // "Didn't fit" pseudo-theme) is opened. Only reachable from the Discovered view, so `stage` is
+    // always 'done' here in practice, but this check runs unconditionally regardless of stage.
+    if (openedThemeId !== null) {
+        const isUncovered = openedThemeId === UNCOVERED_SENTINEL
+        const theme = isUncovered ? null : themes.find(t => t.id === openedThemeId) || null
+        const rowsInTheme = Object.values(resolvedRows).filter(r => (isUncovered ? r.uncovered : r.primaryTheme === openedThemeId))
+        const needle = searchWithin.trim().toLowerCase()
+        const filtered = needle ? rowsInTheme.filter(r => r.title.toLowerCase().includes(needle)) : rowsInTheme
+        const visibleRows = showAllInTheme ? filtered : filtered.slice(0, DEFAULT_VISIBLE_IN_THEME)
+        const hiddenInTheme = filtered.length - visibleRows.length
+
+        return (
+            <div className={ls.card}>
+                <button type="button" className={s.backLink} onClick={() => { setOpenedThemeId(null); setSearchWithin(''); setShowAllInTheme(false) }}>
+                    ← Back to Themes
+                </button>
+                <div className={s.themeOpenedHead}>
+                    <h2 className={s.themeOpenedTitle}>{isUncovered ? "Didn't fit a theme" : theme?.label}</h2>
+                    <span className={ls.help}>{rowsInTheme.length.toLocaleString()} papers</span>
+                </div>
+                {!isUncovered && theme?.description && <p className={ls.help}>{theme.description}</p>}
+
+                <input
+                    type="search"
+                    className={ls.input}
+                    placeholder="Search within this theme…"
+                    value={searchWithin}
+                    onChange={e => setSearchWithin(e.target.value)}
+                    aria-label="Search within this theme"
+                />
+
+                <div className={ls.lines}>
+                    {visibleRows.map(r => (
+                        <div className={ls.line} key={r.pmid}>
+                            <div className={ls.field}>
+                                <b>{r.title || `PMID ${r.pmid}`}</b> <span className={ls.help}>PMID {r.pmid}</span>
+                            </div>
+                            <select
+                                className={`${ls.input} ${s.moveToSelect}`}
+                                value={r.uncovered ? UNCOVERED_SENTINEL : r.primaryTheme}
+                                onChange={e => moveAssignment(r.pmid, e.target.value)}
+                                aria-label={`Move ${r.title || r.pmid} to…`}
+                            >
+                                {themes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                <option value={UNCOVERED_SENTINEL}>Didn&apos;t fit a theme</option>
+                            </select>
+                        </div>
+                    ))}
+                </div>
+                {hiddenInTheme > 0 && (
+                    <button type="button" className={ls.btnSecondary} onClick={() => setShowAllInTheme(true)}>
+                        … {hiddenInTheme.toLocaleString()} more — Show all
+                    </button>
+                )}
+
+                <p className={ls.help}>
+                    Moving a paper here updates its assignment immediately. If a write-up already
+                    exists, any section quoting a paper you just moved out will show as out of date
+                    — see Summarize Themes.
+                </p>
+            </div>
+        )
+    }
+
+    // ---- No working set yet (decision 2026-08-23's two entry paths; path (a) already skipped this
+    // via `workingSet` above). Exposed whenever qualifyingImpact is empty, exactly per this ticket's
+    // own instruction, regardless of whether a CSV could still be uploaded from here.
+    if (!workingSet.length) {
+        if (csvReport) {
+            const totalFileRows = csvRows.length + csvReport.malformedOrDuplicate.length
+            const continueCount = csvReport.loadedAsIs + csvReport.missingImpactScoreOnly.length
+            return (
+                <div className={ls.card}>
+                    <p className={ls.help}>
+                        {csvFileName}: {csvReport.loadedAsIs.toLocaleString()} of {totalFileRows.toLocaleString()} rows loaded as-is.{' '}
+                        <span
+                            className={s.stepInfo}
+                            title="Every row this upload couldn't use as-is is listed here, never silently dropped. Rows missing a synopsis or impact score can be scored right now through this tool's own pipeline, or you can fix the file yourself and upload it again — there's no in-page editor for individual cells. A missing impact score alone is filled automatically from the free citation-based floor, at no cost; a missing synopsis always needs the pipeline or a hand edit."
+                            aria-label="validation report info"
+                        >(i)</span>
+                    </p>
+
+                    <ValidationBucket
+                        label="rows missing synopsis or impact score"
+                        pmids={csvReport.missingSynopsis}
+                        action={csvReport.missingSynopsis.length
+                            ? { label: `Score these ${csvReport.missingSynopsis.length} first`, onClick: () => onScoreThese(csvReport.missingSynopsis) }
+                            : undefined}
+                    />
+                    <ValidationBucket
+                        label="rows missing impact score only — filled with the free floor, no cost"
+                        pmids={csvReport.missingImpactScoreOnly}
+                    />
+                    <ValidationBucket
+                        label="rows malformed (bad or duplicate pmid)"
+                        pmids={csvReport.malformedOrDuplicate}
+                        note="not loaded — fix and re-upload to include"
+                    />
+
+                    {csvContinueErr && <div role="alert" className={ls.error}>{csvContinueErr}</div>}
+
+                    <div className={ls.actions}>
+                        <button className={ls.btnSecondary} onClick={resetCsv}>Fix file and re-upload</button>
+                        <button className={ls.btn} onClick={() => void continueWithCsv()} disabled={!continueCount || csvContinuing}>
+                            {csvContinuing ? 'Loading…' : `Continue with ${continueCount.toLocaleString()} →`}
+                        </button>
+                    </div>
+                </div>
+            )
+        }
+        return (
+            <div className={ls.card}>
+                <p className={ls.help}>
+                    No working set yet. Score a corpus first and click Continue, or upload a ranked
+                    CSV exported from Score Impact.
+                </p>
+                <div
+                    className={`${s.dropzone} ${dragOver ? s.dropzoneOver : ''}`}
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
+                >
+                    <span className={ls.help}>Drop a Score Impact CSV export here, or</span>
+                    <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        className={s.fileInput}
+                        onChange={e => handleFiles(e.target.files)}
+                        aria-label="Choose a Score Impact CSV export"
+                    />
+                </div>
+                {uploadErr && <div role="alert" className={ls.error}>{uploadErr}</div>}
+                <p className={ls.help} style={{ textAlign: 'center' }}>— or —</p>
+                <div style={{ textAlign: 'center' }}>
+                    <button className={ls.btnSecondary} onClick={onGoToScoreImpact}>Go to Score Impact →</button>
+                </div>
+            </div>
+        )
+    }
+
+    // ---- Pipeline error (Discovery or Extension) — retryable, not a silent drop.
+    if (stage === 'error') {
+        return (
+            <div className={ls.card}>
+                <div role="alert" className={ls.error}>{pipelineErr?.message}</div>
+                <div className={ls.actions}>
+                    <button className={ls.btnSecondary} onClick={retryPipelineError}>Retry</button>
+                    {pipelineErr?.stage === 'extend' && (
+                        <button className={ls.btnSecondary} onClick={skipExtensionAndFinish}>View results without extension</button>
+                    )}
+                </div>
+            </div>
+        )
+    }
+
+    // ---- Discovering — one indeterminate call, no batch count to show (mockup's own screen).
+    if (stage === 'discover') {
+        return (
+            <div className={ls.progress} aria-live="polite">
+                <div className={ls.progLine}>
+                    <b>Finding themes across {workingSet.length.toLocaleString()} papers… Elapsed {formatElapsed(discoverRun.state.elapsedMs)}.</b>
+                </div>
+                <p className={ls.help}>Then: classifying each paper into a theme.</p>
+            </div>
+        )
+    }
+
+    // ---- Classifying / Re-classifying — real batch progress (useChunkedProgress already knows
+    // exactly how many of the batches have resolved).
+    if (stage === 'classify' || stage === 'reclassify') {
+        const run = stage === 'classify' ? classifyRun : reclassifyRun
+        const done = run.state.done
+        const total = run.state.total
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0
+        return (
+            <div className={ls.progress} aria-live="polite">
+                <div className={ls.progLine}>
+                    <b>{total > 0 ? `${done} of ${total} batches classified…` : 'Starting…'}</b>
+                    <span className={ls.spacer} />
+                    <span className={ls.progElapsed}>{formatElapsed(run.state.elapsedMs)}</span>
+                </div>
+                <div className={ls.bar}><span className={ls.barFill} style={{ width: `${pct}%` }} /></div>
+                <p className={ls.help}>
+                    {stage === 'classify'
+                        ? `Classifying each paper into one of ${themes.length} themes, ${CLASSIFY_BATCH_SIZE} at a time.`
+                        : 'Re-classifying the previously uncovered papers against the extended theme list.'}
+                </p>
+            </div>
+        )
+    }
+
+    // ---- Extending — the coverage-shortfall follow-up pass (decision 38), same indeterminate
+    // single-call shape as Discovery.
+    if (stage === 'extend') {
+        return (
+            <div className={ls.progress} aria-live="polite">
+                <div className={ls.progLine}>
+                    <b>Looking for more themes to cover the uncovered papers… Elapsed {formatElapsed(extendRun.state.elapsedMs)}.</b>
+                </div>
+                <p className={ls.help}>Then: re-classifying those papers against the extended theme list.</p>
+            </div>
+        )
+    }
+
+    // ---- About to discover (the checkpoint the mockup added specifically so a cost/time estimate
+    // has somewhere to be shown before Discovery runs).
+    if (stage === 'before') {
+        return (
+            <div className={ls.card}>
+                <p className={ls.help}>Working set loaded: {workingSet.length.toLocaleString()} papers.</p>
+
+                <div className={ls.field}>
+                    <label className={ls.eyebrow} htmlFor="theme-count">Target theme count</label>
+                    <input
+                        id="theme-count"
+                        type="number"
+                        className={`${ls.input} ${s.themeCountInput}`}
+                        min={THEME_COUNT_MIN}
+                        max={THEME_COUNT_MAX}
+                        value={targetThemeCount}
+                        onChange={e => { if (e.target.value !== '') setTargetThemeCount(clamp(Math.round(Number(e.target.value)), THEME_COUNT_MIN, THEME_COUNT_MAX)) }}
+                    />
+                    <p className={ls.help}>(the prompt enforces {rangeLow}-{rangeHigh})</p>
+                </div>
+
+                {belowFloor ? (
+                    <div className={s.warnBox}>
+                        <p className={ls.help}>
+                            (!) Theme discovery is unreliable below about {THEME_COLD_START_FLOOR} papers;
+                            the system this design borrows from refuses to run under that floor. You can
+                            run anyway — expect few, thin themes (groups of fewer than 3 papers are
+                            dropped).{' '}
+                            <span
+                                className={s.stepInfo}
+                                title="ReciterAI's own theme discovery (the system this tool's Discovery step is based on) won't run under 30 papers at all — clustering that thin isn't reliable. This tool has a person reviewing the result instead of running unattended, so it warns and lets you decide rather than blocking outright."
+                                aria-label="cold-start floor info"
+                            >(i)</span>
+                        </p>
+                    </div>
+                ) : (
+                    <p className={ls.help}>
+                        Estimated: {estimateText}{' '}
+                        <span className={s.stepInfo} title={estimateInfo} aria-label="cost/time estimate info">(i)</span>
+                    </p>
+                )}
+
+                {overSanityCap && (
+                    <div role="alert" className={ls.error}>
+                        Too many records for one Discovery call — at most {THEMES_DISCOVERY_SANITY_CAP.toLocaleString()} ({workingSet.length.toLocaleString()} loaded). Narrow the working set and try again.
+                    </div>
+                )}
+
+                <div>
+                    <button className={ls.btn} onClick={() => void runPipeline()} disabled={overSanityCap}>Discover themes →</button>
+                </div>
+            </div>
+        )
+    }
+
+    // ---- Discovered (stage === 'done').
+    const visibleThemes = showAllThemes ? sortedThemes : sortedThemes.slice(0, DEFAULT_VISIBLE_THEMES)
+    const hiddenThemeCount = sortedThemes.length - visibleThemes.length
+    const totalCost = discoveryCost + classifyCost
+
+    return (
+        <div className={ls.card}>
+            <p className={ls.help}>
+                We found {themes.length} theme{themes.length === 1 ? '' : 's'} in your{' '}
+                {workingSetRef.current.length.toLocaleString()} papers. Open a theme to see everything
+                in it, or move a paper out of it from there. Nothing gets written up until you&apos;re
+                happy with this.
+            </p>
+            <p className={ls.help}>
+                Estimated: ${totalCost.toFixed(2)} (Discovery + Classification, from measured
+                per-record rates — not a true actual, since this route reports token usage server-side
+                only) · {formatElapsed(pipelineElapsedMs)} elapsed.
+            </p>
+            <p className={ls.help}>
+                <b>{Math.round(finalCoverage * 100)}%</b> coverage{' '}
+                <span
+                    className={s.stepInfo}
+                    title="The share of your working set that landed in a theme. The rest is the “Didn't fit a theme” group below — not lost, not an error, just not clustered."
+                    aria-label="coverage info"
+                >(i)</span>
+            </p>
+
+            <div className={s.lossRow}>
+                <LossSection
+                    label="failed classification after retries"
+                    pmids={failedClassifyPmids}
+                    onRetry={failedClassifyPmids.length && !retryingFailed ? retryFailedClassify : undefined}
+                />
+            </div>
+
+            <div className={s.themeGrid}>
+                {visibleThemes.map(t => (
+                    <div className={s.themeCard} key={t.id}>
+                        <div className={s.themeCardLabel}>{t.label}</div>
+                        <div className={s.themeCardCount}>{(themeCounts[t.id] || 0).toLocaleString()} papers</div>
+                        <button className={ls.btnSecondary} onClick={() => setOpenedThemeId(t.id)}>Open</button>
+                    </div>
+                ))}
+                {hiddenThemeCount > 0 && !showAllThemes && (
+                    <div className={s.themeCard}>
+                        <div className={s.themeCardLabel}>… {hiddenThemeCount} more theme{hiddenThemeCount === 1 ? '' : 's'}</div>
+                        <button className={ls.btnSecondary} onClick={() => setShowAllThemes(true)}>Show all</button>
+                    </div>
+                )}
+            </div>
+
+            <div className={s.themeGrid}>
+                <div className={s.themeCard}>
+                    <div className={s.themeCardLabel}>Didn&apos;t fit a theme</div>
+                    <div className={s.themeCardCount}>{uncoveredCount.toLocaleString()} papers</div>
+                    <button className={ls.btnSecondary} onClick={() => setOpenedThemeId(UNCOVERED_SENTINEL)}>Open</button>
+                </div>
+                <div className={s.rediscoverBox}>
+                    <p className={ls.help}>Want more, smaller themes, or fewer, broader ones?</p>
+                    <div className={s.rediscoverRow}>
+                        <input
+                            type="number"
+                            className={`${ls.input} ${s.themeCountInput}`}
+                            min={THEME_COUNT_MIN}
+                            max={THEME_COUNT_MAX}
+                            value={targetThemeCount}
+                            onChange={e => { if (e.target.value !== '') setTargetThemeCount(clamp(Math.round(Number(e.target.value)), THEME_COUNT_MIN, THEME_COUNT_MAX)) }}
+                            aria-label="Target theme count for rediscovery"
+                        />
+                        <button className={ls.btnSecondary} onClick={handleRediscover}>Rediscover themes</button>
+                    </div>
+                </div>
+            </div>
+            <p className={ls.help}>
+                A normal outcome, not an error — these just didn&apos;t cluster clearly. Review and move
+                them into a theme by hand if you want; leaving them here is fine too.
+            </p>
+
+            <div className={ls.actions}>
+                <button className={ls.btnSecondary} onClick={exportAssignments}>Export</button>
+                <button className={ls.btn} onClick={() => onSummarize(themes, Object.values(resolvedRows))}>Summarize these themes →</button>
+            </div>
+        </div>
+    )
+}
+
 function PlaceholderStep({ label, note }: { label: string; note?: string }) {
     return (
         <div className={ls.card}>
@@ -1001,8 +1954,24 @@ export default function LiteratureAnalyzer() {
     // read what an earlier one produced. Neither survives a reload — see ScoreRelevanceStep's own
     // empty-state comment for why that is accepted, not a bug to fix here.
     const [synopsisResult, setSynopsisResult] = useState<Synopsis[]>([])
+    // Themes' CSV validation report's "Score these N first" (decision 34) lands PMIDs here and
+    // switches to 'synopsize' — SynopsizeStep reads this once, at mount, as its own comment above
+    // describes.
+    const [pendingSynopsizePmids, setPendingSynopsizePmids] = useState<string[]>([])
+    // Lifted alongside qualifyingRelevance below — Themes' Discovery/Classification calls need the
+    // same review topic/criteria Score Relevance already collected (see ScoreRelevanceStep's own
+    // onContinue comment); the mockup's own Themes screens carry no topic field of their own.
+    const [reviewTopic, setReviewTopic] = useState('')
+    const [reviewCriteria, setReviewCriteria] = useState('')
     const [qualifyingRelevance, setQualifyingRelevance] = useState<RelevanceRecord[]>([])
     const [qualifyingImpact, setQualifyingImpact] = useState<ImpactRecord[]>([])
+    // Phase 5 ("Summarize Themes") handoff — stored here so that step, once built, has {themes,
+    // assignmentRows} to read without Themes needing to know anything about how Phase 5 renders it.
+    // `writeUp` stays null for the entirety of this ticket (Phase 5 does not exist yet); it exists
+    // purely as the dormant guard Rediscover's confirm checks — see ThemesStep's own writeUpExists
+    // comment.
+    const [themesHandoff, setThemesHandoff] = useState<{ themes: Theme[]; assignmentRows: ResolvedRow[] } | null>(null)
+    const [writeUp] = useState<unknown | null>(null)
     const step = STEPS.find(x => x.id === current)!
 
     return (
@@ -1017,14 +1986,17 @@ export default function LiteratureAnalyzer() {
 
             {current === 'synopsize' ? (
                 <SynopsizeStep
+                    initialPmids={pendingSynopsizePmids}
                     onDone={setSynopsisResult}
                     onContinue={() => setCurrent('score-relevance')}
                 />
             ) : current === 'score-relevance' ? (
                 <ScoreRelevanceStep
                     synopses={synopsisResult}
-                    onContinue={qualifying => {
+                    onContinue={(qualifying, topic, criteria) => {
                         setQualifyingRelevance(qualifying)
+                        setReviewTopic(topic)
+                        setReviewCriteria(criteria)
                         setCurrent('score-impact')
                     }}
                 />
@@ -1034,6 +2006,22 @@ export default function LiteratureAnalyzer() {
                     onContinue={records => {
                         setQualifyingImpact(records)
                         setCurrent('themes')
+                    }}
+                />
+            ) : current === 'themes' ? (
+                <ThemesStep
+                    qualifyingImpact={qualifyingImpact}
+                    reviewTopic={reviewTopic}
+                    reviewCriteria={reviewCriteria}
+                    writeUpExists={writeUp !== null}
+                    onScoreThese={pmids => {
+                        setPendingSynopsizePmids(pmids)
+                        setCurrent('synopsize')
+                    }}
+                    onGoToScoreImpact={() => setCurrent('score-impact')}
+                    onSummarize={(themes, assignmentRows) => {
+                        setThemesHandoff({ themes, assignmentRows })
+                        setCurrent('summarize-themes')
                     }}
                 />
             ) : (

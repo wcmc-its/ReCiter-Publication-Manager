@@ -38,7 +38,14 @@ export const STEPS: Array<{ id: StepId; label: string; info: string }> = [
     {
         id: 'themes',
         label: 'Themes',
-        info: 'Clusters the scored corpus into themes.',
+        // Mockup's own "(i) button copy: Themes tab" (MOCKUPS-relevance-impact-topical-analysis
+        // -2026-08-22.md, "Theme, opened" section) — markdown bold stripped and the "see the
+        // asymmetry note above" aside dropped, since a native title tooltip has no "above" to point
+        // to; the field-contract sentence itself is unchanged.
+        info: "What this does: groups your ranked papers into research themes and assigns each "
+            + "paper to one. In: your ranked working set — synopsis, impact score (a number), and "
+            + "relevance's stated reason (text, not a number). Out: a theme list, each paper "
+            + "assigned to a primary theme (or left 'didn't fit'), editable.",
     },
     {
         id: 'summarize-themes',

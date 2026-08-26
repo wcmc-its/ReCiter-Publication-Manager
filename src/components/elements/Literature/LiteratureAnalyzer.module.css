@@ -173,3 +173,107 @@
   cursor: pointer;
 }
 .upgradeChoice input { accent-color: var(--accent); cursor: pointer; }
+
+/* ---------- Themes (Phase 4) ----------
+ * Working-set entry (empty state / CSV upload), the discover/classify/extend pipeline's own
+ * screens, the theme-card grid, and the theme-opened table. Reuses every existing primitive
+ * (.card, .field, .input, .btn/.btnSecondary, .help, .error, .lines/.line, .actions, .progress/
+ * .progLine/.progElapsed/.bar/.barFill from LiteratureSearch.module.css, .lossDetails/.lossSummary/
+ * .lossList/.lossRetryBtn/.stepInfo above) — only what has no precedent anywhere else gets a new
+ * class here.
+ */
+
+/* The CSV drop target — no drag-and-drop precedent exists elsewhere in this app, so this is new: a
+ * dashed border reads as "drop zone" without inventing a whole new visual language. */
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 20px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg, 8px);
+  text-align: center;
+  transition: border-color .12s, background .12s;
+}
+.dropzoneOver { border-color: var(--accent); background: var(--accent-soft); }
+
+.fileInput { font-size: 12.5px; }
+
+/* Cold-start floor warning (decision 33) — the mockup's own "(!)" box, in place of the normal
+ * estimate line, not alongside it. Amber, matching .dotWarn's existing warning color elsewhere in
+ * this same folder (LiteratureSearch.module.css) rather than inventing a second warning hue. */
+.warnBox {
+  background: #fff7ed;
+  border: 1px solid #d97706;
+  border-radius: var(--radius-md, 6px);
+  padding: 12px 16px;
+}
+.warnBox p { color: #92400e; }
+
+/* Target theme count — a fixed-width number input, same "native control, sized to its content"
+ * instinct as .floorSlider/.upgradeRow above, not a full-width .input. */
+.themeCountInput { width: 84px; flex: 0 0 auto; }
+
+.rediscoverRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+/* ---------- Theme cards (Discovered view) ----------
+ * A responsive grid, not a fixed 3-up — narrower viewports (this app has no dedicated mobile
+ * layout, but a laptop half-split browser window is common enough) reflow to 2 or 1 column rather
+ * than overflowing.
+ */
+.themeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.themeCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 6px);
+  background: var(--surface);
+}
+.themeCardLabel { font-size: 13.5px; font-weight: 600; color: var(--text-strong); }
+.themeCardCount { font-size: 12.5px; color: var(--text-muted); }
+.themeCard .btnSecondary, .themeCard > button { align-self: flex-start; margin-top: auto; }
+
+/* The rediscover control shares the grid row with the "Didn't fit" card (mockup layout) but is not
+ * itself a paper-count card — no border, just the input + button pairing. */
+.rediscoverBox {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 18px;
+}
+
+/* ---------- Theme, opened ---------- */
+.backLink {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.backLink:hover { text-decoration: underline; }
+
+.themeOpenedHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.themeOpenedTitle { font-size: 16px; font-weight: 600; color: var(--text-strong); margin: 0; }
+
+/* Each row in the theme-opened table pairs the paper (flex: 1) with a fixed-width "Move to…"
+ * select — .line already gives the row its border/padding rhythm (LiteratureSearch.module.css),
+ * this just makes the select not stretch full-width like a textarea would. */
+.moveToSelect { flex: 0 0 220px; }
