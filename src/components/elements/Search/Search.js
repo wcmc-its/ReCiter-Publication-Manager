@@ -40,7 +40,14 @@ const Search = () => {
   const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
   const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
   const caps = getCapabilities(userRoles);
-  const showScopeFilter = caps.canCurate.scoped && !caps.canCurate.all;
+  // Mirrors authorization.controller.ts's canCurate hasScope computation exactly: a configured
+  // scope is self-sufficient and shouldn't require the token to also carry the Curator_Scoped
+  // role (that role only lands on a user's DB row on a future admin save, never retroactively).
+  const hasScope = scopeData && (
+    (Array.isArray(scopeData.personTypes) && scopeData.personTypes.length > 0) ||
+    (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
+  );
+  const showScopeFilter = (caps.canCurate.scoped || hasScope) && !caps.canCurate.all;
   const router = useRouter()
   const dispatch = useDispatch()
 
@@ -114,7 +121,23 @@ const Search = () => {
 
     let userPermissions = safeParse(session.data.userRoles, []);
     //RoleManagerHelper.showOrHideCurateReportMenu(userPermissions,allowedPermissions);
-    if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
+    // Self-sufficiency: a user with a configured scope (or the Curator_Scoped role) always gets
+    // the same Curate Publications dropdown as Curator_All, regardless of what other baseline
+    // roles (Reporter_All, Curator_Self, etc.) they also hold -- unless they're already a real
+    // Superuser/Curator_All, who fall through to keep their existing branch below unaffected.
+    // Must be checked before every role-combo branch below: a strict if/else-if chain means a
+    // scope-only user would otherwise land in an earlier combo branch (e.g. Curator_Self &&
+    // Reporter_All) and never reach a dedicated Curator_Scoped branch placed later.
+    if ((caps.canCurate.scoped || hasScope) && !caps.canCurate.all) {
+      setDropdownTitle("Curate Publications");
+      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
+      setDropdownMenuItems(dropDownMenuItems);
+      setIsCuratorAll(true); // Scoped curators get same dropdown actions as Curator_All
+      // Defensive: unlike every other branch in this chain (which assumes at least one role
+      // row), a scope-only user could in principle have zero role rows.
+      setLoggedInPersonIdentifier(userPermissions[0]?.personIdentifier);
+    }
+    else if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
         setDropdownTitle("Create Report");
         setDropdownMenuItems([]);
         setIsReporterAll(true);
@@ -207,15 +230,7 @@ const Search = () => {
       setDropdownMenuItems(dropDownMenuItems);
       setIsCuratorSelf(true);
       setIsCuratorAll(true)
-      } 
-	// Phase 9: Curator_Scoped handling -- same dropdown behavior as Curator_All
-    else if (userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Scoped)) {
-      setDropdownTitle("Curate Publications");
-      let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
-      setDropdownMenuItems(dropDownMenuItems);
-      setIsCuratorAll(true); // Scoped curators get same dropdown actions as Curator_All
-      setLoggedInPersonIdentifier(userPermissions[0].personIdentifier);
-    }
+      }
 	else { // when CWID has more than 1 role or multiple roles
       setDropdownTitle("Curate Publications");
       let dropDownMenuItems = [{ title: 'Create Reports', to: ''},{title: 'View Profile', to:''}];
