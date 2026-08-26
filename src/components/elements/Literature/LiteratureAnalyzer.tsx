@@ -45,7 +45,19 @@ import {
 import type {
     Theme, ResolvedRow, WorkingSetRow, WorkingSetValidationReport,
 } from '../../../../controllers/literatureSearch.analyzerThemes.pure'
-import { saveText, stamp } from './download'
+// Summarize Themes (Phase 5) — the PURE half only, same import-boundary discipline as the Themes
+// pure import just above (zero @aws-sdk/client-bedrock-runtime pulled into the browser bundle).
+// SYNTH_RECORD_CAP itself is NOT imported from here — it lives in the IMPURE
+// controllers/literatureSearch.analyzerSynthesis.ts (the one Bedrock call), which this page must
+// never import; see SYNTH_RECORD_CAP's own duplicated-constant comment below for why 15 is
+// hand-copied instead, same reasoning RELEVANCE_BATCH_SIZE/IMPACT_BATCH_SIZE/CLASSIFY_BATCH_SIZE
+// already give for their own duplicated constants.
+import {
+    overallScoreOf, topNByOverallScore, themeWeight, yearCounts, formatYearStrip, notDiscussed,
+} from '../../../../controllers/literatureSearch.analyzerSynthesis.pure'
+import type { SynthesisSourceRecord } from './LiteratureAnalyzer.types'
+import { saveText, saveDocx, stamp } from './download'
+import type { Block } from '../../../../controllers/literatureExport'
 import ls from './LiteratureSearch.module.css'
 import s from './LiteratureAnalyzer.module.css'
 
@@ -102,7 +114,12 @@ const CLIENT_BATCH_CONCURRENCY = 3
 // max_tokens=150; the UI says so rather than pretending to a precision nobody has measured.
 const ROUGH_SECONDS_PER_BATCH: readonly [number, number] = [10, 20]
 
-type Synopsis = { pmid: string; title: string; synopsis: string }
+// `year` ADDED — threaded from literatureSearch.synopsize.ts's own SynopsisResult (Phase 5 backend's
+// touch point; see that file's header) through this whole state chain (Synopsis -> RelevanceRecord
+// -> ImpactRecord -> Themes' SynthesisSourceRecord) so Summarize Themes' year-count strip has a
+// publication year per record. Always a string, never undefined — the server never omits it (empty
+// string IS the "no year" signal, same PubRecord.year convention the backend comment cites).
+type Synopsis = { pmid: string; title: string; synopsis: string; year: string }
 type SynopsizeBatchResponse = {
     synopses: Synopsis[]
     notFetched: string[]
@@ -206,8 +223,11 @@ type RelevanceBatchResponse = {
 // What Score Relevance hands the next step (Score Impact) once a person continues past it — the
 // synopsis fields carried along so a later phase does not have to re-join against Synopsize's
 // output a second time.
+// `year` carried straight across from Synopsize's own output — see Synopsis' own comment above for
+// the full four-touch-points citation. ImpactRecord (below) inherits it for free through `&
+// ImpactRow`, since ImpactRow itself never has a `year` field to shadow it.
 type RelevanceRecord = {
-    pmid: string; title: string; synopsis: string
+    pmid: string; title: string; synopsis: string; year: string
     relevanceScore: number; relevanceExplanation: string
 }
 
@@ -586,6 +606,7 @@ function ScoreRelevanceStep({ synopses, onContinue }: {
             pmid, ...sc,
             title: synopsisByPmid.get(pmid)?.title || '',
             synopsis: synopsisByPmid.get(pmid)?.synopsis || '',
+            year: synopsisByPmid.get(pmid)?.year || '',
         }))
         .sort((a, b) => b.relevanceScore - a.relevanceScore), [scores, synopsisByPmid])
 
@@ -1241,14 +1262,17 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
     qualifyingImpact: ImpactRecord[]
     reviewTopic: string
     reviewCriteria: string
-    // Phase 5 ("Summarize Themes") is not built yet — this is always false today. Wired so
-    // Rediscover's confirm-if-a-write-up-exists guard (mockup, 2026-08-24) is dormant rather than
-    // absent: once Phase 5 lands and starts setting its own write-up state to non-null, this prop
-    // starts doing something without Rediscover's own code changing at all.
+    // Rediscover's confirm-if-a-write-up-exists guard (mockup, 2026-08-24) — ARMED as of Phase 5:
+    // the parent's `writeUp` state goes non-null the first time SummarizeThemesStep generates any
+    // section (its own onWriteUpStarted callback), so this prop now genuinely flips true once a
+    // write-up exists, rather than staying permanently false the way it did before Phase 5 landed.
     writeUpExists: boolean
     onScoreThese: (pmids: string[]) => void
     onGoToScoreImpact: () => void
-    onSummarize: (themes: Theme[], assignmentRows: ResolvedRow[]) => void
+    // THIRD ARGUMENT ADDED (Phase 5): the per-pmid synthesis source Summarize Themes needs — see
+    // buildSynthesisSource()'s own comment below for why this is a second, parallel join rather
+    // than something ThemeActivity/workingSet already carries.
+    onSummarize: (themes: Theme[], assignmentRows: ResolvedRow[], synthesisSource: SynthesisSourceRecord[]) => void
 }) {
     // ---- Path (b): CSV upload. ----
     const [csvFileName, setCsvFileName] = useState('')
@@ -1257,6 +1281,11 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
     const [uploadErr, setUploadErr] = useState('')
     const [dragOver, setDragOver] = useState(false)
     const [csvWorkingSet, setCsvWorkingSet] = useState<ThemeActivity[] | null>(null)
+    // PATH (b)'s OWN SYNTHESIS-SOURCE HALF — the numeric relevanceScore and year an uploaded CSV
+    // row may carry (WorkingSetRow's own optional fields), keyed by pmid. `null` until "Continue
+    // with N →" has run, same lifecycle as csvWorkingSet — see continueWithCsv() and
+    // buildSynthesisSource() below.
+    const [csvSynthesisSource, setCsvSynthesisSource] = useState<Record<string, { relevanceScore: number; year: string }> | null>(null)
     const [csvContinuing, setCsvContinuing] = useState(false)
     const [csvContinueErr, setCsvContinueErr] = useState('')
 
@@ -1304,6 +1333,21 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
             impactScore: r.impactScore, impactJustification: r.impactJustification,
         }))
         : [])
+
+    // THE SYNTHESIS-SOURCE HALF, same csv-wins-if-present ternary as `workingSet` just above, kept
+    // as a SEPARATE join rather than folded into ThemeActivity — see SynthesisSourceRecord's own
+    // comment (LiteratureAnalyzer.types.ts) for why: ThemeActivity is Discovery/Classification's
+    // OWN request shape (synopsis + impact score + relevance TEXT, deliberately no relevance
+    // NUMBER — see that type's own comment), and Phase 5 needs the number back for overallScoreOf.
+    // Path (a): straight off qualifyingImpact, which already carries both relevanceScore and year.
+    // Path (b): csvSynthesisSource, filled in by continueWithCsv() from the same optional CSV
+    // columns WorkingSetRow already tolerates. A pmid missing from this map (never happens for path
+    // (a); possible for path (b) if a row's relevanceScore column was blank) resolves to
+    // relevanceScore 0 / year 'unknown' at the one call site that reads it — see
+    // buildSynthesisSource() below — rather than throwing.
+    const synthesisSourceByPmid: Record<string, { relevanceScore: number; year: string }> = csvSynthesisSource ?? Object.fromEntries(
+        qualifyingImpact.map(r => [r.pmid, { relevanceScore: r.relevanceScore, year: r.year }]),
+    )
 
     const belowFloor = workingSet.length > 0 && workingSet.length < THEME_COLD_START_FLOOR
     const overSanityCap = workingSet.length > THEMES_DISCOVERY_SANITY_CAP
@@ -1381,6 +1425,15 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
                 }
             })
             setCsvWorkingSet(activities)
+            // THE SYNTHESIS-SOURCE HALF for path (b) — same `usable` rows, but reading the two
+            // columns ThemeActivity above never carries: the numeric relevanceScore (missing column
+            // or unparseable -> 0, same "missing is not zero's evil twin but it still has to sort
+            // somewhere" posture topNByOverallScore's own comment takes) and year (missing column
+            // -> 'unknown', matching yearCounts()'s own convention — left as '' here and let that
+            // pure function do the bucketing, not duplicated here).
+            setCsvSynthesisSource(Object.fromEntries(usable.map(r => [
+                r.pmid, { relevanceScore: r.relevanceScore ?? 0, year: r.year || '' },
+            ])))
         } catch (e: any) {
             setCsvContinueErr(e?.message || 'Could not fill in the missing impact scores — try again.')
         } finally {
@@ -1573,6 +1626,29 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
     function exportAssignments() {
         const csv = assignmentsToCsv(Object.values(resolvedRows))
         saveText(csv, `${stamp('theme-assignments', today())}.csv`)
+    }
+
+    // Built once, at the "Summarize these themes →" click — joins workingSetRef.current (title/
+    // synopsis/relevanceExplanation/impactJustification, from whichever path filled `workingSet`)
+    // against synthesisSourceByPmid (relevanceScore/year, the parallel join neither path's own
+    // ThemeActivity carries) to produce Summarize Themes' own SynthesisSourceRecord[], including
+    // the one number computed HERE rather than carried: overallScoreOf() — imported, never
+    // reimplemented — applied once per record so Phase 5 never has to see a bare relevanceScore at
+    // all, only the composite it actually ranks and weights by.
+    function buildSynthesisSource(): SynthesisSourceRecord[] {
+        return workingSetRef.current.map(w => {
+            const src = synthesisSourceByPmid[w.pmid]
+            const relevanceScore = src?.relevanceScore ?? 0
+            return {
+                pmid: w.pmid,
+                title: w.title,
+                synopsis: w.synopsis,
+                relevanceExplanation: w.relevanceExplanation,
+                impactJustification: w.impactJustification,
+                overallScore: overallScoreOf(relevanceScore, w.impactScore),
+                year: src?.year || '',
+            }
+        })
     }
 
     const themeCounts = useMemo(() => {
@@ -1933,8 +2009,544 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
 
             <div className={ls.actions}>
                 <button className={ls.btnSecondary} onClick={exportAssignments}>Export</button>
-                <button className={ls.btn} onClick={() => onSummarize(themes, Object.values(resolvedRows))}>Summarize these themes →</button>
+                <button className={ls.btn} onClick={() => onSummarize(themes, Object.values(resolvedRows), buildSynthesisSource())}>Summarize these themes →</button>
             </div>
+        </div>
+    )
+}
+
+// ---------------------------------------------------------------------------
+// SUMMARIZE THEMES (Phase 5). One POST per theme, client-chained via useChunkedProgress(3) — see
+// controllers/literatureSearch.analyzerSynthesis.ts's own header for the backend contract this
+// mirrors exactly: { topic?, criteria, theme: {id,label,description}, records: [...] } in,
+// { paragraph, citedPmids, invented? } out.
+
+// SYNTH_RECORD_CAP = 15, DUPLICATED from controllers/literatureSearch.analyzerSynthesis.ts — same
+// import-boundary reasoning RELEVANCE_BATCH_SIZE/IMPACT_BATCH_SIZE/CLASSIFY_BATCH_SIZE's own
+// comments give above: that module pulls in @aws-sdk/client-bedrock-runtime through
+// literatureSearch.llm.ts, which must never reach the browser bundle. If that constant ever moves,
+// move it there first and duplicate the new value here.
+const SYNTH_RECORD_CAP = 15
+
+// $0.056/theme — the 2026-08-24 pilot's measured Synthesis rate (PLAN's "Models, cost, and time,"
+// F7 retest; see controllers/literatureSearch.analyzerSynthesis.ts's own header for the full
+// citation), applied here to THIS corpus's live theme count rather than the mockup's own
+// illustrative "12 themes" — the mockup's own cost line is the FRAMING to follow ("a measured rate
+// applied to an example"), adapted per this ticket's own instruction to the real count.
+const MEASURED_SYNTH_COST_PER_THEME = 0.056
+
+const SYNTH_CLIENT_CONCURRENCY = 3
+
+// Verbatim (i) copy blocks — MOCKUPS-relevance-impact-topical-analysis-2026-08-22.md, section 5's
+// own "(i) button copy" list. Markdown bold NOT stripped here (these are shown as plain tooltip
+// strings, never rendered as markdown, so there is no bold to strip in the first place — unlike the
+// Themes/Summarize-Themes TAB info strings in LiteratureAnalyzer.constants.ts, which strip it
+// because their own source text used markdown bold for terms a native title tooltip can't render).
+const CITATION_DISCLAIMER = "Each section is written from only the papers listed for its theme, and "
+    + "every citation is checked against that list — but model-written prose can still misstate what "
+    + "a paper found. This warning isn't boilerplate; verify before you use this anywhere."
+const COST_TIME_INFO = "This step deliberately uses a stronger, pricier model than the rest of the "
+    + "pipeline — the one place it's worth paying for it, since it only runs once per theme, not once "
+    + "per paper (12 themes vs. thousands of papers). Cost is now a measured rate, $0.056/theme "
+    + "(2026-08-24 pilot), applied here to this example, not a fresh estimate for your own corpus. "
+    + "Time still isn't measured for this step."
+const STALE_BADGE_INFO = "You (or someone else) moved a paper this section cited into a different "
+    + "theme after this was written. The section itself hasn't changed — it's just possible it now "
+    + "cites something that's no longer here. Regenerating rewrites only this section, using the "
+    + "current assignments."
+const YEAR_STRIP_INFO = "A plain count of this theme's papers by publication year, computed directly "
+    + "from the data, not written by the model. Check it against any trend the prose above describes "
+    + "— the prose is asked to hedge trend language for exactly this reason."
+
+// The synthesize-theme request's own `records` shape — ThemeSynthesisRecord in
+// controllers/literatureSearch.analyzerSynthesis.ts, declared locally per this page's own
+// established "own request/response types, not imported from a server module" discipline (see
+// ThemeActivity's own comment above for the same reasoning restated).
+type ThemeSynthesisRequestRecord = {
+    pmid: string; title: string; synopsis: string
+    relevanceExplanation: string; impactJustification: string
+}
+
+// One theme's outcome. Never thrown from the fetch wrapper below — same "a failed call becomes a
+// normal, tagged result, never an exception the caller has to catch a second time" discipline every
+// earlier phase's own batch fetchers already follow (fetchSynopsizeBatch et al.'s own `.catch`).
+type SectionOutcome =
+    | { status: 'done'; paragraph: string; citedPmids: string[]; invented?: string[] }
+    | { status: 'failed'; error: string }
+
+async function fetchThemeSynthesis(
+    topic: string, criteria: string, theme: { id: string; label: string; description: string },
+    records: ThemeSynthesisRequestRecord[],
+): Promise<{ paragraph: string; citedPmids: string[]; invented?: string[] }> {
+    const res = await fetch('/api/literature/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            mode: 'literature-analyzer', phase: 'synthesize-theme',
+            topic: topic || undefined, criteria: criteria || undefined, theme, records,
+        }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.message || 'Theme synthesis failed.')
+    return {
+        paragraph: String(data.paragraph || ''),
+        citedPmids: Array.isArray(data.citedPmids) ? data.citedPmids : [],
+        ...(Array.isArray(data.invented) ? { invented: data.invented } : {}),
+    }
+}
+
+// `assignmentRows`/`themes` are the SNAPSHOT taken at the "Summarize these themes →" click (see
+// ThemesStep's own onSummarize call site) — this component's own read of "current assignment state"
+// (decision 36, Staleness) is live with respect to THIS prop, recomputed by useMemo on every
+// render, never baked into a section's own stored state; what it is NOT live against is a further
+// edit made back on the Themes tab after this component has already mounted, since (like every
+// other step on this page — see SynopsizeStep's own header comment) this component unmounts
+// whenever the tab switches away, and a fresh "Summarize these themes →" click is what produces a
+// new snapshot. Documented as a judgment call in this ticket's own report, not silently assumed.
+function SummarizeThemesStep({
+    themes, assignmentRows, synthesisSource, reviewTopic, reviewCriteria, onWriteUpStarted,
+}: {
+    themes: Theme[]
+    assignmentRows: ResolvedRow[]
+    synthesisSource: SynthesisSourceRecord[]
+    reviewTopic: string
+    reviewCriteria: string
+    // Fires once, the first time any section (done or failed) exists locally — arms Phase 4's
+    // dormant Rediscover-confirm guard (writeUpExists). See ThemesStep's own writeUpExists comment.
+    onWriteUpStarted: () => void
+}) {
+    const sourceByPmid = useMemo(() => new Map(synthesisSource.map(r => [r.pmid, r])), [synthesisSource])
+
+    // Every hook above this line runs unconditionally, every render (ScoreRelevanceStep/
+    // ScoreImpactStep/ThemesStep's own convention) — the empty-handoff early return lives further
+    // down, after the last hook.
+    const primaryPmidsByTheme = useMemo(() => {
+        const map = new Map<string, string[]>()
+        for (const t of themes) map.set(t.id, [])
+        for (const r of assignmentRows) {
+            if (!r.uncovered && map.has(r.primaryTheme)) map.get(r.primaryTheme)!.push(r.pmid)
+        }
+        return map
+    }, [themes, assignmentRows])
+
+    const recordsByPmidForWeight = useMemo(
+        () => new Map(synthesisSource.map(r => [r.pmid, { overallScore: r.overallScore }])),
+        [synthesisSource],
+    )
+
+    // ORDERING (decision 41): descending aggregate weight, identical on screen and in both exports.
+    // Empty themes (zero primary-assigned) are excluded here — no request, no empty section — and
+    // counted so the before-screen can disclose the skip rather than silently shrinking the count.
+    // Ties break alphabetically by label — PLAN specifies a tie rule for topNByOverallScore's own
+    // pmid-level ties but never for weight itself, so this is a judgment call this ticket had to
+    // make, picked for determinism rather than left to array order.
+    const { ordered, skippedEmptyCount } = useMemo(() => {
+        const withWeight = themes.map(t => {
+            const pmids = primaryPmidsByTheme.get(t.id) || []
+            return { theme: t, pmids, weight: themeWeight(pmids, recordsByPmidForWeight) }
+        })
+        const nonEmpty = withWeight.filter(x => x.pmids.length > 0)
+        nonEmpty.sort((a, b) => b.weight - a.weight || a.theme.label.localeCompare(b.theme.label))
+        return {
+            ordered: nonEmpty.map((x, i) => ({ ...x, rank: i + 1 })),
+            skippedEmptyCount: withWeight.length - nonEmpty.length,
+        }
+    }, [themes, primaryPmidsByTheme, recordsByPmidForWeight])
+
+    const unassignedRows = useMemo(() => assignmentRows.filter(r => r.uncovered), [assignmentRows])
+    const totalPapers = ordered.reduce((sum, x) => sum + x.pmids.length, 0)
+
+    const mainRun = useChunkedProgress<{ themeId: string } & SectionOutcome>(SYNTH_CLIENT_CONCURRENCY)
+    const [sections, setSections] = useState<Record<string, SectionOutcome>>({})
+    const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set())
+    const [expandedNotDiscussed, setExpandedNotDiscussed] = useState<Set<string>>(new Set())
+    const [showUnassigned, setShowUnassigned] = useState(false)
+    const firedWriteUpStarted = useRef(false)
+
+    // Merge useChunkedProgress's own positional `results` (holes for unresolved slots — see that
+    // hook's own comment) into `sections`, keyed by themeId rather than array index, so a later
+    // single-theme regenerate/retry (which deliberately does NOT go through this same hook — see
+    // regenerateTheme below) can update one entry without another run() call wiping every other
+    // theme's already-rendered result: useChunkedProgress's own run() resets `results` to a fresh,
+    // shorter array on every call, so reusing it directly as this screen's source of truth across
+    // retries would lose every earlier section the moment a single-theme run(1 thunk) fired.
+    useEffect(() => {
+        if (!mainRun.state.results.length) return
+        setSections(prev => {
+            let changed = false
+            const next = { ...prev }
+            for (const r of mainRun.state.results) {
+                if (!r) continue
+                if (next[r.themeId] !== r) { next[r.themeId] = r; changed = true }
+            }
+            return changed ? next : prev
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mainRun.state.results])
+
+    // ARMS Phase 4's dormant Rediscover-confirm guard — fires once, the first time ANY section
+    // (done or failed — an attempted theme is still a write-up worth warning about losing) exists.
+    useEffect(() => {
+        if (!firedWriteUpStarted.current && Object.keys(sections).length > 0) {
+            firedWriteUpStarted.current = true
+            onWriteUpStarted()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sections])
+
+    // The theme's CURRENT top-SYNTH_RECORD_CAP shortlist by overallScore — ranking happens HERE,
+    // client-side; the backend only re-validates and re-caps (search.ts's own comment on
+    // parseSynthesisRecords). Recomputed on demand for every call (initial run AND every
+    // regenerate/retry), never cached, so a regenerate always reflects the theme's current
+    // assignment set rather than whatever was true when the main run first fired.
+    function recordsForTheme(themeId: string): ThemeSynthesisRequestRecord[] {
+        const pmids = primaryPmidsByTheme.get(themeId) || []
+        const withScore = pmids.map(pmid => ({ pmid, overallScore: sourceByPmid.get(pmid)?.overallScore ?? 0 }))
+        const { kept } = topNByOverallScore(withScore, SYNTH_RECORD_CAP)
+        return kept.map(({ pmid }) => {
+            const src = sourceByPmid.get(pmid)
+            return {
+                pmid,
+                title: src?.title || '',
+                synopsis: src?.synopsis || '',
+                relevanceExplanation: src?.relevanceExplanation || '',
+                impactJustification: src?.impactJustification || '',
+            }
+        })
+    }
+
+    function runAll() {
+        setSections({})
+        const thunks = ordered.map(({ theme }) => () => (
+            fetchThemeSynthesis(
+                reviewTopic, reviewCriteria,
+                { id: theme.id, label: theme.label, description: theme.description },
+                recordsForTheme(theme.id),
+            )
+                .then((r): { themeId: string } & SectionOutcome => ({
+                    themeId: theme.id, status: 'done', paragraph: r.paragraph, citedPmids: r.citedPmids, invented: r.invented,
+                }))
+                .catch((e: any): { themeId: string } & SectionOutcome => ({
+                    themeId: theme.id, status: 'failed', error: e?.message || 'Theme synthesis failed.',
+                }))
+        ))
+        void mainRun.run(thunks)
+    }
+
+    // ONE theme, re-run against CURRENT assignments — a stale-badge's [Regenerate section] and a
+    // failed card's [Retry this section] both call this; never automatic, always this explicit
+    // click (same cost-control principle Score Impact's paid upgrade already established). NOT
+    // routed through mainRun/useChunkedProgress — see the merge effect's own comment above for why.
+    async function regenerateTheme(themeId: string) {
+        const theme = themes.find(t => t.id === themeId)
+        if (!theme) return
+        // A theme's every primary-assigned paper can, in principle, have been moved out from under
+        // it since generation (the whole reason Staleness exists) — CURRENT assignments, checked
+        // fresh here rather than assumed non-empty just because this theme made the ORIGINAL
+        // weight-ordered run. An empty request would only reach the server to be rejected (400,
+        // "no records supplied") and read as a confusing echo of the unrelated "malformed after 3
+        // retries" wording below — short-circuit with a message that actually names the situation.
+        const records = recordsForTheme(themeId)
+        if (!records.length) {
+            setSections(prev => ({ ...prev, [themeId]: { status: 'failed', error: 'No papers are currently assigned to this theme — nothing to regenerate.' } }))
+            return
+        }
+        setRegeneratingIds(prev => new Set(prev).add(themeId))
+        try {
+            const r = await fetchThemeSynthesis(
+                reviewTopic, reviewCriteria,
+                { id: theme.id, label: theme.label, description: theme.description },
+                records,
+            )
+            setSections(prev => ({ ...prev, [themeId]: { status: 'done', paragraph: r.paragraph, citedPmids: r.citedPmids, invented: r.invented } }))
+        } catch (e: any) {
+            setSections(prev => ({ ...prev, [themeId]: { status: 'failed', error: e?.message || 'Theme synthesis failed.' } }))
+        } finally {
+            setRegeneratingIds(prev => { const next = new Set(prev); next.delete(themeId); return next })
+        }
+    }
+
+    function toggleNotDiscussed(themeId: string) {
+        setExpandedNotDiscussed(prev => {
+            const next = new Set(prev)
+            if (next.has(themeId)) next.delete(themeId); else next.add(themeId)
+            return next
+        })
+    }
+
+    // ---- Exports (decision 42). Both read straight off `sections`/`ordered`/`unassignedRows` — the
+    // exact same derived state the screen itself renders from, so a downloaded artifact can never
+    // disagree with what was on screen at the moment it was clicked.
+    //
+    // CSV COLUMNS (documented here AND in this ticket's own report): Row Type, Rank, Theme ID,
+    // Theme Label, Weight, Paper Count, Paragraph, Cited PMIDs (JSON), Stale Citation Count,
+    // Status, PMID, Title. One row per SECTION (Row Type 'section') plus one row per UNASSIGNED
+    // paper (Row Type 'unassigned') — a flat shape sharing one header, since "one row per section"
+    // (ticket's own instruction) and "rows for unassigned papers" are two different granularities
+    // that still need to open as one sheet in Excel. Section rows leave PMID/Title blank;
+    // unassigned rows leave every section-only column blank.
+    function exportCsv() {
+        const headers = [
+            'Row Type', 'Rank', 'Theme ID', 'Theme Label', 'Weight', 'Paper Count',
+            'Paragraph', 'Cited PMIDs (JSON)', 'Stale Citation Count', 'Status', 'PMID', 'Title',
+        ]
+        const rows: (string | number)[][] = []
+        for (const { theme, rank, weight, pmids } of ordered) {
+            const sec = sections[theme.id]
+            const primarySet = new Set(pmids)
+            const cited = sec?.status === 'done' ? sec.citedPmids : []
+            const staleCount = cited.filter(p => !primarySet.has(p)).length
+            rows.push([
+                'section', rank, theme.id, theme.label, Math.round(weight), pmids.length,
+                sec?.status === 'done' ? sec.paragraph : '',
+                sec?.status === 'done' ? JSON.stringify(sec.citedPmids) : '',
+                staleCount,
+                sec?.status || 'not generated',
+                '', '',
+            ])
+        }
+        for (const r of unassignedRows) {
+            rows.push(['unassigned', '', '', 'Not assigned to a theme', '', '', '', '', '', '', r.pmid, r.title])
+        }
+        saveText(toCsv(headers, rows), `${stamp('theme-writeup', today())}.csv`)
+    }
+
+    // Assembly (PLAN): title, citation disclaimer, sections in weight order (heading + paragraph +
+    // year-strip line), unassigned-papers table — same order as on screen. A failed section still
+    // gets a heading, so the document says explicitly that it could not be written rather than just
+    // omitting it (the same "never a silent gap" instinct the on-screen failure card follows).
+    async function exportDocx() {
+        const blocks: Block[] = [
+            { kind: 'h1', text: 'Summarize Themes — Write-up' },
+            { kind: 'p', text: CITATION_DISCLAIMER },
+            { kind: 'spacer' },
+        ]
+        for (const { theme, rank, weight, pmids } of ordered) {
+            const sec = sections[theme.id]
+            blocks.push({
+                kind: 'h2',
+                text: `#${rank} — ${theme.label} — weight ${Math.round(weight)} — ${pmids.length.toLocaleString()} paper${pmids.length === 1 ? '' : 's'}`,
+            })
+            if (sec?.status === 'done') {
+                blocks.push({ kind: 'p', text: sec.paragraph })
+                const counts = yearCounts(pmids.map(pmid => ({ year: sourceByPmid.get(pmid)?.year })))
+                blocks.push({ kind: 'small', text: `Papers by year: ${formatYearStrip(counts)}` })
+            } else {
+                blocks.push({ kind: 'p', text: "This section could not be written — the model's response was malformed after 3 retries." })
+            }
+            blocks.push({ kind: 'spacer' })
+        }
+        blocks.push({ kind: 'h2', text: 'Not assigned to a theme' })
+        blocks.push({ kind: 'table', head: ['PMID', 'Title'], rows: unassignedRows.map(r => [r.pmid, r.title]) })
+        await saveDocx(blocks, `${stamp('theme-writeup', today())}.docx`)
+    }
+
+    // ---- No handoff yet — Themes hasn't produced a theme set this session (same "real, currently-
+    // accepted, this-session-only limitation" every earlier step's own empty state already states).
+    if (!themes.length) {
+        return (
+            <div className={ls.card}>
+                <p className={s.placeholder}>
+                    Summarize Themes reads the theme set Themes just produced, and none are
+                    available this session yet. Run Themes first, then come back to this tab.
+                </p>
+            </div>
+        )
+    }
+
+    const costEstimate = ordered.length * MEASURED_SYNTH_COST_PER_THEME
+
+    // ---- BEFORE.
+    if (mainRun.state.status === 'before') {
+        return (
+            <div className={ls.card}>
+                <p className={ls.help}>
+                    Ready to write up {ordered.length} theme{ordered.length === 1 ? '' : 's'},{' '}
+                    {totalPapers.toLocaleString()} paper{totalPapers === 1 ? '' : 's'}.
+                    {skippedEmptyCount > 0 && ` (${skippedEmptyCount} theme${skippedEmptyCount === 1 ? '' : 's'} with no assigned papers skipped.)`}
+                </p>
+                <p className={ls.help}>
+                    Estimated ~${costEstimate.toFixed(2)} ({ordered.length} theme{ordered.length === 1 ? '' : 's'} × ${MEASURED_SYNTH_COST_PER_THEME}/theme,
+                    the pilot&apos;s measured rate){' '}
+                    <span className={s.stepInfo} title={COST_TIME_INFO} aria-label="cost/time estimate info">(i)</span>
+                </p>
+                <div>
+                    <button className={ls.btn} onClick={runAll} disabled={!ordered.length}>Summarize themes →</button>
+                </div>
+            </div>
+        )
+    }
+
+    // ---- WRITING / DONE — the same fixed, weight-ordered section list either way, since a finished
+    // paragraph and a "writing…" placeholder are just two states of the same slot (decision 31's
+    // progressive rendering); only the header (bar vs. summary line) and the export/unassigned
+    // block (done only) differ.
+    const isRunning = mainRun.state.status === 'running'
+
+    return (
+        <div className={ls.card}>
+            {isRunning ? (
+                <div className={ls.progress} aria-live="polite">
+                    <div className={ls.progLine}>
+                        <b>Writing… {mainRun.state.done} of {mainRun.state.total} theme{mainRun.state.total === 1 ? '' : 's'} done.</b>
+                        <span className={ls.spacer} />
+                        <span className={ls.progElapsed}>Elapsed {formatElapsed(mainRun.state.elapsedMs)}.</span>
+                    </div>
+                    <div className={ls.bar}>
+                        <span className={ls.barFill} style={{ width: `${mainRun.state.total ? Math.round((mainRun.state.done / mainRun.state.total) * 100) : 0}%` }} />
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <p className={ls.help}>
+                        {ordered.length} section{ordered.length === 1 ? '' : 's'}, {totalPapers.toLocaleString()} paper{totalPapers === 1 ? '' : 's'} written
+                        up, {unassignedRows.length.toLocaleString()} not assigned to a theme. Actual: ${costEstimate.toFixed(2)} (measured rate applied to
+                        this example — see (i)) · elapsed {formatElapsed(mainRun.state.elapsedMs)}.{' '}
+                        <span className={s.stepInfo} title={COST_TIME_INFO} aria-label="cost/time estimate info">(i)</span>
+                    </p>
+                    <p className={ls.help}>
+                        Check every citation against its source before using this anywhere.{' '}
+                        <span className={s.stepInfo} title={CITATION_DISCLAIMER} aria-label="citation disclaimer">(i)</span>
+                    </p>
+                </>
+            )}
+
+            <div className={s.sectionList}>
+                {ordered.map(({ theme, rank, weight, pmids }) => {
+                    const sec = sections[theme.id]
+                    const isRegenerating = regeneratingIds.has(theme.id)
+
+                    if (!sec) {
+                        return (
+                            <div key={theme.id} className={s.sectionWriting}>
+                                <b>{theme.label}</b> <span className={ls.help}>writing…</span>
+                            </div>
+                        )
+                    }
+
+                    if (sec.status === 'failed') {
+                        // The mockup's own fixed wording covers the one failure mode it was written
+                        // for: an empty/malformed answer after the backend's 3-attempt retry. A
+                        // genuinely different cause (e.g. every paper reassigned out of this theme
+                        // since generation — see regenerateTheme's own short-circuit above) gets its
+                        // own accurate sentence instead of an echo of the wrong explanation;
+                        // anything else still gets the mockup's sentence as the headline, with the
+                        // server's own message underneath for debugging, never hidden.
+                        const noPapersLeft = sec.error === 'No papers are currently assigned to this theme — nothing to regenerate.'
+                        return (
+                            <div key={theme.id} className={s.sectionCard}>
+                                <div className={s.sectionHead}>
+                                    <b>{theme.label}</b>
+                                    <span className={ls.help}>#{rank} · weight {Math.round(weight)} · {pmids.length.toLocaleString()} paper{pmids.length === 1 ? '' : 's'}</span>
+                                </div>
+                                <div role="alert" className={ls.error}>
+                                    {noPapersLeft
+                                        ? <>(x) {sec.error}</>
+                                        : <>(x) This section could not be written — the model&apos;s response was malformed after 3 retries.</>}
+                                    {' '}
+                                    <button type="button" className={ls.btnSecondary} onClick={() => void regenerateTheme(theme.id)} disabled={isRegenerating}>
+                                        {isRegenerating ? 'Retrying…' : 'Retry this section'}
+                                    </button>
+                                    {!noPapersLeft && <p className={ls.help}>Details: {sec.error}</p>}
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    const primarySet = new Set(pmids)
+                    const staleCount = sec.citedPmids.filter(p => !primarySet.has(p)).length
+                    const uncited = notDiscussed(sec.citedPmids, pmids)
+                    const expanded = expandedNotDiscussed.has(theme.id)
+                    const counts = yearCounts(pmids.map(pmid => ({ year: sourceByPmid.get(pmid)?.year })))
+
+                    return (
+                        <div key={theme.id} className={s.sectionCard}>
+                            <div className={s.sectionHead}>
+                                <b>{theme.label}</b>
+                                <span className={ls.help}>#{rank} · weight {Math.round(weight)} · {pmids.length.toLocaleString()} paper{pmids.length === 1 ? '' : 's'}</span>
+                            </div>
+
+                            {staleCount > 0 && (
+                                <div className={s.staleBadge}>
+                                    <p className={ls.help}>
+                                        (!) This section may be out of date — {staleCount === 1
+                                            ? '1 citation references a paper no longer assigned here.'
+                                            : `${staleCount} citations reference papers no longer assigned here.`}{' '}
+                                        <span className={s.stepInfo} title={STALE_BADGE_INFO} aria-label="stale section info">(i)</span>{' '}
+                                        <button type="button" className={ls.btnSecondary} onClick={() => void regenerateTheme(theme.id)} disabled={isRegenerating}>
+                                            {isRegenerating ? 'Regenerating…' : 'Regenerate section'}
+                                        </button>
+                                    </p>
+                                </div>
+                            )}
+
+                            <p className={ls.help}>{sec.paragraph}</p>
+                            <p className={`${ls.help} ${s.yearStrip}`}>
+                                Papers by year: {formatYearStrip(counts)}{' '}
+                                <span className={s.stepInfo} title={YEAR_STRIP_INFO} aria-label="year strip info">(i)</span>
+                            </p>
+                            {!!sec.invented?.length && (
+                                <p className={ls.help} role="alert">
+                                    The model cited {sec.invented.length} PMID{sec.invented.length === 1 ? '' : 's'} not supplied for this theme
+                                    — flagged, not removed: {sec.invented.join(', ')}.
+                                </p>
+                            )}
+
+                            {uncited.length > 0 && (
+                                <div className={s.notDiscussedRow}>
+                                    {expanded ? (
+                                        <>
+                                            <span className={ls.help}>Also in this theme, not discussed above:</span>
+                                            <p className={`${ls.help} ${s.lossList}`}>{uncited.join(', ')}</p>
+                                            <button type="button" className={ls.btnSecondary} onClick={() => toggleNotDiscussed(theme.id)}>Collapse</button>
+                                        </>
+                                    ) : (
+                                        <button type="button" className={ls.btnSecondary} onClick={() => toggleNotDiscussed(theme.id)}>
+                                            Also in this theme, not discussed above: {uncited.length.toLocaleString()} more paper{uncited.length === 1 ? '' : 's'} →
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+
+            {!isRunning && (
+                <div className={s.sectionCard}>
+                    <div className={s.sectionHead}>
+                        <b>Not assigned to a theme</b>
+                        <span className={ls.help}>{unassignedRows.length.toLocaleString()} paper{unassignedRows.length === 1 ? '' : 's'}</span>
+                    </div>
+                    <p className={ls.help}>These didn&apos;t fit cleanly anywhere — worth a manual look before you finalize.</p>
+                    {unassignedRows.length > 0 && (
+                        showUnassigned ? (
+                            <>
+                                <div className={ls.lines}>
+                                    {unassignedRows.map(r => (
+                                        <div className={ls.line} key={r.pmid}>
+                                            <div className={ls.field}>
+                                                <b>{r.title || `PMID ${r.pmid}`}</b> <span className={ls.help}>PMID {r.pmid}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button type="button" className={ls.btnSecondary} onClick={() => setShowUnassigned(false)}>Hide the list</button>
+                            </>
+                        ) : (
+                            <button type="button" className={ls.btnSecondary} onClick={() => setShowUnassigned(true)}>Show the list →</button>
+                        )
+                    )}
+                </div>
+            )}
+
+            {!isRunning && (
+                <div className={ls.actions}>
+                    <button className={ls.btnSecondary} onClick={runAll}>Run again</button>
+                    <button className={ls.btnSecondary} onClick={exportCsv} disabled={!Object.keys(sections).length}>Export CSV</button>
+                    <button className={ls.btnSecondary} onClick={() => void exportDocx()} disabled={!Object.keys(sections).length}>Export docx</button>
+                </div>
+            )}
         </div>
     )
 }
@@ -1965,13 +2577,15 @@ export default function LiteratureAnalyzer() {
     const [reviewCriteria, setReviewCriteria] = useState('')
     const [qualifyingRelevance, setQualifyingRelevance] = useState<RelevanceRecord[]>([])
     const [qualifyingImpact, setQualifyingImpact] = useState<ImpactRecord[]>([])
-    // Phase 5 ("Summarize Themes") handoff — stored here so that step, once built, has {themes,
-    // assignmentRows} to read without Themes needing to know anything about how Phase 5 renders it.
-    // `writeUp` stays null for the entirety of this ticket (Phase 5 does not exist yet); it exists
-    // purely as the dormant guard Rediscover's confirm checks — see ThemesStep's own writeUpExists
-    // comment.
-    const [themesHandoff, setThemesHandoff] = useState<{ themes: Theme[]; assignmentRows: ResolvedRow[] } | null>(null)
-    const [writeUp] = useState<unknown | null>(null)
+    // Phase 5 ("Summarize Themes") handoff — {themes, assignmentRows, synthesisSource} snapshot
+    // taken at the "Summarize these themes →" click (see ThemesStep's own onSummarize call site and
+    // buildSynthesisSource()). `writeUp` is now armed by SummarizeThemesStep's own onWriteUpStarted
+    // callback (fires once a section exists) rather than staying permanently null — see
+    // ThemesStep's own writeUpExists comment for what this guards.
+    const [themesHandoff, setThemesHandoff] = useState<{
+        themes: Theme[]; assignmentRows: ResolvedRow[]; synthesisSource: SynthesisSourceRecord[]
+    } | null>(null)
+    const [writeUp, setWriteUp] = useState<unknown | null>(null)
     const step = STEPS.find(x => x.id === current)!
 
     return (
@@ -2019,10 +2633,19 @@ export default function LiteratureAnalyzer() {
                         setCurrent('synopsize')
                     }}
                     onGoToScoreImpact={() => setCurrent('score-impact')}
-                    onSummarize={(themes, assignmentRows) => {
-                        setThemesHandoff({ themes, assignmentRows })
+                    onSummarize={(themes, assignmentRows, synthesisSource) => {
+                        setThemesHandoff({ themes, assignmentRows, synthesisSource })
                         setCurrent('summarize-themes')
                     }}
+                />
+            ) : current === 'summarize-themes' ? (
+                <SummarizeThemesStep
+                    themes={themesHandoff?.themes || []}
+                    assignmentRows={themesHandoff?.assignmentRows || []}
+                    synthesisSource={themesHandoff?.synthesisSource || []}
+                    reviewTopic={reviewTopic}
+                    reviewCriteria={reviewCriteria}
+                    onWriteUpStarted={() => setWriteUp({})}
                 />
             ) : (
                 <PlaceholderStep label={step.label} />

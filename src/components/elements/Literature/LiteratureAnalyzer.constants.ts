@@ -50,7 +50,13 @@ export const STEPS: Array<{ id: StepId; label: string; info: string }> = [
     {
         id: 'summarize-themes',
         label: 'Summarize Themes',
-        info: 'Writes a narrative summary per theme, one model call per theme.',
+        // Mockup's own "(i) button copy: Summarize Themes tab" (MOCKUPS-relevance-impact-topical
+        // -analysis-2026-08-22.md, section 5's own "(i) button copy" block), same markdown-bold-
+        // stripped treatment as the Themes tab's own info string above.
+        info: 'What this does: writes a short, cited paragraph per theme from the papers assigned '
+            + "to it. In: theme assignments — synopsis + explanations for each theme's assigned "
+            + 'papers. Out: one write-up section per theme, plus an unassigned-papers table. Check '
+            + 'every citation.',
     },
 ]
 

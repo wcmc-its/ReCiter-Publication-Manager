@@ -19,3 +19,26 @@ export type ChunkedProgressState<R> = {
     results: R[]
     elapsedMs: number
 }
+
+// ---------------------------------------------------------------------------
+// SUMMARIZE THEMES (Phase 5) — one record from the corpus's working set, joined back together
+// specifically for synthesis: title/synopsis/relevanceExplanation/impactJustification (what a
+// theme's synthesis call needs to say something), `overallScore` (PLAN's relevanceScore^1.4 *
+// impactScore^1.2 / 1000 formula, computed client-side via overallScoreOf() — imported, never
+// reimplemented) for ranking/weighting, and `year` (threaded all the way from Synopsize's own
+// response) for the year-count strip. Built once, in ThemesStep, from whichever of its two working-
+// set sources (path a: Score Impact's qualifyingImpact; path b: an uploaded CSV) is actually in
+// play — see LiteratureAnalyzer.tsx's own buildSynthesisSource() for how each path fills in
+// `relevanceScore` (never itself sent onward — only its role in `overallScore` survives) since
+// ThemesStep's own ThemeActivity shape deliberately drops the numeric relevance score (Discovery/
+// Classification only ever need the explanation text, not the number — see ThemeActivity's own
+// comment), so Phase 5 needs a second, parallel join rather than reusing that type outright.
+export type SynthesisSourceRecord = {
+    pmid: string
+    title: string
+    synopsis: string
+    relevanceExplanation: string
+    impactJustification: string
+    overallScore: number
+    year: string
+}

@@ -159,12 +159,22 @@ export function useChunkedProgress<R>(concurrency = 4) {
     })
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-    // A run started and then abandoned mid-flight (the person switches tabs before it finishes)
-    // must not go on ticking into a setState on an unmounted component — clear whatever interval
-    // is live when this hook's owning component unmounts. `run`/`reset` already clear it on their
-    // own completion paths below; this covers the one path they can't: unmount itself.
+    // UNMOUNT SAFETY (carried rough edge, closed here). Before this guard, a run started and then
+    // abandoned mid-flight (the person switches tabs before it finishes) kept `worker()` awaiting
+    // every remaining thunk and calling `setState` on each resolution regardless — harmless in
+    // React's own eyes (a no-op setState on an unmounted component is swallowed, not thrown, since
+    // React 18), but still real wasted renders-that-never-happen and a footgun for any future
+    // effect that assumes `state` only changes while mounted. `mountedRef` is checked before every
+    // setState this hook makes past initial mount; the underlying fetches are NOT aborted — they
+    // still run to completion in the background exactly as they did before this fix — only the
+    // state updates they'd trigger are suppressed once unmounted. The hook's PUBLIC CONTRACT is
+    // unchanged: every call site above still awaits `run()`'s own resolved array of results, live
+    // or not.
+    const mountedRef = useRef(true)
     useEffect(() => {
+        mountedRef.current = true
         return () => {
+            mountedRef.current = false
             if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
         }
     }, [])
@@ -174,8 +184,9 @@ export function useChunkedProgress<R>(concurrency = 4) {
         const results: R[] = new Array(total)
         const t0 = Date.now()
         if (timerRef.current) clearInterval(timerRef.current)
-        setState({ status: 'running', done: 0, total, results: [], elapsedMs: 0 })
+        if (mountedRef.current) setState({ status: 'running', done: 0, total, results: [], elapsedMs: 0 })
         timerRef.current = setInterval(() => {
+            if (!mountedRef.current) return
             setState(s => (s.status === 'running' ? { ...s, elapsedMs: Date.now() - t0 } : s))
         }, 250)
 
@@ -186,19 +197,19 @@ export function useChunkedProgress<R>(concurrency = 4) {
                 const mine = next++
                 results[mine] = await thunks[mine]()
                 done++
-                setState(s => ({ ...s, done, results: [...results] }))
+                if (mountedRef.current) setState(s => ({ ...s, done, results: [...results] }))
             }
         }
         await Promise.all(Array.from({ length: Math.min(concurrency, total) }, worker))
 
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-        setState(s => ({ ...s, status: 'done', elapsedMs: Date.now() - t0 }))
+        if (mountedRef.current) setState(s => ({ ...s, status: 'done', elapsedMs: Date.now() - t0 }))
         return results
     }, [concurrency])
 
     const reset = useCallback(() => {
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-        setState({ status: 'before', done: 0, total: 0, results: [], elapsedMs: 0 })
+        if (mountedRef.current) setState({ status: 'before', done: 0, total: 0, results: [], elapsedMs: 0 })
     }, [])
 
     return { state, run, reset }

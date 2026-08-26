@@ -277,3 +277,60 @@
  * select — .line already gives the row its border/padding rhythm (LiteratureSearch.module.css),
  * this just makes the select not stretch full-width like a textarea would. */
 .moveToSelect { flex: 0 0 220px; }
+
+/* ---------- Summarize Themes (Phase 5) ----------
+ * The weight-ordered section list (decisions 31/35/36/41) plus the unassigned-papers block below
+ * it — reuses every existing primitive (.card, .help, .error, .actions, .lines/.line, .lossList,
+ * .progress/.progLine/.progElapsed/.bar/.barFill, .stepInfo above) for everything that already has
+ * a precedent; only the section card itself, its head row, the stale badge, and the year-strip
+ * line have none.
+ */
+.sectionList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 16px 0;
+}
+
+/* One finished (or failed) theme's write-up. A bottom border stands in for the mockup's own
+ * "----" divider between sections — a CSS rule rather than a literal dashed line, same "native/
+ * structural over drawn" instinct as every other divider in this stylesheet. */
+.sectionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sectionCard:last-child { border-bottom: 0; }
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sectionHead b { font-size: 14.5px; color: var(--text-strong); }
+
+/* A theme not yet resolved (decision 31's progressive render) — a bare row, no card border, so it
+ * reads visually lighter than a finished section while still holding its place in the fixed,
+ * weight-ordered list. */
+.sectionWriting {
+  padding: 10px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Stale-section badge (PLAN's Staleness section) — same amber warning hue as .warnBox above
+ * (Themes' own cold-start floor warning), not a second warning color for the same meaning. */
+.staleBadge {
+  background: #fff7ed;
+  border: 1px solid #d97706;
+  border-radius: var(--radius-md, 6px);
+  padding: 8px 14px;
+}
+.staleBadge p { color: #92400e; margin: 0; }
+
+.yearStrip { font-variant-numeric: tabular-nums; }
+
+.notDiscussedRow { margin-top: 2px; }
