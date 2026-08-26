@@ -1,7 +1,8 @@
-import React, { FunctionComponent } from "react"
+import React, { FunctionComponent, useState } from "react"
 import styles from './ExternalPublicationCard.module.css'
 import CheckIcon from '@mui/icons-material/Check'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import UndoIcon from '@mui/icons-material/Undo'
 
 // PM#771 — a source-badged external publication row. Deliberately NO authorship
 // score tile (external pubs are not scored by ReCiter). Two modes:
@@ -10,6 +11,12 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 //               we steer the curator to the scored PubMed path instead of adding an
 //               unscored external record.
 //   'list'    — an already-added external pub, with a Delete (= revoke) affordance
+//               for curators, and (when onDispute/onRetractDispute are wired) the
+//               faculty dispute lifecycle from docs/README-other-publications-tab.md:
+//               "This isn't mine" -> inline note form -> Disputed state -> Undo.
+// Suppression has two distinct causes (Decision 5/6): superseded (suppressed with a
+// supersededByPmid — a duplicate of an accepted PubMed record, muted) and disputed
+// (suppressed with NO supersededByPmid — struck through, red rail, reversible).
 const doiUrl = 'https://doi.org/'
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/'
 
@@ -58,6 +65,14 @@ interface FuncProps {
     // Option C (docs/README-other-publications-tab.md, Decision 3): the active source
     // tab already names the source, so the per-card badge is redundant there.
     hideSourceBadge?: boolean,
+    // Faculty dispute lifecycle (list mode). Dispute logs REJECTED, retract logs
+    // ACCEPTED — both via the PM PATCH route, which stamps the actor server-side.
+    onDispute?: (articleId: string, note?: string) => void,
+    onRetractDispute?: (articleId: string) => void,
+    disputeBusy?: boolean,
+    // The signed-in viewer's CWID, for the Decision 4 split: a row the viewer added
+    // themselves shows "Added by you" and no dispute affordance.
+    viewerUid?: string,
 }
 
 // Map the server's duplicate match type(s) to a state-specific, actionable headline.
@@ -76,6 +91,9 @@ function blockedHeadline(matches?: Array<{ type?: string }>): string {
 const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const { item, mode, addState } = props
 
+    const [disputeFormOpen, setDisputeFormOpen] = useState(false)
+    const [disputeNote, setDisputeNote] = useState('')
+
     const sourceType: string = item.sourceType || 'OPENALEX'
     const sourceLabel = SOURCE_LABELS[sourceType] || sourceType
 
@@ -93,7 +111,22 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const doi = item.doi
     const pmid = item.pmid
     const suppressed = mode === 'list' && !!item.suppressed
+    // Two suppression causes (Decision 5/6): a superseding PMID means "duplicate of an
+    // accepted PubMed record" (hideable); no superseding PMID means the row is disputed
+    // (must stay visible and reversible — the Java PATCH clears supersededByPmid on REJECTED).
+    const superseded = suppressed && item.supersededByPmid != null
+    const disputed = suppressed && item.supersededByPmid == null
+    const selfAdded = mode === 'list' && !!(props.viewerUid && item.addedBy && String(item.addedBy) === props.viewerUid)
     const status = addState?.status || 'idle'
+
+    const submitDispute = () => {
+        if (props.onDispute) {
+            const note = disputeNote.trim()
+            props.onDispute(item.articleId, note ? note : undefined)
+        }
+        setDisputeFormOpen(false)
+        setDisputeNote('')
+    }
 
     // The work is in PubMed if OpenAlex gave us a PMID, or a DOI lookup found one.
     // In that case steer to the scored PubMed path rather than an unscored external add.
@@ -105,16 +138,18 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     const recStatus = (pubmedPmid && props.recordStatusOf) ? props.recordStatusOf(pubmedPmid) : null
 
     return (
-        <div className={`${styles.card} ${suppressed ? styles.cardSuppressed : ''}`}>
+        <div className={`${styles.card} ${superseded ? styles.cardSuppressed : ''} ${disputed ? styles.cardDisputed : ''}`}>
             <div className={styles.main}>
                 <div className={styles.headerRow}>
                     {!props.hideSourceBadge && <span className={styles.sourceBadge}>{sourceLabel}</span>}
                     <span className={styles.noScoreBadge}>No authorship score</span>
-                    {suppressed && (
+                    {selfAdded && <span className={styles.selfTag}>Added by you</span>}
+                    {superseded && (
                         <span className={styles.suppressedTag}>
-                            Superseded{item.supersededByPmid ? ` by PMID ${item.supersededByPmid}` : ''}
+                            Superseded by PMID {item.supersededByPmid}
                         </span>
                     )}
+                    {disputed && <span className={styles.disputedTag}>Disputed</span>}
                 </div>
 
                 <div className={styles.title}>{item.title || '(untitled)'}</div>
@@ -138,6 +173,40 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                             : item.articleId}</span>
                     )}
                 </div>
+
+                {/* Disputed caption (faculty view only) — plain-language suppression meaning */}
+                {disputed && props.onRetractDispute && (
+                    <div className={styles.disputedNote}>
+                        Disputed &mdash; hidden from your profile, flagged for curator review
+                    </div>
+                )}
+
+                {/* Inline dispute form: optional note to the curator, then Submit */}
+                {mode === 'list' && !disputed && disputeFormOpen && props.onDispute && (
+                    <div className={styles.disputeForm}>
+                        <textarea
+                            className={styles.disputeTextarea}
+                            placeholder={'Optional note for the curator (e.g. “different Dana Reyes, not me”)'}
+                            value={disputeNote}
+                            onChange={(e) => setDisputeNote(e.target.value)}
+                        />
+                        <div className={styles.disputeFormRow}>
+                            <button
+                                className={styles.btnGhost}
+                                onClick={() => { setDisputeFormOpen(false); setDisputeNote('') }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className={styles.btnSolid}
+                                disabled={props.disputeBusy}
+                                onClick={submitDispute}
+                            >
+                                {props.disputeBusy ? 'Submitting…' : 'Submit'}
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Already in this person's record — inform, no add */}
                 {mode === 'preview' && pubmedPmid && recStatus && status !== 'added' && (
@@ -239,6 +308,27 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         onClick={() => props.onDelete && props.onDelete(item.articleId)}
                     >
                         <DeleteOutlineIcon style={{ fontSize: 15 }} /> Delete
+                    </button>
+                )}
+                {/* Faculty dispute lifecycle — one affordance at a time (mockup): idle rows
+                    get "This isn't mine"; disputed rows get a single reversible Undo. A row
+                    the viewer added themselves gets neither (Remove is a future item). */}
+                {mode === 'list' && disputed && props.onRetractDispute && (
+                    <button
+                        className={styles.btnUndoDispute}
+                        disabled={props.disputeBusy}
+                        onClick={() => props.onRetractDispute && props.onRetractDispute(item.articleId)}
+                    >
+                        <UndoIcon style={{ fontSize: 14 }} /> Disputed &mdash; Undo
+                    </button>
+                )}
+                {mode === 'list' && !disputed && !superseded && !selfAdded && props.onDispute && (
+                    <button
+                        className={styles.btnDispute}
+                        disabled={props.disputeBusy}
+                        onClick={() => setDisputeFormOpen((open) => !open)}
+                    >
+                        This isn&rsquo;t mine
                     </button>
                 )}
             </div>
