@@ -1261,30 +1261,31 @@ const checkOverallScoreOf = (syn) => {
 // DETERMINISTIC ties (ascending pmid, numeric-aware so '9' sorts before '10') — three records tied
 // at the same score, pmids deliberately out of both numeric and lexicographic order in the input.
 const checkTopNByOverallScore = (syn) => {
+    // '9' sits INSIDE the tied score=50 group, where numeric ascending order (9, 10, 20) and
+    // lexicographic order ('10', '20', '9') genuinely diverge — a string-only tie-break would
+    // keep ['90', '10', '20'] and fail here. (The prior fixture had '9' winning on score alone,
+    // so the tied group sorted identically both ways and the assertion was vacuous — verifier
+    // tamper-probe finding, Phase 5 backend review.)
     const records = [
-        { pmid: '30', overallScore: 50 },
-        { pmid: '9', overallScore: 90 },     // highest score, but a pmid that would sort LAST lexicographically
-        { pmid: '10', overallScore: 50 },
         { pmid: '20', overallScore: 50 },
+        { pmid: '90', overallScore: 90 },    // highest score — rank 1 regardless of pmid
+        { pmid: '9', overallScore: 50 },
+        { pmid: '10', overallScore: 50 },
         { pmid: '5', overallScore: null },   // null score sorts as 0 — must land last
     ]
     const { kept, dropped } = syn.topNByOverallScore(records, 3)
 
     assert.strictEqual(kept.length, 3, 'the cap must return exactly n kept records')
     assert.strictEqual(dropped.length, 2, 'everything past the cap must appear in dropped, and nothing else')
-    assert.strictEqual(kept[0].pmid, '9', 'the highest-scoring record (90) must be first regardless of its pmid')
-    // The three score=50 records tie; pmid '9' already claimed rank 1 by score, so the next two
-    // slots go to the score=50 group in ASCENDING NUMERIC pmid order: '10' before '20' before '30'
-    // — numeric, not lexicographic (lexicographically '10' < '20' < '30' too here, so this fixture
-    // ALSO needs the '9' vs '10'/'20'/'30' case above to prove numeric-aware comparison is real).
-    assert.deepStrictEqual(kept.map(r => r.pmid), ['9', '10', '20'],
-        `tie-break among equal scores must be ascending NUMERIC pmid — got ${JSON.stringify(kept.map(r => r.pmid))}`)
-    assert.deepStrictEqual(dropped.map(r => r.pmid).sort(), ['30', '5'].sort(),
+    assert.strictEqual(kept[0].pmid, '90', 'the highest-scoring record (90) must be first regardless of its pmid')
+    assert.deepStrictEqual(kept.map(r => r.pmid), ['90', '9', '10'],
+        `tie-break among equal scores must be ascending NUMERIC pmid (9 before 10) — got ${JSON.stringify(kept.map(r => r.pmid))}`)
+    assert.deepStrictEqual(dropped.map(r => r.pmid).sort(), ['20', '5'].sort(),
         'the null-score record and the lowest-ranked tied record must be exactly what is dropped')
     // Determinism: same input (a fresh copy), same output, byte for byte.
     const again = syn.topNByOverallScore(records.map(r => ({ ...r })), 3)
     assert.deepStrictEqual(again.kept.map(r => r.pmid), kept.map(r => r.pmid), 'topNByOverallScore must be deterministic across repeat calls on equivalent input')
-    console.log(`topNByOverallScore: kept=${JSON.stringify(kept.map(r => r.pmid))} dropped=${JSON.stringify(dropped.map(r => r.pmid))} (cap=3 of ${records.length}, numeric tie-break verified via '9' beating '10')`)
+    console.log(`topNByOverallScore: kept=${JSON.stringify(kept.map(r => r.pmid))} dropped=${JSON.stringify(dropped.map(r => r.pmid))} (cap=3 of ${records.length}, numeric tie-break verified: tied '9' beats tied '10')`)
 }
 
 // themeWeight(): SUM of overallScore over the theme's pmids — a pmid ABSENT from the corpus map
