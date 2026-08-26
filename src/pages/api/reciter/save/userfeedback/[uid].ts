@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getToken } from 'next-auth/jwt'
 import { saveUserFeedback } from "../../../../../../controllers/userfeedback.controller"
+import { canCurate } from "../../../../../../controllers/db/authorization.controller"
 import { reciterConfig } from '../../../../../../config/local'
 
 type Error = {
@@ -19,6 +21,18 @@ export default async function handler(
     if(req.method === "POST") {
         if(req.headers.authorization !== undefined && req.headers.authorization === reciterConfig.backendApiKey) {
         const { uid } = req.query;
+
+        // Same canCurate gate as goldstandard.ts -- the api-key check above only proves the
+        // request came from this app's own server code, not who the curator is. See PM#916.
+        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        const allowed = await canCurate(token, uid)
+        if (!allowed) {
+            res.status(403).send({
+                statusCode: 403,
+                message: "You do not have permission to curate this person's publications"
+            })
+            return
+        }
 
         const apiResponse = await saveUserFeedback(req, uid);
         if(apiResponse.statusCode === 200) {
