@@ -950,7 +950,7 @@ function ScoreImpactStep({ qualifying, onContinue }: {
                 {notScopedForPaid.length > 0 && (
                     <p className={ls.help}>
                         <b>{notScopedForPaid.length.toLocaleString()}</b> of {qualifying.length.toLocaleString()} were
-                        not scoped for the paid upgrade (you chose {upgrade === 'top200' ? 'Top 200' : 'None'}) — they
+                        not scoped for the paid upgrade (you chose {upgrade === 'top200' ? `Top ${Math.min(200, qualifying.length)}` : 'None'}) — they
                         carry the free citation-based floor, not the AI-judged score. Re-run the paid pass above if
                         you want them upgraded.
                     </p>
