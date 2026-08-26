@@ -93,7 +93,14 @@ export async function scoreAnalyzerImpact(
         const p = paidScores.get(r.pmid)
         return {
             pmid: r.pmid,
-            impactScore: p ? p.score : f.score,
+            // SCALE FIX: impactScoreOf() (the floor) returns 0-1 (round2(clamp01(...)),
+            // literatureSearch.score.ts); scoreImpact() (the paid pass) returns a 0-100 integer
+            // (its own tool schema). Both land in this ONE impactScore field — without normalizing
+            // the floor onto the same 0-100 scale, every paid score would outrank every floor score
+            // regardless of actual merit (sort, export, and any future overallScore computation all
+            // read this field numerically). Caught during Phase 3's post-workflow review, before
+            // the frontend (already built against this contract, unmodified) ever saw a live value.
+            impactScore: p ? p.score : Math.round(f.score * 100),
             impactJustification: p ? p.justification : f.justification,
             impactSource: p ? 'paid' : 'floor',
             nihPercentile: r.nihPercentile,
