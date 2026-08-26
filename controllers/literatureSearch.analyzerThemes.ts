@@ -67,6 +67,16 @@ export const THEMES_PROMPT_VERSION = 'reciterai-subtopic-v1+pilot-mechanisms-202
 // records where a partial answer is recoverable per-record, not a single-object answer where any
 // retry means asking for the whole thing again.
 //
+// TOOL-FORCING VS. "OUTPUT FORMAT" PROSE (live-verified fix, 2026-08-26): the divergence above turns
+// out to be incomplete on its own. Forcing a tool call does not stop Sonnet from reading the ported
+// prompts' own "OUTPUT FORMAT -- return ONLY a JSON object" sections literally -- two consecutive
+// real discoverThemes calls came back as `{"subtopics": "<the whole answer, JSON-encoded, as one
+// string>"}` rather than the tool's fields populated directly, which fails Array.isArray and aborts
+// after DISCOVERY_ATTEMPTS with both calls already billed. Two addenda (TOOL_MAPPING_ADDENDUM,
+// BATCH_TOOL_MAPPING_ADDENDUM, below) tell the model to submit through the tool instead; unwrapToolInput()
+// (literatureSearch.analyzerThemes.pure.ts) recovers the wrapped-string shape server-side regardless,
+// applied before the existing shape checks at all three call sites.
+//
 // THE PURE, CLIENT-IMPORTABLE HALF of this feature -- validateAndCleanClusters,
 // filterValidAssignments, resolvePrimary, resolveRecords, the assignments-CSV round-trip, and the
 // Themes working-set CSV upload/validation report -- lives in
@@ -77,6 +87,7 @@ export const THEMES_PROMPT_VERSION = 'reciterai-subtopic-v1+pilot-mechanisms-202
 import { UsageLog, invoke, LONG_MAX_TOKENS, SCORING_MODEL_ID } from './literatureSearch.llm'
 import {
     Theme, hardRangePrompt, validateAndCleanClusters, computeCoverage, filterValidAssignments,
+    unwrapToolInput,
 } from './literatureSearch.analyzerThemes.pure'
 
 // ---------------------------------------------------------------------------
@@ -269,6 +280,38 @@ same order, each shaped exactly like the single-activity OUTPUT FORMAT above:
 {"pmid": <int>, "topic_id": "<parent topic id>", "assignments": [{"subtopic_id": "...", "confidence": 0.XX}, ...]}
 Output ONLY the JSON array. No prose, no markdown fences.`
 
+// Addendum 4 (discovery + extension): NOT a pilot addendum -- the pilot never faced this, since it
+// parsed freeform JSON (see this file's header). Live-verified on dev (2026-08-26): under this
+// codebase's forced tool_choice, DISCOVERY_SYSTEM_PROMPT's own "OUTPUT FORMAT -- return ONLY a JSON
+// object" section leads Sonnet to build that whole object and stuff it, JSON-encoded, into the
+// single tool-input field the section names first, rather than populating the tool's fields
+// directly -- two consecutive real, billed discoverThemes calls came back as
+// `{"subtopics": "<the entire object above, as a string>"}`, which fails Array.isArray and aborted
+// the run. literatureSearch.analyzerThemes.pure.ts's unwrapToolInput() recovers that shape after the
+// fact; this addendum is the matching prompt-side half, telling the model not to produce it in the
+// first place. Applies to BOTH discoverThemes and extendThemes -- extendThemes reuses this exact
+// composed system string, and the OUTPUT FORMAT it is steering away from is DISCOVERY_EXTENSION_PROMPT's
+// own ("new_subtopics"/"still_uncovered" in place of "subtopics"/"uncovered"), hence the addendum
+// naming both field pairs rather than assuming which pass is running.
+const TOOL_MAPPING_ADDENDUM = `
+
+ADDENDUM (appended): you were given a tool to submit this answer through -- use it, do not describe
+the answer in your response text. The OUTPUT FORMAT object above (or, on an extension pass, the
+renamed "new_subtopics"/"still_uncovered" object the user message describes in its place) is not a
+string to produce -- its fields ARE the tool call's input fields, directly. Populate them there. No
+field of the tool input may itself be a JSON-encoded string containing the answer.`
+
+// Addendum 5 (classification only): same live-verified failure mode as Addendum 4 above, matched to
+// classifyThemesBatch's own tool (submit_batch_assignments, single field `results`) and BATCH_ADDENDUM's
+// "Return a JSON array" / "Output ONLY the JSON array" phrasing, which is exactly the kind of
+// freeform-output instruction that conflicts with a forced tool call.
+const BATCH_TOOL_MAPPING_ADDENDUM = `
+
+ADDENDUM (appended): you were given a tool to submit this answer through -- use it, do not describe
+the answer in your response text or as a JSON array there. The tool's single field, \`results\`, IS
+the array described above -- put the per-activity objects directly into \`results\`, in the same
+order as the input activities. Do not encode \`results\`, or any field inside it, as a JSON string.`
+
 // ---------------------------------------------------------------------------
 // Topic meta. `topic_prefix` is a FIXED string, 'theme' -- per this ticket's spec, IDs here only
 // need INTERNAL uniqueness (there is no shared taxonomy for a discovered id to collide with, unlike
@@ -369,7 +412,7 @@ export async function discoverThemes(
 
     const topicLabel = topicLabelOf(topic)
     const topicDescription = topicDescriptionOf(criteria)
-    const system = hardRangePrompt(DISCOVERY_SYSTEM_PROMPT, low, high) + TARGET_COUNT_AND_COVERAGE_ADDENDUM + FIELD_LIST_ADDENDUM_A
+    const system = hardRangePrompt(DISCOVERY_SYSTEM_PROMPT, low, high) + TARGET_COUNT_AND_COVERAGE_ADDENDUM + FIELD_LIST_ADDENDUM_A + TOOL_MAPPING_ADDENDUM
     const userMessage = buildDiscoveryUserMessage(topicLabel, topicDescription, activities)
 
     let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
@@ -379,9 +422,10 @@ export async function discoverThemes(
         try {
             const res = await invoke(system, DISCOVERY_TOOL, userMessage, LONG_MAX_TOKENS, SCORING_MODEL_ID)
             usage = { inputTokens: usage.inputTokens + res.usage.inputTokens, outputTokens: usage.outputTokens + res.usage.outputTokens }
-            if (res.input && Array.isArray(res.input.subtopics)) { input = res.input; lastErr = undefined; break }
+            const unwrapped = unwrapToolInput(res.input, 'subtopics')
+            if (unwrapped) { input = unwrapped; lastErr = undefined; break }
             lastErr = new Error('discoverThemes: the model\'s answer carried no usable subtopics array')
-            console.error(JSON.stringify({ tag: 'literature-themes-discover-unusable', attempt }))
+            console.error(JSON.stringify({ tag: 'literature-themes-discover-unusable', attempt, inputShape: JSON.stringify(res.input)?.slice(0, 800) }))
         } catch (err: any) {
             usage = {
                 inputTokens: usage.inputTokens + (err?.usage?.inputTokens || 0),
@@ -491,7 +535,7 @@ export async function extendThemes(
     const target = clampTargetThemeCount(themes.length || DISCOVERY_DEFAULT_TARGET)
     const low = target - THEME_COUNT_TOLERANCE
     const high = target + THEME_COUNT_TOLERANCE
-    const system = hardRangePrompt(DISCOVERY_SYSTEM_PROMPT, low, high) + TARGET_COUNT_AND_COVERAGE_ADDENDUM + FIELD_LIST_ADDENDUM_A
+    const system = hardRangePrompt(DISCOVERY_SYSTEM_PROMPT, low, high) + TARGET_COUNT_AND_COVERAGE_ADDENDUM + FIELD_LIST_ADDENDUM_A + TOOL_MAPPING_ADDENDUM
 
     const userMessage = fillExtensionPrompt(DISCOVERY_EXTENSION_PROMPT, {
         current_coverage_pct: currentCoveragePct,
@@ -508,9 +552,10 @@ export async function extendThemes(
         try {
             const res = await invoke(system, EXTENSION_TOOL, userMessage, LONG_MAX_TOKENS, SCORING_MODEL_ID)
             usage = { inputTokens: usage.inputTokens + res.usage.inputTokens, outputTokens: usage.outputTokens + res.usage.outputTokens }
-            if (res.input && Array.isArray(res.input.new_subtopics)) { input = res.input; lastErr = undefined; break }
+            const unwrapped = unwrapToolInput(res.input, 'new_subtopics')
+            if (unwrapped) { input = unwrapped; lastErr = undefined; break }
             lastErr = new Error('extendThemes: the model\'s answer carried no usable new_subtopics array')
-            console.error(JSON.stringify({ tag: 'literature-themes-extend-unusable', attempt }))
+            console.error(JSON.stringify({ tag: 'literature-themes-extend-unusable', attempt, inputShape: JSON.stringify(res.input)?.slice(0, 800) }))
         } catch (err: any) {
             usage = {
                 inputTokens: usage.inputTokens + (err?.usage?.inputTokens || 0),
@@ -623,7 +668,7 @@ export async function classifyThemesBatch(
     const topicDescription = topicDescriptionOf(criteria)
     const validIds = new Set(themes.map(t => t.id))
     const byPmid = new Map(batch.map(it => [it.pmid, it]))
-    const system = ASSIGNMENT_SYSTEM_PROMPT + BATCH_ADDENDUM
+    const system = ASSIGNMENT_SYSTEM_PROMPT + BATCH_ADDENDUM + BATCH_TOOL_MAPPING_ADDENDUM
 
     const resolved = new Map<string, Record<string, number>>()
     let usage: UsageLog = { inputTokens: 0, outputTokens: 0 }
@@ -636,7 +681,11 @@ export async function classifyThemesBatch(
             const { input, usage: u } = await invoke(system, CLASSIFY_TOOL, userMessage, maxTokens, SCORING_MODEL_ID)
             usage = { inputTokens: usage.inputTokens + u.inputTokens, outputTokens: usage.outputTokens + u.outputTokens }
 
-            for (const item of (input?.results || [])) {
+            const unwrapped = unwrapToolInput(input, 'results')
+            if (!unwrapped) {
+                console.error(JSON.stringify({ tag: 'literature-themes-classify-unusable', attempt, inputShape: JSON.stringify(input)?.slice(0, 800) }))
+            }
+            for (const item of (unwrapped?.results || [])) {
                 const pmid = String(item?.pmid ?? '').trim()
                 if (!byPmid.has(pmid)) {
                     // A result on an activity we never sent -- the same fabrication risk every other

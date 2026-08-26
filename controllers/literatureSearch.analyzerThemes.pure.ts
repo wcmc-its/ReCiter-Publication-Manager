@@ -28,6 +28,56 @@ export type Theme = {
 }
 
 // ---------------------------------------------------------------------------
+// TOOL-ANSWER UNWRAP. Live-verified failure (dev server, 2026-08-26, two consecutive discoverThemes
+// attempts): this codebase's invoke() forces a tool call (see literatureSearch.analyzerThemes.ts's
+// own header on that divergence from the pilot's freeform json.loads), but DISCOVERY_SYSTEM_PROMPT /
+// DISCOVERY_EXTENSION_PROMPT / ASSIGNMENT_SYSTEM_PROMPT are BYTE-FOR-BYTE ports of prompts written
+// for that freeform path -- each has its own "OUTPUT FORMAT -- return ONLY a JSON object" section.
+// Under tool forcing, Sonnet sometimes obeys that section literally: it builds the JSON object the
+// prose describes and stuffs the WHOLE THING, serialized, into the one tool-input field the OUTPUT
+// FORMAT names first (`res.input` came back as `{"subtopics": "<the entire pilot-format object,
+// JSON-encoded>"}`, decoding to `{"subtopics":[...],"uncovered":[...],"total_activities":4,
+// "coverage_pct":0.75}`) -- instead of populating the tool's fields directly. `Array.isArray` on
+// that string is false, so the existing shape check aborted the whole call after
+// DISCOVERY_ATTEMPTS, having already billed both attempts.
+//
+// unwrapToolInput recovers the answer without touching the ported prompt text (the standing rule
+// against editing it beyond the two named word-drops stays -- the fix is a short addendum at each
+// call site plus this reader, never a rewrite of OUTPUT FORMAT prose). It tries, in order:
+//   (a) `input[arrayField]` is already an array -- the correct shape -- return `input` unchanged.
+//   (b) `input[arrayField]` is a string -- JSON.parse it. If that yields an array, return `input`
+//       with the field replaced by the parsed array. If it yields an object whose OWN
+//       `[arrayField]` is an array, return THAT object instead -- it is the whole pilot-format
+//       answer (sibling fields like `uncovered`/`total_activities`/`coverage_pct` included), and
+//       its values are preferred over anything already sitting beside the string in `input`.
+//   (c) `input` itself is a string (the model wrapped nothing in tool fields at all) -- parse it and
+//       return the parsed object if its `[arrayField]` is an array.
+//   Anything else -- unparseable JSON, a shape matching none of the above -- returns null. Never
+//   throws: null is exactly the "unusable" signal the existing one-retry-then-abort callers already
+//   check for.
+export function unwrapToolInput(input: any, arrayField: string): any | null {
+    if (input && typeof input === 'object' && !Array.isArray(input)) {
+        const field = input[arrayField]
+        if (Array.isArray(field)) return input
+        if (typeof field === 'string') {
+            let parsed: any
+            try { parsed = JSON.parse(field) } catch { return null }
+            if (Array.isArray(parsed)) return { ...input, [arrayField]: parsed }
+            if (parsed && typeof parsed === 'object' && Array.isArray(parsed[arrayField])) return parsed
+            return null
+        }
+        return null
+    }
+    if (typeof input === 'string') {
+        let parsed: any
+        try { parsed = JSON.parse(input) } catch { return null }
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed[arrayField])) return parsed
+        return null
+    }
+    return null
+}
+
+// ---------------------------------------------------------------------------
 // Port of ReciterAI's _validate_and_clean_clusters, via the pilot's validate_and_clean_clusters
 // (run_discovery.py): drop any cluster with fewer than MIN_CLUSTER_SIZE seed_pmids, moving its
 // pmids into "uncovered" rather than discarding them — an activity that almost formed a cluster is

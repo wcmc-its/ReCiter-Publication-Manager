@@ -1039,6 +1039,58 @@ function lit_discoveryPromptFixture() {
         + 'RULES:\n1. Produce between 8 and 25 subtopics. Do not go below 8 or above 25.\n2. Every cluster MUST have at least 3 seed_pmids.'
 }
 
+// unwrapToolInput — the live-verified tool-forcing-vs-OUTPUT-FORMAT fix (2026-08-26): under forced
+// tool_choice, Sonnet sometimes obeys the ported prompts' own "OUTPUT FORMAT -- return ONLY a JSON
+// object" section literally and stuffs the WHOLE answer, JSON-encoded, into the one tool field that
+// section names first, instead of populating the tool's fields directly. The fixture below is the
+// EXACT shape dev-server logs showed twice in a row for discoverThemes: res.input =
+// {"subtopics": "<the entire pilot-format object, JSON-encoded>"}.
+const checkUnwrapToolInput = (th) => {
+    // (a) Already the correct shape — passed through completely unchanged (same object, not a copy
+    // with re-derived fields), since there is nothing here to fix.
+    const correct = { subtopics: [{ id: 'theme_a' }], uncovered: ['1'] }
+    assert.strictEqual(th.unwrapToolInput(correct, 'subtopics'), correct,
+        'an already-correct shape must pass through as the SAME object, not merely an equal one')
+
+    // (b1) The live-evidence shape: input[arrayField] is a JSON string decoding to an OBJECT whose
+    // own [arrayField] is an array — that object must be returned (sibling fields like `uncovered`,
+    // `total_activities`, `coverage_pct` included), preferred over anything sitting beside the
+    // string in the outer `input`.
+    const wrappedObjectString = {
+        subtopics: JSON.stringify({
+            subtopics: [{ id: 'theme_a', label: 'A', description: 'd', seed_pmids: ['1', '2', '3'], coverage_estimate: 0.5 }],
+            uncovered: ['33753933'],
+            total_activities: 4,
+            coverage_pct: 0.75,
+        }),
+    }
+    const unwrappedObject = th.unwrapToolInput(wrappedObjectString, 'subtopics')
+    assert.ok(Array.isArray(unwrappedObject?.subtopics), 'the decoded object\'s own subtopics array must surface, not the outer string')
+    assert.strictEqual(unwrappedObject.subtopics.length, 1, 'the one cluster in the decoded object must be present')
+    assert.deepStrictEqual(unwrappedObject.uncovered, ['33753933'], 'sibling fields carried inside the decoded object (uncovered) must be preferred over anything on the outer input')
+    assert.strictEqual(unwrappedObject.total_activities, 4, 'total_activities from the decoded object must also surface')
+
+    // (b2) input[arrayField] is a JSON string decoding to a BARE ARRAY (no wrapping object) — the
+    // outer input is kept, with that field replaced by the parsed array.
+    const wrappedBareArrayString = { subtopics: JSON.stringify([{ id: 'theme_b', label: 'B', description: 'd', seed_pmids: ['4', '5', '6'] }]), uncovered: ['9'] }
+    const unwrappedArray = th.unwrapToolInput(wrappedBareArrayString, 'subtopics')
+    assert.ok(Array.isArray(unwrappedArray?.subtopics), 'a bare-array-encoded string must decode to an array on the same field')
+    assert.strictEqual(unwrappedArray.subtopics[0].id, 'theme_b', 'the decoded array\'s single cluster must survive')
+    assert.deepStrictEqual(unwrappedArray.uncovered, ['9'], 'fields already on the outer input (uncovered) must be preserved when only the array field was string-encoded')
+
+    // (c) Garbage — a string field that is not parseable JSON at all — must return null, never throw
+    // and never silently fabricate a usable shape. Same for input itself being an unparseable string.
+    assert.strictEqual(th.unwrapToolInput({ subtopics: 'not json at all {{{' }, 'subtopics'), null,
+        'an unparseable string in the array field must resolve to null, the existing "unusable" signal callers already check for')
+    assert.strictEqual(th.unwrapToolInput('also not json {{{', 'subtopics'), null,
+        'an unparseable input that is itself a bare string must also resolve to null')
+    assert.strictEqual(th.unwrapToolInput({ subtopics: 42 }, 'subtopics'), null,
+        'a field that is neither an array nor a string (garbage type) must resolve to null')
+    assert.strictEqual(th.unwrapToolInput(null, 'subtopics'), null, 'a null input must resolve to null, not throw')
+
+    console.log('unwrap-tool:  correct shape passed through unchanged; wrapped-object-string and wrapped-bare-array-string both recovered; unparseable/garbage -> null, never throws')
+}
+
 // filter_valid_assignments — floor, unknown id, dedup-max. Ported from the pilot's own function of
 // the same name (run_classification.py), which is itself a port of ReciterAI's
 // _filter_valid_assignments.
@@ -1188,6 +1240,7 @@ const checkWorkingSetValidation = (th) => {
     checkCorpusSheet(xp)
     checkBibliometricDoc(xp)
     checkHardRangeRewrite(th)
+    checkUnwrapToolInput(th)
     checkFilterValidAssignments(th)
     checkResolvePrimary(th)
     checkAssignmentsCsvRoundTrip(th)
