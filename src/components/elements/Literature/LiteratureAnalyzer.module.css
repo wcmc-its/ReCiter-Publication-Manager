@@ -151,3 +151,25 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-strong);
 }
+
+/* ---------- Upgrade-scope radios (Score Impact before-state) ----------
+ * A three-way choice (None / Top 200 / All) is too small a set to justify .mode's full card-grid
+ * (SearchForm's ModePicker) — plain radio + label pairs in a row, same "native control over built
+ * widget" instinct as .floorRow's slider and StepTabs' own radio group above.
+ */
+.upgradeRow {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 6px 0 10px;
+}
+
+.upgradeChoice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-body);
+  cursor: pointer;
+}
+.upgradeChoice input { accent-color: var(--accent); cursor: pointer; }

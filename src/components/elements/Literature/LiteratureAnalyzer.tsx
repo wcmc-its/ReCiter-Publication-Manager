@@ -222,6 +222,82 @@ async function fetchRelevanceBatch(
 }
 
 // ---------------------------------------------------------------------------
+// SCORE IMPACT (Phase 3). SHAPE IS DIFFERENT FROM SYNOPSIZE/SCORE RELEVANCE'S UNIFORM
+// before/running/done — see controllers/literatureSearch.analyzerImpact.ts (the previous ticket,
+// already committed) for the request/response contract this mirrors: { impactPmids, paid } in,
+// { records: [{pmid, impactScore, impactJustification, impactSource, nihPercentile, citationCount,
+// rcr}], failed } out.
+//
+//   FREE FLOOR (paid:false) — costs nothing, so it is not gated behind a run button at all: it
+//   fires automatically on arrival (see ScoreImpactStep's mount effect), full qualifying pmid list
+//   in one request, no size cap (matches the backend's own uncapped parseImpactPmids for
+//   paid:false).
+//   PAID UPGRADE (paid:true) — opt-in (None / Top 200 / All), batched client-side, and run
+//   SEQUENTIALLY — a genuine, deliberate difference from Score Relevance's concurrent batching, not
+//   an oversight to "fix" by copying RELEVANCE_CLIENT_CONCURRENCY's pattern: this scoring call
+//   already runs sequentially server-side today (literatureSearch.impact.ts's scoreImpact()), so the
+//   client-side shape matches rather than pretending a concurrency this route does not have.
+type ImpactRow = {
+    pmid: string
+    impactScore: number
+    impactJustification: string
+    impactSource: 'paid' | 'floor'
+    nihPercentile?: number
+    citationCount?: number
+    rcr?: number
+}
+type ImpactBatchResponse = {
+    records: ImpactRow[]
+    failed: string[]
+    error?: string
+}
+// What Score Impact hands the next step (Themes) once a person continues past it — every qualifying
+// record plus its resolved impact fields, same lift-up pattern RelevanceRecord's own comment
+// describes for Score Relevance's output.
+type ImpactRecord = RelevanceRecord & ImpactRow
+
+async function fetchImpactBatch(pmids: string[], paid: boolean): Promise<ImpactBatchResponse> {
+    const res = await fetch('/api/literature/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'literature-analyzer', phase: 'score-impact', impactPmids: pmids, paid }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.message || 'Impact scoring failed for this batch.')
+    return {
+        records: Array.isArray(data.records) ? data.records : [],
+        failed: Array.isArray(data.failed) ? data.failed : [],
+    }
+}
+
+// RECORD_CAP (50), duplicated here rather than imported — same reasoning RELEVANCE_BATCH_SIZE's own
+// comment gives above: the real constant lives in literatureSearch.strategy.ts, which pulls in
+// server-only imports (through literatureSearch.llm.ts) that must never reach the browser bundle.
+// This is also exactly what scoreImpact() batches at internally (literatureSearch.impact.ts), so a
+// client batch of this size becomes exactly one Bedrock call server-side, no mismatch either way.
+const IMPACT_BATCH_SIZE = 50
+
+// $0.0072/record — PLAN's own measured rate (PLAN-relevance-impact-topical-analysis-2026-08-22.md,
+// "Models, cost, and time"; corrected 2026-08-23 from an earlier wrong-model $0.011/record figure),
+// cited the same "PLAN's measured $X/record figure" way controllers/literatureSearch.analyzerRelevance.ts
+// cites its own rate — same pilot-measured, honestly-labeled discipline as every other estimate on
+// this page.
+const IMPACT_RATE_PER_RECORD = 0.0072
+
+// A LABELED GUESS on the per-batch seconds, same as every other route's timing figure on this page —
+// but unlike those, the SHAPE here (linear in batch count) is not a guess: batches genuinely run one
+// at a time (useChunkedProgress(1) below), matching how scoreImpact() already runs server-side.
+const ROUGH_SECONDS_PER_IMPACT_BATCH: readonly [number, number] = [40, 80]
+
+// PLAN decision 32 — above this estimated dollar figure for the CHOSEN scope, the run button asks a
+// second time, naming the real number, before firing. No hard ceiling above it (PLAN's own
+// reasoning: the relevance floor already bounds the qualifying set, and this is a judgment call
+// worth surfacing, not walling off).
+const IMPACT_COST_CONFIRM_THRESHOLD = 25
+
+type UpgradeScope = 'none' | 'top200' | 'all'
+
+// ---------------------------------------------------------------------------
 // ONE EXPANDABLE LOSS SECTION (decision 30). The count is always visible in <summary>, even
 // collapsed — see LiteratureAnalyzer.module.css's own comment for why this is a native <details>
 // rather than built disclosure state.
@@ -608,6 +684,308 @@ function ScoreRelevanceStep({ synopses, onContinue }: {
     )
 }
 
+// ---------------------------------------------------------------------------
+// SCORE IMPACT (Phase 3). NOT the uniform before/running/done shape SynopsizeStep/ScoreRelevanceStep
+// share — the free floor pass runs automatically on arrival (see the mount effect below) and is
+// never gated behind CheckpointScreen's own run button; only the PAID upgrade goes through that
+// button/progress cycle. `qualifying` is Score Relevance's own carried-forward set — already sorted
+// relevance-descending (see ScoreRelevanceStep's own scoredRows sort), which is what makes "Top 200
+// by relevance" a plain array slice here rather than a second sort.
+function ScoreImpactStep({ qualifying, onContinue }: {
+    qualifying: RelevanceRecord[]
+    onContinue: (records: ImpactRecord[]) => void
+}) {
+    const qualifyingPmids = useMemo(() => qualifying.map(r => r.pmid), [qualifying])
+    const qualifyingKey = qualifyingPmids.join(',')
+
+    // THE FREE FLOOR — CONTEXT: automatic, not gated behind a button. Fires once per arrival, keyed
+    // on the qualifying pmid list (a stable signal) rather than a bare mount-effect, plus a fired-ref
+    // guard — same "guard on a stable signal, not a fresh array reference" discipline
+    // SynopsizeStep's onDone-lift effect uses (guarded on state.status alone, not on the fresh
+    // flatSynopses array literal it reads).
+    const firedFloorFor = useRef<string | null>(null)
+    const [floorStatus, setFloorStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+    const [floorRows, setFloorRows] = useState<Map<string, ImpactRow>>(new Map())
+    const [floorErr, setFloorErr] = useState('')
+
+    useEffect(() => {
+        if (!qualifyingPmids.length) return
+        if (firedFloorFor.current === qualifyingKey) return
+        firedFloorFor.current = qualifyingKey
+        setFloorStatus('loading')
+        setFloorErr('')
+        fetchImpactBatch(qualifyingPmids, false)
+            .then(res => {
+                setFloorRows(new Map(res.records.map(r => [r.pmid, r])))
+                setFloorStatus('done')
+            })
+            .catch((e: any) => {
+                setFloorErr(e?.message || 'Could not load the free impact floor.')
+                setFloorStatus('error')
+            })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [qualifyingKey])
+
+    // THE PAID PASS — SEQUENTIAL. concurrency=1, literal (not a named RELEVANCE_CLIENT_CONCURRENCY-
+    // style constant) — CONTEXT: a deliberate difference from Score Relevance, not an oversight.
+    const paidRun = useChunkedProgress<ImpactBatchResponse>(1)
+    const [upgrade, setUpgrade] = useState<UpgradeScope>('none')
+    const [paidRows, setPaidRows] = useState<Map<string, ImpactRow>>(new Map())
+    const [failedPaid, setFailedPaid] = useState<string[]>([])
+    // Every pmid EVER included in a paid:true request (initial run or retry) — the complement of
+    // this set against `qualifying` is the second, non-retryable disclosure: records simply never
+    // scoped for the paid upgrade at all (chose "None" or "Top 200"), distinct from a genuine
+    // scoring failure. A retry re-sends a pmid already in this set, so it never shrinks.
+    const [scopeSent, setScopeSent] = useState<Set<string>>(new Set())
+    // "None" needs no batching and no network call at all — the free floor above is already instant
+    // either way — so it is tracked separately from paidRun's own status rather than run through
+    // useChunkedProgress with zero thunks just to reach a 'done' state.
+    const [noneScopeDone, setNoneScopeDone] = useState(false)
+    const runTargets = useRef<string[]>([])
+
+    const fire = (pmids: string[]) => {
+        runTargets.current = pmids
+        setScopeSent(prev => {
+            const next = new Set(prev)
+            pmids.forEach(p => next.add(p))
+            return next
+        })
+        void paidRun.run(chunk(pmids, IMPACT_BATCH_SIZE).map(batch => () => (
+            fetchImpactBatch(batch, true).catch((e: any) => ({
+                records: [], failed: batch, error: e?.message || 'Batch failed.',
+            }))
+        )))
+    }
+
+    // THE MERGE — same shape as ScoreRelevanceStep's own merge effect: reconciles paidRows/failedPaid
+    // against exactly the pmids THIS run targeted, so a retry's successes leave `failedPaid` without
+    // touching any pmid this run never asked about. Each returned row already carries impactSource
+    // 'paid'|'floor' from the backend's own resolution rule, so paidRows already resolves a
+    // genuinely-failed pmid to its floor score too — `failedPaid` is purely the retry-affordance
+    // list, not a second source of truth for the score itself.
+    useEffect(() => {
+        if (paidRun.state.status !== 'done') return
+        const targets = runTargets.current
+        const got = new Map<string, ImpactRow>()
+        for (const r of paidRun.state.results) for (const row of (r?.records || [])) got.set(row.pmid, row)
+        if (got.size) {
+            setPaidRows(prev => {
+                const next = new Map(prev)
+                for (const [pmid, row] of got) next.set(pmid, row)
+                return next
+            })
+        }
+        const failedThisRun = new Set<string>()
+        for (const r of paidRun.state.results) for (const p of (r?.failed || [])) failedThisRun.add(p)
+        setFailedPaid(prev => {
+            const untouched = prev.filter(p => !targets.includes(p))
+            return Array.from(new Set([...untouched, ...Array.from(failedThisRun)]))
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [paidRun.state.status])
+
+    const scopePmids = upgrade === 'none' ? [] : upgrade === 'top200' ? qualifyingPmids.slice(0, 200) : qualifyingPmids
+    const cost = scopePmids.length * IMPACT_RATE_PER_RECORD
+    const batches = chunk(scopePmids, IMPACT_BATCH_SIZE)
+    const [loSecPerBatch, hiSecPerBatch] = ROUGH_SECONDS_PER_IMPACT_BATCH
+    const loSeconds = batches.length * loSecPerBatch
+    const hiSeconds = batches.length * hiSecPerBatch
+
+    const estimate = upgrade === 'none'
+        ? 'No paid upgrade selected — click through to the free floor scores below, no wait either way.'
+        : `${scopePmids.length.toLocaleString()} record${scopePmids.length === 1 ? '' : 's'} · `
+            + `${batches.length} batch${batches.length === 1 ? '' : 'es'} of up to ${IMPACT_BATCH_SIZE} · `
+            + `est. $${cost.toFixed(2)} (PLAN's measured $${IMPACT_RATE_PER_RECORD}/record) · `
+            + `~${loSeconds}-${hiSeconds}s, run sequentially one batch at a time (ROUGH GUESS on the `
+            + `per-batch seconds — but genuinely sequential, matching how this scoring call already `
+            + `runs elsewhere in the app, not a "no data yet" hedge)`
+            + (cost > IMPACT_COST_CONFIRM_THRESHOLD ? ` · above $${IMPACT_COST_CONFIRM_THRESHOLD}, running asks you to confirm the dollar figure once more` : '')
+
+    const runImpact = () => {
+        if (upgrade === 'none') { setNoneScopeDone(true); return }
+        // PLAN decision 32 — a second, explicit confirmation naming the real dollar figure above the
+        // threshold. A plain window.confirm is the right amount of engineering for one dollar-figure
+        // gate (no modal/dialog component exists elsewhere in this codebase to reuse, and MUST NOT
+        // add a new dependency for it).
+        if (cost > IMPACT_COST_CONFIRM_THRESHOLD) {
+            const ok = window.confirm(`This run is estimated at $${cost.toFixed(2)}. Run it?`)
+            if (!ok) return
+        }
+        fire(scopePmids)
+    }
+
+    // decision 29 — retries ONLY the still-failed pmids, not the whole scope.
+    const retryFailedPaid = () => {
+        if (!failedPaid.length) return
+        fire(failedPaid)
+    }
+
+    const runAgain = () => {
+        paidRun.reset()
+        setNoneScopeDone(false)
+        setPaidRows(new Map())
+        setFailedPaid([])
+        setScopeSent(new Set())
+    }
+
+    // The status CheckpointScreen renders off — 'none' completes without ever touching paidRun (see
+    // runImpact above), so it is tracked separately (noneScopeDone) rather than forced through the
+    // hook just to reach a 'done' state.
+    const screenStatus = noneScopeDone ? 'done' : paidRun.state.status
+
+    const resolvedRows = useMemo(() => {
+        const rows: Array<RelevanceRecord & ImpactRow> = []
+        for (const r of qualifying) {
+            const impact = paidRows.get(r.pmid) || floorRows.get(r.pmid)
+            if (impact) rows.push({ ...r, ...impact })
+        }
+        return rows.sort((a, b) => b.impactScore - a.impactScore)
+    }, [qualifying, floorRows, paidRows])
+
+    const paidCount = resolvedRows.filter(r => r.impactSource === 'paid').length
+    const floorOnlyCount = resolvedRows.length - paidCount
+    const notScopedForPaid = qualifying.filter(r => !scopeSent.has(r.pmid)).map(r => r.pmid)
+
+    const elapsedSeconds = noneScopeDone ? 0 : Math.round(paidRun.state.elapsedMs / 1000)
+    const doneSummary = `${resolvedRows.length.toLocaleString()} of ${qualifying.length.toLocaleString()} qualifying `
+        + `record${qualifying.length === 1 ? '' : 's'} carry a resolved impact score — ${paidCount.toLocaleString()} `
+        + `paid, ${floorOnlyCount.toLocaleString()} floor-only`
+        + (elapsedSeconds ? ` (paid pass ${elapsedSeconds}s)` : '')
+
+    const exportImpact = () => {
+        const csv = toCsv(
+            ['PMID', 'Title', 'Relevance Score', 'Impact Score', 'Impact Source', 'Impact Justification', 'NIH Percentile', 'Citation Count', 'RCR'],
+            resolvedRows.map(r => [
+                r.pmid, r.title, r.relevanceScore, r.impactScore, r.impactSource, r.impactJustification,
+                r.nihPercentile ?? '', r.citationCount ?? '', r.rcr ?? '',
+            ]),
+        )
+        saveText(csv, `${stamp('impact-scores', today())}.csv`)
+    }
+
+    // A REAL, CURRENTLY-ACCEPTED PRODUCT LIMITATION, same as ScoreRelevanceStep's own empty-state
+    // comment — this page persists nothing across a reload.
+    if (!qualifying.length) {
+        return (
+            <div className={ls.card}>
+                <p className={s.placeholder}>
+                    Score Impact reads the qualifying set Score Relevance just produced, and none are
+                    available this session yet. Run Score Relevance first, then come back to this tab.
+                </p>
+            </div>
+        )
+    }
+
+    if (floorStatus === 'loading' || floorStatus === 'idle') {
+        return (
+            <div className={ls.card}>
+                <p className={ls.help}>
+                    Loading the free impact floor for {qualifying.length.toLocaleString()} qualifying
+                    record{qualifying.length === 1 ? '' : 's'} — instant, no extra step or cost…
+                </p>
+            </div>
+        )
+    }
+
+    if (floorStatus === 'error') {
+        return (
+            <div className={ls.card}>
+                <div role="alert" className={ls.error}>{floorErr}</div>
+                <button className={ls.btnSecondary} onClick={() => { firedFloorFor.current = null; setFloorStatus('idle') }}>Retry</button>
+            </div>
+        )
+    }
+
+    return (
+        <CheckpointScreen
+            status={screenStatus}
+            estimate={estimate}
+            actionLabel="Score impact"
+            onRun={runImpact}
+            canRun
+            progressDone={paidRun.state.done}
+            progressTotal={paidRun.state.total}
+            elapsedSeconds={elapsedSeconds}
+            doneSummary={doneSummary}
+            beforeExtra={
+                <>
+                    <p className={ls.help}>
+                        <b>{floorRows.size.toLocaleString()}</b> of <b>{qualifying.length.toLocaleString()}</b>{' '}
+                        qualifying record{qualifying.length === 1 ? '' : 's'} loaded a free impact score
+                        automatically — no extra step or cost.
+                    </p>
+                    <div className={ls.field}>
+                        <label className={ls.eyebrow}>
+                            Upgrade — pay for a model-judged score too?{' '}
+                            <span
+                                className={s.stepInfo}
+                                title="The free estimate from citation data is always there as a floor, for every qualifying paper. This adds a second, model-judged opinion on top for however many you choose to pay for — the ranked list uses whichever one a paper actually has. Time estimate assumes batches run one at a time, matching how this scoring call already works elsewhere in the app — not a guess, the app's own scoring functions are sequential today."
+                                aria-label="upgrade info"
+                            >(i)</span>
+                        </label>
+                        <div role="radiogroup" aria-label="Paid upgrade scope" className={s.upgradeRow}>
+                            <label className={s.upgradeChoice}>
+                                <input type="radio" name="impact-upgrade" checked={upgrade === 'none'} onChange={() => setUpgrade('none')} />
+                                None
+                            </label>
+                            <label className={s.upgradeChoice}>
+                                <input type="radio" name="impact-upgrade" checked={upgrade === 'top200'} onChange={() => setUpgrade('top200')} />
+                                Top {Math.min(200, qualifying.length)} by relevance
+                            </label>
+                            <label className={s.upgradeChoice}>
+                                <input type="radio" name="impact-upgrade" checked={upgrade === 'all'} onChange={() => setUpgrade('all')} />
+                                All {qualifying.length.toLocaleString()}
+                            </label>
+                        </div>
+                    </div>
+                </>
+            }
+        >
+            <div className={s.lossRow}>
+                <LossSection
+                    label="failed the paid pass — carry the free floor score"
+                    pmids={failedPaid}
+                    onRetry={failedPaid.length ? retryFailedPaid : undefined}
+                />
+                {notScopedForPaid.length > 0 && (
+                    <p className={ls.help}>
+                        <b>{notScopedForPaid.length.toLocaleString()}</b> of {qualifying.length.toLocaleString()} were
+                        not scoped for the paid upgrade (you chose {upgrade === 'top200' ? 'Top 200' : 'None'}) — they
+                        carry the free citation-based floor, not the AI-judged score. Re-run the paid pass above if
+                        you want them upgraded.
+                    </p>
+                )}
+            </div>
+
+            <div className={ls.lines}>
+                {resolvedRows.map(r => (
+                    <div className={ls.line} key={r.pmid}>
+                        <div className={ls.field}>
+                            <b>{r.title || `PMID ${r.pmid}`}</b>{' '}
+                            <span className={ls.help}>
+                                PMID {r.pmid} · impact {r.impactScore} ({r.impactSource === 'paid' ? 'paid' : 'floor'})
+                            </span>
+                            <p className={ls.help}>{r.impactJustification}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className={ls.actions}>
+                <button className={ls.btnSecondary} onClick={runAgain}>Run again</button>
+                <button className={ls.btnSecondary} onClick={exportImpact} disabled={!resolvedRows.length}>Export</button>
+                <button
+                    className={ls.btn}
+                    onClick={() => onContinue(resolvedRows as ImpactRecord[])}
+                    disabled={!resolvedRows.length}
+                >
+                    Continue with these {resolvedRows.length.toLocaleString()} →
+                </button>
+            </div>
+        </CheckpointScreen>
+    )
+}
+
 function PlaceholderStep({ label, note }: { label: string; note?: string }) {
     return (
         <div className={ls.card}>
@@ -624,6 +1002,7 @@ export default function LiteratureAnalyzer() {
     // empty-state comment for why that is accepted, not a bug to fix here.
     const [synopsisResult, setSynopsisResult] = useState<Synopsis[]>([])
     const [qualifyingRelevance, setQualifyingRelevance] = useState<RelevanceRecord[]>([])
+    const [qualifyingImpact, setQualifyingImpact] = useState<ImpactRecord[]>([])
     const step = STEPS.find(x => x.id === current)!
 
     return (
@@ -649,13 +1028,16 @@ export default function LiteratureAnalyzer() {
                         setCurrent('score-impact')
                     }}
                 />
-            ) : (
-                <PlaceholderStep
-                    label={step.label}
-                    note={current === 'score-impact' && qualifyingRelevance.length
-                        ? `${qualifyingRelevance.length} qualifying record${qualifyingRelevance.length === 1 ? '' : 's'} staged from Score Relevance.`
-                        : undefined}
+            ) : current === 'score-impact' ? (
+                <ScoreImpactStep
+                    qualifying={qualifyingRelevance}
+                    onContinue={records => {
+                        setQualifyingImpact(records)
+                        setCurrent('themes')
+                    }}
                 />
+            ) : (
+                <PlaceholderStep label={step.label} />
             )}
         </div>
     )
