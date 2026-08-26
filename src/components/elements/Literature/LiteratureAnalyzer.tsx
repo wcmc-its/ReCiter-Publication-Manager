@@ -1612,7 +1612,7 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
                 </button>
                 <div className={s.themeOpenedHead}>
                     <h2 className={s.themeOpenedTitle}>{isUncovered ? "Didn't fit a theme" : theme?.label}</h2>
-                    <span className={ls.help}>{rowsInTheme.length.toLocaleString()} papers</span>
+                    <span className={ls.help}>{rowsInTheme.length.toLocaleString()} paper{rowsInTheme.length === 1 ? '' : 's'}</span>
                 </div>
                 {!isUncovered && theme?.description && <p className={ls.help}>{theme.description}</p>}
 
@@ -1892,7 +1892,7 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
                 {visibleThemes.map(t => (
                     <div className={s.themeCard} key={t.id}>
                         <div className={s.themeCardLabel}>{t.label}</div>
-                        <div className={s.themeCardCount}>{(themeCounts[t.id] || 0).toLocaleString()} papers</div>
+                        <div className={s.themeCardCount}>{(themeCounts[t.id] || 0).toLocaleString()} paper{(themeCounts[t.id] || 0) === 1 ? '' : 's'}</div>
                         <button className={ls.btnSecondary} onClick={() => setOpenedThemeId(t.id)}>Open</button>
                     </div>
                 ))}
@@ -1907,7 +1907,7 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
             <div className={s.themeGrid}>
                 <div className={s.themeCard}>
                     <div className={s.themeCardLabel}>Didn&apos;t fit a theme</div>
-                    <div className={s.themeCardCount}>{uncoveredCount.toLocaleString()} papers</div>
+                    <div className={s.themeCardCount}>{uncoveredCount.toLocaleString()} paper{uncoveredCount === 1 ? '' : 's'}</div>
                     <button className={ls.btnSecondary} onClick={() => setOpenedThemeId(UNCOVERED_SENTINEL)}>Open</button>
                 </div>
                 <div className={s.rediscoverBox}>
