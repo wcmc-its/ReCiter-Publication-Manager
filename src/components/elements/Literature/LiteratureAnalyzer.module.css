@@ -109,6 +109,18 @@
   word-break: break-word;
 }
 
+/* The zero-count line LossSection renders in place of a <details> when there is nothing to
+ * disclose (polish pass) — "failed classification after retries: 0.", "could not be fetched from
+ * PubMed: 0.", "failed scoring: 0." across every step that has one. Never silent (a zero still
+ * prints), but its own small class instead of a bare reuse of .help, so it reads uniformly as a
+ * quiet bookkeeping footnote everywhere it appears — one component (LossSection), one style, so
+ * every call site stays in sync automatically. */
+.qaZero {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
 /* The [Retry these N] button living inside <summary> (decision 29, Score Relevance only) — see
  * LossSection's own onRetry comment for why it must stopPropagation, not just preventDefault.
  * Pulled right after the "— click to view" text rather than floated, so it reads as part of the
@@ -222,10 +234,17 @@
  * A responsive grid, not a fixed 3-up — narrower viewports (this app has no dedicated mobile
  * layout, but a laptop half-split browser window is common enough) reflow to 2 or 1 column rather
  * than overflowing.
+ *
+ * auto-fit, not auto-fill (polish pass): auto-fill reserves a column track for every width the
+ * container COULD hold at the 220px minimum, even when there is only one theme to show — so a
+ * single card sat pinned to ~220px with several invisible empty tracks stranding it in the rest of
+ * the row. auto-fit collapses those empty tracks instead, letting the real card(s) claim the space
+ * up to the 320-360px range this ticket asked for; a corpus with many themes still wraps exactly as
+ * before, since auto-fit and auto-fill only differ when a row isn't fully populated.
  */
 .themeGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 360px));
   gap: 14px;
 }
 
@@ -273,10 +292,17 @@
 }
 .themeOpenedTitle { font-size: 16px; font-weight: 600; color: var(--text-strong); margin: 0; }
 
-/* Each row in the theme-opened table pairs the paper (flex: 1) with a fixed-width "Move to…"
+/* Each row in the theme-opened table pairs the paper title (flexible width) with a "Move to…"
  * select — .line already gives the row its border/padding rhythm (LiteratureSearch.module.css),
- * this just makes the select not stretch full-width like a textarea would. */
-.moveToSelect { flex: 0 0 220px; }
+ * but .line's own defaults (baseline-aligned, both children shrink-to-content) left the title
+ * squeezed into a narrow column while the select filled the rest of the row (polish pass fix).
+ * .themeOpenedRow overrides the alignment to flex-start so the select sits flush with the TOP of a
+ * wrapped title, not its baseline; .themeOpenedField gives the title the flexible width so it wraps
+ * at a normal measure instead of a cramped one; .moveToSelect caps itself at a compact width and
+ * pins to the right — the row now reads as a table: wide title left, compact control right. */
+.themeOpenedRow { align-items: flex-start; }
+.themeOpenedField { flex: 1 1 auto; min-width: 0; }
+.moveToSelect { flex: 0 0 320px; max-width: 340px; align-self: flex-start; }
 
 /* ---------- Summarize Themes (Phase 5) ----------
  * The weight-ordered section list (decisions 31/35/36/41) plus the unassigned-papers block below
@@ -285,32 +311,46 @@
  * a precedent; only the section card itself, its head row, the stale badge, and the year-strip
  * line have none.
  */
+/* No own vertical margin (polish pass fix): .card is already a flex column with its own 22px gap
+ * between top-level children (LiteratureSearch.module.css), so a margin here stacked ON TOP of that
+ * gap instead of replacing it, roughly doubling the space above and below the whole section list
+ * versus the page's usual rhythm. The internal gap (4px, between stacked sections) is unaffected. */
 .sectionList {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin: 16px 0;
 }
 
 /* One finished (or failed) theme's write-up. A bottom border stands in for the mockup's own
  * "----" divider between sections — a CSS rule rather than a literal dashed line, same "native/
- * structural over drawn" instinct as every other divider in this stylesheet. */
+ * structural over drawn" instinct as every other divider in this stylesheet — and it already reads
+ * as a divider between consecutive themes (the ':last-child' rule below only suppresses it on the
+ * final section, so a multi-theme write-up keeps a hairline between every section but the last).
+ * Padding trimmed to symmetric (polish pass fix, same doubling as .sectionList above): the extra
+ * 20px bottom pad stacked with .card's own 22px gap AND, for the unassigned-papers card that reuses
+ * this same class, ls.actions' own 18px margin-top right after it — three numbers nobody meant to
+ * add together. 14px top/bottom matches this stylesheet's existing internal-card rhythm instead. */
 .sectionCard {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px 0 20px;
+  padding: 14px 0;
   border-bottom: 1px solid var(--border);
 }
 .sectionCard:last-child { border-bottom: 0; }
 
+/* justify-content: space-between (polish pass fix), same treatment as .themeOpenedHead above: the
+ * rank/weight/paper-count meta belongs pinned to the right of the row, not trailing the title
+ * inline where it reads as accidental the moment the title wraps. The title itself gets the
+ * flexible width so IT wraps first, before the meta is ever pushed off the row. */
 .sectionHead {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
 }
-.sectionHead b { font-size: 14.5px; color: var(--text-strong); }
+.sectionHead b { font-size: 14.5px; color: var(--text-strong); flex: 1 1 auto; min-width: 0; }
 
 /* A theme not yet resolved (decision 31's progressive render) — a bare row, no card border, so it
  * reads visually lighter than a finished section while still holding its place in the fixed,

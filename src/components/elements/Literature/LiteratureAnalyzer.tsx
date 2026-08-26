@@ -339,7 +339,7 @@ type UpgradeScope = 'none' | 'top200' | 'all'
 // are PubMed facts, not worth re-asking; Score Relevance's failed-scoring list is a model call that
 // may just succeed on a second try, so it is the one caller that passes this prop.
 function LossSection({ label, pmids, onRetry }: { label: string; pmids: string[]; onRetry?: () => void }) {
-    if (!pmids.length) return <p className={ls.help}>{label}: 0.</p>
+    if (!pmids.length) return <p className={s.qaZero}>{label}: 0.</p>
     return (
         <details className={s.lossDetails}>
             <summary className={s.lossSummary}>
@@ -1728,8 +1728,8 @@ function ThemesStep({
 
                 <div className={ls.lines}>
                     {visibleRows.map(r => (
-                        <div className={ls.line} key={r.pmid}>
-                            <div className={ls.field}>
+                        <div className={`${ls.line} ${s.themeOpenedRow}`} key={r.pmid}>
+                            <div className={`${ls.field} ${s.themeOpenedField}`}>
                                 <b>{r.title || `PMID ${r.pmid}`}</b> <span className={ls.help}>PMID {r.pmid}</span>
                             </div>
                             <select
@@ -2143,6 +2143,7 @@ async function fetchThemeSynthesis(
 // lifted state, below) vs. THIS live `assignmentRows`' current primary-assignment set.
 function SummarizeThemesStep({
     themes, assignmentRows, synthesisSource, reviewTopic, sections, setSections,
+    summarizeElapsedMs, setSummarizeElapsedMs,
 }: {
     themes: Theme[]
     assignmentRows: ResolvedRow[]
@@ -2158,6 +2159,15 @@ function SummarizeThemesStep({
     // see LiteratureAnalyzer()'s own comment.
     sections: Record<string, SectionOutcome>
     setSections: Dispatch<SetStateAction<Record<string, SectionOutcome>>>
+    // LIFTED (polish pass, mirrors `sections`/ThemesStep's own pipelineElapsedMs): mainRun
+    // (useChunkedProgress) is a per-mount hook — its own elapsedMs resets to 0 on every fresh mount,
+    // so the done screen read 0:00 the instant someone switched tabs and came back, or regenerated a
+    // single section, even though a full write-up already existed. Persisted here the moment a full
+    // run() finishes; a per-section regenerate/retry deliberately leaves it as the last FULL run's
+    // duration (it is not itself timed) rather than tracking per-section timing nobody asked for —
+    // accurate for "how long did writing this up take", just not updated by a single retry.
+    summarizeElapsedMs: number
+    setSummarizeElapsedMs: Dispatch<SetStateAction<number>>
 }) {
     const sourceByPmid = useMemo(() => new Map(synthesisSource.map(r => [r.pmid, r])), [synthesisSource])
 
@@ -2208,7 +2218,6 @@ function SummarizeThemesStep({
     const mainRun = useChunkedProgress<{ themeId: string } & SectionOutcome>(SYNTH_CLIENT_CONCURRENCY)
     const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set())
     const [expandedNotDiscussed, setExpandedNotDiscussed] = useState<Set<string>>(new Set())
-    const [showUnassigned, setShowUnassigned] = useState(false)
 
     // Merge useChunkedProgress's own positional `results` (holes for unresolved slots — see that
     // hook's own comment) into `sections`, keyed by themeId rather than array index, so a later
@@ -2230,6 +2239,16 @@ function SummarizeThemesStep({
         })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mainRun.state.results])
+
+    // PERSIST THE FULL RUN'S ELAPSED (polish pass) — fires exactly once per completed run() in THIS
+    // mount (mainRun.state.status starts at 'before' on every fresh mount and only reaches 'done' via
+    // a real run() call here, never spuriously on remount), capturing the hook's own final elapsedMs
+    // into the lifted `summarizeElapsedMs` so a later remount's done screen has something real to
+    // read instead of a freshly-reset 0.
+    useEffect(() => {
+        if (mainRun.state.status === 'done' && mainRun.state.total > 0) setSummarizeElapsedMs(mainRun.state.elapsedMs)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mainRun.state.status])
 
     // writeUpExists' own onWriteUpStarted latch — REMOVED (this ticket). The parent now derives
     // `writeUpExists` directly from its own lifted `sections` state (Object.keys(sections).length >
@@ -2450,8 +2469,11 @@ function SummarizeThemesStep({
                 <>
                     <p className={ls.help}>
                         {ordered.length} section{ordered.length === 1 ? '' : 's'}, {totalPapers.toLocaleString()} paper{totalPapers === 1 ? '' : 's'} written
-                        up, {unassignedRows.length.toLocaleString()} not assigned to a theme. Actual: ${costEstimate.toFixed(2)} (measured per-theme rate
-                        applied to your {ordered.length.toLocaleString()} theme{ordered.length === 1 ? '' : 's'} — see (i)) · elapsed {formatElapsed(mainRun.state.elapsedMs)}.{' '}
+                        up, {unassignedRows.length.toLocaleString()} not assigned to a theme.
+                    </p>
+                    <p className={ls.help}>
+                        Actual: ${costEstimate.toFixed(2)} (measured per-theme rate
+                        applied to your {ordered.length.toLocaleString()} theme{ordered.length === 1 ? '' : 's'} — see (i)) · elapsed {formatElapsed(mainRun.state.status === 'done' ? mainRun.state.elapsedMs : summarizeElapsedMs)}.{' '}
                         <span className={s.stepInfo} title={COST_TIME_INFO} aria-label="cost/time estimate info">(i)</span>
                     </p>
                     <p className={ls.help}>
@@ -2570,22 +2592,18 @@ function SummarizeThemesStep({
                     </div>
                     <p className={ls.help}>These didn&apos;t fit cleanly anywhere — worth a manual look before you finalize.</p>
                     {unassignedRows.length > 0 && (
-                        showUnassigned ? (
-                            <>
-                                <div className={ls.lines}>
-                                    {unassignedRows.map(r => (
-                                        <div className={ls.line} key={r.pmid}>
-                                            <div className={ls.field}>
-                                                <b>{r.title || `PMID ${r.pmid}`}</b> <span className={ls.help}>PMID {r.pmid}</span>
-                                            </div>
+                        <details className={s.lossDetails}>
+                            <summary className={s.lossSummary}>Show the list <span className={ls.help}>— click to view</span></summary>
+                            <div className={ls.lines}>
+                                {unassignedRows.map(r => (
+                                    <div className={ls.line} key={r.pmid}>
+                                        <div className={ls.field}>
+                                            <b>{r.title || `PMID ${r.pmid}`}</b> <span className={ls.help}>PMID {r.pmid}</span>
                                         </div>
-                                    ))}
-                                </div>
-                                <button type="button" className={ls.btnSecondary} onClick={() => setShowUnassigned(false)}>Hide the list</button>
-                            </>
-                        ) : (
-                            <button type="button" className={ls.btnSecondary} onClick={() => setShowUnassigned(true)}>Show the list →</button>
-                        )
+                                    </div>
+                                ))}
+                            </div>
+                        </details>
                     )}
                 </div>
             )}
@@ -2684,6 +2702,9 @@ export default function LiteratureAnalyzer() {
     // touches (only `resolvedRows`' primaryTheme/uncovered fields change under Move-to), so it needs
     // no separate snapshot the way `sections` does — see SummarizeThemesStep's own header comment.
     const [sections, setSections] = useState<Record<string, SectionOutcome>>({})
+    // Persisted elapsed for a completed write-up run (polish pass) — see SummarizeThemesStep's own
+    // parameter comment for why this needs lifting alongside `sections`.
+    const [summarizeElapsedMs, setSummarizeElapsedMs] = useState(0)
     const assignmentRows = useMemo(() => Object.values(resolvedRows), [resolvedRows])
     const synthesisSourceRecords: SynthesisSourceRecord[] = useMemo(() => themesWorkingSet.map(w => {
         const src = themesSynthesisSourceByPmid[w.pmid]
@@ -2778,6 +2799,8 @@ export default function LiteratureAnalyzer() {
                     reviewTopic={reviewTopic}
                     sections={sections}
                     setSections={setSections}
+                    summarizeElapsedMs={summarizeElapsedMs}
+                    setSummarizeElapsedMs={setSummarizeElapsedMs}
                 />
             ) : (
                 <PlaceholderStep label={step.label} />
