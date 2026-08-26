@@ -29,6 +29,7 @@
 // Impact →" button that stores the qualifying set and switches tabs. Score Impact, Themes, and
 // Summarize Themes remain later phases' jobs.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Dispatch, SetStateAction, MutableRefObject } from 'react'
 import { ANALYZER_PMID_CAP, STEPS, WIRED_STEP } from './LiteratureAnalyzer.constants'
 import type { StepId } from './LiteratureAnalyzer.constants'
 import { CheckpointScreen, StepTabs, useChunkedProgress } from './LiteratureAnalyzer.parts'
@@ -1252,61 +1253,115 @@ type PipelineErr = { stage: 'discover' | 'extend'; message: string }
 // the pre-extension results as final, without re-deriving them.
 type PendingExtension = { themes: Theme[]; uncoveredActivities: ThemeActivity[]; coverage: number; failed: string[] }
 
-// `qualifyingImpact` empty is the SAME real, accepted, this-session-only limitation
-// ScoreRelevanceStep/ScoreImpactStep's own empty-state comments describe — but Themes' own empty
-// state is not a dead end the way theirs are: decision 2026-08-23 gives it a second entry path (a
-// CSV upload) precisely so a person resuming a session, or starting from someone else's export, is
-// not forced back through Synopsize/Score Relevance/Score Impact just to reach this step. Path (a)
-// (`qualifyingImpact` non-empty) skips this screen entirely — see `workingSet` below.
-function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExists, onScoreThese, onGoToScoreImpact, onSummarize }: {
-    qualifyingImpact: ImpactRecord[]
+// An empty `workingSet` prop (path (a)'s qualifyingImpact and path (b)'s uploaded CSV both empty)
+// is the SAME real, accepted, this-session-only limitation ScoreRelevanceStep/ScoreImpactStep's own
+// empty-state comments describe — but Themes' own empty state is not a dead end the way theirs are:
+// decision 2026-08-23 gives it a second entry path (a CSV upload) precisely so a person resuming a
+// session, or starting from someone else's export, is not forced back through Synopsize/Score
+// Relevance/Score Impact just to reach this step. Path (a) (qualifyingImpact non-empty, resolved by
+// the parent into `workingSet` — see that prop's own comment below) skips this screen entirely.
+function ThemesStep({
+    workingSet, reviewTopic, reviewCriteria, writeUpExists,
+    themes, setThemes, resolvedRows, setResolvedRows,
+    failedClassifyPmids, setFailedClassifyPmids,
+    finalCoverage, setFinalCoverage,
+    pipelineElapsedMs, setPipelineElapsedMs,
+    rawByPmidRef,
+    setCsvWorkingSet, setCsvSynthesisSource,
+    clearWriteUp,
+    onScoreThese, onGoToScoreImpact, onSummarize,
+}: {
+    // THE WORKING SET, LIFTED (this ticket): the parent now owns the csv-wins-if-present ternary
+    // (path (a) qualifyingImpact vs. path (b) an uploaded CSV) that used to live here, since the
+    // parent also needs the same set to build Summarize Themes' synthesisSource prop directly — see
+    // LiteratureAnalyzer()'s own comment for that computation. `workingSet` arriving fully resolved
+    // is what makes this component's own remount (after a tab switch) see the SAME set it had
+    // before, rather than empty.
+    workingSet: ThemeActivity[]
     reviewTopic: string
     reviewCriteria: string
-    // Rediscover's confirm-if-a-write-up-exists guard (mockup, 2026-08-24) — ARMED as of Phase 5:
-    // the parent's `writeUp` state goes non-null the first time SummarizeThemesStep generates any
-    // section (its own onWriteUpStarted callback), so this prop now genuinely flips true once a
-    // write-up exists, rather than staying permanently false the way it did before Phase 5 landed.
+    // Rediscover's confirm-if-a-write-up-exists guard (mockup, 2026-08-24) — now genuinely live
+    // (this ticket): the parent derives this straight from its own lifted `sections` state
+    // (Object.keys(sections).length > 0), the exact same predicate SummarizeThemesStep already used
+    // to arm it before this ticket, just read directly instead of latched through a separate boolean
+    // + one-time-fire effect — see LiteratureAnalyzer()'s own comment.
     writeUpExists: boolean
+    // ---- LIFTED (this ticket): themes / resolved assignment rows / final coverage / failed-classify
+    // list. All four used to be local state here, wiped every time this component unmounted (any tab
+    // switch) — see this ticket's own header for why that made the write-up's staleness machinery
+    // provably unreachable. Move-to (moveAssignment below) writes `resolvedRows` directly, same as
+    // before; only WHERE the state lives has changed.
+    themes: Theme[]
+    setThemes: Dispatch<SetStateAction<Theme[]>>
+    resolvedRows: Record<string, ResolvedRow>
+    setResolvedRows: Dispatch<SetStateAction<Record<string, ResolvedRow>>>
+    failedClassifyPmids: string[]
+    setFailedClassifyPmids: Dispatch<SetStateAction<string[]>>
+    finalCoverage: number
+    setFinalCoverage: Dispatch<SetStateAction<number>>
+    // LIFTED alongside finalCoverage (judgment call, not explicitly named in this ticket's own list):
+    // left local, a remounted Discovered screen would show "0:00 elapsed" under an otherwise-fully-
+    // persisted set of stats — inconsistent with everything else on that screen surviving the tab
+    // switch. Same treatment as finalCoverage since finishPipeline() sets both together.
+    pipelineElapsedMs: number
+    setPipelineElapsedMs: Dispatch<SetStateAction<number>>
+    // LIFTED (necessary companion to resolvedRows/failedClassifyPmids, not itself named in this
+    // ticket's own list): recompute()'s only source of per-pmid raw assignments — resolveRecords()
+    // only ever produces rows for the pmids present in this map (see that pure function's own
+    // comment), so retryFailedClassify()/runExtensionAndReclassify()'s own `recompute()` calls would
+    // silently DROP every already-resolved pmid outside the current retry/extension batch if this
+    // stayed a fresh, per-mount ref — lifting resolvedRows/failedClassifyPmids correctly REQUIRES
+    // lifting this too, or the very "Retry these N" / extension-retry affordances this ticket must
+    // preserve unchanged would corrupt the assignment set on first use after a tab switch.
+    rawByPmidRef: MutableRefObject<Record<string, { raw_assignments: any }>>
+    // Path (b)'s two commit-time setters, lifted to the parent (this ticket) — everything ELSE about
+    // CSV upload (csvFileName/csvRows/csvReport/uploadErr/dragOver/csvContinuing/csvContinueErr,
+    // below) is upload-validation intermediate UI and stays local per this ticket's own instruction.
+    // ThemesStep only ever WRITES through these two (continueWithCsv, below) — reading the resolved
+    // working set back is the parent's own job now (`workingSet` prop above), not this component's.
+    setCsvWorkingSet: Dispatch<SetStateAction<ThemeActivity[] | null>>
+    setCsvSynthesisSource: Dispatch<SetStateAction<Record<string, { relevanceScore: number; year: string }> | null>>
+    // Fires on Rediscover's proceed path (handleRediscover below) — clears the parent's lifted
+    // Summarize Themes slice (sections) so a write-up that no longer matches the about-to-be-
+    // regenerated themes cannot be read as still current. The theme/assignment slice this component
+    // itself owns needs no separate clearing call: runPipeline() already replaces it wholesale via
+    // finishPipeline() once the new run lands, same as before this ticket.
+    clearWriteUp: () => void
     onScoreThese: (pmids: string[]) => void
     onGoToScoreImpact: () => void
-    // THIRD ARGUMENT ADDED (Phase 5): the per-pmid synthesis source Summarize Themes needs — see
-    // buildSynthesisSource()'s own comment below for why this is a second, parallel join rather
-    // than something ThemeActivity/workingSet already carries.
-    onSummarize: (themes: Theme[], assignmentRows: ResolvedRow[], synthesisSource: SynthesisSourceRecord[]) => void
+    // NO LONGER TAKES ARGUMENTS (this ticket): themes/resolvedRows/synthesisSource all now live in
+    // the parent already (this component mutates the same lifted state Summarize Themes reads), so
+    // "Summarize these themes →" is just a tab switch — see buildSynthesisSource()'s old comment,
+    // removed along with the function itself, for what used to require a click-time snapshot.
+    onSummarize: () => void
 }) {
-    // ---- Path (b): CSV upload. ----
+    // ---- Path (b): CSV upload — upload-validation intermediate UI, stays local (this ticket's own
+    // instruction): none of this is needed to redisplay an already-loaded working set, only to
+    // process a NEW upload.
     const [csvFileName, setCsvFileName] = useState('')
     const [csvRows, setCsvRows] = useState<WorkingSetRow[]>([])
     const [csvReport, setCsvReport] = useState<WorkingSetValidationReport | null>(null)
     const [uploadErr, setUploadErr] = useState('')
     const [dragOver, setDragOver] = useState(false)
-    const [csvWorkingSet, setCsvWorkingSet] = useState<ThemeActivity[] | null>(null)
-    // PATH (b)'s OWN SYNTHESIS-SOURCE HALF — the numeric relevanceScore and year an uploaded CSV
-    // row may carry (WorkingSetRow's own optional fields), keyed by pmid. `null` until "Continue
-    // with N →" has run, same lifecycle as csvWorkingSet — see continueWithCsv() and
-    // buildSynthesisSource() below.
-    const [csvSynthesisSource, setCsvSynthesisSource] = useState<Record<string, { relevanceScore: number; year: string }> | null>(null)
     const [csvContinuing, setCsvContinuing] = useState(false)
     const [csvContinueErr, setCsvContinueErr] = useState('')
 
-    // ---- The checkpoint's own input. ----
+    // ---- The checkpoint's own input — view state (this ticket's own instruction), not lifted: it's
+    // an input widget's current value, not a fact a write-up depends on.
     const [targetThemeCount, setTargetThemeCount] = useState(THEME_COUNT_DEFAULT)
 
-    // ---- The pipeline. ----
-    const [stage, setStage] = useState<PipelineStage>('before')
+    // ---- The pipeline. `stage`/`pipelineErr`/`retryingFailed` and the four useChunkedProgress
+    // instances below are progress-run hooks (this ticket's own stay-local exception) — but `stage`
+    // is lazily initialized (this ticket) from the LIFTED `themes`, so a remount that finds a
+    // persisted theme set resumes straight to the Discovered screen instead of the empty "before"
+    // input screen underneath it (this ticket's own "ThemesStep itself remounts empty" finding).
+    const [stage, setStage] = useState<PipelineStage>(() => (themes.length > 0 ? 'done' : 'before'))
     const [pipelineErr, setPipelineErr] = useState<PipelineErr | null>(null)
-    const [themes, setThemes] = useState<Theme[]>([])
-    const [resolvedRows, setResolvedRows] = useState<Record<string, ResolvedRow>>({})
-    const [failedClassifyPmids, setFailedClassifyPmids] = useState<string[]>([])
     const [retryingFailed, setRetryingFailed] = useState(false)
-    const [finalCoverage, setFinalCoverage] = useState(0)
-    const [pipelineElapsedMs, setPipelineElapsedMs] = useState(0)
 
-    // Mutable accumulators a running pipeline needs across several awaited stages — kept in refs,
-    // not state, because nothing renders off them directly (resolvedRows/themes/etc. above are what
-    // renders; these are working storage for the orchestration functions below).
-    const rawByPmidRef = useRef<Record<string, { raw_assignments: any }>>({})
-    const workingSetRef = useRef<ThemeActivity[]>([])
+    // Mutable accumulators a running pipeline needs across several awaited stages, local (this
+    // ticket): unlike rawByPmidRef above, nothing outside a SINGLE run's own lifetime ever reads
+    // these, so they need no cross-mount persistence.
     const pipelineStartRef = useRef(0)
     const pendingExtensionRef = useRef<PendingExtension | null>(null)
 
@@ -1321,33 +1376,8 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
     const [searchWithin, setSearchWithin] = useState('')
     const [showAllInTheme, setShowAllInTheme] = useState(false)
 
-    // THE WORKING SET. `csvWorkingSet` (once "Continue with N →" has run) wins if present;
-    // otherwise path (a)'s `qualifyingImpact`, mapped straight across (same field names Score
-    // Impact already produces) — this is what makes path (a) "skip straight past the empty state":
-    // if a person arrived here with a qualifying set already in hand, `workingSet.length` is
-    // already non-zero on the very first render.
-    const workingSet: ThemeActivity[] = csvWorkingSet ?? (qualifyingImpact.length
-        ? qualifyingImpact.map(r => ({
-            pmid: r.pmid, title: r.title, synopsis: r.synopsis,
-            relevanceExplanation: r.relevanceExplanation,
-            impactScore: r.impactScore, impactJustification: r.impactJustification,
-        }))
-        : [])
-
-    // THE SYNTHESIS-SOURCE HALF, same csv-wins-if-present ternary as `workingSet` just above, kept
-    // as a SEPARATE join rather than folded into ThemeActivity — see SynthesisSourceRecord's own
-    // comment (LiteratureAnalyzer.types.ts) for why: ThemeActivity is Discovery/Classification's
-    // OWN request shape (synopsis + impact score + relevance TEXT, deliberately no relevance
-    // NUMBER — see that type's own comment), and Phase 5 needs the number back for overallScoreOf.
-    // Path (a): straight off qualifyingImpact, which already carries both relevanceScore and year.
-    // Path (b): csvSynthesisSource, filled in by continueWithCsv() from the same optional CSV
-    // columns WorkingSetRow already tolerates. A pmid missing from this map (never happens for path
-    // (a); possible for path (b) if a row's relevanceScore column was blank) resolves to
-    // relevanceScore 0 / year 'unknown' at the one call site that reads it — see
-    // buildSynthesisSource() below — rather than throwing.
-    const synthesisSourceByPmid: Record<string, { relevanceScore: number; year: string }> = csvSynthesisSource ?? Object.fromEntries(
-        qualifyingImpact.map(r => [r.pmid, { relevanceScore: r.relevanceScore, year: r.year }]),
-    )
+    // THE WORKING SET now arrives as a prop, already resolved (this ticket) — see this function's
+    // own parameter comment above for why the csv-wins-if-present ternary moved to the parent.
 
     const belowFloor = workingSet.length > 0 && workingSet.length < THEME_COLD_START_FLOOR
     const overSanityCap = workingSet.length > THEMES_DISCOVERY_SANITY_CAP
@@ -1447,9 +1477,9 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
     // against coverage the same way an uncovered one does — an honest lower figure until its batch
     // is retried, not a number that quietly excludes what has not been tried yet.
     function recompute(themesNow: Theme[]) {
-        const titleByPmid = Object.fromEntries(workingSetRef.current.map(w => [w.pmid, w.title]))
+        const titleByPmid = Object.fromEntries(workingSet.map(w => [w.pmid, w.title]))
         const resolved = resolveRecords(rawByPmidRef.current, themesNow, titleByPmid)
-        const total = workingSetRef.current.length
+        const total = workingSet.length
         const coveredCount = Object.values(resolved).filter(r => !r.uncovered).length
         const coverage = total ? coveredCount / total : 0
         const uncoveredPmids = Object.values(resolved).filter(r => r.uncovered).map(r => r.pmid)
@@ -1510,7 +1540,6 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
         setPipelineErr(null)
         pipelineStartRef.current = Date.now()
         rawByPmidRef.current = {}
-        workingSetRef.current = workingSet
         setFailedClassifyPmids([])
         setOpenedThemeId(null)
         setShowAllThemes(false)
@@ -1579,7 +1608,7 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
         setRetryingFailed(true)
         try {
             const targets = new Set(failedClassifyPmids)
-            const activities = workingSetRef.current.filter(w => targets.has(w.pmid))
+            const activities = workingSet.filter(w => targets.has(w.pmid))
             const batches = chunk(activities.map((w): ClassifyActivityLite => ({ pmid: w.pmid, title: w.title, synopsis: w.synopsis })), CLASSIFY_BATCH_SIZE)
             const results = await classifyRun.run(batches.map(batch => () => (
                 fetchClassifyBatch(reviewTopic, reviewCriteria, themes, batch).catch((e: any) => ({
@@ -1600,16 +1629,25 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
         }
     }
 
-    // Rediscover (mockup, 2026-08-24): confirms first ONLY if a write-up already exists (dormant
-    // today — see writeUpExists' own comment above), then re-runs the whole pipeline at whatever
-    // target count is currently in the input. window.confirm, not a new dialog component (MUST
-    // NOT) — same precedent as Score Impact's own cost-confirm above. window.confirm only ever
-    // offers OK/Cancel, not the mockup's own "[Rediscover anyway]"/"[Cancel]" button labels — a
+    // Rediscover (mockup, 2026-08-24): confirms first ONLY if a write-up already exists — now
+    // genuinely protective (this ticket; see writeUpExists' own comment above for why it used to
+    // stay permanently false). window.confirm, not a new dialog component (MUST NOT) — same
+    // precedent as Score Impact's own cost-confirm above. window.confirm only ever offers
+    // OK/Cancel, not the mockup's own "[Rediscover anyway]"/"[Cancel]" button labels — a
     // native-dialog limitation, not a rewording choice.
+    //
+    // ON PROCEED (this ticket): clearWriteUp() wipes the parent's lifted Summarize Themes slice
+    // (sections) BEFORE the new pipeline run starts, consistent with the confirm's own warning that
+    // the existing write-up "won't match the new [themes]" — a stale write-up must never survive a
+    // rediscover even for the moment the new Discovery/Classification call is in flight. The theme/
+    // assignment slice itself needs no separate clear here: runPipeline() -> finishPipeline() already
+    // replaces `themes`/`resolvedRows`/`finalCoverage`/`failedClassifyPmids` wholesale once the new
+    // run lands, exactly as it did before this ticket.
     function handleRediscover() {
         if (writeUpExists) {
             const ok = window.confirm(`This replaces your current ${themes.length} themes. Your existing write-up won't match the new ones.`)
             if (!ok) return
+            clearWriteUp()
         }
         void runPipeline()
     }
@@ -1628,28 +1666,15 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
         saveText(csv, `${stamp('theme-assignments', today())}.csv`)
     }
 
-    // Built once, at the "Summarize these themes →" click — joins workingSetRef.current (title/
-    // synopsis/relevanceExplanation/impactJustification, from whichever path filled `workingSet`)
-    // against synthesisSourceByPmid (relevanceScore/year, the parallel join neither path's own
-    // ThemeActivity carries) to produce Summarize Themes' own SynthesisSourceRecord[], including
-    // the one number computed HERE rather than carried: overallScoreOf() — imported, never
-    // reimplemented — applied once per record so Phase 5 never has to see a bare relevanceScore at
-    // all, only the composite it actually ranks and weights by.
-    function buildSynthesisSource(): SynthesisSourceRecord[] {
-        return workingSetRef.current.map(w => {
-            const src = synthesisSourceByPmid[w.pmid]
-            const relevanceScore = src?.relevanceScore ?? 0
-            return {
-                pmid: w.pmid,
-                title: w.title,
-                synopsis: w.synopsis,
-                relevanceExplanation: w.relevanceExplanation,
-                impactJustification: w.impactJustification,
-                overallScore: overallScoreOf(relevanceScore, w.impactScore),
-                year: src?.year || '',
-            }
-        })
-    }
+    // buildSynthesisSource() — REMOVED (this ticket). It used to join workingSetRef.current against
+    // synthesisSourceByPmid at the "Summarize these themes →" click, to hand SummarizeThemesStep a
+    // click-time SNAPSHOT. Both of its inputs are now lifted to the parent already (see this
+    // component's own `workingSet` parameter comment), so the parent computes the equivalent
+    // SynthesisSourceRecord[] itself, LIVE, in LiteratureAnalyzer()'s own useMemo — see that
+    // function's own comment for why this is not a snapshot problem: nothing in this join
+    // (title/synopsis/relevanceExplanation/impactJustification/relevanceScore/year) is ever mutated
+    // by Move-to, only `resolvedRows`' primaryTheme/uncovered fields are, so recomputing it fresh
+    // every render is equivalent to snapshotting it once.
 
     const themeCounts = useMemo(() => {
         const counts: Record<string, number> = {}
@@ -1938,7 +1963,7 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
         <div className={ls.card}>
             <p className={ls.help}>
                 We found {themes.length} theme{themes.length === 1 ? '' : 's'} in your{' '}
-                {workingSetRef.current.length.toLocaleString()} papers. Open a theme to see everything
+                {workingSet.length.toLocaleString()} papers. Open a theme to see everything
                 in it, or move a paper out of it from there. Nothing gets written up until you&apos;re
                 happy with this.
             </p>
@@ -2009,7 +2034,7 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
 
             <div className={ls.actions}>
                 <button className={ls.btnSecondary} onClick={exportAssignments}>Export</button>
-                <button className={ls.btn} onClick={() => onSummarize(themes, Object.values(resolvedRows), buildSynthesisSource())}>Summarize these themes →</button>
+                <button className={ls.btn} onClick={onSummarize}>Summarize these themes →</button>
             </div>
         </div>
     )
@@ -2018,8 +2043,13 @@ function ThemesStep({ qualifyingImpact, reviewTopic, reviewCriteria, writeUpExis
 // ---------------------------------------------------------------------------
 // SUMMARIZE THEMES (Phase 5). One POST per theme, client-chained via useChunkedProgress(3) — see
 // controllers/literatureSearch.analyzerSynthesis.ts's own header for the backend contract this
-// mirrors exactly: { topic?, criteria, theme: {id,label,description}, records: [...] } in,
-// { paragraph, citedPmids, invented? } out.
+// mirrors: { topic?, theme: {id,label,description}, records: [...] } in, { paragraph, citedPmids,
+// invented? } out. `criteria` is DELIBERATELY NOT SENT (fixed, this ticket) — the route's own
+// handler comment (search.ts's handleAnalyzerSynthesizeTheme) confirms the body shape accepts a
+// `criteria` field but never reads it: synthesizeTheme()'s ported user message never mentions the
+// topic OR criteria at all (the pilot's own tested configuration). This page's earlier draft sent
+// `criteria` anyway and its own comment here previously mis-described the backend contract as
+// including it — corrected, not just the payload.
 
 // SYNTH_RECORD_CAP = 15, DUPLICATED from controllers/literatureSearch.analyzerSynthesis.ts — same
 // import-boundary reasoning RELEVANCE_BATCH_SIZE/IMPACT_BATCH_SIZE/CLASSIFY_BATCH_SIZE's own
@@ -2045,10 +2075,15 @@ const SYNTH_CLIENT_CONCURRENCY = 3
 const CITATION_DISCLAIMER = "Each section is written from only the papers listed for its theme, and "
     + "every citation is checked against that list — but model-written prose can still misstate what "
     + "a paper found. This warning isn't boilerplate; verify before you use this anywhere."
+// DEVIATES FROM THE MOCKUP'S VERBATIM (i) TEXT (this ticket, MINOR fix 6b): the mockup's own line
+// read "...applied here to this example, not a fresh estimate for your own corpus" — a leftover
+// from when 12 themes was the mockup's own illustrative example, not this screen's live number.
+// Reworded to "your own corpus's live theme count" so the sentence describes what the number on
+// screen actually is, matching the done-screen summary line's own phrase fixed alongside it below.
 const COST_TIME_INFO = "This step deliberately uses a stronger, pricier model than the rest of the "
     + "pipeline — the one place it's worth paying for it, since it only runs once per theme, not once "
     + "per paper (12 themes vs. thousands of papers). Cost is now a measured rate, $0.056/theme "
-    + "(2026-08-24 pilot), applied here to this example, not a fresh estimate for your own corpus. "
+    + "(2026-08-24 pilot), applied here to your own corpus's live theme count, not a fresh estimate. "
     + "Time still isn't measured for this step."
 const STALE_BADGE_INFO = "You (or someone else) moved a paper this section cited into a different "
     + "theme after this was written. The section itself hasn't changed — it's just possible it now "
@@ -2075,7 +2110,7 @@ type SectionOutcome =
     | { status: 'failed'; error: string }
 
 async function fetchThemeSynthesis(
-    topic: string, criteria: string, theme: { id: string; label: string; description: string },
+    topic: string, theme: { id: string; label: string; description: string },
     records: ThemeSynthesisRequestRecord[],
 ): Promise<{ paragraph: string; citedPmids: string[]; invented?: string[] }> {
     const res = await fetch('/api/literature/search', {
@@ -2083,7 +2118,7 @@ async function fetchThemeSynthesis(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             mode: 'literature-analyzer', phase: 'synthesize-theme',
-            topic: topic || undefined, criteria: criteria || undefined, theme, records,
+            topic: topic || undefined, theme, records,
         }),
     })
     const data = await res.json().catch(() => ({}))
@@ -2095,25 +2130,34 @@ async function fetchThemeSynthesis(
     }
 }
 
-// `assignmentRows`/`themes` are the SNAPSHOT taken at the "Summarize these themes →" click (see
-// ThemesStep's own onSummarize call site) — this component's own read of "current assignment state"
-// (decision 36, Staleness) is live with respect to THIS prop, recomputed by useMemo on every
-// render, never baked into a section's own stored state; what it is NOT live against is a further
-// edit made back on the Themes tab after this component has already mounted, since (like every
-// other step on this page — see SynopsizeStep's own header comment) this component unmounts
-// whenever the tab switches away, and a fresh "Summarize these themes →" click is what produces a
-// new snapshot. Documented as a judgment call in this ticket's own report, not silently assumed.
+// `assignmentRows`/`themes`/`synthesisSource` are now the PARENT'S OWN LIFTED STATE, read live
+// (this ticket) — NOT a click-time snapshot the way they were before. `themes`/`resolvedRows`
+// (assignmentRows' source) are the exact same state ThemesStep's own moveAssignment mutates, so a
+// paper moved out of a theme on the Themes tab is reflected here the instant this component next
+// mounts (the tab switch itself is what remounts it — see this file's header for why no live
+// subscription across simultaneously-mounted steps is needed). `synthesisSource` never changes
+// under Move-to at all (only `resolvedRows`' primaryTheme/uncovered fields do — see
+// LiteratureAnalyzer()'s own comment on its synthesisSource useMemo), so recomputing it fresh every
+// parent render is equivalent to a snapshot without needing to BE one. This is decision 36's
+// Staleness diff's whole precondition: persisted `sections[...].citedPmids` (this component's own
+// lifted state, below) vs. THIS live `assignmentRows`' current primary-assignment set.
 function SummarizeThemesStep({
-    themes, assignmentRows, synthesisSource, reviewTopic, reviewCriteria, onWriteUpStarted,
+    themes, assignmentRows, synthesisSource, reviewTopic, sections, setSections,
 }: {
     themes: Theme[]
     assignmentRows: ResolvedRow[]
     synthesisSource: SynthesisSourceRecord[]
     reviewTopic: string
-    reviewCriteria: string
-    // Fires once, the first time any section (done or failed) exists locally — arms Phase 4's
-    // dormant Rediscover-confirm guard (writeUpExists). See ThemesStep's own writeUpExists comment.
-    onWriteUpStarted: () => void
+    // NO `reviewCriteria` PROP (this ticket, alongside 6a): the synthesize-theme request never sent
+    // it anywhere useful (the backend never reads it — see fetchThemeSynthesis's own comment above),
+    // so the only remaining prop this component actually needs from that pair is `reviewTopic`.
+    // LIFTED (this ticket) — the write-up itself: one outcome per theme, each carrying its own
+    // paragraph/citedPmids/status. This is what used to be wiped on every tab switch (this ticket's
+    // own "the write-up is non-persistent" finding); it is also what `writeUpExists` (ThemesStep's
+    // Rediscover-confirm guard) and `clearWriteUp` (its on-proceed clear) both act on in the parent —
+    // see LiteratureAnalyzer()'s own comment.
+    sections: Record<string, SectionOutcome>
+    setSections: Dispatch<SetStateAction<Record<string, SectionOutcome>>>
 }) {
     const sourceByPmid = useMemo(() => new Map(synthesisSource.map(r => [r.pmid, r])), [synthesisSource])
 
@@ -2156,12 +2200,15 @@ function SummarizeThemesStep({
     const unassignedRows = useMemo(() => assignmentRows.filter(r => r.uncovered), [assignmentRows])
     const totalPapers = ordered.reduce((sum, x) => sum + x.pmids.length, 0)
 
+    // `mainRun` (useChunkedProgress) is a progress-run hook — stays local (this ticket's own
+    // stay-local exception) even though `sections` (the data it feeds) is now lifted: mainRun's own
+    // `status` always starts back at 'before' on a fresh mount, which is exactly why the BEFORE-vs-
+    // written-up gate below no longer reads `mainRun.state.status` for that decision — see the
+    // render section's own comment.
     const mainRun = useChunkedProgress<{ themeId: string } & SectionOutcome>(SYNTH_CLIENT_CONCURRENCY)
-    const [sections, setSections] = useState<Record<string, SectionOutcome>>({})
     const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(new Set())
     const [expandedNotDiscussed, setExpandedNotDiscussed] = useState<Set<string>>(new Set())
     const [showUnassigned, setShowUnassigned] = useState(false)
-    const firedWriteUpStarted = useRef(false)
 
     // Merge useChunkedProgress's own positional `results` (holes for unresolved slots — see that
     // hook's own comment) into `sections`, keyed by themeId rather than array index, so a later
@@ -2184,15 +2231,12 @@ function SummarizeThemesStep({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mainRun.state.results])
 
-    // ARMS Phase 4's dormant Rediscover-confirm guard — fires once, the first time ANY section
-    // (done or failed — an attempted theme is still a write-up worth warning about losing) exists.
-    useEffect(() => {
-        if (!firedWriteUpStarted.current && Object.keys(sections).length > 0) {
-            firedWriteUpStarted.current = true
-            onWriteUpStarted()
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sections])
+    // writeUpExists' own onWriteUpStarted latch — REMOVED (this ticket). The parent now derives
+    // `writeUpExists` directly from its own lifted `sections` state (Object.keys(sections).length >
+    // 0 — the exact predicate this effect used to gate on), so it needs no separate boolean armed by
+    // a fire-once effect here: see LiteratureAnalyzer()'s own comment. This also fixes decision 36's
+    // "reset to null" requirement for free — clearing `sections` (Rediscover's clearWriteUp) now
+    // un-arms writeUpExists automatically, which a permanently-latched boolean could never do.
 
     // The theme's CURRENT top-SYNTH_RECORD_CAP shortlist by overallScore — ranking happens HERE,
     // client-side; the backend only re-validates and re-caps (search.ts's own comment on
@@ -2219,7 +2263,7 @@ function SummarizeThemesStep({
         setSections({})
         const thunks = ordered.map(({ theme }) => () => (
             fetchThemeSynthesis(
-                reviewTopic, reviewCriteria,
+                reviewTopic,
                 { id: theme.id, label: theme.label, description: theme.description },
                 recordsForTheme(theme.id),
             )
@@ -2254,7 +2298,7 @@ function SummarizeThemesStep({
         setRegeneratingIds(prev => new Set(prev).add(themeId))
         try {
             const r = await fetchThemeSynthesis(
-                reviewTopic, reviewCriteria,
+                reviewTopic,
                 { id: theme.id, label: theme.label, description: theme.description },
                 records,
             )
@@ -2325,7 +2369,7 @@ function SummarizeThemesStep({
             const sec = sections[theme.id]
             blocks.push({
                 kind: 'h2',
-                text: `#${rank} — ${theme.label} — weight ${Math.round(weight)} — ${pmids.length.toLocaleString()} paper${pmids.length === 1 ? '' : 's'}`,
+                text: `#${rank} — ${theme.label} — weight ${Math.round(weight).toLocaleString()} — ${pmids.length.toLocaleString()} paper${pmids.length === 1 ? '' : 's'}`,
             })
             if (sec?.status === 'done') {
                 blocks.push({ kind: 'p', text: sec.paragraph })
@@ -2356,8 +2400,15 @@ function SummarizeThemesStep({
 
     const costEstimate = ordered.length * MEASURED_SYNTH_COST_PER_THEME
 
-    // ---- BEFORE.
-    if (mainRun.state.status === 'before') {
+    // ---- BEFORE. Gated on the LIFTED `sections` (this ticket), not on mainRun.state.status: mainRun
+    // is a per-mount progress-run hook that always starts back at 'before' on a fresh mount, but a
+    // persisted write-up (sections non-empty) must show its DONE screen the instant this component
+    // remounts after a tab switch — the whole point of lifting it — never the empty "Ready to write
+    // up" screen underneath. `isRunning` is hoisted above this check (previously computed only after
+    // it) so a run started via "Run again" reads correctly the moment its own setSections({}) clears
+    // the persisted screen.
+    const isRunning = mainRun.state.status === 'running'
+    if (!isRunning && Object.keys(sections).length === 0) {
         return (
             <div className={ls.card}>
                 <p className={ls.help}>
@@ -2380,8 +2431,7 @@ function SummarizeThemesStep({
     // ---- WRITING / DONE — the same fixed, weight-ordered section list either way, since a finished
     // paragraph and a "writing…" placeholder are just two states of the same slot (decision 31's
     // progressive rendering); only the header (bar vs. summary line) and the export/unassigned
-    // block (done only) differ.
-    const isRunning = mainRun.state.status === 'running'
+    // block (done only) differ. `isRunning` itself is computed above, before the BEFORE-screen gate.
 
     return (
         <div className={ls.card}>
@@ -2400,8 +2450,8 @@ function SummarizeThemesStep({
                 <>
                     <p className={ls.help}>
                         {ordered.length} section{ordered.length === 1 ? '' : 's'}, {totalPapers.toLocaleString()} paper{totalPapers === 1 ? '' : 's'} written
-                        up, {unassignedRows.length.toLocaleString()} not assigned to a theme. Actual: ${costEstimate.toFixed(2)} (measured rate applied to
-                        this example — see (i)) · elapsed {formatElapsed(mainRun.state.elapsedMs)}.{' '}
+                        up, {unassignedRows.length.toLocaleString()} not assigned to a theme. Actual: ${costEstimate.toFixed(2)} (measured per-theme rate
+                        applied to your {ordered.length.toLocaleString()} theme{ordered.length === 1 ? '' : 's'} — see (i)) · elapsed {formatElapsed(mainRun.state.elapsedMs)}.{' '}
                         <span className={s.stepInfo} title={COST_TIME_INFO} aria-label="cost/time estimate info">(i)</span>
                     </p>
                     <p className={ls.help}>
@@ -2437,7 +2487,7 @@ function SummarizeThemesStep({
                             <div key={theme.id} className={s.sectionCard}>
                                 <div className={s.sectionHead}>
                                     <b>{theme.label}</b>
-                                    <span className={ls.help}>#{rank} · weight {Math.round(weight)} · {pmids.length.toLocaleString()} paper{pmids.length === 1 ? '' : 's'}</span>
+                                    <span className={ls.help}>#{rank} · weight {Math.round(weight).toLocaleString()} · {pmids.length.toLocaleString()} paper{pmids.length === 1 ? '' : 's'}</span>
                                 </div>
                                 <div role="alert" className={ls.error}>
                                     {noPapersLeft
@@ -2463,7 +2513,7 @@ function SummarizeThemesStep({
                         <div key={theme.id} className={s.sectionCard}>
                             <div className={s.sectionHead}>
                                 <b>{theme.label}</b>
-                                <span className={ls.help}>#{rank} · weight {Math.round(weight)} · {pmids.length.toLocaleString()} paper{pmids.length === 1 ? '' : 's'}</span>
+                                <span className={ls.help}>#{rank} · weight {Math.round(weight).toLocaleString()} · {pmids.length.toLocaleString()} paper{pmids.length === 1 ? '' : 's'}</span>
                             </div>
 
                             {staleCount > 0 && (
@@ -2577,15 +2627,86 @@ export default function LiteratureAnalyzer() {
     const [reviewCriteria, setReviewCriteria] = useState('')
     const [qualifyingRelevance, setQualifyingRelevance] = useState<RelevanceRecord[]>([])
     const [qualifyingImpact, setQualifyingImpact] = useState<ImpactRecord[]>([])
-    // Phase 5 ("Summarize Themes") handoff — {themes, assignmentRows, synthesisSource} snapshot
-    // taken at the "Summarize these themes →" click (see ThemesStep's own onSummarize call site and
-    // buildSynthesisSource()). `writeUp` is now armed by SummarizeThemesStep's own onWriteUpStarted
-    // callback (fires once a section exists) rather than staying permanently null — see
-    // ThemesStep's own writeUpExists comment for what this guards.
-    const [themesHandoff, setThemesHandoff] = useState<{
-        themes: Theme[]; assignmentRows: ResolvedRow[]; synthesisSource: SynthesisSourceRecord[]
-    } | null>(null)
-    const [writeUp, setWriteUp] = useState<unknown | null>(null)
+
+    // =========================================================================================
+    // THEMES/SUMMARIZE THEMES — LIFTED HERE (this ticket). Before this fix, ThemesStep's working
+    // set/themes/resolved assignment rows/final coverage/failed-classify list, and
+    // SummarizeThemesStep's own sections/write-up state, were local to each of those components —
+    // wiped by React on every unmount, which is exactly what happens on every tab switch (the
+    // ternary below renders only ONE step at a time). That made the write-up non-persistent, the
+    // staleness machinery (decision 36) provably unreachable (a section's `citedPmids` was compared
+    // against a click-time SNAPSHOT of the assignment set, never anything that could actually
+    // change), and every post-synthesis Move-to edit force a full re-synthesis re-spend to see
+    // reflected anywhere. See this ticket's own header for the full citation.
+
+    // ---- Path (b): the CSV-uploaded working set's two commit-time halves (ThemesStep's own
+    // continueWithCsv). Everything else about CSV upload is upload-validation intermediate UI and
+    // stays local to ThemesStep per this ticket's own instruction.
+    const [themesCsvWorkingSet, setThemesCsvWorkingSet] = useState<ThemeActivity[] | null>(null)
+    const [themesCsvSynthesisSource, setThemesCsvSynthesisSource] = useState<Record<string, { relevanceScore: number; year: string }> | null>(null)
+
+    // ---- THE WORKING SET, resolved once here (this ticket moved this ternary up from ThemesStep —
+    // see that component's own `workingSet` parameter comment): `themesCsvWorkingSet` wins if
+    // present, otherwise path (a)'s `qualifyingImpact`, mapped straight across. Computing it in the
+    // parent, from state the parent already owns either way, is what lets BOTH ThemesStep (which
+    // needs the ThemeActivity shape for Discovery/Classification) and this component's own
+    // synthesisSourceRecords useMemo below (which needs the numeric relevanceScore ThemeActivity
+    // deliberately drops) read the exact same set without a second, drifting computation.
+    const themesWorkingSet: ThemeActivity[] = useMemo(() => themesCsvWorkingSet ?? (qualifyingImpact.length
+        ? qualifyingImpact.map(r => ({
+            pmid: r.pmid, title: r.title, synopsis: r.synopsis,
+            relevanceExplanation: r.relevanceExplanation,
+            impactScore: r.impactScore, impactJustification: r.impactJustification,
+        }))
+        : []), [themesCsvWorkingSet, qualifyingImpact])
+
+    // ---- Themes / resolved assignment rows / final coverage / failed-classify list — the live
+    // assignment state Move-to (ThemesStep's moveAssignment) writes directly, now surviving a tab
+    // switch. `rawByPmidRef` is a necessary companion, not itself named in this ticket's own lift
+    // list — see ThemesStep's own parameter comment for why lifting resolvedRows/failedClassifyPmids
+    // without it would corrupt the assignment set on the first post-remount retry/rediscover.
+    const [themes, setThemes] = useState<Theme[]>([])
+    const [resolvedRows, setResolvedRows] = useState<Record<string, ResolvedRow>>({})
+    const [failedClassifyPmids, setFailedClassifyPmids] = useState<string[]>([])
+    const [finalCoverage, setFinalCoverage] = useState(0)
+    const [pipelineElapsedMs, setPipelineElapsedMs] = useState(0)
+    const rawByPmidRef = useRef<Record<string, { raw_assignments: any }>>({})
+
+    // ---- THE SYNTHESIS-SOURCE HALF, same csv-wins-if-present ternary as `themesWorkingSet` above —
+    // see SynthesisSourceRecord's own comment (LiteratureAnalyzer.types.ts) for why this stays a
+    // SEPARATE join rather than folded into ThemeActivity.
+    const themesSynthesisSourceByPmid = useMemo(() => themesCsvSynthesisSource ?? Object.fromEntries(
+        qualifyingImpact.map(r => [r.pmid, { relevanceScore: r.relevanceScore, year: r.year }]),
+    ), [themesCsvSynthesisSource, qualifyingImpact])
+
+    // ---- Summarize Themes' own lifted slice: one outcome per theme (paragraph/citedPmids/status).
+    // `synthesisSourceRecords`, below, is recomputed fresh every render from state Move-to NEVER
+    // touches (only `resolvedRows`' primaryTheme/uncovered fields change under Move-to), so it needs
+    // no separate snapshot the way `sections` does — see SummarizeThemesStep's own header comment.
+    const [sections, setSections] = useState<Record<string, SectionOutcome>>({})
+    const assignmentRows = useMemo(() => Object.values(resolvedRows), [resolvedRows])
+    const synthesisSourceRecords: SynthesisSourceRecord[] = useMemo(() => themesWorkingSet.map(w => {
+        const src = themesSynthesisSourceByPmid[w.pmid]
+        const relevanceScore = src?.relevanceScore ?? 0
+        return {
+            pmid: w.pmid,
+            title: w.title,
+            synopsis: w.synopsis,
+            relevanceExplanation: w.relevanceExplanation,
+            impactJustification: w.impactJustification,
+            overallScore: overallScoreOf(relevanceScore, w.impactScore),
+            year: src?.year || '',
+        }
+    }), [themesWorkingSet, themesSynthesisSourceByPmid])
+
+    // `writeUpExists` (ThemesStep's Rediscover-confirm guard) is now derived DIRECTLY from `sections`
+    // (this ticket) — the exact "any section, done or failed, exists" predicate SummarizeThemesStep's
+    // own now-removed onWriteUpStarted effect used to latch into a separate boolean. Deriving it
+    // instead of latching it is what makes Rediscover's clearWriteUp() (below) correctly un-arm this
+    // guard too — a one-way latch never could.
+    const writeUpExists = Object.keys(sections).length > 0
+    const clearWriteUp = () => setSections({})
+
     const step = STEPS.find(x => x.id === current)!
 
     return (
@@ -2624,28 +2745,39 @@ export default function LiteratureAnalyzer() {
                 />
             ) : current === 'themes' ? (
                 <ThemesStep
-                    qualifyingImpact={qualifyingImpact}
+                    workingSet={themesWorkingSet}
                     reviewTopic={reviewTopic}
                     reviewCriteria={reviewCriteria}
-                    writeUpExists={writeUp !== null}
+                    writeUpExists={writeUpExists}
+                    themes={themes}
+                    setThemes={setThemes}
+                    resolvedRows={resolvedRows}
+                    setResolvedRows={setResolvedRows}
+                    failedClassifyPmids={failedClassifyPmids}
+                    setFailedClassifyPmids={setFailedClassifyPmids}
+                    finalCoverage={finalCoverage}
+                    setFinalCoverage={setFinalCoverage}
+                    pipelineElapsedMs={pipelineElapsedMs}
+                    setPipelineElapsedMs={setPipelineElapsedMs}
+                    rawByPmidRef={rawByPmidRef}
+                    setCsvWorkingSet={setThemesCsvWorkingSet}
+                    setCsvSynthesisSource={setThemesCsvSynthesisSource}
+                    clearWriteUp={clearWriteUp}
                     onScoreThese={pmids => {
                         setPendingSynopsizePmids(pmids)
                         setCurrent('synopsize')
                     }}
                     onGoToScoreImpact={() => setCurrent('score-impact')}
-                    onSummarize={(themes, assignmentRows, synthesisSource) => {
-                        setThemesHandoff({ themes, assignmentRows, synthesisSource })
-                        setCurrent('summarize-themes')
-                    }}
+                    onSummarize={() => setCurrent('summarize-themes')}
                 />
             ) : current === 'summarize-themes' ? (
                 <SummarizeThemesStep
-                    themes={themesHandoff?.themes || []}
-                    assignmentRows={themesHandoff?.assignmentRows || []}
-                    synthesisSource={themesHandoff?.synthesisSource || []}
+                    themes={themes}
+                    assignmentRows={assignmentRows}
+                    synthesisSource={synthesisSourceRecords}
                     reviewTopic={reviewTopic}
-                    reviewCriteria={reviewCriteria}
-                    onWriteUpStarted={() => setWriteUp({})}
+                    sections={sections}
+                    setSections={setSections}
                 />
             ) : (
                 <PlaceholderStep label={step.label} />
