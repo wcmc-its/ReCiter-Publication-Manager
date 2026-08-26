@@ -108,7 +108,9 @@ export async function middleware(request: NextRequest) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
               return redirectToLandingPage(request,'/search');
             }
-            else if (pathName && pathName.startsWith('/search') && !isReporterAll && !isSuperUser && !isCuratorAll)
+            // Same hasScope exemption as the /curate guard above (#914) -- a scoped curator with
+            // e.g. Reporter_All+Curator_Self must not be bounced off /search either.
+            else if (pathName && pathName.startsWith('/search') && !isReporterAll && !isSuperUser && !isCuratorAll && !hasScope)
             {
               if (userRoles.length == 1 && isCuratorSelf )
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
