@@ -12,6 +12,31 @@
  * page always renders its tab row inside an ls.page wrapper, so this is safe.
  */
 
+/* ---------- Page-head "Read more" (round-2 polish) ----------
+ * Plain link-style toggle button under .sub, no built disclosure component — see
+ * LiteratureAnalyzer.tsx's own readMoreOpen comment for the AuthorsComponent precedent.
+ */
+.readMoreBtn {
+  display: block;
+  margin: 0 0 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.readMoreBlock {
+  max-width: 72ch;
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+.readMoreBlock p { margin: 0 0 10px; }
+.readMoreBlock p:last-child { margin-bottom: 0; }
+
 .stepTabs {
   display: flex;
   flex-wrap: wrap;
@@ -37,6 +62,15 @@
 }
 .stepTab:hover { color: var(--text-strong); background: var(--accent-soft); }
 .stepTab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Round-2 polish: the radio dot itself is now visually hidden (.stepMark below) — the underline +
+   weight on .stepTabActive is the sole selected indicator, so keyboard focus needs its own visible
+   ring on the tab itself. :has() targets the (still real, still tabbable) input's own focus-visible
+   state from its ancestor label, since the hidden input is what actually receives focus, not the
+   label wrapping it. */
+.stepTab:has(.stepMark:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 .stepTabActive {
   color: var(--text-strong);
@@ -45,26 +79,81 @@
 }
 .stepTabActive:hover { background: transparent; }
 
+/* Visually hidden, not display:none (round-2 polish) — the input stays checkable and reachable by
+   Tab/Space/arrow keys exactly as it always was (role=radiogroup + real radios, untouched); only its
+   own visible dot is removed, since the active tab's underline + weight already communicates
+   selection and the dot was pure redundant chrome. Position:absolute (with no offsets, so it keeps
+   its normal in-flow position per the CSS static-position fallback) + opacity:0 keeps it a normal
+   focusable, checkable form control that reserves no layout space of its own -- unlike
+   display:none, which would drop it out of the tab order entirely. */
 .stepMark {
-  accent-color: var(--accent);
+  position: absolute;
+  opacity: 0;
   cursor: pointer;
-  flex-shrink: 0;
 }
 
 .stepLabel { white-space: nowrap; }
 
-.stepInfo {
-  font-size: 11px;
-  color: var(--text-muted);
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  width: 15px;
-  height: 15px;
+/* ---------- InfoTip (round-2 polish) ----------
+ * The built hover/focus tooltip behind every "(i)" marker on this page (StepTabs above, plus the
+ * ten other call sites throughout LiteratureAnalyzer.tsx) — replaces the earlier native-title
+ * convention. Same feel as Publication.module.css's .scoreTip/.scoreTooltip (dark panel, same
+ * background/shadow/radius), anchored ABOVE and centered here instead of to the side, since this
+ * icon sits inline in running text rather than beside a fixed-position title. A panel opened near
+ * the left edge of the page can clip off-screen — accepted for this pass, no flip/clamp logic.
+ */
+.infoTip {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  vertical-align: -2px;
   cursor: help;
-  flex-shrink: 0;
+}
+
+.infoTipIcon {
+  color: var(--text-muted);
+  transition: color .12s ease;
+}
+.infoTip:hover .infoTipIcon,
+.infoTip:focus-visible .infoTipIcon {
+  color: var(--accent);
+}
+
+.infoTipPanel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  width: max-content;
+  max-width: 340px;
+  background: #1a2133;
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(26, 33, 51, 0.2);
+  white-space: normal;
+  text-align: left;
+  z-index: 30;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+.infoTip:hover .infoTipPanel,
+.infoTip:focus-visible .infoTipPanel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.infoTipPanel::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1a2133;
 }
 
 /* ---------- Placeholder tabs (Score Relevance / Score Impact / Themes / Summarize Themes) ---------- */
@@ -77,9 +166,8 @@
 
 /* ---------- Loss-count disclosures (decision 30) ----------
  * No precedent elsewhere in this app for an expandable PMID list, so this is new: a native
- * <details>/<summary> pair rather than built disclosure state, matching the codebase's existing
- * "native tooltip over built popover" instinct (see StepTabs' own (i) comment) for the same reason
- * — no extra state, no extra click-outside handling, and the count in <summary> stays visible
+ * <details>/<summary> pair rather than built disclosure state — no extra state, no extra
+ * click-outside handling, and the count in <summary> stays visible
  * whether or not the list beneath it is expanded (the mockup's own "visible by default" rule).
  */
 .lossRow {
@@ -134,7 +222,7 @@
 
 /* ---------- Relevance-floor slider (Score Relevance done screen) ----------
  * A native <input type="range"> — no library, same "native control over built widget" instinct as
- * StepTabs' (i) tooltip and LossSection's <details>. The live "N of M qualify" count sits on the
+ * LossSection's <details>. The live "N of M qualify" count sits on the
  * same row rather than below it: the whole point of the slider is to watch that count move as the
  * floor moves, so the two must be readable in one glance.
  */
@@ -191,7 +279,7 @@
  * screens, the theme-card grid, and the theme-opened table. Reuses every existing primitive
  * (.card, .field, .input, .btn/.btnSecondary, .help, .error, .lines/.line, .actions, .progress/
  * .progLine/.progElapsed/.bar/.barFill from LiteratureSearch.module.css, .lossDetails/.lossSummary/
- * .lossList/.lossRetryBtn/.stepInfo above) — only what has no precedent anywhere else gets a new
+ * .lossList/.lossRetryBtn/.infoTip above) — only what has no precedent anywhere else gets a new
  * class here.
  */
 
@@ -307,7 +395,7 @@
 /* ---------- Summarize Themes (Phase 5) ----------
  * The weight-ordered section list (decisions 31/35/36/41) plus the unassigned-papers block below
  * it — reuses every existing primitive (.card, .help, .error, .actions, .lines/.line, .lossList,
- * .progress/.progLine/.progElapsed/.bar/.barFill, .stepInfo above) for everything that already has
+ * .progress/.progLine/.progElapsed/.bar/.barFill, .infoTip above) for everything that already has
  * a precedent; only the section card itself, its head row, the stale badge, and the year-strip
  * line have none.
  */

@@ -57,15 +57,19 @@
 }
 
 /* ---------- Page head ---------- */
-/* Size and weight are deliberately NOT set here. globals.css pins `h1 { font-size: 28px
-   !important; font-weight: 500 }` app-wide (it has to, to beat Bootstrap's responsive
-   calc()), so the mockup's 23px/600 never applied -- it was dead CSS losing silently to
-   !important. The app's h1 IS the house style, and matching /search is the point. Overriding
-   it here would mean a second !important, and this page is not the place to relitigate the
-   app's type scale. */
+/* globals.css pins `h1 { font-size: 28px !important; font-weight: 500 }` app-wide (it has to,
+   to beat Bootstrap's responsive calc()), so a bare font-size here would lose silently to that
+   !important — the earlier note above called that unwinnable. It isn't: two !important rules
+   are still ranked by ordinary specificity, and `.title` is a CLASS selector (specificity 0,1,0)
+   applied to an element that also matches globals.css's bare `h1` (specificity 0,0,1) — the
+   class selector outranks the type selector regardless of load order, !important or not, so
+   `.title`'s own font-size wins. This is shared by both Literature pages (Search and Analyzer
+   both render their h1 with this class) — sizing it here resizes both together, which is the
+   point: the two headers must keep matching each other. */
 .title {
   margin: 0;
   color: var(--text-strong);
+  font-size: 24px !important;
 }
 .sub {
   margin: 4px 0 22px;

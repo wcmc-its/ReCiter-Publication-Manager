@@ -12,16 +12,42 @@ import ls from './LiteratureSearch.module.css'
 import s from './LiteratureAnalyzer.module.css'
 
 // ---------------------------------------------------------------------------
+// INFOTIP — the built hover/focus tooltip every "(i)" info marker on this page uses (round-2 polish
+// pass). Replaces the earlier native-`title` convention (see this file's own prior header note,
+// removed here) with one shared component: a circle-i icon drawn in SVG (crisp at 13px, unlike a
+// text glyph or emoji) plus an absolutely-positioned panel, closely matching Publication.module.css's
+// own .scoreTip/.scoreTooltip pattern (side-anchored there; this one anchors above, centered, since
+// the icon sits inline in running text rather than beside a title). `label` defaults to `text` itself
+// so a caller supplying only the tooltip copy still gets a meaningful aria-label.
+export function InfoTip({ text, label }: { text: string; label?: string }) {
+    return (
+        <span className={s.infoTip} tabIndex={0} aria-label={label ?? text}>
+            <svg
+                className={s.infoTipIcon}
+                width="13"
+                height="13"
+                viewBox="0 0 13 13"
+                fill="none"
+                aria-hidden="true"
+            >
+                <circle cx="6.5" cy="6.5" r="5.6" stroke="currentColor" strokeWidth="1.3" />
+                <circle cx="6.5" cy="3.9" r="0.85" fill="currentColor" />
+                <rect x="5.75" y="5.6" width="1.5" height="4.1" rx="0.6" fill="currentColor" />
+            </svg>
+            <span className={s.infoTipPanel} role="tooltip">{text}</span>
+        </span>
+    )
+}
+
+// ---------------------------------------------------------------------------
 // STEP TABS — the mockup's "(*) Synopsize (i)  ( ) Score Relevance (i) ..." row. REAL radio inputs,
 // same pattern as .mode's card group on the search page (see SearchForm.tsx's ModePicker: a
 // role="radiogroup" wrapping <label><input type="radio" .../>...</label> per option) — a horizontal
 // tab row rather than a card grid, so it gets its own small stylesheet (LiteratureAnalyzer.module.css)
 // instead of stretching .mode's card layout sideways.
 //
-// THE (i) IS A NATIVE title TOOLTIP, not a built popover. TrendPanel, CandidatesView and SearchForm
-// (see their own title={...} usages) already use the browser's own tooltip for exactly this —
-// "more context on hover, no extra state" — so this reuses that convention rather than inventing a
-// second one for one more info affordance.
+// The (i) is InfoTip (above) — clicking it can still select the step underneath (it sits inside the
+// <label>), which is unchanged from the old native-title marker's own behavior.
 export function StepTabs({ current, onSelect }: { current: StepId; onSelect: (id: StepId) => void }) {
     return (
         <div className={s.stepTabs} role="radiogroup" aria-label="Analyzer steps">
@@ -42,7 +68,7 @@ export function StepTabs({ current, onSelect }: { current: StepId; onSelect: (id
                             onChange={() => onSelect(step.id)}
                         />
                         <span className={s.stepLabel}>{step.label}</span>
-                        <span className={s.stepInfo} title={step.info} aria-label={step.info}>(i)</span>
+                        <InfoTip text={step.info} />
                     </label>
                 )
             })}

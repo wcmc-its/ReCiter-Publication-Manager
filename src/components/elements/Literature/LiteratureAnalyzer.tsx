@@ -32,7 +32,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction, MutableRefObject } from 'react'
 import { ANALYZER_PMID_CAP, STEPS, WIRED_STEP } from './LiteratureAnalyzer.constants'
 import type { StepId } from './LiteratureAnalyzer.constants'
-import { CheckpointScreen, StepTabs, useChunkedProgress } from './LiteratureAnalyzer.parts'
+import { CheckpointScreen, InfoTip, StepTabs, useChunkedProgress } from './LiteratureAnalyzer.parts'
 import { SeedsField } from './SearchForm'
 import { parseSeeds } from '../../../../controllers/literatureSearch.strategy'
 // Themes (Phase 4) — the PURE half only (see that file's own header for why it is a separate
@@ -964,11 +964,10 @@ function ScoreImpactStep({ qualifying, onContinue }: {
                     <div className={ls.field}>
                         <label className={ls.eyebrow}>
                             Upgrade — pay for a model-judged score too?{' '}
-                            <span
-                                className={s.stepInfo}
-                                title="The free estimate from citation data is always there as a floor, for every qualifying paper. This adds a second, model-judged opinion on top for however many you choose to pay for — the ranked list uses whichever one a paper actually has. Time estimate assumes batches run one at a time, matching how this scoring call already works elsewhere in the app — not a guess, the app's own scoring functions are sequential today."
-                                aria-label="upgrade info"
-                            >(i)</span>
+                            <InfoTip
+                                text="The free estimate from citation data is always there as a floor, for every qualifying paper. This adds a second, model-judged opinion on top for however many you choose to pay for — the ranked list uses whichever one a paper actually has. Time estimate assumes batches run one at a time, matching how this scoring call already works elsewhere in the app — not a guess, the app's own scoring functions are sequential today."
+                                label="upgrade info"
+                            />
                         </label>
                         <div role="radiogroup" aria-label="Paid upgrade scope" className={s.upgradeRow}>
                             <label className={s.upgradeChoice}>
@@ -1392,10 +1391,8 @@ function ThemesStep({
     const loClassify = classifyBatchCount * loClassBatch
     const hiClassify = classifyBatchCount * hiClassBatch
 
-    const estimateText = `Discovery ~$${discoveryCost.toFixed(2)} (measured, 2026-08-24 pilot, `
-        + `scaled to this corpus size), ~${loDisc}-${hiDisc}s. Classification ~$${classifyCost.toFixed(2)} `
-        + `(${classifyBatchCount} batch${classifyBatchCount === 1 ? '' : 'es'} of up to ${CLASSIFY_BATCH_SIZE}), `
-        + `~${loClassify}-${hiClassify}s.`
+    const estimateText = `Discovery ~$${discoveryCost.toFixed(2)} · ~${loDisc}-${hiDisc}s, then `
+        + `Classification ~$${classifyCost.toFixed(2)} · ~${loClassify}-${hiClassify}s`
     const estimateInfo = `Discovery's estimate is measured ($${DISCOVERY_MEASURED_TOTAL_USD}, `
         + `2026-08-24 pilot run, ${DISCOVERY_MEASURED_RECORDS.toLocaleString()} records — scaled `
         + `linearly to your working set here). Classification's $${CLASSIFY_MEASURED_USD_PER_RECORD_AT_BATCH20}`
@@ -1770,11 +1767,10 @@ function ThemesStep({
                 <div className={ls.card}>
                     <p className={ls.help}>
                         {csvFileName}: {csvReport.loadedAsIs.toLocaleString()} of {totalFileRows.toLocaleString()} rows loaded as-is.{' '}
-                        <span
-                            className={s.stepInfo}
-                            title="Every row this upload couldn't use as-is is listed here, never silently dropped. Rows missing a synopsis or impact score can be scored right now through this tool's own pipeline, or you can fix the file yourself and upload it again — there's no in-page editor for individual cells. A missing impact score alone is filled automatically from the free citation-based floor, at no cost; a missing synopsis always needs the pipeline or a hand edit."
-                            aria-label="validation report info"
-                        >(i)</span>
+                        <InfoTip
+                            text="Every row this upload couldn't use as-is is listed here, never silently dropped. Rows missing a synopsis or impact score can be scored right now through this tool's own pipeline, or you can fix the file yourself and upload it again — there's no in-page editor for individual cells. A missing impact score alone is filled automatically from the free citation-based floor, at no cost; a missing synopsis always needs the pipeline or a hand edit."
+                            label="validation report info"
+                        />
                     </p>
 
                     <ValidationBucket
@@ -1927,17 +1923,16 @@ function ThemesStep({
                             the system this design borrows from refuses to run under that floor. You can
                             run anyway — expect few, thin themes (groups of fewer than 3 papers are
                             dropped).{' '}
-                            <span
-                                className={s.stepInfo}
-                                title="ReciterAI's own theme discovery (the system this tool's Discovery step is based on) won't run under 30 papers at all — clustering that thin isn't reliable. This tool has a person reviewing the result instead of running unattended, so it warns and lets you decide rather than blocking outright."
-                                aria-label="cold-start floor info"
-                            >(i)</span>
+                            <InfoTip
+                                text="ReciterAI's own theme discovery (the system this tool's Discovery step is based on) won't run under 30 papers at all — clustering that thin isn't reliable. This tool has a person reviewing the result instead of running unattended, so it warns and lets you decide rather than blocking outright."
+                                label="cold-start floor info"
+                            />
                         </p>
                     </div>
                 ) : (
                     <p className={ls.help}>
                         Estimated: {estimateText}{' '}
-                        <span className={s.stepInfo} title={estimateInfo} aria-label="cost/time estimate info">(i)</span>
+                        <InfoTip text={estimateInfo} label="cost/time estimate info" />
                     </p>
                 )}
 
@@ -1958,6 +1953,8 @@ function ThemesStep({
     const visibleThemes = showAllThemes ? sortedThemes : sortedThemes.slice(0, DEFAULT_VISIBLE_THEMES)
     const hiddenThemeCount = sortedThemes.length - visibleThemes.length
     const totalCost = discoveryCost + classifyCost
+    const totalCostInfo = "Discovery + Classification, from measured per-record rates — not a "
+        + "true actual: this route reports token usage server-side only."
 
     return (
         <div className={ls.card}>
@@ -1968,17 +1965,15 @@ function ThemesStep({
                 happy with this.
             </p>
             <p className={ls.help}>
-                Estimated: ${totalCost.toFixed(2)} (Discovery + Classification, from measured
-                per-record rates — not a true actual, since this route reports token usage server-side
-                only) · {formatElapsed(pipelineElapsedMs)} elapsed.
+                Estimated: ${totalCost.toFixed(2)} · {formatElapsed(pipelineElapsedMs)} elapsed{' '}
+                <InfoTip text={totalCostInfo} label="cost/time estimate info" />
             </p>
             <p className={ls.help}>
-                <b>{Math.round(finalCoverage * 100)}%</b> coverage{' '}
-                <span
-                    className={s.stepInfo}
-                    title="The share of your working set that landed in a theme. The rest is the “Didn't fit a theme” group below — not lost, not an error, just not clustered."
-                    aria-label="coverage info"
-                >(i)</span>
+                <b>{Math.round(finalCoverage * 100)}%</b> coverage at discovery{' '}
+                <InfoTip
+                    text="The share of your working set that landed in a theme. The rest is the “Didn't fit a theme” group below — not lost, not an error, just not clustered. A snapshot from the discovery run — moving papers by hand updates the counts and lists below, not this number."
+                    label="coverage info"
+                />
             </p>
 
             <div className={s.lossRow}>
@@ -2436,9 +2431,8 @@ function SummarizeThemesStep({
                     {skippedEmptyCount > 0 && ` (${skippedEmptyCount} theme${skippedEmptyCount === 1 ? '' : 's'} with no assigned papers skipped.)`}
                 </p>
                 <p className={ls.help}>
-                    Estimated ~${costEstimate.toFixed(2)} ({ordered.length} theme{ordered.length === 1 ? '' : 's'} × ${MEASURED_SYNTH_COST_PER_THEME}/theme,
-                    the pilot&apos;s measured rate){' '}
-                    <span className={s.stepInfo} title={COST_TIME_INFO} aria-label="cost/time estimate info">(i)</span>
+                    Estimated: ~${costEstimate.toFixed(2)} — {ordered.length} theme{ordered.length === 1 ? '' : 's'} × ${MEASURED_SYNTH_COST_PER_THEME}/theme{' '}
+                    <InfoTip text={COST_TIME_INFO} label="cost/time estimate info" />
                 </p>
                 <div>
                     <button className={ls.btn} onClick={runAll} disabled={!ordered.length}>Summarize themes →</button>
@@ -2472,13 +2466,12 @@ function SummarizeThemesStep({
                         up, {unassignedRows.length.toLocaleString()} not assigned to a theme.
                     </p>
                     <p className={ls.help}>
-                        Actual: ${costEstimate.toFixed(2)} (measured per-theme rate
-                        applied to your {ordered.length.toLocaleString()} theme{ordered.length === 1 ? '' : 's'} — see (i)) · elapsed {formatElapsed(mainRun.state.status === 'done' ? mainRun.state.elapsedMs : summarizeElapsedMs)}.{' '}
-                        <span className={s.stepInfo} title={COST_TIME_INFO} aria-label="cost/time estimate info">(i)</span>
+                        Actual: ${costEstimate.toFixed(2)} · {formatElapsed(mainRun.state.status === 'done' ? mainRun.state.elapsedMs : summarizeElapsedMs)} elapsed{' '}
+                        <InfoTip text={COST_TIME_INFO} label="cost/time estimate info" />
                     </p>
                     <p className={ls.help}>
                         Check every citation against its source before using this anywhere.{' '}
-                        <span className={s.stepInfo} title={CITATION_DISCLAIMER} aria-label="citation disclaimer">(i)</span>
+                        <InfoTip text={CITATION_DISCLAIMER} label="citation disclaimer" />
                     </p>
                 </>
             )}
@@ -2544,7 +2537,7 @@ function SummarizeThemesStep({
                                         (!) This section may be out of date — {staleCount === 1
                                             ? '1 citation references a paper no longer assigned here.'
                                             : `${staleCount} citations reference papers no longer assigned here.`}{' '}
-                                        <span className={s.stepInfo} title={STALE_BADGE_INFO} aria-label="stale section info">(i)</span>{' '}
+                                        <InfoTip text={STALE_BADGE_INFO} label="stale section info" />{' '}
                                         <button type="button" className={ls.btnSecondary} onClick={() => void regenerateTheme(theme.id)} disabled={isRegenerating}>
                                             {isRegenerating ? 'Regenerating…' : 'Regenerate section'}
                                         </button>
@@ -2555,7 +2548,7 @@ function SummarizeThemesStep({
                             <p className={ls.help}>{sec.paragraph}</p>
                             <p className={`${ls.help} ${s.yearStrip}`}>
                                 Papers by year: {formatYearStrip(counts)}{' '}
-                                <span className={s.stepInfo} title={YEAR_STRIP_INFO} aria-label="year strip info">(i)</span>
+                                <InfoTip text={YEAR_STRIP_INFO} label="year strip info" />
                             </p>
                             {!!sec.invented?.length && (
                                 <p className={ls.help} role="alert">
@@ -2629,6 +2622,10 @@ function PlaceholderStep({ label, note }: { label: string; note?: string }) {
 
 export default function LiteratureAnalyzer() {
     const [current, setCurrent] = useState<StepId>(WIRED_STEP)
+    // "Read more" under the page sub-line (round-2 polish) — a plain boolean toggle, same pattern
+    // as AuthorsComponent's own expandedAuthors: no built disclosure component, just a button and a
+    // conditionally-rendered block.
+    const [readMoreOpen, setReadMoreOpen] = useState(false)
     // LIFTED STATE (this file's header): the one place Synopsize's finished output and Score
     // Relevance's qualifying set live once their own steps are done, so a later-selected tab can
     // read what an earlier one produced. Neither survives a reload — see ScoreRelevanceStep's own
@@ -2737,6 +2734,34 @@ export default function LiteratureAnalyzer() {
                 Five independent steps over a retrieved corpus — synopsize, score, theme, and
                 summarize. Each step is its own checkpoint: run it, review it, come back later.
             </p>
+            <button type="button" className={s.readMoreBtn} onClick={() => setReadMoreOpen(v => !v)}>
+                {readMoreOpen ? 'Show less' : 'Read more'}
+            </button>
+            {readMoreOpen && (
+                <div className={s.readMoreBlock}>
+                    <p>
+                        The Analyzer works on a corpus you retrieved with Literature Search — or any
+                        PMID list you paste in. Five steps, each optional, each priced before you
+                        commit: Synopsize writes a plain-language summary of every record; Score
+                        Relevance and Score Impact rate each record with a stated reason; Themes
+                        clusters your ranked set into research themes you can edit; Summarize Themes
+                        writes a short, cited section per theme.
+                    </p>
+                    <p>
+                        Steps build on each other — Themes reads your scored working set, Summarize
+                        Themes reads your theme assignments — but nothing runs on its own. Run a
+                        step, review what came back, export it, and come back later; your working
+                        set carries forward between steps.
+                    </p>
+                    <p>
+                        Every step that calls a model shows its measured cost estimate up front and
+                        reports what it dropped — rejected rows, papers that didn&apos;t fit a theme,
+                        sections that failed — rather than silently discarding anything.
+                        Model-written prose cites papers by PMID: check every citation against its
+                        source before using a write-up anywhere.
+                    </p>
+                </div>
+            )}
 
             <StepTabs current={current} onSelect={setCurrent} />
 
