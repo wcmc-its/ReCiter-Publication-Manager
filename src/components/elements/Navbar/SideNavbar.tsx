@@ -383,18 +383,30 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
     else return router.pathname
   }
   const pathName = customRouterPathNames(router.pathname);
-  const winnerTo = menuItems.reduce((winner: string | undefined, item) => {
-    const to = item.to as unknown as string;
-    if (!to) return winner;
-    const matches =
-      to === pathName ||
-      pathName.startsWith(to + '/') ||
-      to.startsWith(pathName + '/');
-    if (matches && (!winner || to.length > winner.length)) {
-      return to;
-    }
-    return winner;
-  }, undefined as string | undefined);
+  // Two-tier winner selection, not one flat longest-match pool. Clause 3
+  // (to.startsWith(pathName + '/')) exists ONLY to catch username-carrying
+  // routes whose `to` is more specific than the normalized pathName (e.g.
+  // to="/notifications/paa2013" while pathName is normalized to
+  // "/notifications" above). That clause must never outrank a sibling that
+  // matches the current route directly (clauses 1-2) — otherwise a longer
+  // child route like "/literature/analyzer" wins on "/literature" just
+  // because it's a longer string, even though the path itself points at
+  // the parent. So: find the longest direct match (tier 1) first, and only
+  // fall back to the username-style clause (tier 2) when nothing matched
+  // directly.
+  const findLongestMatch = (
+    predicate: (to: string) => boolean,
+  ): string | undefined =>
+    menuItems.reduce((winner: string | undefined, item) => {
+      const to = item.to as unknown as string;
+      if (!to || !predicate(to)) return winner;
+      if (!winner || to.length > winner.length) return to;
+      return winner;
+    }, undefined as string | undefined);
+
+  const winnerTo =
+    findLongestMatch((to) => to === pathName || pathName.startsWith(to + '/')) ??
+    findLongestMatch((to) => to.startsWith(pathName + '/'));
 
   const expandNavCotext = React.useContext(ExpandNavContext);
 
