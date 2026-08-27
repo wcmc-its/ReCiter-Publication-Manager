@@ -420,6 +420,37 @@ function scopusExternalPayload(row: any) {
   };
 }
 
+// POST /api/db/authorships/authors — batched authors_json lookup by Scopus external_id,
+// for the Curate per-source "Scopus" tab (SourceArticleTab) to backfill a display byline
+// on rows accepted before scopusExternalPayload() started sending `authors` natively
+// (rows whose ExternalArticle payload has no authors key at all). Body: { externalIds:
+// string[] }. Response: { authors: { [external_id]: authors_json | null } } — the raw
+// column value, left for the client to parse the same way AuthorshipsTabs does, since
+// the client is what actually renders the byline.
+export const authorshipsAuthorsByExternalId = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const externalIds: string[] = Array.isArray(req.body?.externalIds)
+      ? [...new Set<string>(req.body.externalIds.map((v: any) => String(v)).filter(Boolean))]
+      : [];
+    if (!externalIds.length) return res.send({ authors: {} });
+
+    const rows = await models.AuthorshipReview.findAll({
+      attributes: ["external_id", "authors_json"],
+      where: { source: "scopus", external_id: { [Op.in]: externalIds } },
+      raw: true,
+    });
+
+    const authors: Record<string, string | null> = {};
+    (rows as any[]).forEach((r) => {
+      if (r.external_id) authors[String(r.external_id)] = r.authors_json || null;
+    });
+    res.send({ authors });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
 // Every candidate identity a row was proposed against (top_cwid + candidate_cwids_json,
 // deduped) — the full set "None of these" rejects and reopen() un-rejects.
 function candidateCwidsFromRow(row: any): string[] {
