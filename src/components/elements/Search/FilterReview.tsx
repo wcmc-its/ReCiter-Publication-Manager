@@ -72,7 +72,12 @@ const FilterReview = ({
   }));
 
   useEffect(() => {
-    let userPermissions = JSON.parse(session.data.userRoles);
+   // let userPermissions = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles) : session.data.userRoles;
+    let userPermissions = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
+            ? JSON.parse(session.data.userRoles)
+            : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
+                ? session.data.userRoles
+                : []);
     if (userPermissions && userPermissions.length === 1 && userPermissions.some(role => role.roleLabel === allowedPermissions.Reporter_All)) {
         setDropdownTitle("Create Report");
         setDropdownMenuItems([]);

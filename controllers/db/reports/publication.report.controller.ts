@@ -29,7 +29,11 @@ export const generatePubsRtf = async (
   res: NextApiResponse
 ) => {
   try {
-    let apiBody: GeneratePubsApiBody = JSON.parse(req.body);
+     if (req.body == null) {
+      return res.status(400).send("Request body is required");
+    }
+    let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : (typeof req.body === "object"  && !Array.isArray(req.body) ? req.body : ({} as GeneratePubsApiBody));
+ 
     let generatePubsRtfOutput: any = [];
 								
     if (apiBody.personIdentifiers && apiBody.personIdentifiers.length > 0) {
@@ -76,7 +80,12 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
-      let apiBody: GeneratePubsPeopleOnlyApiBody = JSON.parse(req.body);
+     if (req.body == null) {
+      return res.status(400).send("Request body is required");
+     }
+     
+      let apiBody: GeneratePubsApiBody = typeof req.body === "string" ? JSON.parse(req.body) : (typeof req.body === "object"  && !Array.isArray(req.body) ? req.body : ({} as GeneratePubsApiBody));
+ 
       const generatePubsPeopleOnlyRtfOutput: any = await sequelize.query(
         "CALL generatePubsPeopleOnlyRTF (:uids, :limit)",
         {
@@ -99,6 +108,9 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
+      if (req.body == null) {
+        return res.status(400).send("Request body is required");
+      }
       let apiBody: PublicationSearchFilter = req.body;
       const where = {};
       const joinOrgWhere ={};
@@ -343,6 +355,9 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
+      if (req.body == null) {
+        return res.status(400).send("Request body is required");
+      }
       let apiBody: PublicationSearchFilter = req.body;
       const where = {};
       const joinOrgWhere ={};
@@ -659,6 +674,9 @@ export const generatePubsPeopleOnlyRtf = async (
     res: NextApiResponse
   ) => {
     try {
+      if (req.body == null) {
+        return res.status(400).send("Request body is required");
+      }
       let apiBody: any = req.body;
       const where = {};
 					  

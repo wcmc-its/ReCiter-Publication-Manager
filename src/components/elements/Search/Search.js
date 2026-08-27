@@ -36,9 +36,29 @@ const Search = () => {
   const loading = status === 'loading';
 
   // Phase 9: Parse scope/proxy data and derive capabilities
-  const scopeData = session?.data?.scopeData ? JSON.parse(session.data.scopeData) : null;
-  const proxyPersonIds = session?.data?.proxyPersonIds ? JSON.parse(session.data.proxyPersonIds) : [];
-  const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : [];
+  //const scopeData =typeof session?.data?.scopeData === "string" ? JSON.parse(session.data.scopeData): null;
+  //const proxyPersonIds = typeof session?.data?.proxyPersonIds === "string" ? JSON.parse(session.data.proxyPersonIds): [];
+  //const userRoles = typeof session?.data?.userRoles === "string" ? JSON.parse(session.data.userRoles): [];
+
+  const scopeData = typeof session?.data?.scopeData === "string" && session.data.scopeData !== ""
+    ? JSON.parse(session.data.scopeData)
+    : (typeof session?.data?.scopeData === "object" && session?.data?.scopeData !== null
+      ? session.data.scopeData
+      : null);
+
+  const proxyPersonIds = typeof session?.data?.proxyPersonIds === "string" && session.data.proxyPersonIds !== ""
+    ? JSON.parse(session.data.proxyPersonIds)
+    : (typeof session?.data?.proxyPersonIds === "object" && session?.data?.proxyPersonIds !== null
+      ? session.data.proxyPersonIds
+      : []);
+
+  const userRoles = typeof session?.data?.userRoles === "string" && session.data.userRoles !== ""
+    ? JSON.parse(session.data.userRoles)
+    : (typeof session?.data?.userRoles === "object" && session?.data?.userRoles !== null
+      ? session.data.userRoles
+      : []);
+
+
   const caps = getCapabilities(userRoles);
   // Mirrors authorization.controller.ts's canCurate hasScope computation exactly: a configured
   // scope is self-sufficient and shouldn't require the token to also carry the Curator_Scoped
@@ -306,9 +326,12 @@ const Search = () => {
       .then(data => {
         let parsedSettingsArray = [];
         data.map((obj, index1) => {
-          let a = JSON.stringify(obj.viewAttributes)
-          let b = JSON.parse(a);
-          let c = typeof(b) === "string" ? JSON.parse(b) : b
+          //let c = typeof(obj.viewAttributes) === "string" ? JSON.parse(obj.viewAttributes) : JSON.parse(JSON.stringify(obj.viewAttributes));
+          let c = typeof obj.viewAttributes === "string"
+            ? JSON.parse(obj.viewAttributes)
+            : (typeof obj.viewAttributes === "object" && obj.viewAttributes !== null && !Array.isArray(obj.viewAttributes)
+              ? obj.viewAttributes
+              : {});
           let parsedSettings = {
             viewName : obj.viewName,
             viewAttributes: c,
