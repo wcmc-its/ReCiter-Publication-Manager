@@ -297,3 +297,59 @@
 .btnReject:hover {
     background: #f1f3f7;
 }
+
+/* list mode — single horizontal, right-aligned action cluster [History] [Reject] [Delete] */
+.listActionsRow {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* list mode — Reject switches the cluster into this inline note + confirm/cancel flow */
+.rejectInline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 220px;
+    max-width: 100%;
+}
+
+.rejectInlineActions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.btnRejectConfirm {
+    border: none;
+    background: #b31b1b;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btnRejectConfirm:hover {
+    background: #921515;
+}
+
+.btnCancel {
+    border: 1px solid #cbd3e0;
+    background: #fff;
+    color: #55607a;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btnCancel:hover {
+    background: #f1f3f7;
+}

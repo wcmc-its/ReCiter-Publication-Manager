@@ -1,5 +1,10 @@
-import React, { FunctionComponent, useState } from "react"
+import React, { FunctionComponent, useEffect, useRef, useState } from "react"
+import { useSelector } from "react-redux"
+import { RootStateOrAny } from "../../../types/redux"
 import styles from './ExternalPublicationCard.module.css'
+// Curation-history popover: reuse Publication.tsx's styling (evidenceBtn, curationWrap,
+// curationLogPopover, clog* rows) rather than duplicating it here.
+import pubStyles from '../Publication/Publication.module.css'
 import CheckIcon from '@mui/icons-material/Check'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 
@@ -15,12 +20,11 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 const doiUrl = 'https://doi.org/'
 const pubMedUrl = 'https://www.ncbi.nlm.nih.gov/pubmed/'
 
-// Inline (not a CSS module class — kept out of ExternalPublicationCard.module.css, which
-// is outside this fix's write set) styling for the list-mode Reject note textarea.
+// Inline styling for the list-mode Reject note textarea, shown only once Reject is
+// clicked (see the inline note/confirm/cancel cluster in the actions section below).
 const rejectNoteInputStyle: React.CSSProperties = {
     display: 'block',
     width: '100%',
-    marginTop: 8,
     border: '1px solid #cbd3e0',
     borderRadius: 6,
     padding: '6px 8px',
@@ -29,6 +33,25 @@ const rejectNoteInputStyle: React.CSSProperties = {
     color: '#384152',
     resize: 'vertical',
     boxSizing: 'border-box',
+}
+
+// Curation-history entry date — mirrors Publication.tsx's formatClogDate (seconds
+// included so rapid same-session actions stay distinguishable).
+const formatClogDate = (timestamp: string | number | Date): string => {
+    const d = new Date(timestamp)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit',
+    })
+}
+
+// The feedbacklog redux slice normalizes rows with a `modifyTimestamp` ISO string
+// derived from the raw `createTimestamp` (epoch seconds) — prefer it, fall back to
+// converting createTimestamp directly if it's ever absent.
+const dateForEntry = (entry: any): string => {
+    if (entry.modifyTimestamp) return formatClogDate(entry.modifyTimestamp)
+    const epochSec = Number(entry.createTimestamp) || 0
+    return epochSec ? formatClogDate(epochSec * 1000) : ''
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -104,6 +127,36 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
     // list-mode Reject note — optional, threaded through onReject on click. Preview-mode
     // onReject (TabAddExternalPublication / TabScopusAuthorships dismiss) doesn't use this.
     const [rejectNote, setRejectNote] = useState('')
+    // list mode only — the note textarea is hidden until Reject is clicked, then the
+    // action cluster switches to [note input] [Confirm reject] [Cancel].
+    const [rejectMode, setRejectMode] = useState(false)
+    const [showHistory, setShowHistory] = useState(false)
+    const historyRef = useRef<HTMLSpanElement>(null)
+
+    // Curation history — same FeedbackLog rows Publication.tsx's History popover reads,
+    // bucketed by articleId; for external rows that's the full "SOURCE:id" string (see
+    // recordExternalArticleFeedback), which is exactly item.articleId here.
+    const feedbacklog = useSelector((state: RootStateOrAny) => state.feedbacklog)
+    const entries: any[] = (item.articleId && feedbacklog && feedbacklog[item.articleId]) || []
+
+    // Close the history popover on outside click or Escape, same as Publication.tsx.
+    useEffect(() => {
+        if (!showHistory) return
+        const handleClickOutside = (e: MouseEvent) => {
+            if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+                setShowHistory(false)
+            }
+        }
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setShowHistory(false)
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        document.addEventListener('keydown', handleEscape)
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+            document.removeEventListener('keydown', handleEscape)
+        }
+    }, [showHistory])
 
     const sourceType: string = item.sourceType || 'OPENALEX'
     const sourceLabel = SOURCE_LABELS[sourceType] || sourceType
@@ -206,17 +259,6 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                     </div>
                 )}
 
-                {/* list mode, not-yet-rejected — optional note captured before Reject */}
-                {mode === 'list' && !suppressed && props.onReject && (
-                    <textarea
-                        style={rejectNoteInputStyle}
-                        placeholder="Optional note for this rejection…"
-                        value={rejectNote}
-                        onChange={(e) => setRejectNote(e.target.value)}
-                        rows={2}
-                    />
-                )}
-
                 {/* 409 WARNING — suspected duplicate side-by-side, explicit Add anyway */}
                 {mode === 'preview' && status === 'warning' && (
                     <div className={styles.warningBox}>
@@ -273,29 +315,95 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         Reject
                     </button>
                 )}
-                {mode === 'list' && !suppressed && props.onReject && (
-                    <button
-                        className={styles.btnReject}
-                        onClick={() => props.onReject && props.onReject(item, rejectNote.trim() || undefined)}
-                    >
-                        Reject
-                    </button>
+                {/* list mode — one right-aligned row: History (if any), then either
+                    Reject/Accept or the inline reject-note flow, then Delete. */}
+                {mode === 'list' && !rejectMode && (
+                    <div className={styles.listActionsRow}>
+                        {entries.length > 0 && (
+                            <span className={pubStyles.curationWrap} ref={historyRef}>
+                                <button
+                                    className={pubStyles.evidenceBtn}
+                                    onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory) }}
+                                >
+                                    History
+                                </button>
+                                {showHistory && (
+                                    <div className={pubStyles.curationLogPopover}>
+                                        <div className={pubStyles.clogHead}>Curation history</div>
+                                        {entries.map((entry, i) => {
+                                            const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone'
+                                            const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested'
+                                            const who = entry.curatorName || entry.curatedBy || 'Unknown'
+                                            return (
+                                                <div className={pubStyles.clogEntry} key={entry.feedbackID || i}>
+                                                    <div className={pubStyles.clogAction}>
+                                                        <div className={`${pubStyles.clogDot} ${action === 'accepted' ? pubStyles.clogDotAccepted : action === 'rejected' ? pubStyles.clogDotRejected : pubStyles.clogDotUndone}`} />
+                                                        <span className={`${pubStyles.clogVerb} ${action === 'accepted' ? pubStyles.clogVerbAccepted : action === 'rejected' ? pubStyles.clogVerbRejected : pubStyles.clogVerbUndone}`}>{verb}</span>
+                                                        <span className={pubStyles.clogWho}>{who}</span>
+                                                    </div>
+                                                    <span className={pubStyles.clogDate}>{dateForEntry(entry)}</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </span>
+                        )}
+                        {!suppressed && props.onReject && (
+                            <button
+                                className={styles.btnReject}
+                                onClick={() => setRejectMode(true)}
+                            >
+                                Reject
+                            </button>
+                        )}
+                        {suppressed && props.onAccept && (
+                            <button
+                                className={styles.btnAdd}
+                                onClick={() => props.onAccept && props.onAccept(item)}
+                            >
+                                <CheckIcon style={{ fontSize: 14 }} /> Accept
+                            </button>
+                        )}
+                        {!!props.viewerCwid && item.addedBy === props.viewerCwid && (
+                            <button
+                                className={styles.btnDelete}
+                                onClick={() => props.onDelete && props.onDelete(item.articleId)}
+                            >
+                                <DeleteOutlineIcon style={{ fontSize: 15 }} /> Delete
+                            </button>
+                        )}
+                    </div>
                 )}
-                {mode === 'list' && suppressed && props.onAccept && (
-                    <button
-                        className={styles.btnAdd}
-                        onClick={() => props.onAccept && props.onAccept(item)}
-                    >
-                        <CheckIcon style={{ fontSize: 14 }} /> Accept
-                    </button>
-                )}
-                {mode === 'list' && !!props.viewerCwid && item.addedBy === props.viewerCwid && (
-                    <button
-                        className={styles.btnDelete}
-                        onClick={() => props.onDelete && props.onDelete(item.articleId)}
-                    >
-                        <DeleteOutlineIcon style={{ fontSize: 15 }} /> Delete
-                    </button>
+                {mode === 'list' && rejectMode && (
+                    <div className={styles.rejectInline}>
+                        <textarea
+                            style={rejectNoteInputStyle}
+                            placeholder="Optional note for this rejection…"
+                            value={rejectNote}
+                            onChange={(e) => setRejectNote(e.target.value)}
+                            rows={2}
+                            autoFocus
+                        />
+                        <div className={styles.rejectInlineActions}>
+                            <button
+                                className={styles.btnRejectConfirm}
+                                onClick={() => {
+                                    props.onReject && props.onReject(item, rejectNote.trim() || undefined)
+                                    setRejectMode(false)
+                                    setRejectNote('')
+                                }}
+                            >
+                                Confirm reject
+                            </button>
+                            <button
+                                className={styles.btnCancel}
+                                onClick={() => { setRejectMode(false); setRejectNote('') }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
                 )}
             </div>
         </div>
