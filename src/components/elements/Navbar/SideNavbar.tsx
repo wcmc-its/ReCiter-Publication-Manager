@@ -375,8 +375,8 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
   // '/literature/analyzer'), so matching each item against the route in isolation (as
   // MenuListItem's propless fallback does) double-highlights whenever a route matches
   // more than one item's `to`. Compute the winner ONCE across every item here, using the
-  // same three-clause match semantics as that fallback, and let only the longest matching
-  // `to` win; both render passes below pass the result down as `selected`.
+  // fallback's clauses split into the two tiers described below, and let only the longest
+  // matching `to` win; both render passes below pass the result down as `selected`.
   const customRouterPathNames = (routerPath) => {
     if (routerPath === "/notifications/[userId]") { return "/notifications" }
     else if (routerPath === "/manageprofile/[userId]") { return "/manageprofile" }
