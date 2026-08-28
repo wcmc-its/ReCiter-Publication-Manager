@@ -100,6 +100,7 @@ interface ActivityEntry {
   top_name?: string;
   top_cwid?: string;
   resolution_cwid?: string;
+  resolution_name?: string;   // name of resolution_cwid's identity, looked up server-side
   status?: string;
   reviewer?: string;
   resolved_at?: string;
@@ -265,6 +266,15 @@ const formatAuthorsJson = (json?: string): string => {
   }
 };
 
+// entrez_date means two different things by lane — the NCBI index date on pubmed rows,
+// Scopus's prism:coverDate on scopus rows — so say which one is on screen rather than
+// leaving the curator to guess from an unlabelled date (#927). authorship_review has no
+// publication-date column at all; adding one is a ReCiterDB producer/schema change, so
+// labelling what we already have is the whole of the PM-side fix here.
+const dateLabel = (source?: string) => (source === "scopus"
+  ? { label: "Cover date", tip: "Scopus cover date (prism:coverDate) — the issue date Scopus carries for this document. This lane is not in PubMed, so there is no Entrez date." }
+  : { label: "Indexed", tip: "Date NCBI indexed this record (Entrez date), not the publication date — for a record indexed late the two can differ by years. authorship_review has no publication-date column." });
+
 // inline IO/FG explanation (F8)
 const ioFgNote = (r: AuthorshipRow): string => {
   if (r.top_io_score == null) {
@@ -325,6 +335,13 @@ const outLinkStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600,
   color: "#2563eb", textDecoration: "none",
 };
+
+// N-line ellipsis clamp. A one-line clamp on a shared line is the worst of both worlds —
+// a long title eats the whole line and drags the venue/date off the end with it, leaving
+// the curator hovering for a tooltip to read the primary evidence (#927).
+const clampStyle = (lines: number): CSSProperties => ({
+  display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden",
+});
 
 // PMID outbound PubMed link — lead element of an evidence panel (Item 3).
 // stopPropagation so clicking it never toggles the card (Item 6).
@@ -1215,19 +1232,24 @@ const AuthorshipsTabs = () => {
             || (entry.source === "scopus" && entry.external_id ? `Scopus ${entry.external_id}` : entry.pmid ? `PMID ${entry.pmid}` : "Untitled");
           // subject of the authorship — resolution_cwid is the identity actually resolved onto
           // (set for accept/assign; reject/dismiss never set it, so top_cwid is always the right
-          // fallback there). ponytail: the displayed NAME (top_name) can rarely be stale relative
-          // to this cwid in the multi-candidate "assign to a non-top candidate" edge case — an
-          // accepted simplification, not a bug to chase.
+          // fallback there). The name has to follow the same per-row choice: top_name is the
+          // *top candidate's* name, so on an assign-to-a-non-top-candidate row it would sit
+          // next to a different person's cwid — on the one panel a curator uses to catch their
+          // own mistakes, with Undo one click away (#928). Fall back to top_name only when it
+          // provably describes the same cwid; otherwise show no name rather than a wrong one.
           const subjectCwid = entry.resolution_cwid || entry.top_cwid;
+          const subjectName = entry.resolution_cwid
+            ? (entry.resolution_name || (entry.resolution_cwid === entry.top_cwid ? entry.top_name : undefined))
+            : entry.top_name;
           return (
             <MenuItem key={entry.id} dense disableRipple
               style={{ whiteSpace: "normal", display: "block", padding: "8px 14px", cursor: "default" }}>
               <div style={{ fontSize: 12.5, color: "#0f172a" }}>
                 <strong>{verb}</strong> — {label}
               </div>
-              {(entry.top_name || subjectCwid) && (
+              {(subjectName || subjectCwid) && (
                 <div style={{ fontSize: 11.5, color: "#475569", marginTop: 2 }}>
-                  {entry.top_name || "—"}{" "}
+                  {subjectName || "—"}{" "}
                   {subjectCwid && (
                     <a href={`/curate/${subjectCwid}`} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "none" }}>
                       {subjectCwid}
@@ -1374,15 +1396,27 @@ const AuthorshipCard = ({
 
           {/* Scopus byline — full author list from authors_json, quiet/muted like the L3 meta line */}
           {r.source === "scopus" && formatAuthorsJson(r.authors_json) && (
-            <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={formatAuthorsJson(r.authors_json)}>
+            <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3, ...clampStyle(2) }} title={formatAuthorsJson(r.authors_json)}>
               {formatAuthorsJson(r.authors_json)}
             </div>
           )}
 
-          {/* L3 — paper meta (quiet/truncated). PMID link now lives in the evidence panel. */}
-          <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={stripHtml(r.title)}>
-            <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} /> · <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>{r.entrez_date ? ` · ${r.entrez_date}` : ""}
+          {/* L3 — paper meta (quiet). Title wraps to two lines, then venue and date get a line
+              of their own so a long title can no longer push them out of view (#927). PMID link
+              now lives in the evidence panel. */}
+          <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, ...clampStyle(2) }} title={stripHtml(r.title)}>
+            <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} />
           </div>
+          {(r.journal || r.entrez_date) && (
+            <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
+              {r.journal && <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>}
+              {r.entrez_date && (
+                <Tip title={dateLabel(r.source).tip} placement="top" arrow>
+                  <span style={{ cursor: "help" }}>{r.journal ? " · " : ""}{dateLabel(r.source).label} {r.entrez_date}</span>
+                </Tip>
+              )}
+            </div>
+          )}
 
           {/* L4 — full affiliation (WCM highlighted), wraps to multiple lines + disclosure */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 7, fontSize: 12.5, color: "#475569" }}>
