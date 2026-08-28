@@ -56,6 +56,7 @@ interface AuthorshipRow {
   // actual safety net.
   dup_flag?: boolean;
   dup_reason?: string;
+  accept_conflict?: string;   // persisted ExternalArticleDupCheck 409 from a previous Accept
   status?: string;
   snooze_until?: string;
   reviewer?: string;
@@ -126,12 +127,19 @@ interface Candidate {
 
 interface Summary {
   total: number; single_candidate: number; classes: Record<string, number>;
+  fullname?: number;                                 // single-candidate AND full given-name match
+  duplicates?: number;                               // accepts parked by a dup-check 409
   personTypes?: Array<{ type: string; n: number }>;
   bySource?: Record<string, number>;                 // { pubmed: n, scopus: n } — source-segment counts
   pubTypes?: Array<{ type: string; n: number }>;      // scopus pub_type facet
 }
 
 const PAGE_SIZE = 20;
+// Bulk accept is one POST per row and each one is a gold-standard or ExternalArticle write
+// into ReCiter. A page's worth at a time is proven load; firing a whole 2,000-row selection
+// at once is not, against the same service the May 3-4 contention incident came off. Chunks
+// run sequentially, so the concurrency ceiling is the same as accepting one page today.
+const BULK_CHUNK = 20;
 const apiHeaders = {
   Accept: "application/json",
   "Content-Type": "application/json",
@@ -427,7 +435,12 @@ const AuthorshipsTabs = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [lane, setLane] = useState<"single" | "all">("single");
+  const [lane, setLane] = useState<"fullname" | "single" | "all">("single");
+  // Rows matching the current filters beyond this page, pulled by "Select all N matching".
+  // Held apart from `rows` because the bulk loop needs off-page rows the feed never loaded.
+  const [allMatching, setAllMatching] = useState<AuthorshipRow[] | null>(null);
+  const [selectingAll, setSelectingAll] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [classification, setClassification] = useState<"all" | "buried" | "absent" | "suggested">("all");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -447,7 +460,7 @@ const AuthorshipsTabs = () => {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed">("open");
+  const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed" | "duplicates">("open");
   const [source, setSource] = useState<"all" | "pubmed" | "scopus">("all");
   const [selectedPubTypes, setSelectedPubTypes] = useState<string[]>([]);
   const [actingId, setActingId] = useState<number | null>(null);
@@ -501,7 +514,7 @@ const AuthorshipsTabs = () => {
 
   const filterBody = useCallback(() => ({
     feed: "unassigned",
-    precision: lane === "single" ? "single" : "all",
+    precision: lane,
     classification,
     searchTextInput: search,
     personTypes: selectedTypes,
@@ -640,7 +653,7 @@ const AuthorshipsTabs = () => {
   // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
-  useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); },
+  useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
     [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
@@ -722,11 +735,24 @@ const AuthorshipsTabs = () => {
       .finally(() => setActingId(null));
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
 
-  // F5: bulk orchestration — accept a batch of rows, collect into one Undo batch
+  // F5: bulk orchestration — accept a batch of rows, collect into one Undo batch.
+  // Runs BULK_CHUNK rows at a time, chunks sequential: a select-all-matching batch can be
+  // thousands of rows, and each accept is a write into ReCiter. Per-row behaviour inside a
+  // chunk is byte-for-byte what a single page's Accept does today.
   const doBulkAccept = useCallback((batch: AuthorshipRow[]) => {
     if (batch.length === 0) return;
     setMenu(null);
-    Promise.allSettled(batch.map((row) => doActionAsync(row, "accept")))
+    setBulkProgress(batch.length > BULK_CHUNK ? { done: 0, total: batch.length } : null);
+    const runChunks = async () => {
+      const results: PromiseSettledResult<boolean>[] = [];
+      for (let i = 0; i < batch.length; i += BULK_CHUNK) {
+        const chunk = batch.slice(i, i + BULK_CHUNK);
+        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "accept"))));
+        if (batch.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: batch.length });
+      }
+      return results;
+    };
+    runChunks()
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
@@ -739,7 +765,7 @@ const AuthorshipsTabs = () => {
           const noId = failures.filter((f) => (f.reason as any)?.status === 422).length;
           const other = failures.length - dups - noId;
           const parts: string[] = [];
-          if (dups) parts.push(`${dups} possible duplicate${dups > 1 ? "s" : ""} (accept individually to review)`);
+          if (dups) parts.push(`${dups} possible duplicate${dups > 1 ? "s" : ""} — moved to Possible duplicates`);
           if (noId) parts.push(`${noId} with no ReCiter identity`);
           if (other) parts.push(`${other} failed`);
           setErrorMsg(`${failures.length} of ${batch.length} accepts skipped: ${parts.join("; ")} — refreshing`);
@@ -748,9 +774,31 @@ const AuthorshipsTabs = () => {
         else topUp();
         fetchSummary();
         fetchRecentActivity();
-      });
+      })
+      .finally(() => setBulkProgress(null));
     setSelected(new Set());
+    setAllMatching(null);
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+
+  // "Select all N matching": pull every bulk-selectable row for the current filters, not just
+  // this page. The server recomputes eligibility and omits anything the card would refuse, so
+  // this can only ever select rows an individual Accept would also have allowed.
+  const selectAllMatching = useCallback(() => {
+    setSelectingAll(true);
+    fetch("/api/db/authorships/selectable", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify(filterBody()),
+    })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d) => {
+        const matched: AuthorshipRow[] = d.rows || [];
+        setAllMatching(matched);
+        setSelected(new Set(matched.map((r) => r.id)));
+        if (d.capped) setErrorMsg(`Selected the first ${d.cap.toLocaleString()} matching rows — narrow the filters to reach the rest.`);
+      })
+      .catch((e) => setErrorMsg(`Couldn't select all matching — ${String(e?.message || e)}`))
+      .finally(() => setSelectingAll(false));
+  }, [filterBody]);
 
   // undo = reopen over the whole batch (F4: extends PR-1's single-row undo)
   const doUndo = useCallback(() => {
@@ -879,7 +927,9 @@ const AuthorshipsTabs = () => {
 
   // F4: near-certain bulk = visible single-candidate rows with IO >= 95 (and acceptable)
   const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && (r.top_io_score ?? 0) >= 95);
-  const selectedRows = rows.filter((r) => selected.has(r.id));
+  // With a select-all-matching in force the selection includes rows this page never
+  // loaded, so the on-page filter would silently shrink the batch to 20.
+  const selectedRows = allMatching ?? rows.filter((r) => selected.has(r.id));
   // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
   const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && !r.top_already_rejected) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
@@ -939,13 +989,15 @@ const AuthorshipsTabs = () => {
       {/* row 1: status view + sort + keyboard help */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
-          {([["open", "Open"], ["snoozed", "Snoozed"], ["dismissed", "Dismissed"]] as const).map(([key, label]) => (
-            <button key={key} onClick={() => setStatusView(key)} style={{
+          {([["open", "Open"], ["duplicates", "Possible duplicates"], ["snoozed", "Snoozed"], ["dismissed", "Dismissed"]] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setStatusView(key)} title={key === "duplicates"
+              ? "Accepts the server flagged as a possible duplicate (a fuzzy title+year match, which can pair two genuinely different works). Held out of the open queue for review."
+              : undefined} style={{
               border: "none", padding: "5px 12px", font: "inherit", fontSize: 13, fontWeight: 600, borderRadius: 5,
               cursor: "pointer", background: statusView === key ? "#fff" : "transparent",
               color: statusView === key ? "#0f172a" : "#475569",
               boxShadow: statusView === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
-            }}>{label}</button>
+            }}>{label}{key === "duplicates" && summary?.duplicates ? ` (${summary.duplicates.toLocaleString()})` : ""}</button>
           ))}
         </div>
         {/* source segment: PubMed lane vs Scopus not-in-PubMed lane (counts from summary.bySource) */}
@@ -985,14 +1037,17 @@ const AuthorshipsTabs = () => {
       {/* row 2: lane + classification chips + type + dates + search */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
-          {([["single", "High-precision"], ["all", "All unassigned"]] as const).map(([key, label]) => (
-            <Tip key={key} title={key === "single" ? "Only authorships where exactly one WCM identity matches the name" : "Every unassigned authorship"} placement="top" arrow>
+          {([["fullname", "Unique and full given-name match"], ["single", "High-precision"], ["all", "All unassigned"]] as const).map(([key, label]) => (
+            <Tip key={key} title={
+              key === "fullname" ? "Exactly one WCM identity matches AND the given name matches in full (not just the initial). Curators have accepted 4,723 of these and rejected none; the initial-only rows next door were rejected 373 times."
+              : key === "single" ? "Only authorships where exactly one WCM identity matches the name"
+              : "Every unassigned authorship"} placement="top" arrow>
               <button onClick={() => setLane(key)} style={{
                 border: "none", padding: "5px 11px", font: "inherit", fontSize: 13, fontWeight: 500, borderRadius: 5,
                 cursor: "pointer", background: lane === key ? "#fff" : "transparent",
                 color: lane === key ? "#2563eb" : "#475569",
                 boxShadow: lane === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
-              }}>{label}</button>
+              }}>{label}{key === "fullname" && summary?.fullname != null ? ` (${summary.fullname.toLocaleString()})` : ""}</button>
             </Tip>
           ))}
         </div>
@@ -1090,15 +1145,38 @@ const AuthorshipsTabs = () => {
               <IconChecks /> Accept near-certain · IO ≥ 95 <strong style={{ fontVariantNumeric: "tabular-nums" }}>({nearCertain.length})</strong>
             </button>
           </Tip>
+          {/* Escape hatch from the page-scoped selection above: only offered once this page is
+              fully selected and there is more behind it, and the count is stated in the label so
+              nobody selects a few thousand rows without reading the number. */}
+          {allEligibleSelected && !allMatching && count > eligibleRows.length && (
+            <button disabled={selectingAll} style={btn("soft", selectingAll)} onClick={selectAllMatching}>
+              {selectingAll ? "Selecting…" : `Select all ${count.toLocaleString()} matching these filters`}
+            </button>
+          )}
+          {allMatching && (
+            <span style={{ color: "#1d4ed8", fontWeight: 600 }}>
+              All {allMatching.length.toLocaleString()} matching rows selected
+              <button style={{ ...btn("soft"), padding: "2px 8px", marginLeft: 8 }}
+                onClick={() => { setAllMatching(null); setSelected(new Set()); }}>Clear</button>
+            </span>
+          )}
           {selectedRows.length > 0 && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               — <strong>{selectedRows.length}</strong> selected
-              <button style={{ ...btn("accept"), padding: "4px 10px" }} onClick={() => doBulkAccept(selectedRows)}>
+              <button style={{ ...btn("accept"), padding: "4px 10px" }} disabled={!!bulkProgress}
+                onClick={() => doBulkAccept(selectedRows)}>
                 <IconCheck /> Accept selected
               </button>
             </span>
           )}
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>Bulk acts on single-candidate rows on this page</span>
+          {bulkProgress && (
+            <span style={{ color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+              Accepting {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}…
+            </span>
+          )}
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
+            {allMatching ? "Bulk acts on every matching single-candidate row" : "Bulk acts on single-candidate rows on this page"}
+          </span>
         </div>
       )}
 
@@ -1112,7 +1190,11 @@ const AuthorshipsTabs = () => {
           <AuthorshipCard
             key={r.id}
             row={r}
-            statusView={statusView}
+            // The duplicates view is a REVIEW queue: each row is still status="open", so the card
+            // must offer the same per-row actions (including Force) as the open feed. The parent
+            // keeps statusView="duplicates", which is what leaves eligibleRows empty and so keeps
+            // the bulk bar off — duplicates get resolved one at a time, deliberately.
+            statusView={statusView === "duplicates" ? "open" : statusView}
             isExpanded={expanded === r.id}
             isSelected={selected.has(r.id)}
             isFocused={focusedId === r.id}
@@ -1126,7 +1208,12 @@ const AuthorshipsTabs = () => {
             onAction={(action, extra) => doAction(r, action, extra)}
             onMenu={(anchor) => setMenu({ anchor, row: r })}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
-            conflict={conflicts[r.id]}
+            // Session conflict if this curator just hit it; otherwise rehydrate the one
+            // persisted on the row, so a refresh (or a different curator) still sees why.
+            conflict={conflicts[r.id] ?? (r.accept_conflict ? {
+              id: r.id, action: "accept", message: r.accept_conflict, matches: [],
+              wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
+            } : undefined)}
             onClearConflict={() => clearConflict(r.id)}
           />
         ))}

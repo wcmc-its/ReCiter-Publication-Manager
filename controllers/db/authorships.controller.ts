@@ -16,7 +16,7 @@ const LIST_ATTRIBUTES = [
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
   "top_given_match", "top_affil_match", "n_candidates", "single_candidate",
-  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "status", "snooze_until", "reviewer", "resolved_at",
+  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict", "status", "snooze_until", "reviewer", "resolved_at",
 ];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -52,9 +52,17 @@ function openStatusWhere(body: any): any {
     return { status: "snoozed", snooze_until: { [Op.gt]: today } };
   } else if (view === "dismissed") {
     return { status: "dismissed" };
+  } else if (view === "duplicates") {
+    // Rows whose Accept came back 409 from ExternalArticleDupCheck — a fuzzy title+year
+    // collision (its WARNING level), which CAN pair two genuinely distinct works. Held out
+    // of the open queue so a bulk accept never silently forces past one; still status="open",
+    // so resolving a row anywhere drops it out of this view with no cleanup needed.
+    return { status: "open", accept_conflict: { [Op.ne]: null } };
   }
-  // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date)
+  // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date).
+  // accept_conflict rows are excluded here — they live in the "duplicates" view above.
   return {
+    accept_conflict: null,
     [Op.or]: [
       { status: "open" },
       { status: "snoozed", snooze_until: { [Op.lte]: today } },
@@ -79,6 +87,13 @@ function buildWhere(body: any): any {
   // precision lane: only single-candidate (near-certain) authorships
   if (body.precision === "single") {
     and.push({ single_candidate: true });
+  } else if (body.precision === "fullname") {
+    // "Unique and full given-name match": the one class curators have never once rejected.
+    // Across 4,723 resolved decisions with single_candidate + top_given_match="full" there
+    // are 0 rejections, in both sources and all three classifications; the same curators
+    // rejected 373 of 3,251 single-candidate rows whose given name matched on INITIAL only,
+    // on the same days. Rule of three puts the upper bound on this class's error at 0.064%.
+    and.push({ single_candidate: true, top_given_match: "full" });
   }
   // publication-type filter (multiselect): Scopus subtypeDescription
   if (Array.isArray(body.pubTypes) && body.pubTypes.length > 0) {
@@ -272,15 +287,67 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
   }
 };
 
+// POST /api/db/authorships/selectable — every bulk-selectable row matching the caller's
+// filters, not just the current page, so "Select all N matching" can act on the whole set.
+//
+// Returns the slim shape the bulk accept loop needs, NOT the list shape: the list carries
+// authors_json and candidate_cwids_json, which are longtext, and shipping those for a few
+// thousand rows is megabytes to no purpose.
+//
+// Eligibility is recomputed here rather than trusted from the client, and it is the same
+// three tests the card enforces — single-candidate, the proposed identity exists in ReCiter,
+// and that identity has not already rejected this exact pmid. A row failing any of them is
+// omitted, so it can never enter a bulk selection by way of this endpoint.
+const SELECTABLE_CAP = 5000;
+
+export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const body = { ...(req.body || {}), statusView: "open" };
+    const rows = await models.AuthorshipReview.findAll({
+      attributes: ["id", "source", "pmid", "wcm_author", "top_name", "top_cwid", "single_candidate", "candidate_cwids_json"],
+      where: { [Op.and]: [buildWhere(body), { single_candidate: true }] },
+      order: SORTS[body.sort] || SORTS.precision,
+      limit: SELECTABLE_CAP + 1,
+    });
+    const capped = rows.length > SELECTABLE_CAP;
+    const page = capped ? rows.slice(0, SELECTABLE_CAP) : rows;
+
+    const knownIdentities = await reciterIdentitySet(page.map((r: any) => r.top_cwid));
+    const pubmedRows = page.filter((r: any) => r.source !== "scopus" && r.pmid != null);
+    const rejectionCwids = new Set<string>();
+    for (const r of pubmedRows) candidateCwidsFromRow(r).forEach((c) => rejectionCwids.add(c));
+    const rejectedByCwid = await getRejectedPmidsByCwid([...rejectionCwids]);
+
+    const out = page
+      .filter((r: any) => !r.top_cwid || knownIdentities.has(String(r.top_cwid)))
+      .filter((r: any) => !(r.source !== "scopus" && r.pmid != null && r.top_cwid
+        && rejectedByCwid[String(r.top_cwid)]?.has(Number(r.pmid))))
+      .map((r: any) => ({
+        id: r.id, source: r.source, wcm_author: r.wcm_author, top_name: r.top_name,
+        single_candidate: true, identity_in_reciter: true,
+      }));
+
+    res.send({ rows: out, capped, cap: SELECTABLE_CAP });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
 // POST /api/db/authorships/summary — counts for the tab headers. Ignores the
 // segment/classification/precision/person-type filters so each facet shows its own total.
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all", personTypes: [], pubTypes: [] };
     const where = buildWhere(body);
-    const [total, single, byClass, byType, bySrc, byPub] = await Promise.all([
+    // The duplicates facet counts its own view, so it needs a where built with that statusView
+    // rather than the caller's (the open-queue where excludes exactly the rows it counts).
+    const dupWhere = buildWhere({ ...body, statusView: "duplicates" });
+    const [total, single, fullname, duplicates, byClass, byType, bySrc, byPub] = await Promise.all([
       models.AuthorshipReview.count({ where }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
+      models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true, top_given_match: "full" }] } }),
+      models.AuthorshipReview.count({ where: dupWhere }),
       models.AuthorshipReview.findAll({ attributes: ["classification", [fn("COUNT", col("id")), "n"]], where, group: ["classification"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["top_person_type", [fn("COUNT", col("id")), "n"]], where, group: ["top_person_type"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["source", [fn("COUNT", col("id")), "n"]], where, group: ["source"], raw: true }),
@@ -292,7 +359,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     (bySrc as any[]).forEach((r) => { bySource[r.source] = Number(r.n); });
     const personTypes = (byType as any[]).filter((r) => r.top_person_type).map((r) => ({ type: r.top_person_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
     const pubTypes = (byPub as any[]).filter((r) => r.pub_type).map((r) => ({ type: r.pub_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
-    res.send({ total, single_candidate: single, classes, personTypes, bySource, pubTypes });
+    res.send({ total, single_candidate: single, fullname, duplicates, classes, personTypes, bySource, pubTypes });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));
@@ -525,7 +592,15 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
             // BLOCKED → already in the record: fall through and resolve the row as accepted
-            if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
+            if (!dup.blocked) {
+              // Persist the WARNING so the row leaves the open queue for the "Possible
+              // duplicates" view instead of sitting back in the feed to be re-attempted.
+              // Session-scoped conflictLog state already showed this to the curator who hit
+              // it; the column is what survives a refresh, another curator, and a bulk run.
+              await models.AuthorshipReview.update(
+                { accept_conflict: String(dup.message).slice(0, 500) }, { where: { id } });
+              return res.status(409).json({ message: dup.message, matches: dup.matches });
+            }
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
