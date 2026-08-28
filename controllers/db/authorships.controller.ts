@@ -622,12 +622,47 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
       case "assign": {
         const chosen = String(body.cwid || "");
         if (!chosen) return res.status(400).send("cwid is required for assign");
+        if (!/^[A-Za-z0-9]{1,32}$/.test(chosen)) return res.status(400).send("cwid must be alphanumeric");
         // Integrity boundary: the server verifies the chosen cwid is a real candidate for
-        // this authorship before any authoritative write (client can't spoof an identity).
+        // this authorship before any AUTHORITATIVE write (client can't spoof an identity).
+        // #925 relaxes it for the local-only path below, which writes nothing authoritative.
         const allowed = new Set(candidateCwidsFromRow(row));
-        if (!allowed.has(chosen)) return res.status(400).send("cwid is not a candidate for this authorship");
-        if (!(await reciterIdentitySet([chosen])).size) {
-          return res.status(422).send(`${chosen} has no ReCiter identity (likely departed/inactive) — this authorship can't be assigned; dismiss it instead`);
+        const offCandidate = !allowed.has(chosen);
+        const hasIdentity = (await reciterIdentitySet([chosen])).size > 0;
+        // Not every WCM author has an identity record. Master's students, visiting
+        // researchers, and any person type outside the identity feed never get one, and
+        // since the AAR producer builds its candidate list FROM `identity`, such a person
+        // can never be a produced candidate either. Before #925 the only offer was
+        // "dismiss it instead", which throws a real attribution away. Now the curator can
+        // record it — deliberately, and locally.
+        if (offCandidate || !hasIdentity) {
+          // Deliberate, not silent: an unrecognised cwid is still far more likely to be a
+          // typo than a Master's student, so the #861 guard keeps its purpose. The client
+          // re-sends with confirmNoIdentity after showing the curator what it means.
+          if (String(body.confirmNoIdentity) !== "true") {
+            return res.status(422).json({
+              code: "NO_RECITER_IDENTITY",
+              localOnly: true,
+              cwid: chosen,
+              offCandidate,
+              message: `${chosen} has no ReCiter identity${offCandidate ? " and is not one of this authorship's candidates" : ""}. `
+                + "Assigning anyway records your decision on this row only — it will NOT be added to the person's "
+                + "publication record, because there is no identity to add it to. Confirm to proceed.",
+            });
+          }
+          // Local record only. No writeGoldStandard, no addExternalArticle, no
+          // appendFeedbackLog: every one of those targets an identity that does not exist,
+          // and faking one would put a publication in a record nobody can see or correct.
+          // This preserves the curator's judgment without pretending the person exists
+          // downstream. If the identity is created later (PM#104 / IC#148), this row is
+          // the record of what was already decided.
+          await models.AuthorshipReview.update({
+            status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date(),
+            note: `${row.note ? `${row.note} | ` : ""}assigned to ${chosen} (no ReCiter identity`
+              + `${offCandidate ? ", not a produced candidate" : ""}) — local record only, `
+              + `nothing written to the publication record`,
+          }, { where: { id } });
+          break;
         }
         if (isScopus) {
           const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
@@ -693,8 +728,16 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-          const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
-          if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+          // A #925 local-only assign wrote no gold standard, so there is nothing to delete
+          // — and asking ReCiter to DELETE for a uid it has no Identity row for 404s, which
+          // would strand the row as un-reopenable. No identity == it was local-only, since
+          // that is the only branch that resolves a row without an authoritative write.
+          if (!(await reciterIdentitySet([reverseCwid])).size) {
+            console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo`);
+          } else {
+            const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
+            if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+          }
         } else if (row.status === "rejected") {
           const targets = row.single_candidate ? (reverseCwid ? [reverseCwid] : []) : candidateCwidsFromRow(row);
           for (const target of targets) {
