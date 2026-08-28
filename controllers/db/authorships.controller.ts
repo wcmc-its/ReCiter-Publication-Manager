@@ -162,6 +162,25 @@ async function reciterIdentitySet(cwids: Array<string | undefined | null>): Prom
   return new Set(found.map((p) => String(p.personIdentifier)));
 }
 
+// Display name per cwid from the same `person` mirror, "First Middle Last" — the shape the
+// AAR producer bakes into top_name/candidate_cwids_json, so a looked-up name reads the same
+// as a produced one. Same app-side IN() as reciterIdentitySet and for the same reason: the
+// person/authorship_review collations differ, so a direct join throws.
+async function personNames(cwids: Array<string | undefined | null>): Promise<Record<string, string>> {
+  const wanted = [...new Set(cwids.filter(Boolean).map(String))];
+  if (wanted.length === 0) return {};
+  const found: any[] = await models.Person.findAll({
+    where: { personIdentifier: { [Op.in]: wanted } },
+    attributes: ["personIdentifier", "firstName", "middleName", "lastName"], raw: true,
+  });
+  const out: Record<string, string> = {};
+  found.forEach((p) => {
+    const name = [p.firstName, p.middleName, p.lastName].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+    if (name) out[String(p.personIdentifier)] = name;
+  });
+  return out;
+}
+
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
 export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -290,12 +309,21 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 // mirrors summary.ts's simplicity; body is accepted but ignored.
 export const authorshipRecentActivity = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const rows = await models.AuthorshipReview.findAll({
+    const rows: any[] = await models.AuthorshipReview.findAll({
       attributes: ["id", "title", "wcm_author", "top_name", "top_cwid", "resolution_cwid", "status", "reviewer", "resolved_at", "source", "pmid", "external_id"],
       where: { resolved_at: { [Op.ne]: null } },
       order: [["resolved_at", "DESC"]],
       limit: 15,
+      raw: true,
     });
+    // top_name is the *top-ranked candidate's* name, which is the wrong person the moment a
+    // curator assigns to a non-top candidate — the entire point of "Pick one" on a homonym
+    // row. The panel links resolution_cwid, so send that identity's own name alongside it and
+    // the two can't disagree (#928). One extra IN() lookup for at most 15 cwids. reject and
+    // dismiss never set resolution_cwid and top_name is right there, so the client picks
+    // per-row rather than swapping wholesale.
+    const names = await personNames(rows.map((r) => r.resolution_cwid));
+    rows.forEach((r) => { r.resolution_name = r.resolution_cwid ? names[String(r.resolution_cwid)] : undefined; });
     res.send({ rows });
   } catch (e) {
     console.log(e);
