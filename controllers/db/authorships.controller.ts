@@ -6,6 +6,7 @@ import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
 import { getRejectedPmidsByCwid } from "../../src/lib/goldStandardRejections";
+import { DynamoDBClient, BatchGetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -148,39 +149,72 @@ function buildWhere(body: any): any {
 const siblingKey = (r: any) =>
   r.source === "scopus" ? String(r.external_id || "") : String(r.pmid ?? "");
 
-// Which of these cwids have a ReCiter identity? `person` mirrors ReCiter's Identity table
-// (the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
-// someone — typically inactive faculty — ReCiter doesn't track; accepting those 404s at the
-// ExternalArticle endpoint and orphans gold-standard writes). Checked at read time, not
-// produce time, because people also leave WCM after a row is produced.
-// ponytail: app-side IN() lookup instead of a SQL JOIN — person/authorship_review collations
-// differ (general_ci vs unicode_ci), which breaks and de-indexes a direct join.
+// Which of these cwids have a ReCiter identity? Asks DynamoDB `Identity` directly — the same
+// table ReCiter's own ExternalArticleController.findByUid consults before it will accept an
+// ExternalArticle, so this answer and the accept path's answer cannot disagree. Needed because
+// the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
+// someone ReCiter doesn't track; accepting those 404s at the ExternalArticle endpoint and
+// orphans gold-standard writes. Checked at read time, not produce time, because people also
+// leave WCM after a row is produced.
+//
+// This used to read reciterdb's `person` mirror, gated on the row having a name, on the theory
+// that a null-name person row was stale sync debris and so couldn't be a valid identity. That
+// premise is wrong. `person` gets names from a SECOND loader pass (ReCiterDB
+// updateReciterDB.py `update_person`, an INNER join against person_temp, skipped entirely on
+// incremental runs), so a null name means "the name loader hasn't covered this cwid", not "not
+// in ReCiter". Measured 2026-08-29: 173 of 187 null-name person rows (92.5%) ARE in DynamoDB
+// Identity, and `person` is missing 1,915 uids DynamoDB has. Across the 18,892 open rows the
+// mirror flagged 1,048 cwids / 2,723 rows, of which 74 cwids / 254 rows were false — Accept
+// hidden from curators who could legitimately have used it (brf9046 being the reported case:
+// null-name person row, full identity in DynamoDB, /curate/brf9046 renders fine because that
+// page asks ReCiter's REST identity endpoint instead of this mirror). DynamoDB flags the 974
+// genuinely-absent cwids and nothing else. Errors in the other direction were already zero,
+// so this change only ever un-blocks.
+//
+// No try/catch on purpose: an AWS failure propagates to the caller's existing 500 handler.
+// Failing OPEN would let the pubmed lane write orphan GoldStandard rows (POST
+// /reciter/goldstandard has no identity check of its own — this is the only backstop);
+// failing CLOSED would silently pill the entire queue with a claim that isn't true. A visible
+// 500 is the honest third option and costs no code.
+//
+// ponytail: point lookups per request, no cache — ~20 ms for a 25-row page and ~0.6 s for the
+// 5,000-row selectable page (17 batches), the same order as the getRejectedPmidsByCwid call
+// two lines below. Unprocessed keys throw rather than retry: throttling a key-only projection
+// is vanishingly rare, and a 500 beats silently reporting a present identity as absent.
+// Ceiling: PM is duplicating a check that belongs server-side. Upgrade path is to add the
+// Identity check to ReCiter's POST /reciter/goldstandard (ReCiterController.java validates
+// only that the body is non-null), after which this becomes advisory rather than load-bearing.
+// Deliberately NOT fixed here: personNames() below still reads the same lossy `person` mirror,
+// so a null-name row still falls back to top_name; and the `person` loader gap itself is a
+// ReCiterDB-side follow-up the app must not depend on being repaired.
+const identityDdb = new DynamoDBClient({ region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1" });
+
 async function reciterIdentitySet(cwids: Array<string | undefined | null>): Promise<Set<string>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return new Set();
-  // Require a name: ReCiter's own POST /reciter/identity/ makes alternateNames
-  // (firstName/lastName) mandatory, so a null-name `person` row can't be a currently-valid
-  // identity — it's stale sync debris (live case: lbm2001, dateAdded=dateUpdated=2019-08-16,
-  // every descriptive field NULL). Without this guard those ghost rows pass the identity
-  // check, the curator sees a working Accept button, and the real ReCiter add 404s — the
-  // exact dead-end this guard exists to prevent, just via a different mechanism than the
-  // "never was in ReCiter" case it already covers. 157/33,091 person rows (0.47%) are
-  // affected as of 2026-08-14, several dated 2026-05-04 (the documented Analysis-corruption
-  // incident date — plausibly related, not confirmed).
-  const found: any[] = await models.Person.findAll({
-    where: {
-      personIdentifier: { [Op.in]: wanted },
-      [Op.or]: [{ firstName: { [Op.ne]: null } }, { lastName: { [Op.ne]: null } }],
-    },
-    attributes: ["personIdentifier"], raw: true,
-  });
-  return new Set(found.map((p) => String(p.personIdentifier)));
+  const out = new Set<string>();
+  for (let i = 0; i < wanted.length; i += 100) { // 100 = BatchGetItem hard limit
+    const resp = await identityDdb.send(new BatchGetItemCommand({
+      RequestItems: {
+        Identity: {
+          Keys: wanted.slice(i, i + 100).map((uid) => ({ uid: { S: uid } })),
+          ProjectionExpression: "uid",
+        },
+      },
+    }));
+    if (resp.UnprocessedKeys?.Identity?.Keys?.length) throw new Error("Identity BatchGetItem throttled");
+    for (const it of resp.Responses?.Identity ?? []) if (it.uid?.S) out.add(it.uid.S);
+  }
+  return out;
 }
 
 // Display name per cwid from the same `person` mirror, "First Middle Last" — the shape the
 // AAR producer bakes into top_name/candidate_cwids_json, so a looked-up name reads the same
-// as a produced one. Same app-side IN() as reciterIdentitySet and for the same reason: the
-// person/authorship_review collations differ, so a direct join throws.
+// as a produced one.
+// ponytail: app-side IN() rather than a SQL JOIN — the person/authorship_review collations
+// differ (general_ci vs unicode_ci), which breaks and de-indexes a direct join. Note this
+// mirror is lossy (see reciterIdentitySet above): a null-name row yields no name here and
+// the caller falls back to top_name.
 async function personNames(cwids: Array<string | undefined | null>): Promise<Record<string, string>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return {};
@@ -585,7 +619,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
         // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
         if (!(await reciterIdentitySet([cwid])).size) {
-          return res.status(422).send(`${row.top_name || cwid} has no ReCiter identity (likely departed/inactive) — this authorship can't be accepted; dismiss it instead`);
+          return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
         }
         if (isScopus) {
           const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
@@ -740,6 +774,12 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // — and asking ReCiter to DELETE for a uid it has no Identity row for 404s, which
           // would strand the row as un-reopenable. No identity == it was local-only, since
           // that is the only branch that resolves a row without an authoritative write.
+          // ponytail: this INFERS "local-only" from a live identity check rather than reading a
+          // marker, so it silently flips to a destructive GoldStandard DELETE for any
+          // local-only row whose identity later appears (IC#148 backfills ~1,595). Exposure
+          // today is zero rows (status='assigned' AND note LIKE '%no ReCiter identity%' → 0,
+          // PM#935 only just shipped), and swapping the oracle does not change that, so it is
+          // left alone. Upgrade path: key off the note/marker the local-only branch writes.
           if (!(await reciterIdentitySet([reverseCwid])).size) {
             console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo`);
           } else {
