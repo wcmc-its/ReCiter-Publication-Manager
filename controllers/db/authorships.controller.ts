@@ -5,8 +5,8 @@ import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
-import { getRejectedPmidsByCwid } from "../../src/lib/goldStandardRejections";
-import { assignGate, canonicalCwid } from "../../src/lib/assignGate";
+import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
+import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
@@ -655,6 +655,36 @@ function candidateCwidsFromRow(row: any): string[] {
   return Array.from(new Set([row.top_cwid, ...list].filter(Boolean).map(String)));
 }
 
+// The live half of homonymRejections(): which of this row's non-chosen candidates may be
+// recorded as rejecting `pmid`. Both facts are re-established here rather than trusted from the
+// row, because both move after the producer wrote it — people leave WCM (the identity goes
+// away) and people curate their own /curate page (an acceptance appears).
+//
+// Candidate cwids come out of the producer, not out of a keyboard, and all 11,389 of them are
+// lowercase (2026-08-29), so unlike the typed `chosen` above they need no canonicalisation —
+// and if one ever failed a byte-exact DynamoDB lookup it would simply be skipped, which is the
+// safe direction. `target` is already canonical, so `c !== target` compares like with like.
+// ponytail: two point lookups per assign of a multi-candidate row, no cache — a homonym row
+// has a median of 2 other candidates, so this is ~20 ms on the rarest action in the tab.
+async function homonymRejectionTargets(
+  row: any, target: string, pmid: number, checkAccepted = true,
+): Promise<string[]> {
+  const candidates = candidateCwidsFromRow(row);
+  const isScopus = row.source === "scopus";
+  const others = candidates.filter((c) => c !== target);
+  // nothing to look up for the ~90% of rows the gate excludes outright
+  if (isScopus || row.single_candidate || others.length === 0) return [];
+  const [identities, accepted] = await Promise.all([
+    reciterIdentitySet(others),
+    checkAccepted ? getKnownPmidsByCwid(others) : Promise.resolve({} as Record<string, Set<number>>),
+  ]);
+  return homonymRejections({
+    isScopus, singleCandidate: !!row.single_candidate, candidates, target,
+    hasIdentity: (c) => identities.has(c),
+    hasAccepted: (c) => !!accepted[c]?.has(pmid),
+  });
+}
+
 // POST /api/db/authorships/action — single-row curator action.
 // body: { id, action: "accept"|"reject"|"snooze"|"dismiss"|"assign"|"reopen", cwid?, force? }
 // cwid is required only for "assign"; force retries a scopus Accept past a 409 WARNING.
@@ -829,9 +859,30 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         }
         const gs = await writeGoldStandard(target, pmid as number, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
+        // ...and the other homonyms. Same write "None of these" makes for each of them, so
+        // /curate, the feedback log and the model all see an ordinary curator "not mine"
+        // rather than a new kind of record. See homonymRejections() for what it excludes.
+        //
+        // Ordering is load-bearing. The positive write goes first because it is the curator's
+        // actual intent: if IT fails, nobody has been rejected for a paper that was never
+        // assigned to anyone. A rejection failing after it 502s and leaves the row open —
+        // `case "reject"`'s shape — which is safe here because every write in this block is an
+        // idempotent MERGE: the curator clicks Assign again, the ones that landed re-land as
+        // no-ops, and only the one that failed actually writes. The alternative (resolve the
+        // row and log the rejection failure) would bury a half-written decision where nothing
+        // in the queue can find it again.
+        const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+        for (const other of alsoRejected) {
+          const rs = await writeGoldStandard(other, pmid as number, "rejected", "UPDATE", curator.userID);
+          if (rs !== 200) return res.status(502).send(`Homonym rejection write failed for ${other} (${rs})`);
+        }
         await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
         try { await appendFeedbackLog(curator.userID, target, pmid as number, "ACCEPTED"); }
         catch (e) { console.log("[authorships] feedbacklog (assign) non-fatal:", e); }
+        for (const other of alsoRejected) {
+          try { await appendFeedbackLog(curator.userID, other, pmid as number, "REJECTED"); }
+          catch (e) { console.log("[authorships] feedbacklog (homonym reject) non-fatal:", e); }
+        }
         break;
       }
       case "reject": {
@@ -890,6 +941,20 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           } else {
             const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
             if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+            // ...and the homonym rejections that assign wrote alongside it. Without this there
+            // is no undo path for them at all: reopen would clear the row and leave N-1 people
+            // permanently rejected on a decision the curator just took back. Recomputed through
+            // the same homonymRejections() the write used, so the two sets cannot drift; see
+            // that function for why checkAccepted is false here. Scoped to "assigned" because
+            // assign is the only action that writes them (accept is single-candidate-only, and
+            // a local-only assign never gets here — the identity check above sends it to the
+            // log line, which is exactly the branch that wrote nothing downstream).
+            if (row.status === "assigned") {
+              for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
+                const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
+                if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);
+              }
+            }
           }
         } else if (row.status === "rejected") {
           const targets = row.single_candidate ? (reverseCwid ? [reverseCwid] : []) : candidateCwidsFromRow(row);

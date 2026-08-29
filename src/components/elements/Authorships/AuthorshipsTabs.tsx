@@ -1651,7 +1651,8 @@ const AuthorshipCard = ({
           {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
               it's the case where the curator most often knows a name the card can't offer. */}
-          <AssignOther rowId={r.id} acting={acting} onAction={onAction} />
+          <AssignOther rowId={r.id} acting={acting} onAction={onAction}
+            homonyms={isMulti && r.source !== "scopus" ? candidates.length : 0} />
         </div>
       )}
     </article>
@@ -1740,6 +1741,20 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
       <span>{r.source === "scopus" ? scopusNote(r) : ioFgNote(r)}</span>
     </div>
   </>
+);
+
+// What an assign on a homonym row does to the OTHER candidates, said before the click rather
+// than discovered afterwards. Assigning to one of N now records a rejection for the rest — a
+// gold-standard write into other people's records, so it cannot be a silent side effect.
+// Rendered for pubmed multi-candidate rows only, which is exactly where the server writes them
+// (scopus has no pmid to reject; a single-candidate row records no homonym judgment).
+// "with a ReCiter identity" is not hedging: the server skips candidates ReCiter has no Identity
+// row for, because that write 404s — 39 of the 153 people in the resolved backlog are these.
+const HomonymNote = ({ n }: { n: number }) => n < 1 ? null : (
+  <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "#b45309", marginTop: 7, maxWidth: 620 }}>
+    Assigning also records “not mine” for the other {n} candidate{n === 1 ? "" : "s"} on this row
+    (those with a ReCiter identity). Reopening the row undoes both.
+  </div>
 );
 
 // multi-candidate disambiguation panel (F11)
@@ -1859,6 +1874,9 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           <IconX /> Reject all
         </button>
       </div>
+      {/* count is candidates-minus-one and does not move with the radio: whichever one is
+          picked, the same number of others are rejected. */}
+      {r.source !== "scopus" && <HomonymNote n={Math.max(0, candidates.length - 1)} />}
     </>
   );
 };
@@ -1874,34 +1892,42 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 // the server already has to send, so a lookup endpoint + debounce + dropdown would add three
 // moving parts to show the same string one round-trip later. Upgrade path if curators start
 // typing identifiers they don't actually know: a GET lookup route feeding a <datalist>.
-const AssignOther = ({ rowId, acting, onAction }: {
+const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+  homonyms?: number;
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
   // every handler stops propagation: the card is click-to-expand, so an unguarded click or
   // Enter inside this input collapses the card out from under the curator mid-type.
   return (
-    <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", justifyContent: "flex-end" }}>
-      <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
-        Someone else:
-      </label>
-      <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid"
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => setOtherCwid(e.target.value.trim())}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter" || !otherCwid || acting) return;
-          e.preventDefault(); e.stopPropagation();
-          onAction("assign", { cwid: otherCwid });
-        }}
-        style={{
-          width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
-          borderRadius: 4, color: "#334155",
-        }} />
-      <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
-        onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
-        Assign
-      </button>
-    </div>
+    <>
+      <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", justifyContent: "flex-end" }}>
+        <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
+          Someone else:
+        </label>
+        <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid"
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setOtherCwid(e.target.value.trim())}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || !otherCwid || acting) return;
+            e.preventDefault(); e.stopPropagation();
+            onAction("assign", { cwid: otherCwid });
+          }}
+          style={{
+            width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
+            borderRadius: 4, color: "#334155",
+          }} />
+        <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
+          onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
+          Assign
+        </button>
+      </div>
+      {/* all N here, not N-1: someone typed into this box is by definition not one of the
+          proposed candidates, so every one of them is the "other" — the stronger version of
+          the warning under Assign selected. (If the curator types a listed candidate's cwid
+          instead of clicking its radio, the server excludes them and this over-counts by one.) */}
+      <HomonymNote n={homonyms} />
+    </>
   );
 };
 
