@@ -82,6 +82,12 @@ interface DupMatch {
 interface ConflictEntry {
   id: number;              // AuthorshipRow.id this conflict belongs to
   action: string;
+  // "dup"         — scopus 409 WARNING, retried with force:"true"
+  // "no_identity" — #925 422, retried with confirmNoIdentity:"true". Different consequence,
+  //                 so a different prompt: force-add writes to the person's record, this one
+  //                 explicitly does NOT.
+  kind: "dup" | "no_identity";
+  action_label?: string;   // confirm-button text; kind decides it, held here for the log
   extra?: Record<string, any>;
   message: string;
   matches: DupMatch[];
@@ -687,16 +693,21 @@ const AuthorshipsTabs = () => {
           // plain text. Try JSON first, fall back to the raw text as the message.
           let message = text || `HTTP ${r.status}`;
           let matches: DupMatch[] = [];
-          if (r.status === 409) {
+          // 409 dup-conflict and the #925 422 both come back as JSON; everything else is
+          // plain text.
+          let code = "";
+          if (r.status === 409 || r.status === 422) {
             try {
               const parsed = JSON.parse(text);
               message = parsed?.message || message;
               matches = Array.isArray(parsed?.matches) ? parsed.matches : [];
+              code = String(parsed?.code || "");
             } catch { /* not JSON — keep the raw text as the message */ }
           }
           const err: any = new Error(message);
           err.status = r.status;
           err.matches = matches;
+          err.code = code;
           throw err;
         }
         return true;
@@ -720,9 +731,15 @@ const AuthorshipsTabs = () => {
       .catch((e) => {
         // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
         const scopusDup = e?.status === 409 && row.source === "scopus" && (action === "accept" || action === "assign");
-        if (scopusDup) {
+        // #925: assigning to someone with no ReCiter identity is allowed, but only after the
+        // curator confirms they understand it records nothing downstream.
+        const noIdentity = e?.status === 422 && e?.code === "NO_RECITER_IDENTITY";
+        if (scopusDup || noIdentity) {
           const entry: ConflictEntry = {
-            id: row.id, action, extra, message: String(e?.message || e),
+            id: row.id, action,
+            kind: noIdentity ? "no_identity" : "dup",
+            extra: noIdentity ? { ...extra, confirmNoIdentity: "true" } : { ...extra, force: "true" },
+            message: String(e?.message || e),
             matches: Array.isArray(e?.matches) ? e.matches : [],
             wcm_author: row.wcm_author, top_name: row.top_name, ts: Date.now(),
           };
@@ -1211,6 +1228,7 @@ const AuthorshipsTabs = () => {
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
+              kind: "dup" as const,
               id: r.id, action: "accept", message: r.accept_conflict, matches: [],
               wcm_author: r.wcm_author, top_name: r.top_name, ts: 0,
             } : undefined)}
@@ -1580,7 +1598,8 @@ const AuthorshipCard = ({
           background: "#fffbeb", border: "1px solid #fde68a", fontSize: 12.5, color: "#78350f",
         }}>
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
-            Possible duplicate — {conflict.wcm_author || conflict.top_name || r.wcm_author}
+            {conflict.kind === "no_identity" ? "No ReCiter identity" : "Possible duplicate"}
+            {" — "}{conflict.wcm_author || conflict.top_name || r.wcm_author}
           </div>
           <div style={{ marginBottom: 6 }}>{conflict.message}</div>
           {conflict.matches.length > 0 && (
@@ -1597,9 +1616,11 @@ const AuthorshipCard = ({
             </ul>
           )}
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { onAction(conflict.action, { ...conflict.extra, force: "true" }); onClearConflict(); }}
-              style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>Force add anyway</button>
-            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>Dismiss</button>
+            <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
+              style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
+              {conflict.kind === "no_identity" ? "Assign anyway — record on this row only" : "Force add anyway"}
+            </button>
+            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>Cancel</button>
           </div>
         </div>
       )}
@@ -1708,6 +1729,8 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
 }) => {
+  // #925: a person identifier the curator types, for someone the producer could not offer.
+  const [otherCwid, setOtherCwid] = useState("");
   // rank by IO desc, then matcher confidence desc (a candidate production never
   // retrieved -- io_score null -- still carries a name/department confidence signal;
   // without the tiebreak, an unretrieved-but-clearly-correct candidate like a full
@@ -1808,7 +1831,7 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           </button>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center", flexWrap: "wrap" }}>
         {/* defense in depth: the radio being disabled already prevents picking a rejected
             candidate through the UI, but this closes any edge-case gap cheaply. */}
         <button style={btn("accept", acting || !pickedCwid || candidates.find((c) => c.cwid === pickedCwid)?.already_rejected)}
@@ -1819,6 +1842,31 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
         <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
           <IconX /> Reject all
         </button>
+        {/* #925: the candidate list is built from `identity`, so anyone outside the identity
+            feed — Master's students, visiting researchers — can never appear above no matter
+            how obviously they wrote the paper. Typing the cwid is the only way to record them.
+            The server still makes it deliberate: it 422s once and asks for confirmation. */}
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+          <label htmlFor={`otherCwid-${r.id}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
+            Someone else:
+          </label>
+          <input id={`otherCwid-${r.id}`} value={otherCwid} placeholder="cwid"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setOtherCwid(e.target.value.trim())}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || !otherCwid || acting) return;
+              e.preventDefault(); e.stopPropagation();
+              onAction("assign", { cwid: otherCwid });
+            }}
+            style={{
+              width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
+              borderRadius: 4, color: "#334155",
+            }} />
+          <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
+            onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
+            Assign
+          </button>
+        </span>
       </div>
     </>
   );
