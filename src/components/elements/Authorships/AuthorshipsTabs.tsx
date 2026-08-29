@@ -46,7 +46,9 @@ interface AuthorshipRow {
   single_candidate?: boolean;
   candidate_cwids_json?: string;
   pmid_sibling_count?: number;
-  // false → proposed identity is not in ReCiter (departed/inactive); Accept is impossible
+  // false → top_cwid has no row in ReCiter's DynamoDB Identity table, so there is nothing to
+  // add the article to; Accept is impossible. Absence means "never synced or since removed" —
+  // NOT necessarily "departed", and not that the attribution is wrong.
   identity_in_reciter?: boolean;
   // true → top_cwid already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
@@ -400,7 +402,7 @@ const notInPubmedPillStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 8px",
   borderRadius: 20, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", whiteSpace: "nowrap",
 };
-// replaces the Accept button when the proposed identity is not in ReCiter
+// replaces the Accept button when the proposed identity has no ReCiter Identity record
 const noIdentityPillStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "5px 10px",
   borderRadius: 20, background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", whiteSpace: "nowrap",
@@ -919,7 +921,7 @@ const AuthorshipsTabs = () => {
       const toggleSelect = toggleSelectRef.current;
       if (k === "y") {
         if (row.single_candidate && statusView === "open") {
-          if (row.identity_in_reciter === false) setErrorMsg(`${row.top_name || row.top_cwid} is not in ReCiter — this authorship can't be accepted (dismiss it instead)`);
+          if (row.identity_in_reciter === false) setErrorMsg(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
           else doAction?.(row, "accept");
         } else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship");
         e.preventDefault();
@@ -1552,7 +1554,7 @@ const AuthorshipCard = ({
                 <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
                   <IconX size={14} /> Reject
                 </button>
-                <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted.`} placement="top" arrow>
+                <Tip title={`${r.top_name || r.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. They may have departed, or may simply never have been synced from the identity feed — the attribution itself is not in question here.`} placement="top" arrow>
                   <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
                 </Tip>
               </>
