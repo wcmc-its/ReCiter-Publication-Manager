@@ -6,8 +6,8 @@ import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
 import { getRejectedPmidsByCwid } from "../../src/lib/goldStandardRejections";
-import { assignGate } from "../../src/lib/assignGate";
-import { DynamoDBClient, BatchGetItemCommand } from "@aws-sdk/client-dynamodb";
+import { assignGate, canonicalCwid } from "../../src/lib/assignGate";
+import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -212,10 +212,11 @@ async function reciterIdentitySet(cwids: Array<string | undefined | null>): Prom
 // Display name per cwid from the same `person` mirror, "First Middle Last" — the shape the
 // AAR producer bakes into top_name/candidate_cwids_json, so a looked-up name reads the same
 // as a produced one.
-// ponytail: app-side IN() rather than a SQL JOIN — the person/authorship_review collations
-// differ (general_ci vs unicode_ci), which breaks and de-indexes a direct join. Note this
-// mirror is lossy (see reciterIdentitySet above): a null-name row yields no name here and
-// the caller falls back to top_name.
+// ponytail: app-side IN() rather than a SQL JOIN — the collations differ either way round
+// (person.personIdentifier is utf8mb4_unicode_ci, authorship_review.top_cwid is
+// utf8mb4_general_ci; checked against information_schema 2026-08-29), which throws 1267 and
+// de-indexes a direct join. Note this mirror is lossy (see reciterIdentitySet above): a
+// null-name row yields no name here and the caller falls back to top_name.
 async function personNames(cwids: Array<string | undefined | null>): Promise<Record<string, string>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return {};
@@ -231,26 +232,66 @@ async function personNames(cwids: Array<string | undefined | null>): Promise<Rec
   return out;
 }
 
-// "Given Middle Surname · Department" for ONE curator-typed cwid, from the IDM roster table
-// `identity` — the same table the AAR producer builds candidate_cwids_json from, so this
-// reads identically to a produced top_name/dept instead of a second, subtly different name.
-// Deliberately NOT personNames() above: the `person` mirror carries stale rows whose name
-// columns are NULL even though the person is live (187/33,152 as of 2026-08-29 — brf9046 has
-// a null-name person row and a complete identity row), and this string is the only thing
-// standing between the curator and an authoritative write into someone's publication record.
-// Empty string when there is no roster row — the caller falls back to the bare cwid rather
-// than inventing a name. Same no-join lookup as above: identity.cwid is utf8mb4_general_ci
-// against authorship_review.top_cwid's utf8mb4_unicode_ci, so a direct join throws 1267.
+// "Given Middle Surname · Department" for ONE curator-typed cwid. This string is the only
+// thing standing between the curator and an authoritative write into a stranger's publication
+// record, so it comes from two sources and the caller only ever falls back to a bare cwid when
+// BOTH are silent.
+//
+// The IDM roster table `identity` is asked first, because it is what the AAR producer builds
+// candidate_cwids_json from — so a looked-up name reads identically to a proposed one — and
+// because it is the only one of the two that carries a department.
+//
+// DynamoDB `identity.primaryName` is the fallback, and it is the one carrying the guarantee.
+// This function is reachable only from the off-candidate confirm, which fires only when
+// reciterIdentitySet() already found the cwid in DynamoDB Identity — so the item is known to
+// exist and only its name is in question.
+//
+// Measured 2026-08-29 over the reachable universe, which is the 26,551 DynamoDB uids that also
+// pass this endpoint's own /^[A-Za-z0-9]{1,32}$/ (that regex is what puts the usc_/ucsd_/
+// fredhutch_ external-validation cohorts out of typing range, so counting the full 35,052-row
+// table overstates this by nearly 4x): 2,140 of the 26,551 (8.1%) get NO name from the roster.
+// The AAR queue barely notices — 1 of the 6,374 cwids it names — but those 2,140 are residents,
+// fellows and non-faculty staff, i.e. precisely the people the typed-cwid box exists to reach,
+// and every one of them rendered as a bare cwid. DynamoDB names 2,140 of the 2,140, and
+// 26,551 of 26,551 overall: over the typable universe there is no nameless case left.
+// The `person` mirror was the other candidate and is strictly worse — it names 25,958 of the
+// 26,551 and rescues only 2,005 of the 2,140 — besides being the lossy source
+// reciterIdentitySet() was just moved off.
+//
+// No try/catch, same stance as reciterIdentitySet: a DynamoDB failure surfaces as the caller's
+// 500. Swallowing it would silently reproduce the nameless confirm this fallback exists to
+// remove, at the exact moment the curator is being asked to authorise a write.
+// ponytail: the fallback is a second point lookup rather than a name projection folded into
+// reciterIdentitySet, because that function is also called with up to 5,000 keys per page and
+// this branch wants one. Upgrade path if a name is ever needed in bulk: widen the projection
+// there and let this one go.
+// Same no-join lookup as personNames() above, and for the same reason: identity.cwid is
+// utf8mb4_unicode_ci against authorship_review.top_cwid's utf8mb4_general_ci (information_schema,
+// 2026-08-29), so a direct join throws 1267.
 async function identityLabel(cwid: string): Promise<string> {
   const row: any = await models.Identity.findOne({
     where: { cwid },
     attributes: ["givenName", "middleName", "surname", "primaryAcademicDepartment"], raw: true,
   });
-  if (!row) return "";
-  const name = [row.givenName, row.middleName, row.surname].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  const name = [row?.givenName, row?.middleName, row?.surname]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ") || await identityPrimaryName(cwid);
   if (!name) return "";
-  const dept = String(row.primaryAcademicDepartment || "").trim();
+  const dept = String(row?.primaryAcademicDepartment || "").trim();
   return dept ? `${name} · ${dept}` : name;
+}
+
+// "First Middle Last" from the DynamoDB Identity item itself. `identity` and `primaryName` are
+// aliased because DynamoDB reserves IDENTITY and NAME as expression keywords.
+async function identityPrimaryName(uid: string): Promise<string> {
+  const resp = await identityDdb.send(new GetItemCommand({
+    TableName: "Identity",
+    Key: { uid: { S: uid } },
+    ProjectionExpression: "#i.#p",
+    ExpressionAttributeNames: { "#i": "identity", "#p": "primaryName" },
+  }));
+  const pn = resp.Item?.identity?.M?.primaryName?.M;
+  return [pn?.firstName?.S, pn?.middleName?.S, pn?.lastName?.S]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
 }
 
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
@@ -687,8 +728,19 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // more (#925 opened the no-identity one, this change opens off-candidate); being on
         // the wrong side of either one costs a confirm round-trip instead.
         const allowed = new Set(candidateCwidsFromRow(row));
-        const offCandidate = !allowed.has(chosen);
-        const hasIdentity = (await reciterIdentitySet([chosen])).size > 0;
+        // Both facts are established about `target`, the identifier as ReCiter STORES it, not
+        // about the raw keystrokes — and so is every write below. DynamoDB keys are byte-exact
+        // and Set.has is case-sensitive, so before this a curator who typed "Aaa2014" for a row
+        // whose own top_cwid is "aaa2014" was told that person has no ReCiter identity, and
+        // confirming filed the authorship as a local-only record that never reaches their
+        // publication list. Asking for the typed form and its lowercase together costs one extra
+        // key in the same BatchGetItem, and nothing at all when the cwid is already lowercase
+        // (reciterIdentitySet dedupes). See canonicalCwid for why an exact hit beats the
+        // lowercased one rather than the other way round.
+        const found = await reciterIdentitySet([chosen, chosen.toLowerCase()]);
+        const target = canonicalCwid(chosen, found);
+        const offCandidate = !allowed.has(target);
+        const hasIdentity = found.has(target);
         const gate = assignGate({
           offCandidate, hasIdentity,
           confirmNoIdentity: String(body.confirmNoIdentity) === "true",
@@ -708,9 +760,9 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           return res.status(422).json({
             code: "NO_RECITER_IDENTITY",
             localOnly: true,
-            cwid: chosen,
+            cwid: target,
             offCandidate,
-            message: `${chosen} has no ReCiter identity. Assigning anyway records your decision on `
+            message: `${target} has no ReCiter identity. Assigning anyway records your decision on `
               + "this row only — it will NOT be added to the person's publication record, because there "
               + "is no identity to add it to. Confirm to proceed.",
           });
@@ -729,12 +781,12 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // they don't actually know: add GET /api/db/authorships/lookup?cwid= over the same
         // identityLabel() and drive a datalist off it.
         if (gate === "confirm_off_candidate") {
-          const who = await identityLabel(chosen);
+          const who = await identityLabel(target);
           return res.status(422).json({
             code: "OFF_CANDIDATE",
-            cwid: chosen,
+            cwid: target,
             offCandidate: true,
-            message: `${who ? `${who} · ${chosen}` : `${chosen} (not in the IDM roster — no name to show)`}`
+            message: `${who ? `${who} · ${target}` : `${target} (no name on file anywhere — check the identifier)`}`
               + " was not one of the candidates proposed for this authorship. Confirming ADDS this article "
               + "to that person's publication record — the same write an Accept makes. Check the identifier.",
           });
@@ -747,8 +799,8 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // downstream. If the identity is created later (PM#104 / IC#148), this row is
           // the record of what was already decided.
           await models.AuthorshipReview.update({
-            status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date(),
-            note: `${row.note ? `${row.note} | ` : ""}assigned to ${chosen} `
+            status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date(),
+            note: `${row.note ? `${row.note} | ` : ""}assigned to ${target} `
               + `(no ReCiter identity) — local record only, nothing written to the publication record`,
           }, { where: { id } });
           break;
@@ -760,25 +812,25 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // reopen's "no identity == it was local-only" inference still holds and the
         // gold-standard DELETE it does is exactly the write this made.
         if (isScopus) {
-          const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
+          const resp = await addExternalArticle(target, scopusExternalPayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
             if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
-          await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
+          await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
         // Data-integrity guard: never let an assign add pmid to knownpmids while it's still
         // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
-        if ((await getRejectedPmidsByCwid([chosen]))[chosen]?.has(pmid as number)) {
-          return res.status(409).send(`${chosen} already rejected this article — cannot assign without reviewing that rejection first`);
+        if ((await getRejectedPmidsByCwid([target]))[target]?.has(pmid as number)) {
+          return res.status(409).send(`${target} already rejected this article — cannot assign without reviewing that rejection first`);
         }
-        const gs = await writeGoldStandard(chosen, pmid as number, "known", "UPDATE", curator.userID);
+        const gs = await writeGoldStandard(target, pmid as number, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
-        await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
-        try { await appendFeedbackLog(curator.userID, chosen, pmid as number, "ACCEPTED"); }
+        await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
+        try { await appendFeedbackLog(curator.userID, target, pmid as number, "ACCEPTED"); }
         catch (e) { console.log("[authorships] feedbacklog (assign) non-fatal:", e); }
         break;
       }
