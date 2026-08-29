@@ -629,13 +629,22 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         const allowed = new Set(candidateCwidsFromRow(row));
         const offCandidate = !allowed.has(chosen);
         const hasIdentity = (await reciterIdentitySet([chosen])).size > 0;
+        // ABSENCE OF IDENTITY is what unlocks the local-only path below — not being
+        // off-candidate. Someone with a real identity who simply was not in the top 5 can
+        // still be written authoritatively, so they must keep hitting this 400 rather than
+        // being quietly downgraded to a row-local record their publication never leaves.
+        // (It also keeps the reopen guard sound: "no identity" then means exactly "was
+        // assigned local-only", which is what that branch infers.)
+        if (hasIdentity && offCandidate) {
+          return res.status(400).send("cwid is not a candidate for this authorship");
+        }
         // Not every WCM author has an identity record. Master's students, visiting
         // researchers, and any person type outside the identity feed never get one, and
         // since the AAR producer builds its candidate list FROM `identity`, such a person
-        // can never be a produced candidate either. Before #925 the only offer was
-        // "dismiss it instead", which throws a real attribution away. Now the curator can
-        // record it — deliberately, and locally.
-        if (offCandidate || !hasIdentity) {
+        // can never be a produced candidate either — so for them the candidate check is
+        // unsatisfiable by construction and is deliberately bypassed. Before #925 the only
+        // offer was "dismiss it instead", which throws a real attribution away.
+        if (!hasIdentity) {
           // Deliberate, not silent: an unrecognised cwid is still far more likely to be a
           // typo than a Master's student, so the #861 guard keeps its purpose. The client
           // re-sends with confirmNoIdentity after showing the curator what it means.
@@ -645,9 +654,9 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
               localOnly: true,
               cwid: chosen,
               offCandidate,
-              message: `${chosen} has no ReCiter identity${offCandidate ? " and is not one of this authorship's candidates" : ""}. `
-                + "Assigning anyway records your decision on this row only — it will NOT be added to the person's "
-                + "publication record, because there is no identity to add it to. Confirm to proceed.",
+              message: `${chosen} has no ReCiter identity. Assigning anyway records your decision on `
+                + "this row only — it will NOT be added to the person's publication record, because there "
+                + "is no identity to add it to. Confirm to proceed.",
             });
           }
           // Local record only. No writeGoldStandard, no addExternalArticle, no
@@ -658,9 +667,8 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // the record of what was already decided.
           await models.AuthorshipReview.update({
             status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date(),
-            note: `${row.note ? `${row.note} | ` : ""}assigned to ${chosen} (no ReCiter identity`
-              + `${offCandidate ? ", not a produced candidate" : ""}) — local record only, `
-              + `nothing written to the publication record`,
+            note: `${row.note ? `${row.note} | ` : ""}assigned to ${chosen} `
+              + `(no ReCiter identity) — local record only, nothing written to the publication record`,
           }, { where: { id } });
           break;
         }
