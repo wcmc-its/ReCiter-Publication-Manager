@@ -6,6 +6,7 @@ import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
 import { getRejectedPmidsByCwid } from "../../src/lib/goldStandardRejections";
+import { assignGate } from "../../src/lib/assignGate";
 import { DynamoDBClient, BatchGetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
@@ -228,6 +229,28 @@ async function personNames(cwids: Array<string | undefined | null>): Promise<Rec
     if (name) out[String(p.personIdentifier)] = name;
   });
   return out;
+}
+
+// "Given Middle Surname · Department" for ONE curator-typed cwid, from the IDM roster table
+// `identity` — the same table the AAR producer builds candidate_cwids_json from, so this
+// reads identically to a produced top_name/dept instead of a second, subtly different name.
+// Deliberately NOT personNames() above: the `person` mirror carries stale rows whose name
+// columns are NULL even though the person is live (187/33,152 as of 2026-08-29 — brf9046 has
+// a null-name person row and a complete identity row), and this string is the only thing
+// standing between the curator and an authoritative write into someone's publication record.
+// Empty string when there is no roster row — the caller falls back to the bare cwid rather
+// than inventing a name. Same no-join lookup as above: identity.cwid is utf8mb4_general_ci
+// against authorship_review.top_cwid's utf8mb4_unicode_ci, so a direct join throws 1267.
+async function identityLabel(cwid: string): Promise<string> {
+  const row: any = await models.Identity.findOne({
+    where: { cwid },
+    attributes: ["givenName", "middleName", "surname", "primaryAcademicDepartment"], raw: true,
+  });
+  if (!row) return "";
+  const name = [row.givenName, row.middleName, row.surname].map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  if (!name) return "";
+  const dept = String(row.primaryAcademicDepartment || "").trim();
+  return dept ? `${name} · ${dept}` : name;
 }
 
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
@@ -657,42 +680,66 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         const chosen = String(body.cwid || "");
         if (!chosen) return res.status(400).send("cwid is required for assign");
         if (!/^[A-Za-z0-9]{1,32}$/.test(chosen)) return res.status(400).send("cwid must be alphanumeric");
-        // Integrity boundary: the server verifies the chosen cwid is a real candidate for
-        // this authorship before any AUTHORITATIVE write (client can't spoof an identity).
-        // #925 relaxes it for the local-only path below, which writes nothing authoritative.
+        // Trust boundary: `chosen` is client-supplied and can drive an authoritative
+        // GoldStandard write, so the server establishes two facts about it — is it one of
+        // this authorship's produced candidates, and does ReCiter know it at all — and
+        // assignGate turns them into which path runs. Neither fact BLOCKS the assign any
+        // more (#925 opened the no-identity one, this change opens off-candidate); being on
+        // the wrong side of either one costs a confirm round-trip instead.
         const allowed = new Set(candidateCwidsFromRow(row));
         const offCandidate = !allowed.has(chosen);
         const hasIdentity = (await reciterIdentitySet([chosen])).size > 0;
-        // ABSENCE OF IDENTITY is what unlocks the local-only path below — not being
-        // off-candidate. Someone with a real identity who simply was not in the top 5 can
-        // still be written authoritatively, so they must keep hitting this 400 rather than
-        // being quietly downgraded to a row-local record their publication never leaves.
-        // (It also keeps the reopen guard sound: "no identity" then means exactly "was
-        // assigned local-only", which is what that branch infers.)
-        if (hasIdentity && offCandidate) {
-          return res.status(400).send("cwid is not a candidate for this authorship");
-        }
+        const gate = assignGate({
+          offCandidate, hasIdentity,
+          confirmNoIdentity: String(body.confirmNoIdentity) === "true",
+          confirmOffCandidate: String(body.confirmOffCandidate) === "true",
+        });
         // Not every WCM author has an identity record. Master's students, visiting
         // researchers, and any person type outside the identity feed never get one, and
         // since the AAR producer builds its candidate list FROM `identity`, such a person
         // can never be a produced candidate either — so for them the candidate check is
         // unsatisfiable by construction and is deliberately bypassed. Before #925 the only
         // offer was "dismiss it instead", which throws a real attribution away.
-        if (!hasIdentity) {
-          // Deliberate, not silent: an unrecognised cwid is still far more likely to be a
-          // typo than a Master's student, so the #861 guard keeps its purpose. The client
-          // re-sends with confirmNoIdentity after showing the curator what it means.
-          if (String(body.confirmNoIdentity) !== "true") {
-            return res.status(422).json({
-              code: "NO_RECITER_IDENTITY",
-              localOnly: true,
-              cwid: chosen,
-              offCandidate,
-              message: `${chosen} has no ReCiter identity. Assigning anyway records your decision on `
-                + "this row only — it will NOT be added to the person's publication record, because there "
-                + "is no identity to add it to. Confirm to proceed.",
-            });
-          }
+        //
+        // Deliberate, not silent: an unrecognised cwid is still far more likely to be a
+        // typo than a Master's student, so the #861 guard keeps its purpose. The client
+        // re-sends with confirmNoIdentity after showing the curator what it means.
+        if (gate === "confirm_no_identity") {
+          return res.status(422).json({
+            code: "NO_RECITER_IDENTITY",
+            localOnly: true,
+            cwid: chosen,
+            offCandidate,
+            message: `${chosen} has no ReCiter identity. Assigning anyway records your decision on `
+              + "this row only — it will NOT be added to the person's publication record, because there "
+              + "is no identity to add it to. Confirm to proceed.",
+          });
+        }
+        // A real person the producer simply didn't propose — the common case being a
+        // single-candidate row where the producer was confidently wrong and the curator knows
+        // who actually wrote it. This used to be a flat 400, which made the typed-cwid box a
+        // no-identity escape hatch rather than a general assign tool. It is still a trust
+        // boundary (a client-supplied cwid driving a GoldStandard write), so it becomes an
+        // explicit confirm rather than an absent check: the server looks the person up and
+        // hands back their NAME, so the curator confirms against a human being and not a
+        // string they might have typo'd.
+        // ponytail: confirm-on-submit, not a typeahead — the name has to cross the wire on
+        // this 422 anyway, so a search endpoint + debounce + dropdown would buy nothing the
+        // round-trip doesn't already provide. Upgrade path if curators start typing cwids
+        // they don't actually know: add GET /api/db/authorships/lookup?cwid= over the same
+        // identityLabel() and drive a datalist off it.
+        if (gate === "confirm_off_candidate") {
+          const who = await identityLabel(chosen);
+          return res.status(422).json({
+            code: "OFF_CANDIDATE",
+            cwid: chosen,
+            offCandidate: true,
+            message: `${who ? `${who} · ${chosen}` : `${chosen} (not in the IDM roster — no name to show)`}`
+              + " was not one of the candidates proposed for this authorship. Confirming ADDS this article "
+              + "to that person's publication record — the same write an Accept makes. Check the identifier.",
+          });
+        }
+        if (gate === "local_only") {
           // Local record only. No writeGoldStandard, no addExternalArticle, no
           // appendFeedbackLog: every one of those targets an identity that does not exist,
           // and faking one would put a publication in a record nobody can see or correct.
@@ -706,6 +753,12 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           }, { where: { id } });
           break;
         }
+        // gate === "write": everything below is the authoritative assign, unchanged. An
+        // off-candidate assign that got confirmed lands here and is byte-for-byte an
+        // on-candidate one — same rejectedpmids guard, same gold-standard write, same
+        // feedback log — which is also what keeps `reopen` sound: it has an identity, so
+        // reopen's "no identity == it was local-only" inference still holds and the
+        // gold-standard DELETE it does is exactly the write this made.
         if (isScopus) {
           const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
           if (resp.statusCode === 409) {

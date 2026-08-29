@@ -84,11 +84,14 @@ interface DupMatch {
 interface ConflictEntry {
   id: number;              // AuthorshipRow.id this conflict belongs to
   action: string;
-  // "dup"         — scopus 409 WARNING, retried with force:"true"
-  // "no_identity" — #925 422, retried with confirmNoIdentity:"true". Different consequence,
-  //                 so a different prompt: force-add writes to the person's record, this one
-  //                 explicitly does NOT.
-  kind: "dup" | "no_identity";
+  // "dup"           — scopus 409 WARNING, retried with force:"true"
+  // "no_identity"   — #925 422, retried with confirmNoIdentity:"true". Different consequence,
+  //                   so a different prompt: force-add writes to the person's record, this one
+  //                   explicitly does NOT.
+  // "off_candidate" — 422, retried with confirmOffCandidate:"true": a real person the producer
+  //                   never proposed. This one DOES write their publication record, so its
+  //                   prompt must not read like the no_identity one it sits next to.
+  kind: "dup" | "no_identity" | "off_candidate";
   action_label?: string;   // confirm-button text; kind decides it, held here for the log
   extra?: Record<string, any>;
   message: string;
@@ -733,14 +736,19 @@ const AuthorshipsTabs = () => {
       .catch((e) => {
         // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
         const scopusDup = e?.status === 409 && row.source === "scopus" && (action === "accept" || action === "assign");
-        // #925: assigning to someone with no ReCiter identity is allowed, but only after the
-        // curator confirms they understand it records nothing downstream.
-        const noIdentity = e?.status === 422 && e?.code === "NO_RECITER_IDENTITY";
-        if (scopusDup || noIdentity) {
+        // Both 422s are the same shape — "allowed, but say you meant it" — and each names the
+        // confirmation flag it wants back. The consequences are opposite, so the prompts they
+        // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
+        const kind: ConflictEntry["kind"] | null =
+          e?.status === 422 && e?.code === "NO_RECITER_IDENTITY" ? "no_identity"
+            : e?.status === 422 && e?.code === "OFF_CANDIDATE" ? "off_candidate"
+              : scopusDup ? "dup" : null;
+        if (kind) {
           const entry: ConflictEntry = {
-            id: row.id, action,
-            kind: noIdentity ? "no_identity" : "dup",
-            extra: noIdentity ? { ...extra, confirmNoIdentity: "true" } : { ...extra, force: "true" },
+            id: row.id, action, kind,
+            extra: kind === "no_identity" ? { ...extra, confirmNoIdentity: "true" }
+              : kind === "off_candidate" ? { ...extra, confirmOffCandidate: "true" }
+                : { ...extra, force: "true" },
             message: String(e?.message || e),
             matches: Array.isArray(e?.matches) ? e.matches : [],
             wcm_author: row.wcm_author, top_name: row.top_name, ts: Date.now(),
@@ -1600,7 +1608,9 @@ const AuthorshipCard = ({
           background: "#fffbeb", border: "1px solid #fde68a", fontSize: 12.5, color: "#78350f",
         }}>
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
-            {conflict.kind === "no_identity" ? "No ReCiter identity" : "Possible duplicate"}
+            {conflict.kind === "no_identity" ? "No ReCiter identity"
+              : conflict.kind === "off_candidate" ? "Not a proposed candidate — this writes their record"
+                : "Possible duplicate"}
             {" — "}{conflict.wcm_author || conflict.top_name || r.wcm_author}
           </div>
           <div style={{ marginBottom: 6 }}>{conflict.message}</div>
@@ -1620,7 +1630,9 @@ const AuthorshipCard = ({
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
               style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
-              {conflict.kind === "no_identity" ? "Assign anyway — record on this row only" : "Force add anyway"}
+              {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
+                : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
+                  : "Force add anyway"}
             </button>
             <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>Cancel</button>
           </div>
@@ -1636,6 +1648,10 @@ const AuthorshipCard = ({
           ) : (
             <SingleEvidence row={r} wcm={wcm} isAbsent={isAbsent} />
           )}
+          {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
+              single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
+              it's the case where the curator most often knows a name the card can't offer. */}
+          <AssignOther rowId={r.id} acting={acting} onAction={onAction} />
         </div>
       )}
     </article>
@@ -1731,8 +1747,6 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
 }) => {
-  // #925: a person identifier the curator types, for someone the producer could not offer.
-  const [otherCwid, setOtherCwid] = useState("");
   // rank by IO desc, then matcher confidence desc (a candidate production never
   // retrieved -- io_score null -- still carries a name/department confidence signal;
   // without the tiebreak, an unretrieved-but-clearly-correct candidate like a full
@@ -1844,33 +1858,50 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
         <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
           <IconX /> Reject all
         </button>
-        {/* #925: the candidate list is built from `identity`, so anyone outside the identity
-            feed — Master's students, visiting researchers — can never appear above no matter
-            how obviously they wrote the paper. Typing the cwid is the only way to record them.
-            The server still makes it deliberate: it 422s once and asks for confirmation. */}
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-          <label htmlFor={`otherCwid-${r.id}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
-            Someone else:
-          </label>
-          <input id={`otherCwid-${r.id}`} value={otherCwid} placeholder="cwid"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setOtherCwid(e.target.value.trim())}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter" || !otherCwid || acting) return;
-              e.preventDefault(); e.stopPropagation();
-              onAction("assign", { cwid: otherCwid });
-            }}
-            style={{
-              width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
-              borderRadius: 4, color: "#334155",
-            }} />
-          <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
-            onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
-            Assign
-          </button>
-        </span>
       </div>
     </>
+  );
+};
+
+// "Someone else: [cwid] [Assign]" — a person identifier the curator types, for someone the
+// producer never offered. Two reasons it can't be offered: the candidate list is built from
+// `identity`, so anyone outside that feed (Master's students, visiting researchers) can never
+// appear no matter how obviously they wrote the paper; and even inside the feed the producer
+// only proposes its top few, which on a single-candidate card is exactly one guess.
+// The server keeps it deliberate — it 422s once, having looked the identifier up, and the
+// prompt it raises NAMES the person before the curator confirms.
+// ponytail: confirm-on-submit, no typeahead. The name the curator needs comes back on a 422
+// the server already has to send, so a lookup endpoint + debounce + dropdown would add three
+// moving parts to show the same string one round-trip later. Upgrade path if curators start
+// typing identifiers they don't actually know: a GET lookup route feeding a <datalist>.
+const AssignOther = ({ rowId, acting, onAction }: {
+  rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+}) => {
+  const [otherCwid, setOtherCwid] = useState("");
+  // every handler stops propagation: the card is click-to-expand, so an unguarded click or
+  // Enter inside this input collapses the card out from under the curator mid-type.
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", justifyContent: "flex-end" }}>
+      <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
+        Someone else:
+      </label>
+      <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid"
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => setOtherCwid(e.target.value.trim())}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || !otherCwid || acting) return;
+          e.preventDefault(); e.stopPropagation();
+          onAction("assign", { cwid: otherCwid });
+        }}
+        style={{
+          width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
+          borderRadius: 4, color: "#334155",
+        }} />
+      <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
+        onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
+        Assign
+      </button>
+    </div>
   );
 };
 
