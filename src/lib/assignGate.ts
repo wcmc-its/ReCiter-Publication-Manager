@@ -85,7 +85,11 @@ export function homonymRejections(o: {
   candidates: string[];     // candidateCwidsFromRow(row) — top_cwid + candidate_cwids_json
   target: string;           // the identity being assigned, canonical (see canonicalCwid)
   hasIdentity: (cwid: string) => boolean; // ReCiter knows the uid. A gold-standard write for
-                            // one it doesn't 404s, which 502s the whole action partway through
+                            // one it doesn't does NOT 404: POST /reciter/goldstandard validates
+                            // only uid != null and returns 200, creating an ORPHAN GoldStandard
+                            // row no Identity and no PM view ever reads. Failing open here
+                            // writes garbage SILENTLY, which is why the skip exists. (The 404
+                            // belongs to ExternalArticleController — the scopus lane, not this.)
                             // — 65 of the 219 backfill targets (39 distinct people) are these
   hasAccepted: (cwid: string) => boolean; // their knownpmids already contains this pmid; never
                             // tell ReCiter someone both wrote and didn't write a paper

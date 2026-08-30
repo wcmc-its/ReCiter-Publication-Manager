@@ -178,14 +178,20 @@ for (const r of rows) {
 const identities = await batchGet("Identity", [...allOthers], "uid");
 const goldStandard = await batchGet("GoldStandard", [...allOthers], "uid, knownpmids, rejectedpmids");
 
-// Ledger: (row_id|pmid|cwid) already written on an earlier run.
+// Ledger: (row_id|pmid|cwid) already written SUCCESSFULLY on an earlier run.
+// Keyed on the `result` record, not `write`. A `write` record is appended BEFORE the attempt
+// (so the ledger is a complete reversal script even if we die mid-call), which means a failed
+// write is indistinguishable from a successful one by phase alone — resuming on `write` would
+// silently drop every 502 and require a hand-edited ledger to recover. writeGoldStandard is an
+// idempotent MERGE, so retrying a write whose outcome we never recorded costs nothing; a crash
+// between the two appends simply re-attempts.
 const done = new Set();
 if (existsSync(LEDGER)) {
   for (const line of readFileSync(LEDGER, "utf8").split("\n")) {
     if (!line.trim()) continue;
     try {
       const rec = JSON.parse(line);
-      if (rec.phase === "write") done.add(`${rec.row_id}|${rec.pmid}|${rec.cwid}`);
+      if (rec.phase === "result" && rec.status === 200) done.add(`${rec.row_id}|${rec.pmid}|${rec.cwid}`);
     } catch { /* a torn last line is not a reason to refuse to resume */ }
   }
 }

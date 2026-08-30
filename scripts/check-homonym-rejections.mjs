@@ -51,7 +51,7 @@ console.log("\nwho an assign records a rejection for:");
 
 check("the other candidates with an identity, and only those", R(), ["tdn4001", "tdn2001"]);
 check("the assigned person is never rejected", R().includes(ROW.target), false);
-check("no identity in ReCiter -> skipped (the write would 404 and 502 the action)",
+check("no identity in ReCiter -> skipped (the write would 200 into an orphan GS row)",
   R().filter((c) => !DDB_IDENTITY.has(c)), []);
 check("already ACCEPTED this pmid -> skipped (never both wrote and didn't write it)",
   R({ hasAccepted: (c) => c === "tdn2001" }), ["tdn4001"]);
@@ -92,7 +92,7 @@ check("...whose only extra member is the candidate the write skipped as already-
 check("undo of an off-candidate assign reverses all N",
   undo({ target: "zzz9999", hasIdentity: (c) => DDB_IDENTITY.has(c) || c === "zzz9999" }),
   ["tdn4001", "tun2001", "tdn2001"]);
-check("a candidate who lost their identity since the assign is not deleted either (no 404)",
+check("a candidate who lost their identity since the assign is not deleted either",
   undo({ hasIdentity: (c) => c === "tdn4001" }), ["tdn4001"]);
 check("scopus reopen undoes nothing, symmetric with the write", undo({ isScopus: true }), []);
 check("single-candidate reopen undoes nothing, symmetric with the write",
@@ -119,11 +119,14 @@ check("reopen DELETEs them",
   /writeGoldStandard\(other, pmid as number, "rejected", "DELETE", curator\.userID\)/.test(reopen), true);
 check("reopen passes checkAccepted=false, so it can undo what the write skipped as accepted",
   /homonymRejectionTargets\(row, reverseCwid, pmid as number, false\)/.test(reopen), true);
-// scoped to assign specifically, not to the accepted-or-assigned condition the branch already
-// sits under: assign is the only action that ever writes these, so accept must not undo them.
+// Covers accepted as well as assigned. `assign` is the only ACTION that writes these, but the
+// backfill writes them onto already-resolved rows and defaults to assigned,accepted — scoping
+// the undo to "assigned" alone strands every rejection it lands on an accepted row, with no way
+// back. Widening is safe: a real single-candidate accept returns [] from the single_candidate
+// guard, and a legacy un-backfilled multi accept issues DELETEs ReCiter answers 200 as no-ops.
 const undoBlock = reopen.slice(reopen.indexOf('"known", "DELETE"'), reopen.indexOf("homonymRejectionTargets(row, reverseCwid"));
-check("reopen's undo is scoped to assign, the only action that writes them",
-  /if \(row\.status === "assigned"\) \{/.test(undoBlock), true);
+check("reopen's undo covers assigned AND accepted, so backfilled rejections stay reversible",
+  /if \(row\.status === "assigned" \|\| row\.status === "accepted"\) \{/.test(undoBlock), true);
 
 // Ordering: the curator's actual intent lands first, so a rejection failure can never leave
 // people rejected for a paper that was never assigned to anyone; and the row is resolved only

@@ -926,10 +926,13 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-          // A #925 local-only assign wrote no gold standard, so there is nothing to delete
-          // — and asking ReCiter to DELETE for a uid it has no Identity row for 404s, which
-          // would strand the row as un-reopenable. No identity == it was local-only, since
-          // that is the only branch that resolves a row without an authoritative write.
+          // A #925 local-only assign wrote no gold standard, so there is nothing to delete.
+          // (An earlier comment here claimed the DELETE would 404 for a uid ReCiter has no
+          // Identity row for. It does not — POST /reciter/goldstandard checks only uid != null
+          // and returns 200. The real reason to skip is simply that nothing was ever written,
+          // so the DELETE is a pointless no-op against a row that may not exist.)
+          // No identity == it was local-only, since that is the only branch that resolves a
+          // row without an authoritative write.
           // ponytail: this INFERS "local-only" from a live identity check rather than reading a
           // marker, so it silently flips to a destructive GoldStandard DELETE for any
           // local-only row whose identity later appears (IC#148 backfills ~1,595). Exposure
@@ -945,11 +948,16 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             // is no undo path for them at all: reopen would clear the row and leave N-1 people
             // permanently rejected on a decision the curator just took back. Recomputed through
             // the same homonymRejections() the write used, so the two sets cannot drift; see
-            // that function for why checkAccepted is false here. Scoped to "assigned" because
-            // assign is the only action that writes them (accept is single-candidate-only, and
-            // a local-only assign never gets here — the identity check above sends it to the
-            // log line, which is exactly the branch that wrote nothing downstream).
-            if (row.status === "assigned") {
+            // that function for why checkAccepted is false here. Covers "accepted" as well as
+            // "assigned": assign is the only ACTION that writes these, but the backfill script
+            // writes them onto already-resolved rows and defaults to assigned,accepted — 30 of
+            // its 170 planned writes land on accepted rows, and scoping this to "assigned"
+            // alone would make exactly those permanent with no undo path. Safe for rows that
+            // never had any: a genuine single-candidate accept returns [] from the
+            // single_candidate guard, and a legacy un-backfilled multi accept issues DELETEs
+            // ReCiter treats as 200 no-ops (DynamoDbGoldStandardService removes a pmid only
+            // `if(rejectedPmids.contains(...))`, so a miss is not an error).
+            if (row.status === "assigned" || row.status === "accepted") {
               for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
                 const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
                 if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);

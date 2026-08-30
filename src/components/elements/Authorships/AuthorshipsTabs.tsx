@@ -1749,7 +1749,8 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
 // Rendered for pubmed multi-candidate rows only, which is exactly where the server writes them
 // (scopus has no pmid to reject; a single-candidate row records no homonym judgment).
 // "with a ReCiter identity" is not hedging: the server skips candidates ReCiter has no Identity
-// row for, because that write 404s — 39 of the 153 people in the resolved backlog are these.
+// row for, because that write would SUCCEED (200) into an orphan GoldStandard row nothing reads
+// — 39 of the 153 people in the resolved backlog are these.
 const HomonymNote = ({ n }: { n: number }) => n < 1 ? null : (
   <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "#b45309", marginTop: 7, maxWidth: 620 }}>
     Assigning also records “not mine” for the other {n} candidate{n === 1 ? "" : "s"} on this row
