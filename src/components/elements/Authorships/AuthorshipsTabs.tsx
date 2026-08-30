@@ -46,7 +46,9 @@ interface AuthorshipRow {
   single_candidate?: boolean;
   candidate_cwids_json?: string;
   pmid_sibling_count?: number;
-  // false → proposed identity is not in ReCiter (departed/inactive); Accept is impossible
+  // false → top_cwid has no row in ReCiter's DynamoDB Identity table, so there is nothing to
+  // add the article to; Accept is impossible. Absence means "never synced or since removed" —
+  // NOT necessarily "departed", and not that the attribution is wrong.
   identity_in_reciter?: boolean;
   // true → top_cwid already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
@@ -82,11 +84,14 @@ interface DupMatch {
 interface ConflictEntry {
   id: number;              // AuthorshipRow.id this conflict belongs to
   action: string;
-  // "dup"         — scopus 409 WARNING, retried with force:"true"
-  // "no_identity" — #925 422, retried with confirmNoIdentity:"true". Different consequence,
-  //                 so a different prompt: force-add writes to the person's record, this one
-  //                 explicitly does NOT.
-  kind: "dup" | "no_identity";
+  // "dup"           — scopus 409 WARNING, retried with force:"true"
+  // "no_identity"   — #925 422, retried with confirmNoIdentity:"true". Different consequence,
+  //                   so a different prompt: force-add writes to the person's record, this one
+  //                   explicitly does NOT.
+  // "off_candidate" — 422, retried with confirmOffCandidate:"true": a real person the producer
+  //                   never proposed. This one DOES write their publication record, so its
+  //                   prompt must not read like the no_identity one it sits next to.
+  kind: "dup" | "no_identity" | "off_candidate";
   action_label?: string;   // confirm-button text; kind decides it, held here for the log
   extra?: Record<string, any>;
   message: string;
@@ -400,7 +405,7 @@ const notInPubmedPillStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "2px 8px",
   borderRadius: 20, background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", whiteSpace: "nowrap",
 };
-// replaces the Accept button when the proposed identity is not in ReCiter
+// replaces the Accept button when the proposed identity has no ReCiter Identity record
 const noIdentityPillStyle: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, padding: "5px 10px",
   borderRadius: 20, background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", whiteSpace: "nowrap",
@@ -731,14 +736,19 @@ const AuthorshipsTabs = () => {
       .catch((e) => {
         // scopus Accept/Assign duplicate (409 WARNING) → offer a Force add instead of a dead error
         const scopusDup = e?.status === 409 && row.source === "scopus" && (action === "accept" || action === "assign");
-        // #925: assigning to someone with no ReCiter identity is allowed, but only after the
-        // curator confirms they understand it records nothing downstream.
-        const noIdentity = e?.status === 422 && e?.code === "NO_RECITER_IDENTITY";
-        if (scopusDup || noIdentity) {
+        // Both 422s are the same shape — "allowed, but say you meant it" — and each names the
+        // confirmation flag it wants back. The consequences are opposite, so the prompts they
+        // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
+        const kind: ConflictEntry["kind"] | null =
+          e?.status === 422 && e?.code === "NO_RECITER_IDENTITY" ? "no_identity"
+            : e?.status === 422 && e?.code === "OFF_CANDIDATE" ? "off_candidate"
+              : scopusDup ? "dup" : null;
+        if (kind) {
           const entry: ConflictEntry = {
-            id: row.id, action,
-            kind: noIdentity ? "no_identity" : "dup",
-            extra: noIdentity ? { ...extra, confirmNoIdentity: "true" } : { ...extra, force: "true" },
+            id: row.id, action, kind,
+            extra: kind === "no_identity" ? { ...extra, confirmNoIdentity: "true" }
+              : kind === "off_candidate" ? { ...extra, confirmOffCandidate: "true" }
+                : { ...extra, force: "true" },
             message: String(e?.message || e),
             matches: Array.isArray(e?.matches) ? e.matches : [],
             wcm_author: row.wcm_author, top_name: row.top_name, ts: Date.now(),
@@ -919,7 +929,7 @@ const AuthorshipsTabs = () => {
       const toggleSelect = toggleSelectRef.current;
       if (k === "y") {
         if (row.single_candidate && statusView === "open") {
-          if (row.identity_in_reciter === false) setErrorMsg(`${row.top_name || row.top_cwid} is not in ReCiter — this authorship can't be accepted (dismiss it instead)`);
+          if (row.identity_in_reciter === false) setErrorMsg(`${row.top_name || row.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
           else doAction?.(row, "accept");
         } else setErrorMsg("Use Pick one ▾ to assign a multi-candidate authorship");
         e.preventDefault();
@@ -1552,7 +1562,7 @@ const AuthorshipCard = ({
                 <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
                   <IconX size={14} /> Reject
                 </button>
-                <Tip title={`${r.top_name || r.top_cwid} is not in ReCiter (likely departed or inactive), so this authorship can't be accepted.`} placement="top" arrow>
+                <Tip title={`${r.top_name || r.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. They may have departed, or may simply never have been synced from the identity feed — the attribution itself is not in question here.`} placement="top" arrow>
                   <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
                 </Tip>
               </>
@@ -1598,7 +1608,9 @@ const AuthorshipCard = ({
           background: "#fffbeb", border: "1px solid #fde68a", fontSize: 12.5, color: "#78350f",
         }}>
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
-            {conflict.kind === "no_identity" ? "No ReCiter identity" : "Possible duplicate"}
+            {conflict.kind === "no_identity" ? "No ReCiter identity"
+              : conflict.kind === "off_candidate" ? "Not a proposed candidate — this writes their record"
+                : "Possible duplicate"}
             {" — "}{conflict.wcm_author || conflict.top_name || r.wcm_author}
           </div>
           <div style={{ marginBottom: 6 }}>{conflict.message}</div>
@@ -1618,7 +1630,9 @@ const AuthorshipCard = ({
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
               style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
-              {conflict.kind === "no_identity" ? "Assign anyway — record on this row only" : "Force add anyway"}
+              {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
+                : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
+                  : "Force add anyway"}
             </button>
             <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>Cancel</button>
           </div>
@@ -1634,6 +1648,11 @@ const AuthorshipCard = ({
           ) : (
             <SingleEvidence row={r} wcm={wcm} isAbsent={isAbsent} />
           )}
+          {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
+              single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
+              it's the case where the curator most often knows a name the card can't offer. */}
+          <AssignOther rowId={r.id} acting={acting} onAction={onAction}
+            homonyms={isMulti && r.source !== "scopus" ? candidates.length : 0} />
         </div>
       )}
     </article>
@@ -1724,13 +1743,26 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
   </>
 );
 
+// What an assign on a homonym row does to the OTHER candidates, said before the click rather
+// than discovered afterwards. Assigning to one of N now records a rejection for the rest — a
+// gold-standard write into other people's records, so it cannot be a silent side effect.
+// Rendered for pubmed multi-candidate rows only, which is exactly where the server writes them
+// (scopus has no pmid to reject; a single-candidate row records no homonym judgment).
+// "with a ReCiter identity" is not hedging: the server skips candidates ReCiter has no Identity
+// row for, because that write would SUCCEED (200) into an orphan GoldStandard row nothing reads
+// — 39 of the 153 people in the resolved backlog are these.
+const HomonymNote = ({ n }: { n: number }) => n < 1 ? null : (
+  <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "#b45309", marginTop: 7, maxWidth: 620 }}>
+    Assigning also records “not mine” for the other {n} candidate{n === 1 ? "" : "s"} on this row
+    (those with a ReCiter identity). Reopening the row undoes both.
+  </div>
+);
+
 // multi-candidate disambiguation panel (F11)
 const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onAction }: {
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
 }) => {
-  // #925: a person identifier the curator types, for someone the producer could not offer.
-  const [otherCwid, setOtherCwid] = useState("");
   // rank by IO desc, then matcher confidence desc (a candidate production never
   // retrieved -- io_score null -- still carries a name/department confidence signal;
   // without the tiebreak, an unretrieved-but-clearly-correct candidate like a full
@@ -1842,32 +1874,60 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
         <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
           <IconX /> Reject all
         </button>
-        {/* #925: the candidate list is built from `identity`, so anyone outside the identity
-            feed — Master's students, visiting researchers — can never appear above no matter
-            how obviously they wrote the paper. Typing the cwid is the only way to record them.
-            The server still makes it deliberate: it 422s once and asks for confirmation. */}
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-          <label htmlFor={`otherCwid-${r.id}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
-            Someone else:
-          </label>
-          <input id={`otherCwid-${r.id}`} value={otherCwid} placeholder="cwid"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setOtherCwid(e.target.value.trim())}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter" || !otherCwid || acting) return;
-              e.preventDefault(); e.stopPropagation();
-              onAction("assign", { cwid: otherCwid });
-            }}
-            style={{
-              width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
-              borderRadius: 4, color: "#334155",
-            }} />
-          <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
-            onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
-            Assign
-          </button>
-        </span>
       </div>
+      {/* count is candidates-minus-one and does not move with the radio: whichever one is
+          picked, the same number of others are rejected. */}
+      {r.source !== "scopus" && <HomonymNote n={Math.max(0, candidates.length - 1)} />}
+    </>
+  );
+};
+
+// "Someone else: [cwid] [Assign]" — a person identifier the curator types, for someone the
+// producer never offered. Two reasons it can't be offered: the candidate list is built from
+// `identity`, so anyone outside that feed (Master's students, visiting researchers) can never
+// appear no matter how obviously they wrote the paper; and even inside the feed the producer
+// only proposes its top few, which on a single-candidate card is exactly one guess.
+// The server keeps it deliberate — it 422s once, having looked the identifier up, and the
+// prompt it raises NAMES the person before the curator confirms.
+// ponytail: confirm-on-submit, no typeahead. The name the curator needs comes back on a 422
+// the server already has to send, so a lookup endpoint + debounce + dropdown would add three
+// moving parts to show the same string one round-trip later. Upgrade path if curators start
+// typing identifiers they don't actually know: a GET lookup route feeding a <datalist>.
+const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
+  rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+  homonyms?: number;
+}) => {
+  const [otherCwid, setOtherCwid] = useState("");
+  // every handler stops propagation: the card is click-to-expand, so an unguarded click or
+  // Enter inside this input collapses the card out from under the curator mid-type.
+  return (
+    <>
+      <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", justifyContent: "flex-end" }}>
+        <label htmlFor={`otherCwid-${rowId}`} style={{ fontSize: 11.5, color: "#94a3b8" }}>
+          Someone else:
+        </label>
+        <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid"
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => setOtherCwid(e.target.value.trim())}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || !otherCwid || acting) return;
+            e.preventDefault(); e.stopPropagation();
+            onAction("assign", { cwid: otherCwid });
+          }}
+          style={{
+            width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
+            borderRadius: 4, color: "#334155",
+          }} />
+        <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
+          onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
+          Assign
+        </button>
+      </div>
+      {/* all N here, not N-1: someone typed into this box is by definition not one of the
+          proposed candidates, so every one of them is the "other" — the stronger version of
+          the warning under Assign selected. (If the curator types a listed candidate's cwid
+          instead of clicking its radio, the server excludes them and this over-counts by one.) */}
+      <HomonymNote n={homonyms} />
     </>
   );
 };

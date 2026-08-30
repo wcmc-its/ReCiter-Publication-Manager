@@ -5,7 +5,9 @@ import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
-import { getRejectedPmidsByCwid } from "../../src/lib/goldStandardRejections";
+import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
+import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
+import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
@@ -148,39 +150,73 @@ function buildWhere(body: any): any {
 const siblingKey = (r: any) =>
   r.source === "scopus" ? String(r.external_id || "") : String(r.pmid ?? "");
 
-// Which of these cwids have a ReCiter identity? `person` mirrors ReCiter's Identity table
-// (the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
-// someone — typically inactive faculty — ReCiter doesn't track; accepting those 404s at the
-// ExternalArticle endpoint and orphans gold-standard writes). Checked at read time, not
-// produce time, because people also leave WCM after a row is produced.
-// ponytail: app-side IN() lookup instead of a SQL JOIN — person/authorship_review collations
-// differ (general_ci vs unicode_ci), which breaks and de-indexes a direct join.
+// Which of these cwids have a ReCiter identity? Asks DynamoDB `Identity` directly — the same
+// table ReCiter's own ExternalArticleController.findByUid consults before it will accept an
+// ExternalArticle, so this answer and the accept path's answer cannot disagree. Needed because
+// the AAR producer matches against the wider IDM `identity` universe, so top_cwid can name
+// someone ReCiter doesn't track; accepting those 404s at the ExternalArticle endpoint and
+// orphans gold-standard writes. Checked at read time, not produce time, because people also
+// leave WCM after a row is produced.
+//
+// This used to read reciterdb's `person` mirror, gated on the row having a name, on the theory
+// that a null-name person row was stale sync debris and so couldn't be a valid identity. That
+// premise is wrong. `person` gets names from a SECOND loader pass (ReCiterDB
+// updateReciterDB.py `update_person`, an INNER join against person_temp, skipped entirely on
+// incremental runs), so a null name means "the name loader hasn't covered this cwid", not "not
+// in ReCiter". Measured 2026-08-29: 173 of 187 null-name person rows (92.5%) ARE in DynamoDB
+// Identity, and `person` is missing 1,915 uids DynamoDB has. Across the 18,892 open rows the
+// mirror flagged 1,048 cwids / 2,723 rows, of which 74 cwids / 254 rows were false — Accept
+// hidden from curators who could legitimately have used it (brf9046 being the reported case:
+// null-name person row, full identity in DynamoDB, /curate/brf9046 renders fine because that
+// page asks ReCiter's REST identity endpoint instead of this mirror). DynamoDB flags the 974
+// genuinely-absent cwids and nothing else. Errors in the other direction were already zero,
+// so this change only ever un-blocks.
+//
+// No try/catch on purpose: an AWS failure propagates to the caller's existing 500 handler.
+// Failing OPEN would let the pubmed lane write orphan GoldStandard rows (POST
+// /reciter/goldstandard has no identity check of its own — this is the only backstop);
+// failing CLOSED would silently pill the entire queue with a claim that isn't true. A visible
+// 500 is the honest third option and costs no code.
+//
+// ponytail: point lookups per request, no cache — ~20 ms for a 25-row page and ~0.6 s for the
+// 5,000-row selectable page (17 batches), the same order as the getRejectedPmidsByCwid call
+// two lines below. Unprocessed keys throw rather than retry: throttling a key-only projection
+// is vanishingly rare, and a 500 beats silently reporting a present identity as absent.
+// Ceiling: PM is duplicating a check that belongs server-side. Upgrade path is to add the
+// Identity check to ReCiter's POST /reciter/goldstandard (ReCiterController.java validates
+// only that the body is non-null), after which this becomes advisory rather than load-bearing.
+// Deliberately NOT fixed here: personNames() below still reads the same lossy `person` mirror,
+// so a null-name row still falls back to top_name; and the `person` loader gap itself is a
+// ReCiterDB-side follow-up the app must not depend on being repaired.
+const identityDdb = new DynamoDBClient({ region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1" });
+
 async function reciterIdentitySet(cwids: Array<string | undefined | null>): Promise<Set<string>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return new Set();
-  // Require a name: ReCiter's own POST /reciter/identity/ makes alternateNames
-  // (firstName/lastName) mandatory, so a null-name `person` row can't be a currently-valid
-  // identity — it's stale sync debris (live case: lbm2001, dateAdded=dateUpdated=2019-08-16,
-  // every descriptive field NULL). Without this guard those ghost rows pass the identity
-  // check, the curator sees a working Accept button, and the real ReCiter add 404s — the
-  // exact dead-end this guard exists to prevent, just via a different mechanism than the
-  // "never was in ReCiter" case it already covers. 157/33,091 person rows (0.47%) are
-  // affected as of 2026-08-14, several dated 2026-05-04 (the documented Analysis-corruption
-  // incident date — plausibly related, not confirmed).
-  const found: any[] = await models.Person.findAll({
-    where: {
-      personIdentifier: { [Op.in]: wanted },
-      [Op.or]: [{ firstName: { [Op.ne]: null } }, { lastName: { [Op.ne]: null } }],
-    },
-    attributes: ["personIdentifier"], raw: true,
-  });
-  return new Set(found.map((p) => String(p.personIdentifier)));
+  const out = new Set<string>();
+  for (let i = 0; i < wanted.length; i += 100) { // 100 = BatchGetItem hard limit
+    const resp = await identityDdb.send(new BatchGetItemCommand({
+      RequestItems: {
+        Identity: {
+          Keys: wanted.slice(i, i + 100).map((uid) => ({ uid: { S: uid } })),
+          ProjectionExpression: "uid",
+        },
+      },
+    }));
+    if (resp.UnprocessedKeys?.Identity?.Keys?.length) throw new Error("Identity BatchGetItem throttled");
+    for (const it of resp.Responses?.Identity ?? []) if (it.uid?.S) out.add(it.uid.S);
+  }
+  return out;
 }
 
 // Display name per cwid from the same `person` mirror, "First Middle Last" — the shape the
 // AAR producer bakes into top_name/candidate_cwids_json, so a looked-up name reads the same
-// as a produced one. Same app-side IN() as reciterIdentitySet and for the same reason: the
-// person/authorship_review collations differ, so a direct join throws.
+// as a produced one.
+// ponytail: app-side IN() rather than a SQL JOIN — the collations differ either way round
+// (person.personIdentifier is utf8mb4_unicode_ci, authorship_review.top_cwid is
+// utf8mb4_general_ci; checked against information_schema 2026-08-29), which throws 1267 and
+// de-indexes a direct join. Note this mirror is lossy (see reciterIdentitySet above): a
+// null-name row yields no name here and the caller falls back to top_name.
 async function personNames(cwids: Array<string | undefined | null>): Promise<Record<string, string>> {
   const wanted = [...new Set(cwids.filter(Boolean).map(String))];
   if (wanted.length === 0) return {};
@@ -194,6 +230,68 @@ async function personNames(cwids: Array<string | undefined | null>): Promise<Rec
     if (name) out[String(p.personIdentifier)] = name;
   });
   return out;
+}
+
+// "Given Middle Surname · Department" for ONE curator-typed cwid. This string is the only
+// thing standing between the curator and an authoritative write into a stranger's publication
+// record, so it comes from two sources and the caller only ever falls back to a bare cwid when
+// BOTH are silent.
+//
+// The IDM roster table `identity` is asked first, because it is what the AAR producer builds
+// candidate_cwids_json from — so a looked-up name reads identically to a proposed one — and
+// because it is the only one of the two that carries a department.
+//
+// DynamoDB `identity.primaryName` is the fallback, and it is the one carrying the guarantee.
+// This function is reachable only from the off-candidate confirm, which fires only when
+// reciterIdentitySet() already found the cwid in DynamoDB Identity — so the item is known to
+// exist and only its name is in question.
+//
+// Measured 2026-08-29 over the reachable universe, which is the 26,551 DynamoDB uids that also
+// pass this endpoint's own /^[A-Za-z0-9]{1,32}$/ (that regex is what puts the usc_/ucsd_/
+// fredhutch_ external-validation cohorts out of typing range, so counting the full 35,052-row
+// table overstates this by nearly 4x): 2,140 of the 26,551 (8.1%) get NO name from the roster.
+// The AAR queue barely notices — 1 of the 6,374 cwids it names — but those 2,140 are residents,
+// fellows and non-faculty staff, i.e. precisely the people the typed-cwid box exists to reach,
+// and every one of them rendered as a bare cwid. DynamoDB names 2,140 of the 2,140, and
+// 26,551 of 26,551 overall: over the typable universe there is no nameless case left.
+// The `person` mirror was the other candidate and is strictly worse — it names 25,958 of the
+// 26,551 and rescues only 2,005 of the 2,140 — besides being the lossy source
+// reciterIdentitySet() was just moved off.
+//
+// No try/catch, same stance as reciterIdentitySet: a DynamoDB failure surfaces as the caller's
+// 500. Swallowing it would silently reproduce the nameless confirm this fallback exists to
+// remove, at the exact moment the curator is being asked to authorise a write.
+// ponytail: the fallback is a second point lookup rather than a name projection folded into
+// reciterIdentitySet, because that function is also called with up to 5,000 keys per page and
+// this branch wants one. Upgrade path if a name is ever needed in bulk: widen the projection
+// there and let this one go.
+// Same no-join lookup as personNames() above, and for the same reason: identity.cwid is
+// utf8mb4_unicode_ci against authorship_review.top_cwid's utf8mb4_general_ci (information_schema,
+// 2026-08-29), so a direct join throws 1267.
+async function identityLabel(cwid: string): Promise<string> {
+  const row: any = await models.Identity.findOne({
+    where: { cwid },
+    attributes: ["givenName", "middleName", "surname", "primaryAcademicDepartment"], raw: true,
+  });
+  const name = [row?.givenName, row?.middleName, row?.surname]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ") || await identityPrimaryName(cwid);
+  if (!name) return "";
+  const dept = String(row?.primaryAcademicDepartment || "").trim();
+  return dept ? `${name} · ${dept}` : name;
+}
+
+// "First Middle Last" from the DynamoDB Identity item itself. `identity` and `primaryName` are
+// aliased because DynamoDB reserves IDENTITY and NAME as expression keywords.
+async function identityPrimaryName(uid: string): Promise<string> {
+  const resp = await identityDdb.send(new GetItemCommand({
+    TableName: "Identity",
+    Key: { uid: { S: uid } },
+    ProjectionExpression: "#i.#p",
+    ExpressionAttributeNames: { "#i": "identity", "#p": "primaryName" },
+  }));
+  const pn = resp.Item?.identity?.M?.primaryName?.M;
+  return [pn?.firstName?.S, pn?.middleName?.S, pn?.lastName?.S]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
 }
 
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
@@ -557,6 +655,36 @@ function candidateCwidsFromRow(row: any): string[] {
   return Array.from(new Set([row.top_cwid, ...list].filter(Boolean).map(String)));
 }
 
+// The live half of homonymRejections(): which of this row's non-chosen candidates may be
+// recorded as rejecting `pmid`. Both facts are re-established here rather than trusted from the
+// row, because both move after the producer wrote it — people leave WCM (the identity goes
+// away) and people curate their own /curate page (an acceptance appears).
+//
+// Candidate cwids come out of the producer, not out of a keyboard, and all 11,389 of them are
+// lowercase (2026-08-29), so unlike the typed `chosen` above they need no canonicalisation —
+// and if one ever failed a byte-exact DynamoDB lookup it would simply be skipped, which is the
+// safe direction. `target` is already canonical, so `c !== target` compares like with like.
+// ponytail: two point lookups per assign of a multi-candidate row, no cache — a homonym row
+// has a median of 2 other candidates, so this is ~20 ms on the rarest action in the tab.
+async function homonymRejectionTargets(
+  row: any, target: string, pmid: number, checkAccepted = true,
+): Promise<string[]> {
+  const candidates = candidateCwidsFromRow(row);
+  const isScopus = row.source === "scopus";
+  const others = candidates.filter((c) => c !== target);
+  // nothing to look up for the ~90% of rows the gate excludes outright
+  if (isScopus || row.single_candidate || others.length === 0) return [];
+  const [identities, accepted] = await Promise.all([
+    reciterIdentitySet(others),
+    checkAccepted ? getKnownPmidsByCwid(others) : Promise.resolve({} as Record<string, Set<number>>),
+  ]);
+  return homonymRejections({
+    isScopus, singleCandidate: !!row.single_candidate, candidates, target,
+    hasIdentity: (c) => identities.has(c),
+    hasAccepted: (c) => !!accepted[c]?.has(pmid),
+  });
+}
+
 // POST /api/db/authorships/action — single-row curator action.
 // body: { id, action: "accept"|"reject"|"snooze"|"dismiss"|"assign"|"reopen", cwid?, force? }
 // cwid is required only for "assign"; force retries a scopus Accept past a 409 WARNING.
@@ -585,7 +713,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
         // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
         if (!(await reciterIdentitySet([cwid])).size) {
-          return res.status(422).send(`${row.top_name || cwid} has no ReCiter identity (likely departed/inactive) — this authorship can't be accepted; dismiss it instead`);
+          return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
         }
         if (isScopus) {
           const resp = await addExternalArticle(cwid, scopusExternalPayload(row), reviewer, force);
@@ -623,42 +751,77 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         const chosen = String(body.cwid || "");
         if (!chosen) return res.status(400).send("cwid is required for assign");
         if (!/^[A-Za-z0-9]{1,32}$/.test(chosen)) return res.status(400).send("cwid must be alphanumeric");
-        // Integrity boundary: the server verifies the chosen cwid is a real candidate for
-        // this authorship before any AUTHORITATIVE write (client can't spoof an identity).
-        // #925 relaxes it for the local-only path below, which writes nothing authoritative.
+        // Trust boundary: `chosen` is client-supplied and can drive an authoritative
+        // GoldStandard write, so the server establishes two facts about it — is it one of
+        // this authorship's produced candidates, and does ReCiter know it at all — and
+        // assignGate turns them into which path runs. Neither fact BLOCKS the assign any
+        // more (#925 opened the no-identity one, this change opens off-candidate); being on
+        // the wrong side of either one costs a confirm round-trip instead.
         const allowed = new Set(candidateCwidsFromRow(row));
-        const offCandidate = !allowed.has(chosen);
-        const hasIdentity = (await reciterIdentitySet([chosen])).size > 0;
-        // ABSENCE OF IDENTITY is what unlocks the local-only path below — not being
-        // off-candidate. Someone with a real identity who simply was not in the top 5 can
-        // still be written authoritatively, so they must keep hitting this 400 rather than
-        // being quietly downgraded to a row-local record their publication never leaves.
-        // (It also keeps the reopen guard sound: "no identity" then means exactly "was
-        // assigned local-only", which is what that branch infers.)
-        if (hasIdentity && offCandidate) {
-          return res.status(400).send("cwid is not a candidate for this authorship");
-        }
+        // Both facts are established about `target`, the identifier as ReCiter STORES it, not
+        // about the raw keystrokes — and so is every write below. DynamoDB keys are byte-exact
+        // and Set.has is case-sensitive, so before this a curator who typed "Aaa2014" for a row
+        // whose own top_cwid is "aaa2014" was told that person has no ReCiter identity, and
+        // confirming filed the authorship as a local-only record that never reaches their
+        // publication list. Asking for the typed form and its lowercase together costs one extra
+        // key in the same BatchGetItem, and nothing at all when the cwid is already lowercase
+        // (reciterIdentitySet dedupes). See canonicalCwid for why an exact hit beats the
+        // lowercased one rather than the other way round.
+        const found = await reciterIdentitySet([chosen, chosen.toLowerCase()]);
+        const target = canonicalCwid(chosen, found);
+        const offCandidate = !allowed.has(target);
+        const hasIdentity = found.has(target);
+        const gate = assignGate({
+          offCandidate, hasIdentity,
+          confirmNoIdentity: String(body.confirmNoIdentity) === "true",
+          confirmOffCandidate: String(body.confirmOffCandidate) === "true",
+        });
         // Not every WCM author has an identity record. Master's students, visiting
         // researchers, and any person type outside the identity feed never get one, and
         // since the AAR producer builds its candidate list FROM `identity`, such a person
         // can never be a produced candidate either — so for them the candidate check is
         // unsatisfiable by construction and is deliberately bypassed. Before #925 the only
         // offer was "dismiss it instead", which throws a real attribution away.
-        if (!hasIdentity) {
-          // Deliberate, not silent: an unrecognised cwid is still far more likely to be a
-          // typo than a Master's student, so the #861 guard keeps its purpose. The client
-          // re-sends with confirmNoIdentity after showing the curator what it means.
-          if (String(body.confirmNoIdentity) !== "true") {
-            return res.status(422).json({
-              code: "NO_RECITER_IDENTITY",
-              localOnly: true,
-              cwid: chosen,
-              offCandidate,
-              message: `${chosen} has no ReCiter identity. Assigning anyway records your decision on `
-                + "this row only — it will NOT be added to the person's publication record, because there "
-                + "is no identity to add it to. Confirm to proceed.",
-            });
-          }
+        //
+        // Deliberate, not silent: an unrecognised cwid is still far more likely to be a
+        // typo than a Master's student, so the #861 guard keeps its purpose. The client
+        // re-sends with confirmNoIdentity after showing the curator what it means.
+        if (gate === "confirm_no_identity") {
+          return res.status(422).json({
+            code: "NO_RECITER_IDENTITY",
+            localOnly: true,
+            cwid: target,
+            offCandidate,
+            message: `${target} has no ReCiter identity. Assigning anyway records your decision on `
+              + "this row only — it will NOT be added to the person's publication record, because there "
+              + "is no identity to add it to. Confirm to proceed.",
+          });
+        }
+        // A real person the producer simply didn't propose — the common case being a
+        // single-candidate row where the producer was confidently wrong and the curator knows
+        // who actually wrote it. This used to be a flat 400, which made the typed-cwid box a
+        // no-identity escape hatch rather than a general assign tool. It is still a trust
+        // boundary (a client-supplied cwid driving a GoldStandard write), so it becomes an
+        // explicit confirm rather than an absent check: the server looks the person up and
+        // hands back their NAME, so the curator confirms against a human being and not a
+        // string they might have typo'd.
+        // ponytail: confirm-on-submit, not a typeahead — the name has to cross the wire on
+        // this 422 anyway, so a search endpoint + debounce + dropdown would buy nothing the
+        // round-trip doesn't already provide. Upgrade path if curators start typing cwids
+        // they don't actually know: add GET /api/db/authorships/lookup?cwid= over the same
+        // identityLabel() and drive a datalist off it.
+        if (gate === "confirm_off_candidate") {
+          const who = await identityLabel(target);
+          return res.status(422).json({
+            code: "OFF_CANDIDATE",
+            cwid: target,
+            offCandidate: true,
+            message: `${who ? `${who} · ${target}` : `${target} (no name on file anywhere — check the identifier)`}`
+              + " was not one of the candidates proposed for this authorship. Confirming ADDS this article "
+              + "to that person's publication record — the same write an Accept makes. Check the identifier.",
+          });
+        }
+        if (gate === "local_only") {
           // Local record only. No writeGoldStandard, no addExternalArticle, no
           // appendFeedbackLog: every one of those targets an identity that does not exist,
           // and faking one would put a publication in a record nobody can see or correct.
@@ -666,33 +829,60 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // downstream. If the identity is created later (PM#104 / IC#148), this row is
           // the record of what was already decided.
           await models.AuthorshipReview.update({
-            status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date(),
-            note: `${row.note ? `${row.note} | ` : ""}assigned to ${chosen} `
+            status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date(),
+            note: `${row.note ? `${row.note} | ` : ""}assigned to ${target} `
               + `(no ReCiter identity) — local record only, nothing written to the publication record`,
           }, { where: { id } });
           break;
         }
+        // gate === "write": everything below is the authoritative assign, unchanged. An
+        // off-candidate assign that got confirmed lands here and is byte-for-byte an
+        // on-candidate one — same rejectedpmids guard, same gold-standard write, same
+        // feedback log — which is also what keeps `reopen` sound: it has an identity, so
+        // reopen's "no identity == it was local-only" inference still holds and the
+        // gold-standard DELETE it does is exactly the write this made.
         if (isScopus) {
-          const resp = await addExternalArticle(chosen, scopusExternalPayload(row), reviewer, force);
+          const resp = await addExternalArticle(target, scopusExternalPayload(row), reviewer, force);
           if (resp.statusCode === 409) {
             const dup = dupConflict(resp.statusText);
             if (!dup.blocked) return res.status(409).json({ message: dup.message, matches: dup.matches });
           } else if (resp.statusCode !== 201 && resp.statusCode !== 200) {
             return res.status(502).send(`ExternalArticle add failed (${resp.statusCode})`);
           }
-          await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
+          await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
           break;
         }
         // Data-integrity guard: never let an assign add pmid to knownpmids while it's still
         // sitting in rejectedpmids for the same identity (see goldStandardRejections.ts).
-        if ((await getRejectedPmidsByCwid([chosen]))[chosen]?.has(pmid as number)) {
-          return res.status(409).send(`${chosen} already rejected this article — cannot assign without reviewing that rejection first`);
+        if ((await getRejectedPmidsByCwid([target]))[target]?.has(pmid as number)) {
+          return res.status(409).send(`${target} already rejected this article — cannot assign without reviewing that rejection first`);
         }
-        const gs = await writeGoldStandard(chosen, pmid as number, "known", "UPDATE", curator.userID);
+        const gs = await writeGoldStandard(target, pmid as number, "known", "UPDATE", curator.userID);
         if (gs !== 200) return res.status(502).send(`Gold-standard write failed (${gs})`);
-        await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: chosen, reviewer, resolved_at: new Date() }, { where: { id } });
-        try { await appendFeedbackLog(curator.userID, chosen, pmid as number, "ACCEPTED"); }
+        // ...and the other homonyms. Same write "None of these" makes for each of them, so
+        // /curate, the feedback log and the model all see an ordinary curator "not mine"
+        // rather than a new kind of record. See homonymRejections() for what it excludes.
+        //
+        // Ordering is load-bearing. The positive write goes first because it is the curator's
+        // actual intent: if IT fails, nobody has been rejected for a paper that was never
+        // assigned to anyone. A rejection failing after it 502s and leaves the row open —
+        // `case "reject"`'s shape — which is safe here because every write in this block is an
+        // idempotent MERGE: the curator clicks Assign again, the ones that landed re-land as
+        // no-ops, and only the one that failed actually writes. The alternative (resolve the
+        // row and log the rejection failure) would bury a half-written decision where nothing
+        // in the queue can find it again.
+        const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+        for (const other of alsoRejected) {
+          const rs = await writeGoldStandard(other, pmid as number, "rejected", "UPDATE", curator.userID);
+          if (rs !== 200) return res.status(502).send(`Homonym rejection write failed for ${other} (${rs})`);
+        }
+        await models.AuthorshipReview.update({ status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date() }, { where: { id } });
+        try { await appendFeedbackLog(curator.userID, target, pmid as number, "ACCEPTED"); }
         catch (e) { console.log("[authorships] feedbacklog (assign) non-fatal:", e); }
+        for (const other of alsoRejected) {
+          try { await appendFeedbackLog(curator.userID, other, pmid as number, "REJECTED"); }
+          catch (e) { console.log("[authorships] feedbacklog (homonym reject) non-fatal:", e); }
+        }
         break;
       }
       case "reject": {
@@ -736,15 +926,43 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-          // A #925 local-only assign wrote no gold standard, so there is nothing to delete
-          // — and asking ReCiter to DELETE for a uid it has no Identity row for 404s, which
-          // would strand the row as un-reopenable. No identity == it was local-only, since
-          // that is the only branch that resolves a row without an authoritative write.
+          // A #925 local-only assign wrote no gold standard, so there is nothing to delete.
+          // (An earlier comment here claimed the DELETE would 404 for a uid ReCiter has no
+          // Identity row for. It does not — POST /reciter/goldstandard checks only uid != null
+          // and returns 200. The real reason to skip is simply that nothing was ever written,
+          // so the DELETE is a pointless no-op against a row that may not exist.)
+          // No identity == it was local-only, since that is the only branch that resolves a
+          // row without an authoritative write.
+          // ponytail: this INFERS "local-only" from a live identity check rather than reading a
+          // marker, so it silently flips to a destructive GoldStandard DELETE for any
+          // local-only row whose identity later appears (IC#148 backfills ~1,595). Exposure
+          // today is zero rows (status='assigned' AND note LIKE '%no ReCiter identity%' → 0,
+          // PM#935 only just shipped), and swapping the oracle does not change that, so it is
+          // left alone. Upgrade path: key off the note/marker the local-only branch writes.
           if (!(await reciterIdentitySet([reverseCwid])).size) {
             console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo`);
           } else {
             const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
             if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
+            // ...and the homonym rejections that assign wrote alongside it. Without this there
+            // is no undo path for them at all: reopen would clear the row and leave N-1 people
+            // permanently rejected on a decision the curator just took back. Recomputed through
+            // the same homonymRejections() the write used, so the two sets cannot drift; see
+            // that function for why checkAccepted is false here. Covers "accepted" as well as
+            // "assigned": assign is the only ACTION that writes these, but the backfill script
+            // writes them onto already-resolved rows and defaults to assigned,accepted — 30 of
+            // its 170 planned writes land on accepted rows, and scoping this to "assigned"
+            // alone would make exactly those permanent with no undo path. Safe for rows that
+            // never had any: a genuine single-candidate accept returns [] from the
+            // single_candidate guard, and a legacy un-backfilled multi accept issues DELETEs
+            // ReCiter treats as 200 no-ops (DynamoDbGoldStandardService removes a pmid only
+            // `if(rejectedPmids.contains(...))`, so a miss is not an error).
+            if (row.status === "assigned" || row.status === "accepted") {
+              for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
+                const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
+                if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);
+              }
+            }
           }
         } else if (row.status === "rejected") {
           const targets = row.single_candidate ? (reverseCwid ? [reverseCwid] : []) : candidateCwidsFromRow(row);
