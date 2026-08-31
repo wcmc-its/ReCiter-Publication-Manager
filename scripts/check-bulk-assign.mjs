@@ -8,18 +8,21 @@
  * be asserted directly, same reason as scripts/check-assign-gate.mjs and
  * scripts/check-homonym-rejections.mjs.
  *
- * Four sections:
+ * Five sections:
  *   1. eligibility — which OPEN rows are checkbox-selectable, and which of those are also in
  *                    the (unchanged) single-candidate bulk ACCEPT set
  *   2. candidates  — union-of-candidates + match-count computation for the picker
  *   3. partition   — which selected rows a chosen cwid actually reaches
  *   4. buckets     — doBulkAccept-style failure bucketing for the assign submit loop
+ *   5. authorKey   — the normalized "same person, different byline spelling" key behind
+ *                    "Show N others like this" (T5) — variant equivalence/non-equivalence
  */
 
 import assert from "node:assert/strict";
 import {
   isAcceptEligible, isMultiAssignEligible, isBulkSelectable,
   unionCandidates, partitionForAssign, bucketAssignFailures,
+  authorKey,
 } from "../src/lib/bulkAssign.ts";
 
 let n = 0;
@@ -115,5 +118,32 @@ check("a 422 with neither known code falls to other (not silently miscounted as 
   { offCandidate: 0, noIdentity: 0, conflict409: 0, other: 1 });
 check("a network-level rejection with no status at all still counts, as other",
   bucketAssignFailures([{}]), { offCandidate: 0, noIdentity: 0, conflict409: 0, other: 1 });
+
+// ---------------------------------------------------------------------------------------
+console.log("\nauthorKey — the driving T5 case: middle-initial byline variants:");
+
+check("\"Bernard Park\" and \"Bernard J. Park\" key equal (the driving case)",
+  authorKey("Bernard Park") === authorKey("Bernard J. Park"), true);
+check("...and a different middle initial still keys the same",
+  authorKey("Bernard J. Park") === authorKey("Bernard Q Park"), true);
+check("a different first name does NOT key equal — \"Bernarda Park\" != \"Bernard Park\"",
+  authorKey("Bernarda Park") === authorKey("Bernard Park"), false);
+check("a different last name does NOT key equal",
+  authorKey("Bernard Parker") === authorKey("Bernard Park"), false);
+check("case-insensitive", authorKey("BERNARD PARK") === authorKey("bernard park"), true);
+check("a single-token name keys on itself twice (no delimiter to split on)",
+  authorKey("Park"), "park|park");
+check("empty/undefined input keys to the empty string (never queried)",
+  authorKey(""), "");
+check("...same for undefined", authorKey(undefined), "");
+check("extra internal whitespace doesn't change the first/last token",
+  authorKey("Bernard   J.   Park") === authorKey("Bernard Park"), true);
+check("leading/trailing whitespace is trimmed before tokenizing",
+  authorKey("  Bernard Park  ") === authorKey("Bernard Park"), true);
+// ponytail-documented ceiling: compound surnames key on the LAST token only, so two distinct
+// "…berg" people with the same first name collide. This asserts that's the real, known
+// behavior (not an accidental regression) rather than claiming it's handled.
+check("known ceiling: a compound surname collides with any other same-first-name '…berg'",
+  authorKey("Anna van der Berg") === authorKey("Anna Berg"), true);
 
 console.log(`\n${n}/${n} passed\n`);

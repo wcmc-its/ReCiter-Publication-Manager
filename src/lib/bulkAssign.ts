@@ -5,7 +5,7 @@
 // branch here feeds a selection that ends in a real GoldStandard write, so the table needs to
 // be directly assertable (scripts/check-bulk-assign.mjs) rather than only exercised by hand.
 //
-// Three pieces:
+// Four pieces:
 //   1. eligibility — which OPEN rows are checkbox-selectable at all, and which of those are
 //                    further restricted to the existing single-candidate bulk ACCEPT
 //   2. candidates  — the union of proposed candidates across a selection, for the
@@ -15,6 +15,34 @@
 //                    candidate (submitted) and which don't (skipped, never sent to the
 //                    server), plus a doBulkAccept-style failure bucketing for the ones that
 //                    were submitted and came back rejected
+//   4. authorKey   — the normalized "same person, different byline spelling" key behind
+//                    "Show N others like this" (T5)
+
+// T5: normalized author key — "same person, different byline spelling" — for "Show N others
+// like this". A curator sees "Bernard Park" on one row and "Bernard J. Park" on another; the
+// free-text search box's LIKE '%Bernard Park%' misses the second one outright (the substring
+// isn't there), so the button needs its own equality key instead: lowercase FIRST whitespace
+// token + '|' + lowercase LAST whitespace token, which both bylines share regardless of what
+// sits in the middle. The SQL side (controllers/db/authorships.controller.ts buildWhere,
+// body.likeAuthor) computes the exact same two tokens with
+// LOWER(SUBSTRING_INDEX(wcm_author,' ',1)) / LOWER(SUBSTRING_INDEX(wcm_author,' ',-1)) — this
+// function is the client/test copy of that same rule, not a second definition of it.
+// ponytail: first/last WHITESPACE TOKEN, not real name parsing. A single-token name keys on
+// itself twice ("Park" -> "park|park"), which matches SUBSTRING_INDEX's own behavior when
+// there's no delimiter to split on. The ceiling this leaves is compound surnames — "van der
+// Berg" keys on "berg" alone (its last token), so it silently merges with any other "…berg" on
+// the same first name. That's a real false-positive class, not a hidden bug: acceptable at
+// today's ~16k-row table with no index and no name library, because the alternative (a real
+// tokenizer/name-parts library) is a much bigger lift for a "propose more candidates to look
+// at" button, not a write path — every row it surfaces still goes through its own per-row
+// assign/accept gate before anything is written.
+export function authorKey(wcmAuthor?: string): string {
+  const tokens = (wcmAuthor || "").trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return "";
+  const first = tokens[0].toLowerCase();
+  const last = tokens[tokens.length - 1].toLowerCase();
+  return `${first}|${last}`;
+}
 
 // Row shape both eligibility checks need — kept minimal/structural (not the full
 // AuthorshipRow) so this file has no dependency on the component module.

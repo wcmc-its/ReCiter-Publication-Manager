@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Op, fn, col } from "sequelize";
+// `where` aliased sqlWhere — authorshipSummary already has a local `const where = buildWhere(...)`,
+// and colliding with that is worse than one extra character at every call site below.
+import { Op, fn, col, where as sqlWhere } from "sequelize";
 import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
@@ -7,6 +9,7 @@ import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
 import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
+import { authorKey } from "../../src/lib/bulkAssign";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
@@ -71,6 +74,20 @@ function openStatusWhere(body: any): any {
       { status: "snoozed", snooze_until: null as any },
     ],
   };
+}
+
+// T5: the same "is this row in the open queue" test openStatusWhere({statusView:"open"})
+// compiles to SQL, but evaluated in JS against ONE already-fetched row rather than run as a
+// WHERE clause — like_count's grouped COUNT (below) always scopes to the open queue regardless
+// of which statusView the caller is browsing, so this answers "was the CURRENT row itself part
+// of that count" (and so needs subtracting) independent of that. Kept in exact lockstep with
+// openStatusWhere's own open-queue branch by construction, not by convention: same three
+// conditions (no accept_conflict, status=open, or a lapsed/unset snooze).
+function isRowOpenForLike(r: any): boolean {
+  if (r.accept_conflict) return false;
+  if (r.status === "open") return true;
+  if (r.status === "snoozed") return !r.snooze_until || r.snooze_until <= todayStr();
+  return false;
 }
 
 const ABSENT_CWID_TTL_MS = 5 * 60 * 1000;
@@ -151,6 +168,22 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
       { top_cwid: null },
       { top_cwid: { [Op.notIn]: [...absentCwids] } },
     ] });
+  }
+  // T5: "Show N others like this" — the structured, variant-tolerant complement to the
+  // free-text search box just below. likeAuthor is the raw wcm_author of an anchor row (set by
+  // the client, never typed); authorKey() (src/lib/bulkAssign.ts) reduces it to lowercase
+  // first-token|last-token, and the two equality conditions below are that same rule expressed
+  // in SQL — LOWER(SUBSTRING_INDEX(wcm_author,' ',1)) / LOWER(SUBSTRING_INDEX(wcm_author,' ',-1))
+  // — so "Bernard Park" and "Bernard J. Park" match on first+last token even though neither
+  // string contains the other, which is exactly what the free-text LIKE below cannot do. Two
+  // plain equality predicates, not a computed/generated column, are fine at this table's ~16k
+  // rows with no index (see authorKey's own comment for the compound-surname ceiling this
+  // shares).
+  const likeKey = authorKey(body.likeAuthor);
+  if (likeKey) {
+    const [likeFirst, likeLast] = likeKey.split("|");
+    and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), likeFirst));
+    and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), likeLast));
   }
   // free-text search across author name, proposed identity, pmid, doi, and Scopus id
   const search = (body.searchTextInput || "").trim();
@@ -403,6 +436,36 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     }
     const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
 
+    // T5: "Show N others like this" sibling count — one grouped COUNT over the OPEN queue
+    // (always "open", not the caller's active statusView — the point of the button is to
+    // surface open work to act on, whether the row you clicked it from is itself open, snoozed,
+    // or dismissed), restricted to the normalized author keys THIS PAGE needs. Same shape as
+    // the pmid_sibling_count grouped COUNTs just above, generalized from an exact pmid/
+    // external_id match to authorKey()'s first-token/last-token equality (see buildWhere's
+    // likeAuthor block and authorKey's own comment for why and its ceiling).
+    const likeOpenWhere = openStatusWhere({ statusView: "open" });
+    const pageAuthorKeys = [...new Set(rows.map((r: any) => authorKey(r.wcm_author)).filter(Boolean))];
+    let likeCountMap: Record<string, number> = {};
+    if (pageAuthorKeys.length) {
+      const keyOr = pageAuthorKeys.map((k) => {
+        const [first, last] = k.split("|");
+        return { [Op.and]: [
+          sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), first),
+          sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), last),
+        ] };
+      });
+      const likeSib: any[] = await models.AuthorshipReview.findAll({
+        attributes: [
+          [fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), "first_tok"],
+          [fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), "last_tok"],
+          [fn("COUNT", col("id")), "n"],
+        ],
+        where: { [Op.and]: [likeOpenWhere, { [Op.or]: keyOr }] },
+        group: ["first_tok", "last_tok"], raw: true,
+      });
+      likeCountMap = Object.fromEntries(likeSib.map((s) => [`${s.first_tok}|${s.last_tok}`, Number(s.n)]));
+    }
+
     // Cross-check pubmed rows' candidates + top_cwid against GoldStandard.rejectedpmids: a
     // candidate who already rejected this EXACT pmid via their own /curate page must never be
     // silently recommended as the lead candidate or accepted through the single-candidate
@@ -436,11 +499,18 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
           json.top_already_rejected = true;
         }
       }
+      // T5: how many OTHER open rows share this row's normalized author key — subtract 1 only
+      // when THIS row is itself part of the open-queue group the count above drew from (a
+      // dismissed/snoozed-not-yet-lapsed row was never counted in the first place, so nothing
+      // to subtract for it).
+      const key = authorKey(r.wcm_author);
+      const like_count = key ? Math.max(0, (likeCountMap[key] || 0) - (isRowOpenForLike(r) ? 1 : 0)) : 0;
       return {
         ...json,
         pmid_sibling_count: map[siblingKey(r)] || 1,
         // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
         identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
+        like_count,
       };
     });
 

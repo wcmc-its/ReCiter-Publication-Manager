@@ -58,6 +58,10 @@ interface AuthorshipRow {
   // true → top_cwid already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
   top_already_rejected?: boolean;
+  // T5: how many OTHER open rows share this row's normalized author key (authorKey() in
+  // src/lib/bulkAssign.ts — first+last whitespace token, tolerant of middle-initial variants
+  // like "Bernard Park" vs "Bernard J. Park"). Drives "Show N others like this" — hidden at 0.
+  like_count?: number;
   // Informational heads-up only (both source lanes) — producer already found a matching
   // ExternalArticle by DOI. Does not gate Accept/Assign; the live 409 at click time is the
   // actual safety net.
@@ -507,6 +511,13 @@ const AuthorshipsTabs = () => {
   // "absent" cwid set instead of resolving identity for the whole matching set on every list
   // load — by the time it reaches buildWhere this is also a plain SQL predicate.
   const [hideNoIdentity, setHideNoIdentity] = useState(false);
+  // T5: "Show N others like this" — a structured filter (the anchor row's raw wcm_author),
+  // independent of the free-text search box above. The server (buildWhere's likeAuthor block)
+  // turns this into the normalized-key equality match authorKey() defines, not a LIKE
+  // substring, so a middle-initial variant like "Bernard J. Park" is found starting from
+  // "Bernard Park" and vice versa — the case the free-text box's LIKE cannot cover. Cleared by
+  // the dismissible "Like: …" chip near the filter row.
+  const [likeAuthor, setLikeAuthor] = useState("");
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -579,7 +590,8 @@ const AuthorshipsTabs = () => {
     statusView,
     hideNoSuggestion,
     hideNoIdentity,
-  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity]);
+    likeAuthor,
+  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -649,14 +661,15 @@ const AuthorshipsTabs = () => {
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, hideNoIdentity }),
+      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, hideNoIdentity, likeAuthor }),
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search, dateFrom, dateTo, statusView, hideNoIdentity]);
+  }, [search, dateFrom, dateTo, statusView, hideNoIdentity, likeAuthor]);
   // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
   // current status/search/date scope — no need to refetch it on source-segment changes. hideNoSuggestion
-  // isn't threaded through here (pre-existing, unrelated to this filter); hideNoIdentity is, so its
-  // header totals stay consistent with the filtered list/pagination the moment the checkbox is toggled.
+  // isn't threaded through here (pre-existing, unrelated to this filter); hideNoIdentity and (T5)
+  // likeAuthor are, so header totals stay consistent with the filtered list/pagination the moment
+  // either one is toggled/set.
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.
@@ -723,7 +736,7 @@ const AuthorshipsTabs = () => {
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity]);
+    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
 
@@ -1041,16 +1054,16 @@ const AuthorshipsTabs = () => {
     setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
   }, []);
 
-  // T4: "Find others like this" — narrows the existing free-text filter to this row's own
-  // wcm_author, the same box "Filter by name, CWID, or PMID" already drives, so every open row
-  // for the same person (each maybe proposing a different mix of homonym candidates) lands on
-  // one page ready to select and bulk-assign together. No new query machinery: this sets the
-  // same `search`/`searchInput` state a manual search does. Page reset to 0 is already handled
-  // by the pendingPageReset effect above, which watches filterBody (search is part of it).
+  // T5: "Show N others like this" — sets the STRUCTURED likeAuthor filter (variant-tolerant
+  // normalized-key match server-side, see buildWhere's likeAuthor block), not the free-text
+  // search box: T4's version pasted wcm_author into the text box, whose LIKE substring match
+  // misses a middle-initial variant like "Bernard J. Park" starting from "Bernard Park" — the
+  // driving case for this rework. The text box (`search`/`searchInput`) is left untouched, so
+  // it keeps working as its own independent filter. Page reset to 0 is already handled by the
+  // pendingPageReset effect above, which watches filterBody (likeAuthor is now part of it).
   const findOthersLikeThis = useCallback((wcmAuthor?: string) => {
     if (!wcmAuthor) return;
-    setSearchInput(wcmAuthor);
-    setSearch(wcmAuthor);
+    setLikeAuthor(wcmAuthor);
   }, []);
 
   // T4: single-candidate rows keep the pre-existing accept-eligible gate (no-ReCiter-identity,
@@ -1348,6 +1361,19 @@ const AuthorshipsTabs = () => {
               placeholder="Filter by name, CWID, or PMID"
               style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #dde3ea", width: 220, fontSize: 13 }} />
           </form>
+          {/* T5: dismissible chip for the structured "Show N others like this" filter — separate
+              state from the free-text box above (independent, per MUST DO #3), so clearing it
+              here never touches whatever's typed in "Filter by name, CWID, or PMID". */}
+          {likeAuthor && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 16, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
+              Like: {likeAuthor}
+              <button type="button" onClick={() => setLikeAuthor("")} aria-label="Clear the like-author filter"
+                title="Clear this filter"
+                style={{ border: "none", background: "none", cursor: "pointer", color: "#1d4ed8", fontWeight: 700, fontSize: 14, lineHeight: 1, padding: "0 2px" }}>
+                ×
+              </button>
+            </span>
+          )}
         </div>
       </div>
 
@@ -1414,7 +1440,7 @@ const AuthorshipsTabs = () => {
                   <IconCheck /> Accept selected{selectedAcceptRows.length < selectedRows.length ? ` (${selectedAcceptRows.length})` : ""}
                 </button>
               )}
-              {/* T4: "Find others like this" (per-row) narrows the queue to one author's open
+              {/* T5: "Show N others like this" (per-row) narrows the queue to one author's open
                   rows; this is the other half — assign one cwid to every row now selected. */}
               <button style={{ ...btn("soft"), padding: "4px 10px" }} disabled={!!bulkProgress}
                 onClick={(e) => openAssignPicker(e.currentTarget)}>
@@ -1558,9 +1584,9 @@ const AuthorshipsTabs = () => {
           disclosure is the ONLY other item, and its label gives no hint an assign control
           lives behind it — a two-item menu (Snooze/Dismiss) reads as "this is all there is",
           which is exactly how the feature got reported as unshipped after #936 put it live.
-          "Find others like this" (T4) is offered for every row, not just multi-candidate ones
-          — a curator working a single-candidate row may still want to gather every OTHER open
-          row for the same byline name onto one page. */}
+          "Show N others like this" (T5) mirrors the card's own ghost button — offered for every
+          row that has a server-computed like_count > 0, not just multi-candidate ones, and
+          hidden entirely (proactive) once there's nobody else to gather. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {menu && !menu.row.single_candidate && (
           <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
@@ -1576,9 +1602,9 @@ const AuthorshipsTabs = () => {
             Assign to someone else…
           </MenuItem>
         )}
-        {menu && (
+        {menu && (menu.row.like_count ?? 0) > 0 && (
           <MenuItem onClick={() => { findOthersLikeThis(menu.row.wcm_author); setMenu(null); }}>
-            Find others like this
+            Show {menu.row.like_count} other{menu.row.like_count === 1 ? "" : "s"} like this
           </MenuItem>
         )}
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
@@ -1761,6 +1787,9 @@ const AuthorshipCard = ({
   // T4: same predicate toggleSelect gates on — multi-candidate rows are now checkbox-
   // selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/isMultiAssignEligible).
   const selectable = isBulkSelectable(r, statusView);
+  // T5: server-computed sibling count for "Show N others like this" (see like_count on
+  // AuthorshipRow) — 0/undefined both mean "nobody else, hide the button".
+  const likeCount = r.like_count ?? 0;
 
   const cardStyle: CSSProperties = {
     background: isSelected ? "#eff6ff" : "#fff",
@@ -1803,17 +1832,7 @@ const AuthorshipCard = ({
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
             <span style={{ color: "#94a3b8" }}>→</span>
             {isMulti ? (
-              <>
-                <span style={{ color: "#94a3b8" }}>choose among {r.n_candidates} WCM homonyms</span>
-                {/* T4 — the Vickers case: gather every other open row for this same byline
-                    name onto one page before picking a candidate, so the group can be
-                    selected and assigned together instead of one Pick-one at a time. */}
-                <Tip title={`Filter the queue to every open row for "${r.wcm_author}"`} placement="top" arrow>
-                  <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onFindOthers(); }}>
-                    Find others like this
-                  </button>
-                </Tip>
-              </>
+              <span style={{ color: "#94a3b8" }}>choose among {r.n_candidates} WCM homonyms</span>
             ) : noSuggestion ? (
               <span style={{ fontStyle: "italic", color: "#94a3b8" }}>No suggested identity — assign one below</span>
             ) : (
@@ -1827,6 +1846,18 @@ const AuthorshipCard = ({
                 )}
                 <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
               </>
+            )}
+            {/* T5: "Show N others like this" — proactive (only rendered once the server-side
+                like_count says there IS someone) and variant-tolerant (the normalized-key match
+                behind like_count catches "Bernard J. Park" starting from "Bernard Park", which
+                T4's free-text-box version could not). Every open card, not just multi-candidate
+                ones — a curator working a single-candidate row may still want the group. */}
+            {statusView === "open" && likeCount > 0 && (
+              <Tip title={`Filter the queue to ${likeCount} other open row${likeCount === 1 ? "" : "s"} for "${r.wcm_author}" (matches middle-initial and similar byline variants)`} placement="top" arrow>
+                <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onFindOthers(); }}>
+                  Show {likeCount} other{likeCount === 1 ? "" : "s"} like this
+                </button>
+              </Tip>
             )}
           </div>
 
