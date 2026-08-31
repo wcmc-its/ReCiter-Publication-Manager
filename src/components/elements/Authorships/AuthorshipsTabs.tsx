@@ -828,7 +828,7 @@ const AuthorshipsTabs = () => {
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: `Accepted ${ok.length}` });
         // success: silently refill the queue to the next batch ("accept 20 → next 20").
-        // failure: full refresh (with loading) to restore the optimistically-removed rows,
+        // failure: refresh to restore the optimistically-removed rows (silently -- see below),
         // with the failures broken down by cause so the same rows don't fail opaquely forever.
         if (failures.length) {
           const dups = failures.filter((f) => (f.reason as any)?.status === 409).length;
