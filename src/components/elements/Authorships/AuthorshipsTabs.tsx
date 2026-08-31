@@ -483,11 +483,15 @@ const AuthorshipsTabs = () => {
   // identity" pill below) — a real filter sent to the server (buildWhere) rather than sliced
   // client-side, so it stays consistent with the total count and "Select all N matching"
   // (authorshipSelectable shares the same buildWhere). Deliberately does NOT also hide "No
-  // ReCiter identity" rows (identity_in_reciter===false): that flag is resolved per-page
-  // against DynamoDB after this query already ran, not a stored column, so filtering it before
-  // LIMIT/OFFSET would mean checking DynamoDB identity for the WHOLE matching set on every
-  // list load rather than just the current page — a materially bigger change than this one.
+  // ReCiter identity" rows (identity_in_reciter===false) — that's hideNoIdentity below.
   const [hideNoSuggestion, setHideNoSuggestion] = useState(false);
+  // hide rows proposing a person with no ReCiter identity (identity_in_reciter===false — a
+  // person IS proposed, just not yet in ReCiter). Complements hideNoSuggestion above. The
+  // per-page identity_in_reciter flag is resolved fresh against DynamoDB after LIMIT/OFFSET
+  // and can't drive a WHERE clause directly, so the server keeps a short-TTL cache of the
+  // "absent" cwid set instead of resolving identity for the whole matching set on every list
+  // load — by the time it reaches buildWhere this is also a plain SQL predicate.
+  const [hideNoIdentity, setHideNoIdentity] = useState(false);
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -550,7 +554,8 @@ const AuthorshipsTabs = () => {
     sort,
     statusView,
     hideNoSuggestion,
-  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion]);
+    hideNoIdentity,
+  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -620,12 +625,14 @@ const AuthorshipsTabs = () => {
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView }),
+      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, hideNoIdentity }),
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search, dateFrom, dateTo, statusView]);
+  }, [search, dateFrom, dateTo, statusView, hideNoIdentity]);
   // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
-  // current status/search/date scope — no need to refetch it on source-segment changes.
+  // current status/search/date scope — no need to refetch it on source-segment changes. hideNoSuggestion
+  // isn't threaded through here (pre-existing, unrelated to this filter); hideNoIdentity is, so its
+  // header totals stay consistent with the filtered list/pagination the moment the checkbox is toggled.
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.
@@ -692,7 +699,7 @@ const AuthorshipsTabs = () => {
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion]);
+    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
 
@@ -1163,11 +1170,18 @@ const AuthorshipsTabs = () => {
           style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `Type: ${selectedTypes.length}`} <IconChevD size={13} />
         </button>
-        <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows, where a person IS proposed but isn't in ReCiter yet."} placement="top" arrow>
+        <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows below, where a person IS proposed but isn't in ReCiter yet — see that checkbox."} placement="top" arrow>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
             <Checkbox size="small" checked={hideNoSuggestion}
               onChange={(e) => setHideNoSuggestion(e.target.checked)} style={{ padding: 0 }} />
             Hide “No suggested identity”
+          </label>
+        </Tip>
+        <Tip title={"Hides rows proposing a person who has no ReCiter identity yet (the “No ReCiter identity” pill) — there is a proposal, just nothing in ReCiter to accept it into. Totals above reflect this filter when it's on."} placement="top" arrow>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
+            <Checkbox size="small" checked={hideNoIdentity}
+              onChange={(e) => setHideNoIdentity(e.target.checked)} style={{ padding: 0 }} />
+            Hide “No ReCiter identity”
           </label>
         </Tip>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

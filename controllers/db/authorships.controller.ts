@@ -73,7 +73,34 @@ function openStatusWhere(body: any): any {
   };
 }
 
-function buildWhere(body: any): any {
+const ABSENT_CWID_TTL_MS = 5 * 60 * 1000;
+let absentCwidCache: { set: Set<string>; expires: number } | null = null;
+
+// Which proposed-identity cwids across the OPEN queue have no ReCiter identity at all — the
+// set hideNoIdentity hides. A given cwid can be top_cwid on hundreds of open rows, so resolving
+// this once per cache refresh (not once per row, and never for the whole matching set on every
+// list load — that cost is exactly why this filter didn't exist before) is what makes it cheap:
+// a few thousand distinct cwids batched 100/call through reciterIdentitySet(), the same shape
+// as every other Identity lookup in this file.
+// ponytail: plain Map+timestamp TTL, no cache lib — one key, one process. Tradeoff: a cwid that
+// GAINS an identity (e.g. an IC#148 backfill) can stay hidden for up to ABSENT_CWID_TTL_MS after
+// the fact, and one that loses an identity takes just as long to start being hidden. Both
+// directions self-heal on the next refresh with no action required.
+async function absentCwidSet(): Promise<Set<string>> {
+  if (absentCwidCache && absentCwidCache.expires > Date.now()) return absentCwidCache.set;
+  const rows: any[] = await models.AuthorshipReview.findAll({
+    attributes: [[fn("DISTINCT", col("top_cwid")), "top_cwid"]],
+    where: { [Op.and]: [openStatusWhere({}), { top_cwid: { [Op.ne]: null } }] },
+    raw: true,
+  });
+  const distinct = rows.map((r) => String(r.top_cwid)).filter(Boolean);
+  const known = await reciterIdentitySet(distinct);
+  const absent = new Set(distinct.filter((c) => !known.has(c)));
+  absentCwidCache = { set: absent, expires: Date.now() + ABSENT_CWID_TTL_MS };
+  return absent;
+}
+
+function buildWhere(body: any, absentCwids?: Set<string>): any {
   const and: any[] = [];
 
   const status = openStatusWhere(body);
@@ -113,6 +140,17 @@ function buildWhere(body: any): any {
   // shares buildWhere) can never disagree with what this hides.
   if (body.hideNoSuggestion) {
     and.push({ top_cwid: { [Op.ne]: null } });
+  }
+  // hide rows proposing a person with no ReCiter identity at all — the complement of
+  // hideNoSuggestion above (that one hides no-proposal rows; this hides has-a-proposal
+  // rows the identity check would reject). absentCwids is the TTL-cached snapshot from
+  // absentCwidSet(), not a live per-row DynamoDB check — same identity_in_reciter tradeoff
+  // as the rest of this file, just resolved once per cache window instead of once per page.
+  if (body.hideNoIdentity && absentCwids && absentCwids.size > 0) {
+    and.push({ [Op.or]: [
+      { top_cwid: null },
+      { top_cwid: { [Op.notIn]: [...absentCwids] } },
+    ] });
   }
   // free-text search across author name, proposed identity, pmid, doi, and Scopus id
   const search = (body.searchTextInput || "").trim();
@@ -326,10 +364,13 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     const limit = Number(body.limit) || 25;
     const offset = Number(body.offset) || 0;
     const order = SORTS[body.sort] || SORTS.precision;
+    // buildWhere is sync, so the absent-cwid set (needed only when the filter is on) is
+    // resolved up front and threaded in, rather than looked up inside buildWhere itself.
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
 
     const { count, rows } = await models.AuthorshipReview.findAndCountAll({
       attributes: LIST_ATTRIBUTES,
-      where: buildWhere(body),
+      where: buildWhere(body, absentCwids),
       order,
       offset,
       limit,
@@ -428,9 +469,10 @@ const SELECTABLE_CAP = 5000;
 export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const body = { ...(req.body || {}), statusView: "open" };
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
     const rows = await models.AuthorshipReview.findAll({
       attributes: ["id", "source", "pmid", "wcm_author", "top_name", "top_cwid", "single_candidate", "candidate_cwids_json"],
-      where: { [Op.and]: [buildWhere(body), { single_candidate: true }] },
+      where: { [Op.and]: [buildWhere(body, absentCwids), { single_candidate: true }] },
       order: SORTS[body.sort] || SORTS.precision,
       limit: SELECTABLE_CAP + 1,
     });
@@ -468,10 +510,11 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all", personTypes: [], pubTypes: [] };
-    const where = buildWhere(body);
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
+    const where = buildWhere(body, absentCwids);
     // The duplicates facet counts its own view, so it needs a where built with that statusView
     // rather than the caller's (the open-queue where excludes exactly the rows it counts).
-    const dupWhere = buildWhere({ ...body, statusView: "duplicates" });
+    const dupWhere = buildWhere({ ...body, statusView: "duplicates" }, absentCwids);
     const [total, single, fullname, duplicates, byClass, byType, bySrc, byPub] = await Promise.all([
       models.AuthorshipReview.count({ where }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
