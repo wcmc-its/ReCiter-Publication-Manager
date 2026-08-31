@@ -1171,8 +1171,11 @@ const AuthorshipsTabs = () => {
   // candidate left to accept — exclude them explicitly rather than trust identity_in_reciter,
   // which is vacuously true when top_cwid is null.
   const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && r.top_cwid && (r.top_io_score ?? 0) >= 95);
-  // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
-  const eligibleRows = statusView === "open" ? rows.filter(isAcceptEligible) : [];
+  // Item 7: select-all targets the eligible (bulk-selectable) rows on this page — the same
+  // set the per-row checkboxes allow (T4: multi-candidate rows included, for bulk-assign).
+  // Accept safety is downstream: every accept-type consumer reads selectedAcceptRows, so
+  // widening THIS set can never widen what "Accept selected" acts on.
+  const eligibleRows = statusView === "open" ? rows.filter((r) => isBulkSelectable(r, statusView)) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
   const toggleSelectAllEligible = useCallback(() => {
@@ -1397,14 +1400,14 @@ const AuthorshipsTabs = () => {
       {/* F4: bulk bar (slim) */}
       {statusView === "open" && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 18px", fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
-          <Tip title="Select every single-candidate row on this page for bulk action" placement="top" arrow>
+          <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign, multi-candidate (non-Scopus) rows for bulk assign" placement="top" arrow>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: eligibleRows.length === 0 ? "default" : "pointer", color: eligibleRows.length === 0 ? "#94a3b8" : "#475569" }}>
               <Checkbox size="small" disabled={eligibleRows.length === 0}
                 checked={allEligibleSelected}
                 indeterminate={someEligibleSelected && !allEligibleSelected}
                 onChange={toggleSelectAllEligible}
                 style={{ padding: 0 }} />
-              Select all single-candidate (this page)
+              Select all selectable (this page)
             </label>
           </Tip>
           <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
@@ -1416,7 +1419,10 @@ const AuthorshipsTabs = () => {
           {/* Escape hatch from the page-scoped selection above: only offered once this page is
               fully selected and there is more behind it, and the count is stated in the label so
               nobody selects a few thousand rows without reading the number. */}
-          {allEligibleSelected && !allMatching && count > eligibleRows.length && (
+          {/* Hidden whenever the selection holds multi-candidate rows: selectAllMatching
+              REPLACES the selection with the server's single-candidate-only set
+              (authorshipSelectable), which would silently drop them. */}
+          {allEligibleSelected && selectedAcceptRows.length === selectedRows.length && !allMatching && count > eligibleRows.length && (
             <button disabled={selectingAll} style={btn("soft", selectingAll)} onClick={selectAllMatching}>
               {selectingAll ? "Selecting…" : `Select all ${count.toLocaleString()} matching these filters`}
             </button>

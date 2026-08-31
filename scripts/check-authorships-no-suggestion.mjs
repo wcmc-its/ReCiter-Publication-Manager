@@ -82,14 +82,15 @@ check("near-certain bulk excludes a no-suggestion row even at IO 100",
 check("near-certain bulk still includes a real high-IO single-candidate row",
   nearCertainPredicate({ single_candidate: true, identity_in_reciter: true, top_cwid: "aaa2014", top_io_score: 100 }), true);
 
-// eligibleRows is `rows.filter(isAcceptEligible)` (T4) — assert the delegation, then exercise
-// the real imported function, same pattern as toggleSelect above.
+// eligibleRows is `rows.filter((r) => isBulkSelectable(r, statusView))` (T4 + the select-all
+// widening) — assert the delegation, then exercise the real imported function, same pattern as
+// toggleSelect above. Accept safety lives downstream in selectedAcceptRows, not here.
 const eligibleLine = line(tabsSrc, "const eligibleRows = statusView", "eligibleRows filter");
-check("eligibleRows delegates to isAcceptEligible", eligibleLine.includes("rows.filter(isAcceptEligible)"), true);
+check("eligibleRows delegates to isBulkSelectable", eligibleLine.includes("isBulkSelectable(r, statusView)"), true);
 check("header select-all-on-page excludes a no-suggestion row",
-  isAcceptEligible({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: null }), false);
+  isBulkSelectable({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: null }, "open"), false);
 check("header select-all-on-page still includes an ordinary row",
-  isAcceptEligible({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: "aaa2014" }), true);
+  isBulkSelectable({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: "aaa2014" }, "open"), true);
 
 // The row checkbox is `disabled={!selectable}` where `selectable = isBulkSelectable(r, statusView)`
 // (T4) — assert the delegation, then exercise isBulkSelectable directly (the same function
