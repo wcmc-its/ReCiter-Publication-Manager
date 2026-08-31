@@ -912,6 +912,15 @@ const AuthorshipsTabs = () => {
     setSearch(String(pmid));
   }, []);
 
+  // Shared by the "Assign to someone else…" overflow item and the no-identity pill/button
+  // (T3): expands the card and focuses the AssignOther typed-cwid input it renders. Card
+  // expansion mounts <AssignOther> on the next render, so focus has to wait for that DOM to
+  // exist — zero-delay setTimeout, a paint wait rather than a debounce.
+  const focusAssignOther = useCallback((id: number) => {
+    setExpanded(id);
+    setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
+  }, []);
+
   const toggleSelect = useCallback((row: AuthorshipRow) => {
     // multi rows, no-ReCiter-identity rows, already-rejected rows, and rows with no proposed
     // identity at all (#938 — top_cwid null) aren't bulk-selectable
@@ -1301,6 +1310,7 @@ const AuthorshipsTabs = () => {
             onPick={(cwid) => setPicked((p) => ({ ...p, [r.id]: cwid }))}
             onAction={(action, extra) => doAction(r, action, extra)}
             onMenu={(anchor) => setMenu({ anchor, row: r })}
+            onAssignOther={() => focusAssignOther(r.id)}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
@@ -1343,11 +1353,7 @@ const AuthorshipsTabs = () => {
           <MenuItem onClick={() => {
             const id = menu.row.id;
             setMenu(null);
-            setExpanded(id);
-            // Card expansion mounts <AssignOther> on the next render; focus has to wait for
-            // that DOM to exist. Same deferred-callback idiom as the debounces above (line
-            // ~373/641), just zero-delay — this is a paint wait, not a debounce.
-            setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
+            focusAssignOther(id);
           }}>
             Assign to someone else…
           </MenuItem>
@@ -1501,6 +1507,7 @@ interface CardProps {
   onPick: (cwid: string) => void;
   onAction: (action: string, extra?: Record<string, any>) => void;
   onMenu: (anchor: HTMLElement) => void;
+  onAssignOther: () => void;
   onNarrowPmid: () => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
@@ -1508,7 +1515,7 @@ interface CardProps {
 
 const AuthorshipCard = ({
   row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
-  registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onNarrowPmid,
+  registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
   conflict, onClearConflict,
 }: CardProps) => {
   // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
@@ -1665,9 +1672,22 @@ const AuthorshipCard = ({
                 <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
                   <IconX size={14} /> Reject
                 </button>
-                <Tip title={`${r.top_name || r.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. They may have departed, or may simply never have been synced from the identity feed — the attribution itself is not in question here.`} placement="top" arrow>
-                  <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
+                {/* T3 — the pill used to be inert (Accept has nothing to add this authorship
+                    to). It's the same "Assign to someone else…" shortcut as the overflow menu:
+                    expand the card and focus AssignOther's typed-cwid input. A ghost "Assign…"
+                    button sits next to it so the affordance is visible without opening ⋯. */}
+                <Tip title={`${r.top_name || r.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Click to assign this authorship to someone else instead.`} placement="top" arrow>
+                  <span
+                    style={{ ...noIdentityPillStyle, cursor: "pointer" }}
+                    title="Assign this authorship — expand and pick or type a person"
+                    onClick={(e) => { e.stopPropagation(); onAssignOther(); }}
+                  >
+                    No ReCiter identity
+                  </span>
                 </Tip>
+                <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAssignOther(); }}>
+                  Assign…
+                </button>
               </>
             ) : alreadyRejected ? (
               <>
