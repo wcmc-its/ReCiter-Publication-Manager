@@ -234,47 +234,63 @@ async function personNames(cwids: Array<string | undefined | null>): Promise<Rec
 
 // "Given Middle Surname · Department" for ONE curator-typed cwid. This string is the only
 // thing standing between the curator and an authoritative write into a stranger's publication
-// record, so it comes from two sources and the caller only ever falls back to a bare cwid when
-// BOTH are silent.
+// record, so it comes from THREE sources and the caller only ever falls back to a bare cwid
+// when all three are silent.
 //
-// The IDM roster table `identity` is asked first, because it is what the AAR producer builds
-// candidate_cwids_json from — so a looked-up name reads identically to a proposed one — and
-// because it is the only one of the two that carries a department.
+// The `person` mirror leads, because firstName there is the byline-shaped name — a curator
+// reading "Tony Rosen" on the paper who correctly types aer2006 needs to see "Tony", not the
+// legal "Anthony Ehren Rosen" the IDM roster carries. Same preference ReCiterDB PR #172 already
+// made on the producer side for the identical reason: consistent with what already shipped.
 //
-// DynamoDB `identity.primaryName` is the fallback, and it is the one carrying the guarantee.
-// This function is reachable only from the off-candidate confirm, which fires only when
-// reciterIdentitySet() already found the cwid in DynamoDB Identity — so the item is known to
-// exist and only its name is in question.
+// The IDM roster table `identity` is the fallback name source (when `person` has none), and
+// unconditionally supplies the department — it is the only one of the three that carries one,
+// and this label is the only thing on the 422 that identifies which department the write lands
+// in, so it stays even when its name doesn't lead. Nothing here removes `identity`'s legal name
+// from the system; it is still read, still shown when `person` is silent, and its department
+// still always shows.
+//
+// DynamoDB `identity.primaryName` is the last fallback. This function is reachable only from
+// the off-candidate confirm, which fires only when reciterIdentitySet() already found the cwid
+// in DynamoDB Identity — so the item is known to exist and only its name is in question.
 //
 // Measured 2026-08-29 over the reachable universe, which is the 26,551 DynamoDB uids that also
 // pass this endpoint's own /^[A-Za-z0-9]{1,32}$/ (that regex is what puts the usc_/ucsd_/
 // fredhutch_ external-validation cohorts out of typing range, so counting the full 35,052-row
-// table overstates this by nearly 4x): 2,140 of the 26,551 (8.1%) get NO name from the roster.
-// The AAR queue barely notices — 1 of the 6,374 cwids it names — but those 2,140 are residents,
-// fellows and non-faculty staff, i.e. precisely the people the typed-cwid box exists to reach,
-// and every one of them rendered as a bare cwid. DynamoDB names 2,140 of the 2,140, and
-// 26,551 of 26,551 overall: over the typable universe there is no nameless case left.
-// The `person` mirror was the other candidate and is strictly worse — it names 25,958 of the
-// 26,551 and rescues only 2,005 of the 2,140 — besides being the lossy source
-// reciterIdentitySet() was just moved off.
+// table overstates this by nearly 4x): 2,140 of the 26,551 (8.1%) get NO name from the IDM
+// roster. The AAR queue barely notices — 1 of the 6,374 cwids it names — but those 2,140 are
+// residents, fellows and non-faculty staff, i.e. precisely the people the typed-cwid box exists
+// to reach, and every one of them rendered as a bare cwid before the `identity` fallback below
+// was added. DynamoDB names 2,140 of the 2,140, and 26,551 of 26,551 overall: over the typable
+// universe there is no nameless case left. The `person` mirror now leading is strictly worse as
+// a NAME COVERAGE fallback — it names 25,958 of the 26,551 and rescues only 2,005 of the
+// 2,140 — which is exactly why `identity` stays second in line rather than being dropped.
 //
 // No try/catch, same stance as reciterIdentitySet: a DynamoDB failure surfaces as the caller's
 // 500. Swallowing it would silently reproduce the nameless confirm this fallback exists to
 // remove, at the exact moment the curator is being asked to authorise a write.
-// ponytail: the fallback is a second point lookup rather than a name projection folded into
-// reciterIdentitySet, because that function is also called with up to 5,000 keys per page and
-// this branch wants one. Upgrade path if a name is ever needed in bulk: widen the projection
+// ponytail: the DynamoDB fallback is a second point lookup rather than a name projection folded
+// into reciterIdentitySet, because that function is also called with up to 5,000 keys per page
+// and this branch wants one. Upgrade path if a name is ever needed in bulk: widen the projection
 // there and let this one go.
 // Same no-join lookup as personNames() above, and for the same reason: identity.cwid is
 // utf8mb4_unicode_ci against authorship_review.top_cwid's utf8mb4_general_ci (information_schema,
 // 2026-08-29), so a direct join throws 1267.
 async function identityLabel(cwid: string): Promise<string> {
-  const row: any = await models.Identity.findOne({
-    where: { cwid },
-    attributes: ["givenName", "middleName", "surname", "primaryAcademicDepartment"], raw: true,
-  });
-  const name = [row?.givenName, row?.middleName, row?.surname]
-    .map((v) => String(v || "").trim()).filter(Boolean).join(" ") || await identityPrimaryName(cwid);
+  const [person, row]: [any, any] = await Promise.all([
+    models.Person.findOne({
+      where: { personIdentifier: cwid },
+      attributes: ["firstName", "middleName", "lastName"], raw: true,
+    }),
+    models.Identity.findOne({
+      where: { cwid },
+      attributes: ["givenName", "middleName", "surname", "primaryAcademicDepartment"], raw: true,
+    }),
+  ]);
+  const bylineName = [person?.firstName, person?.middleName, person?.lastName]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  const legalName = [row?.givenName, row?.middleName, row?.surname]
+    .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
+  const name = bylineName || legalName || await identityPrimaryName(cwid);
   if (!name) return "";
   const dept = String(row?.primaryAcademicDepartment || "").trim();
   return dept ? `${name} · ${dept}` : name;
@@ -796,6 +812,22 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
               + "this row only — it will NOT be added to the person's publication record, because there "
               + "is no identity to add it to. Confirm to proceed.",
           });
+        }
+        // Data-integrity guard, the same direction as the rejectedpmids one ~60 lines down but
+        // for the opposite list: don't let an assign write a no-op gold-standard merge (plus a
+        // bogus ACCEPTED FeedbackLog row) over a target who already has THIS pmid in knownpmids
+        // — most often because they took it on their own /curate page while this row, naming
+        // them as one of several candidates, sat open. That's reachable from an on-candidate
+        // assign with no confirm step in front of it at all (gate goes straight to "write"),
+        // which is why this runs here rather than inside confirm_off_candidate below — 454 open
+        // rows are in this shape as of 2026-08-30, so it is not rare. hasIdentity gates it
+        // because gate can also be "local_only" here (confirmed, no identity), and there is no
+        // knownpmids to speak of for a cwid ReCiter has no Identity record for.
+        if (hasIdentity && !isScopus && pmid != null
+          && (await getKnownPmidsByCwid([target]))[target]?.has(pmid)) {
+          return res.status(422).send(
+            `${target} already has this article as ACCEPTED — assigning again would just be a `
+            + "no-op merge. Dismiss this row instead.");
         }
         // A real person the producer simply didn't propose — the common case being a
         // single-candidate row where the producer was confidently wrong and the curator knows
