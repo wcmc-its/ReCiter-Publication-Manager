@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { Op, fn, col } from "sequelize";
+// `where` aliased sqlWhere — authorshipSummary already has a local `const where = buildWhere(...)`,
+// and colliding with that is worse than one extra character at every call site below.
+import { Op, fn, col, where as sqlWhere } from "sequelize";
 import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
@@ -7,6 +9,7 @@ import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
 import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
+import { authorKey } from "../../src/lib/bulkAssign";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // Columns returned to the Authorships tab (one row per unassigned WCM authorship).
@@ -73,7 +76,48 @@ function openStatusWhere(body: any): any {
   };
 }
 
-function buildWhere(body: any): any {
+// T5: the same "is this row in the open queue" test openStatusWhere({statusView:"open"})
+// compiles to SQL, but evaluated in JS against ONE already-fetched row rather than run as a
+// WHERE clause — like_count's grouped COUNT (below) always scopes to the open queue regardless
+// of which statusView the caller is browsing, so this answers "was the CURRENT row itself part
+// of that count" (and so needs subtracting) independent of that. Kept in exact lockstep with
+// openStatusWhere's own open-queue branch by construction, not by convention: same three
+// conditions (no accept_conflict, status=open, or a lapsed/unset snooze).
+function isRowOpenForLike(r: any): boolean {
+  if (r.accept_conflict) return false;
+  if (r.status === "open") return true;
+  if (r.status === "snoozed") return !r.snooze_until || r.snooze_until <= todayStr();
+  return false;
+}
+
+const ABSENT_CWID_TTL_MS = 5 * 60 * 1000;
+let absentCwidCache: { set: Set<string>; expires: number } | null = null;
+
+// Which proposed-identity cwids across the OPEN queue have no ReCiter identity at all — the
+// set hideNoIdentity hides. A given cwid can be top_cwid on hundreds of open rows, so resolving
+// this once per cache refresh (not once per row, and never for the whole matching set on every
+// list load — that cost is exactly why this filter didn't exist before) is what makes it cheap:
+// a few thousand distinct cwids batched 100/call through reciterIdentitySet(), the same shape
+// as every other Identity lookup in this file.
+// ponytail: plain Map+timestamp TTL, no cache lib — one key, one process. Tradeoff: a cwid that
+// GAINS an identity (e.g. an IC#148 backfill) can stay hidden for up to ABSENT_CWID_TTL_MS after
+// the fact, and one that loses an identity takes just as long to start being hidden. Both
+// directions self-heal on the next refresh with no action required.
+async function absentCwidSet(): Promise<Set<string>> {
+  if (absentCwidCache && absentCwidCache.expires > Date.now()) return absentCwidCache.set;
+  const rows: any[] = await models.AuthorshipReview.findAll({
+    attributes: [[fn("DISTINCT", col("top_cwid")), "top_cwid"]],
+    where: { [Op.and]: [openStatusWhere({}), { top_cwid: { [Op.ne]: null } }] },
+    raw: true,
+  });
+  const distinct = rows.map((r) => String(r.top_cwid)).filter(Boolean);
+  const known = await reciterIdentitySet(distinct);
+  const absent = new Set(distinct.filter((c) => !known.has(c)));
+  absentCwidCache = { set: absent, expires: Date.now() + ABSENT_CWID_TTL_MS };
+  return absent;
+}
+
+function buildWhere(body: any, absentCwids?: Set<string>): any {
   const and: any[] = [];
 
   const status = openStatusWhere(body);
@@ -113,6 +157,33 @@ function buildWhere(body: any): any {
   // shares buildWhere) can never disagree with what this hides.
   if (body.hideNoSuggestion) {
     and.push({ top_cwid: { [Op.ne]: null } });
+  }
+  // hide rows proposing a person with no ReCiter identity at all — the complement of
+  // hideNoSuggestion above (that one hides no-proposal rows; this hides has-a-proposal
+  // rows the identity check would reject). absentCwids is the TTL-cached snapshot from
+  // absentCwidSet(), not a live per-row DynamoDB check — same identity_in_reciter tradeoff
+  // as the rest of this file, just resolved once per cache window instead of once per page.
+  if (body.hideNoIdentity && absentCwids && absentCwids.size > 0) {
+    and.push({ [Op.or]: [
+      { top_cwid: null },
+      { top_cwid: { [Op.notIn]: [...absentCwids] } },
+    ] });
+  }
+  // T5: "Show N others like this" — the structured, variant-tolerant complement to the
+  // free-text search box just below. likeAuthor is the raw wcm_author of an anchor row (set by
+  // the client, never typed); authorKey() (src/lib/bulkAssign.ts) reduces it to lowercase
+  // first-token|last-token, and the two equality conditions below are that same rule expressed
+  // in SQL — LOWER(SUBSTRING_INDEX(wcm_author,' ',1)) / LOWER(SUBSTRING_INDEX(wcm_author,' ',-1))
+  // — so "Bernard Park" and "Bernard J. Park" match on first+last token even though neither
+  // string contains the other, which is exactly what the free-text LIKE below cannot do. Two
+  // plain equality predicates, not a computed/generated column, are fine at this table's ~16k
+  // rows with no index (see authorKey's own comment for the compound-surname ceiling this
+  // shares).
+  const likeKey = authorKey(body.likeAuthor);
+  if (likeKey) {
+    const [likeFirst, likeLast] = likeKey.split("|");
+    and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), likeFirst));
+    and.push(sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), likeLast));
   }
   // free-text search across author name, proposed identity, pmid, doi, and Scopus id
   const search = (body.searchTextInput || "").trim();
@@ -326,10 +397,13 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     const limit = Number(body.limit) || 25;
     const offset = Number(body.offset) || 0;
     const order = SORTS[body.sort] || SORTS.precision;
+    // buildWhere is sync, so the absent-cwid set (needed only when the filter is on) is
+    // resolved up front and threaded in, rather than looked up inside buildWhere itself.
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
 
     const { count, rows } = await models.AuthorshipReview.findAndCountAll({
       attributes: LIST_ATTRIBUTES,
-      where: buildWhere(body),
+      where: buildWhere(body, absentCwids),
       order,
       offset,
       limit,
@@ -361,6 +435,36 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       scopusSib = Object.fromEntries(sib.map((s) => [String(s.external_id), Number(s.n)]));
     }
     const knownIdentities = await reciterIdentitySet(rows.map((r: any) => r.top_cwid));
+
+    // T5: "Show N others like this" sibling count — one grouped COUNT over the OPEN queue
+    // (always "open", not the caller's active statusView — the point of the button is to
+    // surface open work to act on, whether the row you clicked it from is itself open, snoozed,
+    // or dismissed), restricted to the normalized author keys THIS PAGE needs. Same shape as
+    // the pmid_sibling_count grouped COUNTs just above, generalized from an exact pmid/
+    // external_id match to authorKey()'s first-token/last-token equality (see buildWhere's
+    // likeAuthor block and authorKey's own comment for why and its ceiling).
+    const likeOpenWhere = openStatusWhere({ statusView: "open" });
+    const pageAuthorKeys = [...new Set(rows.map((r: any) => authorKey(r.wcm_author)).filter(Boolean))];
+    let likeCountMap: Record<string, number> = {};
+    if (pageAuthorKeys.length) {
+      const keyOr = pageAuthorKeys.map((k) => {
+        const [first, last] = k.split("|");
+        return { [Op.and]: [
+          sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), first),
+          sqlWhere(fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), last),
+        ] };
+      });
+      const likeSib: any[] = await models.AuthorshipReview.findAll({
+        attributes: [
+          [fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", 1)), "first_tok"],
+          [fn("LOWER", fn("SUBSTRING_INDEX", col("wcm_author"), " ", -1)), "last_tok"],
+          [fn("COUNT", col("id")), "n"],
+        ],
+        where: { [Op.and]: [likeOpenWhere, { [Op.or]: keyOr }] },
+        group: ["first_tok", "last_tok"], raw: true,
+      });
+      likeCountMap = Object.fromEntries(likeSib.map((s) => [`${s.first_tok}|${s.last_tok}`, Number(s.n)]));
+    }
 
     // Cross-check pubmed rows' candidates + top_cwid against GoldStandard.rejectedpmids: a
     // candidate who already rejected this EXACT pmid via their own /curate page must never be
@@ -395,11 +499,18 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
           json.top_already_rejected = true;
         }
       }
+      // T5: how many OTHER open rows share this row's normalized author key — subtract 1 only
+      // when THIS row is itself part of the open-queue group the count above drew from (a
+      // dismissed/snoozed-not-yet-lapsed row was never counted in the first place, so nothing
+      // to subtract for it).
+      const key = authorKey(r.wcm_author);
+      const like_count = key ? Math.max(0, (likeCountMap[key] || 0) - (isRowOpenForLike(r) ? 1 : 0)) : 0;
       return {
         ...json,
         pmid_sibling_count: map[siblingKey(r)] || 1,
         // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
         identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
+        like_count,
       };
     });
 
@@ -428,9 +539,10 @@ const SELECTABLE_CAP = 5000;
 export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const body = { ...(req.body || {}), statusView: "open" };
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
     const rows = await models.AuthorshipReview.findAll({
       attributes: ["id", "source", "pmid", "wcm_author", "top_name", "top_cwid", "single_candidate", "candidate_cwids_json"],
-      where: { [Op.and]: [buildWhere(body), { single_candidate: true }] },
+      where: { [Op.and]: [buildWhere(body, absentCwids), { single_candidate: true }] },
       order: SORTS[body.sort] || SORTS.precision,
       limit: SELECTABLE_CAP + 1,
     });
@@ -468,10 +580,11 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all", personTypes: [], pubTypes: [] };
-    const where = buildWhere(body);
+    const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
+    const where = buildWhere(body, absentCwids);
     // The duplicates facet counts its own view, so it needs a where built with that statusView
     // rather than the caller's (the open-queue where excludes exactly the rows it counts).
-    const dupWhere = buildWhere({ ...body, statusView: "duplicates" });
+    const dupWhere = buildWhere({ ...body, statusView: "duplicates" }, absentCwids);
     const [total, single, fullname, duplicates, byClass, byType, bySrc, byPub] = await Promise.all([
       models.AuthorshipReview.count({ where }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
@@ -691,26 +804,40 @@ function candidateCwidsFromRow(row: any): string[] {
 // row, because both move after the producer wrote it — people leave WCM (the identity goes
 // away) and people curate their own /curate page (an acceptance appears).
 //
+// F-2 policy (verbatim from the product owner: "If I accept it for 1 person, any other person
+// being considered should be a reject. This goes across the board") — single-candidate rows are
+// no longer exempt. A row's one proposed candidate getting DISPLACED (the curator assigns
+// elsewhere instead) is exactly as much of a "not mine" as a multi-candidate homonym losing to a
+// sibling; `others.length === 0` already covers the only real no-op (the assign target IS the
+// row's sole candidate — an ordinary accept-shaped pick), so there was nothing left for a
+// `row.single_candidate` check to usefully exclude. `singleCandidate` is therefore always passed
+// false to homonymRejections() below now — see that function's own doc in assignGate.ts for why
+// the parameter still exists there (its pure branch table, singleCandidate included, is asserted
+// directly by scripts/check-homonym-rejections.mjs against callers that still want it).
+//
 // Candidate cwids come out of the producer, not out of a keyboard, and all 11,389 of them are
 // lowercase (2026-08-29), so unlike the typed `chosen` above they need no canonicalisation —
 // and if one ever failed a byte-exact DynamoDB lookup it would simply be skipped, which is the
 // safe direction. `target` is already canonical, so `c !== target` compares like with like.
-// ponytail: two point lookups per assign of a multi-candidate row, no cache — a homonym row
-// has a median of 2 other candidates, so this is ~20 ms on the rarest action in the tab.
+// ponytail: two point lookups per assign, no cache — a homonym row has a median of 2 other
+// candidates and even a single-candidate row has exactly one, so this is ~20 ms on the rarest
+// action in the tab.
 async function homonymRejectionTargets(
   row: any, target: string, pmid: number, checkAccepted = true,
 ): Promise<string[]> {
   const candidates = candidateCwidsFromRow(row);
   const isScopus = row.source === "scopus";
   const others = candidates.filter((c) => c !== target);
-  // nothing to look up for the ~90% of rows the gate excludes outright
-  if (isScopus || row.single_candidate || others.length === 0) return [];
+  // Scopus has no pmid to reject (gold standard is PMID-keyed — same precedent as case
+  // "reject"'s scopus branch), and a row whose only candidate IS the assign target has nobody
+  // left to displace. Nothing else is excluded here anymore — see the F-2 note above.
+  if (isScopus || others.length === 0) return [];
   const [identities, accepted] = await Promise.all([
     reciterIdentitySet(others),
     checkAccepted ? getKnownPmidsByCwid(others) : Promise.resolve({} as Record<string, Set<number>>),
   ]);
   return homonymRejections({
-    isScopus, singleCandidate: !!row.single_candidate, candidates, target,
+    isScopus, singleCandidate: false, candidates, target,
     hasIdentity: (c) => identities.has(c),
     hasAccepted: (c) => !!accepted[c]?.has(pmid),
   });
@@ -741,7 +868,10 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     switch (action) {
       case "accept": {
         if (!cwid) return res.status(409).send("No proposed identity to accept");
-        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
+        // JSON (not plain text) so the client can route this into the inline conflict banner
+        // and silently refetch the row instead of the generic "nothing was saved" toast — see
+        // the card predicate at AuthorshipsTabs.tsx (isMulti) and the kind dispatch below it.
+        if (!row.single_candidate) return res.status(409).json({ code: "MULTI_CANDIDATE", message: "Multiple candidates — use \"Pick one\" to assign" });
         // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
         if (!(await reciterIdentitySet([cwid])).size) {
           return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);
@@ -818,14 +948,29 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // typo than a Master's student, so the #861 guard keeps its purpose. The client
         // re-sends with confirmNoIdentity after showing the curator what it means.
         if (gate === "confirm_no_identity") {
+          // F-2: name who this ALSO rejects, up front — the assignee having no identity does
+          // not exempt this row's other candidate(s) from the same policy the write below
+          // applies. Preview only (this is a 422, nothing is written yet), computed through the
+          // same homonymRejectionTargets() the write and reopen both use, so the confirm can
+          // never promise a different set than what actually lands.
+          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+          let alsoRejectedNote = "";
+          if (alsoRejected.length) {
+            const names = await Promise.all(alsoRejected.map(async (c) => {
+              const who = await identityLabel(c);
+              return who ? `${who} (${c})` : c;
+            }));
+            alsoRejectedNote = ` It also records "not mine" for ${names.join(", ")}.`;
+          }
           return res.status(422).json({
             code: "NO_RECITER_IDENTITY",
             localOnly: true,
             cwid: target,
             offCandidate,
+            alsoRejected,
             message: `${target} has no ReCiter identity. Assigning anyway records your decision on `
               + "this row only — it will NOT be added to the person's publication record, because there "
-              + "is no identity to add it to. Confirm to proceed.",
+              + `is no identity to add it to.${alsoRejectedNote} Confirm to proceed.`,
           });
         }
         // Data-integrity guard, the same direction as the rejectedpmids one ~60 lines down but
@@ -869,17 +1014,33 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           });
         }
         if (gate === "local_only") {
-          // Local record only. No writeGoldStandard, no addExternalArticle, no
-          // appendFeedbackLog: every one of those targets an identity that does not exist,
-          // and faking one would put a publication in a record nobody can see or correct.
-          // This preserves the curator's judgment without pretending the person exists
-          // downstream. If the identity is created later (PM#104 / IC#148), this row is
+          // Local record only for the ASSIGNEE. No writeGoldStandard, no addExternalArticle, no
+          // appendFeedbackLog for THEM: every one of those targets an identity that does not
+          // exist, and faking one would put a publication in a record nobody can see or
+          // correct. This preserves the curator's judgment without pretending the person
+          // exists downstream. If the identity is created later (PM#104 / IC#148), this row is
           // the record of what was already decided.
+          //
+          // F-2 runs anyway for the OTHER candidates: the assignee having no ReCiter identity
+          // doesn't make this any less a homonym judgment for whoever else was proposed and
+          // DOES have one — the curator is still saying "not this row's other candidate(s)".
+          // Same function, same writes, same feedback log as the authoritative "write" path
+          // below; the rejections go before the row is resolved for the same idempotent-retry
+          // reason that block explains (there is no positive write here to sequence them after).
+          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+          for (const other of alsoRejected) {
+            const rs = await writeGoldStandard(other, pmid as number, "rejected", "UPDATE", curator.userID);
+            if (rs !== 200) return res.status(502).send(`Homonym rejection write failed for ${other} (${rs})`);
+          }
           await models.AuthorshipReview.update({
             status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date(),
             note: `${row.note ? `${row.note} | ` : ""}assigned to ${target} `
               + `(no ReCiter identity) — local record only, nothing written to the publication record`,
           }, { where: { id } });
+          for (const other of alsoRejected) {
+            try { await appendFeedbackLog(curator.userID, other, pmid as number, "REJECTED"); }
+            catch (e) { console.log("[authorships] feedbacklog (homonym reject) non-fatal:", e); }
+          }
           break;
         }
         // gate === "write": everything below is the authoritative assign, unchanged. An
@@ -973,13 +1134,14 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-          // A #925 local-only assign wrote no gold standard, so there is nothing to delete.
-          // (An earlier comment here claimed the DELETE would 404 for a uid ReCiter has no
-          // Identity row for. It does not — POST /reciter/goldstandard checks only uid != null
-          // and returns 200. The real reason to skip is simply that nothing was ever written,
-          // so the DELETE is a pointless no-op against a row that may not exist.)
+          // A #925 local-only assign wrote no gold standard for the ASSIGNEE, so there is
+          // nothing to delete for THEM specifically. (An earlier comment here claimed the
+          // DELETE would 404 for a uid ReCiter has no Identity row for. It does not — POST
+          // /reciter/goldstandard checks only uid != null and returns 200. The real reason to
+          // skip is simply that nothing was ever written for this uid, so the DELETE would be
+          // a pointless no-op.)
           // No identity == it was local-only, since that is the only branch that resolves a
-          // row without an authoritative write.
+          // row without an authoritative write for the assignee.
           // ponytail: this INFERS "local-only" from a live identity check rather than reading a
           // marker, so it silently flips to a destructive GoldStandard DELETE for any
           // local-only row whose identity later appears (IC#148 backfills ~1,595). Exposure
@@ -987,29 +1149,33 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // PM#935 only just shipped), and swapping the oracle does not change that, so it is
           // left alone. Upgrade path: key off the note/marker the local-only branch writes.
           if (!(await reciterIdentitySet([reverseCwid])).size) {
-            console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo`);
+            console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo for the assignee`);
           } else {
             const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
             if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
-            // ...and the homonym rejections that assign wrote alongside it. Without this there
-            // is no undo path for them at all: reopen would clear the row and leave N-1 people
-            // permanently rejected on a decision the curator just took back. Recomputed through
-            // the same homonymRejections() the write used, so the two sets cannot drift; see
-            // that function for why checkAccepted is false here. Covers "accepted" as well as
-            // "assigned": assign is the only ACTION that writes these, but the backfill script
-            // writes them onto already-resolved rows and defaults to assigned,accepted — 30 of
-            // its 170 planned writes land on accepted rows, and scoping this to "assigned"
-            // alone would make exactly those permanent with no undo path. Safe for rows that
-            // never had any: a genuine single-candidate accept returns [] from the
-            // single_candidate guard, and a legacy un-backfilled multi accept issues DELETEs
-            // ReCiter treats as 200 no-ops (DynamoDbGoldStandardService removes a pmid only
-            // `if(rejectedPmids.contains(...))`, so a miss is not an error).
-            if (row.status === "assigned" || row.status === "accepted") {
-              for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
-                const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
-                if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);
-              }
-            }
+          }
+          // F-2: ...and the homonym rejections that assign wrote alongside it, REGARDLESS of
+          // whether the assignee themselves has an identity — a local-only assign still
+          // recorded "not mine" for every OTHER candidate that DOES have one (see the
+          // local_only branch above), and reopen must take that back even when there is
+          // nothing to undo for the assignee. Without this there is no undo path for them at
+          // all: reopen would clear the row and leave N-1 people permanently rejected on a
+          // decision the curator just took back. Recomputed through the same
+          // homonymRejections() the write used, so the two sets cannot drift; see that
+          // function for why checkAccepted is false here. Covers "accepted" as well as
+          // "assigned": assign is the only ACTION that writes these, but the backfill script
+          // writes them onto already-resolved rows and defaults to assigned,accepted — 30 of
+          // its 170 planned writes land on accepted rows, and scoping this to "assigned" alone
+          // would make exactly those permanent with no undo path. Safe for rows that never had
+          // any: a genuine single-candidate Accept (the "accept" action, gated on
+          // row.single_candidate) never calls homonymRejectionTargets at all, and for an
+          // "assigned"/"accepted" row this recomputes to [] on its own once `others` collapses
+          // to empty — same as at write time. A legacy un-backfilled multi accept issues
+          // DELETEs ReCiter treats as 200 no-ops (DynamoDbGoldStandardService removes a pmid
+          // only `if(rejectedPmids.contains(...))`, so a miss is not an error).
+          for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
+            const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
+            if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);
           }
         } else if (row.status === "rejected") {
           const targets = row.single_candidate ? (reverseCwid ? [reverseCwid] : []) : candidateCwidsFromRow(row);

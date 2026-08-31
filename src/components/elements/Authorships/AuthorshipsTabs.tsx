@@ -8,6 +8,11 @@ import Alert from "@mui/material/Alert";
 import Checkbox from "@mui/material/Checkbox";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
+import {
+  isAcceptEligible, isBulkSelectable,
+  unionCandidates, partitionForAssign, bucketAssignFailures,
+} from "../../../lib/bulkAssign";
+import type { CandidateLite } from "../../../lib/bulkAssign";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -53,6 +58,10 @@ interface AuthorshipRow {
   // true → top_cwid already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
   top_already_rejected?: boolean;
+  // T5: how many OTHER open rows share this row's normalized author key (authorKey() in
+  // src/lib/bulkAssign.ts — first+last whitespace token, tolerant of middle-initial variants
+  // like "Bernard Park" vs "Bernard J. Park"). Drives "Show N others like this" — hidden at 0.
+  like_count?: number;
   // Informational heads-up only (both source lanes) — producer already found a matching
   // ExternalArticle by DOI. Does not gate Accept/Assign; the live 409 at click time is the
   // actual safety net.
@@ -88,10 +97,15 @@ interface ConflictEntry {
   // "no_identity"   — #925 422, retried with confirmNoIdentity:"true". Different consequence,
   //                   so a different prompt: force-add writes to the person's record, this one
   //                   explicitly does NOT.
-  // "off_candidate" — 422, retried with confirmOffCandidate:"true": a real person the producer
-  //                   never proposed. This one DOES write their publication record, so its
-  //                   prompt must not read like the no_identity one it sits next to.
-  kind: "dup" | "no_identity" | "off_candidate";
+  // "off_candidate"   — 422, retried with confirmOffCandidate:"true": a real person the producer
+  //                     never proposed. This one DOES write their publication record, so its
+  //                     prompt must not read like the no_identity one it sits next to.
+  // "multi_candidate" — 409 MULTI_CANDIDATE: the card's own isMulti predicate went stale
+  //                     (data changed mid-session) and let Accept fire on a row the server
+  //                     gates to "Pick one". Not retried — fetchData(true) below refreshes the
+  //                     row so the card itself flips to the Pick-one controls; this banner is
+  //                     explanation only, no confirm action.
+  kind: "dup" | "no_identity" | "off_candidate" | "multi_candidate";
   action_label?: string;   // confirm-button text; kind decides it, held here for the log
   extra?: Record<string, any>;
   message: string;
@@ -263,6 +277,16 @@ const parseCandidates = (json?: string): Candidate[] => {
     return [];
   }
 };
+
+// T4: a row's candidates in the CandidateLite shape src/lib/bulkAssign.ts's unionCandidates
+// and partitionForAssign consume — parseCandidates(candidate_cwids_json) for a multi-candidate
+// row (the same JSON the card's Pick-one radios already render from), or the row's own single
+// proposed identity for a single-candidate one. Kept here rather than in bulkAssign.ts because
+// it depends on parseCandidates/AuthorshipRow, which that pure module deliberately does not.
+const rowCandidateLites = (row: AuthorshipRow): CandidateLite[] =>
+  row.single_candidate
+    ? (row.top_cwid ? [{ cwid: row.top_cwid, name: row.top_name }] : [])
+    : parseCandidates(row.candidate_cwids_json).map((c) => ({ cwid: c.cwid, name: c.name }));
 
 // Full Scopus byline from authors_json ([{given,surname}, ...]) as a comma-joined
 // "Given Surname" string. "" for absent/malformed/empty input — never throws.
@@ -478,11 +502,22 @@ const AuthorshipsTabs = () => {
   // identity" pill below) — a real filter sent to the server (buildWhere) rather than sliced
   // client-side, so it stays consistent with the total count and "Select all N matching"
   // (authorshipSelectable shares the same buildWhere). Deliberately does NOT also hide "No
-  // ReCiter identity" rows (identity_in_reciter===false): that flag is resolved per-page
-  // against DynamoDB after this query already ran, not a stored column, so filtering it before
-  // LIMIT/OFFSET would mean checking DynamoDB identity for the WHOLE matching set on every
-  // list load rather than just the current page — a materially bigger change than this one.
+  // ReCiter identity" rows (identity_in_reciter===false) — that's hideNoIdentity below.
   const [hideNoSuggestion, setHideNoSuggestion] = useState(false);
+  // hide rows proposing a person with no ReCiter identity (identity_in_reciter===false — a
+  // person IS proposed, just not yet in ReCiter). Complements hideNoSuggestion above. The
+  // per-page identity_in_reciter flag is resolved fresh against DynamoDB after LIMIT/OFFSET
+  // and can't drive a WHERE clause directly, so the server keeps a short-TTL cache of the
+  // "absent" cwid set instead of resolving identity for the whole matching set on every list
+  // load — by the time it reaches buildWhere this is also a plain SQL predicate.
+  const [hideNoIdentity, setHideNoIdentity] = useState(false);
+  // T5: "Show N others like this" — a structured filter (the anchor row's raw wcm_author),
+  // independent of the free-text search box above. The server (buildWhere's likeAuthor block)
+  // turns this into the normalized-key equality match authorKey() defines, not a LIKE
+  // substring, so a middle-initial variant like "Bernard J. Park" is found starting from
+  // "Bernard Park" and vice versa — the case the free-text box's LIKE cannot cover. Cleared by
+  // the dismissible "Like: …" chip near the filter row.
+  const [likeAuthor, setLikeAuthor] = useState("");
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -504,10 +539,19 @@ const AuthorshipsTabs = () => {
   // F4: undo holds a BATCH of rows (single-row actions push a 1-element batch)
   const [undo, setUndo] = useState<{ rows: AuthorshipRow[]; label: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  // selection (bulk) — single-candidate rows only
+  // selection (bulk) — T4: single-candidate accept-eligible rows AND (now) open, non-scopus
+  // multi-candidate rows (see isBulkSelectable) — the latter for bulk-ASSIGN only.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   // multi-candidate: chosen cwid per row id
   const [picked, setPicked] = useState<Record<number, string>>({});
+  // T4: "Assign selected (N) to…" — anchor opens the candidate-union picker; assignConfirm
+  // holds the chosen target plus the submit/skip split (partitionForAssign) until the curator
+  // confirms. Both null when the picker/confirm step is closed.
+  const [assignMenuAnchor, setAssignMenuAnchor] = useState<HTMLElement | null>(null);
+  const [assignOtherCwid, setAssignOtherCwid] = useState("");
+  const [assignConfirm, setAssignConfirm] = useState<{
+    cwid: string; name?: string; toSubmit: AuthorshipRow[]; toSkip: AuthorshipRow[];
+  } | null>(null);
   // F13: keyboard focus
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLElement | null>>({});
@@ -545,7 +589,9 @@ const AuthorshipsTabs = () => {
     sort,
     statusView,
     hideNoSuggestion,
-  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion]);
+    hideNoIdentity,
+    likeAuthor,
+  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -615,12 +661,15 @@ const AuthorshipsTabs = () => {
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView }),
+      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, hideNoIdentity, likeAuthor }),
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search, dateFrom, dateTo, statusView]);
+  }, [search, dateFrom, dateTo, statusView, hideNoIdentity, likeAuthor]);
   // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
-  // current status/search/date scope — no need to refetch it on source-segment changes.
+  // current status/search/date scope — no need to refetch it on source-segment changes. hideNoSuggestion
+  // isn't threaded through here (pre-existing, unrelated to this filter); hideNoIdentity and (T5)
+  // likeAuthor are, so header totals stay consistent with the filtered list/pagination the moment
+  // either one is toggled/set.
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.
@@ -687,7 +736,7 @@ const AuthorshipsTabs = () => {
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion]);
+    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
 
@@ -731,12 +780,13 @@ const AuthorshipsTabs = () => {
       .then(async (r) => {
         if (!r.ok) {
           const text = await r.text();
-          // 409 dup-conflict comes back as JSON ({ message, matches }); everything else is
-          // plain text. Try JSON first, fall back to the raw text as the message.
+          // 409 dup-conflict and 409 MULTI_CANDIDATE come back as JSON ({ message, matches? });
+          // everything else is plain text. Try JSON first, fall back to the raw text as the
+          // message.
           let message = text || `HTTP ${r.status}`;
           let matches: DupMatch[] = [];
-          // 409 dup-conflict and the #925 422 both come back as JSON; everything else is
-          // plain text.
+          // 409 dup-conflict/MULTI_CANDIDATE and the #925 422s all come back as JSON; every
+          // other status is plain text.
           let code = "";
           if (r.status === 409 || r.status === 422) {
             try {
@@ -776,16 +826,20 @@ const AuthorshipsTabs = () => {
         // Both 422s are the same shape — "allowed, but say you meant it" — and each names the
         // confirmation flag it wants back. The consequences are opposite, so the prompts they
         // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
+        // MULTI_CANDIDATE checked ahead of scopusDup: both are plain 409s, and a scopus row can
+        // hit the multi-candidate gate too (it's checked before the isScopus branch server-side).
         const kind: ConflictEntry["kind"] | null =
           e?.status === 422 && e?.code === "NO_RECITER_IDENTITY" ? "no_identity"
             : e?.status === 422 && e?.code === "OFF_CANDIDATE" ? "off_candidate"
-              : scopusDup ? "dup" : null;
+              : e?.status === 409 && e?.code === "MULTI_CANDIDATE" ? "multi_candidate"
+                : scopusDup ? "dup" : null;
         if (kind) {
           const entry: ConflictEntry = {
             id: row.id, action, kind,
             extra: kind === "no_identity" ? { ...extra, confirmNoIdentity: "true" }
               : kind === "off_candidate" ? { ...extra, confirmOffCandidate: "true" }
-                : { ...extra, force: "true" },
+                : kind === "multi_candidate" ? { ...extra }
+                  : { ...extra, force: "true" },
             message: String(e?.message || e),
             matches: Array.isArray(e?.matches) ? e.matches : [],
             wcm_author: row.wcm_author, top_name: row.top_name, ts: Date.now(),
@@ -804,6 +858,16 @@ const AuthorshipsTabs = () => {
       })
       .finally(() => setActingId(null));
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+
+  // With a select-all-matching in force the selection includes rows this page never
+  // loaded, so an on-page filter would silently shrink the batch to 20.
+  const selectedRows = allMatching ?? rows.filter((r) => selected.has(r.id));
+  // T4: `selected` can now also hold multi-candidate rows (bulk-assign only — see
+  // toggleSelect/isBulkSelectable). Every accept-type consumer of the selection must read
+  // THIS, never selectedRows directly, so a newly-selectable multi row can never reach
+  // doBulkAccept. selectAllMatching is unaffected — authorshipSelectable already returns only
+  // single_candidate rows server-side, so allMatching never contains one in the first place.
+  const selectedAcceptRows = selectedRows.filter(isAcceptEligible);
 
   // F5: bulk orchestration — accept a batch of rows, collect into one Undo batch.
   // Runs BULK_CHUNK rows at a time, chunks sequential: a select-all-matching batch can be
@@ -851,6 +915,85 @@ const AuthorshipsTabs = () => {
     setSelected(new Set());
     setAllMatching(null);
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+
+  // T4: union of everything the current selection proposes, for the "Assign selected (N) to…"
+  // picker — "Name (cwid) — matches k of N selected", ranked k desc. Recomputed on every
+  // render off selectedRows; bulk-assign is a same-page/handful-of-rows tool (unlike
+  // select-all-matching's thousands), so this is cheap.
+  const assignCandidateUnion = unionCandidates(selectedRows.map(rowCandidateLites));
+
+  const openAssignPicker = useCallback((anchor: HTMLElement) => {
+    setAssignOtherCwid("");
+    setAssignMenuAnchor(anchor);
+  }, []);
+
+  // Picking a candidate — from the union list or the typed "someone else" box — doesn't
+  // submit anything yet. It only computes the confirm-step split (partitionForAssign), the
+  // same "look before you write" shape the per-row off-candidate/no-identity 422 confirms
+  // already use for a single row.
+  const chooseAssignTarget = useCallback((cwid: string, name?: string) => {
+    setAssignMenuAnchor(null);
+    const { toSubmit, toSkip } = partitionForAssign(selectedRows, rowCandidateLites, cwid);
+    setAssignConfirm({ cwid, name, toSubmit, toSkip });
+  }, [selectedRows]);
+
+  // F5 for assign: mirrors doBulkAccept exactly — same chunk size, same Promise.allSettled
+  // shape, same doActionAsync call, just "assign"+{cwid} in place of "accept". Only
+  // assignConfirm.toSubmit (rows whose OWN candidate set contains the chosen cwid) is ever
+  // sent; toSkip rows never reach the network at all, per MUST NOT. A 422/409 that still comes
+  // back from a submitted row is bucketed, never auto-confirmed (no blanket
+  // confirmOffCandidate/confirmNoIdentity resend) — same rule the per-row confirm banner
+  // enforces one row at a time.
+  const doBulkAssign = useCallback(() => {
+    const confirm = assignConfirm;
+    if (!confirm) return;
+    const { cwid, toSubmit, toSkip } = confirm;
+    setAssignConfirm(null);
+    setMenu(null);
+    if (toSubmit.length === 0) {
+      // everything was skipped locally — nothing to submit, but still say so.
+      if (toSkip.length) setErrorMsg(`All ${toSkip.length} selected rows skipped — ${cwid} was not among their candidates.`);
+      setSelected(new Set());
+      setAllMatching(null);
+      return;
+    }
+    setBulkProgress(toSubmit.length > BULK_CHUNK ? { done: 0, total: toSubmit.length } : null);
+    const runChunks = async () => {
+      const results: PromiseSettledResult<boolean>[] = [];
+      for (let i = 0; i < toSubmit.length; i += BULK_CHUNK) {
+        const chunk = toSubmit.slice(i, i + BULK_CHUNK);
+        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "assign", { cwid }))));
+        if (toSubmit.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: toSubmit.length });
+      }
+      return results;
+    };
+    runChunks()
+      .then((results) => {
+        const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+        const ok = toSubmit.filter((_, i) => results[i].status === "fulfilled");
+        if (ok.length > 0) setUndo({ rows: ok, label: `Assigned ${ok.length}` });
+        const parts: string[] = [];
+        if (toSkip.length) parts.push(`${toSkip.length} skipped — not among their candidates`);
+        if (failures.length) {
+          const { offCandidate, noIdentity, conflict409, other } = bucketAssignFailures(
+            failures.map((f) => (f.reason as any) || {}));
+          if (offCandidate) parts.push(`${offCandidate} off-candidate`);
+          if (noIdentity) parts.push(`${noIdentity} with no ReCiter identity`);
+          if (conflict409) parts.push(`${conflict409} conflict${conflict409 > 1 ? "s" : ""}`);
+          if (other) parts.push(`${other} failed`);
+        }
+        if (parts.length) setErrorMsg(`Assigned ${ok.length} of ${toSubmit.length + toSkip.length} selected to ${cwid}: ${parts.join("; ")}`);
+        // success: silently refill the queue, same as doBulkAccept. failure/skip: refresh so
+        // the optimistically-removed-then-failed rows come back — silent, still mid-review.
+        if (failures.length) fetchData(true);
+        else topUp();
+        fetchSummary();
+        fetchRecentActivity();
+      })
+      .finally(() => setBulkProgress(null));
+    setSelected(new Set());
+    setAllMatching(null);
+  }, [assignConfirm, doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
 
   // "Select all N matching": pull every bulk-selectable row for the current filters, not just
   // this page. The server recomputes eligibility and omits anything the card would refuse, so
@@ -902,10 +1045,34 @@ const AuthorshipsTabs = () => {
     setSearch(String(pmid));
   }, []);
 
+  // Shared by the "Assign to someone else…" overflow item and the no-identity pill/button
+  // (T3): expands the card and focuses the AssignOther typed-cwid input it renders. Card
+  // expansion mounts <AssignOther> on the next render, so focus has to wait for that DOM to
+  // exist — zero-delay setTimeout, a paint wait rather than a debounce.
+  const focusAssignOther = useCallback((id: number) => {
+    setExpanded(id);
+    setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
+  }, []);
+
+  // T5: "Show N others like this" — sets the STRUCTURED likeAuthor filter (variant-tolerant
+  // normalized-key match server-side, see buildWhere's likeAuthor block), not the free-text
+  // search box: T4's version pasted wcm_author into the text box, whose LIKE substring match
+  // misses a middle-initial variant like "Bernard J. Park" starting from "Bernard Park" — the
+  // driving case for this rework. The text box (`search`/`searchInput`) is left untouched, so
+  // it keeps working as its own independent filter. Page reset to 0 is already handled by the
+  // pendingPageReset effect above, which watches filterBody (likeAuthor is now part of it).
+  const findOthersLikeThis = useCallback((wcmAuthor?: string) => {
+    if (!wcmAuthor) return;
+    setLikeAuthor(wcmAuthor);
+  }, []);
+
+  // T4: single-candidate rows keep the pre-existing accept-eligible gate (no-ReCiter-identity,
+  // already-rejected, no proposed identity at all (#938) stay unselectable). Multi-candidate
+  // rows are now ALSO selectable — open, non-scopus (see isMultiAssignEligible) — but only for
+  // bulk-assign: isBulkSelectable never lets a multi row satisfy isAcceptEligible, which is
+  // what every accept-type bulk consumer below (eligibleRows, "Accept selected") filters on.
   const toggleSelect = useCallback((row: AuthorshipRow) => {
-    // multi rows, no-ReCiter-identity rows, already-rejected rows, and rows with no proposed
-    // identity at all (#938 — top_cwid null) aren't bulk-selectable
-    if (!row.single_candidate || row.identity_in_reciter === false || row.top_already_rejected || !row.top_cwid || statusView !== "open") return;
+    if (!isBulkSelectable(row, statusView)) return;
     setSelected((s) => {
       const next = new Set(s);
       next.has(row.id) ? next.delete(row.id) : next.add(row.id);
@@ -1004,11 +1171,11 @@ const AuthorshipsTabs = () => {
   // candidate left to accept — exclude them explicitly rather than trust identity_in_reciter,
   // which is vacuously true when top_cwid is null.
   const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && r.top_cwid && (r.top_io_score ?? 0) >= 95);
-  // With a select-all-matching in force the selection includes rows this page never
-  // loaded, so the on-page filter would silently shrink the batch to 20.
-  const selectedRows = allMatching ?? rows.filter((r) => selected.has(r.id));
-  // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
-  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && !r.top_already_rejected && r.top_cwid) : [];
+  // Item 7: select-all targets the eligible (bulk-selectable) rows on this page — the same
+  // set the per-row checkboxes allow (T4: multi-candidate rows included, for bulk-assign).
+  // Accept safety is downstream: every accept-type consumer reads selectedAcceptRows, so
+  // widening THIS set can never widen what "Accept selected" acts on.
+  const eligibleRows = statusView === "open" ? rows.filter((r) => isBulkSelectable(r, statusView)) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
   const toggleSelectAllEligible = useCallback(() => {
@@ -1144,11 +1311,18 @@ const AuthorshipsTabs = () => {
           style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `Type: ${selectedTypes.length}`} <IconChevD size={13} />
         </button>
-        <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows, where a person IS proposed but isn't in ReCiter yet."} placement="top" arrow>
+        <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows below, where a person IS proposed but isn't in ReCiter yet — see that checkbox."} placement="top" arrow>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
             <Checkbox size="small" checked={hideNoSuggestion}
               onChange={(e) => setHideNoSuggestion(e.target.checked)} style={{ padding: 0 }} />
             Hide “No suggested identity”
+          </label>
+        </Tip>
+        <Tip title={"Hides rows proposing a person who has no ReCiter identity yet (the “No ReCiter identity” pill) — there is a proposal, just nothing in ReCiter to accept it into. Totals above reflect this filter when it's on."} placement="top" arrow>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
+            <Checkbox size="small" checked={hideNoIdentity}
+              onChange={(e) => setHideNoIdentity(e.target.checked)} style={{ padding: 0 }} />
+            Hide “No ReCiter identity”
           </label>
         </Tip>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1190,6 +1364,19 @@ const AuthorshipsTabs = () => {
               placeholder="Filter by name, CWID, or PMID"
               style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #dde3ea", width: 220, fontSize: 13 }} />
           </form>
+          {/* T5: dismissible chip for the structured "Show N others like this" filter — separate
+              state from the free-text box above (independent, per MUST DO #3), so clearing it
+              here never touches whatever's typed in "Filter by name, CWID, or PMID". */}
+          {likeAuthor && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 16, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
+              Like: {likeAuthor}
+              <button type="button" onClick={() => setLikeAuthor("")} aria-label="Clear the like-author filter"
+                title="Clear this filter"
+                style={{ border: "none", background: "none", cursor: "pointer", color: "#1d4ed8", fontWeight: 700, fontSize: 14, lineHeight: 1, padding: "0 2px" }}>
+                ×
+              </button>
+            </span>
+          )}
         </div>
       </div>
 
@@ -1213,14 +1400,14 @@ const AuthorshipsTabs = () => {
       {/* F4: bulk bar (slim) */}
       {statusView === "open" && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 18px", fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
-          <Tip title="Select every single-candidate row on this page for bulk action" placement="top" arrow>
+          <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign, multi-candidate (non-Scopus) rows for bulk assign" placement="top" arrow>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: eligibleRows.length === 0 ? "default" : "pointer", color: eligibleRows.length === 0 ? "#94a3b8" : "#475569" }}>
               <Checkbox size="small" disabled={eligibleRows.length === 0}
                 checked={allEligibleSelected}
                 indeterminate={someEligibleSelected && !allEligibleSelected}
                 onChange={toggleSelectAllEligible}
                 style={{ padding: 0 }} />
-              Select all single-candidate (this page)
+              Select all selectable (this page)
             </label>
           </Tip>
           <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
@@ -1232,7 +1419,10 @@ const AuthorshipsTabs = () => {
           {/* Escape hatch from the page-scoped selection above: only offered once this page is
               fully selected and there is more behind it, and the count is stated in the label so
               nobody selects a few thousand rows without reading the number. */}
-          {allEligibleSelected && !allMatching && count > eligibleRows.length && (
+          {/* Hidden whenever the selection holds multi-candidate rows: selectAllMatching
+              REPLACES the selection with the server's single-candidate-only set
+              (authorshipSelectable), which would silently drop them. */}
+          {allEligibleSelected && selectedAcceptRows.length === selectedRows.length && !allMatching && count > eligibleRows.length && (
             <button disabled={selectingAll} style={btn("soft", selectingAll)} onClick={selectAllMatching}>
               {selectingAll ? "Selecting…" : `Select all ${count.toLocaleString()} matching these filters`}
             </button>
@@ -1247,20 +1437,95 @@ const AuthorshipsTabs = () => {
           {selectedRows.length > 0 && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               — <strong>{selectedRows.length}</strong> selected
-              <button style={{ ...btn("accept"), padding: "4px 10px" }} disabled={!!bulkProgress}
-                onClick={() => doBulkAccept(selectedRows)}>
-                <IconCheck /> Accept selected
+              {/* T4: selectedRows can now include multi-candidate rows (bulk-assign only) —
+                  Accept must stay scoped to selectedAcceptRows so one can never be
+                  bulk-accepted, and hides entirely once the selection is assign-only. */}
+              {selectedAcceptRows.length > 0 && (
+                <button style={{ ...btn("accept"), padding: "4px 10px" }} disabled={!!bulkProgress}
+                  onClick={() => doBulkAccept(selectedAcceptRows)}>
+                  <IconCheck /> Accept selected{selectedAcceptRows.length < selectedRows.length ? ` (${selectedAcceptRows.length})` : ""}
+                </button>
+              )}
+              {/* T5: "Show N others like this" (per-row) narrows the queue to one author's open
+                  rows; this is the other half — assign one cwid to every row now selected. */}
+              <button style={{ ...btn("soft"), padding: "4px 10px" }} disabled={!!bulkProgress}
+                onClick={(e) => openAssignPicker(e.currentTarget)}>
+                Assign selected ({selectedRows.length}) to…
               </button>
             </span>
           )}
           {bulkProgress && (
             <span style={{ color: "#475569", fontVariantNumeric: "tabular-nums" }}>
-              Accepting {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}…
+              Working: {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}…
             </span>
           )}
           <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
-            {allMatching ? "Bulk acts on every matching single-candidate row" : "Bulk acts on single-candidate rows on this page"}
+            {allMatching ? "Bulk accept acts on every matching single-candidate row"
+              : "Bulk accept acts on single-candidate rows on this page; bulk assign also covers open, non-Scopus multi-candidate rows"}
           </span>
+        </div>
+      )}
+
+      {/* T4: "Assign selected (N) to…" picker — union of every candidate the selection
+          proposes (rowCandidateLites: candidate_cwids_json for a multi row, the row's own
+          top_cwid for a single one), ranked by how many selected rows propose it, plus a
+          typed-cwid escape hatch for someone the union doesn't include. Choosing an option
+          computes the confirm split below rather than submitting immediately. */}
+      <Menu anchorEl={assignMenuAnchor} open={!!assignMenuAnchor} onClose={() => setAssignMenuAnchor(null)}
+        PaperProps={{ style: { maxWidth: 380 } }}>
+        {assignCandidateUnion.length === 0 && <MenuItem disabled>No candidates on the selected rows</MenuItem>}
+        {assignCandidateUnion.map((c) => (
+          <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid, c.name)}>
+            {c.name ? `${c.name} ` : ""}({c.cwid}) — matches {c.matches} of {selectedRows.length} selected
+          </MenuItem>
+        ))}
+        <div onClick={(e) => e.stopPropagation()} style={{
+          display: "flex", gap: 6, alignItems: "center", padding: "8px 12px",
+          borderTop: assignCandidateUnion.length ? "1px solid #e8edf2" : "none",
+        }}>
+          <label style={{ fontSize: 11.5, color: "#94a3b8" }}>Someone else:</label>
+          <input value={assignOtherCwid} placeholder="cwid"
+            onChange={(e) => setAssignOtherCwid(e.target.value.trim())}
+            onKeyDown={(e) => { if (e.key === "Enter" && assignOtherCwid) chooseAssignTarget(assignOtherCwid); }}
+            style={{ width: 90, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1", borderRadius: 4, color: "#334155" }} />
+          <button style={btn("accept", !assignOtherCwid)} disabled={!assignOtherCwid}
+            onClick={() => chooseAssignTarget(assignOtherCwid)}>
+            Go
+          </button>
+        </div>
+      </Menu>
+
+      {/* T4: bulk-assign confirm step. Never a blanket confirm of a server 422 — this only
+          states the LOCAL submit/skip split (partitionForAssign) before any request fires; an
+          OFF_CANDIDATE/NO_RECITER_IDENTITY 422 on a submitted row still counts as skipped-with-
+          reason in the summary toast doBulkAssign shows afterward, never auto-retried. */}
+      {assignConfirm && (
+        <div onClick={() => setAssignConfirm(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 1400,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 10, padding: 20, maxWidth: 420,
+            boxShadow: "0 8px 32px rgba(15,23,42,.25)",
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+              Assign {assignConfirm.toSubmit.length} row{assignConfirm.toSubmit.length === 1 ? "" : "s"} to{" "}
+              {assignConfirm.name ? `${assignConfirm.name} ` : ""}({assignConfirm.cwid})
+            </div>
+            {assignConfirm.toSkip.length > 0 && (
+              <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 12 }}>
+                {assignConfirm.toSkip.length} row{assignConfirm.toSkip.length === 1 ? "" : "s"} will be skipped
+                — {assignConfirm.cwid} is not among their candidates.
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={btn("ghost")} onClick={() => setAssignConfirm(null)}>Cancel</button>
+              <button style={btn("accept", assignConfirm.toSubmit.length === 0)}
+                disabled={assignConfirm.toSubmit.length === 0} onClick={doBulkAssign}>
+                Assign
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1291,7 +1556,9 @@ const AuthorshipsTabs = () => {
             onPick={(cwid) => setPicked((p) => ({ ...p, [r.id]: cwid }))}
             onAction={(action, extra) => doAction(r, action, extra)}
             onMenu={(anchor) => setMenu({ anchor, row: r })}
+            onAssignOther={() => focusAssignOther(r.id)}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
+            onFindOthers={() => findOthersLikeThis(r.wcm_author)}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
@@ -1322,7 +1589,10 @@ const AuthorshipsTabs = () => {
           input the "Evidence"/"Pick one" disclosure reveals. On a single-candidate row that
           disclosure is the ONLY other item, and its label gives no hint an assign control
           lives behind it — a two-item menu (Snooze/Dismiss) reads as "this is all there is",
-          which is exactly how the feature got reported as unshipped after #936 put it live. */}
+          which is exactly how the feature got reported as unshipped after #936 put it live.
+          "Show N others like this" (T5) mirrors the card's own ghost button — offered for every
+          row that has a server-computed like_count > 0, not just multi-candidate ones, and
+          hidden entirely (proactive) once there's nobody else to gather. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {menu && !menu.row.single_candidate && (
           <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
@@ -1333,13 +1603,14 @@ const AuthorshipsTabs = () => {
           <MenuItem onClick={() => {
             const id = menu.row.id;
             setMenu(null);
-            setExpanded(id);
-            // Card expansion mounts <AssignOther> on the next render; focus has to wait for
-            // that DOM to exist. Same deferred-callback idiom as the debounces above (line
-            // ~373/641), just zero-delay — this is a paint wait, not a debounce.
-            setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
+            focusAssignOther(id);
           }}>
             Assign to someone else…
+          </MenuItem>
+        )}
+        {menu && (menu.row.like_count ?? 0) > 0 && (
+          <MenuItem onClick={() => { findOthersLikeThis(menu.row.wcm_author); setMenu(null); }}>
+            Show {menu.row.like_count} other{menu.row.like_count === 1 ? "" : "s"} like this
           </MenuItem>
         )}
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
@@ -1491,17 +1762,24 @@ interface CardProps {
   onPick: (cwid: string) => void;
   onAction: (action: string, extra?: Record<string, any>) => void;
   onMenu: (anchor: HTMLElement) => void;
+  onAssignOther: () => void;
   onNarrowPmid: () => void;
+  onFindOthers: () => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
 }
 
 const AuthorshipCard = ({
   row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
-  registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onNarrowPmid,
+  registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
+  onFindOthers,
   conflict, onClearConflict,
 }: CardProps) => {
-  const isMulti = !r.single_candidate && (r.n_candidates ?? 0) > 1;
+  // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
+  // (toggleSelect, nearCertain, eligibleRows) — the n_candidates>1 clause let a card keep
+  // showing Accept on a row the server would 409 (stale n_candidates, single_candidate
+  // already flipped), landing the curator on the generic "nothing was saved" toast.
+  const isMulti = !r.single_candidate;
   const noIdentity = r.identity_in_reciter === false;
   const alreadyRejected = r.top_already_rejected === true;
   // #938 — ReCiterDB#177 nulls the producer's candidate columns (top_cwid included) on rows
@@ -1512,6 +1790,12 @@ const AuthorshipCard = ({
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
   const meta = CLASS_META[r.classification || "absent"];
+  // T4: same predicate toggleSelect gates on — multi-candidate rows are now checkbox-
+  // selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/isMultiAssignEligible).
+  const selectable = isBulkSelectable(r, statusView);
+  // T5: server-computed sibling count for "Show N others like this" (see like_count on
+  // AuthorshipRow) — 0/undefined both mean "nobody else, hide the button".
+  const likeCount = r.like_count ?? 0;
 
   const cardStyle: CSSProperties = {
     background: isSelected ? "#eff6ff" : "#fff",
@@ -1526,11 +1810,12 @@ const AuthorshipCard = ({
   return (
     <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
-        {/* selection checkbox — single-candidate open rows with a ReCiter identity only */}
-        <input type="checkbox" disabled={!r.single_candidate || noIdentity || alreadyRejected || noSuggestion || statusView !== "open"}
+        {/* selection checkbox — single-candidate open rows with a ReCiter identity, PLUS
+            (T4) open, non-scopus multi-candidate rows, for bulk-assign only. See `selectable`. */}
+        <input type="checkbox" disabled={!selectable}
           checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
           aria-label={`select ${r.wcm_author || ""}`}
-          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && !noIdentity && !alreadyRejected && !noSuggestion && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && !noIdentity && !alreadyRejected && !noSuggestion && statusView === "open" ? 1 : 0.3 }} />
+          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: selectable ? "pointer" : "default", flex: "none", opacity: selectable ? 1 : 0.3 }} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* L1 — WCM author + position */}
@@ -1567,6 +1852,18 @@ const AuthorshipCard = ({
                 )}
                 <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
               </>
+            )}
+            {/* T5: "Show N others like this" — proactive (only rendered once the server-side
+                like_count says there IS someone) and variant-tolerant (the normalized-key match
+                behind like_count catches "Bernard J. Park" starting from "Bernard Park", which
+                T4's free-text-box version could not). Every open card, not just multi-candidate
+                ones — a curator working a single-candidate row may still want the group. */}
+            {statusView === "open" && likeCount > 0 && (
+              <Tip title={`Filter the queue to ${likeCount} other open row${likeCount === 1 ? "" : "s"} for "${r.wcm_author}" (matches middle-initial and similar byline variants)`} placement="top" arrow>
+                <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onFindOthers(); }}>
+                  Show {likeCount} other{likeCount === 1 ? "" : "s"} like this
+                </button>
+              </Tip>
             )}
           </div>
 
@@ -1651,9 +1948,22 @@ const AuthorshipCard = ({
                 <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
                   <IconX size={14} /> Reject
                 </button>
-                <Tip title={`${r.top_name || r.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. They may have departed, or may simply never have been synced from the identity feed — the attribution itself is not in question here.`} placement="top" arrow>
-                  <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No ReCiter identity</span>
+                {/* T3 — the pill used to be inert (Accept has nothing to add this authorship
+                    to). It's the same "Assign to someone else…" shortcut as the overflow menu:
+                    expand the card and focus AssignOther's typed-cwid input. A ghost "Assign…"
+                    button sits next to it so the affordance is visible without opening ⋯. */}
+                <Tip title={`${r.top_name || r.top_cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to. Click to assign this authorship to someone else instead.`} placement="top" arrow>
+                  <span
+                    style={{ ...noIdentityPillStyle, cursor: "pointer" }}
+                    title="Assign this authorship — expand and pick or type a person"
+                    onClick={(e) => { e.stopPropagation(); onAssignOther(); }}
+                  >
+                    No ReCiter identity
+                  </span>
                 </Tip>
+                <button style={btn("ghost", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAssignOther(); }}>
+                  Assign…
+                </button>
               </>
             ) : alreadyRejected ? (
               <>
@@ -1699,7 +2009,8 @@ const AuthorshipCard = ({
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
             {conflict.kind === "no_identity" ? "No ReCiter identity"
               : conflict.kind === "off_candidate" ? "Not a proposed candidate — this writes their record"
-                : "Possible duplicate"}
+                : conflict.kind === "multi_candidate" ? "This row now has multiple candidates"
+                  : "Possible duplicate"}
             {" — "}{conflict.wcm_author || conflict.top_name || r.wcm_author}
           </div>
           <div style={{ marginBottom: 6 }}>{conflict.message}</div>
@@ -1717,13 +2028,19 @@ const AuthorshipCard = ({
             </ul>
           )}
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
-              style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
-              {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
-                : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
-                  : "Force add anyway"}
+            {/* multi_candidate has no retry — the row's own re-render (fetchData(true) after
+                the 409) already replaced Accept with Pick-one, so there's nothing to confirm. */}
+            {conflict.kind !== "multi_candidate" && (
+              <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
+                style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
+                {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
+                  : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
+                    : "Force add anyway"}
+              </button>
+            )}
+            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>
+              {conflict.kind === "multi_candidate" ? "Got it" : "Cancel"}
             </button>
-            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>Cancel</button>
           </div>
         </div>
       )}
@@ -1741,7 +2058,15 @@ const AuthorshipCard = ({
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
               it's the case where the curator most often knows a name the card can't offer. */}
           <AssignOther rowId={r.id} acting={acting} onAction={onAction}
-            homonyms={isMulti && r.source !== "scopus" ? candidates.length : 0} />
+            homonyms={r.source === "scopus" ? 0
+              : isMulti ? candidates.length
+                // F-2: a single-candidate row now records the same "not mine" for its one
+                // proposed candidate when the curator assigns elsewhere — but only when that
+                // candidate actually exists to be displaced (a real top_cwid) and has a
+                // ReCiter identity to write the rejection against (noIdentity / noSuggestion
+                // are exactly the server-computed facts that already gate this row's own
+                // "No ReCiter identity" pill and no-suggestion state).
+                : (noSuggestion || noIdentity ? 0 : 1)} />
         </div>
       )}
     </article>
@@ -1861,11 +2186,13 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
   );
 };
 
-// What an assign on a homonym row does to the OTHER candidates, said before the click rather
-// than discovered afterwards. Assigning to one of N now records a rejection for the rest — a
-// gold-standard write into other people's records, so it cannot be a silent side effect.
-// Rendered for pubmed multi-candidate rows only, which is exactly where the server writes them
-// (scopus has no pmid to reject; a single-candidate row records no homonym judgment).
+// What an assign does to the OTHER candidate(s) on the row, said before the click rather than
+// discovered afterwards. Assigning to one of N — or, per F-2, assigning AWAY from a row's one
+// proposed candidate — now records a rejection for the rest: a gold-standard write into other
+// people's records, so it cannot be a silent side effect.
+// Rendered for pubmed rows only (multi-candidate always, single-candidate when its one proposed
+// candidate has an identity to displace), which is exactly where the server writes them —
+// scopus has no pmid to reject.
 // "with a ReCiter identity" is not hedging: the server skips candidates ReCiter has no Identity
 // row for, because that write would SUCCEED (200) into an orphan GoldStandard row nothing reads
 // — 39 of the 153 people in the resolved backlog are these.

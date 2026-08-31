@@ -13,6 +13,12 @@
  * Only the two JSX branches that can't be evaluated without a renderer (the right-rail actions,
  * and the evidence-panel note) fall back to a scoped string check on the exact slice.
  *
+ * Section 2's own gates (toggleSelect/eligibleRows/the checkbox) now delegate to
+ * isAcceptEligible/isBulkSelectable (src/lib/bulkAssign.ts, T4) rather than carrying their own
+ * inline predicate — imported directly (same as scripts/check-bulk-assign.mjs) and exercised for
+ * real, plus a plain string check that the call sites actually delegate to them, so a future
+ * revert to an inline predicate that happens to agree today still gets caught structurally.
+ *
  * Four sections:
  *   1. doActionAsync guard   — accept/reject on a no-suggestion row never reaches the network
  *   2. bulk eligibility      — toggleSelect, nearCertain, eligibleRows, checkbox disabled
@@ -24,6 +30,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { isAcceptEligible, isBulkSelectable } from "../src/lib/bulkAssign.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tabsSrc = readFileSync(join(ROOT, "src/components/elements/Authorships/AuthorshipsTabs.tsx"), "utf8");
@@ -56,12 +63,14 @@ check("unrelated actions (snooze) never blocked by this guard", guard("snooze", 
 // ---------------------------------------------------------------------------------------
 console.log("\n2. bulk eligibility — every path a curator can select/accept a batch through:");
 
-const toggleLine = line(tabsSrc, "row.top_already_rejected || !row.top_cwid", "toggleSelect guard");
-const toggleBlocks = new Function("row", "statusView",
-  `if (${toggleLine.replace(/^if \(/, "").replace(/\)\s*return;$/, "")}) return true; return false;`);
-check("toggleSelect refuses a no-suggestion row", toggleBlocks({ single_candidate: true, top_cwid: null }, "open"), true);
+// toggleSelect (AuthorshipsTabs.tsx) is `if (!isBulkSelectable(row, statusView)) return;` —
+// assert the call site really delegates, then exercise the real imported function.
+const toggleLine = line(tabsSrc, "if (!isBulkSelectable(row, statusView)) return;", "toggleSelect guard");
+check("toggleSelect's guard line delegates to isBulkSelectable", toggleLine.length > 0, true);
+check("toggleSelect (isBulkSelectable) refuses a no-suggestion row",
+  isBulkSelectable({ single_candidate: true, top_cwid: null }, "open"), false);
 check("toggleSelect still allows an ordinary single-candidate open row",
-  toggleBlocks({ single_candidate: true, top_cwid: "aaa2014", identity_in_reciter: true }, "open"), false);
+  isBulkSelectable({ single_candidate: true, top_cwid: "aaa2014", identity_in_reciter: true }, "open"), true);
 
 // Array.prototype.filter only cares about truthiness — the real expression short-circuits on
 // `r.top_cwid` and returns null, not false, for a no-suggestion row. `!!` reproduces exactly
@@ -73,20 +82,26 @@ check("near-certain bulk excludes a no-suggestion row even at IO 100",
 check("near-certain bulk still includes a real high-IO single-candidate row",
   nearCertainPredicate({ single_candidate: true, identity_in_reciter: true, top_cwid: "aaa2014", top_io_score: 100 }), true);
 
+// eligibleRows is `rows.filter((r) => isBulkSelectable(r, statusView))` (T4 + the select-all
+// widening) — assert the delegation, then exercise the real imported function, same pattern as
+// toggleSelect above. Accept safety lives downstream in selectedAcceptRows, not here.
 const eligibleLine = line(tabsSrc, "const eligibleRows = statusView", "eligibleRows filter");
-const eligiblePredicate = new Function("r", `return !!(${eligibleLine.match(/rows\.filter\(\(r\) => (.+)\)\s*:/)[1]});`);
+check("eligibleRows delegates to isBulkSelectable", eligibleLine.includes("isBulkSelectable(r, statusView)"), true);
 check("header select-all-on-page excludes a no-suggestion row",
-  eligiblePredicate({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: null }), false);
+  isBulkSelectable({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: null }, "open"), false);
 check("header select-all-on-page still includes an ordinary row",
-  eligiblePredicate({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: "aaa2014" }), true);
+  isBulkSelectable({ single_candidate: true, identity_in_reciter: true, top_already_rejected: false, top_cwid: "aaa2014" }, "open"), true);
 
+// The row checkbox is `disabled={!selectable}` where `selectable = isBulkSelectable(r, statusView)`
+// (T4) — assert the delegation, then exercise isBulkSelectable directly (the same function
+// toggleSelect above already covers) rather than re-deriving `selectable` via new Function.
 const checkboxLine = line(tabsSrc, "input type=\"checkbox\" disabled=", "checkbox disabled expression");
-const checkboxDisabled = new Function("r", "noIdentity", "alreadyRejected", "noSuggestion", "statusView",
-  `return (${checkboxLine.match(/disabled=\{(.+?)\}$/)[1]});`);
+check("the row checkbox delegates to !selectable (isBulkSelectable)",
+  checkboxLine.includes("disabled={!selectable}"), true);
 check("the row checkbox is disabled for a no-suggestion open row",
-  checkboxDisabled({ single_candidate: true }, false, false, true, "open"), true);
+  !isBulkSelectable({ single_candidate: true, top_cwid: null }, "open"), true);
 check("the row checkbox stays enabled for an ordinary open row",
-  checkboxDisabled({ single_candidate: true }, false, false, false, "open"), false);
+  !isBulkSelectable({ single_candidate: true, top_cwid: "aaa2014", identity_in_reciter: true }, "open"), false);
 
 // ---------------------------------------------------------------------------------------
 console.log("\n3. authorshipSelectable — cross-page \"Select all N matching\":");
