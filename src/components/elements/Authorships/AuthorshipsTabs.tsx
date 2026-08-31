@@ -773,7 +773,7 @@ const AuthorshipsTabs = () => {
         }
         // e.local (the #938 backstop above) rejects before the optimistic remove ever runs, so
         // unlike every other rejection here the row never left the list — say so accurately.
-        else if (e?.local) setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}.`);
+        else if (e?.local) setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}`);
         else setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}. The row is back in the list — nothing was saved.`);
         fetchData(); // restore the optimistically-removed row
       })
