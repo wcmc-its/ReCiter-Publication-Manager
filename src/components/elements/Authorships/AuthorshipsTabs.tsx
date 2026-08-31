@@ -474,6 +474,15 @@ const AuthorshipsTabs = () => {
   const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed" | "duplicates">("open");
   const [source, setSource] = useState<"all" | "pubmed" | "scopus">("all");
   const [selectedPubTypes, setSelectedPubTypes] = useState<string[]>([]);
+  // hide rows with no proposed identity at all (#938 — top_cwid null, the "No suggested
+  // identity" pill below) — a real filter sent to the server (buildWhere) rather than sliced
+  // client-side, so it stays consistent with the total count and "Select all N matching"
+  // (authorshipSelectable shares the same buildWhere). Deliberately does NOT also hide "No
+  // ReCiter identity" rows (identity_in_reciter===false): that flag is resolved per-page
+  // against DynamoDB after this query already ran, not a stored column, so filtering it before
+  // LIMIT/OFFSET would mean checking DynamoDB identity for the WHOLE matching set on every
+  // list load rather than just the current page — a materially bigger change than this one.
+  const [hideNoSuggestion, setHideNoSuggestion] = useState(false);
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -535,7 +544,8 @@ const AuthorshipsTabs = () => {
     dateTo,
     sort,
     statusView,
-  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView]);
+    hideNoSuggestion,
+  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -543,9 +553,19 @@ const AuthorshipsTabs = () => {
   useEffect(() => { statusViewRef.current = statusView; }, [statusView]);
   useEffect(() => { undoRef.current = undo; }, [undo]);
 
-  const fetchData = useCallback(() => {
+  // `silent` skips the loading flag, which is what unmounts the whole card list below (the
+  // {loading && …}/{!loading && rows.map(…)} gate) — a curator scrolled into the middle of the
+  // page loses their place the instant that gate flips, because the DOM collapses to a single
+  // "Loading…" line and back. Rows are keyed by r.id, so a normal (non-silent) setRows already
+  // reconciles in place without disturbing scroll; the gate is what actually causes the jump.
+  // Use silent for every "restore/refresh the SAME view after acting on a row" call (a failed
+  // action putting the optimistically-removed row back, a bulk-accept partial failure, an
+  // undo) — none of those are navigation, so none of them should move the reader. Leave it
+  // non-silent for the one effect below that fires on an actual filter/status/page change,
+  // where landing back at the top is the reasonable, expected behaviour.
+  const fetchData = useCallback((silent = false) => {
     const myId = ++seqRef.current;
-    setLoading(true);
+    if (!silent) setLoading(true);
     fetch("/api/db/authorships", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
       body: JSON.stringify({ ...filterBody(), limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
@@ -558,7 +578,7 @@ const AuthorshipsTabs = () => {
         setCount(d.count || 0);
       })
       .catch((e) => console.error("[authorships]", e))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, [filterBody, page]);
 
   // Rolling queue: silently refill the visible set back up to PAGE_SIZE after a curator action —
@@ -628,9 +648,11 @@ const AuthorshipsTabs = () => {
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         // reopened row drops out of the resolved-only feed and may now belong on the
-        // currently-viewed page/statusView; summary counts change too.
+        // currently-viewed page/statusView; summary counts change too. Silent: this fires
+        // from the Recent-activity side panel, not a filter/page change — the main queue
+        // underneath shouldn't jump to the top over an action taken in a popup.
         fetchRecentActivity();
-        fetchData();
+        fetchData(true);
         fetchSummary();
       })
       .catch((e) => setErrorMsg(`Couldn't undo "${entry.title || entry.wcm_author || entry.id}" — ${String(e?.message || e)}`));
@@ -665,7 +687,7 @@ const AuthorshipsTabs = () => {
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page]);
+    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
 
@@ -775,7 +797,10 @@ const AuthorshipsTabs = () => {
         // unlike every other rejection here the row never left the list — say so accurately.
         else if (e?.local) setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}`);
         else setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}. The row is back in the list — nothing was saved.`);
-        fetchData(); // restore the optimistically-removed row
+        // silent: this is the dupe/no-identity/off-candidate/error recovery path — put the row
+        // back in place (React reconciles by key) without the loading-gate flash that used to
+        // unmount the whole card list and throw the reader's scroll position to the top.
+        fetchData(true);
       })
       .finally(() => setActingId(null));
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
@@ -803,7 +828,7 @@ const AuthorshipsTabs = () => {
         const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: `Accepted ${ok.length}` });
         // success: silently refill the queue to the next batch ("accept 20 → next 20").
-        // failure: full refresh (with loading) to restore the optimistically-removed rows,
+        // failure: refresh to restore the optimistically-removed rows (silently -- see below),
         // with the failures broken down by cause so the same rows don't fail opaquely forever.
         if (failures.length) {
           const dups = failures.filter((f) => (f.reason as any)?.status === 409).length;
@@ -814,7 +839,9 @@ const AuthorshipsTabs = () => {
           if (noId) parts.push(`${noId} with no ReCiter identity`);
           if (other) parts.push(`${other} failed`);
           setErrorMsg(`${failures.length} of ${batch.length} accepts skipped: ${parts.join("; ")} — refreshing`);
-          fetchData();
+          // silent — a partial bulk-accept failure is still "acted on rows in place", not a
+          // navigation event; the curator is mid-review of this same page.
+          fetchData(true);
         }
         else topUp();
         fetchSummary();
@@ -857,7 +884,8 @@ const AuthorshipsTabs = () => {
       }).then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
     )).then((results) => {
       if (results.some((r) => r.status === "rejected")) setErrorMsg("Undo failed for one or more rows");
-    }).finally(() => { fetchData(); fetchSummary(); fetchRecentActivity(); });
+      // silent — undo restores rows in place, same as the action-catch path above.
+    }).finally(() => { fetchData(true); fetchSummary(); fetchRecentActivity(); });
   }, [undo, fetchData, fetchSummary, fetchRecentActivity]);
 
   // F12: clicking "+N more" narrows the view to the pmid. The sibling count is scoped
@@ -1116,6 +1144,13 @@ const AuthorshipsTabs = () => {
           style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `Type: ${selectedTypes.length}`} <IconChevD size={13} />
         </button>
+        <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows, where a person IS proposed but isn't in ReCiter yet."} placement="top" arrow>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
+            <Checkbox size="small" checked={hideNoSuggestion}
+              onChange={(e) => setHideNoSuggestion(e.target.checked)} style={{ padding: 0 }} />
+            Hide “No suggested identity”
+          </label>
+        </Tip>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date">
             Date
