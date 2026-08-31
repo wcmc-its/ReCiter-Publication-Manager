@@ -1259,11 +1259,30 @@ const AuthorshipsTabs = () => {
       {/* overflow menu: Snooze / Dismiss, plus Reject all for multi-candidate rows.
           Single-candidate Reject is a primary button on the card itself, not buried here.
           Multi-candidate's "none of them wrote it" is a real reject too — against every
-          candidate, not just top_cwid — so it belongs here, not the no-op Dismiss below. */}
+          candidate, not just top_cwid — so it belongs here, not the no-op Dismiss below.
+          "Assign to someone else…" is a SHORTCUT, not a new control (issue #937): it expands
+          the card and focuses the typed-cwid input <AssignOther> already renders, the same
+          input the "Evidence"/"Pick one" disclosure reveals. On a single-candidate row that
+          disclosure is the ONLY other item, and its label gives no hint an assign control
+          lives behind it — a two-item menu (Snooze/Dismiss) reads as "this is all there is",
+          which is exactly how the feature got reported as unshipped after #936 put it live. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {menu && !menu.row.single_candidate && (
           <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
             <IconX size={14} style={{ marginRight: 8 }} /> Reject all
+          </MenuItem>
+        )}
+        {menu && (
+          <MenuItem onClick={() => {
+            const id = menu.row.id;
+            setMenu(null);
+            setExpanded(id);
+            // Card expansion mounts <AssignOther> on the next render; focus has to wait for
+            // that DOM to exist. Same deferred-callback idiom as the debounces above (line
+            // ~373/641), just zero-delay — this is a paint wait, not a debounce.
+            setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
+          }}>
+            Assign to someone else…
           </MenuItem>
         )}
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
