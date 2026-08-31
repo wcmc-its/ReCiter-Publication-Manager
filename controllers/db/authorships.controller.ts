@@ -393,9 +393,11 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
 // thousand rows is megabytes to no purpose.
 //
 // Eligibility is recomputed here rather than trusted from the client, and it is the same
-// three tests the card enforces — single-candidate, the proposed identity exists in ReCiter,
-// and that identity has not already rejected this exact pmid. A row failing any of them is
-// omitted, so it can never enter a bulk selection by way of this endpoint.
+// tests the card enforces — a proposed identity exists on the row at all (#938 — ReCiterDB#177
+// nulls top_cwid on rows the merged matcher no longer matches to anyone), single-candidate,
+// that identity exists in ReCiter, and it has not already rejected this exact pmid. A row
+// failing any of them is omitted, so it can never enter a bulk selection by way of this
+// endpoint.
 const SELECTABLE_CAP = 5000;
 
 export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -417,7 +419,11 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
     const rejectedByCwid = await getRejectedPmidsByCwid([...rejectionCwids]);
 
     const out = page
-      .filter((r: any) => !r.top_cwid || knownIdentities.has(String(r.top_cwid)))
+      // #938: was `!r.top_cwid || knownIdentities.has(...)` — vacuously true for a
+      // no-suggestion row, which "Select all N matching" would then bulk-accept straight
+      // into the same 409 the single-row card guards against. There is nothing to accept
+      // without a proposed identity, known-to-ReCiter or not.
+      .filter((r: any) => !!r.top_cwid && knownIdentities.has(String(r.top_cwid)))
       .filter((r: any) => !(r.source !== "scopus" && r.pmid != null && r.top_cwid
         && rejectedByCwid[String(r.top_cwid)]?.has(Number(r.pmid))))
       .map((r: any) => ({

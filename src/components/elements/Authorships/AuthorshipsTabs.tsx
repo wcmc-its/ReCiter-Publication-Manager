@@ -672,6 +672,18 @@ const AuthorshipsTabs = () => {
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure).
   // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
   const doActionAsync = useCallback((row: AuthorshipRow, action: string, extra?: Record<string, any>): Promise<boolean> => {
+    // #938 backstop: a no-suggestion row (top_cwid null) has nothing for accept/reject to act
+    // on and the server 409s (authorships.controller.ts accept/reject cases). The card, the
+    // checkboxes, and the bulk-eligibility filters above all already keep these out of reach —
+    // this is the one place that also catches the Y/N keyboard shortcuts, which bypass all of
+    // that UI gating by calling straight through to here. Rejecting before the optimistic
+    // remove below means the row never even flashes out of the list.
+    if ((action === "accept" || action === "reject") && !row.top_cwid) {
+      return Promise.reject(Object.assign(
+        new Error("No proposed identity on this row — use “Someone else” to assign it."),
+        { status: 409 },
+      ));
+    }
     pendingRemoved.current.add(row.id);
     // Keep the keyboard triage queue moving: if the row being removed is the focused one, advance
     // focus to whatever now sits at the same index (the next row), falling back to the new last row,
@@ -857,8 +869,9 @@ const AuthorshipsTabs = () => {
   }, []);
 
   const toggleSelect = useCallback((row: AuthorshipRow) => {
-    // multi rows, no-ReCiter-identity rows, and already-rejected rows aren't bulk-selectable
-    if (!row.single_candidate || row.identity_in_reciter === false || row.top_already_rejected || statusView !== "open") return;
+    // multi rows, no-ReCiter-identity rows, already-rejected rows, and rows with no proposed
+    // identity at all (#938 — top_cwid null) aren't bulk-selectable
+    if (!row.single_candidate || row.identity_in_reciter === false || row.top_already_rejected || !row.top_cwid || statusView !== "open") return;
     setSelected((s) => {
       const next = new Set(s);
       next.has(row.id) ? next.delete(row.id) : next.add(row.id);
@@ -952,13 +965,16 @@ const AuthorshipsTabs = () => {
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
 
-  // F4: near-certain bulk = visible single-candidate rows with IO >= 95 (and acceptable)
-  const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && (r.top_io_score ?? 0) >= 95);
+  // F4: near-certain bulk = visible single-candidate rows with IO >= 95 (and acceptable).
+  // top_io_score can survive #938's no-suggestion rows (top_cwid null) even though there is no
+  // candidate left to accept — exclude them explicitly rather than trust identity_in_reciter,
+  // which is vacuously true when top_cwid is null.
+  const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && r.top_cwid && (r.top_io_score ?? 0) >= 95);
   // With a select-all-matching in force the selection includes rows this page never
   // loaded, so the on-page filter would silently shrink the batch to 20.
   const selectedRows = allMatching ?? rows.filter((r) => selected.has(r.id));
   // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
-  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && !r.top_already_rejected) : [];
+  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && !r.top_already_rejected && r.top_cwid) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
   const toggleSelectAllEligible = useCallback(() => {
@@ -1428,6 +1444,10 @@ const AuthorshipCard = ({
   const isMulti = !r.single_candidate && (r.n_candidates ?? 0) > 1;
   const noIdentity = r.identity_in_reciter === false;
   const alreadyRejected = r.top_already_rejected === true;
+  // #938 — ReCiterDB#177 nulls the producer's candidate columns (top_cwid included) on rows
+  // the merged matcher no longer matches to anyone; gated on top_cwid itself, not on the
+  // identity lookup above, which is vacuously true (`!r.top_cwid || …`) and so never fires here.
+  const noSuggestion = !r.top_cwid;
   const isAbsent = r.top_io_score == null;
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
@@ -1447,10 +1467,10 @@ const AuthorshipCard = ({
     <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
         {/* selection checkbox — single-candidate open rows with a ReCiter identity only */}
-        <input type="checkbox" disabled={!r.single_candidate || noIdentity || alreadyRejected || statusView !== "open"}
+        <input type="checkbox" disabled={!r.single_candidate || noIdentity || alreadyRejected || noSuggestion || statusView !== "open"}
           checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
           aria-label={`select ${r.wcm_author || ""}`}
-          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && !noIdentity && !alreadyRejected && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && !noIdentity && !alreadyRejected && statusView === "open" ? 1 : 0.3 }} />
+          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && !noIdentity && !alreadyRejected && !noSuggestion && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && !noIdentity && !alreadyRejected && !noSuggestion && statusView === "open" ? 1 : 0.3 }} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* L1 — WCM author + position */}
@@ -1474,6 +1494,8 @@ const AuthorshipCard = ({
             <span style={{ color: "#94a3b8" }}>→</span>
             {isMulti ? (
               <span style={{ color: "#94a3b8" }}>choose among {r.n_candidates} WCM homonyms</span>
+            ) : noSuggestion ? (
+              <span style={{ fontStyle: "italic", color: "#94a3b8" }}>No suggested identity — assign one below</span>
             ) : (
               <>
                 <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
@@ -1557,6 +1579,13 @@ const AuthorshipCard = ({
           {statusView === "open" ? (
             isMulti ? (
               <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
+            ) : noSuggestion ? (
+              // #938 — top_cwid null: no candidate to accept OR reject (both 409 server-side
+              // with nothing proposed), so neither button is offered. "Someone else" below
+              // (AssignOther, rendered for every non-multi row) stays the one live action.
+              <Tip title="ReCiterDB's matcher no longer matches this byline to any WCM identity — there is no candidate here to accept or reject. Assign it to someone below, or leave it open." placement="top" arrow>
+                <span style={noIdentityPillStyle} onClick={(e) => e.stopPropagation()}>No suggested identity</span>
+              </Tip>
             ) : noIdentity ? (
               <>
                 <button style={btn("reject", acting)} disabled={acting} onClick={(e) => { e.stopPropagation(); onAction("reject"); }}>
@@ -1661,6 +1690,20 @@ const AuthorshipCard = ({
 
 // right-rail score block
 const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipRow; isMulti: boolean; isAbsent: boolean; candidates: Candidate[] }) => {
+  // #938 — top_io_score is not part of ReCiterDB#177's null sweep, so without this branch a
+  // no-suggestion row (top_cwid null) would fall through to the plain numeric score below,
+  // a real coloured score attached to no candidate at all. Same muted palette as the
+  // "No ReCiter identity" pill (noIdentityPillStyle) — a different fact, same "nothing to
+  // act on here" register.
+  if (!r.top_cwid) {
+    return (
+      <div style={{ textAlign: "right", minWidth: 46 }}>
+        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#f8fafc", color: "#64748b" }}>
+          No suggestion
+        </span>
+      </div>
+    );
+  }
   if (isMulti) {
     const total = r.n_candidates ?? candidates.length;
     return (
@@ -1709,7 +1752,13 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
 };
 
 // single-candidate / absent evidence panel
-const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: boolean; isAbsent: boolean }) => (
+const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: boolean; isAbsent: boolean }) => {
+  // #938 — top_cwid null: neither ioFgNote nor scopusNote below is safe to call, since both
+  // are written assuming a matched candidate exists (ioFgNote literally names r.top_cwid as
+  // the thing "uniquely matched"). Short-circuit the note itself rather than patch either
+  // function for a case they were never meant to describe.
+  const noSuggestion = !r.top_cwid;
+  return (
   <>
     <div>{r.source === "scopus" ? <ScopusLinks row={r} /> : <PmidLink pmid={r.pmid} />}</div>
     {/* absent → labeled facts, no score blocks (F10) */}
@@ -1729,19 +1778,25 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
         ? <Chip kind="neutral">Dept: {r.top_dept} ✓</Chip>
         : <Chip kind="neutral">Dept ≠ affiliation</Chip>}
     </div>
-    {/* inline note (F8) — scopus lane gets its own not-in-PubMed explanation */}
+    {/* inline note (F8) — scopus lane gets its own not-in-PubMed explanation; #938's
+        no-suggestion rows get neither, since both notes assume a matched candidate */}
     <div style={{
       display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px",
-      background: r.source === "scopus" ? "#eef2ff" : isAbsent ? "#fffbeb" : "#eff6ff",
-      color: r.source === "scopus" ? "#4338ca" : isAbsent ? "#b45309" : "#475569",
+      background: noSuggestion ? "#f8fafc" : r.source === "scopus" ? "#eef2ff" : isAbsent ? "#fffbeb" : "#eff6ff",
+      color: noSuggestion ? "#64748b" : r.source === "scopus" ? "#4338ca" : isAbsent ? "#b45309" : "#475569",
     }}>
-      {r.source === "scopus"
-        ? <IconInfo size={15} style={{ marginTop: 1, color: "#4338ca" }} />
-        : isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "#b45309" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "#2563eb" }} />}
-      <span>{r.source === "scopus" ? scopusNote(r) : ioFgNote(r)}</span>
+      {noSuggestion
+        ? <IconInfo size={15} style={{ marginTop: 1, color: "#64748b" }} />
+        : r.source === "scopus"
+          ? <IconInfo size={15} style={{ marginTop: 1, color: "#4338ca" }} />
+          : isAbsent ? <IconAlert size={15} style={{ marginTop: 1, color: "#b45309" }} /> : <IconInfo size={15} style={{ marginTop: 1, color: "#2563eb" }} />}
+      <span>{noSuggestion
+        ? "No proposed identity — the matcher no longer matches this byline to any WCM identity. Assign it to someone below, or leave it open."
+        : r.source === "scopus" ? scopusNote(r) : ioFgNote(r)}</span>
     </div>
   </>
-);
+  );
+};
 
 // What an assign on a homonym row does to the OTHER candidates, said before the click rather
 // than discovered afterwards. Assigning to one of N now records a rejection for the rest — a
