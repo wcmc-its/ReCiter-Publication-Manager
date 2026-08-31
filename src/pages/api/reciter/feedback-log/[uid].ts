@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getFeedbackLog } from "../../../../../controllers/feedbacklog.controller"
 import { findAdminUserNamesByIds } from "../../../../../controllers/db/manage-users/user.controller"
+import { resolveActorNames } from "../../../../../controllers/db/manage-users/actorName.controller"
 import { reciterConfig } from '../../../../../config/local'
 
 /**
@@ -31,15 +32,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const apiResponse = await getFeedbackLog(targetUid)
         if (apiResponse.statusCode === 200) {
             const data = apiResponse.data
-            // Resolve curatedBy (admin_users.userID) -> display name for the UI.
+            // Resolve curatedBy (admin_users.userID) -> display name for the UI. Rows from
+            // the external/Scopus/manual-article lane hardcode curatedBy=0 but always carry
+            // actorPersonIdentifier (a cwid) instead, so fall back to resolving that -- and
+            // if even that comes up nameless, show the raw cwid rather than "Unknown".
             if (Array.isArray(data)) {
                 const ids: number[] = Array.from(
                     new Set(data.map((e: any) => Number(e.curatedBy)).filter((n: number) => Number.isInteger(n) && n > 0))
                 )
                 const nameMap = await findAdminUserNamesByIds(ids)
+
+                const unresolvedActorCwids: string[] = Array.from(new Set(
+                    data
+                        .filter((e: any) => {
+                            const cb = Number(e.curatedBy)
+                            return !(Number.isInteger(cb) && cb > 0 && nameMap[cb])
+                        })
+                        .map((e: any) => e.actorPersonIdentifier)
+                        .filter((c: any) => typeof c === 'string' && c.trim())
+                ))
+                const actorNameMap = await resolveActorNames(unresolvedActorCwids)
+
                 data.forEach((e: any) => {
                     const cb = Number(e.curatedBy)
-                    e.curatorName = (Number.isInteger(cb) && cb > 0 && nameMap[cb]) ? nameMap[cb] : null
+                    if (Number.isInteger(cb) && cb > 0 && nameMap[cb]) {
+                        e.curatorName = nameMap[cb]
+                        return
+                    }
+                    const actorCwid = typeof e.actorPersonIdentifier === 'string' ? e.actorPersonIdentifier.trim() : ''
+                    e.curatorName = actorCwid ? (actorNameMap[actorCwid] || actorCwid) : null
                 })
             }
             return res.status(200).send(data)

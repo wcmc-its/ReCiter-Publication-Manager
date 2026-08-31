@@ -929,7 +929,7 @@ const displayFeedbackEvidence = (feedbackEvidence: Record<string, number>): JSX.
                             clogEntries.map((entry: any, i: number) => {
                               const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone';
                               const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested';
-                              const who = entry.curatorName || 'Unknown';
+                              const who = entry.curatorName || entry.actorPersonIdentifier || 'Unknown';
                               const date = entry.modifyTimestamp ? formatClogDate(entry.modifyTimestamp) : '';
                               return (
                                 <div className={styles.clogEntry} key={entry.feedbackID || i}>

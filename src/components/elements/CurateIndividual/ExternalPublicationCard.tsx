@@ -333,7 +333,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                                         {entries.map((entry, i) => {
                                             const action = entry.feedback === 'ACCEPTED' ? 'accepted' : entry.feedback === 'REJECTED' ? 'rejected' : 'undone'
                                             const verb = entry.feedback === 'ACCEPTED' ? 'Accepted' : entry.feedback === 'REJECTED' ? 'Rejected' : 'Suggested'
-                                            const who = entry.curatorName || entry.curatedBy || 'Unknown'
+                                            const who = entry.curatorName || entry.actorPersonIdentifier || 'Unknown'
                                             return (
                                                 <div className={pubStyles.clogEntry} key={entry.feedbackID || i}>
                                                     <div className={pubStyles.clogAction}>

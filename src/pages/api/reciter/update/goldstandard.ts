@@ -32,7 +32,7 @@ export default async function handler(
             const userID = Number(token?.databaseUser?.userID)
             if (Number.isInteger(userID) && userID > 0) curatedBy = userID
         } catch (e) {
-            console.warn('[goldstandard] could not resolve curatedBy from JWT; recording as unknown')
+            console.warn(`[goldstandard] could not resolve curatedBy from JWT; recording as unknown (uid=${req.body?.uid}, knownPmids=${JSON.stringify(req.body?.knownPmids)}, rejectedPmids=${JSON.stringify(req.body?.rejectedPmids)})`)
         }
 
         // The static backendApiKey check above only proves the request came from this app's
