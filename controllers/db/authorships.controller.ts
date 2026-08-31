@@ -804,26 +804,40 @@ function candidateCwidsFromRow(row: any): string[] {
 // row, because both move after the producer wrote it — people leave WCM (the identity goes
 // away) and people curate their own /curate page (an acceptance appears).
 //
+// F-2 policy (verbatim from the product owner: "If I accept it for 1 person, any other person
+// being considered should be a reject. This goes across the board") — single-candidate rows are
+// no longer exempt. A row's one proposed candidate getting DISPLACED (the curator assigns
+// elsewhere instead) is exactly as much of a "not mine" as a multi-candidate homonym losing to a
+// sibling; `others.length === 0` already covers the only real no-op (the assign target IS the
+// row's sole candidate — an ordinary accept-shaped pick), so there was nothing left for a
+// `row.single_candidate` check to usefully exclude. `singleCandidate` is therefore always passed
+// false to homonymRejections() below now — see that function's own doc in assignGate.ts for why
+// the parameter still exists there (its pure branch table, singleCandidate included, is asserted
+// directly by scripts/check-homonym-rejections.mjs against callers that still want it).
+//
 // Candidate cwids come out of the producer, not out of a keyboard, and all 11,389 of them are
 // lowercase (2026-08-29), so unlike the typed `chosen` above they need no canonicalisation —
 // and if one ever failed a byte-exact DynamoDB lookup it would simply be skipped, which is the
 // safe direction. `target` is already canonical, so `c !== target` compares like with like.
-// ponytail: two point lookups per assign of a multi-candidate row, no cache — a homonym row
-// has a median of 2 other candidates, so this is ~20 ms on the rarest action in the tab.
+// ponytail: two point lookups per assign, no cache — a homonym row has a median of 2 other
+// candidates and even a single-candidate row has exactly one, so this is ~20 ms on the rarest
+// action in the tab.
 async function homonymRejectionTargets(
   row: any, target: string, pmid: number, checkAccepted = true,
 ): Promise<string[]> {
   const candidates = candidateCwidsFromRow(row);
   const isScopus = row.source === "scopus";
   const others = candidates.filter((c) => c !== target);
-  // nothing to look up for the ~90% of rows the gate excludes outright
-  if (isScopus || row.single_candidate || others.length === 0) return [];
+  // Scopus has no pmid to reject (gold standard is PMID-keyed — same precedent as case
+  // "reject"'s scopus branch), and a row whose only candidate IS the assign target has nobody
+  // left to displace. Nothing else is excluded here anymore — see the F-2 note above.
+  if (isScopus || others.length === 0) return [];
   const [identities, accepted] = await Promise.all([
     reciterIdentitySet(others),
     checkAccepted ? getKnownPmidsByCwid(others) : Promise.resolve({} as Record<string, Set<number>>),
   ]);
   return homonymRejections({
-    isScopus, singleCandidate: !!row.single_candidate, candidates, target,
+    isScopus, singleCandidate: false, candidates, target,
     hasIdentity: (c) => identities.has(c),
     hasAccepted: (c) => !!accepted[c]?.has(pmid),
   });
@@ -934,14 +948,29 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // typo than a Master's student, so the #861 guard keeps its purpose. The client
         // re-sends with confirmNoIdentity after showing the curator what it means.
         if (gate === "confirm_no_identity") {
+          // F-2: name who this ALSO rejects, up front — the assignee having no identity does
+          // not exempt this row's other candidate(s) from the same policy the write below
+          // applies. Preview only (this is a 422, nothing is written yet), computed through the
+          // same homonymRejectionTargets() the write and reopen both use, so the confirm can
+          // never promise a different set than what actually lands.
+          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+          let alsoRejectedNote = "";
+          if (alsoRejected.length) {
+            const names = await Promise.all(alsoRejected.map(async (c) => {
+              const who = await identityLabel(c);
+              return who ? `${who} (${c})` : c;
+            }));
+            alsoRejectedNote = ` It also records "not mine" for ${names.join(", ")}.`;
+          }
           return res.status(422).json({
             code: "NO_RECITER_IDENTITY",
             localOnly: true,
             cwid: target,
             offCandidate,
+            alsoRejected,
             message: `${target} has no ReCiter identity. Assigning anyway records your decision on `
               + "this row only — it will NOT be added to the person's publication record, because there "
-              + "is no identity to add it to. Confirm to proceed.",
+              + `is no identity to add it to.${alsoRejectedNote} Confirm to proceed.`,
           });
         }
         // Data-integrity guard, the same direction as the rejectedpmids one ~60 lines down but
@@ -985,17 +1014,33 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           });
         }
         if (gate === "local_only") {
-          // Local record only. No writeGoldStandard, no addExternalArticle, no
-          // appendFeedbackLog: every one of those targets an identity that does not exist,
-          // and faking one would put a publication in a record nobody can see or correct.
-          // This preserves the curator's judgment without pretending the person exists
-          // downstream. If the identity is created later (PM#104 / IC#148), this row is
+          // Local record only for the ASSIGNEE. No writeGoldStandard, no addExternalArticle, no
+          // appendFeedbackLog for THEM: every one of those targets an identity that does not
+          // exist, and faking one would put a publication in a record nobody can see or
+          // correct. This preserves the curator's judgment without pretending the person
+          // exists downstream. If the identity is created later (PM#104 / IC#148), this row is
           // the record of what was already decided.
+          //
+          // F-2 runs anyway for the OTHER candidates: the assignee having no ReCiter identity
+          // doesn't make this any less a homonym judgment for whoever else was proposed and
+          // DOES have one — the curator is still saying "not this row's other candidate(s)".
+          // Same function, same writes, same feedback log as the authoritative "write" path
+          // below; the rejections go before the row is resolved for the same idempotent-retry
+          // reason that block explains (there is no positive write here to sequence them after).
+          const alsoRejected = await homonymRejectionTargets(row, target, pmid as number);
+          for (const other of alsoRejected) {
+            const rs = await writeGoldStandard(other, pmid as number, "rejected", "UPDATE", curator.userID);
+            if (rs !== 200) return res.status(502).send(`Homonym rejection write failed for ${other} (${rs})`);
+          }
           await models.AuthorshipReview.update({
             status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date(),
             note: `${row.note ? `${row.note} | ` : ""}assigned to ${target} `
               + `(no ReCiter identity) — local record only, nothing written to the publication record`,
           }, { where: { id } });
+          for (const other of alsoRejected) {
+            try { await appendFeedbackLog(curator.userID, other, pmid as number, "REJECTED"); }
+            catch (e) { console.log("[authorships] feedbacklog (homonym reject) non-fatal:", e); }
+          }
           break;
         }
         // gate === "write": everything below is the authoritative assign, unchanged. An
@@ -1089,13 +1134,14 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
             if (resp.statusCode !== 200) return res.status(502).send(`ExternalArticle revoke failed (${resp.statusCode})`);
           }
         } else if ((row.status === "accepted" || row.status === "assigned") && reverseCwid) {
-          // A #925 local-only assign wrote no gold standard, so there is nothing to delete.
-          // (An earlier comment here claimed the DELETE would 404 for a uid ReCiter has no
-          // Identity row for. It does not — POST /reciter/goldstandard checks only uid != null
-          // and returns 200. The real reason to skip is simply that nothing was ever written,
-          // so the DELETE is a pointless no-op against a row that may not exist.)
+          // A #925 local-only assign wrote no gold standard for the ASSIGNEE, so there is
+          // nothing to delete for THEM specifically. (An earlier comment here claimed the
+          // DELETE would 404 for a uid ReCiter has no Identity row for. It does not — POST
+          // /reciter/goldstandard checks only uid != null and returns 200. The real reason to
+          // skip is simply that nothing was ever written for this uid, so the DELETE would be
+          // a pointless no-op.)
           // No identity == it was local-only, since that is the only branch that resolves a
-          // row without an authoritative write.
+          // row without an authoritative write for the assignee.
           // ponytail: this INFERS "local-only" from a live identity check rather than reading a
           // marker, so it silently flips to a destructive GoldStandard DELETE for any
           // local-only row whose identity later appears (IC#148 backfills ~1,595). Exposure
@@ -1103,29 +1149,33 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // PM#935 only just shipped), and swapping the oracle does not change that, so it is
           // left alone. Upgrade path: key off the note/marker the local-only branch writes.
           if (!(await reciterIdentitySet([reverseCwid])).size) {
-            console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo`);
+            console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo for the assignee`);
           } else {
             const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
             if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
-            // ...and the homonym rejections that assign wrote alongside it. Without this there
-            // is no undo path for them at all: reopen would clear the row and leave N-1 people
-            // permanently rejected on a decision the curator just took back. Recomputed through
-            // the same homonymRejections() the write used, so the two sets cannot drift; see
-            // that function for why checkAccepted is false here. Covers "accepted" as well as
-            // "assigned": assign is the only ACTION that writes these, but the backfill script
-            // writes them onto already-resolved rows and defaults to assigned,accepted — 30 of
-            // its 170 planned writes land on accepted rows, and scoping this to "assigned"
-            // alone would make exactly those permanent with no undo path. Safe for rows that
-            // never had any: a genuine single-candidate accept returns [] from the
-            // single_candidate guard, and a legacy un-backfilled multi accept issues DELETEs
-            // ReCiter treats as 200 no-ops (DynamoDbGoldStandardService removes a pmid only
-            // `if(rejectedPmids.contains(...))`, so a miss is not an error).
-            if (row.status === "assigned" || row.status === "accepted") {
-              for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
-                const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
-                if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);
-              }
-            }
+          }
+          // F-2: ...and the homonym rejections that assign wrote alongside it, REGARDLESS of
+          // whether the assignee themselves has an identity — a local-only assign still
+          // recorded "not mine" for every OTHER candidate that DOES have one (see the
+          // local_only branch above), and reopen must take that back even when there is
+          // nothing to undo for the assignee. Without this there is no undo path for them at
+          // all: reopen would clear the row and leave N-1 people permanently rejected on a
+          // decision the curator just took back. Recomputed through the same
+          // homonymRejections() the write used, so the two sets cannot drift; see that
+          // function for why checkAccepted is false here. Covers "accepted" as well as
+          // "assigned": assign is the only ACTION that writes these, but the backfill script
+          // writes them onto already-resolved rows and defaults to assigned,accepted — 30 of
+          // its 170 planned writes land on accepted rows, and scoping this to "assigned" alone
+          // would make exactly those permanent with no undo path. Safe for rows that never had
+          // any: a genuine single-candidate Accept (the "accept" action, gated on
+          // row.single_candidate) never calls homonymRejectionTargets at all, and for an
+          // "assigned"/"accepted" row this recomputes to [] on its own once `others` collapses
+          // to empty — same as at write time. A legacy un-backfilled multi accept issues
+          // DELETEs ReCiter treats as 200 no-ops (DynamoDbGoldStandardService removes a pmid
+          // only `if(rejectedPmids.contains(...))`, so a miss is not an error).
+          for (const other of await homonymRejectionTargets(row, reverseCwid, pmid as number, false)) {
+            const rs = await writeGoldStandard(other, pmid as number, "rejected", "DELETE", curator.userID);
+            if (rs !== 200) return res.status(502).send(`Homonym rejection undo failed for ${other} (${rs})`);
           }
         } else if (row.status === "rejected") {
           const targets = row.single_candidate ? (reverseCwid ? [reverseCwid] : []) : candidateCwidsFromRow(row);

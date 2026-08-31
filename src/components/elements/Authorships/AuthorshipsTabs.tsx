@@ -2052,7 +2052,15 @@ const AuthorshipCard = ({
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
               it's the case where the curator most often knows a name the card can't offer. */}
           <AssignOther rowId={r.id} acting={acting} onAction={onAction}
-            homonyms={isMulti && r.source !== "scopus" ? candidates.length : 0} />
+            homonyms={r.source === "scopus" ? 0
+              : isMulti ? candidates.length
+                // F-2: a single-candidate row now records the same "not mine" for its one
+                // proposed candidate when the curator assigns elsewhere — but only when that
+                // candidate actually exists to be displaced (a real top_cwid) and has a
+                // ReCiter identity to write the rejection against (noIdentity / noSuggestion
+                // are exactly the server-computed facts that already gate this row's own
+                // "No ReCiter identity" pill and no-suggestion state).
+                : (noSuggestion || noIdentity ? 0 : 1)} />
         </div>
       )}
     </article>
@@ -2172,11 +2180,13 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
   );
 };
 
-// What an assign on a homonym row does to the OTHER candidates, said before the click rather
-// than discovered afterwards. Assigning to one of N now records a rejection for the rest — a
-// gold-standard write into other people's records, so it cannot be a silent side effect.
-// Rendered for pubmed multi-candidate rows only, which is exactly where the server writes them
-// (scopus has no pmid to reject; a single-candidate row records no homonym judgment).
+// What an assign does to the OTHER candidate(s) on the row, said before the click rather than
+// discovered afterwards. Assigning to one of N — or, per F-2, assigning AWAY from a row's one
+// proposed candidate — now records a rejection for the rest: a gold-standard write into other
+// people's records, so it cannot be a silent side effect.
+// Rendered for pubmed rows only (multi-candidate always, single-candidate when its one proposed
+// candidate has an identity to displace), which is exactly where the server writes them —
+// scopus has no pmid to reject.
 // "with a ReCiter identity" is not hedging: the server skips candidates ReCiter has no Identity
 // row for, because that write would SUCCEED (200) into an orphan GoldStandard row nothing reads
 // — 39 of the 153 people in the resolved backlog are these.
