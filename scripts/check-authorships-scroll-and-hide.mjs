@@ -8,10 +8,13 @@
  *
  * 1. fetchData's `silent` flag — the {loading && …}/{!loading && rows.map(…)} gate is what
  *    unmounts the whole card list and throws scroll position to the top; `silent` must
- *    actually skip both setLoading(true) and setLoading(false), and exactly the four
+ *    actually skip both setLoading(true) and setLoading(false), and exactly the five
  *    "restore this same view after acting on a row" call sites (action-catch, bulk-accept
- *    failure, undo, undo-from-recent-activity) must pass it — never the one effect that
- *    fires on a genuine filter/status/page change, where landing at the top is expected.
+ *    failure, bulk-assign failure, undo, undo-from-recent-activity) must pass it — never the
+ *    one effect that fires on a genuine filter/status/page change, where landing at the top
+ *    is expected. The call-site regex requires a trailing `;` so it can't be tripped by prose
+ *    that merely mentions `fetchData(true)` in a comment (two such mentions exist, describing
+ *    the action-catch site's effect on a MULTI_CANDIDATE row — not call sites of their own).
  * 2. hideNoSuggestion — a real SQL predicate in buildWhere (top_cwid IS NOT NULL), gated on
  *    the same body flag the client always sends, so it can never disagree with the
  *    "Select all N matching" count (authorshipSelectable shares buildWhere). Also checks the
@@ -61,15 +64,16 @@ check("silent=false (default) still sets loading — normal navigation keeps tod
 check("silent=true also skips the matching setLoading(false)", runGuard(finallyLine, true), false);
 check("silent=false still clears loading in the finally", runGuard(finallyLine, false), true);
 
-// Exactly one non-silent call site (the filter/status/page-change effect) and exactly four
+// Exactly one non-silent call site (the filter/status/page-change effect) and exactly five
 // silent ones (every "restore this same view after acting on a row" path). If a future edit
-// adds a fifth action path and forgets `true`, or the navigation effect picks up `true` by
-// copy-paste, this catches it by count alone.
+// adds a sixth action path and forgets `true`, or the navigation effect picks up `true` by
+// copy-paste, this catches it by count alone. The trailing `;` keeps this from also counting
+// comment prose that just mentions the call (see file header).
 const bareCalls = tabsSrc.match(/\bfetchData\(\);/g) || [];
-const silentCalls = tabsSrc.match(/\bfetchData\(true\)/g) || [];
+const silentCalls = tabsSrc.match(/\bfetchData\(true\);/g) || [];
 check("exactly one non-silent fetchData() call (the navigation effect)", bareCalls.length, 1);
-check("exactly four silent fetchData(true) calls (action-catch, bulk failure, undo, undo-from-activity)",
-  silentCalls.length, 4);
+check("exactly five silent fetchData(true) calls (action-catch, bulk-accept failure, bulk-assign failure, undo, undo-from-activity)",
+  silentCalls.length, 5);
 
 // The lone non-silent call must be the one gated on datesReady/pendingPageReset, not some
 // other new call that happens to omit the argument.
@@ -81,7 +85,9 @@ check("the non-silent call sits in the datesReady-gated navigation effect",
 // ---------------------------------------------------------------------------------------
 console.log("\n2. hideNoSuggestion — a real SQL predicate, not a second client-side filter:");
 
-const buildWhereStart = controllerSrc.indexOf("function buildWhere(body: any): any {");
+// signature-tolerant: buildWhere gained an `absentCwids?: Set<string>` second param for
+// hideNoIdentity (unrelated to what this section checks) — locate by name, not full signature.
+const buildWhereStart = controllerSrc.indexOf("function buildWhere(");
 const buildWhereEnd = controllerSrc.indexOf("\n}\n", buildWhereStart);
 const buildWhereSrc = controllerSrc.slice(buildWhereStart, buildWhereEnd);
 assert.ok(buildWhereSrc.length > 200, "buildWhere located");
@@ -111,11 +117,19 @@ check("hideNoSuggestion:true adds exactly one predicate", runHideGate(true), 1);
 
 // Client always sends the flag (so the loaded-page filter and "Select all N matching" — which
 // posts the same buildWhere-shaped body — can never disagree about which rows are hidden).
+// Located by membership, not position: hideNoSuggestion no longer has to be the LAST field in
+// either the object literal or the deps array — hideNoIdentity and likeAuthor (T5, no-identity
+// hide) were added after it in both, which is fine, so long as it's still in both.
+const filterBodyStart = tabsSrc.indexOf("const filterBody = useCallback(");
+const filterBodyObjEnd = tabsSrc.indexOf("}), [", filterBodyStart);
+const filterBodyDepsEnd = tabsSrc.indexOf(");", filterBodyObjEnd);
+const filterBodyObjSrc = tabsSrc.slice(filterBodyStart, filterBodyObjEnd);
+const filterBodyDepsSrc = tabsSrc.slice(filterBodyObjEnd + "}), [".length, filterBodyDepsEnd);
+assert.ok(filterBodyObjSrc.length > 50 && filterBodyDepsSrc.length > 10, "filterBody located");
 check("filterBody() includes hideNoSuggestion in the posted body",
-  /hideNoSuggestion,\n\s*\}\), \[/.test(tabsSrc), true);
+  /\bhideNoSuggestion,/.test(filterBodyObjSrc), true);
 check("filterBody's own useCallback deps include hideNoSuggestion (recomputes + resets page on toggle)",
-  /\}\), \[lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion\]/.test(tabsSrc),
-  true);
+  /\bhideNoSuggestion\b/.test(filterBodyDepsSrc), true);
 
 // No parallel client-side hiding mechanism: every reference to hideNoSuggestion in the
 // component is state/wiring, never a rows.filter/array-filter predicate of its own.

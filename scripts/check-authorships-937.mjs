@@ -75,8 +75,14 @@ console.log("\n3. overflow menu — a shortcut to the existing input, not a new 
 const menuBlock = tabsSrc.slice(tabsSrc.indexOf("{/* overflow menu:"), tabsSrc.indexOf("{/* person-type multiselect menu */}"));
 assert(menuBlock.length > 200, "overflow menu block located");
 assert(/Assign to someone else/.test(menuBlock), "menu item text present");
-assert(/setExpanded\(id\)/.test(menuBlock), "clicking it expands the card");
-assert(/getElementById\(`otherCwid-\$\{id\}`\)\.focus\(\)/.test(menuBlock) || /getElementById\(`otherCwid-\$\{id\}`\)\?\.focus\(\)/.test(menuBlock),
+assert(/focusAssignOther\(id\)/.test(menuBlock), "clicking it calls the shared focusAssignOther(id) helper");
+// The expand+focus behavior itself moved into that shared helper (also used by the
+// no-identity pill and a ghost Assign button) — check it there, not in the menu block.
+const focusFnStart = tabsSrc.indexOf("const focusAssignOther = useCallback");
+const focusFn = tabsSrc.slice(focusFnStart, tabsSrc.indexOf("}, []);", focusFnStart) + "}, []);".length);
+assert(focusFn.length > 20, "focusAssignOther helper located");
+assert(/setExpanded\(id\)/.test(focusFn), "clicking it expands the card");
+assert(/getElementById\(`otherCwid-\$\{id\}`\)\.focus\(\)/.test(focusFn) || /getElementById\(`otherCwid-\$\{id\}`\)\?\.focus\(\)/.test(focusFn),
   "and focuses the SAME input <AssignOther> renders (id `otherCwid-${rowId}`)");
 assert(!/<input/.test(menuBlock), "no text input was added to the menu itself");
 // the collapsed card (everything before the first isExpanded-gated block) must not gain one either
