@@ -741,7 +741,10 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
     switch (action) {
       case "accept": {
         if (!cwid) return res.status(409).send("No proposed identity to accept");
-        if (!row.single_candidate) return res.status(409).send("Multiple candidates — use \"Pick one\" to assign");
+        // JSON (not plain text) so the client can route this into the inline conflict banner
+        // and silently refetch the row instead of the generic "nothing was saved" toast — see
+        // the card predicate at AuthorshipsTabs.tsx (isMulti) and the kind dispatch below it.
+        if (!row.single_candidate) return res.status(409).json({ code: "MULTI_CANDIDATE", message: "Multiple candidates — use \"Pick one\" to assign" });
         // 422 (not 409) so the client's scopus force-add prompt doesn't fire for this
         if (!(await reciterIdentitySet([cwid])).size) {
           return res.status(422).send(`${row.top_name || cwid} has no record in ReCiter's Identity table, so there is nothing to add this authorship to — dismiss it instead`);

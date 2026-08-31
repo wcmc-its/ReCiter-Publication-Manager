@@ -88,10 +88,15 @@ interface ConflictEntry {
   // "no_identity"   — #925 422, retried with confirmNoIdentity:"true". Different consequence,
   //                   so a different prompt: force-add writes to the person's record, this one
   //                   explicitly does NOT.
-  // "off_candidate" — 422, retried with confirmOffCandidate:"true": a real person the producer
-  //                   never proposed. This one DOES write their publication record, so its
-  //                   prompt must not read like the no_identity one it sits next to.
-  kind: "dup" | "no_identity" | "off_candidate";
+  // "off_candidate"   — 422, retried with confirmOffCandidate:"true": a real person the producer
+  //                     never proposed. This one DOES write their publication record, so its
+  //                     prompt must not read like the no_identity one it sits next to.
+  // "multi_candidate" — 409 MULTI_CANDIDATE: the card's own isMulti predicate went stale
+  //                     (data changed mid-session) and let Accept fire on a row the server
+  //                     gates to "Pick one". Not retried — fetchData(true) below refreshes the
+  //                     row so the card itself flips to the Pick-one controls; this banner is
+  //                     explanation only, no confirm action.
+  kind: "dup" | "no_identity" | "off_candidate" | "multi_candidate";
   action_label?: string;   // confirm-button text; kind decides it, held here for the log
   extra?: Record<string, any>;
   message: string;
@@ -731,12 +736,13 @@ const AuthorshipsTabs = () => {
       .then(async (r) => {
         if (!r.ok) {
           const text = await r.text();
-          // 409 dup-conflict comes back as JSON ({ message, matches }); everything else is
-          // plain text. Try JSON first, fall back to the raw text as the message.
+          // 409 dup-conflict and 409 MULTI_CANDIDATE come back as JSON ({ message, matches? });
+          // everything else is plain text. Try JSON first, fall back to the raw text as the
+          // message.
           let message = text || `HTTP ${r.status}`;
           let matches: DupMatch[] = [];
-          // 409 dup-conflict and the #925 422 both come back as JSON; everything else is
-          // plain text.
+          // 409 dup-conflict/MULTI_CANDIDATE and the #925 422s all come back as JSON; every
+          // other status is plain text.
           let code = "";
           if (r.status === 409 || r.status === 422) {
             try {
@@ -776,16 +782,20 @@ const AuthorshipsTabs = () => {
         // Both 422s are the same shape — "allowed, but say you meant it" — and each names the
         // confirmation flag it wants back. The consequences are opposite, so the prompts they
         // raise differ (see ConflictEntry.kind and the banner below); the plumbing doesn't.
+        // MULTI_CANDIDATE checked ahead of scopusDup: both are plain 409s, and a scopus row can
+        // hit the multi-candidate gate too (it's checked before the isScopus branch server-side).
         const kind: ConflictEntry["kind"] | null =
           e?.status === 422 && e?.code === "NO_RECITER_IDENTITY" ? "no_identity"
             : e?.status === 422 && e?.code === "OFF_CANDIDATE" ? "off_candidate"
-              : scopusDup ? "dup" : null;
+              : e?.status === 409 && e?.code === "MULTI_CANDIDATE" ? "multi_candidate"
+                : scopusDup ? "dup" : null;
         if (kind) {
           const entry: ConflictEntry = {
             id: row.id, action, kind,
             extra: kind === "no_identity" ? { ...extra, confirmNoIdentity: "true" }
               : kind === "off_candidate" ? { ...extra, confirmOffCandidate: "true" }
-                : { ...extra, force: "true" },
+                : kind === "multi_candidate" ? { ...extra }
+                  : { ...extra, force: "true" },
             message: String(e?.message || e),
             matches: Array.isArray(e?.matches) ? e.matches : [],
             wcm_author: row.wcm_author, top_name: row.top_name, ts: Date.now(),
@@ -1501,7 +1511,11 @@ const AuthorshipCard = ({
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onNarrowPmid,
   conflict, onClearConflict,
 }: CardProps) => {
-  const isMulti = !r.single_candidate && (r.n_candidates ?? 0) > 1;
+  // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
+  // (toggleSelect, nearCertain, eligibleRows) — the n_candidates>1 clause let a card keep
+  // showing Accept on a row the server would 409 (stale n_candidates, single_candidate
+  // already flipped), landing the curator on the generic "nothing was saved" toast.
+  const isMulti = !r.single_candidate;
   const noIdentity = r.identity_in_reciter === false;
   const alreadyRejected = r.top_already_rejected === true;
   // #938 — ReCiterDB#177 nulls the producer's candidate columns (top_cwid included) on rows
@@ -1699,7 +1713,8 @@ const AuthorshipCard = ({
           <div style={{ fontWeight: 700, marginBottom: 3 }}>
             {conflict.kind === "no_identity" ? "No ReCiter identity"
               : conflict.kind === "off_candidate" ? "Not a proposed candidate — this writes their record"
-                : "Possible duplicate"}
+                : conflict.kind === "multi_candidate" ? "This row now has multiple candidates"
+                  : "Possible duplicate"}
             {" — "}{conflict.wcm_author || conflict.top_name || r.wcm_author}
           </div>
           <div style={{ marginBottom: 6 }}>{conflict.message}</div>
@@ -1717,13 +1732,19 @@ const AuthorshipCard = ({
             </ul>
           )}
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
-              style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
-              {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
-                : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
-                  : "Force add anyway"}
+            {/* multi_candidate has no retry — the row's own re-render (fetchData(true) after
+                the 409) already replaced Accept with Pick-one, so there's nothing to confirm. */}
+            {conflict.kind !== "multi_candidate" && (
+              <button onClick={() => { onAction(conflict.action, conflict.extra); onClearConflict(); }}
+                style={{ ...btn("accept"), padding: "3px 10px", fontSize: 12 }}>
+                {conflict.kind === "no_identity" ? "Assign anyway — record on this row only"
+                  : conflict.kind === "off_candidate" ? "Yes — add to their publication record"
+                    : "Force add anyway"}
+              </button>
+            )}
+            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>
+              {conflict.kind === "multi_candidate" ? "Got it" : "Cancel"}
             </button>
-            <button onClick={onClearConflict} style={{ ...btn("ghost"), padding: "3px 10px", fontSize: 12 }}>Cancel</button>
           </div>
         </div>
       )}
