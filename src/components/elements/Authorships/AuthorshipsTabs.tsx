@@ -8,6 +8,11 @@ import Alert from "@mui/material/Alert";
 import Checkbox from "@mui/material/Checkbox";
 import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
+import {
+  isAcceptEligible, isBulkSelectable,
+  unionCandidates, partitionForAssign, bucketAssignFailures,
+} from "../../../lib/bulkAssign";
+import type { CandidateLite } from "../../../lib/bulkAssign";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -269,6 +274,16 @@ const parseCandidates = (json?: string): Candidate[] => {
   }
 };
 
+// T4: a row's candidates in the CandidateLite shape src/lib/bulkAssign.ts's unionCandidates
+// and partitionForAssign consume — parseCandidates(candidate_cwids_json) for a multi-candidate
+// row (the same JSON the card's Pick-one radios already render from), or the row's own single
+// proposed identity for a single-candidate one. Kept here rather than in bulkAssign.ts because
+// it depends on parseCandidates/AuthorshipRow, which that pure module deliberately does not.
+const rowCandidateLites = (row: AuthorshipRow): CandidateLite[] =>
+  row.single_candidate
+    ? (row.top_cwid ? [{ cwid: row.top_cwid, name: row.top_name }] : [])
+    : parseCandidates(row.candidate_cwids_json).map((c) => ({ cwid: c.cwid, name: c.name }));
+
 // Full Scopus byline from authors_json ([{given,surname}, ...]) as a comma-joined
 // "Given Surname" string. "" for absent/malformed/empty input — never throws.
 const formatAuthorsJson = (json?: string): string => {
@@ -513,10 +528,19 @@ const AuthorshipsTabs = () => {
   // F4: undo holds a BATCH of rows (single-row actions push a 1-element batch)
   const [undo, setUndo] = useState<{ rows: AuthorshipRow[]; label: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  // selection (bulk) — single-candidate rows only
+  // selection (bulk) — T4: single-candidate accept-eligible rows AND (now) open, non-scopus
+  // multi-candidate rows (see isBulkSelectable) — the latter for bulk-ASSIGN only.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   // multi-candidate: chosen cwid per row id
   const [picked, setPicked] = useState<Record<number, string>>({});
+  // T4: "Assign selected (N) to…" — anchor opens the candidate-union picker; assignConfirm
+  // holds the chosen target plus the submit/skip split (partitionForAssign) until the curator
+  // confirms. Both null when the picker/confirm step is closed.
+  const [assignMenuAnchor, setAssignMenuAnchor] = useState<HTMLElement | null>(null);
+  const [assignOtherCwid, setAssignOtherCwid] = useState("");
+  const [assignConfirm, setAssignConfirm] = useState<{
+    cwid: string; name?: string; toSubmit: AuthorshipRow[]; toSkip: AuthorshipRow[];
+  } | null>(null);
   // F13: keyboard focus
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLElement | null>>({});
@@ -822,6 +846,16 @@ const AuthorshipsTabs = () => {
       .finally(() => setActingId(null));
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
 
+  // With a select-all-matching in force the selection includes rows this page never
+  // loaded, so an on-page filter would silently shrink the batch to 20.
+  const selectedRows = allMatching ?? rows.filter((r) => selected.has(r.id));
+  // T4: `selected` can now also hold multi-candidate rows (bulk-assign only — see
+  // toggleSelect/isBulkSelectable). Every accept-type consumer of the selection must read
+  // THIS, never selectedRows directly, so a newly-selectable multi row can never reach
+  // doBulkAccept. selectAllMatching is unaffected — authorshipSelectable already returns only
+  // single_candidate rows server-side, so allMatching never contains one in the first place.
+  const selectedAcceptRows = selectedRows.filter(isAcceptEligible);
+
   // F5: bulk orchestration — accept a batch of rows, collect into one Undo batch.
   // Runs BULK_CHUNK rows at a time, chunks sequential: a select-all-matching batch can be
   // thousands of rows, and each accept is a write into ReCiter. Per-row behaviour inside a
@@ -868,6 +902,85 @@ const AuthorshipsTabs = () => {
     setSelected(new Set());
     setAllMatching(null);
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+
+  // T4: union of everything the current selection proposes, for the "Assign selected (N) to…"
+  // picker — "Name (cwid) — matches k of N selected", ranked k desc. Recomputed on every
+  // render off selectedRows; bulk-assign is a same-page/handful-of-rows tool (unlike
+  // select-all-matching's thousands), so this is cheap.
+  const assignCandidateUnion = unionCandidates(selectedRows.map(rowCandidateLites));
+
+  const openAssignPicker = useCallback((anchor: HTMLElement) => {
+    setAssignOtherCwid("");
+    setAssignMenuAnchor(anchor);
+  }, []);
+
+  // Picking a candidate — from the union list or the typed "someone else" box — doesn't
+  // submit anything yet. It only computes the confirm-step split (partitionForAssign), the
+  // same "look before you write" shape the per-row off-candidate/no-identity 422 confirms
+  // already use for a single row.
+  const chooseAssignTarget = useCallback((cwid: string, name?: string) => {
+    setAssignMenuAnchor(null);
+    const { toSubmit, toSkip } = partitionForAssign(selectedRows, rowCandidateLites, cwid);
+    setAssignConfirm({ cwid, name, toSubmit, toSkip });
+  }, [selectedRows]);
+
+  // F5 for assign: mirrors doBulkAccept exactly — same chunk size, same Promise.allSettled
+  // shape, same doActionAsync call, just "assign"+{cwid} in place of "accept". Only
+  // assignConfirm.toSubmit (rows whose OWN candidate set contains the chosen cwid) is ever
+  // sent; toSkip rows never reach the network at all, per MUST NOT. A 422/409 that still comes
+  // back from a submitted row is bucketed, never auto-confirmed (no blanket
+  // confirmOffCandidate/confirmNoIdentity resend) — same rule the per-row confirm banner
+  // enforces one row at a time.
+  const doBulkAssign = useCallback(() => {
+    const confirm = assignConfirm;
+    if (!confirm) return;
+    const { cwid, toSubmit, toSkip } = confirm;
+    setAssignConfirm(null);
+    setMenu(null);
+    if (toSubmit.length === 0) {
+      // everything was skipped locally — nothing to submit, but still say so.
+      if (toSkip.length) setErrorMsg(`All ${toSkip.length} selected rows skipped — ${cwid} was not among their candidates.`);
+      setSelected(new Set());
+      setAllMatching(null);
+      return;
+    }
+    setBulkProgress(toSubmit.length > BULK_CHUNK ? { done: 0, total: toSubmit.length } : null);
+    const runChunks = async () => {
+      const results: PromiseSettledResult<boolean>[] = [];
+      for (let i = 0; i < toSubmit.length; i += BULK_CHUNK) {
+        const chunk = toSubmit.slice(i, i + BULK_CHUNK);
+        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "assign", { cwid }))));
+        if (toSubmit.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: toSubmit.length });
+      }
+      return results;
+    };
+    runChunks()
+      .then((results) => {
+        const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+        const ok = toSubmit.filter((_, i) => results[i].status === "fulfilled");
+        if (ok.length > 0) setUndo({ rows: ok, label: `Assigned ${ok.length}` });
+        const parts: string[] = [];
+        if (toSkip.length) parts.push(`${toSkip.length} skipped — not among their candidates`);
+        if (failures.length) {
+          const { offCandidate, noIdentity, conflict409, other } = bucketAssignFailures(
+            failures.map((f) => (f.reason as any) || {}));
+          if (offCandidate) parts.push(`${offCandidate} off-candidate`);
+          if (noIdentity) parts.push(`${noIdentity} with no ReCiter identity`);
+          if (conflict409) parts.push(`${conflict409} conflict${conflict409 > 1 ? "s" : ""}`);
+          if (other) parts.push(`${other} failed`);
+        }
+        if (parts.length) setErrorMsg(`Assigned ${ok.length} of ${toSubmit.length + toSkip.length} selected to ${cwid}: ${parts.join("; ")}`);
+        // success: silently refill the queue, same as doBulkAccept. failure/skip: refresh so
+        // the optimistically-removed-then-failed rows come back — silent, still mid-review.
+        if (failures.length) fetchData(true);
+        else topUp();
+        fetchSummary();
+        fetchRecentActivity();
+      })
+      .finally(() => setBulkProgress(null));
+    setSelected(new Set());
+    setAllMatching(null);
+  }, [assignConfirm, doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
 
   // "Select all N matching": pull every bulk-selectable row for the current filters, not just
   // this page. The server recomputes eligibility and omits anything the card would refuse, so
@@ -928,10 +1041,25 @@ const AuthorshipsTabs = () => {
     setTimeout(() => document.getElementById(`otherCwid-${id}`)?.focus(), 0);
   }, []);
 
+  // T4: "Find others like this" — narrows the existing free-text filter to this row's own
+  // wcm_author, the same box "Filter by name, CWID, or PMID" already drives, so every open row
+  // for the same person (each maybe proposing a different mix of homonym candidates) lands on
+  // one page ready to select and bulk-assign together. No new query machinery: this sets the
+  // same `search`/`searchInput` state a manual search does. Page reset to 0 is already handled
+  // by the pendingPageReset effect above, which watches filterBody (search is part of it).
+  const findOthersLikeThis = useCallback((wcmAuthor?: string) => {
+    if (!wcmAuthor) return;
+    setSearchInput(wcmAuthor);
+    setSearch(wcmAuthor);
+  }, []);
+
+  // T4: single-candidate rows keep the pre-existing accept-eligible gate (no-ReCiter-identity,
+  // already-rejected, no proposed identity at all (#938) stay unselectable). Multi-candidate
+  // rows are now ALSO selectable — open, non-scopus (see isMultiAssignEligible) — but only for
+  // bulk-assign: isBulkSelectable never lets a multi row satisfy isAcceptEligible, which is
+  // what every accept-type bulk consumer below (eligibleRows, "Accept selected") filters on.
   const toggleSelect = useCallback((row: AuthorshipRow) => {
-    // multi rows, no-ReCiter-identity rows, already-rejected rows, and rows with no proposed
-    // identity at all (#938 — top_cwid null) aren't bulk-selectable
-    if (!row.single_candidate || row.identity_in_reciter === false || row.top_already_rejected || !row.top_cwid || statusView !== "open") return;
+    if (!isBulkSelectable(row, statusView)) return;
     setSelected((s) => {
       const next = new Set(s);
       next.has(row.id) ? next.delete(row.id) : next.add(row.id);
@@ -1030,11 +1158,8 @@ const AuthorshipsTabs = () => {
   // candidate left to accept — exclude them explicitly rather than trust identity_in_reciter,
   // which is vacuously true when top_cwid is null.
   const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && r.top_cwid && (r.top_io_score ?? 0) >= 95);
-  // With a select-all-matching in force the selection includes rows this page never
-  // loaded, so the on-page filter would silently shrink the batch to 20.
-  const selectedRows = allMatching ?? rows.filter((r) => selected.has(r.id));
   // Item 7: select-all targets the eligible (bulk-selectable) rows on this page
-  const eligibleRows = statusView === "open" ? rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && !r.top_already_rejected && r.top_cwid) : [];
+  const eligibleRows = statusView === "open" ? rows.filter(isAcceptEligible) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
   const toggleSelectAllEligible = useCallback(() => {
@@ -1280,20 +1405,95 @@ const AuthorshipsTabs = () => {
           {selectedRows.length > 0 && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               — <strong>{selectedRows.length}</strong> selected
-              <button style={{ ...btn("accept"), padding: "4px 10px" }} disabled={!!bulkProgress}
-                onClick={() => doBulkAccept(selectedRows)}>
-                <IconCheck /> Accept selected
+              {/* T4: selectedRows can now include multi-candidate rows (bulk-assign only) —
+                  Accept must stay scoped to selectedAcceptRows so one can never be
+                  bulk-accepted, and hides entirely once the selection is assign-only. */}
+              {selectedAcceptRows.length > 0 && (
+                <button style={{ ...btn("accept"), padding: "4px 10px" }} disabled={!!bulkProgress}
+                  onClick={() => doBulkAccept(selectedAcceptRows)}>
+                  <IconCheck /> Accept selected{selectedAcceptRows.length < selectedRows.length ? ` (${selectedAcceptRows.length})` : ""}
+                </button>
+              )}
+              {/* T4: "Find others like this" (per-row) narrows the queue to one author's open
+                  rows; this is the other half — assign one cwid to every row now selected. */}
+              <button style={{ ...btn("soft"), padding: "4px 10px" }} disabled={!!bulkProgress}
+                onClick={(e) => openAssignPicker(e.currentTarget)}>
+                Assign selected ({selectedRows.length}) to…
               </button>
             </span>
           )}
           {bulkProgress && (
             <span style={{ color: "#475569", fontVariantNumeric: "tabular-nums" }}>
-              Accepting {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}…
+              Working: {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}…
             </span>
           )}
           <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
-            {allMatching ? "Bulk acts on every matching single-candidate row" : "Bulk acts on single-candidate rows on this page"}
+            {allMatching ? "Bulk accept acts on every matching single-candidate row"
+              : "Bulk accept acts on single-candidate rows on this page; bulk assign also covers open, non-Scopus multi-candidate rows"}
           </span>
+        </div>
+      )}
+
+      {/* T4: "Assign selected (N) to…" picker — union of every candidate the selection
+          proposes (rowCandidateLites: candidate_cwids_json for a multi row, the row's own
+          top_cwid for a single one), ranked by how many selected rows propose it, plus a
+          typed-cwid escape hatch for someone the union doesn't include. Choosing an option
+          computes the confirm split below rather than submitting immediately. */}
+      <Menu anchorEl={assignMenuAnchor} open={!!assignMenuAnchor} onClose={() => setAssignMenuAnchor(null)}
+        PaperProps={{ style: { maxWidth: 380 } }}>
+        {assignCandidateUnion.length === 0 && <MenuItem disabled>No candidates on the selected rows</MenuItem>}
+        {assignCandidateUnion.map((c) => (
+          <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid, c.name)}>
+            {c.name ? `${c.name} ` : ""}({c.cwid}) — matches {c.matches} of {selectedRows.length} selected
+          </MenuItem>
+        ))}
+        <div onClick={(e) => e.stopPropagation()} style={{
+          display: "flex", gap: 6, alignItems: "center", padding: "8px 12px",
+          borderTop: assignCandidateUnion.length ? "1px solid #e8edf2" : "none",
+        }}>
+          <label style={{ fontSize: 11.5, color: "#94a3b8" }}>Someone else:</label>
+          <input value={assignOtherCwid} placeholder="cwid"
+            onChange={(e) => setAssignOtherCwid(e.target.value.trim())}
+            onKeyDown={(e) => { if (e.key === "Enter" && assignOtherCwid) chooseAssignTarget(assignOtherCwid); }}
+            style={{ width: 90, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1", borderRadius: 4, color: "#334155" }} />
+          <button style={btn("accept", !assignOtherCwid)} disabled={!assignOtherCwid}
+            onClick={() => chooseAssignTarget(assignOtherCwid)}>
+            Go
+          </button>
+        </div>
+      </Menu>
+
+      {/* T4: bulk-assign confirm step. Never a blanket confirm of a server 422 — this only
+          states the LOCAL submit/skip split (partitionForAssign) before any request fires; an
+          OFF_CANDIDATE/NO_RECITER_IDENTITY 422 on a submitted row still counts as skipped-with-
+          reason in the summary toast doBulkAssign shows afterward, never auto-retried. */}
+      {assignConfirm && (
+        <div onClick={() => setAssignConfirm(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 1400,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 10, padding: 20, maxWidth: 420,
+            boxShadow: "0 8px 32px rgba(15,23,42,.25)",
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+              Assign {assignConfirm.toSubmit.length} row{assignConfirm.toSubmit.length === 1 ? "" : "s"} to{" "}
+              {assignConfirm.name ? `${assignConfirm.name} ` : ""}({assignConfirm.cwid})
+            </div>
+            {assignConfirm.toSkip.length > 0 && (
+              <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 12 }}>
+                {assignConfirm.toSkip.length} row{assignConfirm.toSkip.length === 1 ? "" : "s"} will be skipped
+                — {assignConfirm.cwid} is not among their candidates.
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button style={btn("ghost")} onClick={() => setAssignConfirm(null)}>Cancel</button>
+              <button style={btn("accept", assignConfirm.toSubmit.length === 0)}
+                disabled={assignConfirm.toSubmit.length === 0} onClick={doBulkAssign}>
+                Assign
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1326,6 +1526,7 @@ const AuthorshipsTabs = () => {
             onMenu={(anchor) => setMenu({ anchor, row: r })}
             onAssignOther={() => focusAssignOther(r.id)}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
+            onFindOthers={() => findOthersLikeThis(r.wcm_author)}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
@@ -1356,7 +1557,10 @@ const AuthorshipsTabs = () => {
           input the "Evidence"/"Pick one" disclosure reveals. On a single-candidate row that
           disclosure is the ONLY other item, and its label gives no hint an assign control
           lives behind it — a two-item menu (Snooze/Dismiss) reads as "this is all there is",
-          which is exactly how the feature got reported as unshipped after #936 put it live. */}
+          which is exactly how the feature got reported as unshipped after #936 put it live.
+          "Find others like this" (T4) is offered for every row, not just multi-candidate ones
+          — a curator working a single-candidate row may still want to gather every OTHER open
+          row for the same byline name onto one page. */}
       <Menu anchorEl={menu?.anchor} open={!!menu} onClose={() => setMenu(null)}>
         {menu && !menu.row.single_candidate && (
           <MenuItem onClick={() => menu && doAction(menu.row, "reject")} style={{ color: "#b91c1c" }}>
@@ -1370,6 +1574,11 @@ const AuthorshipsTabs = () => {
             focusAssignOther(id);
           }}>
             Assign to someone else…
+          </MenuItem>
+        )}
+        {menu && (
+          <MenuItem onClick={() => { findOthersLikeThis(menu.row.wcm_author); setMenu(null); }}>
+            Find others like this
           </MenuItem>
         )}
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
@@ -1523,6 +1732,7 @@ interface CardProps {
   onMenu: (anchor: HTMLElement) => void;
   onAssignOther: () => void;
   onNarrowPmid: () => void;
+  onFindOthers: () => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
 }
@@ -1530,6 +1740,7 @@ interface CardProps {
 const AuthorshipCard = ({
   row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
+  onFindOthers,
   conflict, onClearConflict,
 }: CardProps) => {
   // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
@@ -1547,6 +1758,9 @@ const AuthorshipCard = ({
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
   const meta = CLASS_META[r.classification || "absent"];
+  // T4: same predicate toggleSelect gates on — multi-candidate rows are now checkbox-
+  // selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/isMultiAssignEligible).
+  const selectable = isBulkSelectable(r, statusView);
 
   const cardStyle: CSSProperties = {
     background: isSelected ? "#eff6ff" : "#fff",
@@ -1561,11 +1775,12 @@ const AuthorshipCard = ({
   return (
     <article ref={registerRef} tabIndex={0} onFocus={onFocus} onMouseEnter={onFocus} onClick={onToggleExpand} style={cardStyle}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 15px" }}>
-        {/* selection checkbox — single-candidate open rows with a ReCiter identity only */}
-        <input type="checkbox" disabled={!r.single_candidate || noIdentity || alreadyRejected || noSuggestion || statusView !== "open"}
+        {/* selection checkbox — single-candidate open rows with a ReCiter identity, PLUS
+            (T4) open, non-scopus multi-candidate rows, for bulk-assign only. See `selectable`. */}
+        <input type="checkbox" disabled={!selectable}
           checked={isSelected} onChange={onToggleSelect} onClick={(e) => e.stopPropagation()}
           aria-label={`select ${r.wcm_author || ""}`}
-          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: r.single_candidate && !noIdentity && !alreadyRejected && !noSuggestion && statusView === "open" ? "pointer" : "default", flex: "none", opacity: r.single_candidate && !noIdentity && !alreadyRejected && !noSuggestion && statusView === "open" ? 1 : 0.3 }} />
+          style={{ width: 16, height: 16, marginTop: 3, accentColor: "#2563eb", cursor: selectable ? "pointer" : "default", flex: "none", opacity: selectable ? 1 : 0.3 }} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* L1 — WCM author + position */}
@@ -1588,7 +1803,17 @@ const AuthorshipCard = ({
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
             <span style={{ color: "#94a3b8" }}>→</span>
             {isMulti ? (
-              <span style={{ color: "#94a3b8" }}>choose among {r.n_candidates} WCM homonyms</span>
+              <>
+                <span style={{ color: "#94a3b8" }}>choose among {r.n_candidates} WCM homonyms</span>
+                {/* T4 — the Vickers case: gather every other open row for this same byline
+                    name onto one page before picking a candidate, so the group can be
+                    selected and assigned together instead of one Pick-one at a time. */}
+                <Tip title={`Filter the queue to every open row for "${r.wcm_author}"`} placement="top" arrow>
+                  <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onFindOthers(); }}>
+                    Find others like this
+                  </button>
+                </Tip>
+              </>
             ) : noSuggestion ? (
               <span style={{ fontStyle: "italic", color: "#94a3b8" }}>No suggested identity — assign one below</span>
             ) : (
