@@ -678,10 +678,13 @@ const AuthorshipsTabs = () => {
     // this is the one place that also catches the Y/N keyboard shortcuts, which bypass all of
     // that UI gating by calling straight through to here. Rejecting before the optimistic
     // remove below means the row never even flashes out of the list.
+    // `local: true` marks this as a precondition failure that never touched the network — no
+    // HTTP status at all, so it can't be mistaken for the server's real 409 (duplicate) or 422
+    // (no-identity/off-candidate) responses in the catch below or in doBulkAccept's tally.
     if ((action === "accept" || action === "reject") && !row.top_cwid) {
       return Promise.reject(Object.assign(
         new Error("No proposed identity on this row — use “Someone else” to assign it."),
-        { status: 409 },
+        { local: true },
       ));
     }
     pendingRemoved.current.add(row.id);
@@ -768,6 +771,9 @@ const AuthorshipsTabs = () => {
           setConflicts((c) => ({ ...c, [row.id]: entry }));
           setConflictLog((log) => [entry, ...log].slice(0, 20));
         }
+        // e.local (the #938 backstop above) rejects before the optimistic remove ever runs, so
+        // unlike every other rejection here the row never left the list — say so accurately.
+        else if (e?.local) setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}.`);
         else setErrorMsg(`Couldn't ${action} "${row.wcm_author}" — ${String(e?.message || e)}. The row is back in the list — nothing was saved.`);
         fetchData(); // restore the optimistically-removed row
       })
@@ -1774,9 +1780,12 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
       {wcm
         ? <Chip kind="ok"><IconCheck size={13} /> WCM affiliation match</Chip>
         : <Chip kind="warn"><IconAlert size={13} /> No WCM string in affiliation</Chip>}
-      {r.top_affil_match
+      {/* #938 — top_dept/top_affil_match are also part of ReCiterDB#177's null sweep; on a
+          no-suggestion row there is no candidate department to compare against, so this chip
+          would otherwise assert a mismatch against nothing (same class of bug as ioFgNote). */}
+      {!noSuggestion && (r.top_affil_match
         ? <Chip kind="neutral">Dept: {r.top_dept} ✓</Chip>
-        : <Chip kind="neutral">Dept ≠ affiliation</Chip>}
+        : <Chip kind="neutral">Dept ≠ affiliation</Chip>)}
     </div>
     {/* inline note (F8) — scopus lane gets its own not-in-PubMed explanation; #938's
         no-suggestion rows get neither, since both notes assume a matched candidate */}
