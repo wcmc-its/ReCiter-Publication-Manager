@@ -105,6 +105,15 @@ function buildWhere(body: any): any {
   if (Array.isArray(body.personTypes) && body.personTypes.length > 0) {
     and.push({ top_person_type: { [Op.in]: body.personTypes } });
   }
+  // hide rows with no proposed identity at all (#938 — ReCiterDB#177 nulls top_cwid on rows
+  // the merged matcher no longer matches to anyone; neither Accept nor Reject has anything to
+  // act on). top_cwid is a real column on the row itself — unlike identity_in_reciter, which
+  // is resolved per-page against DynamoDB after this query runs — so this is a plain SQL
+  // predicate like every filter above it, and authorshipSelectable's "N matching" count (which
+  // shares buildWhere) can never disagree with what this hides.
+  if (body.hideNoSuggestion) {
+    and.push({ top_cwid: { [Op.ne]: null } });
+  }
   // free-text search across author name, proposed identity, pmid, doi, and Scopus id
   const search = (body.searchTextInput || "").trim();
   if (search) {
