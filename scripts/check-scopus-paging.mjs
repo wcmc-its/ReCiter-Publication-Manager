@@ -260,7 +260,7 @@ assert(/toast\.error\("Pubmed query "\s*\+\s*query\["strategy-query"\]\s*\+\s*" 
 assert(/type:\s*methods\.PUBMED_CHANGE_DATA,\s*\n\s*payload:\s*\[\]/.test(pubmedFetchDataSrc), "the guarded branch still resets the list (PUBMED_CHANGE_DATA payload: [])");
 
 // ---------------------------------------------------------------------------------------
-console.log("\n7. Ticket N — direct Add on the Scopus card for a PMID-bearing doc:");
+console.log("\n8. Ticket N — direct Add on the Scopus card for a PMID-bearing doc:");
 
 // (a) server: findPubmedByPmid + the new route, with a timeout.
 assert(/export async function findPubmedByPmid\(pmid:\s*number\)/.test(pubmedLookupSrc), "findPubmedByPmid(pmid) exported from pubmedLookup.controller.ts");
