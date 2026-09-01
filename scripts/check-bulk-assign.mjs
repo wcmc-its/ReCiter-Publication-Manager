@@ -9,7 +9,7 @@
  * be asserted directly, same reason as scripts/check-assign-gate.mjs and
  * scripts/check-homonym-rejections.mjs.
  *
- * Seven sections:
+ * Eight sections:
  *   1. eligibility — which OPEN rows are checkbox-selectable, and which of those are also in
  *                    the (unchanged) single-candidate bulk ACCEPT set
  *   2. candidates  — union-of-candidates + match-count computation for the picker
@@ -19,9 +19,12 @@
  *   4. flags       — assignConfirmFlags: the one confirm flag a row's submit needs, mirroring
  *                    assignGate()'s own dominance rule
  *   5. buckets     — doBulkAccept-style failure bucketing for the assign submit loop
- *   6. authorKey   — the normalized "same person, different byline spelling" key behind
+ *   6. reject buckets — T-950: bucketRejectFailures, the same shape for the bulk-reject
+ *                    submit loop (only two statuses reject can fail with — see the function's
+ *                    own header comment for why 422 can't occur there)
+ *   7. authorKey   — the normalized "same person, different byline spelling" key behind
  *                    "Show N others like this" (T5) — variant equivalence/non-equivalence
- *   7. typedCwidPreview — T-NAG: the typed "Someone else" box's inline lookup preview text,
+ *   8. typedCwidPreview — T-NAG: the typed "Someone else" box's inline lookup preview text,
  *                    idle/loading/error/resolved
  */
 
@@ -29,6 +32,7 @@ import assert from "node:assert/strict";
 import {
   isAcceptEligible, isMultiAssignEligible, isNoIdentityAssignEligible, isBulkSelectable,
   unionCandidates, partitionForAssign, assignConfirmFlags, bucketAssignFailures,
+  bucketRejectFailures,
   authorKey, typedCwidPreview,
 } from "../src/lib/bulkAssign.ts";
 
@@ -163,6 +167,21 @@ check("a 422 with neither known code falls to other (not silently miscounted as 
   { offCandidate: 0, noIdentity: 0, conflict409: 0, other: 1 });
 check("a network-level rejection with no status at all still counts, as other",
   bucketAssignFailures([{}]), { offCandidate: 0, noIdentity: 0, conflict409: 0, other: 1 });
+
+// ---------------------------------------------------------------------------------------
+console.log("\nT-950: bulk-reject failure bucketing — only two statuses reject can fail with:");
+
+check("empty batch -> all zero", bucketRejectFailures([]), { noProposal: 0, writeFailed: 0, other: 0 });
+check("one of each + one unexplained", bucketRejectFailures([
+  { status: 409 },
+  { status: 502 },
+  { status: 500 },
+]), { noProposal: 1, writeFailed: 1, other: 1 });
+check("a reason with no status at all still counts, as other",
+  bucketRejectFailures([{}]), { noProposal: 0, writeFailed: 0, other: 1 });
+check("multiple 409s and 502s each accumulate in their own bucket",
+  bucketRejectFailures([{ status: 409 }, { status: 409 }, { status: 502 }]),
+  { noProposal: 2, writeFailed: 1, other: 0 });
 
 // ---------------------------------------------------------------------------------------
 console.log("\nauthorKey — the driving T5 case: middle-initial byline variants:");
