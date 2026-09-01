@@ -424,7 +424,16 @@ export const pubmedFetchData = query => dispatch => {
                 // which left the promise silently rejected: no toast, tab stays blank.
                 // Guard it, and treat "no reciter payload to check" the same as "doesn't
                 // carry one of the two recognised messages" -> the existing error toast + reset.
-                if (!data.reciter || (data.reciter.status == 500 && (data.reciter.message.indexOf('Your search exceeded 200 results:') < 0 ||  data.reciter.message.indexOf('No results were found.') < 0))) {
+                // Both branches below now dispatch PUBMED_CANCEL_FETCHING so the spinner
+                // never sticks, regardless of which path is taken.
+                const msg = (data.reciter && data.reciter.message) ? String(data.reciter.message) : '';
+                const recognised = msg.indexOf('No results were found.') >= 0 || msg.indexOf('more than 1,000 results') >= 0;
+                if (data.reciter && data.reciter.status == 500 && recognised) {
+                    dispatch(
+                        addPubMedFetchMoreData(data.reciter)
+                    )
+                }
+                else {
                     toast.error("Pubmed query " + query["strategy-query"] + " failed", {
                         position: "top-right",
                         autoClose: 2000,
@@ -438,14 +447,9 @@ export const pubmedFetchData = query => dispatch => {
                         payload: []
                     })
                 }
-                else {
-                    dispatch(
-                        addPubMedFetchMoreData(data.reciter)
-                    )
-                    dispatch({
-                        type: methods.PUBMED_CANCEL_FETCHING
-                    })
-                }
+                dispatch({
+                    type: methods.PUBMED_CANCEL_FETCHING
+                })
             } else {
                 dispatch(
                     clearError()
