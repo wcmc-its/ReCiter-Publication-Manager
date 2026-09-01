@@ -6,7 +6,7 @@
  * scripts/check-authorships-937.mjs.
  * Run: node scripts/check-scopus-paging.mjs
  *
- * Four sections, one per file touched:
+ * Five sections, one per file touched:
  *   1. controllers/scopusSearch.controller.ts — PAGE/CAP constants, the sequential paging
  *      loop and its two stop guards (zero entries, zero new identifiers), dc:identifier
  *      dedupe, and the fetched/capped/partial return shape.
@@ -17,6 +17,10 @@
  *   4. Hardening follow-up (PM#957): every upstream fetch in the controller carries an
  *      AbortSignal.timeout, and normalizeScopusDoc() omits rawRecord for a PMID-bearing doc
  *      (never consumed on that path — see the ticket's rawRecord decision).
+ *   5. Ticket F — a PMID-less Scopus doc is recognised as already in-record by DOI / Scopus
+ *      document ID: findRecordPmid exists in ReciterTabs.tsx, is passed to
+ *      TabScopusAuthorships as a prop, and the tab enriches d.pmid from it before the
+ *      needsReview/inRecord partition runs.
  */
 
 import { readFileSync } from "node:fs";
@@ -35,6 +39,7 @@ const assert = (cond, label) => {
 const controllerSrc = readFileSync(join(ROOT, "controllers/scopusSearch.controller.ts"), "utf8");
 const routeSrc = readFileSync(join(ROOT, "src/pages/api/reciter/search/scopus.ts"), "utf8");
 const tabSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/TabScopusAuthorships.tsx"), "utf8");
+const reciterTabsSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/ReciterTabs.tsx"), "utf8");
 
 // ---------------------------------------------------------------------------------------
 console.log("\n1. controllers/scopusSearch.controller.ts — sequential paging with two stop guards:");
@@ -147,6 +152,29 @@ const normalizeFnSrc = controllerSrc.slice(
 );
 assert(/Number\(pmidRaw\) \? \{\} : \{ rawRecord: JSON\.stringify\(entry\) \}/.test(normalizeFnSrc), "rawRecord is included only for a doc without a numeric PMID (Number(pmidRaw) ? {} : { rawRecord }) — same predicate as the card's item.pmid gating");
 assert(!/^\s*rawRecord:\s*JSON\.stringify\(entry\),\s*$/m.test(normalizeFnSrc), "rawRecord is no longer an unconditional field on every doc");
+
+// ---------------------------------------------------------------------------------------
+console.log("\n5. Ticket F — recognise in-record docs by DOI / Scopus ID:");
+assert(/const findRecordPmid\s*=\s*\(doc:/.test(reciterTabsSrc), "findRecordPmid resolver defined in ReciterTabs.tsx");
+const findRecordPmidSrc = reciterTabsSrc.slice(
+  reciterTabsSrc.indexOf("const findRecordPmid = (doc:"),
+  reciterTabsSrc.indexOf("const handleRefresh")
+);
+assert(/doc\.doi\b/.test(findRecordPmidSrc) && /doc\.articleId\b/.test(findRecordPmidSrc), "resolver reads doc.doi and doc.articleId");
+assert(/replace\(\/\^SCOPUS:\//.test(findRecordPmidSrc), "resolver strips the leading SCOPUS: prefix from articleId");
+assert(/normalizeDoi\(a\.doi\)\s*===\s*docDoi/.test(findRecordPmidSrc), "resolver matches on normalized DOI equality");
+assert(/String\(a\.scopusDocID\)\s*===\s*docScopusId/.test(findRecordPmidSrc), "resolver matches on String(scopusDocID) equality");
+assert(/tab\.value !== 'NULL' && tab\.value !== 'ACCEPTED' && tab\.value !== 'REJECTED'/.test(findRecordPmidSrc), "resolver scans the same NULL/ACCEPTED/REJECTED tab lists as getPmidStatus");
+
+assert(/findRecordPmid=\{findRecordPmid\}/.test(reciterTabsSrc), "findRecordPmid is passed to TabScopusAuthorships as a prop");
+const scopusAuthTagSrc = reciterTabsSrc.slice(reciterTabsSrc.indexOf("<TabScopusAuthorships"), reciterTabsSrc.indexOf("<TabScopusAuthorships") + 400);
+assert(/findRecordPmid=\{findRecordPmid\}/.test(scopusAuthTagSrc), "the prop is wired on the <TabScopusAuthorships> tag itself (not just present elsewhere)");
+
+assert(/findRecordPmid:\s*\(doc:/.test(tabSrc), "TabScopusAuthorships FuncProps declares findRecordPmid");
+assert(/props\.findRecordPmid\(d\)/.test(tabSrc), "the tab calls props.findRecordPmid(d) to enrich a fetched doc");
+const setDocsCallSrc = tabSrc.slice(tabSrc.indexOf("setDocs(results.map"), tabSrc.indexOf("setDocs(results.map") + 200);
+assert(/d\.pmid\s*\?\s*d\s*:\s*\{\s*\.\.\.d,\s*pmid:\s*props\.findRecordPmid\(d\)\s*\?\?\s*undefined\s*\}/.test(setDocsCallSrc), "enrichment only fills pmid when the doc doesn't already have one");
+assert(tabSrc.indexOf("setDocs(results.map") < tabSrc.indexOf("const needsReview"), "docs are enriched before the needsReview/inRecord partition runs");
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall checks passed\n");
 process.exit(failures ? 1 : 0);
