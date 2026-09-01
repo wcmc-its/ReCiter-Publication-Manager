@@ -667,15 +667,14 @@ const AuthorshipsTabs = () => {
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
       credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, hideNoIdentity, likeAuthor }),
+      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, hideNoIdentity, hideNoSuggestion, likeAuthor }),
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search, dateFrom, dateTo, statusView, hideNoIdentity, likeAuthor]);
+  }, [search, dateFrom, dateTo, statusView, hideNoIdentity, hideNoSuggestion, likeAuthor]);
   // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
-  // current status/search/date scope — no need to refetch it on source-segment changes. hideNoSuggestion
-  // isn't threaded through here (pre-existing, unrelated to this filter); hideNoIdentity and (T5)
-  // likeAuthor are, so header totals stay consistent with the filtered list/pagination the moment
-  // either one is toggled/set.
+  // current status/search/date scope — no need to refetch it on source-segment changes. hideNoIdentity,
+  // hideNoSuggestion, and (T5) likeAuthor are all threaded through here, so header totals stay
+  // consistent with the filtered list/pagination the moment any one of them is toggled/set.
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.

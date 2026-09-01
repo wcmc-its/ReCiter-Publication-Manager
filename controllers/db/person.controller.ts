@@ -1,8 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { Op, Sequelize } from "sequelize"
+import { Op, Sequelize, literal } from "sequelize"
 import models from '../../src/db/sequelize'
 import { PersonApiBody } from '../../types/personapi.body'
-import { findUserFeedback } from '../userfeedback.controller'
 import  {reciterConstants}  from "../../src/utils/constants";
 
 models.Person.hasMany(models.PersonPersonType, {constraints: false})
@@ -244,44 +243,33 @@ export const findOnePerson = async (attrTypes: string[], attrValues: string[]  )
     
 };
 
-export const updatePendingArticleCount = async (uid: string, feedback: string) => {
+// countPendingArticles is fully recomputed by the nightly reciterdb rebuild (source of truth);
+// this only tracks the between-runs delta from a curator's own accept/reject/log so the badge
+// doesn't go stale until the next rebuild. If the badge is ever seen to drift, the fix is a
+// recompute here, not a smarter delta (ponytail: delta not recompute).
+export const updatePendingArticleCount = async (uid: string, feedback: string, count = 1) => {
 
     try {
-        const userfeedback = await findUserFeedback(uid)
-        let totalPendingCount: number = 0
-        if(userfeedback.statusCode && userfeedback.statusCode == 200) {
-            if(feedback == "ACCEPTED" || feedback == "REJECTED") {
-                if(userfeedback.statusCode && userfeedback.statusCode.rejectedPmids) {
-                    totalPendingCount = totalPendingCount + userfeedback.statusCode.rejectedPmids.length
-                }
-                if(userfeedback.statusCode && userfeedback.statusCode.acceptedPmids) {
-                    totalPendingCount = totalPendingCount + userfeedback.statusCode.acceptedPmids.length
-                }
-                const articleCountUpdate = await models.Person.increment({
-                    countPendingArticles: -totalPendingCount
-                    }, 
-                    {
-                        where: {
-                            personIdentifier: uid,
-                            countPendingArticles: {
-                                [Op.gt]: 0
-                            } 
-
-                        }
-                })
-            } else {
-                const articleCountUpdate = await models.Person.increment({
-                    countPendingArticles: totalPendingCount
-                    }, 
-                    {
-                        where: {
-                            personIdentifier: uid,
-                            countPendingArticles: {
-                                [Op.gt]: 0
-                            }
-                        }
-                })
-            }
+        const n = Math.max(0, Math.trunc(Number(count) || 0))
+        if (n === 0) return
+        if(feedback == "ACCEPTED" || feedback == "REJECTED") {
+            await models.Person.update({
+                countPendingArticles: literal("GREATEST(countPendingArticles - " + n + ", 0)")
+                },
+                {
+                    where: {
+                        personIdentifier: uid
+                    }
+            })
+        } else {
+            await models.Person.update({
+                countPendingArticles: literal("GREATEST(countPendingArticles + " + n + ", 0)")
+                },
+                {
+                    where: {
+                        personIdentifier: uid
+                    }
+            })
         }
     } catch (e) {
         console.log(e)
