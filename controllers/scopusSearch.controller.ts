@@ -10,6 +10,11 @@
 
 import { reciterConfig } from '../config/local'
 
+// Hardening follow-up to PM#957 — the Scopus Retrieval Tool has no timeout of its own, so a
+// hung tool would otherwise hang the Node request indefinitely. Every upstream fetch below
+// carries this bound.
+const SCOPUS_FETCH_TIMEOUT_MS = 15_000
+
 export function scopusConfigured(): boolean {
     // The Elsevier credentials now live in the Scopus Retrieval Tool; here we only need the
     // tool endpoint to be configured. A missing key in the tool surfaces as a 5xx below.
@@ -54,7 +59,12 @@ function normalizeScopusDoc(entry: any) {
         publicationType: entry['subtypeDescription'] || undefined,
         sourceType: 'SCOPUS',
         method: 'scopus-authorships-tab',
-        rawRecord: JSON.stringify(entry),
+        // A PMID-bearing doc never reaches the ExternalArticle path — the Scopus Authorships
+        // tab steers it to "Add via PubMed" instead (ExternalPublicationCard.tsx pubmedPmid
+        // gating), and that path never forwards this object. Only a PMID-less doc's rawRecord
+        // is read back out (server-side, by whatever later reads the ExternalArticle row), so
+        // skip serializing it for docs we know are never added this way.
+        ...(pmidRaw ? {} : { rawRecord: JSON.stringify(entry) }),
     }
 }
 
@@ -65,6 +75,7 @@ export async function searchScopusAuthors(lastName: string, firstName: string) {
     if (firstName) params.set('firstName', firstName)
     const res = await fetch(`${reciterConfig.reciterScopus.searchAuthorsEndpoint}?${params.toString()}`, {
         headers: { 'User-Agent': 'reciter-pub-manager-server' },
+        signal: AbortSignal.timeout(SCOPUS_FETCH_TIMEOUT_MS),
     })
     if (!res.ok) throw new Error(`Scopus author search HTTP ${res.status}`)
     const data: any = await res.json()
@@ -92,6 +103,7 @@ async function fetchScopusDocPage(params: URLSearchParams, start: number): Promi
     pageParams.set('start', String(start))
     const res = await fetch(`${reciterConfig.reciterScopus.searchDocumentsEndpoint}?${pageParams.toString()}`, {
         headers: { 'User-Agent': 'reciter-pub-manager-server' },
+        signal: AbortSignal.timeout(SCOPUS_FETCH_TIMEOUT_MS),
     })
     if (!res.ok) throw new Error(`Scopus doc search HTTP ${res.status}`)
     const data: any = await res.json()

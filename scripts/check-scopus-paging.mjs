@@ -6,7 +6,7 @@
  * scripts/check-authorships-937.mjs.
  * Run: node scripts/check-scopus-paging.mjs
  *
- * Three sections, one per file touched:
+ * Four sections, one per file touched:
  *   1. controllers/scopusSearch.controller.ts — PAGE/CAP constants, the sequential paging
  *      loop and its two stop guards (zero entries, zero new identifiers), dc:identifier
  *      dedupe, and the fetched/capped/partial return shape.
@@ -14,6 +14,9 @@
  *   3. src/components/elements/CurateIndividual/TabScopusAuthorships.tsx — needsReview/inRecord
  *      partition, the collapsed <details> section, the capped/partial-gated amber note (and
  *      the removed moreThanFetched heuristic), and the updated loading-state copy.
+ *   4. Hardening follow-up (PM#957): every upstream fetch in the controller carries an
+ *      AbortSignal.timeout, and normalizeScopusDoc() omits rawRecord for a PMID-bearing doc
+ *      (never consumed on that path — see the ticket's rawRecord decision).
  */
 
 import { readFileSync } from "node:fs";
@@ -111,6 +114,39 @@ assert(/mode="preview"/.test(detailsBlock), "inRecord cards use the same mode=\"
 assert(/needsReview\.map/.test(tabSrc), "needsReview list still rendered with ExternalPublicationCard");
 assert(/Scopus results\{!loadingDocs && searched \? ` \(\$\{needsReview\.length\}\)` : ""\}/.test(tabSrc), "header count is needsReview.length");
 assert(/Searching Scopus… large author profiles take a few seconds \(up to 5 pages\)/.test(tabSrc), "loading-state copy updated");
+
+// ---------------------------------------------------------------------------------------
+console.log("\n4. Hardening follow-up — upstream fetch timeouts + conditional rawRecord trim:");
+assert(/const SCOPUS_FETCH_TIMEOUT_MS\s*=\s*15_000/.test(controllerSrc), "SCOPUS_FETCH_TIMEOUT_MS = 15_000 module constant");
+const timeoutSignalCount = (controllerSrc.match(/signal:\s*AbortSignal\.timeout\(SCOPUS_FETCH_TIMEOUT_MS\)/g) || []).length;
+assert(timeoutSignalCount === 2, `both upstream fetches (author search + doc page) carry the AbortSignal.timeout (found ${timeoutSignalCount}, want 2)`);
+
+const authorSearchFnSrc = controllerSrc.slice(
+  controllerSrc.indexOf("export async function searchScopusAuthors"),
+  controllerSrc.indexOf("const PAGE = 200")
+);
+assert(/fetch\(`\$\{reciterConfig\.reciterScopus\.searchAuthorsEndpoint\}[\s\S]*?signal:\s*AbortSignal\.timeout\(SCOPUS_FETCH_TIMEOUT_MS\)/.test(authorSearchFnSrc), "author-search fetch carries the timeout signal");
+
+const fetchPageFnSrc = controllerSrc.slice(
+  controllerSrc.indexOf("async function fetchScopusDocPage"),
+  controllerSrc.indexOf("export async function searchScopusDocuments")
+);
+assert(/fetch\(`\$\{reciterConfig\.reciterScopus\.searchDocumentsEndpoint\}[\s\S]*?signal:\s*AbortSignal\.timeout\(SCOPUS_FETCH_TIMEOUT_MS\)/.test(fetchPageFnSrc), "doc-page fetch carries the timeout signal");
+
+// A timeout on an extra page (start > 0) is just another fetchScopusDocPage() rejection —
+// it lands in the existing try/catch -> partial = true branch already asserted above
+// (loopBody). A timeout on page one or the author search is likewise just another thrown
+// error, surfaced through the existing (unwrapped) error paths already asserted above
+// (beforeFirstCall / authorSearchFnSrc having no try/catch). No new branches to assert here
+// beyond confirming no new try/catch was introduced around either call.
+assert(!/try\s*\{[\s\S]*AbortSignal\.timeout[\s\S]*?catch/.test(authorSearchFnSrc), "no new try/catch wraps the author-search fetch (timeout surfaces through the existing error path)");
+
+const normalizeFnSrc = controllerSrc.slice(
+  controllerSrc.indexOf("function normalizeScopusDoc"),
+  controllerSrc.indexOf("export async function searchScopusAuthors")
+);
+assert(/pmidRaw \? \{\} : \{ rawRecord: JSON\.stringify\(entry\) \}/.test(normalizeFnSrc), "rawRecord is included only for a PMID-less doc (pmidRaw ? {} : { rawRecord })");
+assert(!/^\s*rawRecord:\s*JSON\.stringify\(entry\),\s*$/m.test(normalizeFnSrc), "rawRecord is no longer an unconditional field on every doc");
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall checks passed\n");
 process.exit(failures ? 1 : 0);
