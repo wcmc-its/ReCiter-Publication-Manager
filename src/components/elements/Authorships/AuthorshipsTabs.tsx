@@ -69,6 +69,15 @@ interface AuthorshipRow {
   dup_flag?: boolean;
   dup_reason?: string;
   accept_conflict?: string;   // persisted ExternalArticleDupCheck 409 from a previous Accept
+  // Producer-flagged PubMed twin for a scopus row (ReCiterDB v2.7). 'title' = heuristic
+  // unquoted title+surname PubMed search (row stays open for a curator); 'doi' = exact DOI
+  // match (producer auto-dismisses these itself); 'scopus' = reserved. matched_pmid_verdict
+  // is set ONLY by this UI's "Different papers" action — 'same' is never stored; "same paper"
+  // is expressed by dismissing the row with a note instead (see CounterpartPanel below).
+  matched_pmid?: number | null;
+  matched_pmid_source?: "scopus" | "doi" | "title" | null;
+  matched_pmid_at?: string | null;
+  matched_pmid_verdict?: "same" | "distinct" | null;
   status?: string;
   snooze_until?: string;
   reviewer?: string;
@@ -158,6 +167,32 @@ interface Summary {
   personTypes?: Array<{ type: string; n: number }>;
   bySource?: Record<string, number>;                 // { pubmed: n, scopus: n } — source-segment counts
   pubTypes?: Array<{ type: string; n: number }>;      // scopus pub_type facet
+}
+
+// Response shape of POST /api/db/authorships/counterpart (authorshipCounterpart in
+// authorships.controller.ts) — the PubMed-twin comparison CounterpartPanel renders.
+interface CounterpartScopusSide {
+  title: string | null; journal: string | null; year: string | null; doi: string | null;
+  authors: { given: string; surname: string }[];
+  external_id: string | null; pub_type: string | null;
+}
+interface CounterpartPubmedSide {
+  pmid: number; title: string | null; journal: string | null;
+  year: string | null; month: string | null; doi: string | null;
+  authors: { lastName: string; foreName: string; initials: string }[];
+}
+interface CounterpartCompare {
+  titleEqual: boolean; yearEqual: boolean; journalEqual: boolean;
+  doiEqual: boolean | null;   // null when either side lacks a DOI — "unknown", not "different"
+  sharedSurnames: number; scopusAuthorCount: number; pubmedAuthorCount: number;
+}
+interface CounterpartResponse {
+  scopus: CounterpartScopusSide;
+  pubmed: CounterpartPubmedSide | null;
+  fetchError: string | null;
+  inRecordFor: string[];
+  pubmedLaneRow: { id: number; status: string; top_cwid: string | null } | null;
+  compare: CounterpartCompare;
 }
 
 const PAGE_SIZE = 20;
@@ -821,7 +856,10 @@ const AuthorshipsTabs = () => {
     setActingId(row.id);
     doActionAsync(row, action, extra)
       .then(() => {
-        if (action !== "reopen") setUndo({ rows: [row], label: ACTION_LABEL[action] || "Done" });
+        // reopen has nothing meaningful to undo (it's already the undo of a resolution);
+        // verdict ("Different papers") sets matched_pmid_verdict, not a status a Snackbar
+        // undo could sensibly reverse either — suppress the toast for both.
+        if (action !== "reopen" && action !== "verdict") setUndo({ rows: [row], label: ACTION_LABEL[action] || "Done" });
         topUp();      // refill so the next pending authorship slides into the freed slot
         fetchSummary();
         fetchRecentActivity();
@@ -1263,7 +1301,7 @@ const AuthorshipsTabs = () => {
         <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
           {([["open", "Open"], ["duplicates", "Possible duplicates"], ["snoozed", "Snoozed"], ["dismissed", "Dismissed"]] as const).map(([key, label]) => (
             <button key={key} onClick={() => setStatusView(key)} title={key === "duplicates"
-              ? "Accepts the server flagged as a possible duplicate (a fuzzy title+year match, which can pair two genuinely different works). Held out of the open queue for review."
+              ? "Two sources: Accepts the server flagged as a possible duplicate (a fuzzy title+year match, which can pair two genuinely different works), and Scopus rows the producer matched to a possible PubMed twin (a title-search heuristic). Held out of the open queue for review."
               : undefined} style={{
               border: "none", padding: "5px 12px", font: "inherit", fontSize: 13, fontWeight: 600, borderRadius: 5,
               cursor: "pointer", background: statusView === key ? "#fff" : "transparent",
@@ -1961,6 +1999,24 @@ const AuthorshipCard = ({
             </div>
           )}
 
+          {/* PubMed-twin flag — a SEPARATE producer signal from dup_flag above (that one is an
+              exact-DOI precheck against external_article) and from accept_conflict (a live 409
+              from a previous Accept attempt): the producer's heuristic title+surname PubMed
+              search for a Scopus row (or an unverdicted doi/scopus match). Clears once a
+              curator sets a verdict — "Same paper" dismisses the row, "Different papers" sets
+              matched_pmid_verdict='distinct' and this chip stops rendering for it. */}
+          {r.matched_pmid != null && !r.matched_pmid_verdict && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+              <Tip title="The producer found a PubMed record that may be the same paper as this Scopus row (a heuristic title+author search, not a confirmed match). Expand this card to compare and record a verdict." placement="top" arrow>
+                <span><Chip kind="warn"><IconAlert size={12} /> PubMed twin? {
+                  r.matched_pmid_source === "doi" ? "DOI match"
+                    : r.matched_pmid_source === "scopus" ? "Scopus link"
+                    : "title match"
+                }</Chip></span>
+              </Tip>
+            </div>
+          )}
+
           {/* Scopus byline — full author list from authors_json, quiet/muted like the L3 meta line */}
           {r.source === "scopus" && formatAuthorsJson(r.authors_json) && (
             <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3, ...clampStyle(2) }} title={formatAuthorsJson(r.authors_json)}>
@@ -2126,6 +2182,13 @@ const AuthorshipCard = ({
               onPick={onPick} onAction={onAction} />
           ) : (
             <SingleEvidence row={r} wcm={wcm} isAbsent={isAbsent} />
+          )}
+          {/* PubMed-twin adjudication (#951 Layer 2) — the producer's matched_pmid flag,
+              rendered ahead of AssignOther so the comparison is the first thing a curator sees
+              on a flagged row (assigning is still possible below regardless of what this
+              panel finds). Fetched lazily on expand, same as everything else in this block. */}
+          {r.matched_pmid != null && (
+            <CounterpartPanel row={r} acting={acting} onAction={onAction} />
           )}
           {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
@@ -2522,5 +2585,172 @@ const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
 };
 
 const factLabel: CSSProperties = { fontSize: 10.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".04em", marginTop: 1 };
+
+const counterpartBox: CSSProperties = {
+  border: "1px solid #dde3ea", borderRadius: 8, padding: "10px 12px", marginBottom: 10, background: "#fafbfc",
+};
+
+// green/amber/grey field-comparison tint — "equal", "differ", "missing" (either side blank,
+// which is a different fact from "differ" and shown differently so a curator never reads a
+// blank-vs-blank pair as a confirmed mismatch).
+type CompareState = "equal" | "differ" | "missing";
+const compareState = (a: unknown, b: unknown, equal: boolean): CompareState => (!a || !b ? "missing" : equal ? "equal" : "differ");
+const compareCellStyle = (state: CompareState): CSSProperties => ({
+  padding: "4px 8px", borderRadius: 4,
+  background: state === "equal" ? "#f0fdf4" : state === "differ" ? "#fffbeb" : "transparent",
+  color: state === "equal" ? "#15803d" : state === "differ" ? "#b45309" : "#94a3b8",
+});
+const emDash = <span style={{ color: "#94a3b8" }}>—</span>;
+
+// Same paper / Different papers — the only two writes this panel makes, both reusing the
+// standard onAction→doAction path (see doAction's `action !== "verdict"` undo suppression):
+// dismiss/{reason:"dup_of_matched_pmid"} composes its note server-side (case "dismiss" in
+// authorships.controller.ts); verdict/{verdict:"distinct"} only ever writes 'distinct' — 'same'
+// is never sent or stored anywhere, "same paper" IS the dismiss above.
+const CounterpartActions = ({ acting, onAction }: {
+  acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+}) => (
+  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+    <button style={btn("accept", acting)} disabled={acting}
+      onClick={(e) => { e.stopPropagation(); onAction("dismiss", { reason: "dup_of_matched_pmid" }); }}>
+      Same paper — dismiss
+    </button>
+    <button style={btn("soft", acting)} disabled={acting}
+      onClick={(e) => { e.stopPropagation(); onAction("verdict", { verdict: "distinct" }); }}>
+      Different papers
+    </button>
+  </div>
+);
+
+// PubMed-twin adjudication panel (#951 Layer 2) — mounted in the isExpanded block for any row
+// carrying a producer-flagged matched_pmid. Fetches POST /api/db/authorships/counterpart on
+// first expand (nothing here is pre-fetched before the card opens, same as SingleEvidence/
+// MultiEvidence beside it). The PubMed fetch inside that route can itself fail (retrieval tool
+// down/slow) — that degrades to fetchError with an HTTP 200, handled below; only a failure of
+// OUR OWN /api/db/authorships/counterpart call (network error, non-200) is the local "error"
+// state, and even then the two action buttons still render — they act on the Scopus row alone.
+const CounterpartPanel = ({ row: r, acting, onAction }: {
+  row: AuthorshipRow; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
+}) => {
+  const [state, setState] = useState<
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "loaded"; data: CounterpartResponse }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    fetch("/api/db/authorships/counterpart", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ id: r.id }),
+    })
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error((await resp.text()) || `HTTP ${resp.status}`);
+        return resp.json();
+      })
+      .then((d: CounterpartResponse) => { if (!cancelled) setState({ status: "loaded", data: d }); })
+      .catch((e) => { if (!cancelled) setState({ status: "error", message: String(e?.message || e) }); });
+    return () => { cancelled = true; }; // card can collapse/re-expand or the row can resolve mid-fetch
+  }, [r.id]);
+
+  const pmid = r.matched_pmid as number; // only mounted when r.matched_pmid != null
+
+  if (state.status === "loading") {
+    return <div style={{ ...counterpartBox, color: "#94a3b8" }}>Loading PubMed record {pmid}…</div>;
+  }
+  if (state.status === "error") {
+    return (
+      <div style={counterpartBox}>
+        <div style={{ display: "flex", gap: 7, fontSize: 12.5, color: "#b45309", marginBottom: 10 }}>
+          <IconAlert size={15} style={{ marginTop: 1 }} />
+          <span>PubMed record {pmid} could not be fetched ({state.message}).</span>
+        </div>
+        <CounterpartActions acting={acting} onAction={onAction} />
+      </div>
+    );
+  }
+
+  const { scopus, pubmed, fetchError, inRecordFor, pubmedLaneRow, compare } = state.data;
+  const titleState = compareState(scopus.title, pubmed?.title, compare.titleEqual);
+  const journalState = compareState(scopus.journal, pubmed?.journal, compare.journalEqual);
+  const yearState = compareState(scopus.year, pubmed?.year, compare.yearEqual);
+  const doiState: CompareState = compare.doiEqual == null ? "missing" : compare.doiEqual ? "equal" : "differ";
+  const scopusAuthorLine = scopus.authors.map((a) => `${a.given} ${a.surname}`.trim()).filter(Boolean).join(", ");
+  const pubmedAuthorLine = (pubmed?.authors || []).map((a) => `${a.foreName} ${a.lastName}`.trim()).filter(Boolean).join(", ");
+
+  return (
+    <div style={counterpartBox}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+        Possible PubMed twin — PMID {pmid}
+      </div>
+
+      {/* fetchError NEVER means an empty column — the Scopus side and the actions still render;
+          this is a heads-up that the right-hand column below is blank because of a fetch
+          failure, not because PubMed genuinely has no data for those fields. */}
+      {fetchError && (
+        <div style={{ display: "flex", gap: 7, fontSize: 12.5, marginBottom: 10, color: "#b45309", background: "#fffbeb", borderRadius: 7, padding: "8px 10px" }}>
+          <IconAlert size={15} style={{ marginTop: 1 }} />
+          <span>PubMed record {pmid} could not be fetched ({fetchError}).</span>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 1fr", gap: "5px 12px", fontSize: 12.5, alignItems: "start" }}>
+        <div />
+        <div style={{ fontWeight: 700, color: "#475569" }}>Scopus record</div>
+        <div style={{ fontWeight: 700, color: "#475569" }}>PubMed record</div>
+
+        <div style={{ color: "#94a3b8" }}>Title</div>
+        <div style={compareCellStyle(titleState)}>{scopus.title || emDash}</div>
+        <div style={compareCellStyle(titleState)}>{pubmed?.title || emDash}</div>
+
+        <div style={{ color: "#94a3b8" }}>Journal</div>
+        <div style={compareCellStyle(journalState)}>{scopus.journal || emDash}</div>
+        <div style={compareCellStyle(journalState)}>{pubmed?.journal || emDash}</div>
+
+        <div style={{ color: "#94a3b8" }}>Year</div>
+        <div style={compareCellStyle(yearState)}>{scopus.year || emDash}</div>
+        <div style={compareCellStyle(yearState)}>{pubmed?.year || emDash}</div>
+
+        <div style={{ color: "#94a3b8" }}>DOI</div>
+        <div style={compareCellStyle(doiState)}>{scopus.doi || emDash}</div>
+        <div style={compareCellStyle(doiState)}>{pubmed?.doi || emDash}</div>
+
+        <div style={{ color: "#94a3b8" }}>Authors</div>
+        <div style={{ padding: "4px 8px" }}>{scopusAuthorLine || emDash}</div>
+        <div style={{ padding: "4px 8px" }}>{pubmedAuthorLine || emDash}</div>
+      </div>
+      <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 3 }}>
+        {compare.sharedSurnames} of {compare.scopusAuthorCount} Scopus surname{compare.scopusAuthorCount === 1 ? "" : "s"} shared with PubMed
+      </div>
+
+      <div style={{ marginTop: 10 }}><PmidLink pmid={pmid} /></div>
+
+      <div style={{ fontSize: 12.5 }}>
+        {inRecordFor.length > 0
+          ? `Already in the record of: ${inRecordFor.join(", ")}`
+          : "Not in any candidate's record"}
+      </div>
+      <div style={{ fontSize: 12.5, marginTop: 2, color: "#64748b" }}>
+        {pubmedLaneRow ? (
+          `Also proposed in the PubMed lane (row #${pubmedLaneRow.id}, ${pubmedLaneRow.status})`
+        ) : r.top_cwid ? (
+          <>
+            PubMed record {pmid} was never proposed for a WCM person — add it from{" "}
+            <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
+              onClick={(e) => e.stopPropagation()} style={{ color: "#2563eb" }}>
+              /curate/{r.top_cwid}
+            </a>{" "}
+            if it belongs to them
+          </>
+        ) : (
+          `PubMed record ${pmid} was never proposed for a WCM person, and this row has no proposed identity to add it from.`
+        )}
+      </div>
+
+      <CounterpartActions acting={acting} onAction={onAction} />
+    </div>
+  );
+};
 
 export default AuthorshipsTabs;
