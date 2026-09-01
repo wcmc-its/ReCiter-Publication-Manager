@@ -8,13 +8,14 @@
  *
  * 1. fetchData's `silent` flag — the {loading && …}/{!loading && rows.map(…)} gate is what
  *    unmounts the whole card list and throws scroll position to the top; `silent` must
- *    actually skip both setLoading(true) and setLoading(false), and exactly the five
+ *    actually skip both setLoading(true) and setLoading(false), and exactly the six
  *    "restore this same view after acting on a row" call sites (action-catch, bulk-accept
- *    failure, bulk-assign failure, undo, undo-from-recent-activity) must pass it — never the
- *    one effect that fires on a genuine filter/status/page change, where landing at the top
- *    is expected. The call-site regex requires a trailing `;` so it can't be tripped by prose
- *    that merely mentions `fetchData(true)` in a comment (two such mentions exist, describing
- *    the action-catch site's effect on a MULTI_CANDIDATE row — not call sites of their own).
+ *    failure, bulk-assign failure, bulk-reject failure (T-950), undo, undo-from-recent-activity)
+ *    must pass it — never the one effect that fires on a genuine filter/status/page change,
+ *    where landing at the top is expected. The call-site regex requires a trailing `;` so it
+ *    can't be tripped by prose that merely mentions `fetchData(true)` in a comment (two such
+ *    mentions exist, describing the action-catch site's effect on a MULTI_CANDIDATE row — not
+ *    call sites of their own).
  * 2. hideNoSuggestion — a real SQL predicate in buildWhere (top_cwid IS NOT NULL), gated on
  *    the same body flag the client always sends, so it can never disagree with the
  *    "Select all N matching" count (authorshipSelectable shares buildWhere). Also checks the
@@ -72,8 +73,8 @@ check("silent=false still clears loading in the finally", runGuard(finallyLine, 
 const bareCalls = tabsSrc.match(/\bfetchData\(\);/g) || [];
 const silentCalls = tabsSrc.match(/\bfetchData\(true\);/g) || [];
 check("exactly one non-silent fetchData() call (the navigation effect)", bareCalls.length, 1);
-check("exactly five silent fetchData(true) calls (action-catch, bulk-accept failure, bulk-assign failure, undo, undo-from-activity)",
-  silentCalls.length, 5);
+check("exactly six silent fetchData(true) calls (action-catch, bulk-accept failure, bulk-assign failure, bulk-reject failure, undo, undo-from-activity)",
+  silentCalls.length, 6);
 
 // The lone non-silent call must be the one gated on datesReady/pendingPageReset, not some
 // other new call that happens to omit the argument.

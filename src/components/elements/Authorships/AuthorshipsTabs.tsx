@@ -11,6 +11,7 @@ import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 import {
   isAcceptEligible, isBulkSelectable,
   unionCandidates, partitionForAssign, assignConfirmFlags, bucketAssignFailures,
+  bucketRejectFailures,
   typedCwidPreview,
 } from "../../../lib/bulkAssign";
 import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
@@ -558,6 +559,10 @@ const AuthorshipsTabs = () => {
     cwid: string; name?: string | null; hasIdentity: boolean;
     onCandidate: AuthorshipRow[]; offCandidate: AuthorshipRow[];
   } | null>(null);
+  // T-950: "Reject selected (N)" — unlike assign there's no server lookup step (reject never
+  // targets a typed cwid; every row acts on its OWN proposed candidate(s)), so this is just a
+  // confirm gate in front of doBulkReject — open while the dialog is up, closed otherwise.
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
   // F13: keyboard focus
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const cardRefs = useRef<Record<number, HTMLElement | null>>({});
@@ -911,6 +916,52 @@ const AuthorshipsTabs = () => {
           setErrorMsg(`${failures.length} of ${batch.length} accepts skipped: ${parts.join("; ")} — refreshing`);
           // silent — a partial bulk-accept failure is still "acted on rows in place", not a
           // navigation event; the curator is mid-review of this same page.
+          fetchData(true);
+        }
+        else topUp();
+        fetchSummary();
+        fetchRecentActivity();
+      })
+      .finally(() => setBulkProgress(null));
+    setSelected(new Set());
+    setAllMatching(null);
+  }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+
+  // T-950: bulk reject — same shape as doBulkAccept (chunking/allSettled/Undo/refresh), just
+  // "reject" with no extra body in place of "accept". Unlike doBulkAssign there's no server
+  // lookup/confirm-flags step first: reject never targets a typed cwid, every row acts on its
+  // own already-proposed candidate(s) (case "reject" in authorships.controller.ts derives
+  // single/multi/scopus behaviour from the row itself), so the confirm dialog above is the only
+  // gate and doActionAsync(row, "reject") is called exactly as every per-row Reject/Reject all
+  // call site already does (no cwid, no flags).
+  const doBulkReject = useCallback((batch: AuthorshipRow[]) => {
+    if (batch.length === 0) return;
+    setRejectConfirmOpen(false);
+    setMenu(null);
+    setBulkProgress(batch.length > BULK_CHUNK ? { done: 0, total: batch.length } : null);
+    const runChunks = async () => {
+      const results: PromiseSettledResult<boolean>[] = [];
+      for (let i = 0; i < batch.length; i += BULK_CHUNK) {
+        const chunk = batch.slice(i, i + BULK_CHUNK);
+        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "reject"))));
+        if (batch.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: batch.length });
+      }
+      return results;
+    };
+    runChunks()
+      .then((results) => {
+        const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+        const ok = batch.filter((_, i) => results[i].status === "fulfilled");
+        if (ok.length > 0) setUndo({ rows: ok, label: `Rejected ${ok.length}` });
+        if (failures.length) {
+          const { noProposal, writeFailed, other } = bucketRejectFailures(
+            failures.map((f) => (f.reason as any) || {}));
+          const parts: string[] = [];
+          if (noProposal) parts.push(`${noProposal} had nothing to reject`);
+          if (writeFailed) parts.push(`${writeFailed} failed to write`);
+          if (other) parts.push(`${other} failed`);
+          setErrorMsg(`Rejected ${ok.length} of ${batch.length} selected: ${parts.join("; ")} — refreshing`);
+          // silent — same as doBulkAccept/doBulkAssign: still mid-review of this same page.
           fetchData(true);
         }
         else topUp();
@@ -1428,7 +1479,7 @@ const AuthorshipsTabs = () => {
       {/* F4: bulk bar (slim) */}
       {statusView === "open" && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 18px", fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
-          <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign, multi-candidate (non-Scopus) rows and single-candidate no-ReCiter-identity rows for bulk assign only" placement="top" arrow>
+          <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate (non-Scopus) rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: eligibleRows.length === 0 ? "default" : "pointer", color: eligibleRows.length === 0 ? "#94a3b8" : "#475569" }}>
               <Checkbox size="small" disabled={eligibleRows.length === 0}
                 checked={allEligibleSelected}
@@ -1480,6 +1531,12 @@ const AuthorshipsTabs = () => {
                 onClick={(e) => openAssignPicker(e.currentTarget)}>
                 Assign selected ({selectedRows.length}) to…
               </button>
+              {/* T-950: mirrors bulk assign — opens the confirm dialog below, never fires
+                  directly (the multi-candidate/no-identity wording in it needs a beat to read). */}
+              <button style={{ ...btn("reject"), padding: "4px 10px" }} disabled={!!bulkProgress}
+                onClick={() => setRejectConfirmOpen(true)}>
+                <IconX /> Reject selected ({selectedRows.length})
+              </button>
             </span>
           )}
           {bulkProgress && (
@@ -1489,7 +1546,7 @@ const AuthorshipsTabs = () => {
           )}
           <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
             {allMatching ? "Bulk accept acts on every matching single-candidate row"
-              : "Bulk accept acts on single-candidate rows on this page; bulk assign also covers open, non-Scopus multi-candidate rows and single-candidate rows with no ReCiter identity"}
+              : "Bulk accept acts on single-candidate rows on this page; bulk assign and bulk reject also cover open, non-Scopus multi-candidate rows and single-candidate rows with no ReCiter identity"}
           </span>
         </div>
       )}
@@ -1598,6 +1655,67 @@ const AuthorshipsTabs = () => {
                 Assign
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* T-950: bulk-reject confirm — same overlay pattern as assignConfirm, but no lookup
+          step in front of it: reject never targets a typed cwid, so the dialog only needs to
+          say what each shape of selected row will do, in the per-row actions' own words
+          ("not mine" / "Reject all" / the no-identity pill's own framing). */}
+      {rejectConfirmOpen && selectedRows.length > 0 && (
+        <div onClick={() => setRejectConfirmOpen(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 1400,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 10, padding: 20, maxWidth: 460,
+            boxShadow: "0 8px 32px rgba(15,23,42,.25)",
+          }}>
+            {(() => {
+              const n = selectedRows.length;
+              const multiCount = selectedRows.filter((r) => !r.single_candidate).length;
+              const noIdentityCount = selectedRows.filter((r) => r.single_candidate && r.identity_in_reciter === false).length;
+              const scopusCount = selectedRows.filter((r) => r.source === "scopus").length;
+              return (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+                    Reject {n} selected row{n === 1 ? "" : "s"}?
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#475569", marginBottom: 10, lineHeight: 1.45 }}>
+                    Each row records “not mine” for its proposed person and leaves the queue.
+                  </div>
+                  {multiCount > 0 && (
+                    <div style={{ fontSize: 12.5, color: "#475569", marginBottom: 10, lineHeight: 1.45 }}>
+                      {multiCount} of them have several candidates — those record “not mine” for every
+                      candidate, the same as the per-row “Reject all”.
+                    </div>
+                  )}
+                  {noIdentityCount > 0 && (
+                    <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 10, lineHeight: 1.45 }}>
+                      {noIdentityCount} propose someone with no ReCiter identity. The rejection is still
+                      written against that identifier and applies to their profile once ReCiter has an
+                      identity for them.
+                    </div>
+                  )}
+                  {scopusCount > 0 && (
+                    <div style={{ fontSize: 12.5, color: "#475569", marginBottom: 10, lineHeight: 1.45 }}>
+                      {scopusCount} Scopus row{scopusCount === 1 ? "" : "s"} close here only — nothing is
+                      written to ReCiter (no PMID).
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 14, lineHeight: 1.45 }}>
+                    Reopening a row undoes it.
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button style={btn("ghost")} onClick={() => setRejectConfirmOpen(false)}>Cancel</button>
+                    <button style={btn("reject")} onClick={() => doBulkReject(selectedRows)}>
+                      Reject {n}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

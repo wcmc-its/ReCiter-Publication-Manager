@@ -194,6 +194,30 @@ export function bucketAssignFailures(reasons: AssignFailureReason[]): {
   return { offCandidate, noIdentity, conflict409, other };
 }
 
+// T-950: bucket a bulk-reject submit batch's settled failures, mirroring bucketAssignFailures'
+// shape. Reject (case "reject" in authorships.controller.ts) has only two failure statuses —
+// 409 when the row has no proposed identity to reject at all (top_cwid null; isBulkSelectable
+// already keeps these out of a bulk selection, so this bucket should stay empty in practice,
+// but the server still guards it) and 502 when a GoldStandard write itself fails partway
+// through the row's candidate list. Unlike assign, reject never asks the curator to confirm an
+// off-candidate or no-identity target — every row acts on its OWN already-proposed
+// candidate(s) — so it has no 422 path at all; OFF_CANDIDATE/NO_RECITER_IDENTITY simply can't
+// come back here.
+export interface RejectFailureReason {
+  status?: number;
+}
+export function bucketRejectFailures(reasons: RejectFailureReason[]): {
+  noProposal: number; writeFailed: number; other: number;
+} {
+  let noProposal = 0, writeFailed = 0, other = 0;
+  for (const r of reasons) {
+    if (r.status === 409) noProposal++;
+    else if (r.status === 502) writeFailed++;
+    else other++;
+  }
+  return { noProposal, writeFailed, other };
+}
+
 // T-NAG: the typed "Someone else" box's inline preview, one lookup-cycle behind the box —
 // idle (nothing typed long enough yet), loading (the debounced POST /api/db/authorships/lookup
 // is in flight), error (that POST rejected — never blocking, just shown text), or resolved (the
