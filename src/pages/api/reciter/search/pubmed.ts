@@ -46,10 +46,18 @@ export default async function handler(
                     resultMode: resultMode
                 })
             }
-            
+            else {
+                console.error(`[search/pubmed] unexpected PubMed response for query="${req.body && req.body['strategy-query']}" person=${req.body && req.body.personIdentifier}: ${JSON.stringify(data)}`)
+                res.status(502).send({
+                    statusCode: 502,
+                    message: 'Unexpected PubMed response'
+                })
+            }
+
         } else{
-            res.status(apiResponse.statusCode).send({
-                statusCode: apiResponse.statusCode,
+            const code = Number.isInteger(apiResponse.statusCode) ? apiResponse.statusCode : 500;
+            res.status(code).send({
+                statusCode: code,
                 message: apiResponse.statusText
             })
         }

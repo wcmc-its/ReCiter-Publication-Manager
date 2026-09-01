@@ -6,7 +6,7 @@
  * scripts/check-authorships-937.mjs.
  * Run: node scripts/check-scopus-paging.mjs
  *
- * Five sections, one per file touched:
+ * Seven sections, one per file touched (the first six predate Ticket L; section 7 covers it):
  *   1. controllers/scopusSearch.controller.ts — PAGE/CAP constants, the sequential paging
  *      loop and its two stop guards (zero entries, zero new identifiers), dc:identifier
  *      dedupe, and the fetched/capped/partial return shape.
@@ -27,7 +27,13 @@
  *      PubMed" auto-runs the search (ReciterTabs.handleAddViaPubMed dispatches
  *      pubmedFetchData) and actions.js's pubmedFetchData no longer throws on a null/undefined
  *      data.reciter. (3) CurateIndividual.module.css .tabsBar wraps instead of clipping.
- *   7. Ticket N — direct "Add" on the Scopus card for a PMID-bearing doc: the new
+ *   7. Ticket L — the 2026-09-01 stuck-spinner incident: (1) actions.js's pubmedFetchData
+ *      non-200 branch dispatches PUBMED_CANCEL_FETCHING on every path, recognised or not.
+ *      (2) controllers/pubmed.controller.ts times out both upstream fetches and never
+ *      returns a bare error object as statusText. (3) src/pages/api/reciter/search/pubmed.ts
+ *      always sends a numeric statusCode and always responds, even on an unrecognised
+ *      statusCode-200 payload.
+ *   8. Ticket N — direct "Add" on the Scopus card for a PMID-bearing doc: the new
  *      pubmed-article/[pmid] route + findPubmedByPmid, the shared toReciterArticle mapping
  *      used by both TabAddPublication.tsx and ReciterTabs.tsx, handleAcceptPmid (accepts
  *      without a tab switch), the card's primary Add + secondary Add via PubMed + accepted
@@ -53,8 +59,9 @@ const tabSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual
 const reciterTabsSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/ReciterTabs.tsx"), "utf8");
 const actionsSrc = readFileSync(join(ROOT, "src/redux/actions/actions.js"), "utf8");
 const cssSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/CurateIndividual.module.css"), "utf8");
-const pubmedLookupSrc = readFileSync(join(ROOT, "controllers/pubmedLookup.controller.ts"), "utf8");
 const pubmedControllerSrc = readFileSync(join(ROOT, "controllers/pubmed.controller.ts"), "utf8");
+const pubmedRouteSrc = readFileSync(join(ROOT, "src/pages/api/reciter/search/pubmed.ts"), "utf8");
+const pubmedLookupSrc = readFileSync(join(ROOT, "controllers/pubmedLookup.controller.ts"), "utf8");
 const pubmedArticleRouteSrc = readFileSync(join(ROOT, "src/pages/api/reciter/pubmed-article/[pmid].ts"), "utf8");
 const toReciterArticleSrc = readFileSync(join(ROOT, "src/utils/toReciterArticle.ts"), "utf8");
 const tabAddPublicationSrc = readFileSync(join(ROOT, "src/components/elements/TabAddPublication/TabAddPublication.tsx"), "utf8");
@@ -248,7 +255,7 @@ const pubmedFetchDataSrc = actionsSrc.slice(
   actionsSrc.indexOf("export const pubmedFetchData"),
   actionsSrc.indexOf("export const reciterUpdatePublication")
 );
-assert(/!data\.reciter\s*\|\|\s*\(data\.reciter\.status\s*==\s*500/.test(pubmedFetchDataSrc), "the non-200 branch guards data.reciter before reading .status/.message (null/undefined can no longer throw)");
+assert(/data\.reciter\s*&&\s*data\.reciter\.status\s*==\s*500\s*&&\s*recognised/.test(pubmedFetchDataSrc), "the non-200 branch guards data.reciter before reading .status/.message (null/undefined can no longer throw) — superseded by Ticket L's rewrite, still guarded");
 assert(/toast\.error\("Pubmed query "\s*\+\s*query\["strategy-query"\]\s*\+\s*" failed"/.test(pubmedFetchDataSrc), "the guarded branch still shows the existing 'Pubmed query … failed' toast");
 assert(/type:\s*methods\.PUBMED_CHANGE_DATA,\s*\n\s*payload:\s*\[\]/.test(pubmedFetchDataSrc), "the guarded branch still resets the list (PUBMED_CHANGE_DATA payload: [])");
 
@@ -348,6 +355,49 @@ assert(/props\.onAddViaPubMed\s*&&\s*props\.onAddViaPubMed\(pubmedPmid,\s*item\)
 const tabsBarBlock = cssSrc.slice(cssSrc.indexOf(".tabsBar {"), cssSrc.indexOf(".tabsBar {") + cssSrc.slice(cssSrc.indexOf(".tabsBar {")).indexOf("}") + 1);
 assert(/flex-wrap:\s*wrap/.test(tabsBarBlock), ".tabsBar gains flex-wrap: wrap");
 assert(/overflow-x:\s*auto/.test(tabsBarBlock), ".tabsBar keeps overflow-x: auto as a fallback");
+
+// ---------------------------------------------------------------------------------------
+console.log("\n7. Ticket L — PubMed search: clear the spinner on every error path; time out and log:");
+
+// (a) actions.js pubmedFetchData non-200 branch — both the recognised and the error path
+// fall through to a single PUBMED_CANCEL_FETCHING dispatch before the outer statusCode
+// if/else closes (the bug: the pre-Ticket-L error path never cancelled the spinner).
+const nonOkStart = pubmedFetchDataSrc.indexOf("if (data.statusCode != 200 )");
+const nonOkEnd = pubmedFetchDataSrc.indexOf("} else {", nonOkStart);
+assert(nonOkStart !== -1 && nonOkEnd !== -1 && nonOkEnd > nonOkStart, "non-200 branch located (bounded by the outer '} else {')");
+const nonOkBlock = pubmedFetchDataSrc.slice(nonOkStart, nonOkEnd);
+assert(/const recognised\s*=\s*msg\.indexOf\('No results were found\.'\)\s*>=\s*0\s*\|\|\s*msg\.indexOf\('more than 1,000 results'\)\s*>=\s*0/.test(nonOkBlock), "recognised = 'No results were found.' or 'more than 1,000 results' (the stale 200-results string and the wrong || are gone)");
+assert(/toast\.error\("Pubmed query "/.test(nonOkBlock), "the error path still fires the toast.error call");
+const cancelDispatchCount = (nonOkBlock.match(/type:\s*methods\.PUBMED_CANCEL_FETCHING/g) || []).length;
+assert(cancelDispatchCount === 1, "exactly one PUBMED_CANCEL_FETCHING dispatch in the non-200 branch (shared by both paths, not duplicated per-branch)");
+const lastCancelIdx = nonOkBlock.lastIndexOf("PUBMED_CANCEL_FETCHING");
+const toastIdx = nonOkBlock.indexOf("toast.error(");
+const recognisedIdx = nonOkBlock.indexOf("const recognised =");
+assert(recognisedIdx !== -1 && toastIdx > recognisedIdx && lastCancelIdx > toastIdx, "the recognised check and the toast.error call both precede the PUBMED_CANCEL_FETCHING dispatch");
+assert(nonOkBlock.slice(lastCancelIdx).trim().endsWith("})"), "the PUBMED_CANCEL_FETCHING dispatch is the last statement in the non-200 branch, unconditionally reached by both paths, right before the outer '} else {'");
+
+// (b) controllers/pubmed.controller.ts — both upstream fetches time out; no bare error object
+// is ever handed back as statusText (a fetch TypeError has no .status).
+const timeoutOccurrences = (pubmedControllerSrc.match(/AbortSignal\.timeout\(/g) || []).length;
+assert(timeoutOccurrences === 2, `both upstream fetches carry AbortSignal.timeout (found ${timeoutOccurrences}, want 2)`);
+assert(/const COUNT_FETCH_TIMEOUT_MS\s*=\s*30_000/.test(pubmedControllerSrc), "count hop timeout is 30 000 ms");
+assert(/const SEARCH_FETCH_TIMEOUT_MS\s*=\s*240_000/.test(pubmedControllerSrc), "search hop timeout is 240 000 ms (under the client's 300 000 ms race)");
+assert(!/statusCode:\s*error\.status/.test(pubmedControllerSrc), "no statusCode: error.status (a fetch TypeError has no .status — always undefined)");
+assert(/isTimeoutError\(error\)/.test(pubmedControllerSrc), "abort/timeout errors are distinguished from other thrown errors");
+assert(/statusCode:\s*504/.test(pubmedControllerSrc) && /statusCode:\s*502/.test(pubmedControllerSrc), "timeout maps to 504, any other thrown error maps to 502");
+assert(/console\.error\(`\[search\/pubmed\]/.test(pubmedControllerSrc), "failures are logged with the [search/pubmed] prefix");
+const consoleErrorCount = (pubmedControllerSrc.match(/console\.error\(/g) || []).length;
+assert(consoleErrorCount === 1, "console.error is called from a single shared logger (one definition, multiple call sites)");
+assert(/responseText\s*=\s*\{\s*status:\s*500,\s*message:\s*`PubMed count request failed with HTTP \$\{res\.status\}`\s*\}/.test(pubmedControllerSrc), "a non-JSON count-hop error response (e.g. a Tomcat HTML page) falls back to a { status, message } object instead of throwing");
+
+// (c) src/pages/api/reciter/search/pubmed.ts — statusCode is always a number, and the
+// statusCode-200 branch can never finish without sending a response.
+assert(/const code\s*=\s*Number\.isInteger\(apiResponse\.statusCode\)\s*\?\s*apiResponse\.statusCode\s*:\s*500;/.test(pubmedRouteSrc), "non-200 path coerces a non-integer apiResponse.statusCode to 500");
+const nonOkRouteBranch = pubmedRouteSrc.slice(pubmedRouteSrc.indexOf("} else{"));
+assert((nonOkRouteBranch.match(/\bcode\b/g) || []).length >= 2, "the coerced `code` is used in both the res.status(...) call and the response body's statusCode");
+const statusCode200Branch = pubmedRouteSrc.slice(pubmedRouteSrc.indexOf("if(apiResponse.statusCode === 200)"), pubmedRouteSrc.indexOf("} else{"));
+assert(/else \{\s*\n\s*console\.error/.test(statusCode200Branch), "a final else on the statusCode-200 branch logs the unexpected payload");
+assert(/res\.status\(502\)\.send\(\{\s*\n\s*statusCode:\s*502,\s*\n\s*message:\s*'Unexpected PubMed response'/.test(statusCode200Branch), "and always responds 502 'Unexpected PubMed response' rather than falling through with no response sent");
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall checks passed\n");
 process.exit(failures ? 1 : 0);
