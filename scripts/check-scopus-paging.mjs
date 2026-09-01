@@ -103,7 +103,7 @@ const detailsIdx = tabSrc.indexOf("<details");
 assert(detailsIdx !== -1, "a <details> element is rendered");
 const detailsBlock = tabSrc.slice(detailsIdx, tabSrc.indexOf("</details>") + "</details>".length);
 assert(/inRecord\.length/.test(detailsBlock), "<details> summary/body references inRecord");
-assert(/already in this person's record/.test(detailsBlock), "<details> summary reads '... already in this person's record'");
+assert(/already in this person&apos;s record/.test(detailsBlock), "<details> summary reads '... already in this person&apos;s record'");
 assert(/inRecord\.map/.test(detailsBlock), "<details> body maps over inRecord");
 assert(/<ExternalPublicationCard/.test(detailsBlock), "<details> body renders ExternalPublicationCard for each inRecord doc");
 assert(/mode="preview"/.test(detailsBlock), "inRecord cards use the same mode=\"preview\" as needsReview (reuses the 'Already accepted' state)");

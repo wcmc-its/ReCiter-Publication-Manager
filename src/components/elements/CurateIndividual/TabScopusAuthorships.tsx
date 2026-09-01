@@ -307,7 +307,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                     )}
                     {inRecord.length > 0 && (
                         <details>
-                            <summary style={summaryStyle}>{inRecord.length} already in this person's record ▸</summary>
+                            <summary style={summaryStyle}>{inRecord.length} already in this person&apos;s record ▸</summary>
                             {inRecord.map((item) => (
                                 <ExternalPublicationCard
                                     key={item.articleId}
