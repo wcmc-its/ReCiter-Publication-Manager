@@ -190,7 +190,7 @@ function retrieveFirstNew100PubMedArticles(pubMedData: any , featureGeneratorDat
 
 }
 
-function formatPubmedSearch(data: any,greaterThan100 : boolean) {
+export function formatPubmedSearch(data: any,greaterThan100 : boolean) {
     const PublicationsReciter: any[] = []
     
     if(data.filter100PubMedArticles !== undefined) {

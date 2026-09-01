@@ -18,6 +18,11 @@ interface FuncProps {
     personIdentifier: string,
     fullName: string,
     onAddViaPubMed: (pmid: number, item: any) => void,
+    // Direct-add: performs the same accept as onAddViaPubMed's PubMed Add tab, but
+    // inline, without switching tabs. Returns a promise so doAcceptPmid can drive the
+    // card's addState off it (see ReciterTabs.tsx handleAcceptPmid for what it resolves/
+    // rejects on).
+    onAcceptPmid: (pmid: number, item: any) => Promise<void>,
     getPmidStatus: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
     findRecordPmid: (doc: { doi?: string; articleId?: string }) => number | null,
 }
@@ -92,6 +97,11 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     const [searched, setSearched] = useState<boolean>(false)
     const [addStates, setAddStates] = useState<Record<string, AddState>>({})
     const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+    // PMIDs accepted via the direct "Add" button this session — keeps that doc in the
+    // visible needsReview list (see the partition below) instead of it vanishing into
+    // the collapsed "already in this person's record" block the moment getPmidStatus
+    // starts reporting ACCEPTED for it.
+    const [justAccepted, setJustAccepted] = useState<Set<number>>(new Set())
     // Non-suppressed ExternalArticle articleIds already on this person's record — a doc
     // added through this tab (or TabAddExternalPublication) minutes earlier has no PMID
     // to match on, so getPmidStatus alone can't recognise it; fetched the same way
@@ -245,6 +255,24 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
             })
     }
 
+    // Direct-add: accept a PMID-bearing doc via ReciterTabs.tsx's handleAcceptPmid
+    // (same accept as the PubMed Add tab) without leaving this tab. Mirrors doAdd's
+    // state handling exactly, on the shared addStates map.
+    // pmid comes from the card (item.pmid, or the PMID a DOI lookup resolved into addState)
+    const doAcceptPmid = (pmid: number, item: any) => {
+        const articleId = item.articleId
+        setAddState(articleId, { status: "adding" })
+        props.onAcceptPmid(pmid, item)
+            .then(() => {
+                setAddState(articleId, { status: "accepted" })
+                setJustAccepted((prev) => new Set(prev).add(pmid))
+            })
+            .catch((err) => {
+                setAddState(articleId, { status: "idle" })
+                toast.error("Could not accept: " + (err.message || err), { position: "top-right", autoClose: 3000, theme: "colored" })
+            })
+    }
+
     const doReject = (item: any) => {
         if (!uid) return
         const next = new Set(dismissed)
@@ -274,12 +302,19 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
 
     // needsReview = fetched docs not dismissed and not already in the person's record —
     // by PMID (or, for docs enriched above, by DOI / Scopus document ID), or as a
-    // non-suppressed ExternalArticle already on record (externalIds).
+    // non-suppressed ExternalArticle already on record (externalIds). A PMID accepted
+    // via this card's direct "Add" (justAccepted) is deliberately excluded from the
+    // "already in record" side here: getPmidStatus starts reporting ACCEPTED for it the
+    // moment doAcceptPmid succeeds (updatePublicationAssertion already moved it into the
+    // Accepted tab's filteredData), which would otherwise flip this doc into the
+    // collapsed inRecord block on the very next render — before the curator even sees
+    // its "Accepted ✓" tag.
     const inExternalRecord = (d: any) => externalIds.has(d.articleId)
-    const needsReview = docs.filter((d) => !dismissed.has(d.articleId) && !(d.pmid && props.getPmidStatus(d.pmid)) && !inExternalRecord(d))
+    const inGoldStandardRecord = (d: any) => !!(d.pmid && props.getPmidStatus(d.pmid) && !justAccepted.has(d.pmid))
+    const needsReview = docs.filter((d) => !dismissed.has(d.articleId) && !inGoldStandardRecord(d) && !inExternalRecord(d))
     // inRecord = fetched, not dismissed, already in the person's record — collapsed below,
     // not part of the count that needs attention.
-    const inRecord = docs.filter((d) => !dismissed.has(d.articleId) && ((d.pmid && props.getPmidStatus(d.pmid)) || inExternalRecord(d)))
+    const inRecord = docs.filter((d) => !dismissed.has(d.articleId) && (inGoldStandardRecord(d) || inExternalRecord(d)))
     const dismissedCount = docs.filter((d) => dismissed.has(d.articleId)).length
 
     return (
@@ -361,6 +396,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                                 onAdd={(it) => doAdd(it, false)}
                                 onAddAnyway={(it) => doAdd(it, true)}
                                 onAddViaPubMed={(pmid, it) => props.onAddViaPubMed(pmid, it)}
+                                onAcceptPmid={(pmid, it) => doAcceptPmid(pmid, it)}
                                 recordStatusOf={props.getPmidStatus}
                                 onReject={(it) => doReject(it)}
                             />
@@ -378,6 +414,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                                     onAdd={(it) => doAdd(it, false)}
                                     onAddAnyway={(it) => doAdd(it, true)}
                                     onAddViaPubMed={(pmid, it) => props.onAddViaPubMed(pmid, it)}
+                                    onAcceptPmid={(pmid, it) => doAcceptPmid(pmid, it)}
                                     recordStatusOf={props.getPmidStatus}
                                     onReject={(it) => doReject(it)}
                                 />

@@ -17,6 +17,7 @@ import { toast } from "react-toastify"
 import filterPublicationsBySearchText from "../../../utils/filterPublicationsBySearchText";
 import { publicationsPreviousDataFetching } from "../../../redux/reducers/reducers";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
+import { toReciterArticle } from "../../../utils/toReciterArticle";
 
 
 interface FuncProps {
@@ -102,12 +103,8 @@ const TabAddPublication: FunctionComponent<FuncProps> = (props) => {
         pubmedData.forEach(function (publication: any) {
             if (publication.pmid === id) {
                 publication.evidence = []
-                pubmedPublications.push(publication)
-                let newObject = Object.assign(publication, {
-                    "userAssertion": "ACCEPTED",
-                    "articleTitle": publication.title,
-                    "reCiterArticleAuthorFeatures": mapPubMedAuthorsToReciterAuthors(publication.authors)
-                })
+                let newObject = toReciterArticle(publication, "ACCEPTED")
+                pubmedPublications.push(newObject)
                 newReciterData.push(newObject);
             } else {
                 updatedpubs.push(publication);

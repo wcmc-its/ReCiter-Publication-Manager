@@ -13,7 +13,9 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { allowedPermissions } from "../../../utils/constants";
 import { useSession } from "next-auth/react";
-import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData } from "../../../redux/actions/actions";
+import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData, reciterUpdatePublication } from "../../../redux/actions/actions";
+import { reciterConfig } from "../../../../config/local";
+import { toReciterArticle } from "../../../utils/toReciterArticle";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
@@ -23,6 +25,9 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   const [filteredData, setFilteredData] = useState([])
   const [pubKey, setPubKey] = useState(false);
   const { data: session, status } = useSession(); const loading = status === "loading";
+  const identityData = useSelector((state: RootStateOrAny) => state.identityData)
+  // Same source TabAddPublication.tsx uses for the accept request's userID.
+  const userId = session?.data?.databaseUser?.userID;
   const isSearchText = useSelector((state: RootStateOrAny) => state.curateSearchtext)
   const showEvidenceDefault = useSelector((state: RootStateOrAny) => state.showEvidenceDefault)
   const [pubSearchFilters, setPubSearchFilters] = useState<any>();
@@ -161,6 +166,64 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
       "end": '',
       "personIdentifier": reciterData?.reciter?.personIdentifier,
     }));
+  }
+
+  // Direct-add (Scopus tab "Add" button): performs EXACTLY the same accept as
+  // TabAddPublication.tsx's acceptPublication (build the same goldstandard/feedbacklog
+  // request, push the same reCiterArticleFeatures item, update the Accepted tab's
+  // filteredData) — but WITHOUT handleAddViaPubMed's tab switch/search, and without
+  // touching pubmedData/UpdatePubMadeData (there is no PubMed-tab search list here to
+  // prune the accepted item from). userID/identityData below come from the same sources
+  // TabAddPublication.tsx reads them from: session.data.databaseUser.userID (this
+  // component's own useSession()) and state.identityData (this component's own
+  // useSelector, added above alongside userId).
+  //
+  // Returns a promise that resolves once the PubMed article lookup succeeds and the
+  // accept is dispatched, and rejects (with a message) on a non-200/missing-article
+  // response from GET /api/reciter/pubmed-article/{pmid}. IMPORTANT: it does NOT reject
+  // on a goldstandard write failure — reciterUpdatePublication (redux/actions/actions.js
+  // reciterUpdatePublication, ~line 499) fires its own POST to
+  // /api/reciter/update/goldstandard and handles success/failure entirely internally
+  // (toast + dispatch(addError(...))); the thunk itself returns undefined rather than
+  // the fetch promise, so a caller has no way to await or catch that failure. This is
+  // pre-existing behaviour identical to acceptPublication in TabAddPublication.tsx,
+  // which also never awaits reciterUpdatePublication — a goldstandard failure surfaces
+  // only via that thunk's own toast, in both the existing Add-tab flow and here.
+  const handleAcceptPmid = (pmid: number, item: any): Promise<void> => {
+    return fetch(`/api/reciter/pubmed-article/${pmid}`, {
+      credentials: "same-origin",
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: reciterConfig.backendApiKey,
+      },
+    })
+      .then(async (r) => {
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok || !body.article) {
+          throw new Error((body && body.message) || `HTTP ${r.status}`);
+        }
+        return body.article;
+      })
+      .then((article) => {
+        const newObject = toReciterArticle(article, "ACCEPTED");
+        const reCiterArticleFeatures = reciterData?.reciter?.reCiterArticleFeatures;
+        const newReciterData = reCiterArticleFeatures && reCiterArticleFeatures.length > 0 ? reCiterArticleFeatures : [];
+        newReciterData.push(newObject);
+
+        const request = {
+          faculty: identityData,
+          publications: [newObject.pmid],
+          userAssertion: 'ACCEPTED',
+          manuallyAddedFlag: true,
+          userID: userId,
+          personIdentifier: reciterData?.reciter?.personIdentifier,
+        };
+        dispatch(reciterUpdatePublication(identityData.uid, request));
+
+        updatePublicationAssertion(newObject, "ACCEPTED", undefined);
+      });
   }
 
   // Current status of a PMID in this person's record, to annotate external search
@@ -350,6 +413,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           personIdentifier={reciterData.reciter?.personIdentifier}
           fullName={fullName}
           onAddViaPubMed={handleAddViaPubMed}
+          onAcceptPmid={handleAcceptPmid}
           getPmidStatus={getPmidStatus}
           findRecordPmid={findRecordPmid}
         />

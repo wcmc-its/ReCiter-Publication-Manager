@@ -78,7 +78,10 @@ const idLinkFor = (articleId?: string): string | undefined => {
 }
 
 export type AddState = {
-    status: 'idle' | 'adding' | 'checking' | 'blocked' | 'warning' | 'inPubmed' | 'added',
+    // 'accepted' = this PMID-bearing doc was accepted directly from this card
+    // (onAcceptPmid), distinct from 'added' (a Scopus-native doc added as an unscored
+    // ExternalArticle).
+    status: 'idle' | 'adding' | 'checking' | 'blocked' | 'warning' | 'inPubmed' | 'added' | 'accepted',
     message?: string,
     matches?: Array<{ type?: string, matchedId?: string, detail?: string }>,
     pmid?: number,
@@ -91,6 +94,10 @@ interface FuncProps {
     onAdd?: (item: any) => void,
     onAddAnyway?: (item: any) => void,
     onAddViaPubMed?: (pmid: number, item: any) => void,
+    // preview mode, PMID-bearing doc not yet in the record — direct "Add" (bypasses the
+    // PubMed Add tab entirely). Same accept as onAddViaPubMed's tab, without leaving
+    // the current tab.
+    onAcceptPmid?: (pmid: number, item: any) => void,
     // Current status of a PMID in this person's record, for annotating search results.
     recordStatusOf?: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
     // preview mode: dismiss a suggestion (Scopus Authorships feed only); local, not
@@ -238,11 +245,12 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                     )
                 )}
 
-                {/* In PubMed but NOT yet in the record — steer to the scored PubMed path */}
-                {mode === 'preview' && pubmedPmid && !recStatus && status !== 'added' && (
+                {/* In PubMed but NOT yet in the record — direct Add, or steer to the scored
+                    PubMed path (same accept, from the Add tab instead of this card) */}
+                {mode === 'preview' && pubmedPmid && !recStatus && status !== 'added' && status !== 'accepted' && (
                     <div className={styles.pubmedBox}>
                         <div className={styles.pubmedTitle}>This work is in PubMed (PMID {pubmedPmid}).</div>
-                        <div>Add it via PubMed so it counts as scored evidence for this person, instead of as an unscored external record.</div>
+                        <div>Add it to count as scored evidence for this person, instead of as an unscored external record.</div>
                     </div>
                 )}
 
@@ -285,18 +293,37 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                 {mode === 'preview' && status === 'added' && (
                     <span className={styles.addedTag}>Added &#10003;</span>
                 )}
-                {mode === 'preview' && status !== 'added' && pubmedPmid && recStatus && (
+                {/* Direct-accept take priority over the plain record tag below, same as
+                    'added' does — by the time doAcceptPmid resolves, recordStatusOf
+                    already reports ACCEPTED too (updatePublicationAssertion ran first). */}
+                {mode === 'preview' && status === 'accepted' && (
+                    <span className={styles.addedTag}>Accepted &#10003;</span>
+                )}
+                {mode === 'preview' && status !== 'added' && status !== 'accepted' && pubmedPmid && recStatus && (
                     <span className={styles.recordTag}>
                         {recStatus === 'ACCEPTED' ? 'Accepted' : recStatus === 'REJECTED' ? 'Rejected' : 'Pending'}
                     </span>
                 )}
-                {mode === 'preview' && status !== 'added' && pubmedPmid && !recStatus && (
-                    <button
-                        className={styles.btnPubmed}
-                        onClick={() => props.onAddViaPubMed && props.onAddViaPubMed(pubmedPmid, item)}
-                    >
-                        Add via PubMed &#8594;
+                {mode === 'preview' && status === 'adding' && pubmedPmid && !recStatus && (
+                    <button className={styles.btnAdd} disabled>
+                        Adding&#8230;
                     </button>
+                )}
+                {mode === 'preview' && status !== 'added' && status !== 'accepted' && status !== 'adding' && pubmedPmid && !recStatus && (
+                    <div className={styles.pubmedActions}>
+                        <button
+                            className={styles.btnAdd}
+                            onClick={() => props.onAcceptPmid && props.onAcceptPmid(pubmedPmid, item)}
+                        >
+                            <CheckIcon style={{ fontSize: 14 }} /> Add
+                        </button>
+                        <button
+                            className={styles.btnPubmedSecondary}
+                            onClick={() => props.onAddViaPubMed && props.onAddViaPubMed(pubmedPmid, item)}
+                        >
+                            Add via PubMed &#8594;
+                        </button>
+                    </div>
                 )}
                 {mode === 'preview' && status !== 'added' && !pubmedPmid && (
                     <button
@@ -307,7 +334,7 @@ const ExternalPublicationCard: FunctionComponent<FuncProps> = (props) => {
                         <CheckIcon style={{ fontSize: 14 }} /> {status === 'adding' ? 'Adding…' : status === 'checking' ? 'Checking…' : 'Add'}
                     </button>
                 )}
-                {mode === 'preview' && props.onReject && status !== 'added' && (
+                {mode === 'preview' && props.onReject && status !== 'added' && status !== 'accepted' && (
                     <button
                         className={styles.btnReject}
                         onClick={() => props.onReject && props.onReject(item)}
