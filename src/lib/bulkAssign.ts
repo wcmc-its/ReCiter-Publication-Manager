@@ -193,3 +193,40 @@ export function bucketAssignFailures(reasons: AssignFailureReason[]): {
   }
   return { offCandidate, noIdentity, conflict409, other };
 }
+
+// T-NAG: the typed "Someone else" box's inline preview, one lookup-cycle behind the box —
+// idle (nothing typed long enough yet), loading (the debounced POST /api/db/authorships/lookup
+// is in flight), error (that POST rejected — never blocking, just shown text), or resolved (the
+// same {cwid,name,hasIdentity} shape authorshipLookupCwid returns, reused verbatim from the
+// bulk-assign confirm path above rather than re-derived). Pure so the four branches are
+// directly assertable (scripts/check-bulk-assign.mjs) without a component or a network call.
+export type TypedCwidLookupState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "resolved"; cwid: string; name: string | null; hasIdentity: boolean };
+
+export interface TypedCwidPreview {
+  text: string;
+  tone: "neutral" | "warn";
+}
+
+// Mirrors the same two resolved shapes case "assign"'s own 422s already put in front of a
+// curator (no-identity's "records your decision on this row only" and off-candidate's "no name
+// on file anywhere" parenthetical) — this just says the same thing ahead of the round-trip
+// instead of after it.
+export function typedCwidPreview(state: TypedCwidLookupState): TypedCwidPreview | null {
+  switch (state.status) {
+    case "idle": return null;
+    case "loading": return { text: "looking up…", tone: "neutral" };
+    case "error": return { text: state.message, tone: "warn" };
+    case "resolved":
+      if (!state.hasIdentity) {
+        return { text: `→ ${state.cwid}: no ReCiter identity — records on this row only`, tone: "warn" };
+      }
+      if (!state.name) {
+        return { text: `→ no name on file for ${state.cwid} — check the identifier`, tone: "warn" };
+      }
+      return { text: `→ ${state.name}`, tone: "neutral" };
+  }
+}
