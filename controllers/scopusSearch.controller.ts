@@ -64,7 +64,7 @@ function normalizeScopusDoc(entry: any) {
         // gating), and that path never forwards this object. Only a PMID-less doc's rawRecord
         // is read back out (server-side, by whatever later reads the ExternalArticle row), so
         // skip serializing it for docs we know are never added this way.
-        ...(pmidRaw ? {} : { rawRecord: JSON.stringify(entry) }),
+        ...(Number(pmidRaw) ? {} : { rawRecord: JSON.stringify(entry) }),  // same predicate the card's Add gating sees (item.pmid)
     }
 }
 

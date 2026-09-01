@@ -145,7 +145,7 @@ const normalizeFnSrc = controllerSrc.slice(
   controllerSrc.indexOf("function normalizeScopusDoc"),
   controllerSrc.indexOf("export async function searchScopusAuthors")
 );
-assert(/pmidRaw \? \{\} : \{ rawRecord: JSON\.stringify\(entry\) \}/.test(normalizeFnSrc), "rawRecord is included only for a PMID-less doc (pmidRaw ? {} : { rawRecord })");
+assert(/Number\(pmidRaw\) \? \{\} : \{ rawRecord: JSON\.stringify\(entry\) \}/.test(normalizeFnSrc), "rawRecord is included only for a doc without a numeric PMID (Number(pmidRaw) ? {} : { rawRecord }) — same predicate as the card's item.pmid gating");
 assert(!/^\s*rawRecord:\s*JSON\.stringify\(entry\),\s*$/m.test(normalizeFnSrc), "rawRecord is no longer an unconditional field on every doc");
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall checks passed\n");
