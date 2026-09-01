@@ -167,6 +167,32 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
     return null;
   }
 
+  // `https://doi.org/`, `http://doi.org/`, and `doi:` are all the same identifier prefixed
+  // differently by source — Scopus returns the bare DOI, PubMed/ReCiter sometimes carries one
+  // of the URL forms — and case differs between sources too (10.1023/A:... vs 10.1023/a:...).
+  const normalizeDoi = (x: any): string =>
+    String(x ?? '').trim().toLowerCase().replace(/^(https:\/\/doi\.org\/|http:\/\/doi\.org\/|doi:)/, '');
+
+  // A fetched external doc (Scopus search result) with no PMID of its own, matched against
+  // this person's record by DOI or by Scopus document ID instead — scans the same tab lists
+  // getPmidStatus does. Lets a PMID-less Scopus doc that is the same paper as an existing
+  // record article (rharrington AU-ID 55415053000: 50 of 96 no-pubmed-id docs) be classified
+  // exactly like a PMID-bearing in-record doc, rather than always surfacing as "needs review".
+  const findRecordPmid = (doc: { doi?: string; articleId?: string }): number | null => {
+    const docDoi = doc.doi ? normalizeDoi(doc.doi) : '';
+    const docScopusId = doc.articleId ? String(doc.articleId).replace(/^SCOPUS:/, '') : '';
+    if (!docDoi && !docScopusId) return null;
+    for (const tab of (filteredData as any[])) {
+      if (tab.value !== 'NULL' && tab.value !== 'ACCEPTED' && tab.value !== 'REJECTED') continue;
+      for (const a of (tab.data || [])) {
+        if (a.pmid == null) continue;
+        if (docDoi && a.doi && normalizeDoi(a.doi) === docDoi) return Number(a.pmid);
+        if (docScopusId && a.scopusDocID != null && String(a.scopusDocID) === docScopusId) return Number(a.pmid);
+      }
+    }
+    return null;
+  }
+
   // Re-run ReCiter for this person. Accept/reject already persist per-click via the
   // goldstandard write, so this just triggers a fresh feature-generator analysis
   // (analysisRefreshFlag=true). While it runs, reciterFetching flips true and
@@ -316,6 +342,7 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
           fullName={fullName}
           onAddViaPubMed={handleAddViaPubMed}
           getPmidStatus={getPmidStatus}
+          findRecordPmid={findRecordPmid}
         />
       ) : EXTERNAL_SOURCE_TABS.some((tab) => tab.value === key) ? (
         <SourceArticleTab

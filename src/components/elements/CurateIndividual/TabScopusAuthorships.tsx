@@ -5,18 +5,21 @@ import ExternalPublicationCard, { AddState } from "./ExternalPublicationCard"
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper"
 
 // PM#772 — Scopus Authorships tab. A high-level Scopus search (by Author ID, keyword,
-// or DOI) surfacing documents not already in the person's record. On open it resolves
-// the person's Scopus Author ID from their name and runs the author-id search, but the
-// curator can switch to a keyword or DOI search. Accept routing is handled by
-// ExternalPublicationCard: a doc with a PMID (or one a DOI lookup finds in PubMed) is
-// steered to the scored PubMed path; a Scopus-native doc is added as an ExternalArticle
-// (method=scopus-authorships-tab). Reject = local dismissal, never GoldStandard.
+// or DOI) surfacing documents not already in the person's record (matched by PMID, or,
+// for a doc with no PMID of its own, by DOI / Scopus document ID against the person's
+// record — see findRecordPmid in ReciterTabs.tsx). On open it resolves the person's
+// Scopus Author ID from their name and runs the author-id search, but the curator can
+// switch to a keyword or DOI search. Accept routing is handled by ExternalPublicationCard:
+// a doc with a PMID (or one a DOI lookup finds in PubMed) is steered to the scored PubMed
+// path; a Scopus-native doc is added as an ExternalArticle (method=scopus-authorships-tab).
+// Reject = local dismissal, never GoldStandard.
 
 interface FuncProps {
     personIdentifier: string,
     fullName: string,
     onAddViaPubMed: (pmid: number, item: any) => void,
     getPmidStatus: (pmid: number) => 'ACCEPTED' | 'REJECTED' | 'PENDING' | null,
+    findRecordPmid: (doc: { doi?: string; articleId?: string }) => number | null,
 }
 
 const apiHeaders = {
@@ -114,7 +117,12 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                 return body
             })
             .then((body) => {
-                setDocs(Array.isArray(body.results) ? body.results : [])
+                // A doc with no pubmed-id may still be the same paper as one already in the
+                // person's record (same DOI, or same Scopus document ID) — enrich it with that
+                // record's PMID so it partitions into inRecord below exactly like a PMID-bearing
+                // doc, instead of always surfacing as "needs review".
+                const results = Array.isArray(body.results) ? body.results : []
+                setDocs(results.map((d: any) => d.pmid ? d : { ...d, pmid: props.findRecordPmid(d) ?? undefined }))
                 setTotal(Number(body.total || 0))
                 setCapped(!!body.capped)
                 setPartial(!!body.partial)
@@ -214,7 +222,8 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
         saveDismissed(uid, next)
     }
 
-    // needsReview = fetched docs not dismissed and not already in the person's record (by PMID).
+    // needsReview = fetched docs not dismissed and not already in the person's record (by PMID,
+    // or, for docs enriched above, by DOI / Scopus document ID).
     const needsReview = docs.filter((d) => !dismissed.has(d.articleId) && !(d.pmid && props.getPmidStatus(d.pmid)))
     // inRecord = fetched, not dismissed, already in the person's record — collapsed below,
     // not part of the count that needs attention.
