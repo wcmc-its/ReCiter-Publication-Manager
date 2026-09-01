@@ -1,6 +1,7 @@
 import {NextRequest, NextResponse } from 'next/server'
 import { allowedPermissions } from './utils/constants'
 import { getToken } from "next-auth/jwt";
+import { effectiveToken } from './utils/viewAs'
 
 
 //middleware should run for these router paths
@@ -40,10 +41,20 @@ export async function middleware(request: NextRequest) {
   if (isAuthRoute) {
     return NextResponse.next();
   }
-   if(request && request.cookies && (request.cookies.has('next-auth.session-token') || request.cookies.has('__Secure-next-auth.session-token')))
+   // NextAuth chunks the session cookie into next-auth.session-token.0, .1, ... once the JWE
+   // exceeds 4096 bytes (node_modules/next-auth/core/lib/cookie.js:14-16); getToken already
+   // reassembles chunks, but a plain cookies.has() on the unchunked name misses a chunked
+   // cookie entirely, so check for the base name OR any chunk of it.
+   const N = 'next-auth.session-token'
+   const SECURE_N = '__Secure-next-auth.session-token'
+   if(request && request.cookies && request.cookies.getAll().some(c => c.name === N || c.name.startsWith(N + '.') || c.name === SECURE_N || c.name.startsWith(SECURE_N + '.')))
     {
       const loginUrl = new URL('/login', request.url)
       let decodedTokenJson = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+      // /curate, /search, /authorships, /manageusers... redirects below must evaluate the
+      // TARGET's roles/scope/proxy while "View as" is active -- that is the point of the
+      // feature (the app renders and authorizes exactly as the target would see it).
+      decodedTokenJson = effectiveToken(decodedTokenJson as any) as any;
       let allUserRoles ='';
       if(decodedTokenJson )
           allUserRoles = JSON.stringify(decodedTokenJson);

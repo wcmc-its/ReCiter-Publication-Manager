@@ -9,6 +9,7 @@ import styles from "./AppLayout.module.css";
 import NoAccess from "../elements/NoAccess/NoAccess";
 import Loader from "../elements/Common/Loader";
 import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContainerWrapper";
+import ViewAsBanner from "../elements/ViewAs/ViewAsBanner";
 import { reciterConfig } from "../../../config/local";
 import { useDispatch, useSelector } from "react-redux";
 import { clearPubSearchFilters, getAdminDepartments, getAdminRoles, notificationEmail } from "../../redux/actions/actions";
@@ -65,6 +66,7 @@ export const AppLayout = ({ children }) => {
           <SideNavbar />
         </ExpandNavContext.Provider>
       <div className={expandedNav ? styles.expandedSideBarContent : styles.nonExpandedSideBarContent}>
+        <ViewAsBanner />
         {children}
         <Footer />
         {reciterConfig?.showToasts ? <ToastContainerWrapper /> : null}

@@ -5,6 +5,9 @@ import { findUserPermissions } from '../../../../services/db/userroles.service';
 import {findOrcreateAdminUser,persistUserLogin,grantDefaultRolesToAdminUser,verifyOneTimeToken} from "../../../utils/samlUtils";
 import { decrypt } from "../saml/crypto";
 import { reciterConfig } from "../../../../config/local";
+import { getCapabilities } from "../../../utils/constants";
+import { parseJsonColumn, viewAsActive, effectiveToken, viewAsSummary, nowSeconds } from "../../../utils/viewAs";
+import { resolveViewAsTarget } from "../../../utils/viewAsServer";
 
 /*const authHandler = async (req, res) => {
     console.log('NextAuth handler called - Method:', req.method, 'URL:', req.url);
@@ -153,11 +156,11 @@ export const authOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       console.log('JWT callback - user exists:', !!user, 'token exists:', !!token);
       if (user) console.log("JWT callback: new login for", user.email);
        else console.log("JWT callback: existing token", token);
- 
+
       if (user) {
         token.user = user;
         token.username = user.databaseUser?.personIdentifier || user.personIdentifier || user.email;
@@ -165,17 +168,6 @@ export const authOptions = {
         token.databaseUser = user.databaseUser || null;
         token.userRoles = user.userRoles || [];
 
-        // scope_person_types/scope_org_units/proxy_person_ids (admin_users, see PM#849) come back
-        // on every role row from findUserPermissions, identical per row since they're per-user, not
-        // per-role -- so the first row is enough. Stored as MariaDB JSON-alias-for-LONGTEXT columns,
-        // so a raw (non-Model) query returns them as JSON text, not pre-parsed values; parse before
-        // re-stringifying onto the token, or Search.js's single JSON.parse(session.data.scopeData)
-        // would hand back strings-of-arrays instead of arrays.
-        const parseJsonColumn = (value) => {
-          if (value == null) return null;
-          if (typeof value !== 'string') return value;
-          try { return JSON.parse(value); } catch { return null; }
-        };
         // Read the three columns from the user's own admin_users row (already fetched by
         // findOrcreateAdminUser above), NOT from a role row: they are per-user values, and a
         // user with zero resolved roles (or a proxy grant and nothing else) would otherwise
@@ -191,22 +183,82 @@ export const authOptions = {
 
         token.name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || token.username;;
         token.picture = user.image || user.databaseUser?.profilePicture;
+
+        // The real human, immutable for the token's life -- the "View as" overlay below only
+        // ever swaps username/databaseUser/userRoles/scopeData/proxyPersonIds/name/user;
+        // token.actor is never touched by it, so audit writes (curatedBy, feedbacklog userID)
+        // always resolve to the person who is actually signed in.
+        token.actor = {
+          userID: dbUser.userID,
+          personIdentifier: token.username,
+          name: token.name,
+        };
         console.log('JWT callback - final token created with username:', token.username);
       }
+
+      // Expiry sweep: a stale overlay (TTL elapsed) is dropped from the token the next time
+      // it is decoded, regardless of whether this request is a session update.
+      if (token.viewAs && !viewAsActive(token)) {
+        console.warn(JSON.stringify({ event: 'view_as_ended', reason: 'expired', actor: token.actor?.personIdentifier, target: token.viewAs.targetCwid, startedAt: token.viewAs.startedAt }));
+        delete token.viewAs;
+      }
+
+      // Start/stop transport: the client's update({ viewAs: ... }) call round-trips here as
+      // trigger === 'update' with the payload on `session`. No new cookie, no separate
+      // start/stop route -- NextAuth re-signs and re-sets the session cookie for us.
+      if (trigger === 'update' && session && Object.prototype.hasOwnProperty.call(session, 'viewAs')) {
+        if (session.viewAs === null) {
+          if (token.viewAs) {
+            console.warn(JSON.stringify({ event: 'view_as_ended', actor: token.actor?.personIdentifier, target: token.viewAs.targetCwid, startedAt: token.viewAs.startedAt }));
+            delete token.viewAs;
+          }
+        } else {
+          const cwid = typeof session.viewAs === 'string' ? session.viewAs.trim() : '';
+          const realRoles = parseJsonColumn(token.userRoles) || [];
+          const canStart = getCapabilities(realRoles).canManageUsers === true;
+
+          let refuseReason = null;
+          if (!cwid || cwid.length > 64) refuseReason = 'invalid_cwid';
+          else if (!canStart) refuseReason = 'not_superuser';
+          else if (cwid === (token.actor?.personIdentifier || token.username)) refuseReason = 'self';
+
+          if (refuseReason) {
+            console.warn(JSON.stringify({ event: 'view_as_refused', actor: token.actor?.personIdentifier, target: cwid, reason: refuseReason }));
+          } else {
+            const result = await resolveViewAsTarget(cwid);
+            if (!result.ok) {
+              console.warn(JSON.stringify({ event: 'view_as_refused', actor: token.actor?.personIdentifier, target: cwid, reason: result.reason }));
+            } else {
+              token.viewAs = {
+                targetCwid: result.target.personIdentifier,
+                startedAt: nowSeconds(),
+                name: result.target.name,
+                databaseUser: result.target.databaseUser,
+                userRoles: result.target.userRoles,
+              };
+              console.warn(JSON.stringify({ event: 'view_as_started', actor: token.actor?.personIdentifier, target: token.viewAs.targetCwid, startedAt: token.viewAs.startedAt }));
+            }
+          }
+        }
+        // Any other key on `session` is ignored -- nothing else may be updated from the client.
+      }
+
       return token;
     },
 
     async session({ session, token }) {
       console.log('Session callback - token username:', token?.username, 'userRoles length:', token?.userRoles?.length);
 
-      session.data = token;
-      
-      session.user.username = token.username;
-      session.user.databaseUser = token.databaseUser;
-      session.user.userRoles = token.userRoles;
-      session.user = token.user;      
-      console.log('Session callback - final session created for user:', session.user?.username);
-      
+      const eff = effectiveToken(token);
+      session.data = eff;
+      session.user = eff.user;
+      session.viewAs = viewAsSummary(token);
+      session.actor = token.actor || null;
+      const realRoles = parseJsonColumn(token.userRoles) || [];
+      session.canViewAs = getCapabilities(realRoles).canManageUsers === true;
+
+      console.log('Session callback - final session created for user:', session.user?.personIdentifier);
+
       return session;
     },
   },

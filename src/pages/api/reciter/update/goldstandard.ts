@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt'
 import { updateGoldStandard } from "../../../../../controllers/goldstandard.controller"
 import { canCurate } from "../../../../../controllers/db/authorization.controller"
 import { reciterConfig } from '../../../../../config/local'
+import { effectiveToken } from '../../../../../src/utils/viewAs'
 
 type Error = {
     statusCode: number,
@@ -40,7 +41,7 @@ export default async function handler(
         // allowed to curate. Enforce that here. Was previously enforced nowhere: Curator_Self
         // and Curator_All were exactly as unchecked as Curator_Scoped is without this. See PM#849.
         const targetUid = req.body?.uid
-        const allowed = await canCurate(token, targetUid)
+        const allowed = await canCurate(effectiveToken(token), targetUid)
         if (!allowed) {
             res.status(403).send({
                 statusCode: 403,

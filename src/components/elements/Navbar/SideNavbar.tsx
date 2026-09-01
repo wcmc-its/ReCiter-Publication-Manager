@@ -36,6 +36,8 @@ import checkMarkIconActive from '../../../../public/images/icon-side-check_mark-
 import { useSelector } from "react-redux";
 import { RootStateOrAny } from "../../../types/redux";
 import { useSession } from 'next-auth/react';
+import ViewAsModal from '../ViewAs/ViewAsModal';
+import viewAsStyles from '../ViewAs/ViewAs.module.css';
 
 
 type SideNavBarProps = {
@@ -196,6 +198,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
 
   const [isCurateSelf, setIsCurateSelf] = React.useState(false);
   const [isVisibleNotification, setVisibleNotification] = React.useState(true);
+  const [showViewAsModal, setShowViewAsModal] = React.useState(false);
 
 
   const { data: session, status } = useSession(); const loading = status === "loading";
@@ -419,10 +422,26 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
             })
           }
       </StyledList>
+      {
+        // Superuser-only "View as..." entry. MenuItem only supports a `to` (a Link), not an
+        // onClick, so this is a small standalone button beneath the menu list rather than a
+        // MenuItem -- the smallest change that works. Hidden while an overlay is already active
+        // (the banner's "Return to my view" is the exit path then).
+        (session as any).canViewAs && !(session as any).viewAs && (
+          <button
+            type="button"
+            className={viewAsStyles.viewAsTrigger}
+            onClick={() => setShowViewAsModal(true)}
+          >
+            {open ? 'View as…' : '⋯'}
+          </button>
+        )
+      }
       <div className={styles.compactToggle} onClick={handleDrawerToggle} style={{ marginTop: 'auto', borderTop: '1px solid #2a3350' }}>
         {open && <span>Compact mode</span>}
         {open ? <ChevronLeftIcon sx={{ fontSize: 16, color: '#4a5568' }} /> : <ChevronRightIcon sx={{ fontSize: 16, color: '#4a5568' }} />}
       </div>
+      <ViewAsModal show={showViewAsModal} onHide={() => setShowViewAsModal(false)} />
     </Drawer>
   )
 }
