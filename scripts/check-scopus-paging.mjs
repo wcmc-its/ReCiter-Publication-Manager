@@ -21,6 +21,12 @@
  *      document ID: findRecordPmid exists in ReciterTabs.tsx, is passed to
  *      TabScopusAuthorships as a prop, and the tab enriches d.pmid from it before the
  *      needsReview/inRecord partition runs.
+ *   6. Ticket H — (1) ExternalArticle dedupe: TabScopusAuthorships fetches the person's
+ *      ExternalArticles, builds a non-suppressed articleId Set, folds it into the
+ *      needsReview/inRecord partition, and seeds addState 'added' for a match. (2) "Add via
+ *      PubMed" auto-runs the search (ReciterTabs.handleAddViaPubMed dispatches
+ *      pubmedFetchData) and actions.js's pubmedFetchData no longer throws on a null/undefined
+ *      data.reciter. (3) CurateIndividual.module.css .tabsBar wraps instead of clipping.
  */
 
 import { readFileSync } from "node:fs";
@@ -40,6 +46,8 @@ const controllerSrc = readFileSync(join(ROOT, "controllers/scopusSearch.controll
 const routeSrc = readFileSync(join(ROOT, "src/pages/api/reciter/search/scopus.ts"), "utf8");
 const tabSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/TabScopusAuthorships.tsx"), "utf8");
 const reciterTabsSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/ReciterTabs.tsx"), "utf8");
+const actionsSrc = readFileSync(join(ROOT, "src/redux/actions/actions.js"), "utf8");
+const cssSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/CurateIndividual.module.css"), "utf8");
 
 // ---------------------------------------------------------------------------------------
 console.log("\n1. controllers/scopusSearch.controller.ts — sequential paging with two stop guards:");
@@ -175,6 +183,63 @@ assert(/props\.findRecordPmid\(d\)/.test(tabSrc), "the tab calls props.findRecor
 const setDocsCallSrc = tabSrc.slice(tabSrc.indexOf("setDocs(results.map"), tabSrc.indexOf("setDocs(results.map") + 200);
 assert(/d\.pmid\s*\?\s*d\s*:\s*\{\s*\.\.\.d,\s*pmid:\s*props\.findRecordPmid\(d\)\s*\?\?\s*undefined\s*\}/.test(setDocsCallSrc), "enrichment only fills pmid when the doc doesn't already have one");
 assert(tabSrc.indexOf("setDocs(results.map") < tabSrc.indexOf("const needsReview"), "docs are enriched before the needsReview/inRecord partition runs");
+
+// ---------------------------------------------------------------------------------------
+console.log("\n6. Ticket H — external-article dedupe, PubMed auto-run, tab strip wrap:");
+
+// (1) TabScopusAuthorships.tsx — externalIds Set fetched the way SourceArticleTab.tsx does,
+// folded into the partition, and seeded into addStates as 'added'.
+assert(/const \[externalIds, setExternalIds\]\s*=\s*useState<Set<string>>\(new Set\(\)\)/.test(tabSrc), "externalIds Set state declared");
+const fetchExternalIdsSrc = tabSrc.slice(
+  tabSrc.indexOf("const fetchExternalIds"),
+  tabSrc.indexOf("const runSearch = (byArg")
+);
+assert(fetchExternalIdsSrc.length > 0 && fetchExternalIdsSrc.indexOf("const fetchExternalIds") === 0, "fetchExternalIds() defined");
+assert(/fetch\(`\/api\/reciter\/external-article\/\$\{encodeURIComponent\(uid\)\}`/.test(fetchExternalIdsSrc), "fetches GET /api/reciter/external-article/${uid} — same endpoint as SourceArticleTab.tsx");
+assert(/credentials:\s*"same-origin"/.test(fetchExternalIdsSrc) && /headers:\s*apiHeaders/.test(fetchExternalIdsSrc), "carries credentials: same-origin and apiHeaders");
+assert(/body\.external/.test(fetchExternalIdsSrc), "reads rows off body.external");
+assert(/row\.suppressed/.test(fetchExternalIdsSrc) && /!row\.suppressed/.test(fetchExternalIdsSrc), "Set is built from non-suppressed rows only (suppressed/revoked rows stay excluded — offering Add again is correct)");
+assert(/row\.articleId/.test(fetchExternalIdsSrc), "Set is keyed on row.articleId");
+assert(/\.catch\(\(\)\s*=>\s*setExternalIds\(new Set\(\)\)\)/.test(fetchExternalIdsSrc), "fetch failure degrades to an empty Set, never an error state");
+
+assert(/fetchExternalIds\(\)/.test(tabSrc.slice(tabSrc.indexOf("useEffect(() => {\n        setDismissed"), tabSrc.indexOf("useEffect(() => {\n        setDismissed") + 300)), "called on tab open (mount effect)");
+const runSearchSrc = tabSrc.slice(tabSrc.indexOf("const runSearch = (byArg"), tabSrc.indexOf("// On open:"));
+assert(/fetchExternalIds\(\)/.test(runSearchSrc), "called again after a search completes");
+
+assert(/const inExternalRecord\s*=\s*\(d:\s*any\)\s*=>\s*externalIds\.has\(d\.articleId\)/.test(tabSrc), "inExternalRecord(d) helper checks the Set");
+const needsReviewLine = tabSrc.slice(tabSrc.indexOf("const needsReview = docs.filter"), tabSrc.indexOf("const needsReview = docs.filter") + 250);
+assert(/!inExternalRecord\(d\)/.test(needsReviewLine), "needsReview excludes an externalIds match");
+const inRecordLine2 = tabSrc.slice(tabSrc.indexOf("const inRecord = docs.filter"), tabSrc.indexOf("const inRecord = docs.filter") + 250);
+assert(/inExternalRecord\(d\)/.test(inRecordLine2), "inRecord includes an externalIds match");
+
+assert(/next\[d\.articleId\]\s*=\s*\{\s*status:\s*'added'\s*\}/.test(tabSrc), "a matched doc's addState is seeded to { status: 'added' } (renders the card's existing 'Added \u2713' tag)");
+assert(/setExternalIds\(\(prev\)\s*=>\s*new Set\(prev\)\.add\(articleId\)\)/.test(tabSrc), "a successful in-session add inserts articleId into the local Set (re-search stays in-record without a refetch)");
+
+// (2) ReciterTabs.tsx handleAddViaPubMed dispatches the same search the Add tab's button does;
+// actions.js's pubmedFetchData no longer throws on a null/undefined data.reciter.
+assert(/import\s*\{[^}]*\bpubmedFetchData\b[^}]*\}\s*from\s*"\.\.\/\.\.\/\.\.\/redux\/actions\/actions"/.test(reciterTabsSrc), "ReciterTabs.tsx imports pubmedFetchData");
+const handleAddViaPubMedSrc = reciterTabsSrc.slice(
+  reciterTabsSrc.indexOf("const handleAddViaPubMed = (pmid: number) => {"),
+  reciterTabsSrc.indexOf("const handleAddViaPubMed = (pmid: number) => {") + 500
+);
+assert(/dispatch\(pubmedFetchData\(\{/.test(handleAddViaPubMedSrc), "handleAddViaPubMed dispatches pubmedFetchData(...)");
+assert(/"strategy-query":\s*String\(pmid\)/.test(handleAddViaPubMedSrc), "query carries strategy-query: String(pmid) — mirrors TabAddPublication.tsx searchFunction");
+assert(/"start":\s*''/.test(handleAddViaPubMedSrc) && /"end":\s*''/.test(handleAddViaPubMedSrc), "query carries empty start/end, same as an unfiltered PubMed search");
+assert(/"personIdentifier":\s*reciterData\?\.reciter\?\.personIdentifier/.test(handleAddViaPubMedSrc), "query carries the person's uid as personIdentifier");
+assert(/setPubSearchFilters/.test(handleAddViaPubMedSrc) && /onTabChange\('AddPub'\)/.test(handleAddViaPubMedSrc), "still pre-fills the search box and switches to the Add tab");
+
+const pubmedFetchDataSrc = actionsSrc.slice(
+  actionsSrc.indexOf("export const pubmedFetchData"),
+  actionsSrc.indexOf("export const reciterUpdatePublication")
+);
+assert(/!data\.reciter\s*\|\|\s*\(data\.reciter\.status\s*==\s*500/.test(pubmedFetchDataSrc), "the non-200 branch guards data.reciter before reading .status/.message (null/undefined can no longer throw)");
+assert(/toast\.error\("Pubmed query "\s*\+\s*query\["strategy-query"\]\s*\+\s*" failed"/.test(pubmedFetchDataSrc), "the guarded branch still shows the existing 'Pubmed query … failed' toast");
+assert(/type:\s*methods\.PUBMED_CHANGE_DATA,\s*\n\s*payload:\s*\[\]/.test(pubmedFetchDataSrc), "the guarded branch still resets the list (PUBMED_CHANGE_DATA payload: [])");
+
+// (3) CurateIndividual.module.css — .tabsBar wraps instead of clipping.
+const tabsBarBlock = cssSrc.slice(cssSrc.indexOf(".tabsBar {"), cssSrc.indexOf(".tabsBar {") + cssSrc.slice(cssSrc.indexOf(".tabsBar {")).indexOf("}") + 1);
+assert(/flex-wrap:\s*wrap/.test(tabsBarBlock), ".tabsBar gains flex-wrap: wrap");
+assert(/overflow-x:\s*auto/.test(tabsBarBlock), ".tabsBar keeps overflow-x: auto as a fallback");
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall checks passed\n");
 process.exit(failures ? 1 : 0);

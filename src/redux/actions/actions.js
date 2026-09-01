@@ -419,14 +419,19 @@ export const pubmedFetchData = query => dispatch => {
         })
         .then(data => {
             if (data.statusCode != 200 ) {
-                if (data.reciter.status == 500 && (data.reciter.message.indexOf('Your search exceeded 200 results:') < 0 ||  data.reciter.message.indexOf('No results were found.') < 0)) {
+                // data.reciter can be null/undefined on some non-200 responses (e.g. an
+                // upstream timeout) — accessing .status/.message on it used to throw here,
+                // which left the promise silently rejected: no toast, tab stays blank.
+                // Guard it, and treat "no reciter payload to check" the same as "doesn't
+                // carry one of the two recognised messages" -> the existing error toast + reset.
+                if (!data.reciter || (data.reciter.status == 500 && (data.reciter.message.indexOf('Your search exceeded 200 results:') < 0 ||  data.reciter.message.indexOf('No results were found.') < 0))) {
                     toast.error("Pubmed query " + query["strategy-query"] + " failed", {
                         position: "top-right",
                         autoClose: 2000,
                         theme: 'colored'
                     });
                     dispatch(
-                        addPubMedFetchMoreData(data.reciter)
+                        addPubMedFetchMoreData(data.reciter || "")
                     )
                     dispatch({
                         type: methods.PUBMED_CHANGE_DATA,

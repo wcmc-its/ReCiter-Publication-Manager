@@ -332,10 +332,12 @@
   align-items: stretch;
   padding: 0 24px;
   gap: 0;
-  /* Below the row's fit-width, scroll horizontally instead of clipping tabs/actions.
-     overflow-x: auto also zeroes this item's automatic min-width, so it no longer
-     forces the enclosing grid column to blow out past the viewport (which is what
-     was getting silently clipped by #__next's overflow-x: hidden in globals.css). */
+  /* Wrap onto a second row before the strip runs out of horizontal space, instead of
+     relying on a scrollbar the curator has to notice (macOS hides it by default, so an
+     overflowing tab like "+ Add publication" at ~1950px read as clipped, not scrollable).
+     overflow-x: auto stays as a fallback for any single line still too wide to wrap
+     (e.g. one .tab, which keeps flex-shrink: 0 / white-space: nowrap). */
+  flex-wrap: wrap;
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -430,6 +432,12 @@
   gap: 8px;
   align-self: center;
   flex-shrink: 0;
+  /* .tabSpacer only right-aligns this group when both land on the same wrapped row —
+     with flex-wrap on .tabsBar, a full row of tabs above can push this group onto its
+     own second row alone, where .tabSpacer isn't present to absorb the free space.
+     margin-left: auto pushes this group to the row's right edge either way, and is a
+     no-op when .tabSpacer has already consumed the line's free space. */
+  margin-left: auto;
 }
 
 /* ── Refresh Suggestions button ── */

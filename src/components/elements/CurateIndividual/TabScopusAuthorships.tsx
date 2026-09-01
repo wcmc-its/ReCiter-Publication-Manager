@@ -92,9 +92,35 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     const [searched, setSearched] = useState<boolean>(false)
     const [addStates, setAddStates] = useState<Record<string, AddState>>({})
     const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+    // Non-suppressed ExternalArticle articleIds already on this person's record — a doc
+    // added through this tab (or TabAddExternalPublication) minutes earlier has no PMID
+    // to match on, so getPmidStatus alone can't recognise it; fetched the same way
+    // SourceArticleTab.tsx:96-116 does. Suppressed (revoked) rows are deliberately left
+    // OUT of this set: a curator removed them, so offering Add again is correct.
+    const [externalIds, setExternalIds] = useState<Set<string>>(new Set())
 
     const setAddState = (articleId: string, next: AddState) => {
         setAddStates(prev => ({ ...prev, [articleId]: next }))
+    }
+
+    // Same fetch SourceArticleTab.tsx:96-116 uses. Run on tab open and again after every
+    // search completes, so a doc added via this tab (or TabAddExternalPublication)
+    // moments earlier is recognised even though it has no PMID of its own to match on.
+    const fetchExternalIds = () => {
+        if (!uid) return
+        fetch(`/api/reciter/external-article/${encodeURIComponent(uid)}`, {
+            credentials: "same-origin", method: "GET", headers: apiHeaders,
+        })
+            .then(async (r) => {
+                const body = await r.json().catch(() => ({}))
+                if (!r.ok) throw new Error((body && body.message) || `HTTP ${r.status}`)
+                return body
+            })
+            .then((body) => {
+                const rows = Array.isArray(body.external) ? body.external : []
+                setExternalIds(new Set(rows.filter((row: any) => !row.suppressed).map((row: any) => row.articleId)))
+            })
+            .catch(() => setExternalIds(new Set())) // degrade to today's behaviour, never an error state
     }
 
     const runSearch = (byArg?: string, termArg?: string) => {
@@ -126,6 +152,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                 setTotal(Number(body.total || 0))
                 setCapped(!!body.capped)
                 setPartial(!!body.partial)
+                fetchExternalIds()
             })
             .catch((e) => toast.error((e && e.message) || "Scopus search failed.", { position: "top-right", autoClose: 3000, theme: "colored" }))
             .finally(() => setLoadingDocs(false))
@@ -135,6 +162,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     // the author-id search. Curator can switch to keyword / DOI afterwards.
     useEffect(() => {
         setDismissed(loadDismissed(uid))
+        fetchExternalIds()
         const { firstName, lastName } = splitName(props.fullName)
         if (!lastName) { setResolving(false); return }
         setResolving(true)
@@ -195,6 +223,9 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
             .then(({ status, body }) => {
                 if (status === 201 || status === 200) {
                     setAddState(articleId, { status: "added" })
+                    // Keep a re-search (no refetch of the ExternalArticle list) from
+                    // re-offering this doc as addable.
+                    setExternalIds((prev) => new Set(prev).add(articleId))
                     toast.success("Accepted as an external publication.", { position: "top-right", autoClose: 2000, theme: "colored" })
                     return
                 }
@@ -222,12 +253,33 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
         saveDismissed(uid, next)
     }
 
-    // needsReview = fetched docs not dismissed and not already in the person's record (by PMID,
-    // or, for docs enriched above, by DOI / Scopus document ID).
-    const needsReview = docs.filter((d) => !dismissed.has(d.articleId) && !(d.pmid && props.getPmidStatus(d.pmid)))
+    // Seed addState 'added' for any fetched doc that is already a non-suppressed
+    // ExternalArticle on this person's record, so its card renders "Added ✓" with no
+    // Add/Reject buttons instead of offering Add again (rharrington / SCOPUS:0028963338).
+    // Runs whenever docs or externalIds change, independent of fetch ordering.
+    useEffect(() => {
+        if (externalIds.size === 0 || docs.length === 0) return
+        setAddStates((prev) => {
+            let changed = false
+            const next = { ...prev }
+            docs.forEach((d) => {
+                if (externalIds.has(d.articleId) && next[d.articleId]?.status !== 'added') {
+                    next[d.articleId] = { status: 'added' }
+                    changed = true
+                }
+            })
+            return changed ? next : prev
+        })
+    }, [docs, externalIds])
+
+    // needsReview = fetched docs not dismissed and not already in the person's record —
+    // by PMID (or, for docs enriched above, by DOI / Scopus document ID), or as a
+    // non-suppressed ExternalArticle already on record (externalIds).
+    const inExternalRecord = (d: any) => externalIds.has(d.articleId)
+    const needsReview = docs.filter((d) => !dismissed.has(d.articleId) && !(d.pmid && props.getPmidStatus(d.pmid)) && !inExternalRecord(d))
     // inRecord = fetched, not dismissed, already in the person's record — collapsed below,
     // not part of the count that needs attention.
-    const inRecord = docs.filter((d) => !dismissed.has(d.articleId) && d.pmid && props.getPmidStatus(d.pmid))
+    const inRecord = docs.filter((d) => !dismissed.has(d.articleId) && ((d.pmid && props.getPmidStatus(d.pmid)) || inExternalRecord(d)))
     const dismissedCount = docs.filter((d) => dismissed.has(d.articleId)).length
 
     return (

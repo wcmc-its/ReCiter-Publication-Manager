@@ -13,7 +13,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { allowedPermissions } from "../../../utils/constants";
 import { useSession } from "next-auth/react";
-import { clearPubMedData, showEvidenceByDefault, reciterFetchData } from "../../../redux/actions/actions";
+import { clearPubMedData, showEvidenceByDefault, reciterFetchData, pubmedFetchData } from "../../../redux/actions/actions";
 
 
 const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData: any, fullName: string, fetchOriginalData: any }) => {
@@ -148,10 +148,19 @@ const ReciterTabs = ({ reciterData, fullName, fetchOriginalData }: { reciterData
   }
 
   // Steer an in-PubMed external result to the scored PubMed path: pre-fill the PubMed
-  // tab's search with the PMID and switch to it, so the curator accepts it as evidence.
+  // tab's search with the PMID, switch to it, AND run the search — mirrors
+  // TabAddPublication.tsx searchFunction (~358-397) exactly so the Add tab's existing
+  // useEffect([pubmedData]) -> filter() renders the result instead of landing on an
+  // empty form the curator has to re-search by hand.
   const handleAddViaPubMed = (pmid: number) => {
     setPubSearchFilters({ pubMendSearchText: String(pmid) });
     onTabChange('AddPub');
+    dispatch(pubmedFetchData({
+      "strategy-query": String(pmid),
+      "start": '',
+      "end": '',
+      "personIdentifier": reciterData?.reciter?.personIdentifier,
+    }));
   }
 
   // Current status of a PMID in this person's record, to annotate external search
