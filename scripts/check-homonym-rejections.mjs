@@ -167,18 +167,23 @@ check("reopen passes checkAccepted=false, so it can undo what the write skipped 
 // unconditionally for every reopen of an "accepted" or "assigned" row.
 check("reopen's undo covers assigned AND accepted via the outer branch condition",
   /\} else if \(\(row\.status === "accepted" \|\| row\.status === "assigned"\) && reverseCwid\) \{/.test(reopen), true);
-// F-2: the homonym-undo loop must NOT be nested inside the "reverseCwid has an identity" else —
+// F-2: the homonym-undo loop must NOT be nested inside the "was this row local-only" else —
 // a local-only assign's assignee never has one, and that must not skip undoing what it rejected
-// for everybody else. Assert this structurally by indentation: the identity if/else body sits
+// for everybody else. Assert this structurally by indentation: the local-only if/else body sits
 // one level deeper (12 spaces) than the if/else statement itself and the loop that follows it
 // (10 spaces) — if the loop were still nested inside the else arm it would match the deeper
 // indent instead.
-check("the assignee-identity if/else body is indented one level deeper than the statement",
-  /\n {10}if \(!\(await reciterIdentitySet\(\[reverseCwid\]\)\)\.size\) \{\n {12}console\.log/.test(reopen), true);
+// PM#949 re-anchor: the branch condition used to test reciterIdentitySet() directly; it now
+// tests a `wasLocalOnly` const (marker-first, live-identity-check fallback — see
+// src/lib/localOnlyMarker.ts) so this regex was re-pointed at the new condition text. The
+// structural claim under test — body indentation, and the loop's position outside the else arm
+// — is unchanged and still holds.
+check("the local-only if/else body is indented one level deeper than the statement",
+  /\n {10}if \(wasLocalOnly\) \{\n {12}console\.log/.test(reopen), true);
 check("the homonym-undo loop sits at the if/else's OWN indentation, not nested inside its else arm",
   /\n {10}for \(const other of await homonymRejectionTargets\(row, reverseCwid/.test(reopen), true);
-check("...and textually after the identity if/else, not before it",
-  reopen.indexOf("if (!(await reciterIdentitySet([reverseCwid])).size) {")
+check("...and textually after the local-only if/else, not before it",
+  reopen.indexOf("if (wasLocalOnly) {")
     < reopen.indexOf("for (const other of await homonymRejectionTargets(row, reverseCwid"), true);
 
 // Ordering: the curator's actual intent lands first, so a rejection failure can never leave
