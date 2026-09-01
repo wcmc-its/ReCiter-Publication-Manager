@@ -292,5 +292,15 @@ const statusCode200Branch = pubmedRouteSrc.slice(pubmedRouteSrc.indexOf("if(apiR
 assert(/else \{\s*\n\s*console\.error/.test(statusCode200Branch), "a final else on the statusCode-200 branch logs the unexpected payload");
 assert(/res\.status\(502\)\.send\(\{\s*\n\s*statusCode:\s*502,\s*\n\s*message:\s*'Unexpected PubMed response'/.test(statusCode200Branch), "and always responds 502 'Unexpected PubMed response' rather than falling through with no response sent");
 
+// ---------------------------------------------------------------------------
+// SAML login must hand the jwt() callback the scope columns (est4003, 2026-09-01):
+// samlUtils.js builds the databaseUser object by hand; the three admin_users scope
+// columns that [...nextauth].jsx reads from it must be present.
+const samlUtilsSrc = readFileSync(join(ROOT, "src/utils/samlUtils.js"), "utf8");
+const samlDbUserBlock = samlUtilsSrc.slice(samlUtilsSrc.indexOf("let databaseUser = {"), samlUtilsSrc.indexOf("createdAdminUser['databaseUser'] = databaseUser"));
+for (const col of ["scope_person_types", "scope_org_units", "proxy_person_ids"]) {
+  assert(new RegExp(`"${col}":\\s*createdAdminUser\\.${col}`).test(samlDbUserBlock), `SAML databaseUser carries ${col}`);
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : "\nall checks passed\n");
 process.exit(failures ? 1 : 0);
