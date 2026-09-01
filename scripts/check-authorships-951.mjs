@@ -84,8 +84,8 @@ assert(/matched_pmid:\s*\{\s*\[Op\.ne\]:\s*null\s*\},\s*matched_pmid_verdict:\s*
   "duplicates: widened with matched_pmid IS NOT NULL AND matched_pmid_verdict IS NULL");
 assert(/\[Op\.or\]/.test(dupBranch), "duplicates: the two signals are OR'd, not AND'd");
 const openBranch = openStatusFn.slice(openStatusFn.indexOf("// open queue:"));
-assert(/matched_pmid:\s*null/.test(openBranch) && /matched_pmid_verdict:\s*"distinct"/.test(openBranch),
-  "open: excludes an unverdicted matched_pmid flag (matched_pmid IS NULL OR matched_pmid_verdict='distinct')");
+assert(/matched_pmid:\s*null/.test(openBranch) && /matched_pmid_verdict:\s*\{\s*\[Op\.ne\]:\s*null\s*\}/.test(openBranch),
+  "open: excludes an unverdicted matched_pmid flag (matched_pmid IS NULL OR matched_pmid_verdict IS NOT NULL)");
 // isRowOpenForLike must stay in lockstep with the widened open branch, or like_count silently
 // double-subtracts for exactly the rows this feature is about (see its own header comment).
 const likeFn = controllerSrc.slice(
@@ -112,10 +112,11 @@ assert(/status:\s*"dismissed",\s*reviewer,\s*resolved_at:\s*new Date\(\)\s*\},\s
 // ---------------------------------------------------------------------------------------
 console.log('\n5. case "verdict" — new action, "distinct" only, never touches status:');
 const verdictCase = controllerSrc.slice(controllerSrc.indexOf('case "verdict": {'), controllerSrc.indexOf("\n      default:"));
-assert(verdictCase.length > 50 && verdictCase.length < 800, 'case "verdict" located, before default:');
+assert(verdictCase.length > 50 && verdictCase.length < 1200, 'case "verdict" located, before default:');
 assert(/body\.verdict\s*!==\s*"distinct"/.test(verdictCase) && /status\(400\)/.test(verdictCase),
   'rejects anything but verdict:"distinct" with 400');
 assert(/matched_pmid_verdict:\s*"distinct"/.test(verdictCase), "writes matched_pmid_verdict: 'distinct'");
+assert(/row\.matched_pmid == null/.test(verdictCase) && verdictCase.split("status(400)").length >= 3, "rejects a row without matched_pmid with 400");
 assert(!/\bstatus:\s*"/.test(verdictCase), "never sets status");
 assert(!/\breviewer[,:]/.test(verdictCase) && !/resolved_at:/.test(verdictCase) && !/note:/.test(verdictCase),
   "never sets reviewer/resolved_at/note — not a resolution of the row");

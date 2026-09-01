@@ -78,7 +78,8 @@ function openStatusWhere(body: any): any {
   }
   // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date).
   // accept_conflict rows are excluded here — they live in the "duplicates" view above.
-  // Same for an unverdicted matched_pmid flag; a 'distinct' verdict lets the row back in here.
+  // Same for an unverdicted matched_pmid flag; ANY verdict lets the row back in here ('distinct' is
+  // the only one PM writes; a stray 'same' must never hide a row from every view).
   return {
     [Op.and]: [
       { accept_conflict: null },
@@ -92,7 +93,7 @@ function openStatusWhere(body: any): any {
       {
         [Op.or]: [
           { matched_pmid: null },
-          { matched_pmid_verdict: "distinct" },
+          { matched_pmid_verdict: { [Op.ne]: null } },
         ],
       },
     ],
@@ -1265,6 +1266,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // out of the "duplicates" view per openStatusWhere above). 'same' is never written here
         // or anywhere else — "same paper" is expressed by dismissing the row with a note instead.
         if (body.verdict !== "distinct") return res.status(400).send('verdict must be "distinct"');
+        if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid to give a verdict on");
         await models.AuthorshipReview.update({ matched_pmid_verdict: "distinct" }, { where: { id } });
         break;
       }
