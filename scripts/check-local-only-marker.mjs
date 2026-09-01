@@ -10,7 +10,8 @@
  *
  * Two sections:
  *   1. note reads — noteHasLocalOnlyMarker / noteIsReconciled / isLocalOnlyNote against real
- *      and near-real note text
+ *      and near-real note text, including the reconcile -> reopen -> re-assign cycle where a
+ *      note carries both markers more than once and only the most recently appended one decides
  *   2. note writes — reconciledNote()'s separator behaviour
  */
 
@@ -34,9 +35,10 @@ const check = (label, actual, expected) => {
 
 console.log("\nnote reads:");
 
-// The exact text `case "assign"`'s local_only branch renders today (verified byte-identical
-// to pre-PM#949 in this ticket's own report).
-const PROD_NOTE = `assigned to abt4005 (no ReCiter identity) — ${LOCAL_ONLY_MARKER}`;
+// The exact text `case "assign"`'s local_only branch renders today, spelled out as a LITERAL
+// string (not built from LOCAL_ONLY_MARKER) so drift in the constant's own text is caught here
+// too, not just in the "renders LOCAL_ONLY_MARKER" source check below.
+const PROD_NOTE = "assigned to abt4005 (no ReCiter identity) — local record only, nothing written to the publication record";
 check("exact prod note text -> hasLocalOnlyMarker", noteHasLocalOnlyMarker(PROD_NOTE), true);
 check("exact prod note text -> isLocalOnlyNote", isLocalOnlyNote(PROD_NOTE), true);
 
@@ -58,11 +60,25 @@ check("null -> isLocalOnlyNote false", isLocalOnlyNote(null), false);
 
 // A reconciled row: the marker is APPENDED, never removed, so noteHasLocalOnlyMarker stays
 // true (this row WAS local-only) but isLocalOnlyNote flips false (it no longer IS — reopen
-// must treat it like an ordinary assign now).
+// must treat it like an ordinary assign now). local | reconciled -> false.
 const reconciled = reconciledNote(PROD_NOTE, "2026-08-31");
 check("reconciledNote(...) result -> hasLocalOnlyMarker still true", noteHasLocalOnlyMarker(reconciled), true);
 check("reconciledNote(...) result -> isLocalOnlyNote now false", isLocalOnlyNote(reconciled), false);
 check("reconciledNote(...) result -> noteIsReconciled true", noteIsReconciled(reconciled), true);
+
+// reconciled alone, with no local-only marker at all (e.g. a note that started life on some
+// other flow and only ever got a RECONCILED stamp) -> not local-only, and never was.
+check("reconciled alone (no local marker) -> false",
+  isLocalOnlyNote(`${RECONCILED_MARKER} 2026-08-31`), false);
+
+// The reconcile -> reopen -> re-assign cycle this ticket's fix is for: the row was local-only
+// to cwid A (PROD_NOTE), got reconciled (RECONCILED appended), was reopened, and was then
+// re-assigned local-only again to a DIFFERENT no-identity cwid B — a second LOCAL_ONLY marker
+// appended after the RECONCILED one. "hasLocalOnly && !hasReconciled" would see both markers
+// present and say false; the positional read correctly says true, because the most recently
+// appended marker is the second LOCAL_ONLY, not the RECONCILED in between.
+const reassignedToOther = `${reconciled} | assigned to xyz9999 (no ReCiter identity) — ${LOCAL_ONLY_MARKER}`;
+check("local | reconciled | local(again, other cwid) -> true", isLocalOnlyNote(reassignedToOther), true);
 
 console.log("\nnote writes — reconciledNote():");
 check("appends with ' | ' when there is a prior note",
@@ -78,10 +94,10 @@ check("no separator when the prior note is null",
 console.log("\nsource — controllers/db/authorships.controller.ts renders LOCAL_ONLY_MARKER:");
 const src = readFileSync(join(ROOT, "controllers/db/authorships.controller.ts"), "utf8");
 check("imports LOCAL_ONLY_MARKER from the shared lib",
-  /import \{ LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, noteIsReconciled \} from "\.\.\/\.\.\/src\/lib\/localOnlyMarker"/.test(src), true);
+  /import \{ LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote \} from "\.\.\/\.\.\/src\/lib\/localOnlyMarker"/.test(src), true);
 check("local_only note template interpolates the constant, not a literal copy",
   src.includes("(no ReCiter identity) — ${LOCAL_ONLY_MARKER}"), true);
-check("reopen keys the local-only predicate off the note marker",
-  /noteHasLocalOnlyMarker\(row\.note\)/.test(src) && /noteIsReconciled\(row\.note\)/.test(src), true);
+check("reopen keys the local-only predicate off the note marker via isLocalOnlyNote (positional, most-recent-marker-wins)",
+  /noteHasLocalOnlyMarker\(row\.note\)/.test(src) && /isLocalOnlyNote\(row\.note\)/.test(src), true);
 
 console.log(`\n${n}/${n} passed\n`);

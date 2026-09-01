@@ -35,29 +35,49 @@
  * Flags (same names/shapes as scripts/sweep-displaced-candidate-rejections.mjs):
  *   --execute             actually POST the gold-standard write + UPDATE the row (default: dry run)
  *   --ledger <path>       JSONL ledger (default: the analysis/ path below)
- *   --limit <n>           stop after n writes — for a small first execute batch
+ *   --limit <n>           caps the SCOPE query (SQL LIMIT) — writes land on at most n of those
+ *                          LIMIT-ed rows once the JS-side filters below remove some of them, not
+ *                          exactly n; see --help below, which says the same thing
  *   --json <path>         also write the derived plan as JSON, for auditing it as data
  *   --help                print usage and exit
  *
- * SCOPE (the WHERE clause): status = 'assigned', resolution_cwid IS NOT NULL, note carries
- * LOCAL_ONLY_MARKER, note does NOT carry RECONCILED_MARKER — i.e. exactly the rows
- * `case "reopen"`'s marker branch currently treats as local-only. The LIKE patterns are built
- * from the imported constants (not typed out a second time in SQL) so this scope can never drift
- * from the marker module that also defines what the writer stamps and the reader reads.
- * --limit, if given, caps the SCOPE query itself (a SQL LIMIT) rather than the write count —
- * useful for a first look at a small slice of a large backlog before reading the full plan.
+ * Needs Node >= 22.18 for unflagged `.ts` imports (this file imports localOnlyMarker.ts
+ * directly); on an older Node, run with `node --experimental-strip-types` instead.
+ *
+ * SCOPE (the WHERE clause): status = 'assigned', resolution_cwid IS NOT NULL, note LIKE
+ * LOCAL_ONLY_LIKE, AND (source = 'scopus' OR pmid IS NOT NULL). The LIKE pattern is built from
+ * the imported LOCAL_ONLY_MARKER constant (not typed out a second time in SQL) so the scope can
+ * never drift from the marker module that also defines what the writer stamps and the reader
+ * reads. The `pmid IS NOT NULL` half of the last guard is a cheap SQL-side version of the
+ * no_pmid check below — dropped from the result set before it ever reaches DynamoDB — but is not
+ * itself the no_pmid check: it does not catch a non-numeric or non-positive value that made it
+ * into the column, hence the JS-side check too.
+ *
+ * That SQL scope is a SUPERSET of "still local-only right now" — it matches every row that EVER
+ * carried the marker, including one later reconciled (and, per PM#949's fix to `case "reopen"`
+ * and this same bug in this script, one reconciled and then made local-only AGAIN to a different
+ * cwid, since the note is append-only and either marker can appear more than once). The actual
+ * answer is positional, not "LIKE but NOT LIKE": every fetched row is re-filtered in JS with
+ * isLocalOnlyNote(row.note) — the identical function `case "reopen"` calls — and a row that fails
+ * it is counted in skips.reconciled and never planned. Filtering in JS rather than folding a
+ * second LIKE into the SQL keeps the one positional read textually identical everywhere it
+ * matters (writer's marker, reader's predicate, this script's scope), instead of the SQL layer
+ * re-deriving its own approximation of the same logic.
  *
  * PER-ROW CLASSIFICATION — one batched Identity read + one batched GoldStandard read (uid,
  * knownpmids, rejectedpmids — NOTE: lowercase attribute names, see src/lib/goldStandardRejections.ts)
- * across every distinct resolution_cwid in scope, then five buckets:
+ * across every distinct resolution_cwid in scope, then six buckets:
  *   scopus_unsupported — source === 'scopus' (no pmid, gold standard is PMID-keyed). Checked
  *     FIRST and independent of identity: there is no pmid to promote into knownpmids here even
- *     when an identity now exists. Reported (id + external_id), never written. Upgrade path:
- *     addExternalArticle() with scopusExternalPayload(row) — the same write shape
- *     `case "assign"`'s authoritative (non-local-only) scopus branch already uses
+ *     when an identity now exists. Reported (id + external_id), never written.
+ *     ponytail: upgrade path — addExternalArticle() with scopusExternalPayload(row), the same
+ *     write shape `case "assign"`'s authoritative (non-local-only) scopus branch already uses
  *     (controllers/db/authorships.controller.ts, ~1087) — is not implemented here because it
  *     needs the full row (title/journal/authors/etc.) this scope query does not select, and a
  *     scopus local-only assign has always been rarer than pubmed's.
+ *   no_pmid — a non-scopus row whose Number(pmid) is not a positive finite integer (a malformed
+ *     or missing pmid that slipped past the SQL `pmid IS NOT NULL` guard, e.g. a non-numeric
+ *     string). Counted only, never planned — there is nothing to promote into knownpmids either.
  *   awaiting_identity — resolution_cwid still has no Identity row. Skipped, counted only: the
  *     row is correctly still local-only and reopen still correctly treats it that way.
  *   contradiction — the assignee's OWN GoldStandard.rejectedpmids already contains this pmid,
@@ -80,14 +100,21 @@
  * {uid, knownPmids:[pmid]}. curatedBy is appended only when the row's `reviewer` maps to an
  * admin_users.userID (mirror of writeGoldStandard()'s curatedByQ conditional in the controller,
  * ~698-719) — the same "attribute to the human who actually made the call" reasoning as the
- * sweep. On HTTP 200, the row is stamped:
- *   UPDATE authorship_review SET note = CONCAT(COALESCE(note,''), ' | ', ?)
- *    WHERE id = ? AND (note IS NULL OR note NOT LIKE ?)
- * with the reconciled marker + ISO date (`${RECONCILED_MARKER} ${new Date().toISOString().slice(0,10)}`).
- * The WHERE's own NOT LIKE guard makes the stamp idempotent and safe against a race: if the row
- * was reconciled by someone/something else between this script's read and its write, the UPDATE
- * matches zero rows instead of double-stamping. The stamp result is ledgered too (phase 'stamp',
- * affectedRows) so a 0-row stamp is visible in the ledger, not just silently accepted.
+ * sweep. On HTTP 200, the row is stamped with a COMPARE-AND-SET on the note as it was read at
+ * plan time (carried on the plan entry as `note`), not a NOT LIKE guard:
+ *   UPDATE authorship_review SET note = CONCAT(?, ' | ', ?) WHERE id = ? AND note = ?
+ * params [originalNote, stampText, row_id, originalNote] (originalNote passed twice: once into
+ * the new value, once into the WHERE). A plain NOT LIKE RECONCILED_LIKE guard has the same flaw
+ * this ticket fixes in `case "reopen"` — it would happily stamp over a note that changed for a
+ * reason other than "already reconciled" (reopened, re-assigned to someone else, stamped by a
+ * concurrent run) as long as it didn't yet contain RECONCILED_MARKER. The CAS is exact: the
+ * UPDATE only lands if the note is BYTE-IDENTICAL to what this script read when it built the
+ * plan, so ANY change underneath it — reconciled, reopened, re-assigned, or anything else —
+ * makes affectedRows come back 0 instead of silently overwriting a note this script no longer
+ * has an accurate picture of. A 0-row stamp is ledgered (phase 'stamp', affectedRows 0, row id
+ * only — never the note text itself, which can be long) AND printed as a WARN line naming the
+ * row, because at that point the gold-standard write already landed but the note could not be
+ * safely stamped and a human should look at that row.
  *
  * WHAT IT DELIBERATELY DOES NOT DO — same as the sweep: no AdminFeedbackLog row (that is a
  * live-curator artifact, a timestamp of the moment a human decided; a script back-dating one
@@ -124,7 +151,7 @@ import { createConnection } from "mysql2/promise";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { appendFileSync, readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { LOCAL_ONLY_MARKER, RECONCILED_MARKER } from "../src/lib/localOnlyMarker.ts";
+import { LOCAL_ONLY_MARKER, RECONCILED_MARKER, isLocalOnlyNote } from "../src/lib/localOnlyMarker.ts";
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
@@ -227,17 +254,18 @@ async function writeKnown(uid, pmid, curatedBy) {
 // ---- main -----------------------------------------------------------------------------------
 const conn = await createConnection(DB);
 
-// LIKE patterns built from the shared constants, not retyped, so this scope query cannot drift
-// from what the writer stamps or the reader reads.
+// LIKE pattern built from the shared constant, not retyped, so this scope query cannot drift
+// from what the writer stamps or the reader reads. No RECONCILED_LIKE / NOT LIKE here — that
+// SQL-side approximation is exactly the "hasLocalOnly && !hasReconciled" bug this ticket fixes;
+// see the header for why the real filter is the JS-side isLocalOnlyNote() below instead.
 const LOCAL_ONLY_LIKE = `%${LOCAL_ONLY_MARKER}%`;
-const RECONCILED_LIKE = `%${RECONCILED_MARKER}%`;
 const limitSql = LIMIT > 0 ? " LIMIT ?" : "";
-const scopeParams = LIMIT > 0 ? [LOCAL_ONLY_LIKE, RECONCILED_LIKE, LIMIT] : [LOCAL_ONLY_LIKE, RECONCILED_LIKE];
+const scopeParams = LIMIT > 0 ? [LOCAL_ONLY_LIKE, LIMIT] : [LOCAL_ONLY_LIKE];
 const [rows] = await conn.execute(
   `SELECT id, pmid, source, external_id, resolution_cwid, reviewer, resolved_at, note
      FROM authorship_review
     WHERE status = 'assigned' AND resolution_cwid IS NOT NULL
-      AND note LIKE ? AND note NOT LIKE ?
+      AND note LIKE ? AND (source = 'scopus' OR pmid IS NOT NULL)
     ORDER BY id${limitSql}`, scopeParams);
 
 // The curator who made each original decision, so the promoted write carries their userID
@@ -273,21 +301,29 @@ const plan = [];
 const scopusUnsupported = [];
 const contradictions = [];
 const alreadyAccepted = [];
-const skips = { awaiting_identity: 0, resumed: 0 };
+const skips = { reconciled: 0, no_pmid: 0, awaiting_identity: 0, resumed: 0 };
 for (const r of rows) {
   const cwid = String(r.resolution_cwid);
   const key = `${r.id}|${r.pmid}|${cwid}`;
   if (done.has(key)) { skips.resumed++; continue; }
 
-  // scopus_unsupported first and independent of identity — there is no pmid to promote here
+  // The SQL LIKE above is a superset of "still local-only right now" (see the header): filter
+  // with the same positional read `case "reopen"` uses. A row this says is no longer local-only
+  // was already reconciled (possibly more than once, possibly after a re-assign in between) —
+  // count it and move on, never plan a second promotion for it.
+  if (!isLocalOnlyNote(r.note)) { skips.reconciled++; continue; }
+
+  // scopus_unsupported next and independent of identity — there is no pmid to promote here
   // regardless of what DynamoDB says about this cwid.
   if (r.source === "scopus") {
     scopusUnsupported.push({ id: r.id, external_id: r.external_id, cwid });
     continue;
   }
-  if (!identities.has(cwid)) { skips.awaiting_identity++; continue; }
 
   const pmid = Number(r.pmid);
+  if (!Number.isFinite(pmid) || pmid <= 0) { skips.no_pmid++; continue; }
+  if (!identities.has(cwid)) { skips.awaiting_identity++; continue; }
+
   const gs = goldStandard.get(cwid);
   if (pmidSet(gs, "rejectedpmids").has(pmid)) {
     contradictions.push({ id: r.id, cwid, pmid });
@@ -298,21 +334,23 @@ for (const r of rows) {
     continue;
   }
   plan.push({
-    row_id: r.id, pmid, cwid,
+    row_id: r.id, pmid, cwid, note: r.note,
     curatedBy: userIdByCwid.get(String(r.reviewer || "").toLowerCase()) ?? null,
     reviewer: r.reviewer, resolved_at: r.resolved_at,
   });
 }
 
 console.log(`\n${EXECUTE ? "EXECUTE" : "DRY RUN"} — local-only assign reconciliation`);
-console.log(`ledger                                     ${LEDGER}`);
-console.log(`\nrows in scope (local-only, unreconciled)   ${rows.length}${LIMIT > 0 ? `   (--limit ${LIMIT} applied to the scope query)` : ""}`);
-console.log(`awaiting identity (skip, count only)       ${skips.awaiting_identity}`);
-console.log(`scopus, no automated promotion (report)     ${scopusUnsupported.length}`);
-console.log(`contradiction: self-rejected (report)      ${contradictions.length}`);
-console.log(`already accepted by that person (report)   ${alreadyAccepted.length}`);
-console.log(`already in this ledger (resume, skip)      ${skips.resumed}`);
-console.log(`NET WRITES THAT WOULD LAND                 ${plan.length}   (${new Set(plan.map((p) => p.cwid)).size} distinct people, ${new Set(plan.map((p) => p.pmid)).size} pmids)`);
+console.log(`ledger                                       ${LEDGER}`);
+console.log(`\nrows in scope (note LIKE local-only, SQL)    ${rows.length}${LIMIT > 0 ? `   (--limit ${LIMIT} applied to the scope query)` : ""}`);
+console.log(`already reconciled since (skip, count only)   ${skips.reconciled}`);
+console.log(`no usable pmid, non-scopus (skip, count only)  ${skips.no_pmid}`);
+console.log(`awaiting identity (skip, count only)           ${skips.awaiting_identity}`);
+console.log(`scopus, no automated promotion (report)        ${scopusUnsupported.length}`);
+console.log(`contradiction: self-rejected (report)          ${contradictions.length}`);
+console.log(`already accepted by that person (report)       ${alreadyAccepted.length}`);
+console.log(`already in this ledger (resume, skip)          ${skips.resumed}`);
+console.log(`NET WRITES THAT WOULD LAND                     ${plan.length}   (${new Set(plan.map((p) => p.cwid)).size} distinct people, ${new Set(plan.map((p) => p.pmid)).size} pmids)`);
 
 if (JSON_OUT) {
   writeFileSync(JSON_OUT, JSON.stringify({
@@ -347,16 +385,19 @@ if (!RECITER_BASE || !RECITER_KEY) {
   process.exit(1);
 }
 
-let wrote = 0, skipped = 0, failed = 0;
+let wrote = 0, skipped = 0, failed = 0, stampWarnings = 0;
 for (const p of plan) {
+  // Never put the note text itself in the ledger (it can be long) — ledger the row identity
+  // and outcome only. `note` stays on `p` in memory for the CAS stamp below.
+  const { note: originalNote, ...planForLedger } = p;
   const live = await recheck(p.cwid, p.pmid);
   if (!live.hasIdentity || live.hasAccepted || live.hasRejected) {
     skipped++;
-    appendFileSync(LEDGER, JSON.stringify({ phase: "skip", ts: new Date().toISOString(), ...p, live }) + "\n");
+    appendFileSync(LEDGER, JSON.stringify({ phase: "skip", ts: new Date().toISOString(), ...planForLedger, live }) + "\n");
     continue;
   }
   // BEFORE the write, so a crash mid-flight still leaves a record of intent.
-  appendFileSync(LEDGER, JSON.stringify({ phase: "write", ts: new Date().toISOString(), ...p, live }) + "\n");
+  appendFileSync(LEDGER, JSON.stringify({ phase: "write", ts: new Date().toISOString(), ...planForLedger, live }) + "\n");
   const status = await writeKnown(p.cwid, p.pmid, p.curatedBy);
   appendFileSync(LEDGER, JSON.stringify({ phase: "result", ts: new Date().toISOString(), row_id: p.row_id, pmid: p.pmid, cwid: p.cwid, status }) + "\n");
   if (status !== 200) {
@@ -365,15 +406,21 @@ for (const p of plan) {
     continue;
   }
   wrote++;
-  // Idempotent stamp: the NOT LIKE guard means a row already reconciled (by a concurrent run,
-  // or by anything else) between our read and this write is left alone — affectedRows comes
-  // back 0 rather than double-stamping.
+  // Compare-and-set on the note exactly as read at plan time: the UPDATE only lands if the note
+  // is still byte-identical to `originalNote`. Any change underneath us since then — reconciled,
+  // reopened, re-assigned, or stamped by something else — makes affectedRows come back 0 instead
+  // of overwriting a note this script no longer has an accurate picture of.
   const stampText = `${RECONCILED_MARKER} ${new Date().toISOString().slice(0, 10)}`;
   const [result] = await conn.execute(
-    `UPDATE authorship_review SET note = CONCAT(COALESCE(note,''), ' | ', ?) WHERE id = ? AND (note IS NULL OR note NOT LIKE ?)`,
-    [stampText, p.row_id, RECONCILED_LIKE],
+    `UPDATE authorship_review SET note = CONCAT(?, ' | ', ?) WHERE id = ? AND note = ?`,
+    [originalNote, stampText, p.row_id, originalNote],
   );
+  // Never the note text — row id and affectedRows only.
   appendFileSync(LEDGER, JSON.stringify({ phase: "stamp", ts: new Date().toISOString(), row_id: p.row_id, affectedRows: result.affectedRows }) + "\n");
+  if (result.affectedRows === 0) {
+    stampWarnings++;
+    console.warn(`  WARN row ${p.row_id}: gold-standard write landed but the note changed underneath us — stamp skipped, needs a human look`);
+  }
 }
 await conn.end();
-console.log(`\nwrote ${wrote}, skipped on live re-check ${skipped}, failed ${failed}\n`);
+console.log(`\nwrote ${wrote}, skipped on live re-check ${skipped}, failed ${failed}, stamp warnings ${stampWarnings}\n`);

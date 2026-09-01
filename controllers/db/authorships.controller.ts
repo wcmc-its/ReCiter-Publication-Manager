@@ -9,7 +9,7 @@ import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
 import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
-import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, noteIsReconciled } from "../../src/lib/localOnlyMarker";
+import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
@@ -1178,9 +1178,13 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // PM#949: local-only now comes from the note marker (src/lib/localOnlyMarker.ts), not
           // a live identity check — so a row survives an IC#148 identity backfill without
           // reopen silently flipping to a destructive DELETE. A marker-less legacy row still
-          // falls back to the old live-identity inference (today's behaviour, unchanged).
+          // falls back to the old live-identity inference (today's behaviour, unchanged). Once a
+          // row carries a marker at all, isLocalOnlyNote reads the note positionally (most
+          // recent marker wins) rather than "local but not reconciled", because the note is
+          // append-only and a row can cycle back through a second local-only assign after being
+          // reconciled — see src/lib/localOnlyMarker.ts.
           const wasLocalOnly = noteHasLocalOnlyMarker(row.note)
-            ? !noteIsReconciled(row.note)
+            ? isLocalOnlyNote(row.note)
             : !(await reciterIdentitySet([reverseCwid])).size;
           if (wasLocalOnly) {
             console.log(`[authorships] reopen ${id}: ${reverseCwid} local-only assign, nothing to undo for the assignee`);
