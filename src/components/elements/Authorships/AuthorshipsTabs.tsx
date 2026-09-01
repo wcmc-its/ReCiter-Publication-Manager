@@ -2407,12 +2407,9 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 // only proposes its top few, which on a single-candidate card is exactly one guess.
 // The server keeps it deliberate — it 422s once, having looked the identifier up, and the
 // prompt it raises NAMES the person before the curator confirms.
-// ponytail: T-NAG cashes in the upgrade path this comment used to point at — "a lookup route
-// feeding the box" — because #948 already built that route (authorshipLookupCwid, POST
-// /api/db/authorships/lookup) for the bulk-assign confirm dialog below. A typed cwid is by
-// definition off-candidate, so it debounces into that same endpoint and Assign/Enter goes
-// straight to a write once it resolves; anything unresolved (still debouncing, or the lookup
-// itself errored) falls straight back to the plain call below, unconfirmed, same as before.
+// ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
+// /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
+// Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
 const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
   homonyms?: number;
@@ -2461,7 +2458,8 @@ const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
             setOtherCwid(val);
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
             requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
-            if (val.length < 4) { setLookupState({ status: "idle" }); return; }
+            setLookupState({ status: "idle" }); // EVERY keystroke — a resolved answer never outlives its string
+            if (val.length < 4) return;
             const seq = requestSeq.current;
             debounceTimer.current = setTimeout(() => {
               setLookupState({ status: "loading" });
@@ -2506,7 +2504,7 @@ const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
         const preview = typedCwidPreview(lookupState);
         if (!preview) return null;
         return (
-          <div style={{
+          <div onClick={(e) => e.stopPropagation()} style={{
             textAlign: "right", fontSize: 11, marginTop: 2,
             color: preview.tone === "warn" ? "#b45309" : "#64748b",
           }}>
