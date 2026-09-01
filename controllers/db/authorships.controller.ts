@@ -9,6 +9,7 @@ import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
 import { getRejectedPmidsByCwid, getKnownPmidsByCwid } from "../../src/lib/goldStandardRejections";
 import { assignGate, canonicalCwid, homonymRejections } from "../../src/lib/assignGate";
+import { LOCAL_ONLY_MARKER, noteHasLocalOnlyMarker, isLocalOnlyNote } from "../../src/lib/localOnlyMarker";
 import { authorKey } from "../../src/lib/bulkAssign";
 import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 
@@ -1069,7 +1070,7 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           await models.AuthorshipReview.update({
             status: "assigned", resolution_cwid: target, reviewer, resolved_at: new Date(),
             note: `${row.note ? `${row.note} | ` : ""}assigned to ${target} `
-              + `(no ReCiter identity) — local record only, nothing written to the publication record`,
+              + `(no ReCiter identity) — ${LOCAL_ONLY_MARKER}`,
           }, { where: { id } });
           for (const other of alsoRejected) {
             try { await appendFeedbackLog(curator.userID, other, pmid as number, "REJECTED"); }
@@ -1174,16 +1175,19 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
           // /reciter/goldstandard checks only uid != null and returns 200. The real reason to
           // skip is simply that nothing was ever written for this uid, so the DELETE would be
           // a pointless no-op.)
-          // No identity == it was local-only, since that is the only branch that resolves a
-          // row without an authoritative write for the assignee.
-          // ponytail: this INFERS "local-only" from a live identity check rather than reading a
-          // marker, so it silently flips to a destructive GoldStandard DELETE for any
-          // local-only row whose identity later appears (IC#148 backfills ~1,595). Exposure
-          // today is zero rows (status='assigned' AND note LIKE '%no ReCiter identity%' → 0,
-          // PM#935 only just shipped), and swapping the oracle does not change that, so it is
-          // left alone. Upgrade path: key off the note/marker the local-only branch writes.
-          if (!(await reciterIdentitySet([reverseCwid])).size) {
-            console.log(`[authorships] reopen ${id}: ${reverseCwid} has no ReCiter identity — local-only assign, nothing to undo for the assignee`);
+          // PM#949: local-only now comes from the note marker (src/lib/localOnlyMarker.ts), not
+          // a live identity check — so a row survives an IC#148 identity backfill without
+          // reopen silently flipping to a destructive DELETE. A marker-less legacy row still
+          // falls back to the old live-identity inference (today's behaviour, unchanged). Once a
+          // row carries a marker at all, isLocalOnlyNote reads the note positionally (most
+          // recent marker wins) rather than "local but not reconciled", because the note is
+          // append-only and a row can cycle back through a second local-only assign after being
+          // reconciled — see src/lib/localOnlyMarker.ts.
+          const wasLocalOnly = noteHasLocalOnlyMarker(row.note)
+            ? isLocalOnlyNote(row.note)
+            : !(await reciterIdentitySet([reverseCwid])).size;
+          if (wasLocalOnly) {
+            console.log(`[authorships] reopen ${id}: ${reverseCwid} local-only assign, nothing to undo for the assignee`);
           } else {
             const gs = await writeGoldStandard(reverseCwid, pmid as number, "known", "DELETE", curator.userID);
             if (gs !== 200) return res.status(502).send(`Gold-standard undo failed (${gs})`);
