@@ -27,6 +27,11 @@
  *      PubMed" auto-runs the search (ReciterTabs.handleAddViaPubMed dispatches
  *      pubmedFetchData) and actions.js's pubmedFetchData no longer throws on a null/undefined
  *      data.reciter. (3) CurateIndividual.module.css .tabsBar wraps instead of clipping.
+ *   7. Ticket N — direct "Add" on the Scopus card for a PMID-bearing doc: the new
+ *      pubmed-article/[pmid] route + findPubmedByPmid, the shared toReciterArticle mapping
+ *      used by both TabAddPublication.tsx and ReciterTabs.tsx, handleAcceptPmid (accepts
+ *      without a tab switch), the card's primary Add + secondary Add via PubMed + accepted
+ *      tag, and the justAccepted partition guard.
  */
 
 import { readFileSync } from "node:fs";
@@ -48,6 +53,12 @@ const tabSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual
 const reciterTabsSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/ReciterTabs.tsx"), "utf8");
 const actionsSrc = readFileSync(join(ROOT, "src/redux/actions/actions.js"), "utf8");
 const cssSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/CurateIndividual.module.css"), "utf8");
+const pubmedLookupSrc = readFileSync(join(ROOT, "controllers/pubmedLookup.controller.ts"), "utf8");
+const pubmedControllerSrc = readFileSync(join(ROOT, "controllers/pubmed.controller.ts"), "utf8");
+const pubmedArticleRouteSrc = readFileSync(join(ROOT, "src/pages/api/reciter/pubmed-article/[pmid].ts"), "utf8");
+const toReciterArticleSrc = readFileSync(join(ROOT, "src/utils/toReciterArticle.ts"), "utf8");
+const tabAddPublicationSrc = readFileSync(join(ROOT, "src/components/elements/TabAddPublication/TabAddPublication.tsx"), "utf8");
+const cardSrc = readFileSync(join(ROOT, "src/components/elements/CurateIndividual/ExternalPublicationCard.tsx"), "utf8");
 
 // ---------------------------------------------------------------------------------------
 console.log("\n1. controllers/scopusSearch.controller.ts — sequential paging with two stop guards:");
@@ -107,7 +118,12 @@ assert(/const inRecord\s*=\s*docs\.filter/.test(tabSrc), "inRecord computed");
 const inRecordDeclLine = tabSrc.slice(tabSrc.indexOf("const inRecord = docs.filter"));
 const inRecordExpr = inRecordDeclLine.slice(0, inRecordDeclLine.indexOf("\n"));
 assert(/!dismissed\.has\(d\.articleId\)/.test(inRecordExpr), "inRecord excludes dismissed rows");
-assert(/d\.pmid\s*&&\s*props\.getPmidStatus\(d\.pmid\)/.test(inRecordExpr), "inRecord = has a PMID with a known record status");
+// Ticket N wraps the raw `d.pmid && props.getPmidStatus(d.pmid)` check in
+// inGoldStandardRecord(d) (see section 7e) so a justAccepted pmid doesn't flip a
+// doc into this block the instant doAcceptPmid succeeds — inGoldStandardRecord's own
+// body still reads d.pmid && props.getPmidStatus(d.pmid), so the underlying condition
+// is unchanged, just named.
+assert(/inGoldStandardRecord\(d\)/.test(inRecordExpr), "inRecord = has a PMID with a known record status (via inGoldStandardRecord)");
 assert(/const dismissedCount\s*=/.test(tabSrc), "a separate dismissed-this-session count is tracked");
 
 assert(/moreThanFetched/.test(tabSrc) === false, "the moreThanFetched = total > docs.length heuristic is gone");
@@ -235,6 +251,98 @@ const pubmedFetchDataSrc = actionsSrc.slice(
 assert(/!data\.reciter\s*\|\|\s*\(data\.reciter\.status\s*==\s*500/.test(pubmedFetchDataSrc), "the non-200 branch guards data.reciter before reading .status/.message (null/undefined can no longer throw)");
 assert(/toast\.error\("Pubmed query "\s*\+\s*query\["strategy-query"\]\s*\+\s*" failed"/.test(pubmedFetchDataSrc), "the guarded branch still shows the existing 'Pubmed query … failed' toast");
 assert(/type:\s*methods\.PUBMED_CHANGE_DATA,\s*\n\s*payload:\s*\[\]/.test(pubmedFetchDataSrc), "the guarded branch still resets the list (PUBMED_CHANGE_DATA payload: [])");
+
+// ---------------------------------------------------------------------------------------
+console.log("\n7. Ticket N — direct Add on the Scopus card for a PMID-bearing doc:");
+
+// (a) server: findPubmedByPmid + the new route, with a timeout.
+assert(/export async function findPubmedByPmid\(pmid:\s*number\)/.test(pubmedLookupSrc), "findPubmedByPmid(pmid) exported from pubmedLookup.controller.ts");
+const findByPmidSrc = pubmedLookupSrc.slice(pubmedLookupSrc.indexOf("export async function findPubmedByPmid"));
+assert(/'strategy-query':\s*`\$\{pmid\}\[UID\]`/.test(findByPmidSrc), "queries strategy-query: `${pmid}[UID]`");
+assert(/signal:\s*AbortSignal\.timeout\(30000\)/.test(findByPmidSrc), "carries AbortSignal.timeout(30000)");
+assert(/Number\(articlePmid\)\s*===\s*Number\(pmid\)/.test(findByPmidSrc), "matches the first article whose own PMID equals the requested pmid");
+assert(/return match \?\? null/.test(findByPmidSrc), "returns null when no article matches");
+
+assert(/export function formatPubmedSearch/.test(pubmedControllerSrc), "formatPubmedSearch is exported from pubmed.controller.ts");
+
+assert(/import\s*\{\s*findPubmedByPmid\s*\}\s*from\s*'\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/controllers\/pubmedLookup\.controller'/.test(pubmedArticleRouteSrc), "route imports findPubmedByPmid");
+assert(/import\s*\{\s*formatPubmedSearch\s*\}\s*from\s*'\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/controllers\/pubmed\.controller'/.test(pubmedArticleRouteSrc), "route imports formatPubmedSearch (same formatter the Add tab's search results use)");
+assert(/req\.method\s*!==\s*"GET"/.test(pubmedArticleRouteSrc), "route only supports GET");
+assert(/req\.headers\.authorization\s*!==\s*reciterConfig\.backendApiKey/.test(pubmedArticleRouteSrc), "route checks Authorization === reciterConfig.backendApiKey, same pattern as search/pubmed.ts");
+assert(/!Number\.isInteger\(pmid\)\s*\|\|\s*pmid\s*<=\s*0/.test(pubmedArticleRouteSrc), "route 400s on a pmid that isn't a positive integer");
+assert(/res\.status\(404\)\.send\(\{\s*statusCode:\s*404/.test(pubmedArticleRouteSrc), "route 404s when findPubmedByPmid returns null");
+assert(/formatPubmedSearch\(\{\s*filter100PubMedArticles:\s*\[article\]\s*\}/.test(pubmedArticleRouteSrc), "route formats the single article via formatPubmedSearch({filter100PubMedArticles: [article]}, false)[0] — formatPubmedSearch reads data.filter100PubMedArticles, not a bare array");
+assert(/res\.status\(200\)\.send\(\{\s*statusCode:\s*200,\s*article:\s*formatted\s*\}\)/.test(pubmedArticleRouteSrc), "route responds 200 {article}");
+assert((pubmedArticleRouteSrc.match(/console\.error\(/g) || []).length === 2, "two console.error lines: one for the lookup failure/timeout, one for an article the formatter cannot shape");
+assert(/if \(!formatted \|\| !formatted\.pmid\)[\s\S]{0,200}res\.status\(502\)/.test(pubmedArticleRouteSrc), "route answers 502 when the formatted article has no pmid (never returns a shapeless article)");
+assert(/504\s*:\s*502/.test(pubmedArticleRouteSrc), "route responds 504 on a timeout, 502 on any other lookup failure");
+
+// (b) shared mapping: toReciterArticle, used by both TabAddPublication.tsx and ReciterTabs.tsx.
+assert(/export const toReciterArticle\s*=\s*\(article:\s*any,\s*userAssertion:\s*string\s*=\s*'ACCEPTED'\)/.test(toReciterArticleSrc), "toReciterArticle(article, userAssertion) exported");
+assert(/articleTitle:\s*article\.title/.test(toReciterArticleSrc) && /reCiterArticleAuthorFeatures:\s*mapPubMedAuthorsToReciterAuthors\(article\.authors\)/.test(toReciterArticleSrc), "builds the same articleTitle/reCiterArticleAuthorFeatures fields TabAddPublication.tsx built inline");
+
+assert(/import\s*\{\s*toReciterArticle\s*\}\s*from\s*"\.\.\/\.\.\/\.\.\/utils\/toReciterArticle"/.test(tabAddPublicationSrc), "TabAddPublication.tsx imports toReciterArticle");
+const acceptPublicationSrc = tabAddPublicationSrc.slice(
+  tabAddPublicationSrc.indexOf("const acceptPublication = async"),
+  tabAddPublicationSrc.indexOf("const rejectPublication = ")
+);
+assert(/toReciterArticle\(publication,\s*"ACCEPTED"\)/.test(acceptPublicationSrc), "TabAddPublication.tsx's acceptPublication calls toReciterArticle instead of building the object inline");
+assert(!/Object\.assign\(publication,/.test(acceptPublicationSrc), "the old inline Object.assign(publication, {...}) construction is gone from acceptPublication");
+// rejectPublication is untouched — still builds its own object inline (a pure move only
+// touches the one call site the ticket named).
+const rejectPublicationSrc = tabAddPublicationSrc.slice(tabAddPublicationSrc.indexOf("const rejectPublication = "));
+assert(/Object\.assign\(publication,/.test(rejectPublicationSrc), "rejectPublication is left untouched (still builds its object inline)");
+
+assert(/import\s*\{\s*toReciterArticle\s*\}\s*from\s*"\.\.\/\.\.\/\.\.\/utils\/toReciterArticle"/.test(reciterTabsSrc), "ReciterTabs.tsx imports toReciterArticle");
+
+// (c) handleAcceptPmid: dispatches reciterUpdatePublication, calls updatePublicationAssertion,
+// and does NOT switch tabs (no onTabChange call anywhere in its body).
+assert(/import\s*\{[^}]*\breciterUpdatePublication\b[^}]*\}\s*from\s*"\.\.\/\.\.\/\.\.\/redux\/actions\/actions"/.test(reciterTabsSrc), "ReciterTabs.tsx imports reciterUpdatePublication");
+assert(/const userId\s*=\s*session\?\.data\?\.databaseUser\?\.userID/.test(reciterTabsSrc), "userId is read from session.data.databaseUser.userID — same source TabAddPublication.tsx uses");
+assert(/const identityData\s*=\s*useSelector\(\(state:\s*RootStateOrAny\)\s*=>\s*state\.identityData\)/.test(reciterTabsSrc), "identityData is read from state.identityData via useSelector — same source TabAddPublication.tsx uses");
+const handleAcceptPmidSrc = reciterTabsSrc.slice(
+  reciterTabsSrc.indexOf("const handleAcceptPmid = (pmid: number, item: any): Promise<void> => {"),
+  reciterTabsSrc.indexOf("const handleAcceptPmid = (pmid: number, item: any): Promise<void> => {") + 1600
+);
+assert(handleAcceptPmidSrc.indexOf("const handleAcceptPmid") === 0, "handleAcceptPmid(pmid, item) defined, returning Promise<void>");
+assert(/fetch\(`\/api\/reciter\/pubmed-article\/\$\{pmid\}`/.test(handleAcceptPmidSrc), "fetches GET /api/reciter/pubmed-article/{pmid}");
+assert(/Authorization:\s*reciterConfig\.backendApiKey/.test(handleAcceptPmidSrc), "carries Authorization: reciterConfig.backendApiKey, same header pattern as the tab's other client calls");
+assert(/dispatch\(reciterUpdatePublication\(identityData\.uid,\s*request\)\)/.test(handleAcceptPmidSrc), "dispatches reciterUpdatePublication(identityData.uid, request)");
+assert(/updatePublicationAssertion\(newObject,\s*"ACCEPTED",\s*undefined\)/.test(handleAcceptPmidSrc), "calls updatePublicationAssertion(article, 'ACCEPTED', undefined)");
+assert(!/onTabChange/.test(handleAcceptPmidSrc), "does NOT call onTabChange — stays on the current tab, unlike handleAddViaPubMed");
+assert(!/UpdatePubMadeData/.test(handleAcceptPmidSrc), "does NOT dispatch UpdatePubMadeData — there is no PubMed-tab search list to prune here");
+assert(/throw new Error\(\(body\s*&&\s*body\.message\)\s*\|\|\s*`HTTP \$\{r\.status\}`\)/.test(handleAcceptPmidSrc), "rejects with a message on a non-200/missing-article response from the route");
+
+assert(/onAcceptPmid=\{handleAcceptPmid\}/.test(reciterTabsSrc), "handleAcceptPmid is passed to <TabScopusAuthorships> as onAcceptPmid");
+
+// (d) TabScopusAuthorships.tsx — doAcceptPmid mirrors doAdd's state handling.
+assert(/onAcceptPmid:\s*\(pmid:\s*number,\s*item:\s*any\)\s*=>\s*Promise<void>/.test(tabSrc), "FuncProps declares onAcceptPmid");
+const doAcceptPmidSrc = tabSrc.slice(
+  tabSrc.indexOf("const doAcceptPmid = (pmid: number, item: any) => {"),
+  tabSrc.indexOf("const doReject = (item: any) => {")
+);
+assert(doAcceptPmidSrc.indexOf("const doAcceptPmid") === 0, "doAcceptPmid(pmid, item) defined");
+assert(/setAddState\(articleId,\s*\{\s*status:\s*"adding"\s*\}\)/.test(doAcceptPmidSrc), "sets addState 'adding' before calling onAcceptPmid, same as doAdd");
+assert(/props\.onAcceptPmid\(pmid,\s*item\)/.test(doAcceptPmidSrc), "calls props.onAcceptPmid(pmid, item) with the pmid the card passed (item.pmid, or the PMID a DOI lookup resolved)");
+assert(/setAddState\(articleId,\s*\{\s*status:\s*"accepted"\s*\}\)/.test(doAcceptPmidSrc), "on success sets addState 'accepted'");
+assert(/setJustAccepted\(\(prev\)\s*=>\s*new Set\(prev\)\.add\(pmid\)\)/.test(doAcceptPmidSrc), "on success adds the pmid to the justAccepted Set");
+assert(/setAddState\(articleId,\s*\{\s*status:\s*"idle"\s*\}\)/.test(doAcceptPmidSrc) && /toast\.error\("Could not accept:\s*"/.test(doAcceptPmidSrc), "on failure toasts the message and clears the addState back to idle, same toast style as doAdd");
+
+assert(/const \[justAccepted, setJustAccepted\]\s*=\s*useState<Set<number>>\(new Set\(\)\)/.test(tabSrc), "justAccepted Set state declared");
+assert(/onAcceptPmid=\{\(pmid,\s*it\)\s*=>\s*doAcceptPmid\(pmid,\s*it\)\}/.test(tabSrc), "doAcceptPmid is wired to the <ExternalPublicationCard> onAcceptPmid prop");
+
+// (e) justAccepted guard in the needsReview/inRecord partition.
+assert(/const inGoldStandardRecord\s*=\s*\(d:\s*any\)\s*=>\s*!!\(d\.pmid\s*&&\s*props\.getPmidStatus\(d\.pmid\)\s*&&\s*!justAccepted\.has\(d\.pmid\)\)/.test(tabSrc), "inGoldStandardRecord(d) excludes a justAccepted pmid from counting as already-in-record");
+assert(/const needsReview = docs\.filter\(\(d\)\s*=>\s*!dismissed\.has\(d\.articleId\)\s*&&\s*!inGoldStandardRecord\(d\)\s*&&\s*!inExternalRecord\(d\)\)/.test(tabSrc), "needsReview uses inGoldStandardRecord (not the raw getPmidStatus check)");
+assert(/const inRecord = docs\.filter\(\(d\)\s*=>\s*!dismissed\.has\(d\.articleId\)\s*&&\s*\(inGoldStandardRecord\(d\)\s*\|\|\s*inExternalRecord\(d\)\)\)/.test(tabSrc), "inRecord uses inGoldStandardRecord too, so the two partitions stay complementary");
+
+// (f) ExternalPublicationCard.tsx — primary Add + secondary Add via PubMed + accepted tag.
+assert(/status:\s*'idle'\s*\|\s*'adding'\s*\|\s*'checking'\s*\|\s*'blocked'\s*\|\s*'warning'\s*\|\s*'inPubmed'\s*\|\s*'added'\s*\|\s*'accepted'/.test(cardSrc), "AddState gains an 'accepted' status");
+assert(/onAcceptPmid\?:\s*\(pmid:\s*number,\s*item:\s*any\)\s*=>\s*void/.test(cardSrc), "FuncProps declares onAcceptPmid(pmid, item)");
+assert(/status === 'accepted'[\s\S]{0,60}<span className=\{styles\.addedTag\}>Accepted &#10003;<\/span>/.test(cardSrc), "status === 'accepted' renders an 'Accepted ✓' tag reusing styles.addedTag");
+assert(/props\.onAcceptPmid\s*&&\s*props\.onAcceptPmid\(pubmedPmid,\s*item\)/.test(cardSrc), "the primary Add button passes pubmedPmid (item.pmid or the DOI-resolved addState.pmid), not just the item");
+assert(/status === 'adding' && pubmedPmid && !recStatus[\s\S]{0,120}Adding&#8230;/.test(cardSrc), "status === 'adding' renders a disabled 'Adding…' button");
+assert(/props\.onAddViaPubMed\s*&&\s*props\.onAddViaPubMed\(pubmedPmid,\s*item\)/.test(cardSrc), "the secondary button still calls onAddViaPubMed(pubmedPmid, item)");
 
 // (3) CurateIndividual.module.css — .tabsBar wraps instead of clipping.
 const tabsBarBlock = cssSrc.slice(cssSrc.indexOf(".tabsBar {"), cssSrc.indexOf(".tabsBar {") + cssSrc.slice(cssSrc.indexOf(".tabsBar {")).indexOf("}") + 1);
