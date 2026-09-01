@@ -56,7 +56,7 @@ assert(/start\s*=\s*seen\.size/.test(searchFn), "next page's start offset is the
 assert(!/Promise\.all/.test(searchFn), "no parallel page fetches (Promise.all) — pages are sequential");
 
 assert(/fetched:\s*results\.length/.test(searchFn), "return shape includes fetched: results.length");
-assert(/capped:\s*total\s*>\s*CAP/.test(searchFn), "return shape includes capped: total > CAP");
+assert(/capped:\s*total\s*>\s*results\.length/.test(searchFn), "return shape includes capped: total > results.length (fires for CAP, an ignored start, or a rollback)");
 assert(/partial\s*\?\s*\{\s*partial:\s*true\s*\}/.test(searchFn) || /partial:\s*true/.test(searchFn), "return shape carries partial: true when a later page fails");
 
 // page-one failure still throws (no try/catch wraps the first fetchScopusDocPage call);

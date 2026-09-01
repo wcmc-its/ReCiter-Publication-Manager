@@ -153,7 +153,9 @@ export async function searchScopusDocuments(by: string, term: string): Promise<{
         results,
         total,
         fetched: results.length,
-        capped: total > CAP,
+        // true whenever the caller holds fewer documents than exist — the CAP, a tool build
+        // that ignores `start`, or a rollback — so the UI's "showing the first N of M" never goes silent.
+        capped: total > results.length,
         ...(partial ? { partial: true } : {}),
     }
 }
