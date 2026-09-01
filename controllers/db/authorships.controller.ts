@@ -390,6 +390,39 @@ async function identityPrimaryName(uid: string): Promise<string> {
     .map((v) => String(v || "").trim()).filter(Boolean).join(" ");
 }
 
+// POST /api/db/authorships/lookup — read-only cwid lookup behind the bulk-assign confirm
+// dialog (B-8). This is the upgrade path this file's own case "assign" comment named ahead of
+// time ("add GET /api/db/authorships/lookup?cwid= over the same identityLabel()"): a curator
+// bulk-assigning to a cwid that is off-candidate for some/all of the selection, or that has no
+// ReCiter identity, gets ONE server lookup instead of per-row 422 round-trips, and the bulk
+// confirm dialog is built on what THIS returns — never on the raw string typed or a
+// possibly-stale candidate_cwids_json label — so the trust boundary the per-row confirms
+// enforce (confirm against a server-verified name, never a typed string) holds at bulk scale
+// too.
+//
+// Canonicalization runs through the exact same two calls case "assign" makes (reciterIdentitySet
+// on [typed, typed.toLowerCase()], then canonicalCwid) so this can never resolve a cwid to a
+// different Identity record than the write path would.
+export const authorshipLookupCwid = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const typed = String(req.body?.cwid || "").trim();
+    if (!typed) return res.status(400).send("cwid is required");
+    if (!/^[A-Za-z0-9]{1,32}$/.test(typed)) return res.status(400).send("cwid must be alphanumeric");
+    const found = await reciterIdentitySet([typed, typed.toLowerCase()]);
+    const cwid = canonicalCwid(typed, found);
+    const hasIdentity = found.has(cwid);
+    // identityLabel is reachable here under the identical precondition case "assign"'s
+    // confirm_off_candidate requires — hasIdentity already true — so there is never a name
+    // to look up for a cwid ReCiter has no Identity record for; the client tells that story
+    // itself (hasIdentity: false), not a null name pretending to be one.
+    const name = hasIdentity ? ((await identityLabel(cwid)) || null) : null;
+    res.send({ cwid, name, hasIdentity });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
 // POST /api/db/authorships — paginated, filtered list of unassigned WCM authorships.
 export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
@@ -999,9 +1032,10 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         // string they might have typo'd.
         // ponytail: confirm-on-submit, not a typeahead — the name has to cross the wire on
         // this 422 anyway, so a search endpoint + debounce + dropdown would buy nothing the
-        // round-trip doesn't already provide. Upgrade path if curators start typing cwids
-        // they don't actually know: add GET /api/db/authorships/lookup?cwid= over the same
-        // identityLabel() and drive a datalist off it.
+        // round-trip doesn't already provide here. (B-8: that endpoint now exists —
+        // authorshipLookupCwid above, over this same identityLabel()/canonicalCwid() path —
+        // but it's wired to the BULK confirm dialog, which has no 422 round-trip to piggyback
+        // on; this single-row confirm-on-submit is unchanged and still doesn't need it.)
         if (gate === "confirm_off_candidate") {
           const who = await identityLabel(target);
           return res.status(422).json({

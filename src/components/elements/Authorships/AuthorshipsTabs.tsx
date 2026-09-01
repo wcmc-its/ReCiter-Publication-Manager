@@ -10,7 +10,7 @@ import { reciterConfig } from "../../../../config/local";
 import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 import {
   isAcceptEligible, isBulkSelectable,
-  unionCandidates, partitionForAssign, bucketAssignFailures,
+  unionCandidates, partitionForAssign, assignConfirmFlags, bucketAssignFailures,
 } from "../../../lib/bulkAssign";
 import type { CandidateLite } from "../../../lib/bulkAssign";
 
@@ -544,13 +544,18 @@ const AuthorshipsTabs = () => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   // multi-candidate: chosen cwid per row id
   const [picked, setPicked] = useState<Record<number, string>>({});
-  // T4: "Assign selected (N) to…" — anchor opens the candidate-union picker; assignConfirm
-  // holds the chosen target plus the submit/skip split (partitionForAssign) until the curator
-  // confirms. Both null when the picker/confirm step is closed.
+  // T4/B-8: "Assign selected (N) to…" — anchor opens the candidate-union picker; choosing a
+  // target (typed or from the union) fires ONE server lookup (authorshipLookupCwid) rather than
+  // submitting anything, so assignLookupCwid holds the in-flight typed/picked string while that
+  // resolves, and assignConfirm holds what the lookup returned (canonical cwid, name,
+  // hasIdentity) plus the on/off-candidate split (partitionForAssign) until the curator
+  // confirms. All null/empty when the picker/lookup/confirm step is closed.
   const [assignMenuAnchor, setAssignMenuAnchor] = useState<HTMLElement | null>(null);
   const [assignOtherCwid, setAssignOtherCwid] = useState("");
+  const [assignLookupCwid, setAssignLookupCwid] = useState<string | null>(null);
   const [assignConfirm, setAssignConfirm] = useState<{
-    cwid: string; name?: string; toSubmit: AuthorshipRow[]; toSkip: AuthorshipRow[];
+    cwid: string; name?: string | null; hasIdentity: boolean;
+    onCandidate: AuthorshipRow[]; offCandidate: AuthorshipRow[];
   } | null>(null);
   // F13: keyboard focus
   const [focusedId, setFocusedId] = useState<number | null>(null);
@@ -927,63 +932,85 @@ const AuthorshipsTabs = () => {
     setAssignMenuAnchor(anchor);
   }, []);
 
-  // Picking a candidate — from the union list or the typed "someone else" box — doesn't
-  // submit anything yet. It only computes the confirm-step split (partitionForAssign), the
-  // same "look before you write" shape the per-row off-candidate/no-identity 422 confirms
-  // already use for a single row.
-  const chooseAssignTarget = useCallback((cwid: string, name?: string) => {
+  // B-8: picking a candidate — from the union list or the typed "someone else" box — doesn't
+  // submit anything yet, and no longer just computes a client-side split off possibly-stale
+  // candidate_cwids_json. It asks the server ONE question first (POST
+  // /api/db/authorships/lookup -> authorshipLookupCwid, controllers/db/authorships.controller.ts):
+  // canonicalize the typed/picked cwid the same way case "assign" does (canonicalCwid over
+  // reciterIdentitySet), and say whether ReCiter has an identity for it and what its name is.
+  // The confirm dialog is built ONLY on what comes back — never on the raw string typed, and
+  // never on a union label whose candidate_cwids_json name might already be stale — which is
+  // the same "confirm against a server-looked-up name, not a typed string" trust boundary the
+  // per-row OFF_CANDIDATE/NO_RECITER_IDENTITY 422 confirms already enforce for one row.
+  const chooseAssignTarget = useCallback((rawCwid: string) => {
     setAssignMenuAnchor(null);
-    const { toSubmit, toSkip } = partitionForAssign(selectedRows, rowCandidateLites, cwid);
-    setAssignConfirm({ cwid, name, toSubmit, toSkip });
+    const typed = rawCwid.trim();
+    if (!typed) return;
+    setAssignLookupCwid(typed);
+    fetch("/api/db/authorships/lookup", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ cwid: typed }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        const cwid = String(d.cwid || typed);
+        const { onCandidate, offCandidate } = partitionForAssign(selectedRows, rowCandidateLites, cwid);
+        setAssignConfirm({ cwid, name: d.name ?? null, hasIdentity: !!d.hasIdentity, onCandidate, offCandidate });
+      })
+      .catch((e) => setErrorMsg(`Couldn't look up "${typed}" — ${String(e?.message || e)}`))
+      .finally(() => setAssignLookupCwid(null));
   }, [selectedRows]);
 
-  // F5 for assign: mirrors doBulkAccept exactly — same chunk size, same Promise.allSettled
-  // shape, same doActionAsync call, just "assign"+{cwid} in place of "accept". Only
-  // assignConfirm.toSubmit (rows whose OWN candidate set contains the chosen cwid) is ever
-  // sent; toSkip rows never reach the network at all, per MUST NOT. A 422/409 that still comes
-  // back from a submitted row is bucketed, never auto-confirmed (no blanket
-  // confirmOffCandidate/confirmNoIdentity resend) — same rule the per-row confirm banner
-  // enforces one row at a time.
+  // F5 for assign: mirrors doBulkAccept's chunking/allSettled shape, same doActionAsync call,
+  // just "assign"+{cwid,...flags} in place of "accept". B-8: EVERY selected row now submits —
+  // the old toSubmit/toSkip dead end (an off-candidate target left the whole batch stuck at "0
+  // rows to submit", the sts2022 prod incident) is gone. assignConfirmFlags derives the one
+  // confirm flag each row's submit needs from (a) whether the cwid is on THAT row's own
+  // candidate list (assignConfirm.offCandidate membership) and (b) whether the lookup found a
+  // ReCiter identity for it (assignConfirm.hasIdentity, one fact for the whole batch) — the
+  // curator already confirmed against the name/no-identity notice the dialog showed, so these
+  // flags are pre-set, not auto-confirmed blindly: a 422 bouncing back from a submitted row
+  // would mean the derivation disagreed with the server, which bucketAssignFailures still
+  // surfaces rather than silently swallowing.
   const doBulkAssign = useCallback(() => {
     const confirm = assignConfirm;
     if (!confirm) return;
-    const { cwid, toSubmit, toSkip } = confirm;
+    const { cwid, hasIdentity, onCandidate, offCandidate } = confirm;
     setAssignConfirm(null);
     setMenu(null);
-    if (toSubmit.length === 0) {
-      // everything was skipped locally — nothing to submit, but still say so.
-      if (toSkip.length) setErrorMsg(`All ${toSkip.length} selected rows skipped — ${cwid} was not among their candidates.`);
-      setSelected(new Set());
-      setAllMatching(null);
-      return;
-    }
-    setBulkProgress(toSubmit.length > BULK_CHUNK ? { done: 0, total: toSubmit.length } : null);
+    const offIds = new Set(offCandidate.map((r) => r.id));
+    const batch = [...onCandidate, ...offCandidate];
+    if (batch.length === 0) { setSelected(new Set()); setAllMatching(null); return; }
+    setBulkProgress(batch.length > BULK_CHUNK ? { done: 0, total: batch.length } : null);
     const runChunks = async () => {
       const results: PromiseSettledResult<boolean>[] = [];
-      for (let i = 0; i < toSubmit.length; i += BULK_CHUNK) {
-        const chunk = toSubmit.slice(i, i + BULK_CHUNK);
-        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "assign", { cwid }))));
-        if (toSubmit.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: toSubmit.length });
+      for (let i = 0; i < batch.length; i += BULK_CHUNK) {
+        const chunk = batch.slice(i, i + BULK_CHUNK);
+        results.push(...await Promise.allSettled(chunk.map((row) =>
+          doActionAsync(row, "assign", { cwid, ...assignConfirmFlags(offIds.has(row.id), hasIdentity) }))));
+        if (batch.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: batch.length });
       }
       return results;
     };
     runChunks()
       .then((results) => {
         const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-        const ok = toSubmit.filter((_, i) => results[i].status === "fulfilled");
+        const ok = batch.filter((_, i) => results[i].status === "fulfilled");
         if (ok.length > 0) setUndo({ rows: ok, label: `Assigned ${ok.length}` });
         const parts: string[] = [];
-        if (toSkip.length) parts.push(`${toSkip.length} skipped — not among their candidates`);
         if (failures.length) {
-          const { offCandidate, noIdentity, conflict409, other } = bucketAssignFailures(
+          const { offCandidate: offC, noIdentity, conflict409, other } = bucketAssignFailures(
             failures.map((f) => (f.reason as any) || {}));
-          if (offCandidate) parts.push(`${offCandidate} off-candidate`);
+          if (offC) parts.push(`${offC} off-candidate`);
           if (noIdentity) parts.push(`${noIdentity} with no ReCiter identity`);
           if (conflict409) parts.push(`${conflict409} conflict${conflict409 > 1 ? "s" : ""}`);
           if (other) parts.push(`${other} failed`);
         }
-        if (parts.length) setErrorMsg(`Assigned ${ok.length} of ${toSubmit.length + toSkip.length} selected to ${cwid}: ${parts.join("; ")}`);
-        // success: silently refill the queue, same as doBulkAccept. failure/skip: refresh so
+        if (parts.length) setErrorMsg(`Assigned ${ok.length} of ${batch.length} selected to ${cwid}: ${parts.join("; ")}`);
+        // success: silently refill the queue, same as doBulkAccept. failure: refresh so
         // the optimistically-removed-then-failed rows come back — silent, still mid-review.
         if (failures.length) fetchData(true);
         else topUp();
@@ -1400,7 +1427,7 @@ const AuthorshipsTabs = () => {
       {/* F4: bulk bar (slim) */}
       {statusView === "open" && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 18px", fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
-          <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign, multi-candidate (non-Scopus) rows for bulk assign" placement="top" arrow>
+          <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign, multi-candidate (non-Scopus) rows and single-candidate no-ReCiter-identity rows for bulk assign only" placement="top" arrow>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: eligibleRows.length === 0 ? "default" : "pointer", color: eligibleRows.length === 0 ? "#94a3b8" : "#475569" }}>
               <Checkbox size="small" disabled={eligibleRows.length === 0}
                 checked={allEligibleSelected}
@@ -1461,7 +1488,7 @@ const AuthorshipsTabs = () => {
           )}
           <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
             {allMatching ? "Bulk accept acts on every matching single-candidate row"
-              : "Bulk accept acts on single-candidate rows on this page; bulk assign also covers open, non-Scopus multi-candidate rows"}
+              : "Bulk accept acts on single-candidate rows on this page; bulk assign also covers open, non-Scopus multi-candidate rows and single-candidate rows with no ReCiter identity"}
           </span>
         </div>
       )}
@@ -1469,13 +1496,13 @@ const AuthorshipsTabs = () => {
       {/* T4: "Assign selected (N) to…" picker — union of every candidate the selection
           proposes (rowCandidateLites: candidate_cwids_json for a multi row, the row's own
           top_cwid for a single one), ranked by how many selected rows propose it, plus a
-          typed-cwid escape hatch for someone the union doesn't include. Choosing an option
-          computes the confirm split below rather than submitting immediately. */}
+          typed-cwid escape hatch for someone the union doesn't include. Choosing an option (B-8)
+          fires the server lookup rather than submitting or computing anything client-side. */}
       <Menu anchorEl={assignMenuAnchor} open={!!assignMenuAnchor} onClose={() => setAssignMenuAnchor(null)}
         PaperProps={{ style: { maxWidth: 380 } }}>
         {assignCandidateUnion.length === 0 && <MenuItem disabled>No candidates on the selected rows</MenuItem>}
         {assignCandidateUnion.map((c) => (
-          <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid, c.name)}>
+          <MenuItem key={c.cwid} dense onClick={() => chooseAssignTarget(c.cwid)}>
             {c.name ? `${c.name} ` : ""}({c.cwid}) — matches {c.matches} of {selectedRows.length} selected
           </MenuItem>
         ))}
@@ -1486,42 +1513,87 @@ const AuthorshipsTabs = () => {
           <label style={{ fontSize: 11.5, color: "#94a3b8" }}>Someone else:</label>
           <input value={assignOtherCwid} placeholder="cwid"
             onChange={(e) => setAssignOtherCwid(e.target.value.trim())}
-            onKeyDown={(e) => { if (e.key === "Enter" && assignOtherCwid) chooseAssignTarget(assignOtherCwid); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && assignOtherCwid && !assignLookupCwid) chooseAssignTarget(assignOtherCwid); }}
             style={{ width: 90, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1", borderRadius: 4, color: "#334155" }} />
-          <button style={btn("accept", !assignOtherCwid)} disabled={!assignOtherCwid}
+          <button style={btn("accept", !assignOtherCwid || !!assignLookupCwid)} disabled={!assignOtherCwid || !!assignLookupCwid}
             onClick={() => chooseAssignTarget(assignOtherCwid)}>
             Go
           </button>
         </div>
       </Menu>
 
-      {/* T4: bulk-assign confirm step. Never a blanket confirm of a server 422 — this only
-          states the LOCAL submit/skip split (partitionForAssign) before any request fires; an
-          OFF_CANDIDATE/NO_RECITER_IDENTITY 422 on a submitted row still counts as skipped-with-
-          reason in the summary toast doBulkAssign shows afterward, never auto-retried. */}
+      {/* B-8: the ONE server lookup chooseAssignTarget fires before the confirm dialog can
+          render — a transient "Looking up…" step rather than a spinner glued onto the picker,
+          since the picker (a MUI Menu) is already closed by the time this fires. */}
+      {assignLookupCwid && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 1400,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 10, padding: "16px 20px", fontSize: 13,
+            color: "#475569", boxShadow: "0 8px 32px rgba(15,23,42,.25)",
+          }}>
+            Looking up {assignLookupCwid}…
+          </div>
+        </div>
+      )}
+
+      {/* B-8: bulk-assign confirm step — the bulk equivalent of the per-row
+          OFF_CANDIDATE/NO_RECITER_IDENTITY 422 confirms. Built entirely on the lookup's answer
+          (assignConfirm.name/hasIdentity), never on the typed string: the curator confirms
+          against a human name the server looked up, or an explicit "no name on file" notice,
+          exactly like the single-row confirm does. EVERY selected row is submitted on Assign
+          (see doBulkAssign) — onCandidate/offCandidate below are stated for transparency, not a
+          submit/skip choice, so the button is never disabled by a 0-to-submit count (the
+          sts2022 dead end this replaces). */}
       {assignConfirm && (
         <div onClick={() => setAssignConfirm(null)} style={{
           position: "fixed", inset: 0, background: "rgba(15,23,42,.35)", display: "flex",
           alignItems: "center", justifyContent: "center", zIndex: 1400,
         }}>
           <div onClick={(e) => e.stopPropagation()} style={{
-            background: "#fff", borderRadius: 10, padding: 20, maxWidth: 420,
+            background: "#fff", borderRadius: 10, padding: 20, maxWidth: 460,
             boxShadow: "0 8px 32px rgba(15,23,42,.25)",
           }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
-              Assign {assignConfirm.toSubmit.length} row{assignConfirm.toSubmit.length === 1 ? "" : "s"} to{" "}
-              {assignConfirm.name ? `${assignConfirm.name} ` : ""}({assignConfirm.cwid})
-            </div>
-            {assignConfirm.toSkip.length > 0 && (
-              <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 12 }}>
-                {assignConfirm.toSkip.length} row{assignConfirm.toSkip.length === 1 ? "" : "s"} will be skipped
-                — {assignConfirm.cwid} is not among their candidates.
+            {(() => {
+              const total = assignConfirm.onCandidate.length + assignConfirm.offCandidate.length;
+              return (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+                    Assign {total} row{total === 1 ? "" : "s"} to{" "}
+                    {assignConfirm.name ? `${assignConfirm.name} ` : ""}({assignConfirm.cwid})
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#475569", marginBottom: 10, lineHeight: 1.45 }}>
+                    {assignConfirm.onCandidate.length} of {total} selected row{total === 1 ? "" : "s"} propose
+                    {assignConfirm.onCandidate.length === 1 ? "s" : ""} this person.
+                    {assignConfirm.offCandidate.length > 0 && (
+                      <> {assignConfirm.offCandidate.length} don’t — confirming assigns{" "}
+                        {assignConfirm.offCandidate.length === 1 ? "it" : "them"} anyway, the same write
+                        the per-row confirm makes.</>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+            {!assignConfirm.hasIdentity ? (
+              <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 12, lineHeight: 1.45 }}>
+                {assignConfirm.cwid} has no ReCiter identity. Confirming records your decision on each row
+                only — it will NOT be added to the person’s publication record, because there is no
+                identity to add it to.
               </div>
-            )}
+            ) : !assignConfirm.name ? (
+              <div style={{ fontSize: 12.5, color: "#b45309", marginBottom: 12, lineHeight: 1.45 }}>
+                No name on file anywhere for {assignConfirm.cwid} — check the identifier.
+              </div>
+            ) : null}
+            <div style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 14, lineHeight: 1.45 }}>
+              Each row also records “not mine” for its other proposed candidates that have a ReCiter
+              identity (the F-2 policy) — same as a per-row assign. Reopening a row undoes both.
+            </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button style={btn("ghost")} onClick={() => setAssignConfirm(null)}>Cancel</button>
-              <button style={btn("accept", assignConfirm.toSubmit.length === 0)}
-                disabled={assignConfirm.toSubmit.length === 0} onClick={doBulkAssign}>
+              <button style={btn("accept")} onClick={doBulkAssign}>
                 Assign
               </button>
             </div>

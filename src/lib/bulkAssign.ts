@@ -6,15 +6,22 @@
 // be directly assertable (scripts/check-bulk-assign.mjs) rather than only exercised by hand.
 //
 // Four pieces:
-//   1. eligibility — which OPEN rows are checkbox-selectable at all, and which of those are
-//                    further restricted to the existing single-candidate bulk ACCEPT
+//   1. eligibility — which OPEN rows are checkbox-selectable at all: the existing
+//                    single-candidate bulk ACCEPT set, multi-candidate bulk-ASSIGN-only rows
+//                    (T4), and (B-8) single-candidate rows whose one proposed person has no
+//                    ReCiter identity — also ASSIGN-only, since the write for them is a
+//                    local-only record, never an Accept
 //   2. candidates  — the union of proposed candidates across a selection, for the
 //                    "Assign selected (N) to…" picker (name/cwid, ranked by how many
 //                    selected rows propose them)
-//   3. partition   — given a chosen cwid, which selected rows actually have it as a
-//                    candidate (submitted) and which don't (skipped, never sent to the
-//                    server), plus a doBulkAccept-style failure bucketing for the ones that
-//                    were submitted and came back rejected
+//   3. partition   — given a cwid the server has already canonicalized and identity-checked
+//                    (B-8's lookup endpoint), which selected rows already have it as a
+//                    candidate (onCandidate) and which don't (offCandidate) — EVERY row still
+//                    submits now, nothing is skipped; assignConfirmFlags derives the one
+//                    confirm flag each row's submit needs from that split plus whether the
+//                    cwid has a ReCiter identity at all, mirroring assignGate()'s own
+//                    dominance rule (src/lib/assignGate.ts) — plus a doBulkAccept-style
+//                    failure bucketing for rows that came back rejected anyway
 //   4. authorKey   — the normalized "same person, different byline spelling" key behind
 //                    "Show N others like this" (T5)
 
@@ -72,12 +79,29 @@ export function isMultiAssignEligible(row: SelectableRow): boolean {
   return !row.single_candidate && row.source !== "scopus";
 }
 
+// B-8 addendum: an OPEN single-candidate row whose one proposed person (top_cwid) has no
+// ReCiter identity at all (identity_in_reciter === false) — the nns9003 case: 16 rows all
+// propose the same no-identity cwid, each showing the no-identity pill + "Assign…" instead of
+// Accept, and until this predicate existed isAcceptEligible AND isMultiAssignEligible both
+// refused them, so isBulkSelectable was false and even bulk-assign couldn't reach them. On
+// candidate for THIS person's row is exactly assignGate's confirm_no_identity -> local_only
+// branch (src/lib/assignGate.ts) — a real, curator-confirmed decision recorded per row, just
+// never written into a publication record. Bulk ACCEPT must never include these — a no-identity
+// row has nothing Accept could write to — so this is deliberately NOT folded into
+// isAcceptEligible; it only widens isBulkSelectable, below, for assign. Any source: the write is
+// row-scoped local-only regardless of pubmed/scopus (no gold-standard/ExternalArticle write
+// happens for a no-identity target either way).
+export function isNoIdentityAssignEligible(row: SelectableRow): boolean {
+  return !!row.single_candidate && !!row.top_cwid
+    && row.identity_in_reciter === false && !row.top_already_rejected;
+}
+
 // Checkbox-selectable at all, on the currently-viewed queue. statusView is passed in rather
 // than folded into SelectableRow because it's a view-level fact, not a row-level one — the
 // pre-T4 toggleSelect gated the same way, on statusView, not on a `status` field on the row.
 export function isBulkSelectable(row: SelectableRow, statusView: string): boolean {
   if (statusView !== "open") return false;
-  return isAcceptEligible(row) || isMultiAssignEligible(row);
+  return isAcceptEligible(row) || isMultiAssignEligible(row) || isNoIdentityAssignEligible(row);
 }
 
 export interface CandidateLite {
@@ -106,29 +130,53 @@ export function unionCandidates(rowCandidateLists: CandidateLite[][]): Array<Can
   return [...byCwid.values()].sort((a, b) => b.matches - a.matches || a.cwid.localeCompare(b.cwid));
 }
 
-// Which selected rows actually propose the chosen cwid (submitted to the server) vs. don't
-// (skipped locally — no request made). The confirm-step summary ("Assign k rows to X; m rows
-// will be skipped") and the submit loop both read off this split. `candidatesOf` mirrors
-// unionCandidates' own extraction so the two can never disagree about what a row proposes.
+// Which selected rows already have the chosen cwid as one of THEIR OWN proposed candidates
+// (onCandidate) vs. which don't (offCandidate) — informational now, not a submit/skip split:
+// B-8 replaced the old "off-candidate rows are skipped, never sent" dead end (the sts2022 prod
+// incident — 10/10 rows skipped, Assign disabled) with the bulk equivalent of the per-row
+// OFF_CANDIDATE/NO_RECITER_IDENTITY 422 confirms, so EVERY row in both buckets submits; see
+// assignConfirmFlags below for the one confirm flag each row's submit carries.
+// `candidatesOf` mirrors unionCandidates' own extraction so the two can never disagree about
+// what a row proposes. `cwid` is expected to already be the server-canonicalized form
+// (authorshipLookupCwid's response), same as case "assign"'s own `target`.
 export function partitionForAssign<T>(
   rows: T[], candidatesOf: (row: T) => CandidateLite[], cwid: string,
-): { toSubmit: T[]; toSkip: T[] } {
-  const toSubmit: T[] = [];
-  const toSkip: T[] = [];
+): { onCandidate: T[]; offCandidate: T[] } {
+  const onCandidate: T[] = [];
+  const offCandidate: T[] = [];
   for (const row of rows) {
     const has = candidatesOf(row).some((c) => c.cwid === cwid);
-    (has ? toSubmit : toSkip).push(row);
+    (has ? onCandidate : offCandidate).push(row);
   }
-  return { toSubmit, toSkip };
+  return { onCandidate, offCandidate };
+}
+
+// Which confirm flag(s) ONE row's bulk-assign submit needs, given (a) whether the chosen cwid
+// is on THAT row's own candidate list (partitionForAssign's offCandidate membership) and (b)
+// whether the lookup found a ReCiter identity for the cwid at all (one fact for the whole
+// batch — the same cwid, looked up once). This is exactly assignGate()'s own dominance rule
+// (src/lib/assignGate.ts) re-expressed for the client: absence of identity is asked first and
+// is NOT stood in for by the off-candidate confirm — they warn about opposite consequences
+// ("nothing is written" vs. "something IS written to a person you didn't pick from a list") —
+// so a no-identity cwid gets confirmNoIdentity regardless of on/off-candidate, and only an
+// on-candidate, has-identity row needs no flag at all (straight to "write", same as an
+// unconfirmed single-row assign today).
+export function assignConfirmFlags(offCandidate: boolean, hasIdentity: boolean): Record<string, "true"> {
+  if (!hasIdentity) return { confirmNoIdentity: "true" };
+  if (offCandidate) return { confirmOffCandidate: "true" };
+  return {};
 }
 
 // Bucket a bulk-assign submit batch's settled failures the way doBulkAccept buckets accept
 // failures (AuthorshipsTabs.tsx), extended with the two 422 codes `case "assign"` in
-// authorships.controller.ts can return. Pre-submit skips (partitionForAssign's toSkip) are
-// never in this input at all — those are reported separately, without a request ever firing.
-// `conflict409` covers every 409 the assign endpoint can send (a scopus dup-conflict, or the
-// rejectedpmids data-integrity guard) — assign has no MULTI_CANDIDATE code of its own (that's
-// accept-only), so unlike doBulkAccept's dup bucket this one can't be split further by cause.
+// authorships.controller.ts can return. B-8: every selected row submits now, each carrying the
+// confirm flag assignConfirmFlags derived for it, so OFF_CANDIDATE/NO_RECITER_IDENTITY landing
+// here would mean that derivation itself disagreed with what the server just found — a real
+// anomaly to bucket and surface, not the expected outcome the old toSkip pre-submit split used
+// to describe. `conflict409` covers every 409 the assign endpoint can send (a scopus
+// dup-conflict, or the rejectedpmids data-integrity guard) — assign has no MULTI_CANDIDATE code
+// of its own (that's accept-only), so unlike doBulkAccept's dup bucket this one can't be split
+// further by cause.
 export interface AssignFailureReason {
   status?: number;
   code?: string;
