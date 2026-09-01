@@ -42,7 +42,14 @@ export const findOrcreateAdminUser = async(cwid,samlEmail,samlFirstName,samlLast
             "email" : createdAdminUser.email,
             "status":createdAdminUser.status,
             "createTimestamp":createdAdminUser.createTimestamp,
-            "modifyTimestamp":createdAdminUser.modifyTimestamp
+            "modifyTimestamp":createdAdminUser.modifyTimestamp,
+            // The jwt() callback in [...nextauth].jsx derives token.scopeData / token.proxyPersonIds
+            // from THIS object. direct_login attaches the full admin_users row, but this hand-built
+            // copy dropped the three columns, so every SAML-authenticated curator carried a null
+            // scope and canCurate failed closed for scoped curators and proxies (est4003).
+            "scope_person_types": createdAdminUser.scope_person_types,
+            "scope_org_units": createdAdminUser.scope_org_units,
+            "proxy_person_ids": createdAdminUser.proxy_person_ids
         }
         createdAdminUser['databaseUser'] = databaseUser
         createdAdminUser.personIdentifier 
