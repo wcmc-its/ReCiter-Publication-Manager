@@ -11,8 +11,9 @@ import { sanitizeInlineHtml, stripHtml } from "../../../utils/htmlText";
 import {
   isAcceptEligible, isBulkSelectable,
   unionCandidates, partitionForAssign, assignConfirmFlags, bucketAssignFailures,
+  typedCwidPreview,
 } from "../../../lib/bulkAssign";
-import type { CandidateLite } from "../../../lib/bulkAssign";
+import type { CandidateLite, TypedCwidLookupState } from "../../../lib/bulkAssign";
 
 // ---- types ---------------------------------------------------------------
 interface AuthorshipRow {
@@ -2406,15 +2407,45 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 // only proposes its top few, which on a single-candidate card is exactly one guess.
 // The server keeps it deliberate — it 422s once, having looked the identifier up, and the
 // prompt it raises NAMES the person before the curator confirms.
-// ponytail: confirm-on-submit, no typeahead. The name the curator needs comes back on a 422
-// the server already has to send, so a lookup endpoint + debounce + dropdown would add three
-// moving parts to show the same string one round-trip later. Upgrade path if curators start
-// typing identifiers they don't actually know: a GET lookup route feeding a <datalist>.
+// ponytail: T-NAG cashes in the upgrade path this comment used to point at — "a lookup route
+// feeding the box" — because #948 already built that route (authorshipLookupCwid, POST
+// /api/db/authorships/lookup) for the bulk-assign confirm dialog below. A typed cwid is by
+// definition off-candidate, so it debounces into that same endpoint and Assign/Enter goes
+// straight to a write once it resolves; anything unresolved (still debouncing, or the lookup
+// itself errored) falls straight back to the plain call below, unconfirmed, same as before.
 const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
   homonyms?: number;
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
+  // What the debounced POST /api/db/authorships/lookup has found for the CURRENT otherCwid —
+  // reset to idle on every keystroke (not just short ones) so a resolved answer can never be
+  // submitted against a string the curator has since changed. requestSeq guards the fetch
+  // itself: a later keystroke bumps it, and a response whose seq no longer matches is dropped
+  // even if it lands after a newer one (out-of-order network replies).
+  const [lookupState, setLookupState] = useState<TypedCwidLookupState>({ status: "idle" });
+  const requestSeq = useRef(0);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); }, []);
+
+  const submitOther = useCallback(() => {
+    if (!otherCwid || acting) return;
+    // Resolved AND for this exact string (lookupState is reset on every keystroke, so a
+    // "resolved" status can only describe otherCwid as it stands right now) → one-click write,
+    // reusing the same {cwid,name,hasIdentity} shape and the same assignConfirmFlags the
+    // bulk-assign confirm dialog sends. offCandidate is always true: a typed cwid is by
+    // definition not one of this row's proposed candidates (assignGate.ts:25 only consults
+    // confirmOffCandidate when the server's own offCandidate check is also true, so sending it
+    // unconditionally is harmless on the rows where the typed cwid happens to already be
+    // on-candidate). Anything else (idle/loading/error) — today's unconfirmed call, unchanged;
+    // the existing 422 → banner path (doAction's catch) still handles it.
+    if (lookupState.status === "resolved") {
+      onAction("assign", { cwid: lookupState.cwid, ...assignConfirmFlags(true, lookupState.hasIdentity) });
+    } else {
+      onAction("assign", { cwid: otherCwid });
+    }
+  }, [otherCwid, acting, lookupState, onAction]);
+
   // every handler stops propagation: the card is click-to-expand, so an unguarded click or
   // Enter inside this input collapses the card out from under the curator mid-type.
   return (
@@ -2425,21 +2456,64 @@ const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
         </label>
         <input id={`otherCwid-${rowId}`} value={otherCwid} placeholder="cwid"
           onClick={(e) => e.stopPropagation()}
-          onChange={(e) => setOtherCwid(e.target.value.trim())}
+          onChange={(e) => {
+            const val = e.target.value.trim();
+            setOtherCwid(val);
+            if (debounceTimer.current) clearTimeout(debounceTimer.current);
+            requestSeq.current += 1; // invalidate any in-flight/pending lookup for the old value
+            if (val.length < 4) { setLookupState({ status: "idle" }); return; }
+            const seq = requestSeq.current;
+            debounceTimer.current = setTimeout(() => {
+              setLookupState({ status: "loading" });
+              fetch("/api/db/authorships/lookup", {
+                credentials: "same-origin", method: "POST", headers: apiHeaders,
+                body: JSON.stringify({ cwid: val }),
+              })
+                .then(async (r) => {
+                  if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+                  return r.json();
+                })
+                .then((d) => {
+                  if (requestSeq.current !== seq) return; // a newer keystroke fired since
+                  setLookupState({
+                    status: "resolved", cwid: String(d.cwid || val),
+                    name: d.name ?? null, hasIdentity: !!d.hasIdentity,
+                  });
+                })
+                .catch((e) => {
+                  if (requestSeq.current !== seq) return;
+                  setLookupState({ status: "error", message: String(e?.message || e) });
+                });
+            }, 350);
+          }}
           onKeyDown={(e) => {
             if (e.key !== "Enter" || !otherCwid || acting) return;
             e.preventDefault(); e.stopPropagation();
-            onAction("assign", { cwid: otherCwid });
+            submitOther();
           }}
           style={{
             width: 92, padding: "3px 6px", fontSize: 12, border: "1px solid #cbd5e1",
             borderRadius: 4, color: "#334155",
           }} />
+        {/* never disabled on lookupState — a slow/errored lookup must not block the button,
+            it only changes which onAction call submitOther makes. */}
         <button style={btn("accept", acting || !otherCwid)} disabled={acting || !otherCwid}
-          onClick={(e) => { e.stopPropagation(); otherCwid && onAction("assign", { cwid: otherCwid }); }}>
+          onClick={(e) => { e.stopPropagation(); submitOther(); }}>
           Assign
         </button>
       </div>
+      {(() => {
+        const preview = typedCwidPreview(lookupState);
+        if (!preview) return null;
+        return (
+          <div style={{
+            textAlign: "right", fontSize: 11, marginTop: 2,
+            color: preview.tone === "warn" ? "#b45309" : "#64748b",
+          }}>
+            {preview.text}
+          </div>
+        );
+      })()}
       {/* all N here, not N-1: someone typed into this box is by definition not one of the
           proposed candidates, so every one of them is the "other" — the stronger version of
           the warning under Assign selected. (If the curator types a listed candidate's cwid

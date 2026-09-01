@@ -9,7 +9,7 @@
  * be asserted directly, same reason as scripts/check-assign-gate.mjs and
  * scripts/check-homonym-rejections.mjs.
  *
- * Six sections:
+ * Seven sections:
  *   1. eligibility — which OPEN rows are checkbox-selectable, and which of those are also in
  *                    the (unchanged) single-candidate bulk ACCEPT set
  *   2. candidates  — union-of-candidates + match-count computation for the picker
@@ -21,13 +21,15 @@
  *   5. buckets     — doBulkAccept-style failure bucketing for the assign submit loop
  *   6. authorKey   — the normalized "same person, different byline spelling" key behind
  *                    "Show N others like this" (T5) — variant equivalence/non-equivalence
+ *   7. typedCwidPreview — T-NAG: the typed "Someone else" box's inline lookup preview text,
+ *                    idle/loading/error/resolved
  */
 
 import assert from "node:assert/strict";
 import {
   isAcceptEligible, isMultiAssignEligible, isNoIdentityAssignEligible, isBulkSelectable,
   unionCandidates, partitionForAssign, assignConfirmFlags, bucketAssignFailures,
-  authorKey,
+  authorKey, typedCwidPreview,
 } from "../src/lib/bulkAssign.ts";
 
 let n = 0;
@@ -188,5 +190,28 @@ check("leading/trailing whitespace is trimmed before tokenizing",
 // behavior (not an accidental regression) rather than claiming it's handled.
 check("known ceiling: a compound surname collides with any other same-first-name '…berg'",
   authorKey("Anna van der Berg") === authorKey("Anna Berg"), true);
+
+// ---------------------------------------------------------------------------------------
+console.log("\ntypedCwidPreview — T-NAG's inline preview under the typed 'Someone else' box:");
+
+check("idle -> no preview at all (nothing typed long enough yet)",
+  typedCwidPreview({ status: "idle" }), null);
+check("loading -> the in-flight label, never blocking",
+  typedCwidPreview({ status: "loading" }), { text: "looking up…", tone: "neutral" });
+check("error -> the raw error text, verbatim, tone warn (still never blocking Assign)",
+  typedCwidPreview({ status: "error", message: "Couldn't look up \"akt9003\" — HTTP 500" }),
+  { text: "Couldn't look up \"akt9003\" — HTTP 500", tone: "warn" });
+check("resolved + identity + name -> the arrow-name line, tone neutral",
+  typedCwidPreview({ status: "resolved", cwid: "akt9003", name: "Anna K. Tiwari", hasIdentity: true }),
+  { text: "→ Anna K. Tiwari", tone: "neutral" });
+check("resolved + no identity -> the local-only warning, tone warn (matches NO_RECITER_IDENTITY's own framing)",
+  typedCwidPreview({ status: "resolved", cwid: "zzz0000", name: null, hasIdentity: false }),
+  { text: "→ zzz0000: no ReCiter identity — records on this row only", tone: "warn" });
+check("resolved + identity but no name on file -> the check-the-identifier warning, tone warn",
+  typedCwidPreview({ status: "resolved", cwid: "abc1234", name: null, hasIdentity: true }),
+  { text: "→ no name on file for abc1234 — check the identifier", tone: "warn" });
+check("resolved always renders the CANONICAL cwid the lookup returned, not whatever was typed",
+  typedCwidPreview({ status: "resolved", cwid: "aaa2014", name: null, hasIdentity: false }).text.includes("aaa2014"),
+  true);
 
 console.log(`\n${n}/${n} passed\n`);
