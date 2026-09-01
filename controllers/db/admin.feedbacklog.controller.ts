@@ -51,8 +51,9 @@ export const createFeedbackLog = async (req: NextApiRequest, res: NextApiRespons
                 const feedbackLog = await models.AdminFeedbackLog.bulkCreate(data)
                 res.status(201).send(feedbackLog)
 
-                //Update pending count for articles in person table
-                await updatePendingArticleCount(personIdentifier, feedback)
+                //Update pending count for articles in person table -- this call recorded
+                //articleIdentifier.length rows, not the person's lifetime feedback total
+                await updatePendingArticleCount(personIdentifier, feedback, articleIdentifier.length)
             } else {
                 res.status(401).send('userID ' + userID + ' is unauthorized to provide feedback')
             }
