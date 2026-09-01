@@ -38,6 +38,15 @@ export interface AuthorshipReviewAttributes {
   dup_flag?: boolean;
   dup_reason?: string;
   accept_conflict?: string;
+  // Producer-flagged PubMed twin for a scopus review row (ReCiterDB v2.7). 'title' = heuristic
+  // unquoted title+surname PubMed search (row stays open for a curator); 'doi' = exact DOI match
+  // (producer auto-dismisses these itself); 'scopus' = reserved. matched_pmid_verdict is written
+  // ONLY by PM: 'distinct' means "different papers — never re-flag"; 'same' is never stored —
+  // "same paper" is expressed by dismissing the row with a note instead.
+  matched_pmid?: number;
+  matched_pmid_source?: 'scopus' | 'doi' | 'title';
+  matched_pmid_at?: Date;
+  matched_pmid_verdict?: 'same' | 'distinct';
   status: 'open' | 'assigned' | 'accepted' | 'rejected' | 'dismissed' | 'snoozed';
   resolution_cwid?: string;
   reviewer?: string;
@@ -51,7 +60,7 @@ export interface AuthorshipReviewAttributes {
 
 export type AuthorshipReviewPk = "id";
 export type AuthorshipReviewId = AuthorshipReview[AuthorshipReviewPk];
-export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
+export type AuthorshipReviewOptionalAttributes = "id" | "source" | "pmid" | "external_id" | "pub_type" | "container_id" | "author_position" | "author_position_label" | "wcm_author" | "author_affiliation" | "entrez_date" | "title" | "journal" | "doi" | "classification" | "top_cwid" | "top_name" | "top_person_type" | "top_dept" | "top_fg_score" | "top_io_score" | "top_confidence" | "top_cohort_size" | "top_given_match" | "top_affil_match" | "n_candidates" | "single_candidate" | "candidate_cwids_json" | "authors_json" | "dup_flag" | "dup_reason" | "accept_conflict" | "matched_pmid" | "matched_pmid_source" | "matched_pmid_at" | "matched_pmid_verdict" | "status" | "resolution_cwid" | "reviewer" | "note" | "snooze_until" | "resolved_at" | "first_seen" | "last_refreshed" | "last_checked";
 export type AuthorshipReviewCreationAttributes = Optional<AuthorshipReviewAttributes, AuthorshipReviewOptionalAttributes>;
 
 export class AuthorshipReview extends Model<AuthorshipReviewAttributes, AuthorshipReviewCreationAttributes> implements AuthorshipReviewAttributes {
@@ -88,6 +97,10 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
   dup_flag?: boolean;
   dup_reason?: string;
   accept_conflict?: string;
+  matched_pmid?: number;
+  matched_pmid_source?: 'scopus' | 'doi' | 'title';
+  matched_pmid_at?: Date;
+  matched_pmid_verdict?: 'same' | 'distinct';
   status!: 'open' | 'assigned' | 'accepted' | 'rejected' | 'dismissed' | 'snoozed';
   resolution_cwid?: string;
   reviewer?: string;
@@ -136,6 +149,10 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       // WARNING). Distinct from dup_flag/dup_reason, which are the AAR producer's exact-DOI
       // precheck: different mechanism, different provenance, and the producer refreshes those.
       accept_conflict: { type: DataTypes.STRING(500), allowNull: true },
+      matched_pmid: { type: DataTypes.BIGINT, allowNull: true },
+      matched_pmid_source: { type: DataTypes.ENUM('scopus', 'doi', 'title'), allowNull: true },
+      matched_pmid_at: { type: DataTypes.DATE, allowNull: true },
+      matched_pmid_verdict: { type: DataTypes.ENUM('same', 'distinct'), allowNull: true },
       status: { type: DataTypes.ENUM('open', 'assigned', 'accepted', 'rejected', 'dismissed', 'snoozed'), allowNull: false, defaultValue: 'open' },
       resolution_cwid: { type: DataTypes.STRING(32), allowNull: true },
       reviewer: { type: DataTypes.STRING(64), allowNull: true },

@@ -22,7 +22,9 @@ const LIST_ATTRIBUTES = [
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
   "top_given_match", "top_affil_match", "n_candidates", "single_candidate",
-  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict", "status", "snooze_until", "reviewer", "resolved_at",
+  "candidate_cwids_json", "authors_json", "dup_flag", "dup_reason", "accept_conflict",
+  "matched_pmid", "matched_pmid_source", "matched_pmid_at", "matched_pmid_verdict",
+  "status", "snooze_until", "reviewer", "resolved_at",
 ];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -59,20 +61,42 @@ function openStatusWhere(body: any): any {
   } else if (view === "dismissed") {
     return { status: "dismissed" };
   } else if (view === "duplicates") {
-    // Rows whose Accept came back 409 from ExternalArticleDupCheck — a fuzzy title+year
-    // collision (its WARNING level), which CAN pair two genuinely distinct works. Held out
-    // of the open queue so a bulk accept never silently forces past one; still status="open",
-    // so resolving a row anywhere drops it out of this view with no cleanup needed.
-    return { status: "open", accept_conflict: { [Op.ne]: null } };
+    // Two independent producer signals land here, both still status="open" so resolving a
+    // row anywhere drops it out of this view with no cleanup needed:
+    //  - accept_conflict: an Accept came back 409 from ExternalArticleDupCheck — a fuzzy
+    //    title+year collision (its WARNING level), which CAN pair two genuinely distinct works.
+    //  - matched_pmid (verdict not yet set): the producer flagged a possible PubMed twin for a
+    //    scopus row (title-search heuristic, or a doi/scopus match not yet auto-dismissed).
+    //    Once a curator sets matched_pmid_verdict='distinct' the row falls out of this view and
+    //    back into the open queue below ("Different papers" = never re-flag, not "resolved").
+    return {
+      status: "open",
+      [Op.or]: [
+        { accept_conflict: { [Op.ne]: null } },
+        { matched_pmid: { [Op.ne]: null }, matched_pmid_verdict: null },
+      ],
+    };
   }
   // open queue: truly open, plus snoozes whose timer has lapsed (or has no wake date).
   // accept_conflict rows are excluded here — they live in the "duplicates" view above.
+  // Same for an unverdicted matched_pmid flag; ANY verdict lets the row back in here ('distinct' is
+  // the only one PM writes; a stray 'same' must never hide a row from every view).
   return {
-    accept_conflict: null,
-    [Op.or]: [
-      { status: "open" },
-      { status: "snoozed", snooze_until: { [Op.lte]: today } },
-      { status: "snoozed", snooze_until: null as any },
+    [Op.and]: [
+      { accept_conflict: null },
+      {
+        [Op.or]: [
+          { status: "open" },
+          { status: "snoozed", snooze_until: { [Op.lte]: today } },
+          { status: "snoozed", snooze_until: null as any },
+        ],
+      },
+      {
+        [Op.or]: [
+          { matched_pmid: null },
+          { matched_pmid_verdict: { [Op.ne]: null } },
+        ],
+      },
     ],
   };
 }
@@ -82,10 +106,12 @@ function openStatusWhere(body: any): any {
 // WHERE clause — like_count's grouped COUNT (below) always scopes to the open queue regardless
 // of which statusView the caller is browsing, so this answers "was the CURRENT row itself part
 // of that count" (and so needs subtracting) independent of that. Kept in exact lockstep with
-// openStatusWhere's own open-queue branch by construction, not by convention: same three
-// conditions (no accept_conflict, status=open, or a lapsed/unset snooze).
+// openStatusWhere's own open-queue branch by construction, not by convention: same four
+// conditions (no accept_conflict, status=open or a lapsed/unset snooze, and no unverdicted
+// matched_pmid flag — a 'distinct' verdict lets the row back in, same as the SQL branch).
 function isRowOpenForLike(r: any): boolean {
   if (r.accept_conflict) return false;
+  if (r.matched_pmid != null && r.matched_pmid_verdict == null) return false;
   if (r.status === "open") return true;
   if (r.status === "snoozed") return !r.snooze_until || r.snooze_until <= todayStr();
   return false;
@@ -1157,6 +1183,18 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         break;
       }
       case "dismiss": {
+        // "Same paper" from the PubMed-twin panel: dup_of_matched_pmid composes its own note
+        // server-side from the row's own matched_pmid (never from client-supplied free text —
+        // see `assign`'s local_only note above for the `${row.note ? ... : ""}` append
+        // convention this mirrors). Plain dismiss (no reason) is unchanged.
+        if (body.reason === "dup_of_matched_pmid") {
+          if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid to dismiss against");
+          await models.AuthorshipReview.update({
+            status: "dismissed", reviewer, resolved_at: new Date(),
+            note: `${row.note ? `${row.note} | ` : ""}dup of PMID ${row.matched_pmid} (curator)`,
+          }, { where: { id } });
+          break;
+        }
         await models.AuthorshipReview.update({ status: "dismissed", reviewer, resolved_at: new Date() }, { where: { id } });
         break;
       }
@@ -1225,12 +1263,197 @@ export const authorshipAction = async (req: NextApiRequest, res: NextApiResponse
         await models.AuthorshipReview.update({ status: "open", snooze_until: null, resolved_at: null, resolution_cwid: null, reviewer }, { where: { id } });
         break;
       }
+      case "verdict": {
+        // "Different papers" from the PubMed-twin panel. Only stops future re-flagging — it is
+        // NOT a resolution of the row, so status/reviewer/resolved_at/note are untouched and the
+        // row stays wherever it was (open queue, once matched_pmid_verdict='distinct' takes it
+        // out of the "duplicates" view per openStatusWhere above). 'same' is never written here
+        // or anywhere else — "same paper" is expressed by dismissing the row with a note instead.
+        if (body.verdict !== "distinct") return res.status(400).send('verdict must be "distinct"');
+        if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid to give a verdict on");
+        await models.AuthorshipReview.update({ matched_pmid_verdict: "distinct" }, { where: { id } });
+        break;
+      }
       default:
         return res.status(400).send(`Unknown action: ${action}`);
     }
 
     const updated = await models.AuthorshipReview.findByPk(id, { attributes: LIST_ATTRIBUTES });
     return res.send({ ok: true, row: updated });
+  } catch (e) {
+    console.log(e);
+    return res.status(500).send(String(e));
+  }
+};
+
+// lowercase + strip everything but [a-z0-9] — the equality test for the Scopus-vs-PubMed
+// comparison below (title/journal/doi and surnames), tolerant of punctuation/hyphen/casing
+// drift between the two sources without needing a fuzzy-match library.
+function normForCompare(s?: string | null): string {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Best-effort DOI probe against the two article-id JSON shapes NLM's PubMedArticle XML→JSON
+// conversion typically carries (an elocationid entry tagged EIdType="doi", or an
+// articleidlist entry tagged IdType="doi"). Neither is exercised by any existing PM code —
+// formatPubmedSearch() (controllers/pubmed.controller.ts) never extracts a DOI from this same
+// article JSON — and the Java class backing it (reciter.model.pubmed.PubMedArticle) is an
+// external Maven dependency (ReCiter-Pubmed-Model), not defined in this repo, so this exact
+// field shape was not independently verified against a live payload. Never throws; returns
+// null (never surfaced to the client as an error — see doiEqual below) on any shape mismatch.
+function extractDoiFromArticle(art: any): string | null {
+  try {
+    const idFrom = (entry: any): string | null => {
+      const type = String(entry?.eidtype ?? entry?.idtype ?? entry?.EIdType ?? entry?.IdType ?? "").toLowerCase();
+      if (type !== "doi") return null;
+      const val = entry?.content ?? entry?.value ?? entry?._ ?? (typeof entry === "string" ? entry : null);
+      return typeof val === "string" && val ? val : null;
+    };
+    const eloc = art?.elocationid;
+    for (const e of Array.isArray(eloc) ? eloc : eloc ? [eloc] : []) {
+      const doi = idFrom(e);
+      if (doi) return doi;
+    }
+    const idList = art?.articleidlist ?? art?.pubmeddata?.articleidlist;
+    for (const i of Array.isArray(idList) ? idList : idList ? [idList] : []) {
+      const doi = idFrom(i);
+      if (doi) return doi;
+    }
+  } catch { /* fall through to null */ }
+  return null;
+}
+
+// POST /api/db/authorships/counterpart — read-only Scopus-vs-PubMed comparison for a row the
+// producer flagged with a possible PubMed twin (matched_pmid). Powers CounterpartPanel in
+// AuthorshipsTabs.tsx. No GoldStandard/ExternalArticle/AdminFeedbackLog write — see the
+// "Same paper"/"Different papers" actions in case "dismiss" / case "verdict" above for the
+// writes this panel's buttons actually make.
+export const authorshipCounterpart = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const id = Number(req.body?.id);
+    if (!id || !Number.isInteger(id) || id <= 0) return res.status(400).send("id must be a positive integer");
+
+    const row: any = await models.AuthorshipReview.findByPk(id, { attributes: LIST_ATTRIBUTES });
+    if (!row) return res.status(404).send("Authorship not found");
+    if (row.matched_pmid == null) return res.status(400).send("Row has no matched_pmid");
+    const pmid = Number(row.matched_pmid);
+
+    // Scopus side: straight off the row. authors_json is the same [{given,surname}, ...]
+    // shape formatAuthorsJson() (AuthorshipsTabs.tsx) already renders for the collapsed card.
+    let scopusAuthors: { given: string; surname: string }[] = [];
+    try {
+      const parsed = JSON.parse(row.authors_json || "[]");
+      if (Array.isArray(parsed)) {
+        scopusAuthors = parsed.map((a: any) => ({ given: String(a?.given || ""), surname: String(a?.surname || "") }));
+      }
+    } catch { scopusAuthors = []; }
+    const scopus = {
+      title: row.title || null,
+      journal: row.journal || null,
+      year: row.entrez_date ? String(row.entrez_date).slice(0, 4) : null,
+      doi: row.doi || null,
+      authors: scopusAuthors,
+      external_id: row.external_id || null,
+      pub_type: row.pub_type || null,
+    };
+
+    // PubMed side — the exact same proxy findPubmedByDoi() (pubmedLookup.controller.ts) uses
+    // (same endpoint, same POST shape, PUBMED_API_KEY held entirely by the retrieval tool),
+    // term `<pmid>[PMID]` instead of `<doi>[AID]`. 10s timeout: unlike findPubmedByDoi's
+    // background DOI check, this now drives a UI panel synchronously on card expand, so a
+    // hung upstream call must not hang the panel — degrade to fetchError instead. Any failure
+    // here is HTTP 200 with fetchError set, never a 5xx: the panel's actions (Same paper /
+    // Different papers, and the "already in record" check) work from the Scopus side alone
+    // even when PubMed is unreachable.
+    let pubmed: any = null;
+    let fetchError: string | null = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+      const resp = await fetch(reciterConfig.reciterPubmed.searchPubmedEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "reciter-pub-manager-server" },
+        body: JSON.stringify({ "strategy-query": `${pmid}[PMID]` }),
+        signal: controller.signal,
+      });
+      if (!resp.ok) {
+        fetchError = `pubmed retrieval tool HTTP ${resp.status}`;
+      } else {
+        const data: any = await resp.json();
+        const article = Array.isArray(data) ? data[0] : null;
+        const mc = article?.medlinecitation;
+        if (!mc) {
+          fetchError = "no PubMed record returned";
+        } else {
+          const art = mc.article || {};
+          const pdate = art.journal?.journalissue?.pubdate || {};
+          const authorlist = Array.isArray(art.authorlist) ? art.authorlist : [];
+          pubmed = {
+            pmid: mc.medlinecitationpmid?.pmid ? Number(mc.medlinecitationpmid.pmid) : pmid,
+            title: art.articletitle || null,
+            journal: art.journal?.title || null,
+            year: pdate.year || null,
+            month: pdate.month || null,
+            doi: extractDoiFromArticle(art),
+            authors: authorlist.map((a: any) => ({
+              lastName: a?.lastname || "",
+              foreName: a?.forename || "",
+              initials: a?.initials || "",
+            })),
+          };
+        }
+      }
+    } catch (e: any) {
+      fetchError = e?.name === "AbortError" ? "PubMed retrieval tool timed out after 10s" : String(e?.message || e);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    // inRecordFor: which candidate cwids (top_cwid + candidate_cwids_json, same set case
+    // "assign"'s homonym rejections operate over) already have this PMID in person_article —
+    // a genuinely new query pattern for this file. PM's existing "does cwid X already have
+    // PMID Y" check goes through DynamoDB GoldStandard.knownpmids/rejectedpmids (see
+    // goldStandardRejections.ts), not this MySQL table; person_article is queried nowhere
+    // else in controllers/ or src/ today.
+    const candidateCwids = candidateCwidsFromRow(row);
+    let inRecordFor: string[] = [];
+    if (candidateCwids.length > 0) {
+      const hits = await models.PersonArticle.findAll({
+        where: { personIdentifier: { [Op.in]: candidateCwids }, pmid },
+        attributes: ["personIdentifier"],
+        raw: true,
+      });
+      inRecordFor = Array.from(new Set((hits as any[]).map((h) => String(h.personIdentifier)).filter(Boolean)));
+    }
+
+    // pubmedLaneRow: was this PMID also independently proposed on the pubmed lane (source =
+    // "pubmed" rows come from the identity-matched PubMed retrieval path — an entirely
+    // separate producer pass from this scopus row's matched_pmid flag).
+    const pubmedLaneRow = await models.AuthorshipReview.findOne({
+      where: { source: "pubmed", pmid },
+      attributes: ["id", "status", "top_cwid"],
+      raw: true,
+    });
+
+    const scopusNorm = { title: normForCompare(scopus.title), journal: normForCompare(scopus.journal), doi: normForCompare(scopus.doi) };
+    const pubmedNorm = { title: normForCompare(pubmed?.title), journal: normForCompare(pubmed?.journal), doi: normForCompare(pubmed?.doi) };
+    const scopusSurnames = new Set(scopusAuthors.map((a) => normForCompare(a.surname)).filter(Boolean));
+    const pubmedSurnameList: string[] = (pubmed?.authors || []).map((a: any) => normForCompare(a.lastName)).filter(Boolean);
+    let sharedSurnames = 0;
+    scopusSurnames.forEach((s) => { if (pubmedSurnameList.includes(s)) sharedSurnames++; });
+
+    const compare = {
+      titleEqual: !!scopusNorm.title && scopusNorm.title === pubmedNorm.title,
+      yearEqual: !!scopus.year && !!pubmed?.year && String(scopus.year) === String(pubmed.year),
+      journalEqual: !!scopusNorm.journal && scopusNorm.journal === pubmedNorm.journal,
+      // null (not false) when either side lacks a DOI — "unknown", not "different".
+      doiEqual: scopusNorm.doi && pubmedNorm.doi ? scopusNorm.doi === pubmedNorm.doi : null,
+      sharedSurnames,
+      scopusAuthorCount: scopusAuthors.length,
+      pubmedAuthorCount: (pubmed?.authors || []).length,
+    };
+
+    return res.status(200).send({ scopus, pubmed, fetchError, inRecordFor, pubmedLaneRow: pubmedLaneRow || null, compare });
   } catch (e) {
     console.log(e);
     return res.status(500).send(String(e));
