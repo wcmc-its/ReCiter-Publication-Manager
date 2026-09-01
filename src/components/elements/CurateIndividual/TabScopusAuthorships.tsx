@@ -51,6 +51,7 @@ const noteStyle: React.CSSProperties = {
     fontSize: 12.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a",
     borderRadius: 6, padding: "8px 10px", marginBottom: 10,
 }
+const summaryStyle: React.CSSProperties = { ...labelStyle, cursor: "pointer", padding: "6px 0" }
 
 const PLACEHOLDER: Record<string, string> = {
     author: "Scopus Author ID (e.g. 12797673000)",
@@ -83,6 +84,8 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
     const [loadingDocs, setLoadingDocs] = useState<boolean>(false)
     const [docs, setDocs] = useState<any[]>([])
     const [total, setTotal] = useState<number>(0)
+    const [capped, setCapped] = useState<boolean>(false)
+    const [partial, setPartial] = useState<boolean>(false)
     const [searched, setSearched] = useState<boolean>(false)
     const [addStates, setAddStates] = useState<Record<string, AddState>>({})
     const [dismissed, setDismissed] = useState<Set<string>>(new Set())
@@ -98,7 +101,7 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
             toast.error("Enter a search term.", { position: "top-right", autoClose: 2000, theme: "colored" })
             return
         }
-        setLoadingDocs(true); setSearched(true); setDocs([]); setTotal(0); setAddStates({})
+        setLoadingDocs(true); setSearched(true); setDocs([]); setTotal(0); setCapped(false); setPartial(false); setAddStates({})
         fetch(`/api/reciter/search/scopus`, {
             credentials: "same-origin", method: "POST", headers: apiHeaders,
             body: JSON.stringify({ mode: "documents", by, term: t }),
@@ -113,6 +116,8 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
             .then((body) => {
                 setDocs(Array.isArray(body.results) ? body.results : [])
                 setTotal(Number(body.total || 0))
+                setCapped(!!body.capped)
+                setPartial(!!body.partial)
             })
             .catch((e) => toast.error((e && e.message) || "Scopus search failed.", { position: "top-right", autoClose: 3000, theme: "colored" }))
             .finally(() => setLoadingDocs(false))
@@ -209,10 +214,12 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
         saveDismissed(uid, next)
     }
 
-    // Feed = fetched docs not dismissed and not already in the person's record (by PMID).
-    const feed = docs.filter((d) => !dismissed.has(d.articleId) && !(d.pmid && props.getPmidStatus(d.pmid)))
-    const hiddenCount = docs.length - feed.length
-    const moreThanFetched = total > docs.length
+    // needsReview = fetched docs not dismissed and not already in the person's record (by PMID).
+    const needsReview = docs.filter((d) => !dismissed.has(d.articleId) && !(d.pmid && props.getPmidStatus(d.pmid)))
+    // inRecord = fetched, not dismissed, already in the person's record — collapsed below,
+    // not part of the count that needs attention.
+    const inRecord = docs.filter((d) => !dismissed.has(d.articleId) && d.pmid && props.getPmidStatus(d.pmid))
+    const dismissedCount = docs.filter((d) => dismissed.has(d.articleId)).length
 
     return (
         <div style={wrap}>
@@ -262,28 +269,29 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
 
             {/* Results */}
             <div style={sectionLabel}>
-                Scopus results{!loadingDocs && searched ? ` (${feed.length})` : ""}
+                Scopus results{!loadingDocs && searched ? ` (${needsReview.length})` : ""}
             </div>
             {loadingDocs ? (
-                <div style={emptyText}>Searching Scopus…</div>
+                <div style={emptyText}>Searching Scopus… large author profiles take a few seconds (up to 5 pages)</div>
             ) : !searched ? (
                 <div style={emptyText}>Run a search to see Scopus documents.</div>
             ) : docs.length === 0 ? (
                 <div style={emptyText}>No Scopus documents matched.</div>
             ) : (
                 <>
-                    {moreThanFetched && (
+                    {(capped || partial) && (
                         <div style={noteStyle}>
-                            Showing the first {docs.length} of {total.toLocaleString()} Scopus results — refine your search
-                            {searchBy === "keyword" ? " (add more specific terms)" : " (try a keyword or DOI)"} to narrow it down.
+                            {partial
+                                ? `Scopus stopped responding after ${docs.length} of ${total.toLocaleString()}; try again.`
+                                : `Showing the first ${docs.length} of ${total.toLocaleString()} Scopus documents (newest first) — refine your search to see the rest.`}
                         </div>
                     )}
-                    {feed.length === 0 ? (
+                    {needsReview.length === 0 ? (
                         <div style={emptyText}>
                             All {docs.length} fetched result(s) are already in the record or dismissed.
                         </div>
                     ) : (
-                        feed.map((item) => (
+                        needsReview.map((item) => (
                             <ExternalPublicationCard
                                 key={item.articleId}
                                 item={item}
@@ -297,8 +305,26 @@ const TabScopusAuthorships: FunctionComponent<FuncProps> = (props) => {
                             />
                         ))
                     )}
-                    {feed.length > 0 && hiddenCount > 0 && (
-                        <div style={emptyText}>{hiddenCount} result(s) hidden (already in the record or dismissed).</div>
+                    {inRecord.length > 0 && (
+                        <details>
+                            <summary style={summaryStyle}>{inRecord.length} already in this person's record ▸</summary>
+                            {inRecord.map((item) => (
+                                <ExternalPublicationCard
+                                    key={item.articleId}
+                                    item={item}
+                                    mode="preview"
+                                    addState={addStates[item.articleId]}
+                                    onAdd={(it) => doAdd(it, false)}
+                                    onAddAnyway={(it) => doAdd(it, true)}
+                                    onAddViaPubMed={(pmid, it) => props.onAddViaPubMed(pmid, it)}
+                                    recordStatusOf={props.getPmidStatus}
+                                    onReject={(it) => doReject(it)}
+                                />
+                            ))}
+                        </details>
+                    )}
+                    {dismissedCount > 0 && (
+                        <div style={emptyText}>{dismissedCount} result(s) dismissed this session.</div>
                     )}
                 </>
             )}

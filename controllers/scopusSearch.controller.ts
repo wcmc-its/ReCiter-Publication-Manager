@@ -80,13 +80,17 @@ export async function searchScopusAuthors(lastName: string, firstName: string) {
         .filter((a: any) => a.authorId)
 }
 
-// Search Scopus documents by author id, keyword, or doi. Returns the normalized page
-// plus the true total so the UI can tell the curator when there is more than we fetched.
-export async function searchScopusDocuments(by: string, term: string): Promise<{ results: any[], total: number }> {
-    const t = (term || '').trim()
-    if (!t) return { results: [], total: 0 }
-    const params = new URLSearchParams({ by: by || 'author', term: t })
-    const res = await fetch(`${reciterConfig.reciterScopus.searchDocumentsEndpoint}?${params.toString()}`, {
+// R2 — the Scopus Retrieval Tool serves 200 documents per page (ScopusTool R1's `start`
+// query param, 0-based offset). PAGE mirrors that page size; CAP bounds how many documents
+// one search will ever hold in memory / hand to the UI (well above any WCM author's real
+// document count — see the AU-ID 55415053000 case at 809, driving this ticket).
+const PAGE = 200
+const CAP = 1000
+
+async function fetchScopusDocPage(params: URLSearchParams, start: number): Promise<{ entries: any[], total: number }> {
+    const pageParams = new URLSearchParams(params)
+    pageParams.set('start', String(start))
+    const res = await fetch(`${reciterConfig.reciterScopus.searchDocumentsEndpoint}?${pageParams.toString()}`, {
         headers: { 'User-Agent': 'reciter-pub-manager-server' },
     })
     if (!res.ok) throw new Error(`Scopus doc search HTTP ${res.status}`)
@@ -94,8 +98,64 @@ export async function searchScopusDocuments(by: string, term: string): Promise<{
     const sr = data['search-results'] || {}
     // Scopus returns a single entry carrying an 'error' field (no dc:identifier) on no match.
     const entries = (sr.entry || []).filter((e: any) => e && e['dc:identifier'])
+    return { entries, total: Number(sr['opensearch:totalResults'] || 0) }
+}
+
+// Search Scopus documents by author id, keyword, or doi. Pages through every page the
+// tool has (up to CAP), sequentially — Elsevier rate-limits concurrent calls per key —
+// and returns the normalized, deduped set plus the true total so the UI can tell the
+// curator when there is still more than we fetched (`capped`) or a page failed
+// mid-fetch (`partial`). `by=keyword`/`doi` results rarely exceed one page; the loop
+// below is harmless for them (the while condition is false after page one).
+export async function searchScopusDocuments(by: string, term: string): Promise<{ results: any[], total: number, fetched: number, capped: boolean, partial?: boolean }> {
+    const t = (term || '').trim()
+    if (!t) return { results: [], total: 0, fetched: 0, capped: false }
+    const params = new URLSearchParams({ by: by || 'author', term: t })
+
+    // Dedupe by dc:identifier across pages — defensive against a tool build that still
+    // ignores `start` and hands back page one every time (the zero-new-identifiers guard
+    // below is what actually stops that case from looping forever).
+    const seen = new Map<string, any>()
+    const mergePage = (entries: any[]): number => {
+        let added = 0
+        for (const e of entries) {
+            const id = String(e['dc:identifier'])
+            if (!seen.has(id)) { seen.set(id, e); added++ }
+        }
+        return added
+    }
+
+    // Page one failing throws, as today — there is no partial result worth returning yet.
+    const first = await fetchScopusDocPage(params, 0)
+    mergePage(first.entries)
+    const total = first.total
+
+    let partial: boolean | undefined
+    while (seen.size < Math.min(total, CAP)) {
+        const start = seen.size
+        let page: { entries: any[], total: number }
+        try {
+            page = await fetchScopusDocPage(params, start)
+        } catch (err) {
+            // A later page failing degrades to a partial result rather than losing everything
+            // fetched so far.
+            partial = true
+            break
+        }
+        if (page.entries.length === 0) break
+        const added = mergePage(page.entries)
+        if (added === 0) break // tool ignored `start` and returned an already-seen page again
+        console.log(`Scopus doc search: fetched extra page (start=${start}, page size ${PAGE}, +${added} new, ${seen.size}/${total} so far)`)
+    }
+
+    const results = Array.from(seen.values()).map(normalizeScopusDoc).filter(Boolean)
     return {
-        results: entries.map(normalizeScopusDoc).filter(Boolean),
-        total: Number(sr['opensearch:totalResults'] || 0),
+        results,
+        total,
+        fetched: results.length,
+        // true whenever the caller holds fewer documents than exist — the CAP, a tool build
+        // that ignores `start`, or a rollback — so the UI's "showing the first N of M" never goes silent.
+        capped: total > results.length,
+        ...(partial ? { partial: true } : {}),
     }
 }
