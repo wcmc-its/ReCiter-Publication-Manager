@@ -1675,7 +1675,8 @@ const AuthorshipsTabs = () => {
             {(() => {
               const n = selectedRows.length;
               const multiCount = selectedRows.filter((r) => !r.single_candidate).length;
-              const noIdentityCount = selectedRows.filter((r) => r.single_candidate && r.identity_in_reciter === false).length;
+              // scopus excluded: its reject is row-only (no GoldStandard write), so the amber sentence below would be false for it
+              const noIdentityCount = selectedRows.filter((r) => r.single_candidate && r.identity_in_reciter === false && r.source !== "scopus").length;
               const scopusCount = selectedRows.filter((r) => r.source === "scopus").length;
               return (
                 <>
