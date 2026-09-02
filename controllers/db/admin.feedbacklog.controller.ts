@@ -1,5 +1,6 @@
 import models from '../../src/db/sequelize'
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getToken } from 'next-auth/jwt'
 import { updatePendingArticleCount } from './person.controller'
 
 
@@ -27,8 +28,17 @@ export const findFeedbackLogByUid = async (req: NextApiRequest, res: NextApiResp
 
 
 export const createFeedbackLog = async (req: NextApiRequest, res: NextApiResponse) => {
-    const { userID, personIdentifier, articleIdentifier, feedback } = req.body;
+    const { personIdentifier, articleIdentifier, feedback } = req.body;
     try {
+        // userID was previously client-supplied (req.body.userID); the route is under /api/db
+        // so middleware guarantees a session -- resolve the real signed-in user from the JWT
+        // instead of trusting whatever the client sent.
+        const token: any = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        const userID = Number(token?.databaseUser?.userID)
+        if (!Number.isInteger(userID) || userID <= 0) {
+            res.status(401).send('Not signed in')
+            return
+        }
         if(userID && personIdentifier && articleIdentifier && feedback) {
             const isUserExistAndActive = await models.AdminUser.findOne({
                 where: {

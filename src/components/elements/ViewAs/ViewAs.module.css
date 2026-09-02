@@ -1,0 +1,61 @@
+.banner {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(90deg, #7a4f01 0%, #92611a 100%);
+  border-bottom: 2px solid #f0b429;
+  color: #fff8eb;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.returnButton {
+  background: #fff8eb;
+  color: #7a4f01;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.returnButton:hover {
+  background: #ffffff;
+}
+
+.viewAsTrigger {
+  margin: 8px 20px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid #4a5568;
+  border-radius: 4px;
+  color: #a8b4cc;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.viewAsTrigger:hover {
+  background: #242e44;
+  color: #ffffff;
+}
+
+.confirmBody {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1a2133;
+}
+
+.errorText {
+  color: #b42318;
+  font-size: 12px;
+  margin-top: 8px;
+}

@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt'
 import { saveUserFeedback } from "../../../../../../controllers/userfeedback.controller"
 import { canCurate } from "../../../../../../controllers/db/authorization.controller"
 import { reciterConfig } from '../../../../../../config/local'
+import { effectiveToken } from '../../../../../../src/utils/viewAs'
 
 type Error = {
     statusCode: number,
@@ -25,7 +26,7 @@ export default async function handler(
         // Same canCurate gate as goldstandard.ts -- the api-key check above only proves the
         // request came from this app's own server code, not who the curator is. See PM#916.
         const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
-        const allowed = await canCurate(token, uid)
+        const allowed = await canCurate(effectiveToken(token), uid)
         if (!allowed) {
             res.status(403).send({
                 statusCode: 403,
