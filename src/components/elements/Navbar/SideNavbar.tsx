@@ -1,3 +1,4 @@
+import { withoutScopeKeys } from '../../../utils/scopeResolver';
 import * as React from 'react';
 import { styled, useTheme } from '@mui/material/styles';
 import MuiDrawer from '@mui/material/Drawer';
@@ -235,7 +236,7 @@ const SideNavbar: React.FC<SideNavBarProps> = () => {
       // Hidden-until-context: greyed out unless a Find People search is active, so a
       // user with no profile of their own (e.g. Superuser) can't jump straight here.
       // Users who have their own profile keep it enabled to curate themselves.
-      disabled: (Object.keys(filters).length === 0) && !hasOwnProfile,
+      disabled: (Object.keys(withoutScopeKeys(filters)).length === 0) && !hasOwnProfile,
       allowedRoleNames: ["Superuser", "Curator_All","Curator_Self"],
       isRequired:true
     },

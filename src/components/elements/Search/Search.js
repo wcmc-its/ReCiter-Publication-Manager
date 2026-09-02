@@ -23,7 +23,7 @@ getCapabilities } from "../../../utils/constants"
 import Profile from "../Profile/Profile";
 import ProxyBadge from './ProxyBadge';
 import ScopeFilterCheckbox from './ScopeFilterCheckbox';
-import { isProxyFor } from '../../../utils/scopeResolver';
+import { isProxyFor, withoutScopeKeys } from '../../../utils/scopeResolver';
 
 // Guard against malformed/absent session claims so a bad JWT value can't white-screen the page.
 const safeParse = (value, fallback) => {
@@ -48,6 +48,15 @@ const Search = () => {
     (Array.isArray(scopeData.orgUnits) && scopeData.orgUnits.length > 0)
   );
   const showScopeFilter = (caps.canCurate.scoped || hasScope) && !caps.canCurate.all;
+  // Scope keys must ride on EVERY list request for a scoped curator (initial load and pagination
+  // included), not only after the checkbox is toggled or a search is submitted.
+  const applyScopeFilters = (base) => {
+    const { scopeOrgUnits, scopePersonTypes, proxyPersonIds: _p, ...rest } = base || {};
+    if (showScopeFilter && scopeFilterChecked && scopeData) {
+      return { ...rest, scopeOrgUnits: scopeData.orgUnits || [], scopePersonTypes: scopeData.personTypes || [], proxyPersonIds };
+    }
+    return rest;
+  };
   const router = useRouter()
   const dispatch = useDispatch()
 
@@ -240,7 +249,9 @@ const Search = () => {
     }
 
     // if (identityAllData.length === 0) {
-      fetchPaginatedData()
+      // 'reset': the redux filters were just cleared above, but this closure still holds the
+      // pre-clear value -- fetching with it would re-hydrate a previous visit's name filter.
+      fetchPaginatedData('reset')
       fetchCount()
     // }
     fetchAllAdminSettings()
@@ -268,19 +279,7 @@ const Search = () => {
       return;
     }
     // Build scope-aware filters and re-search
-    let updatedFilters = { ...filters };
-    if (showScopeFilter && scopeFilterChecked && scopeData) {
-      updatedFilters = {
-        ...updatedFilters,
-        scopeOrgUnits: scopeData.orgUnits || [],
-        scopePersonTypes: scopeData.personTypes || [],
-        proxyPersonIds: proxyPersonIds,
-      };
-    } else {
-      // Remove scope filters when unchecked
-      const { scopeOrgUnits, scopePersonTypes, proxyPersonIds: _p, ...rest } = updatedFilters;
-      updatedFilters = rest;
-    }
+    let updatedFilters = applyScopeFilters(filters);
     let request = {
       filters: { ...updatedFilters },
       limit: count,
@@ -338,11 +337,12 @@ const Search = () => {
   }
 
   const fetchPaginatedData = (newCount) => {
+    const f = applyScopeFilters(newCount === 'reset' ? {} : filters);
+    dispatch(updateFilters(f));
     if (newCount === 'reset') {
-      let filters = {}
-      dispatch(identityFetchPaginatedData(1, count, filters))
+      dispatch(identityFetchPaginatedData(1, count, f))
     } else {
-      dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, filters))
+      dispatch(identityFetchPaginatedData(page, newCount ? newCount : count, f))
     }
   }
 
@@ -450,14 +450,7 @@ const Search = () => {
     }
 
 	// Phase 9: Add scope filter parameters when scope filter is active
-    if (showScopeFilter && scopeFilterChecked && scopeData) {
-      updatedFilters = {
-        ...updatedFilters,
-        scopeOrgUnits: scopeData.orgUnits || [],
-        scopePersonTypes: scopeData.personTypes || [],
-        proxyPersonIds: proxyPersonIds,
-      };
-    }
+    updatedFilters = applyScopeFilters(updatedFilters);
     let request = {
       filters: { ...updatedFilters },
       limit:count,
@@ -560,8 +553,11 @@ const Search = () => {
   // Spinner for when Search gets updated
   const isDisplayLoader = () => {
     if ((!filtersOn && (identityPaginatedFetching || isCountLoading) && page === 1) ||
-      (!filtersOn && identityPaginatedData?.persons?.length <= 0) ||
-      (filtersOn && identityAllFetching)) {
+      // An unscoped list is never empty, so empty means "not loaded yet" -- but a scope can
+      // legitimately match nobody, and that must render the empty state, not a spinner.
+      (!filtersOn && !showScopeFilter && identityPaginatedData?.persons?.length <= 0) ||
+      // A search or scope-toggle fetch is in flight: spin regardless of user filters.
+      identityAllFetching) {
       return true;
     } else {
       return false;
@@ -625,7 +621,10 @@ const Search = () => {
 
 
   // if filters are applied load all data, if not load paginated data
-  let filtersOn = Object.keys(filters).length === 0 ? false : true;
+  // Scope keys are implicit for a scoped curator (applyScopeFilters stamps them on every list
+  // request), so they must not count as "filters on" -- otherwise the initial load renders the
+  // filtered empty state instead of the spinner while the first response is in flight.
+  let filtersOn = Object.keys(withoutScopeKeys(filters)).length !== 0;
   let tableBody;
   let paginatedIdentities = identities.paginatedIdentities;
   if (paginatedIdentities?.length > 0) {

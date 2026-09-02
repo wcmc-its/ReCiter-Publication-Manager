@@ -6,7 +6,9 @@
  * against next-auth's real JWE encoder.
  * Run: node scripts/check-view-as.mjs
  *
- * Nine sections, one per D1-D10 area of the design:
+ * Twelve sections: the original nine (one per D1-D10 area of the design), plus three follow-up
+ * sections (Ticket Q) for the Find People scope filter applying on initial load/pagination and
+ * the banner's flush-under-header placement:
  *   1. src/utils/viewAs.js -- exports + a RUNNABLE self-test (imports the module for real).
  *   2. [...nextauth].jsx -- trigger/session transport, the canManageUsers gate, the expiry
  *      sweep, the session shape, the three dead session.user.username= lines gone.
@@ -22,6 +24,10 @@
  *      modal confirm copy, nav entry gated on canViewAs.
  *   9. Cookie size -- encodes a representative token with next-auth's real encode() and
  *      measures the JWE length.
+ *  10. Search.js -- applyScopeFilters defined once, used in the toggle effect, the search
+ *      handler and fetchPaginatedData; scopeFilterInitRef still present.
+ *  11. ViewAs.module.css -- .banner flush under the header (top: var(--header-height),
+ *      negative content-padding-canceling margins, app font); .returnButton inherits it.
  */
 
 import { readFileSync } from "node:fs";
@@ -55,6 +61,9 @@ const appLayoutSrc = read("src/components/layouts/AppLayout.jsx");
 const bannerSrc = read("src/components/elements/ViewAs/ViewAsBanner.jsx");
 const modalSrc = read("src/components/elements/ViewAs/ViewAsModal.jsx");
 const sideNavbarSrc = read("src/components/elements/Navbar/SideNavbar.tsx");
+const searchSrc = read("src/components/elements/Search/Search.js");
+const viewAsCssSrc = read("src/components/elements/ViewAs/ViewAs.module.css");
+const scopeResolverSrc = read("src/utils/scopeResolver.ts");
 
 // ---------------------------------------------------------------------------------------
 console.log("\n1. src/utils/viewAs.js -- exports + runnable self-test:");
@@ -272,6 +281,36 @@ console.log("\n9. Cookie size -- representative token vs. the 3900-byte budget:"
     info(`heavily-permissioned real user today with no impersonation involved.`);
   }
 }
+
+// ---------------------------------------------------------------------------------------
+console.log("\n10. Search.js -- scope filter applies on initial load and pagination:");
+assert(/const applyScopeFilters = \(base\) => \{/.test(searchSrc), "applyScopeFilters helper defined");
+assert((searchSrc.match(/const applyScopeFilters = /g) || []).length === 1, "applyScopeFilters defined exactly once");
+assert(/let updatedFilters = applyScopeFilters\(filters\);/.test(searchSrc), "toggle effect uses applyScopeFilters(filters)");
+assert(/updatedFilters = applyScopeFilters\(updatedFilters\);/.test(searchSrc), "search handler uses applyScopeFilters(updatedFilters)");
+assert(/const f = applyScopeFilters\(newCount === 'reset' \? \{\} : filters\);/.test(searchSrc), "fetchPaginatedData computes f via applyScopeFilters (covers the mount call, which passes no args)");
+assert(/dispatch\(updateFilters\(f\)\);/.test(searchSrc), "fetchPaginatedData dispatches updateFilters(f) so redux filters carry scope keys thereafter (covers pagination, which reads redux filters directly)");
+assert(/identityFetchPaginatedData\(1, count, f\)/.test(searchSrc) && /identityFetchPaginatedData\(page, newCount \? newCount : count, f\)/.test(searchSrc), "fetchPaginatedData passes f (not the stale closed-over filters) to identityFetchPaginatedData");
+assert(/const scopeFilterInitRef = useRef\(true\);/.test(searchSrc), "scopeFilterInitRef still present (checkbox effect still skips the initial render)");
+
+// ---------------------------------------------------------------------------------------
+console.log("\n11. ViewAs.module.css -- banner flush under the header, app font:");
+assert(/\.banner \{[^}]*top:\s*var\(--header-height\);/.test(viewAsCssSrc), ".banner: top: var(--header-height)");
+assert(/\.banner \{[^}]*margin:\s*-24px -40px 24px;/.test(viewAsCssSrc), ".banner: negative margins cancel the content column's 24px 40px padding");
+assert(/\.banner \{[^}]*font-family:\s*var\(--font-sans\);/.test(viewAsCssSrc), ".banner: font-family: var(--font-sans)");
+assert(!/\.banner \{[^}]*border-radius/.test(viewAsCssSrc), ".banner: no border-radius (edge-to-edge strip)");
+assert(/\.returnButton \{[^}]*font:\s*inherit;/.test(viewAsCssSrc), ".returnButton: font: inherit");
+
+// ---------------------------------------------------------------------------------------
+console.log("\n12. Implicit scope keys never count as \"filters on\" (withoutScopeKeys):");
+assert(/export function withoutScopeKeys\(filters: any\)/.test(scopeResolverSrc), "scopeResolver.ts exports withoutScopeKeys");
+assert(/const \{ scopeOrgUnits, scopePersonTypes, proxyPersonIds, \.\.\.rest \} = filters \|\| \{\};/.test(scopeResolverSrc), "withoutScopeKeys strips exactly the three scope keys");
+assert(/let filtersOn = Object\.keys\(withoutScopeKeys\(filters\)\)\.length !== 0;/.test(searchSrc), "Search.js: filtersOn ignores the scope keys (no empty-state flash on a scoped curator's initial load)");
+assert(/fetchPaginatedData\('reset'\)\n/.test(searchSrc.split("fetchAllAdminSettings()")[0]), "Search.js: mount fetch passes 'reset' (no re-hydration of a previous visit's filters from the stale closure)");
+assert(/\(!filtersOn && !showScopeFilter && identityPaginatedData\?\.persons\?\.length <= 0\)/.test(searchSrc), "Search.js: empty-means-not-loaded heuristic disabled for scoped curators (a scope matching nobody shows the empty state, not a spinner)");
+assert(/\/\/ A search or scope-toggle fetch is in flight: spin regardless of user filters\.\n\s*identityAllFetching\) \{/.test(searchSrc), "Search.js: identityAllFetching spins regardless of filtersOn (scope toggle shows the spinner)");
+assert(/disabled: \(Object\.keys\(withoutScopeKeys\(filters\)\)\.length === 0\) && !hasOwnProfile,/.test(sideNavbarSrc), "SideNavbar.tsx: Curate Publications disabled-gate ignores the scope keys");
+assert(/import \{ withoutScopeKeys \} from '\.\.\/\.\.\/\.\.\/utils\/scopeResolver';/.test(sideNavbarSrc), "SideNavbar.tsx imports withoutScopeKeys");
 
 // ---------------------------------------------------------------------------------------
 console.log(`\n${failures === 0 ? PASS : FAIL} ${passes} passed, ${failures} failed\n`);
