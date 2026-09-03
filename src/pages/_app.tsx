@@ -92,7 +92,9 @@ class RenderErrorBoundary extends Component<{ children: ReactNode }, { ref: stri
     if (!this.state.ref) return this.props.children;
     return (
       <>
-        <ErrorFallback />
+        {/* 500: a render crash is a server-error-class failure, so it gets the danger
+            colour rather than the neutral one a 404 uses. */}
+        <ErrorFallback statusCode={500} />
         <p style={{ position: 'fixed', bottom: '16px', left: 0, right: 0, textAlign: 'center', color: '#6c757d', fontSize: '14px' }}>
           Reference {this.state.ref} — please include this when you report the problem.{' '}
           {/* Plain anchor, not next/link: the boundary never resets on a soft nav, and the
