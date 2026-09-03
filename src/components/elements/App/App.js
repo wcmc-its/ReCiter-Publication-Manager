@@ -9,7 +9,8 @@ import TabRejected from '../TabRejected/TabRejected';
 import TabAddPublication from '../TabAddPublication/TabAddPublication';
 import Identity from "../Identity/Identity";
 import ToastContainerWrapper from "../ToastContainerWrapper/ToastContainerWrapper";
-import {getSession } from "next-auth/react"
+import { useSession } from "next-auth/react"
+import { getCapabilities } from "../../../utils/constants"
 
 const App = (props) => {
 
@@ -24,17 +25,23 @@ const App = (props) => {
 
     const [tabActive, setTabActive] = useState("Suggested")
     const [identityData, setIdentityData] = useState({})
-    const session = getSession();
+    // #873: was `getSession()` -- an unawaited Promise, so session.data was always
+    // undefined and the fetch below never fired for anyone. useSession() is the hook
+    // Search.js and CurateIndividual.tsx already use for client-side session data.
+    const { data: session } = useSession()
 
     useEffect(() => {
-        // Call only if user has curator_self role. otherwise, we should not call these APIs.
-        if(session && session.data && session.data.userRoles && session.data.userRoles.length > 0 
-            && userPermissions.some(role => role.roleLabel === allowedPermissions.Curator_Self)) 
-         {   
+        // Self-service faculty view (Curator_Self), or an admin previewing a record
+        // (Curator_All). userRoles is a JSON string, not an array -- same parse the
+        // rest of the app does (Search.js:41, CurateIndividual.tsx:59).
+        const userRoles = session?.data?.userRoles ? JSON.parse(session.data.userRoles) : []
+        const caps = getCapabilities(userRoles)
+        if (caps.canCurate.self || caps.canCurate.all)
+         {
             dispatch(reciterFetchData(props.uid, false))
             dispatch(identityFetchData(props.uid))
          }
-    },[])
+    },[session])
 
     const tabClickHandler = (str = 'Suggested') => {
        setTabActive(str)
@@ -93,7 +100,7 @@ const App = (props) => {
                     />
                 </div>
                 <div className={appStyles.tabContainer}>
-                    {reciterData.reciterPending.length > 0 ? (
+                    {reciterData?.reciterPending?.length > 0 ? (
                         <div className={appStyles.reciterPendingBanner}>
                             <span>You have provided feedback on </span>
                             <strong>{`${
