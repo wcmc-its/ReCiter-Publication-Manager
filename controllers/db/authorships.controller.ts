@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 // `where` aliased sqlWhere — authorshipSummary already has a local `const where = buildWhere(...)`,
 // and colliding with that is worse than one extra character at every call site below.
-import { Op, fn, col, where as sqlWhere } from "sequelize";
+import { Op, fn, col, literal, where as sqlWhere } from "sequelize";
 import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
 import { reciterConfig } from "../../config/local";
@@ -26,6 +26,80 @@ const LIST_ATTRIBUTES = [
   "matched_pmid", "matched_pmid_source", "matched_pmid_at", "matched_pmid_verdict",
   "status", "snooze_until", "reviewer", "resolved_at",
 ];
+
+// Ad-hoc join to `person` for institution filtering/grouping. authorship_review has no
+// institution column of its own (only top_cwid/top_name/top_person_type/top_dept) — the real
+// institution lives on person.primaryInstitution, joined by person.personIdentifier ===
+// authorship_review.top_cwid. No pre-registered Sequelize association exists between these two
+// models (personNames()/identityLabel() below both read `person` via an app-side IN() instead
+// of a join, for the same reason documented on them), so one is registered here — mirrors the
+// AnalysisSummaryAuthor.hasOne(Person, { constraints: false }) precedent in
+// reports/publication.report.controller.ts. constraints:false because there is no real FK:
+// top_cwid can (and often does) name a cwid with no row in `person` at all.
+models.AuthorshipReview.belongsTo(models.Person, {
+  as: "Person",
+  constraints: false,
+  foreignKey: "top_cwid",
+  targetKey: "personIdentifier",
+});
+
+// person.personIdentifier is utf8mb4_unicode_ci; authorship_review.top_cwid is
+// utf8mb4_general_ci (information_schema, verified 2026-09-03 against the live dev DB — same
+// mismatch personNames()/identityLabel() above route around by not joining at all). A plain
+// `Person.personIdentifier = AuthorshipReview.top_cwid` ON clause throws MySQL error 1267
+// ("Illegal mix of collations") the instant this join actually executes — confirmed
+// empirically (LEFT JOIN with a bare equality errors; adding COLLATE utf8mb4_general_ci to the
+// joined side fixes it, and the resulting row/filtered counts matched an unjoined baseline
+// exactly). The explicit COLLATE below is that fix, not decoration — do not simplify it away.
+//
+// required:false everywhere except the dedicated institution facet-count query in
+// authorshipSummary (LEFT JOIN there would count nothing for an unmatched top_cwid, which is
+// correct for "no institution to bucket" but wrong for "how many rows exist" elsewhere) — see
+// each call site for why.
+function personInstitutionInclude(required: boolean) {
+  return {
+    model: models.Person,
+    as: "Person",
+    required,
+    attributes: [] as string[], // filtering/grouping only — never shapes a returned row
+    on: {
+      col: sqlWhere(
+        literal("`Person`.`personIdentifier` COLLATE utf8mb4_general_ci"),
+        "=",
+        col("AuthorshipReview.top_cwid"),
+      ),
+    },
+  } as any;
+}
+
+// Curated institution buckets. person.primaryInstitution is free-text (24,403 person rows,
+// 70 distinct raw values on the live dev roster as of 2026-09-03) rather than a clean enum, so
+// this maps a short bucket key to the literal primaryInstitution string(s) it covers —
+// confirmed against live data (dev DB query, 2026-09-03): "Weill Cornell Medicine" (9 rows),
+// "Weill Cornell Medical College" (8,441 rows), "Weill Cornell Medical College in Qatar"
+// (1,011 rows), "Hospital for Special Surgery" (476 rows). The rest are every other
+// primaryInstitution value with >=100 people on prod as of 2026-09-03 — merged only where two
+// literals are plainly the same institution under a different name (e.g. Sloan Kettering
+// Institute vs Memorial Sloan Kettering Cancer Center); distinct campuses/affiliates of the
+// same broader system (NYP main vs NYP-Queens vs New York Methodist) are kept separate since
+// the source data already encodes them as distinct labels.
+// Cornell's College of Veterinary Medicine currently has 0 people in this roster (not yet fed
+// into ReCiter) — a follow-up import will add it; add a 'vet' bucket here once that lands, no
+// other code changes needed.
+const INSTITUTION_BUCKETS: Record<string, string[]> = {
+  wcm: ["Weill Cornell Medicine", "Weill Cornell Medical College"],
+  nyp: ["New York-Presbyterian Hospital"],
+  wcm_qatar: ["Weill Cornell Medical College in Qatar"],
+  msk: ["Memorial Sloan Kettering Cancer Center", "Memorial Sloan Kettering", "Sloan Kettering Institute"],
+  houston_methodist: ["Houston Methodist Hospital", "Houston Methodist Research Institute"],
+  hss: ["Hospital for Special Surgery"],
+  hamad_medical: ["Hamad Medical Corporation"],
+  ny_methodist: ["New York Methodist Hospital"],
+  nyp_queens: ["New York Presbyterian - Queens"],
+  lincoln: ["Lincoln Medical and Mental Health Center"],
+  columbia: ["Columbia University College of Physicians and Surgeons", "Columbia University"],
+  sidra: ["SIDRA Medical and Research Center"],
+};
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -175,6 +249,25 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
   // person-type filter (multiselect): the proposed identity's person type(s)
   if (Array.isArray(body.personTypes) && body.personTypes.length > 0) {
     and.push({ top_person_type: { [Op.in]: body.personTypes } });
+  }
+  // curated institution filter (multiselect): resolve each selected bucket key to its
+  // literal primaryInstitution string(s) via INSTITUTION_BUCKETS (flatMap, unknown keys
+  // silently drop out), then filter on the joined Person row via Sequelize's
+  // $Person.primaryInstitution$ dotted syntax for an included-model column. Every caller that
+  // can pass a non-empty body.institutions through to here (listAuthorships,
+  // authorshipSelectable) attaches personInstitutionInclude() to that same query so the dotted
+  // reference always has a join to resolve against — authorshipSummary's main facet queries
+  // don't, because it forces body.institutions to [] before calling buildWhere, so this branch
+  // never fires for them in the first place (required:false is fine even here: IN(...) never
+  // matches a NULL from an
+  // unmatched/absent top_cwid, so those rows correctly drop out of just this filtered query
+  // without needing an INNER JOIN — verified empirically: a LEFT JOIN + this filter and an
+  // INNER JOIN + this filter returned the identical row count against the live dev DB).
+  if (Array.isArray(body.institutions) && body.institutions.length > 0) {
+    const institutionLiterals = (body.institutions as string[]).flatMap((key) => INSTITUTION_BUCKETS[key] || []);
+    if (institutionLiterals.length > 0) {
+      and.push({ "$Person.primaryInstitution$": { [Op.in]: institutionLiterals } });
+    }
   }
   // hide rows with no proposed identity at all (#938 — ReCiterDB#177 nulls top_cwid on rows
   // the merged matcher no longer matches to anyone; neither Accept nor Reject has anything to
@@ -463,6 +556,12 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
 
     const { count, rows } = await models.AuthorshipReview.findAndCountAll({
       attributes: LIST_ATTRIBUTES,
+      // required:false (LEFT JOIN): many rows have a null top_cwid or one that matches no
+      // current person row (stale/deleted identity) — those must stay in the unfiltered page,
+      // not be silently dropped by the join. The include is attached unconditionally (not
+      // only when body.institutions is set) so buildWhere's optional $Person.primaryInstitution$
+      // reference always has a join to resolve against.
+      include: [personInstitutionInclude(false)],
       where: buildWhere(body, absentCwids),
       order,
       offset,
@@ -472,6 +571,15 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // Per-document sibling count, scoped to the active status-view. Two grouped COUNTs —
     // pubmed by pmid, scopus by external_id — so mixed-source pages stay accurate even
     // when siblings are off-page. (Book-level "N chapters" is a separate tab feature.)
+    //
+    // Deliberately NOT scoped by buildWhere (and so NOT given personInstitutionInclude
+    // either) — `scope` only ever layers the status-view predicate on top of an exact
+    // pmid/external_id match, on purpose: a sibling co-author already ignores personTypes,
+    // pubTypes, precision, source, classification, hideNoSuggestion/hideNoIdentity, likeAuthor,
+    // and the date range (none of those appear in `scope`'s output either), so an active
+    // institution filter narrowing to one curated bucket must not make a real co-author from a
+    // different institution disappear from "N others on this document" — that number describes
+    // the document, not the currently-filtered slice of the queue looking at it.
     const status = openStatusWhere(body);
     const scope = (w: any) => (status ? { [Op.and]: [w, status] } : w);
     const pmids = [...new Set(rows.filter((r: any) => r.source !== "scopus" && r.pmid != null).map((r: any) => Number(r.pmid)))];
@@ -602,6 +710,9 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
     const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
     const rows = await models.AuthorshipReview.findAll({
       attributes: ["id", "source", "pmid", "wcm_author", "top_name", "top_cwid", "single_candidate", "candidate_cwids_json"],
+      // required:false — see listAuthorships's identical include for why (unmatched/absent
+      // top_cwid rows must not be dropped when no institution filter is active).
+      include: [personInstitutionInclude(false)],
       where: { [Op.and]: [buildWhere(body, absentCwids), { single_candidate: true }] },
       order: SORTS[body.sort] || SORTS.precision,
       limit: SELECTABLE_CAP + 1,
@@ -636,16 +747,29 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
 };
 
 // POST /api/db/authorships/summary — counts for the tab headers. Ignores the
-// segment/classification/precision/person-type filters so each facet shows its own total.
+// segment/classification/precision/person-type/institution filters so each facet shows its
+// own total.
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all", personTypes: [], pubTypes: [] };
+    const body = {
+      ...(req.body || {}), source: "all", classification: "all", precision: "all",
+      personTypes: [], pubTypes: [], institutions: [],
+    };
     const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
     const where = buildWhere(body, absentCwids);
     // The duplicates facet counts its own view, so it needs a where built with that statusView
     // rather than the caller's (the open-queue where excludes exactly the rows it counts).
     const dupWhere = buildWhere({ ...body, statusView: "duplicates" }, absentCwids);
-    const [total, single, fullname, duplicates, byClass, byType, bySrc, byPub] = await Promise.all([
+    // The 8 queries below do NOT get personInstitutionInclude() attached, unlike every other
+    // buildWhere caller in this file — and this is deliberate, not an oversight. `where`/
+    // `dupWhere` here can NEVER carry a $Person.primaryInstitution$ condition (institutions is
+    // forced to [] on `body` above, before either is built), so the include has nothing to
+    // resolve against. It was tried and reverted: attaching it made `id` ambiguous —
+    // `person` has its own `id` column, so `fn("COUNT", col("id"))` broke the moment a LEFT
+    // JOIN to `person` entered these queries (ER_NON_UNIQ_ERROR 1052), confirmed against the
+    // live dev DB. The institution facet query just below is the one place in this endpoint
+    // that legitimately needs the join, and it qualifies every column accordingly.
+    const [total, single, fullname, duplicates, byClass, byType, bySrc, byPub, byInstitution] = await Promise.all([
       models.AuthorshipReview.count({ where }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true, top_given_match: "full" }] } }),
@@ -654,6 +778,18 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       models.AuthorshipReview.findAll({ attributes: ["top_person_type", [fn("COUNT", col("id")), "n"]], where, group: ["top_person_type"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["source", [fn("COUNT", col("id")), "n"]], where, group: ["source"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["pub_type", [fn("COUNT", col("id")), "n"]], where: { [Op.and]: [where, { source: "scopus" }] }, group: ["pub_type"], raw: true }),
+      // Institution facet: grouped by the joined Person row, required:true (INNER JOIN) unlike
+      // every other include in this file — a row whose top_cwid is null or matches no current
+      // person row has no institution to bucket, and (unlike the general list/selectable
+      // queries, where that same row must still appear in an unfiltered page) contributing
+      // nothing to this specific grouped count is correct, not a loss. Both columns are
+      // explicitly table-qualified (Person.primaryInstitution / AuthorshipReview.id) — the
+      // ambiguous-`id` trap noted above applies here too, just already avoided.
+      models.AuthorshipReview.findAll({
+        attributes: [[col("Person.primaryInstitution"), "institution"], [fn("COUNT", col("AuthorshipReview.id")), "n"]],
+        include: [personInstitutionInclude(true)],
+        where, group: ["Person.primaryInstitution"], raw: true,
+      }),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });
@@ -661,7 +797,19 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     (bySrc as any[]).forEach((r) => { bySource[r.source] = Number(r.n); });
     const personTypes = (byType as any[]).filter((r) => r.top_person_type).map((r) => ({ type: r.top_person_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
     const pubTypes = (byPub as any[]).filter((r) => r.pub_type).map((r) => ({ type: r.pub_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
-    res.send({ total, single_candidate: single, fullname, duplicates, classes, personTypes, bySource, pubTypes });
+    // Bucket the raw primaryInstitution strings the grouped query returned back into
+    // INSTITUTION_BUCKETS' keys, summing counts for a bucket with more than one literal string
+    // (wcm has two — "Weill Cornell Medicine" and "Weill Cornell Medical College"). A raw
+    // institution not named by any bucket (e.g. "Rockefeller University", below the curated
+    // list's ~100-person cutoff) simply never gets added to any sum — dropped, not shown as
+    // "Other".
+    const rawInstitutionCounts: Record<string, number> = {};
+    (byInstitution as any[]).forEach((r) => { if (r.institution) rawInstitutionCounts[r.institution] = Number(r.n); });
+    const institutions = Object.entries(INSTITUTION_BUCKETS)
+      .map(([key, literals]) => ({ key, n: literals.reduce((sum, lit) => sum + (rawInstitutionCounts[lit] || 0), 0) }))
+      .filter((b) => b.n > 0)
+      .sort((a, b) => b.n - a.n);
+    res.send({ total, single_candidate: single, fullname, duplicates, classes, personTypes, bySource, pubTypes, institutions });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));
