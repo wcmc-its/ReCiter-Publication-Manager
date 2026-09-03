@@ -67,3 +67,12 @@ export function isProxyFor(
   if (!proxyPersonIds || proxyPersonIds.length === 0) return false;
   return proxyPersonIds.includes(personIdentifier);
 }
+
+/**
+ * The three keys applyScopeFilters (Search.js) stamps onto every list request for a scoped
+ * curator. They are implicit, not user-chosen, so any UI asking "are filters on?" must ignore them.
+ */
+export function withoutScopeKeys(filters: any): Record<string, unknown> {
+  const { scopeOrgUnits, scopePersonTypes, proxyPersonIds, ...rest } = filters || {};
+  return rest;
+}
