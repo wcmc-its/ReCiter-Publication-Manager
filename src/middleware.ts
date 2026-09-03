@@ -191,16 +191,21 @@ export async function middleware(request: NextRequest) {
                   return redirectToLandingPage(request,'/curate/'+loggedInUserInfo);
             }
     }
-    else // redirects to error page when userRoles decodes to an empty array
+    else // Authenticated, but no roles assigned. /noaccess is written for exactly this
+         // ("you have successfully authenticated, but you don't have any roles assigned"),
+         // and pages/index.js already sends these users there; /error only told them to
+         // refresh, which cannot help.
     {
       if (isApiDbRoute) return unauthorizedJson();
-      return redirectToLandingPage(request,'/error');
+      return redirectToLandingPage(request,'/noaccess');
     }
     }
-    else // redirects to error page when no roles found in access token
+    else // A session cookie exists but getToken returned nothing -- an expired or otherwise
+         // undecodable token. That is not a roles problem, so /noaccess would be misleading;
+         // re-authenticating is the fix, same as the no-cookie branch below.
     {
       if (isApiDbRoute) return unauthorizedJson();
-      return redirectToLandingPage(request,'/error');
+      return redirectToLandingPage(request,'/login');
     }
   }
   else
