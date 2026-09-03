@@ -1,25 +1,22 @@
 import React from "react";
 import { Row, Container} from "react-bootstrap";
-import { Footer } from "../Footer/Footer";
-import Header from "../Header/Header";
-import styles from "./Error.module.css"; 
+import styles from "./Error.module.css";
 
 
-const Error: React.FC = () => {
+const Error: React.FC<{ statusCode?: number }> = ({ statusCode }) => {
+    const isServerError = statusCode >= 500;
     return (
-        <>
-        {/* <Header/> */}
         <Container className={styles.errorContainer}>
             <Row>
-                <span className={styles.errorText}>
+                <span className={isServerError ? styles.errorText : styles.errorTextNeutral}>
                     {
-                        "We encountered an unexpected error. Please refresh the page or try again later."
+                        statusCode === 404
+                            ? "We couldn't find that page."
+                            : "We encountered an unexpected error. Please refresh the page or try again later."
                     }
                 </span>
             </Row>
         </Container>
-        {/* <Footer/> */}
-        </>
     )
 }
 export default Error;
