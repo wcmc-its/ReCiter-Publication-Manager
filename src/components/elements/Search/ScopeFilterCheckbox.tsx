@@ -1,5 +1,6 @@
 import React from 'react';
 import { Form } from 'react-bootstrap';
+import styles from './ScopeFilterCheckbox.module.css';
 
 interface ScopeFilterCheckboxProps {
   checked: boolean;
@@ -14,8 +15,7 @@ const ScopeFilterCheckbox: React.FC<ScopeFilterCheckboxProps> = ({ checked, onCh
       label="Show only people I can curate"
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
-      className="mt-2"
-      style={{ minHeight: '44px', display: 'flex', alignItems: 'center' }}
+      className={`mt-2 ${styles.scopeFilter}`}
     />
   );
 };

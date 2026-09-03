@@ -1,15 +1,20 @@
 .scopeFilter {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px 0;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    /* neutralize bootstrap's .form-check padding-left / input negative margin so the
+       gap above is the real spacing between the box and its label */
+    padding-left: 0;
 }
-.switchControl {
+.scopeFilter input {
+    margin: 0;
+    float: none;
+    flex: none;
+}
+.scopeFilter label {
     font-size: 13px;
     color: #5a6478;
-}
-.hint {
-    font-size: 11px;
-    color: #8a94a6;
-    padding-left: 44px; /* align with switch label */
+    margin-bottom: 0;
+    cursor: pointer;
 }
