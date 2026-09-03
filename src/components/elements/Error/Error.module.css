@@ -1,11 +1,19 @@
 .errorContainer {
   display: flex;
+  align-items: center;
   justify-content: center;
   height: 100vh;
 }
 
 .errorText {
   color: var(--color-danger);
+  text-align: center;
+  margin-top: 25px;
+  font-size: 20px;
+}
+
+.errorTextNeutral {
+  color: var(--gray-700);
   text-align: center;
   margin-top: 25px;
   font-size: 20px;
