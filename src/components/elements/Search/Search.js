@@ -714,7 +714,11 @@ const Search = () => {
                     <span className={styles.resultsCountNumber}>{numberFormation(totalCountUpdated)}</span>
                     <span className={styles.resultsCountLabel}>{filtersOn ? 'people found using filters' : 'people'}</span>
                   </div>
-                  {filtersOn && (
+                  {/* #967 follow-up: this bar (Show only pending, Go to Create Reports) acts on the
+                      result set, so it must not hang off filtersOn. filtersOn deliberately ignores
+                      scope keys, which meant a scoped curator -- whose only "filter" is their scope --
+                      could never reach it. Gate on having rows instead. */}
+                  {totalCountUpdated > 0 && (
                     <div className={styles.resultsRight}>
                       {(isCuratorAll || isSuperUser) && (
                         <div className={styles.pendingFilter}>
