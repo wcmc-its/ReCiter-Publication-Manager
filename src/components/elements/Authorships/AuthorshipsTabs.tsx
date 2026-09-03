@@ -168,6 +168,7 @@ interface Summary {
   personTypes?: Array<{ type: string; n: number }>;
   bySource?: Record<string, number>;                 // { pubmed: n, scopus: n } — source-segment counts
   pubTypes?: Array<{ type: string; n: number }>;      // scopus pub_type facet
+  institutions?: Array<{ key: string; n: number }>;   // curated institution-bucket facet (see INSTITUTION_LABELS)
 }
 
 // Response shape of POST /api/db/authorships/counterpart (authorshipCounterpart in
@@ -210,6 +211,24 @@ const apiHeaders = {
 
 // case-insensitive WCM institution token matcher (F6) — longest variants first
 const WCM_RE = /Weill Cornell(?:\s+(?:Medicine|Medical College|Medical Cent(?:er|re)))?/i;
+
+// Display names for the curated institution-bucket keys the server returns (summary.institutions
+// and the institutions filter body field) — keeps INSTITUTION_BUCKETS' server-side literal
+// primaryInstitution strings out of this file entirely; the client only ever sees bucket keys.
+const INSTITUTION_LABELS: Record<string, string> = {
+  wcm: "Weill Cornell Medicine",
+  nyp: "New York-Presbyterian Hospital",
+  wcm_qatar: "WCM-Qatar",
+  msk: "Memorial Sloan Kettering",
+  houston_methodist: "Houston Methodist",
+  hss: "Hospital for Special Surgery",
+  hamad_medical: "Hamad Medical Corporation",
+  ny_methodist: "New York Methodist Hospital",
+  nyp_queens: "NewYork-Presbyterian Queens",
+  lincoln: "Lincoln Medical and Mental Health Center",
+  columbia: "Columbia University",
+  sidra: "Sidra Medicine",
+};
 
 const CLASS_META: Record<string, { label: string; color: string; hint: string }> = {
   buried: { label: "Buried", color: "#b42318", hint: "Production buried it (Authorship Score < 30)" },
@@ -531,6 +550,10 @@ const AuthorshipsTabs = () => {
   const [datesReady, setDatesReady] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
+  // curated institution filter (multiselect) — mirrors selectedTypes/typeAnchor exactly, one
+  // bucket key (see INSTITUTION_LABELS) per selection rather than a raw personTypes string.
+  const [selectedInstitutions, setSelectedInstitutions] = useState<string[]>([]);
+  const [institutionAnchor, setInstitutionAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed" | "duplicates">("open");
   const [source, setSource] = useState<"all" | "pubmed" | "scopus">("all");
@@ -628,6 +651,7 @@ const AuthorshipsTabs = () => {
     classification,
     searchTextInput: search,
     personTypes: selectedTypes,
+    institutions: selectedInstitutions,
     source,
     pubTypes: source === "scopus" ? selectedPubTypes : [],   // pub-type facet only meaningful for scopus
     dateFrom,
@@ -637,7 +661,7 @@ const AuthorshipsTabs = () => {
     hideNoSuggestion,
     hideNoIdentity,
     likeAuthor,
-  }), [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+  }), [lane, classification, search, selectedTypes, selectedInstitutions, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -781,7 +805,7 @@ const AuthorshipsTabs = () => {
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+    [lane, classification, search, selectedTypes, selectedInstitutions, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
 
@@ -1427,6 +1451,12 @@ const AuthorshipsTabs = () => {
           style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `Type: ${selectedTypes.length}`} <IconChevD size={13} />
         </button>
+        <button type="button" onClick={(e) => setInstitutionAnchor(e.currentTarget)}
+          style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {selectedInstitutions.length === 0 ? "All institutions"
+            : selectedInstitutions.length === 1 ? (INSTITUTION_LABELS[selectedInstitutions[0]] || selectedInstitutions[0])
+              : `Institution: ${selectedInstitutions.length}`} <IconChevD size={13} />
+        </button>
         <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows below, where a person IS proposed but isn't in ReCiter yet — see that checkbox."} placement="top" arrow>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
             <Checkbox size="small" checked={hideNoSuggestion}
@@ -1859,6 +1889,22 @@ const AuthorshipsTabs = () => {
         ))}
         {selectedTypes.length > 0 && (
           <MenuItem dense onClick={() => setSelectedTypes([])} style={{ color: "#b42318", fontWeight: 600 }}>Clear selection</MenuItem>
+        )}
+      </Menu>
+
+      {/* curated institution multiselect menu — mirrors the person-type menu above exactly */}
+      <Menu anchorEl={institutionAnchor} open={!!institutionAnchor} onClose={() => setInstitutionAnchor(null)}>
+        {(summary?.institutions || []).length === 0 && <MenuItem disabled>No institutions</MenuItem>}
+        {(summary?.institutions || []).map((inst) => (
+          <MenuItem key={inst.key} dense onClick={() =>
+            setSelectedInstitutions((s) => s.includes(inst.key) ? s.filter((k) => k !== inst.key) : [...s, inst.key])
+          }>
+            <Checkbox checked={selectedInstitutions.includes(inst.key)} size="small" style={{ padding: "0 8px 0 0" }} />
+            {INSTITUTION_LABELS[inst.key] || inst.key} ({inst.n.toLocaleString()})
+          </MenuItem>
+        ))}
+        {selectedInstitutions.length > 0 && (
+          <MenuItem dense onClick={() => setSelectedInstitutions([])} style={{ color: "#b42318", fontWeight: 600 }}>Clear selection</MenuItem>
         )}
       </Menu>
 
