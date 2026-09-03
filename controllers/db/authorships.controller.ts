@@ -48,9 +48,9 @@ models.AuthorshipReview.belongsTo(models.Person, {
 // mismatch personNames()/identityLabel() above route around by not joining at all). A plain
 // `Person.personIdentifier = AuthorshipReview.top_cwid` ON clause throws MySQL error 1267
 // ("Illegal mix of collations") the instant this join actually executes — confirmed
-// empirically (LEFT JOIN with a bare equality errors; adding COLLATE utf8mb4_general_ci to the
-// joined side fixes it, and the resulting row/filtered counts matched an unjoined baseline
-// exactly). The explicit COLLATE below is that fix, not decoration — do not simplify it away.
+// empirically (LEFT JOIN with a bare equality errors). The explicit COLLATE below is that fix,
+// not decoration — do not simplify it away, and do not move it onto the Person side: see the
+// index note at the ON clause for why that costs three orders of magnitude.
 //
 // required:false everywhere except the dedicated institution facet-count query in
 // authorshipSummary (LEFT JOIN there would count nothing for an unmatched top_cwid, which is
@@ -63,10 +63,19 @@ function personInstitutionInclude(required: boolean) {
     required,
     attributes: [] as string[], // filtering/grouping only — never shapes a returned row
     on: {
+      // The COLLATE goes on the authorship_review side ON PURPOSE. Applying it to
+      // `Person`.`personIdentifier` makes that column non-indexable, which drops
+      // person_personIdentifier_IDX and turns every authorships query into a
+      // 26k x 33k block-nested-loop: measured against production, the join count took
+      // 140,972 ms that way versus 118 ms this way, and the institution facet
+      // 116,410 ms versus 140 ms -- both returning byte-identical results (27,065 rows,
+      // the same 26 buckets). Collating the non-indexed side keeps the index usable.
+      // Results are unaffected because cwids are ASCII, where general_ci and unicode_ci
+      // agree; this was verified, not assumed.
       col: sqlWhere(
-        literal("`Person`.`personIdentifier` COLLATE utf8mb4_general_ci"),
+        literal("`AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci"),
         "=",
-        col("AuthorshipReview.top_cwid"),
+        col("Person.personIdentifier"),
       ),
     },
   } as any;
