@@ -164,6 +164,11 @@ export class AuthorshipReview extends Model<AuthorshipReviewAttributes, Authorsh
       last_checked: { type: DataTypes.DATE, allowNull: true }
     }, {
       sequelize,
+      // Pin the model name. Without it Sequelize derives the alias from the JS class name,
+      // which `next build` minifies (to `n`), so hand-written references like
+      // col("AuthorshipReview.top_cwid") in authorships.controller.ts resolve in `next dev`
+      // and throw ER_BAD_FIELD_ERROR in a production build. Person.ts already pins its name.
+      modelName: 'AuthorshipReview',
       tableName: 'authorship_review',
       timestamps: false,
       indexes: [
