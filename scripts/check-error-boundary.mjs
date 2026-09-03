@@ -28,7 +28,7 @@ assert(/static getDerivedStateFromError/.test(app), 'renders a fallback via getD
 assert(/componentDidCatch/.test(app), 'logs via componentDidCatch');
 assert(/<RenderErrorBoundary>[\s\S]*getLayout\(<Component[\s\S]*<\/RenderErrorBoundary>/.test(app), 'boundary wraps the page');
 assert(/reportError\("ERR-0500", `Render crash \$\{this\.state\.ref\}/.test(app), 'reports ERR-0500 with the reference id');
-assert(/<ErrorFallback \/>/.test(app), 'fallback renders the shared Error component with no props');
+assert(/<ErrorFallback statusCode=\{500\} \/>/.test(app), 'fallback renders the shared Error component as a 500 (danger colour)');
 
 console.log('\n2. reference id generation:');
 const expr = app.match(/const ref = (\(globalThis[\s\S]*?);\n/);
