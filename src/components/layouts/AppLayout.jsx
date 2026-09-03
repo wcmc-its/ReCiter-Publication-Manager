@@ -12,7 +12,7 @@ import ToastContainerWrapper from "../elements/ToastContainerWrapper/ToastContai
 import ViewAsBanner from "../elements/ViewAs/ViewAsBanner";
 import { reciterConfig } from "../../../config/local";
 import { useDispatch, useSelector } from "react-redux";
-import { clearPubSearchFilters, getAdminDepartments, getAdminRoles, notificationEmail } from "../../redux/actions/actions";
+import { clearError, clearPubSearchFilters, getAdminDepartments, getAdminRoles, notificationEmail } from "../../redux/actions/actions";
 
 export const AppLayout = ({ children }) => {
   const router = useRouter();
@@ -26,6 +26,9 @@ export const AppLayout = ({ children }) => {
       router.push("/");
     } else if (errors.length) {
       router.push("/_error");
+      // Nothing else empties the errors array, so leaving it populated makes every
+      // later mount of this layout bounce the user back to /_error forever.
+      dispatch(clearError());
     }
   }, [status, errors, router]);
 
