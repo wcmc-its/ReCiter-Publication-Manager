@@ -44,6 +44,11 @@ interface AuthorshipRow {
   top_name?: string;
   top_person_type?: string;
   top_dept?: string;
+  // §2.6 identity hover card. Both come from the list endpoint's widened SELECT (phase 1):
+  // institution off the `person` join already attached to every row, division off the IDM
+  // roster. `null` (never "") when the row's cwid has no such record — the card omits the line.
+  top_institution?: string | null;
+  top_division?: string | null;
   top_fg_score?: number;
   top_io_score?: number;
   top_confidence?: number;
@@ -145,6 +150,20 @@ interface ActivityEntry {
   source?: "pubmed" | "scopus";
   pmid?: number;
   external_id?: string;
+}
+
+// One cwid's answer from POST /api/db/authorships/prior-names — the "NAMES ON ACCEPTED PAPERS"
+// block of §2.6's identity hover card. `names` is capped at 8 forms server-side (most frequent
+// first) with `more` counting the rest.
+//
+// `accepted` is NOT derivable from `names`: 5,662 person_article rows carry an accepted paper
+// with a blank byline name, so a cwid can legitimately have accepted > 0 and names === []. The
+// mockup's "No accepted papers yet" line belongs to `accepted === 0` alone — reading it off
+// names.length would tell a curator someone has published nothing when they have published a lot.
+interface PriorNames {
+  names: Array<{ first: string; last: string; n: number }>;
+  accepted: number;
+  more?: number;
 }
 
 interface Candidate {
@@ -257,14 +276,29 @@ const STATUS_LABEL: Record<string, string> = {
   accepted: "Accepted", assigned: "Assigned", rejected: "Rejected", dismissed: "Dismissed",
 };
 
-// noun for the summary total — the count is scoped to the active status view, so the label must
-// follow it (Snoozed/Dismissed counts aren't "unassigned").
-// summary.total is scoped to the caller's own queue, so every queue needs a noun here. The two
-// review queues were missing (duplicates rendered a bare number with a trailing space, and
-// conflicts would have inherited the same gap the moment it shipped).
-const SUMMARY_TOTAL_LABEL: Record<string, string> = {
-  open: "unassigned", snoozed: "snoozed", dismissed: "dismissed",
-  conflicts: "with an identity conflict", duplicates: "possible duplicates",
+// The noun phrase after the count in §2.1's one-line header ("7,412 unassigned authorships,
+// past 5 years"). summary.total is scoped to the caller's own queue, so every queue needs its
+// own phrase — a snoozed count is not "unassigned", and the two review queues read as a
+// qualifier on "authorships" rather than an adjective in front of it.
+const SUMMARY_HEADLINE: Record<string, string> = {
+  open: "unassigned authorships", snoozed: "snoozed authorships", dismissed: "dismissed authorships",
+  conflicts: "authorships with an identity conflict", duplicates: "possible duplicate authorships",
+};
+
+// The date phrase that trails that line (§2.1: "…, past 5 years"). Keyed by datePreset, which is
+// a module constant at mount, so the statically-prerendered first paint and the client agree —
+// dateFrom/dateTo are computed client-side and must never be echoed into it except under
+// "custom", which no first render can be in.
+const DATE_PHRASE: Record<string, string> = {
+  any: "", "30d": "past 30 days", "90d": "past 90 days", "6m": "past 6 months",
+  "12m": "past 12 months", "24m": "past 2 years", "60m": "past 5 years",
+};
+const datePhrase = (preset: string, from: string, to: string): string => {
+  if (preset !== "custom") return DATE_PHRASE[preset] ?? "";
+  if (from && to) return `${from} to ${to}`;
+  if (from) return `since ${from}`;
+  if (to) return `through ${to}`;
+  return "";
 };
 
 // ---- filter model (single source of truth) -------------------------------
@@ -710,32 +744,38 @@ const clampStyle = (lines: number): CSSProperties => ({
   display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden",
 });
 
-// PMID outbound PubMed link — lead element of an evidence panel (Item 3).
-// stopPropagation so clicking it never toggles the card (Item 6).
-const PmidLink = ({ pmid }: { pmid: number }) => {
+// §2.6's meta-line PMID: an outbound PubMed link plus a 22px copy button that flips to a green
+// check for 1.4s (mockup:387-394, :798-803). It replaces the old evidence-panel PmidLink — the
+// number is now on the collapsed card, so it is not also repeated inside the panel.
+// stopPropagation on both, so neither toggles the card open (Item 6).
+const PmidCite = ({ pmid }: { pmid: number }) => {
   const [copied, setCopied] = useState(false);
-  // matches the searchInput debounce pattern above: cleanup on unmount/re-trigger so a
-  // card removed (accept/reject) within the 1200ms window can't setState after unmount.
+  // cleanup on unmount/re-trigger, so a card removed (accept/reject) inside the 1.4s window
+  // can't setState after unmount.
   useEffect(() => {
     if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1200);
+    const t = setTimeout(() => setCopied(false), 1400);
     return () => clearTimeout(t);
   }, [copied]);
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 9 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
       <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
         onClick={(e) => e.stopPropagation()}
-        style={outLinkStyle}>
-        PMID {pmid} <IconExt size={13} />
+        style={{ color: "#2563eb", textDecoration: "none", fontVariantNumeric: "tabular-nums" }}>
+        PMID {pmid}
       </a>
       <button
         onClick={(e) => {
           e.stopPropagation();
-          navigator.clipboard.writeText(String(pmid));
+          navigator.clipboard?.writeText(String(pmid));
           setCopied(true);
         }}
-        title="Copy PMID" style={iconBtn()}>
-        {copied ? <IconCheck size={13} style={{ color: "#15803d" }} /> : <IconCopy size={13} />}
+        aria-label="Copy PMID" title="Copy PMID"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22,
+          border: "1px solid #e6e1d9", background: "#fff", borderRadius: 4, padding: 0, cursor: "pointer",
+          color: copied ? "#146c39" : "#6f7889", flex: "none" }}>
+        {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
       </button>
     </span>
   );
@@ -787,6 +827,67 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
   );
 };
 
+// §2.6's 296px identity hover card (mockup:337-369). Name + CWID, then whatever of
+// department / division / affiliation the row actually carries, then the byline names this
+// person has already published under.
+//
+// The three states of the names block are deliberately distinct, because two of them look the
+// same from the client and mean opposite things:
+//   * no answer yet          -> "Loading…"          (the parent's fetch is in flight)
+//   * accepted === 0         -> "No accepted papers yet"  (the mockup's line; genuinely none)
+//   * accepted > 0, names [] -> says so explicitly   (they HAVE accepted papers, but every one
+//                               of them has a blank byline name in person_article — 5,662 such
+//                               rows exist, and calling that "no accepted papers" is a lie)
+const IdentityHoverCard = ({ row: r, priorNames }: { row: AuthorshipRow; priorNames?: PriorNames }) => {
+  const hasDetail = !!(r.top_dept || r.top_division || r.top_institution);
+  return (
+    <span onClick={(e) => e.stopPropagation()}
+      style={{ position: "absolute", top: "100%", left: 0, zIndex: 60, width: 296, paddingTop: 8, display: "block", cursor: "default" }}>
+      <span style={{
+        display: "flex", flexDirection: "column", gap: 10, background: "#fff", border: `1px solid ${CTRL.border}`,
+        borderRadius: 8, boxShadow: "0 14px 34px rgba(27,36,50,0.18)", padding: "13px 15px",
+        fontWeight: 400, letterSpacing: 0, color: CTRL.ink }}>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{r.top_name || r.top_cwid}</span>
+          <span style={{ fontSize: 13, color: CTRL.accent }}>{r.top_cwid}</span>
+        </span>
+        {hasDetail && (
+          <span style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13, color: "#4a5262", lineHeight: 1.45 }}>
+            {r.top_dept && <span>{r.top_dept}</span>}
+            {r.top_division && <span style={{ color: "#6f7889" }}>{r.top_division}</span>}
+            {r.top_institution && <span style={{ color: "#6f7889" }}>{r.top_institution}</span>}
+          </span>
+        )}
+        <span style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
+          {!priorNames ? (
+            <span style={{ fontSize: 13, color: "#6f7889" }}>Loading…</span>
+          ) : priorNames.accepted === 0 ? (
+            <span style={{ fontSize: 13, color: "#6f7889" }}>No accepted papers yet</span>
+          ) : priorNames.names.length === 0 ? (
+            <span style={{ fontSize: 13, color: "#6f7889" }}>
+              {priorNames.accepted.toLocaleString()} accepted paper{priorNames.accepted === 1 ? "" : "s"}, none with a byline name recorded
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>NAMES ON ACCEPTED PAPERS</span>
+              {priorNames.names.map((p, i) => (
+                <span key={`${p.last}|${p.first}|${i}`}
+                  style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+                  <span style={{ color: CTRL.ink }}>{`${p.first} ${p.last}`.trim()}</span>
+                  <span style={{ color: "#6f7889", fontVariantNumeric: "tabular-nums" }}>{p.n.toLocaleString()}</span>
+                </span>
+              ))}
+              {!!priorNames.more && (
+                <span style={{ fontSize: 12, color: "#8b93a2" }}>+{priorNames.more.toLocaleString()} more form{priorNames.more === 1 ? "" : "s"}</span>
+              )}
+            </>
+          )}
+        </span>
+      </span>
+    </span>
+  );
+};
+
 // ---- main component ------------------------------------------------------
 const AuthorshipsTabs = () => {
   const [rows, setRows] = useState<AuthorshipRow[]>([]);
@@ -818,6 +919,10 @@ const AuthorshipsTabs = () => {
   // §2.5: the bulk bar's round "i" — toggles today's always-on two-line caveat into a strip
   // under the bar instead of it holding a permanent row.
   const [rulesOpen, setRulesOpen] = useState(false);
+  // §2.1: the explanatory paragraph is always-on today; it becomes collapsed-by-default behind
+  // the "What am I looking at?" link (mockup:576 — aboutOpen starts false). `false` on both the
+  // server render and the client's first paint, so nothing here can diverge at hydration.
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
 
   // ---- filters: one object, one set of writers --------------------------
@@ -929,6 +1034,16 @@ const AuthorshipsTabs = () => {
   // accumulated client-side.
   const [recentActivity, setRecentActivity] = useState<ActivityEntry[]>([]);
   const [activityAnchor, setActivityAnchor] = useState<HTMLElement | null>(null);
+  // §2.6's identity hover card, cached per cwid for the life of the page. Held HERE rather than
+  // in the card so paging back and forth, or hovering the same person on two rows, costs one
+  // request in total — the answer ("which byline names has this cwid published under") does not
+  // change while a curator works a queue.
+  const [priorNames, setPriorNames] = useState<Record<string, PriorNames>>({});
+  // Every cwid already asked for, in-flight ones included. This is what makes the hover safe:
+  // the request fires at most once per cwid no matter how many times the pointer crosses the
+  // name, and the card's own hover-intent delay (see the card) keeps a mouse sweeping down the
+  // page from asking for every row it passes over.
+  const priorNamesAsked = useRef<Set<string>>(new Set());
   const clearConflict = useCallback((id: number) => {
     setConflicts((c) => { if (!(id in c)) return c; const n = { ...c }; delete n[id]; return n; });
   }, []);
@@ -1092,6 +1207,31 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json())
       .then((d) => setRecentActivity(d.rows || []))
       .catch(() => setRecentActivity([]));
+  }, []);
+
+  // §2.6: fill the identity hover card's "NAMES ON ACCEPTED PAPERS" block for one cwid. Called
+  // from the card once the pointer has settled on a name, never on render — a page is 20 rows
+  // and most of them are never hovered, so warming the whole page up front would trade one
+  // cheap on-demand request for twenty speculative ones.
+  //
+  // The endpoint answers per cwid (`names`/`accepted`/`more` keyed by cwid, and it always
+  // returns an entry for a well-formed cwid it was asked about), so a missing key means the
+  // request is still in flight — the card shows a loading line, never "No accepted papers yet".
+  // On failure the cwid is dropped from the asked set so the next hover retries; leaving it in
+  // would strand that card on "Loading…" for the rest of the session.
+  const requestPriorNames = useCallback((cwid?: string | null) => {
+    if (!cwid || priorNamesAsked.current.has(cwid)) return;
+    priorNamesAsked.current.add(cwid);
+    fetch("/api/db/authorships/prior-names", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ cwid }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d) => setPriorNames((p) => ({
+        ...p,
+        [cwid]: { names: d?.names?.[cwid] || [], accepted: d?.accepted?.[cwid] ?? 0, more: d?.more?.[cwid] },
+      })))
+      .catch(() => { priorNamesAsked.current.delete(cwid); });
   }, []);
 
   // Undo a resolved row straight from the "Recent activity" panel. Deliberately NOT
@@ -1720,6 +1860,11 @@ const AuthorshipsTabs = () => {
   // above; nothing here decides what counts as "active".
   const chips = filterChips(filters, datePreset);
   const filterCount = chips.length;
+  // §2.1's header line trails the active date window ("…, past 2 years"). Derived from the
+  // preset, not from dateFrom/dateTo, everywhere except "custom" — the preset is a module
+  // constant on the first render and the dates are not, so this is the one form of the phrase
+  // that cannot diverge between the prerendered HTML and hydration.
+  const headerDatePhrase = datePhrase(datePreset, dateFrom, dateTo);
   // Removing one chip removes ONLY that filter. Two of them reach past the filter object:
   // the search chip must also empty the text box that debounces into it, and the date chip goes
   // through applyDatePreset because the preset recomputes dateFrom/dateTo.
@@ -1797,43 +1942,98 @@ const AuthorshipsTabs = () => {
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a" }}>
-      <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Authorships</h1>
-      <p style={{ color: "#475569", marginTop: 4, marginBottom: 20, maxWidth: 760, fontSize: 14, lineHeight: 1.45 }}>
-        WCM-affiliated authorships not yet assigned to an identity. Each card is one decision: is this author the
-        proposed WCM person? <strong style={{ color: "#0f172a", fontWeight: 600 }}>IO</strong> (identity-only, the trusted
-        signal) leads; <strong style={{ color: "#0f172a", fontWeight: 600 }}>Authorship Score</strong> (production) is shown
-        small as the diagnosis. Expand a card for the affiliation and evidence.
-      </p>
-
-      {(conflictLog.length > 0 || recentActivity.length > 0) && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          {conflictLog.length > 0 && (
-            <button onClick={(ev) => setHistoryAnchor(ev.currentTarget)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px",
-                border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", borderRadius: 7,
-                fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
-              ⚠ Recent duplicate conflicts ({conflictLog.length})
+      {/* ================= header band (HANDOFF §2.1, mockup:64-83) =========================
+          Title and one muted count line on the left, the two alert pills and Activity on the
+          right. Three always-on things collapse into it: the explanatory paragraph (now behind
+          "What am I looking at?"), the Recent-activity row (now a button beside the title), and
+          the multi-figure count strip — whose per-class numbers did not disappear, they are the
+          right-hand column of the Filters popover's MATCH CLASS list, which is also the only
+          place they were ever clickable. */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            {/* §2.1 asks for 30px/600, which an inline style cannot deliver here: globals.css
+                pins `h1 { font-size:28px !important; font-weight:500 !important; color:#1a2133
+                !important }` app-wide, and an !important rule beats a non-important inline one.
+                The title therefore keeps the app's house heading — 28px/500, and it already
+                carries the -0.02em tracking the canvas asks for. What IS overridable is the
+                global's `padding-bottom:10px`, which is dead space now that the count line sits
+                directly beneath. */}
+            <h1 style={{ margin: 0, paddingBottom: 0 }}>Authorships</h1>
+            <button type="button" onClick={() => setAboutOpen((v) => !v)} aria-expanded={aboutOpen}
+              style={{ font: "inherit", border: "none", background: "none", padding: 0, fontSize: 13, color: CTRL.accent, cursor: "pointer" }}>
+              What am I looking at?
             </button>
-          )}
-          {recentActivity.length > 0 && (
-            <button onClick={(ev) => setActivityAnchor(ev.currentTarget)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px",
-                border: "1px solid #dde3ea", background: "#fff", color: "#475569", borderRadius: 7,
-                fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
-              <IconClock size={13} /> Recent activity ({recentActivity.length})
-            </button>
-          )}
+          </div>
+          {/* One muted line, and the date phrase tracks the active date filter rather than
+              naming a fixed window: with "All time" selected there is no phrase at all, and a
+              custom window names its own bounds. summary is null until the first response, so
+              the line holds its height with a non-breaking space instead of appearing late and
+              pushing the control band down. */}
+          <div style={{ fontSize: 13.5, color: CTRL.muted }}>
+            {summary ? (
+              <>
+                <strong style={{ color: CTRL.ink, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                  {summary.total.toLocaleString()}
+                </strong>{" "}
+                {SUMMARY_HEADLINE[statusView] || "authorships"}
+                {headerDatePhrase ? `, ${headerDatePhrase}` : ""}
+              </>
+            ) : " "}
+          </div>
         </div>
-      )}
 
-      {/* summary */}
-      {summary && (
-        <div style={{ display: "flex", gap: 18, margin: "12px 0 18px", color: "#475569", fontSize: 13, flexWrap: "wrap" }}>
-          <span><strong style={{ color: "#0f172a" }}>{summary.total.toLocaleString()}</strong> {SUMMARY_TOTAL_LABEL[statusView]}</span>
-          <span><strong style={{ color: "#0f172a" }}>{summary.single_candidate.toLocaleString()}</strong> single-candidate</span>
-          {Object.entries(summary.classes).map(([k, v]) => (
-            <span key={k}>{CLASS_META[k]?.label || k}: <strong style={{ color: "#0f172a" }}>{v.toLocaleString()}</strong></span>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none", flexWrap: "wrap" }}>
+          {/* Both pills are queue-wide counts the server computes over the OPEN queue whatever
+              queue is being browsed (see Summary.conflicts), so they read the same from inside
+              any view and clicking one is always a real navigation. Hidden at zero: a "0
+              identity conflicts" pill is a permanent alarm for a condition that isn't there. */}
+          {(summary?.conflicts ?? 0) > 0 && (
+            <Tip title="Two CWIDs assigned to one authorship — this paper is already accepted by a different person. Opens the Identity conflicts queue." placement="bottom" arrow>
+              <button type="button" onClick={() => setStatusView("conflicts")} style={alertPill("red")}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#b1483c", display: "block", flex: "none" }} />
+                {(summary?.conflicts ?? 0).toLocaleString()} identity conflict{summary?.conflicts === 1 ? "" : "s"}
+              </button>
+            </Tip>
+          )}
+          {(summary?.duplicates ?? 0) > 0 && (
+            <Tip title="Same publication retrieved from PubMed and Scopus. Opens the Duplicate records queue." placement="bottom" arrow>
+              <button type="button" onClick={() => setStatusView("duplicates")} style={alertPill("amber")}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c07f11", display: "block", flex: "none" }} />
+                {(summary?.duplicates ?? 0).toLocaleString()} duplicate record{summary?.duplicates === 1 ? "" : "s"}
+              </button>
+            </Tip>
+          )}
+          {/* Session-local conflict log — not in the mockup because it only exists once a
+              curator has hit a 409 this session. Kept, and deliberately NOT styled as a third
+              coloured alert: the two pills beside it are server counts, this is a private
+              history of what just happened in this tab. */}
+          {conflictLog.length > 0 && (
+            <Tip title="Duplicate-conflict prompts raised in THIS browser session (lost on reload) — not a server queue." placement="bottom" arrow>
+              <button type="button" onClick={(ev) => setHistoryAnchor(ev.currentTarget)} style={alertPill("plain")}>
+                <IconAlert size={13} /> Session conflicts ({conflictLog.length})
+              </button>
+            </Tip>
+          )}
+          {/* The count is NOT filter-scoped and the server caps the feed at 15 — placing it
+              beside two filter-scoped pills would otherwise imply a scoping it does not have,
+              so the tooltip says so outright and the label carries no noun that suggests
+              "matching these filters". */}
+          <Tip title="The most recently resolved authorships across the whole queue and every curator — not scoped to the filters below. The server returns at most 15." placement="bottom" arrow>
+            <button type="button" onClick={(ev) => setActivityAnchor(ev.currentTarget)} style={alertPill("plain")}>
+              <IconClock size={13} /> Activity ({recentActivity.length})
+            </button>
+          </Tip>
+        </div>
+      </div>
+
+      {/* §2.1's copy, verbatim from the canvas (mockup:87) — collapsed by default. */}
+      {aboutOpen && (
+        <div style={{ border: `1px solid ${CTRL.border}`, borderLeft: `3px solid ${CTRL.accent}`, background: "#fff", borderRadius: 6, padding: "14px 16px", fontSize: 13.5, lineHeight: 1.6, color: "#4a5262", maxWidth: 720, marginBottom: 14 }}>
+          WCM-affiliated authorships not yet assigned to an identity. Each card is one decision: is this author the
+          proposed WCM person? <strong style={{ color: CTRL.ink, fontWeight: 600 }}>IO</strong> (identity-only, the trusted
+          signal) leads; <strong style={{ color: CTRL.ink, fontWeight: 600 }}>AS</strong> (ReCiter authorship score,
+          production model) is shown small beneath it as the diagnosis. Expand a card for the affiliation and evidence.
         </div>
       )}
 
@@ -1896,7 +2096,7 @@ const AuthorshipsTabs = () => {
                   binding it to the filter would fight the debounce on every keystroke. */}
               <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Name, CWID, or PMID" aria-label="Filter by name, CWID, or PMID"
-                style={{ width: 196, border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 11px", fontSize: 13.5, color: CTRL.ink, background: "#fff", font: "inherit" }} />
+                style={{ font: "inherit", width: 196, border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 11px", fontSize: 13.5, color: CTRL.ink, background: "#fff" }} />
             </form>
             {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
                 supports (SORTS in authorships.controller.ts: precision/confidence/io/fg/date).
@@ -1910,7 +2110,7 @@ const AuthorshipsTabs = () => {
                 ~150px of the row this step exists to fit on one line. */}
             <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort"
               title={"Sort order — kept when any other control changes.\n“Match confidence” is the matcher's name/affiliation heuristic, not IO."}
-              style={{ border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 9px", fontSize: 13.5, background: "#fff", color: CTRL.ink, font: "inherit", cursor: "pointer" }}>
+              style={{ font: "inherit", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 9px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
               <option value="io">Highest IO</option>
               <option value="date">Newest</option>
               <option value="precision">Best match</option>
@@ -1931,7 +2131,7 @@ const AuthorshipsTabs = () => {
             </button>
             <button type="button" onClick={(e) => setKeysAnchor(e.currentTarget)} title="Keyboard shortcuts"
               aria-label="Keyboard shortcuts"
-              style={{ width: 32, height: 32, border: `1px solid ${CTRL.border}`, background: keysAnchor ? CTRL.accentBg : "#fff", borderRadius: 6, fontSize: 13.5, color: CTRL.muted, cursor: "pointer", font: "inherit" }}>
+              style={{ font: "inherit", width: 32, height: 32, border: `1px solid ${CTRL.border}`, background: keysAnchor ? CTRL.accentBg : "#fff", borderRadius: 6, fontSize: 13.5, color: CTRL.muted, cursor: "pointer" }}>
               ?
             </button>
           </div>
@@ -1967,13 +2167,13 @@ const AuthorshipsTabs = () => {
             {chips.map((chip) => (
               <button key={chip.id} type="button" onClick={() => removeChip(chip)}
                 aria-label={`Remove filter ${chip.label}`} title="Remove this filter"
-                style={{ display: "inline-flex", alignItems: "center", gap: 7, border: `1px solid ${CTRL.chipBorder}`, background: CTRL.accentBg, color: CTRL.accentInk, borderRadius: 999, padding: "4px 8px 4px 11px", fontSize: 13, cursor: "pointer", font: "inherit" }}>
+                style={{ font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, border: `1px solid ${CTRL.chipBorder}`, background: CTRL.accentBg, color: CTRL.accentInk, borderRadius: 999, padding: "4px 8px 4px 11px", fontSize: 13, cursor: "pointer" }}>
                 {chip.label}<span style={{ color: "#6f8cbe", fontSize: 14, lineHeight: 1 }}>×</span>
               </button>
             ))}
             <button type="button" onClick={resetAll}
               title={`Reset all ${filterCount} ${filterCount === 1 ? "filter" : "filters"} to their defaults (sort is left alone)`}
-              style={{ border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer", padding: "4px 6px", font: "inherit" }}>
+              style={{ font: "inherit", border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer", padding: "4px 6px" }}>
               Clear
             </button>
           </div>
@@ -2025,11 +2225,11 @@ const AuthorshipsTabs = () => {
               </button>
               <button type="button" onClick={() => setRulesOpen((v) => !v)}
                 aria-label="What bulk actions act on" title="What bulk actions act on"
-                style={{ width: 26, height: 26, border: `1px solid ${rulesOpen ? CTRL.accent : CTRL.border}`, background: rulesOpen ? CTRL.accentBg : "#fff", borderRadius: "50%", fontSize: 12, color: rulesOpen ? CTRL.accentInk : CTRL.muted, cursor: "pointer", font: "inherit" }}>
+                style={{ font: "inherit", width: 26, height: 26, border: `1px solid ${rulesOpen ? CTRL.accent : CTRL.border}`, background: rulesOpen ? CTRL.accentBg : "#fff", borderRadius: "50%", fontSize: 12, color: rulesOpen ? CTRL.accentInk : CTRL.muted, cursor: "pointer" }}>
                 i
               </button>
               <button type="button" onClick={clearSelection}
-                style={{ border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer", font: "inherit" }}>
+                style={{ font: "inherit", border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer" }}>
                 Clear
               </button>
               {/* Escape hatch from the page-scoped selection: offered only once this page is
@@ -2223,7 +2423,7 @@ const AuthorshipsTabs = () => {
           <div>
             <div style={{ ...popHead, marginBottom: 7 }}>DATE</div>
             <select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)} aria-label="Article publication date"
-              style={{ width: "100%", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 8px", fontSize: 13.5, background: "#fff", color: CTRL.ink, font: "inherit", cursor: "pointer" }}>
+              style={{ font: "inherit", width: "100%", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 8px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
               {DATE_PRESET_ORDER.map((p) => <option key={p} value={p}>{DATE_PRESET_LABEL[p]}</option>)}
             </select>
             {datePreset === "custom" && (
@@ -2231,12 +2431,12 @@ const AuthorshipsTabs = () => {
                 <label style={{ fontSize: 12.5, color: CTRL.muted, display: "flex", alignItems: "center", gap: 6 }}>
                   From
                   <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                    style={{ padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink, font: "inherit" }} />
+                    style={{ font: "inherit", padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink }} />
                 </label>
                 <label style={{ fontSize: 12.5, color: CTRL.muted, display: "flex", alignItems: "center", gap: 6 }}>
                   To
                   <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                    style={{ padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink, font: "inherit" }} />
+                    style={{ font: "inherit", padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink }} />
                 </label>
                 {(dateFrom || dateTo) && (
                   <button type="button" onClick={() => patchFilters({ dateFrom: "", dateTo: "" })} style={{ ...linkBtn, color: CTRL.muted }}>
@@ -2492,6 +2692,10 @@ const AuthorshipsTabs = () => {
             onAssignOther={() => focusAssignOther(r.id)}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
             onFindOthers={() => findOthersLikeThis(r.wcm_author)}
+            // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
+            // card renders as a loading line. An answered cwid always has an entry.
+            priorNames={r.top_cwid ? priorNames[r.top_cwid] : undefined}
+            onHoverIdentity={() => requestPriorNames(r.top_cwid)}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
@@ -2640,7 +2844,7 @@ const AuthorshipsTabs = () => {
                 <span>{entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); undoRecentActivity(entry); }}
-                  style={{ marginLeft: "auto", background: "none", border: "none", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, font: "inherit" }}>
+                  style={{ font: "inherit", marginLeft: "auto", background: "none", border: "none", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
                   Undo
                 </button>
               </div>
@@ -2657,6 +2861,13 @@ const AuthorshipsTabs = () => {
 // inlined per element because the control row, the two dropdown popovers, the Filters popover
 // and the chip row all draw from the same handful of tokens, and a border that drifts between
 // them is exactly what makes a "one row" band read as three.
+//
+// `font: "inherit"` LEADS every shape helper below, and must keep leading. It is the `font`
+// SHORTHAND, so it resets font-size along with family/weight/line-height — written after a
+// `fontSize`, as most of these were, it silently threw the declared size away and the control
+// rendered at the inherited 14px instead of the 12-13.5px §2.2-§2.5 specify. Ordered first, the
+// shorthand supplies family and line-height and each object's own fontSize survives. React
+// writes inline styles in object-key order, so the order here IS the cascade.
 const CTRL = {
   border: "#ddd8d0",       // resting control border
   rule: "#eae6df",         // the hairline between bands
@@ -2671,10 +2882,22 @@ const CTRL = {
   chipBorder: "#c8d8f4",
 };
 
+// §2.1's three header-band buttons (mockup:76-81). One shape, three palettes: red for identity
+// conflicts, amber for duplicate records, plain for Activity and the session conflict log.
+const alertPill = (kind: "red" | "amber" | "plain"): CSSProperties => ({
+  font: "inherit",
+  display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 6, padding: "7px 12px",
+  fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
+  border: `1px solid ${kind === "red" ? "#dcb4b0" : kind === "amber" ? "#e6c99a" : CTRL.border}`,
+  background: kind === "red" ? "#fdf3f2" : kind === "amber" ? "#fdf6e8" : "#fff",
+  color: kind === "red" ? "#9a3128" : kind === "amber" ? "#8a5a08" : "#4a5262",
+});
+
 // source segment (mockup:601-605): active segment is white with a 1px shadow, not a border.
 const segBtn = (active: boolean): CSSProperties => ({
+  font: "inherit",
   border: "none", cursor: "pointer", borderRadius: 5, padding: "7px 14px", fontSize: 13.5,
-  whiteSpace: "nowrap", font: "inherit",
+  whiteSpace: "nowrap",
   background: active ? "#fff" : "transparent",
   color: active ? CTRL.ink : CTRL.muted,
   fontWeight: active ? 600 : 400,
@@ -2706,12 +2929,14 @@ const popHeadRow: CSSProperties = {
   display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 6,
 };
 const linkBtn: CSSProperties = {
+  font: "inherit",
   border: "none", background: "none", padding: 0, fontSize: 12.5, color: CTRL.accent,
-  cursor: "pointer", font: "inherit",
+  cursor: "pointer",
 };
 const doneBtn: CSSProperties = {
+  font: "inherit",
   border: `1px solid ${CTRL.accent}`, background: CTRL.accent, color: "#fff", borderRadius: 6,
-  padding: "6px 14px", fontSize: 13.5, cursor: "pointer", font: "inherit",
+  padding: "6px 14px", fontSize: 13.5, cursor: "pointer",
 };
 // a checkbox row in a multiselect popover
 const optRow = (on: boolean): CSSProperties => ({
@@ -2724,19 +2949,20 @@ const emptyOptStyle: CSSProperties = { fontSize: 13, color: "#9aa2b1", padding: 
 const helperStyle: CSSProperties = { fontSize: 12.5, color: CTRL.soft, marginTop: 5, lineHeight: 1.45 };
 // a single-select list row in the Filters popover (QUEUE, MATCH CLASS)
 const listBtn = (active: boolean): CSSProperties => ({
+  font: "inherit",
   display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
   border: "none", cursor: "pointer", borderRadius: 5, padding: "7px 9px", fontSize: 13.5,
-  font: "inherit",
   background: active ? CTRL.accentBg : "transparent",
   color: active ? CTRL.accentInk : "#3d4756",
   fontWeight: active ? 600 : 400,
 });
 // the bulk bar's buttons (mockup:292-301): Accept is the only coloured one.
 const barBtn = (kind: "accept" | "plain"): CSSProperties => ({
+  font: "inherit",
   border: `1px solid ${kind === "accept" ? "#9dc4a8" : CTRL.border}`,
   background: kind === "accept" ? "#eef7f0" : "#fff",
   color: kind === "accept" ? "#146c39" : CTRL.ink,
-  borderRadius: 6, padding: "6px 13px", fontSize: 13.5, cursor: "pointer", font: "inherit",
+  borderRadius: 6, padding: "6px 13px", fontSize: 13.5, cursor: "pointer",
 });
 
 // The `?` legend (§2.2). Transcribed from the keydown handler in this file, not from the
@@ -2755,9 +2981,10 @@ const KEY_LEGEND: Array<{ key: string; label: string }> = [
 ];
 
 const pubChipStyle = (active: boolean): CSSProperties => ({
+  font: "inherit",
   border: `1px solid ${active ? CTRL.chipBorder : CTRL.border}`, background: active ? CTRL.accentBg : "#fff",
   color: active ? CTRL.accentInk : CTRL.muted, borderRadius: 999, padding: "3px 10px", fontSize: 12,
-  fontWeight: 600, cursor: "pointer", font: "inherit",
+  fontWeight: 600, cursor: "pointer",
 });
 
 // ---- card ----------------------------------------------------------------
@@ -2779,6 +3006,10 @@ interface CardProps {
   onAssignOther: () => void;
   onNarrowPmid: () => void;
   onFindOthers: () => void;
+  // §2.6 identity hover card. undefined = not fetched yet (or in flight); the parent owns the
+  // per-cwid cache, so a card never re-requests what another card already asked for.
+  priorNames?: PriorNames;
+  onHoverIdentity: () => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
 }
@@ -2786,7 +3017,7 @@ interface CardProps {
 const AuthorshipCard = ({
   row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
-  onFindOthers,
+  onFindOthers, priorNames, onHoverIdentity,
   conflict, onClearConflict,
 }: CardProps) => {
   // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
@@ -2810,6 +3041,20 @@ const AuthorshipCard = ({
   // T5: server-computed sibling count for "Show N others like this" (see like_count on
   // AuthorshipRow) — 0/undefined both mean "nobody else, hide the button".
   const likeCount = r.like_count ?? 0;
+  // §2.6 identity hover card. Two things keep this from firing a request per mouse-over
+  // jitter: the parent's per-cwid cache (one request per person, ever), and this hover-intent
+  // delay, so a pointer travelling down the page over five names asks for none of them. The
+  // timer is cleared on leave AND on unmount — a card removed by an accept mid-hover would
+  // otherwise open a popup on a node that no longer exists.
+  const [identityHover, setIdentityHover] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHover = () => { if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; } };
+  useEffect(() => cancelHover, []);
+  const openIdentityHover = () => {
+    cancelHover();
+    hoverTimer.current = setTimeout(() => { setIdentityHover(true); onHoverIdentity(); }, 220);
+  };
+  const closeIdentityHover = () => { cancelHover(); setIdentityHover(false); };
 
   const cardStyle: CSSProperties = {
     background: isSelected ? "#eff6ff" : "#fff",
@@ -2836,13 +3081,20 @@ const AuthorshipCard = ({
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>{r.wcm_author}</span>
             <span style={{ fontSize: 12, color: "#94a3b8" }}>{r.author_position_label} author</span>
+            {/* §2.6's co-author pill. The mockup labels this "+N more WCM on this paper", which
+                this number does not mean and must not claim: pmid_sibling_count counts sibling
+                authorship_review rows in the ACTIVE STATUS VIEW only, so a co-author already
+                accepted onto their identity — the commonest case on a well-worked paper — is
+                not in it. Rather than ship the mockup's wording over a number that would
+                understate the paper's WCM authors, the label says what it counts. Fixing the
+                count itself needs a person_article join the list query does not have. */}
             {(r.pmid_sibling_count ?? 1) > 1 && (
-              <Tip title="Show all WCM authorships on this paper" placement="top" arrow>
+              <Tip title="Other authorship rows for this paper still sitting in the queue you're viewing. Co-authors already assigned to an identity are NOT counted, so this is not the paper's full WCM author list. Click to narrow the queue to this PMID." placement="top" arrow>
                 <button onClick={(e) => { e.stopPropagation(); onNarrowPmid(); }} style={{
                   display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid #e2e9f3", background: "#f4f7fc",
                   color: "#2563eb", borderRadius: 12, padding: "1px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
                 }}>
-                  <IconUsers size={12} /> +{(r.pmid_sibling_count as number) - 1} more WCM authors on this paper
+                  <IconUsers size={12} /> +{(r.pmid_sibling_count as number) - 1} more in this queue
                 </button>
               </Tip>
             )}
@@ -2857,13 +3109,21 @@ const AuthorshipCard = ({
               <span style={{ fontStyle: "italic", color: "#94a3b8" }}>No suggested identity — assign one below</span>
             ) : (
               <>
-                <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
-                {r.top_cwid && (
-                  <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
-                    style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
-                )}
+                {/* §2.6: the proposed identity's name + cwid carry the 296px hover card. The
+                    wrapper is the hover target AND the positioning context for the popup. */}
+                <span onMouseEnter={openIdentityHover} onMouseLeave={closeIdentityHover}
+                  style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
+                  {r.top_cwid && (
+                    <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
+                      style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
+                  )}
+                  {identityHover && (
+                    <IdentityHoverCard row={r} priorNames={priorNames} />
+                  )}
+                </span>
                 <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
               </>
             )}
@@ -2933,14 +3193,22 @@ const AuthorshipCard = ({
           <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, ...clampStyle(2) }} title={stripHtml(r.title)}>
             <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} />
           </div>
-          {(r.journal || r.entrez_date) && (
-            <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
-              {r.journal && <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>}
-              {r.entrez_date && (
-                <Tip title={dateLabel(r.source).tip} placement="top" arrow>
-                  <span style={{ cursor: "help" }}>{r.journal ? " · " : ""}{dateLabel(r.source).label} {r.entrez_date}</span>
-                </Tip>
+          {/* §2.6's meta line: journal · Indexed date · PMID + copy. The PMID moved up here
+              from the evidence panel, where it was only reachable by expanding the card — a
+              curator cross-checking in PubMed had to open a row to get the number. */}
+          {(r.journal || r.entrez_date || (r.source !== "scopus" && r.pmid)) && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 9, flexWrap: "wrap", fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
+              {(r.journal || r.entrez_date) && (
+                <span>
+                  {r.journal && <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>}
+                  {r.entrez_date && (
+                    <Tip title={dateLabel(r.source).tip} placement="top" arrow>
+                      <span style={{ cursor: "help" }}>{r.journal ? " · " : ""}{dateLabel(r.source).label} {r.entrez_date}</span>
+                    </Tip>
+                  )}
+                </span>
               )}
+              {r.source !== "scopus" && r.pmid != null && <PmidCite pmid={r.pmid} />}
             </div>
           )}
 
@@ -2964,7 +3232,11 @@ const AuthorshipCard = ({
 
         {/* right rail: score block + primary action + overflow */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>
-          <ScoreRail row={r} isMulti={isMulti} isAbsent={isAbsent} candidates={candidates} />
+          {/* §2.6 hides the AS diagnosis "once the row is resolved". In this queue the only
+              resolved rows on screen are the Dismissed view's (accept/reject/assign remove the
+              row outright; snoozed rows are not resolved), so that is the one view it hides in. */}
+          <ScoreRail row={r} isMulti={isMulti} isAbsent={isAbsent} candidates={candidates}
+            resolved={statusView === "dismissed"} />
           {statusView === "open" ? (
             isMulti ? (
               <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
@@ -3112,8 +3384,23 @@ const AuthorshipCard = ({
   );
 };
 
+// §2.6's score stack: one badge, with the AS diagnosis in 11.5px beneath it (mockup:401-416).
+// The badge SHAPE is the mockup's for every branch; its colour thresholds are this page's own
+// existing ones (ioColor: >= 90 / >= 50), not the mockup's fixture, so a row that reads green
+// today still reads green — the redesign restyles the block, it does not re-grade the queue.
+const ioBadgeColors = (v?: number): { bg: string; fg: string } => (
+  v == null ? { bg: "#f2f0ec", fg: "#6b7484" }
+    : v >= 90 ? { bg: "#eaf5ed", fg: "#146c39" }
+      : v >= 50 ? { bg: "#fdf3e2", fg: "#8a5a08" }
+        : { bg: "#f2f0ec", fg: "#6b7484" }
+);
+const scoreBadgeStyle = (bg: string, fg: string): CSSProperties => ({
+  display: "inline-block", fontSize: 12.5, fontWeight: 600, padding: "3px 9px", borderRadius: 999,
+  whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", background: bg, color: fg,
+});
+
 // right-rail score block
-const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipRow; isMulti: boolean; isAbsent: boolean; candidates: Candidate[] }) => {
+const ScoreRail = ({ row: r, isMulti, isAbsent, candidates, resolved }: { row: AuthorshipRow; isMulti: boolean; isAbsent: boolean; candidates: Candidate[]; resolved?: boolean }) => {
   // #938 — top_io_score is not part of ReCiterDB#177's null sweep, so without this branch a
   // no-suggestion row (top_cwid null) would fall through to the plain numeric score below,
   // a real coloured score attached to no candidate at all. Same muted palette as the
@@ -3122,9 +3409,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
   if (!r.top_cwid) {
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#f8fafc", color: "#64748b" }}>
-          No suggestion
-        </span>
+        <span style={scoreBadgeStyle("#f2f0ec", "#6b7484")}>No suggestion</span>
       </div>
     );
   }
@@ -3132,11 +3417,9 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
     const total = r.n_candidates ?? candidates.length;
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#fffbeb", color: "#b45309" }}>
-          {total} candidates
-        </span>
+        <span style={scoreBadgeStyle("#fdf3e2", "#8a5a08")}>{total} candidates</span>
         {r.top_io_score != null && (
-          <span style={{ display: "block", fontSize: 10.5, color: "#94a3b8", marginTop: 3, textAlign: "right", fontWeight: 500 }}>
+          <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
             top IO {fmtScore(r.top_io_score)}
           </span>
         )}
@@ -3147,28 +3430,29 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
     const scopus = r.source === "scopus";
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap",
-          background: scopus ? "#eef2ff" : "#fffbeb", color: scopus ? "#4338ca" : "#b45309" }}>
+        <span style={scoreBadgeStyle(scopus ? "#eef2ff" : "#fdf3e2", scopus ? "#4338ca" : "#8a5a08")}>
           {scopus ? "Not in PubMed" : "Never retrieved"}
         </span>
-        <span style={{ display: "block", fontSize: 10.5, color: "#94a3b8", marginTop: 3, textAlign: "right", fontWeight: 500 }}>
+        <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right" }}>
           conf: {confBand(r.top_confidence)}
         </span>
       </div>
     );
   }
+  const io = ioBadgeColors(r.top_io_score);
   return (
-    <div style={{ textAlign: "right", minWidth: 78 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, minWidth: 64 }}>
       <Tip title="Identity-Only score — authorship likelihood from identity evidence alone (name, affiliation, cohort), ignoring curator feedback (0-100)." placement="left" arrow>
-        <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: ioColor(r.top_io_score), cursor: "help" }}>
-          {fmtScore(r.top_io_score)}
-        </div>
+        <span style={{ ...scoreBadgeStyle(io.bg, io.fg), cursor: "help" }}>IO {fmtScore(r.top_io_score)}</span>
       </Tip>
-      {r.top_fg_score != null && (
-        <Tip title="Authorship Score — ReCiter production authorship-likelihood score (0-100); below 30 means production buried this person." placement="left" arrow>
-          <div style={{ fontSize: 11, color: "#c2410c", marginTop: 3, fontWeight: 600, fontVariantNumeric: "tabular-nums", cursor: "help" }}>
-            Auth. Score {fmtScore(r.top_fg_score)}
-          </div>
+      {/* AS = ReCiter's production authorship score, the diagnosis under the trusted signal.
+          Amber below 70 (mockup:763-765). Hidden once the row is resolved — there is no
+          decision left for it to inform. */}
+      {!resolved && r.top_fg_score != null && (
+        <Tip title="AS — ReCiter authorship score (production model), 0-100. Below 30 means production buried this person." placement="left" arrow>
+          <span style={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", cursor: "help", color: r.top_fg_score < 70 ? "#8a5a08" : "#5c6474" }}>
+            AS {fmtScore(r.top_fg_score)}
+          </span>
         </Tip>
       )}
     </div>
@@ -3184,7 +3468,9 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
   const noSuggestion = !r.top_cwid;
   return (
   <>
-    <div>{r.source === "scopus" ? <ScopusLinks row={r} /> : <PmidLink pmid={r.pmid} />}</div>
+    {/* Scopus rows have no PMID, so this lane keeps its record/DOI links here. PubMed rows get
+        their PMID + copy button on the card's own meta line (§2.6) instead of twice over. */}
+    {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
     {/* absent → labeled facts, no score blocks (F10) */}
     {isAbsent && (
       <div style={{ display: "flex", gap: 22, marginBottom: 10 }}>
@@ -3282,7 +3568,8 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 
   return (
     <>
-      <div>{r.source === "scopus" ? <ScopusLinks row={r} /> : <PmidLink pmid={r.pmid} />}</div>
+      {/* see SingleEvidence — the PMID now sits on the card's meta line, not in here. */}
+      {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
       {!anyDeptMatch && (
         <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginBottom: 10 }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
@@ -3627,7 +3914,9 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
         {compare.sharedSurnames} of {compare.scopusAuthorCount} Scopus surname{compare.scopusAuthorCount === 1 ? "" : "s"} shared with PubMed
       </div>
 
-      <div style={{ marginTop: 10 }}><PmidLink pmid={pmid} /></div>
+      {/* the TWIN's pmid, not this row's — a scopus row has none of its own, so the card's
+          meta line shows nothing here and this stays the only place to reach it. */}
+      <div style={{ marginTop: 10 }}><PmidCite pmid={pmid} /></div>
 
       <div style={{ fontSize: 12.5 }}>
         {inRecordFor.length > 0
