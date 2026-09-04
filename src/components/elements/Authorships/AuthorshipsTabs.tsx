@@ -3665,38 +3665,42 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   row: AuthorshipRow; candidates: Candidate[]; pickedCwid?: string; acting: boolean;
   onPick: (cwid: string) => void; onAction: (action: string, extra?: Record<string, any>) => void;
 }) => {
-  // rank by IO desc, then matcher confidence desc (a candidate production never
-  // retrieved -- io_score null -- still carries a name/department confidence signal;
-  // without the tiebreak, an unretrieved-but-clearly-correct candidate like a full
-  // name + department match looks identical to a weak surname-only homonym).
+  // rank by full given-name match first, then IO desc, then matcher confidence desc --
+  // the same key the AAR producer now writes server-side. io_score is on a 0-100 scale, so
+  // a 0.62 is the model saying "not this person"; ranking on IO alone let any faintly-scored
+  // homonym take the lead over a byline-exact name match. IO and then confidence break the
+  // remaining ties (a candidate production never retrieved -- io_score null -- still carries
+  // a name/department confidence signal).
   // Candidates who already rejected this exact pmid (GoldStandard.rejectedpmids) must never
   // become the visually-highlighted lead — rank/lead computation runs over this filtered set —
   // but they stay VISIBLE in the rendered list below (`visible` is still built from the raw
   // `candidates` prop) so a curator who remembers "5 candidates" isn't confused by only 4.
   const eligibleForLead = candidates.filter((c) => !c.already_rejected);
-  const ranked = [...eligibleForLead].sort((a, b) =>
+  const isFull = (c: Candidate) => (c.given_match === "full" ? 1 : 0);
+  const ranked = [...eligibleForLead].sort((a, b) => isFull(b) - isFull(a) ||
     (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
-  const scored = ranked.filter((c) => c.io_score != null);
-  const unscored = ranked.filter((c) => c.io_score == null);
+  // a full name match is never folded away behind "Show all", scored or not.
+  const unfolded = ranked.filter((c) => isFull(c) || c.io_score != null);
+  const folded = ranked.filter((c) => !isFull(c) && c.io_score == null);
   const [showAll, setShowAll] = useState(false);
   const anyDeptMatch = candidates.some((c) => c.affil_dept_match);
-  // lead = the strongest candidate overall: an IO-scored one first, else the top
-  // confidence candidate IF that confidence is itself meaningful (>=0.5, i.e. at
-  // least a full given-name match) -- a flat tie among all-weak candidates should
-  // not falsely highlight #1.
-  const lead = scored[0] ?? (ranked[0] && (ranked[0].confidence ?? 0) >= 0.5 ? ranked[0] : undefined);
+  // lead = the top-ranked candidate, but only when it is actually strong: a full given-name
+  // match, or an IO-scored one, or a confidence that is itself meaningful (>=0.5) -- a flat
+  // tie among all-weak candidates should still highlight nobody.
+  const top = ranked[0];
+  const lead = top && (isFull(top) || top.io_score != null || (top.confidence ?? 0) >= 0.5) ? top : undefined;
   // The Assign button writes the PRODUCTION gold standard, so it must reflect an
-  // EXPLICIT curator pick — never a silent default. We highlight the highest-IO
+  // EXPLICIT curator pick — never a silent default. We highlight the top-ranked
   // candidate (lead) as a visual hint only; selectedCwid drives the radio state but
   // Assign is gated on pickedCwid below so opening/mis-clicking a card can't write GS.
   const selectedCwid = pickedCwid;
-  // when no candidate has an IO score, there is nothing to show in the default view —
-  // auto-expand the unscored list so the curator always has a visible choice to pick.
+  // when nothing survives the fold, there is nothing to show in the default view —
+  // auto-expand the folded list so the curator always has a visible choice to pick.
   // Already-rejected candidates are appended unconditionally (not gated by showAll) so they
   // stay visible for transparency even though they're excluded from the ranked/lead logic above.
   const rejectedCandidates = candidates.filter((c) => c.already_rejected)
     .sort((a, b) => (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
-  const visible = [...(showAll || scored.length === 0 ? ranked : scored), ...rejectedCandidates];
+  const visible = [...(showAll || unfolded.length === 0 ? ranked : unfolded), ...rejectedCandidates];
 
   return (
     <>
@@ -3760,9 +3764,9 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
             </label>
           );
         })}
-        {!showAll && scored.length > 0 && unscored.length > 0 && (
+        {!showAll && unfolded.length > 0 && folded.length > 0 && (
           <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }} style={{ background: "none", border: "none", color: "#2563eb", fontSize: 12, cursor: "pointer", padding: "2px 0", marginBottom: 8 }}>
-            Show all {ranked.length} ({unscored.length} never retrieved, IO unavailable)
+            Show all {ranked.length} ({folded.length} never retrieved, IO unavailable)
           </button>
         )}
       </div>
