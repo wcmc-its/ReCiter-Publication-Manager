@@ -205,11 +205,27 @@ function bylineCondition(key: string) {
 
 // ---- Identity conflicts queue --------------------------------------------------
 //
-// "Two CWIDs assigned to one authorship": this row's PMID is ALREADY accepted by a cwid other
-// than the one the producer proposes. Accepting the row as-is would put the same paper on two
-// people's records under (potentially) the same byline.
+// "Two CWIDs assigned to one authorship" (the header pill's own tooltip): the SAME byline
+// author is claimed by two different people — this row proposes top_cwid for the byline
+// `wcm_author`, and some OTHER cwid has already ACCEPTED that same paper under that same
+// surname. Accepting the row as-is would put one byline on two people's records.
 //
-// Three deliberate choices, each measured against the live dev DB (7,688 open rows, 2026-09-04):
+// The surname test is load-bearing, not decoration. WITHOUT it this is a PMID-level test —
+// "somebody else on this paper is already assigned" — which is true of most multi-author WCM
+// papers and is not a conflict at all. Measured on production 2026-09-04 over the all-time
+// open queue (15,532 rows):
+//
+//     PMID-level only ............ 6,434 rows  (41.4% of the whole open queue)   183 ms
+//     + this surname test ........    89 rows  ( 0.57%)                          224 ms
+//
+// and over the queue the UI actually opens on ("Last 2 years", 9,858 rows): 5,635 (57.2%)
+// versus 77 (0.78%). The PMID-level rows sampled as ordinary work — n_candidates=1,
+// single_candidate=true — flagged only because some unrelated co-author was assigned; e.g.
+// pmid 39266364 / top_cwid jaa2040 fired purely because 10+ other WCM authors on that paper
+// have identities. That reading shipped in #983 as "the decision on record" and was WRONG;
+// it was reversed on 2026-09-04 and this is the reversal. Do not widen it back.
+//
+// Three further deliberate choices, measured against the live dev DB (7,688 open rows):
 //
 //  - "assignment" means userAssertion='ACCEPTED', not any person_article row. person_article
 //    also holds PENDING suggestions (userAssertion='' — 243,643 of its 745,994 rows), and a
@@ -222,6 +238,22 @@ function bylineCondition(key: string) {
 //  - Scopus rows have no pmid, so `pa.pmid = NULL` never matches and they never enter this
 //    queue. That is correct (gold standard is PMID-keyed) and needs no extra predicate.
 //
+// KNOWN RESIDUAL WIDTH — disclosed with numbers rather than left to be rediscovered. Surname
+// equality is a proxy for "the same byline", and it still admits a same-surname CO-AUTHOR.
+// All 77 rows of the "Last 2 years" queue were read on 2026-09-04: 31 have a matching first
+// given-name token and are unambiguous ("Han Jo Kim" proposed to hyk9017/Hyejin Kim while
+// hjk7002 has already accepted that paper as "Han Jo Kim"); the other 46 are two different
+// same-surname authors on one paper ("Ziwen Zhang" proposed to zhz4003 while yiz2014 accepted
+// it as "Yiye Zhang"; "Urvi A Shah" vs "Gunjan L Shah"; "Augustine M K Choi" vs "Mary E Choi").
+// Adding `LOWER(SUBSTRING_INDEX(pa.articleAuthorNameFirstName,' ',1)) = LOWER(SUBSTRING_INDEX(
+// wcm_author,' ',1))` cuts 77 to 31 at the same cost (204 ms) — NOT applied, because it also
+// drops a genuine conflict whose byline is merely reordered: pmid 39741985, byline
+// "Carrington M Reid" proposed to careid (Carolyn Anne Reid), already accepted by mcr2004 as
+// "M Carrington Reid". 77 rows a curator reads is a working queue; 6,434 was not. Tightening
+// further is a product decision about that trade, not a bug fix, so it is left to the owner.
+// person_article has NO author-position column (checked: only articleAuthorName*/
+// institutionalAuthorName*), so an exact "same byline slot" test is not available today.
+//
 // COLLATE goes on the authorship_review side, same rule and same reason as the person join
 // above (person_article.personIdentifier is utf8mb4_unicode_ci, authorship_review.top_cwid is
 // utf8mb4_general_ci; a bare comparison throws 1267). EXPLAIN on the dev DB: the subquery is
@@ -230,26 +262,33 @@ function bylineCondition(key: string) {
 // authorship_review is the same scan every other query in this file already does.
 //
 // COST, stated plainly rather than hidden, because /summary is the endpoint §4's latency trap
-// already burned once (dev DB, 2026-09-04, 7,688 open rows over 745,994 person_article rows):
-//   this COUNT alone, warm .................................. 130 ms median
-//   the same open-queue COUNT without this predicate ........   36 ms median
-//   /summary's whole query fan-out, 9 queries (pool max 20) .. 385 ms median
-//   the same fan-out with this as the 10th ................... 458 ms median  (+73 ms)
-// The 10 run in parallel — src/db/db.ts sets pool.max 20 — so the wall clock is set by the
-// 24-SUM institution facet at ~300 ms and this adds contention, not a serial leg. It is the
-// honest cost of an index-backed correlated EXISTS and is left as-is; the number is here so the
-// prod gate (§5 baseline: summary 489 ms over 15,566 open rows, i.e. ~2x the row count) can be
-// judged on evidence. Making it materially cheaper needs a covering index on
+// already burned once. Production, 2026-09-04, "Last 2 years" open queue (9,858 rows) over
+// person_article, warm medians of 5 runs:
+//   this COUNT alone, PMID-level ............................  159 ms
+//   this COUNT alone, with the surname test .................  198 ms  (+39 ms)
+//   the same open-queue COUNT with no conflicts predicate ...   23 ms
+//   /summary's whole fan-out, pre-#983 (9 queries, no conflicts count, 12-SUM facet) .. 238 ms
+//   /summary's whole fan-out, this predicate + the lazy facet (10 queries) ............ 435 ms
+// The 10 run in parallel — src/db/db.ts sets pool.max 20 — so this is contention against the
+// eight other full scans of authorship_review, not a serial leg. With the byline facet made
+// lazy (see authorshipSummary) this COUNT is now the fan-out's longest single query, and it is
+// the whole of the residual gap to the pre-#983 baseline: the facet dropped from 563 ms to
+// 76 ms, this is 198 ms. Making it materially cheaper needs a covering index on
 // person_article(pmid, userAssertion, personIdentifier) — a prod DDL change, not a code one.
 //
-// KNOWN WIDTH, measured, flagged for the product owner rather than silently narrowed: this is
-// a PMID-level test, so it also fires when the already-accepted cwid is a genuine *co-author*
-// on the same paper rather than a rival claim on the same byline. Of the 169 dev rows, only 21
-// share a surname with the accepted cwid's byline name (the true "same authorship, two people"
-// shape — e.g. byline "Kristy A Brown" proposed to sxa9001 while kab2060 has already accepted
-// that PMID as "Kristy A Brown"). Narrowing to those 21 is one extra condition here
-// (LOWER(pa.articleAuthorNameLastName) = LOWER(SUBSTRING_INDEX(wcm_author,' ',-1)), 156 ms) —
-// deliberately NOT applied, because the PMID-level reading is the decision on record.
+// The surname comparison carries an explicit COLLATE on the same side as everything else here,
+// defensively rather than because prod needs it. information_schema on PRODUCTION, 2026-09-04,
+// reports authorship_review.wcm_author and .top_cwid as BOTH utf8mb4_unicode_ci — which
+// contradicts the "top_cwid is utf8mb4_general_ci" note above and at the person join, so read
+// that note as dev-specific rather than universal. The two environments differ, and a bare
+// comparison that happens to work on prod can still throw 1267 on dev. Collating the
+// authorship_review side is free either way (it is already inside SUBSTRING_INDEX, hence
+// non-indexable regardless), whereas collating person_article's column would not be — the same
+// rule and the same reasoning as the person join. SUBSTRING_INDEX(wcm_author,' ',-1) is this
+// file's established surname extraction (see the likeAuthor branch in buildWhere and the
+// like_count query), not a new convention. wcm_author is NOT NULL across the whole open queue
+// on prod (checked 2026-09-04: 0 rows), so no row is lost to a NULL byline — and a NULL would
+// simply fail the equality rather than error.
 function identityConflictWhere(): any {
   return {
     [Op.and]: [
@@ -258,7 +297,9 @@ function identityConflictWhere(): any {
         "EXISTS (SELECT 1 FROM `person_article` `pa` " +
         "WHERE `pa`.`pmid` = `AuthorshipReview`.`pmid` " +
         "AND `pa`.`userAssertion` = 'ACCEPTED' " +
-        "AND `pa`.`personIdentifier` <> `AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci)",
+        "AND `pa`.`personIdentifier` <> `AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci " +
+        "AND LOWER(`pa`.`articleAuthorNameLastName`) = " +
+        "LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', -1)) COLLATE utf8mb4_unicode_ci)",
       ),
     ],
   };
@@ -1056,6 +1097,40 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       ...(req.body || {}), source: "all", classification: "all", precision: "all",
       personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [],
     };
+    // ---- the Article-affiliation facet is OPT-IN ----------------------------------------
+    // Read off req.body, NOT off `body`, to keep it visibly separate from the filter keys the
+    // literal above neutralises: this is a request OPTION ("also compute this facet"), not a
+    // filter, and it must not join the set scripts/check-authorships-filter-body.mjs §6 holds
+    // that literal to.
+    //
+    // Why it exists (production regression, measured 2026-09-04 from inside reciter-pm-prod).
+    // The byline half of the institution facet is 12 leading-wildcard LIKEs over the
+    // author_affiliation TEXT column — unindexable by construction, so it scans. Over the
+    // "Last 2 years" open queue (9,858 rows) the facet query alone measured:
+    //     12 SUMs, basis=person ................................  76 ms
+    //     24 SUMs, person + byline_ (what #983 ran every load) . 563 ms
+    // and that pushed the whole endpoint from a 311 ms pre-deploy baseline to a measured
+    // 896 ms at basis=person (1,379 ms with the basis omitted). The Article-affiliation list
+    // those columns feed is only ever on screen while the Affiliation popover is open, which
+    // is a deliberate click — so the client asks for them then, and only then.
+    //
+    // The contract is deliberately all-or-nothing: `authorInstitutions` is present IF AND ONLY
+    // IF this flag is set. It is NOT defaulted to [] or to the previous response's numbers when
+    // unset, because a zero or a stale count rendered as fact is worse than the client showing
+    // a loading state — which is exactly what AuthorshipsTabs does with the absence.
+    const wantAuthorInstitutions = (req.body || {}).includeAuthorInstitutions === true;
+    // Resolved once: it selects the `institutions` facet's basis AND (via the branch below)
+    // whether the byline columns are a second set or the same ones read twice.
+    //
+    // The DEFAULT stays "either" (normaliseBasis: unknown/absent -> widest) even though it is
+    // the most expensive basis — 12 either-SUMs measured 525 ms against 76 ms for person, so an
+    // omitting caller still pays for the LIKEs. Deliberate, and the narrower default was
+    // rejected: normaliseBasis also governs the institutions FILTER in buildWhere, where
+    // "widest" is a correctness choice, and silently recomputing an omitting caller's
+    // `institutions` numbers on a different basis is the same "wrong numbers, no warning" bug
+    // this flag exists to prevent. The UI pins "person" (buildFilterBody), so the default
+    // screen never takes that path; a caller that wants the cheap basis must say so.
+    const basis = normaliseBasis(body.institutionBasis);
     const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
     const where = buildWhere(body, absentCwids);
     // The duplicates facet counts its own view, so it needs a where built with that statusView
@@ -1105,18 +1180,21 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       // rows the byline basis exists to surface. Measured on production: the 12 LIKE patterns
       // cost ~690 ms over the open rows, which the facet already tolerates.
       //
-      // TWO facets now come out of this ONE query. `institutions` keeps its existing basis
-      // (whatever the caller asks for, default "either") and feeds the Identity-affiliation
-      // list; the `byline_`-prefixed columns feed the new Article-affiliation list, which is
-      // always the byline basis by definition. When the caller's basis IS "byline" the two are
-      // the same numbers, so the extra columns are skipped and both facets read the same ones.
-      // Combining beats a second query — dev DB, over the open queue: 12 SUMs (either) 315 ms,
-      // 24 SUMs 534 ms, 12 SUMs (byline) 322 ms.
+      // Up to TWO facets come out of this ONE query. `institutions` keeps the caller's basis
+      // (default "either") and feeds the Identity-affiliation list — it is ALWAYS computed, so
+      // the opt-in below cannot regress it. The `byline_`-prefixed columns feed the
+      // Article-affiliation list, which is the byline basis by definition, and they are added
+      // ONLY when the caller opted in: they are the 850 ms `wantAuthorInstitutions` documents.
+      // When the caller's basis already IS "byline" the two facets are the same numbers, so the
+      // extra columns are skipped even then and both are read off the unprefixed ones.
+      // Keeping them in this one query (rather than a second one) is still right when they are
+      // asked for — dev DB, over the open queue: 12 SUMs (either) 315 ms, 24 SUMs 534 ms,
+      // 12 SUMs (byline) 322 ms, i.e. one combined pass beats two scans.
       models.AuthorshipReview.findAll({
         attributes: [
-          ...institutionFacetAttributes(normaliseBasis(body.institutionBasis)),
-          ...(normaliseBasis(body.institutionBasis) === "byline"
-            ? [] : institutionFacetAttributes("byline", "byline_")),
+          ...institutionFacetAttributes(basis),
+          ...(wantAuthorInstitutions && basis !== "byline"
+            ? institutionFacetAttributes("byline", "byline_") : []),
         ],
         include: [personInstitutionInclude(false)],
         where, raw: true,
@@ -1143,9 +1221,13 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     const institutions = bucketCounts("");
     // Article-affiliation facet — same bucket keys, counted on the byline basis. Shares the
     // prefix-free columns when the caller's own basis is already "byline" (see the query).
-    const authorInstitutions = bucketCounts(
-      normaliseBasis(body.institutionBasis) === "byline" ? "" : "byline_",
-    );
+    // `undefined` when it was not asked for, and JSON.stringify DROPS an undefined value, so
+    // the key is genuinely ABSENT from the response rather than present-and-empty. That
+    // distinction is the whole contract: absent means "not computed, show a loading state",
+    // where [] would mean "computed, every bucket is zero".
+    const authorInstitutions = wantAuthorInstitutions
+      ? bucketCounts(basis === "byline" ? "" : "byline_")
+      : undefined;
     res.send({
       total, single_candidate: single, fullname, duplicates, conflicts,
       classes, personTypes, bySource, pubTypes, institutions, authorInstitutions,

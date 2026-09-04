@@ -198,6 +198,11 @@ interface Summary {
   // `institutions` is the person/HR basis behind IDENTITY AFFILIATION, `authorInstitutions` the
   // byline basis behind ARTICLE AFFILIATION. They are independent lists, ANDed by the server.
   institutions?: Array<{ key: string; n: number }>;
+  // ABSENT unless the request carried `includeAuthorInstitutions: true` — its 12 byline LIKEs
+  // cost 563 ms of a 896 ms endpoint on production, so they are opt-in (see fetchSummary).
+  // Absent means "not computed": render a loading state, never a zero. Present-and-[] is a
+  // different, legitimate answer ("computed, no bucket matched") and the server never conflates
+  // the two.
   authorInstitutions?: Array<{ key: string; n: number }>;
 }
 
@@ -935,6 +940,11 @@ const AuthorshipsTabs = () => {
   const [rows, setRows] = useState<AuthorshipRow[]>([]);
   const [count, setCount] = useState(0);
   const [summary, setSummary] = useState<Summary | null>(null);
+  // The exact summary body `summary` came back for, and the ordering guard that keeps a slow
+  // earlier response from overwriting a fast later one. Both exist for the on-demand
+  // Article-affiliation facet — see fetchSummary and authorFacetsReady.
+  const [summaryFor, setSummaryFor] = useState("");
+  const summarySeqRef = useRef(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   // Rows matching the current filters beyond this page, pulled by "Select all N matching".
@@ -1231,12 +1241,59 @@ const AuthorshipsTabs = () => {
   // produces an identical string, leaving fetchSummary's identity — and so the effect at
   // `useEffect(() => { fetchSummary(); }, [fetchSummary])` — untouched, costing no refetch; and
   // any filter it is NOT blind to changes the string and always refetches.
-  const summaryBody = useMemo(() => JSON.stringify(buildSummaryBody(filters)), [filters]);
+  const baseSummaryBody = useMemo(() => JSON.stringify(buildSummaryBody(filters)), [filters]);
+
+  // ---- the Article-affiliation facet is fetched ON DEMAND ------------------------------
+  // Its 12 byline_ SUMs are 12 leading-wildcard LIKEs over author_affiliation and measured
+  // 563 ms of the endpoint's 896 ms on production (2026-09-04, "Last 2 years" open queue) —
+  // paid on EVERY load by #983, for a list only visible while the Affiliation popover is open.
+  // So `includeAuthorInstitutions: true` rides the summary body, and only while that popover
+  // wants it. NOT a member of AuthorshipFilters and NOT a key of buildFilterBody: it is a
+  // request option, not something the curator filtered on, so it belongs to neither the chip
+  // row, filterBody()'s deps, nor the ephemeral-clear deps (opening a popover must not drop a
+  // selection). It is appended HERE, downstream of buildSummaryBody, for that reason.
+  //
+  // The latch is a filter-body key rather than the raw `!!affilAnchor`, which buys two things a
+  // bare boolean does not:
+  //   * CLOSING the popover does not refetch. affilFacetKey still equals the current body, so
+  //     the posted body is unchanged and the effect below never re-fires.
+  //   * Changing a filter with the popover CLOSED drops the flag again (the key no longer
+  //     matches), so the queue goes straight back to the cheap body instead of paying the
+  //     LIKEs for the rest of the session.
+  const [affilFacetKey, setAffilFacetKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (affilAnchor) setAffilFacetKey(baseSummaryBody);
+  }, [affilAnchor, baseSummaryBody]);
+  const summaryBody = useMemo(
+    () => JSON.stringify(affilFacetKey === baseSummaryBody
+      ? { ...buildSummaryBody(filters), includeAuthorInstitutions: true }
+      : buildSummaryBody(filters)),
+    [filters, affilFacetKey, baseSummaryBody],
+  );
+
+  // `summaryFor` records the exact body that produced `summary`, so the popover can tell
+  // "these counts describe what you are looking at" from "a response for some other state is
+  // still in flight" — see authorFacetsReady. seqRef is not optional now that two summary
+  // requests have very different latencies (a byline-facet call is ~900 ms, a plain one
+  // ~400 ms): without it, opening the popover and immediately changing a filter lets the older,
+  // slower response land last and repaint stale counts as fresh ones.
   const fetchSummary = useCallback(() => {
+    const myId = ++summarySeqRef.current;
+    const body = summaryBody;
     fetch("/api/db/authorships/summary", {
-      credentials: "same-origin", method: "POST", headers: apiHeaders, body: summaryBody,
+      credentials: "same-origin", method: "POST", headers: apiHeaders, body,
     })
-      .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
+      .then((r) => r.json())
+      .then((d) => {
+        if (myId !== summarySeqRef.current) return;   // a newer summary fetch started
+        setSummary(d);
+        setSummaryFor(body);
+      })
+      .catch(() => {
+        if (myId !== summarySeqRef.current) return;
+        setSummary(null);
+        setSummaryFor("");
+      });
   }, [summaryBody]);
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
@@ -1928,8 +1985,18 @@ const AuthorshipsTabs = () => {
     ...selectedAuthorAffiliations,
   ].map((k) => INSTITUTION_LABELS[k] || k);
   const affilCount = affilNames.length;
+  // Identity affiliation reads `institutions`, which the server computes on EVERY summary call
+  // whether or not the popover is open — unchanged by the on-demand Article facet, and it must
+  // stay that way: this list is the one with a non-empty default, so it is on screen (as a chip
+  // and as the button label) without anyone opening anything.
   const identityFacets = summary?.institutions || [];
-  const authorFacets = summary?.authorInstitutions || [];
+  // Article affiliation is only real when the response in state (a) was fetched for exactly the
+  // body now in force and (b) actually carried the facet. Anything else — the opt-in request
+  // still in flight, or a response fetched without the flag — is "unknown", NOT zero. The
+  // popover renders "Counting…" and em-dashes for that state; it must never print a 0 the
+  // curator could read as "no NYP articles".
+  const authorFacetsReady = summaryFor === summaryBody && Array.isArray(summary?.authorInstitutions);
+  const authorFacets = authorFacetsReady ? (summary?.authorInstitutions || []) : [];
   // A value the curator has selected but which the current facet no longer counts (the server
   // drops n=0 buckets, and narrowing another filter can empty one) must still render its
   // checkbox — otherwise the only way to clear it is the chip row, and the popover silently
@@ -2388,11 +2455,21 @@ const AuthorshipsTabs = () => {
         </div>
         <div>
           <div style={popHeadRow}>
-            <div style={popHead}>ARTICLE AFFILIATION <span style={popHeadCount}>{selectedAuthorAffiliations.length} of {authorOptions.length}</span></div>
+            {/* "N of M" needs the facet to know M, so M is withheld until it arrives rather
+                than briefly reading "1 of 1". */}
+            <div style={popHead}>ARTICLE AFFILIATION <span style={popHeadCount}>{selectedAuthorAffiliations.length} of {authorFacetsReady ? authorOptions.length : "…"}</span></div>
             <button type="button" onClick={() => setSelectedAuthorAffiliations([])} style={linkBtn}>Any</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {authorOptions.length === 0 && <div style={emptyOptStyle}>No institutions</div>}
+            {/* These counts are fetched on demand (see affilFacetKey), so this list has a third
+                state the identity list above does not: not-yet-known. Distinguish it from
+                genuinely empty — "No institutions" would be a false statement while the request
+                is still out, and a 0 beside a checkbox is worse, because it reads as fact.
+                Already-ticked boxes keep rendering throughout (withSelected puts them back) and
+                stay tickable; only their count column is blanked. So a selection is never
+                hidden, and never mislabelled, by its own facet being in flight. */}
+            {!authorFacetsReady && <div style={emptyOptStyle}>Counting…</div>}
+            {authorFacetsReady && authorOptions.length === 0 && <div style={emptyOptStyle}>No institutions</div>}
             {authorOptions.map((inst) => {
               const on = selectedAuthorAffiliations.includes(inst.key);
               return (
@@ -2400,7 +2477,7 @@ const AuthorshipsTabs = () => {
                   <Checkbox size="small" checked={on} style={{ padding: 0 }}
                     onChange={() => setSelectedAuthorAffiliations((s) => toggleInList(s, inst.key))} />
                   <span style={{ flex: 1, minWidth: 0 }}>{INSTITUTION_LABELS[inst.key] || inst.key}</span>
-                  <span style={optCountStyle}>{inst.n.toLocaleString()}</span>
+                  <span style={optCountStyle}>{authorFacetsReady ? inst.n.toLocaleString() : "—"}</span>
                 </label>
               );
             })}

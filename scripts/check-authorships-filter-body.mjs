@@ -277,15 +277,59 @@ dep("the ephemeral-clear effect depends on the same object (plus page)",
 // The summary is the third, and was the last hand-listed one: it named seven filters by hand and
 // was correct only because the server neutralises the rest. It is now derived from the same
 // object, keyed on the serialised body so a blind filter still costs no refetch (§6).
-dep("summaryBody is derived from the filter object",
-  /const summaryBody = useMemo\(\(\) => JSON\.stringify\(buildSummaryBody\(filters\)\), \[filters\]\);/);
+//
+// UPDATED 2026-09-04 alongside the on-demand Article-affiliation facet. These assertions used to
+// pin one exact expression each, and that expression legitimately changed: the summary body now
+// carries an opt-in request flag and fetchSummary grew a sequence guard. They are rewritten to
+// test the same PROPERTIES rather than the old spelling, and are strictly stronger for it — the
+// old "derived" regex could not have distinguished a second hand-listed dependency from a
+// derived one, whereas the dep array is now compared element by element. §7 adds the flag's own
+// contract. Nothing here was relaxed to make the new code pass.
+dep("baseSummaryBody is derived from the whole filter object",
+  /const baseSummaryBody = useMemo\(\(\) => JSON\.stringify\(buildSummaryBody\(filters\)\), \[filters\]\);/);
+// summaryBody is baseSummaryBody plus, conditionally, the ONE non-filter request flag. It must
+// still be assembled by CALLING buildSummaryBody, never by listing filter names again.
+const summaryBodyMemo = /const summaryBody = useMemo\(\n([\s\S]*?\n\s*\[[^\]]*\],)\n\s*\);/.exec(workSrc);
+if (!summaryBodyMemo) fail("summaryBody is a useMemo whose deps this check can read");
+else {
+  const memo = summaryBodyMemo[1];
+  const calls = (memo.match(/buildSummaryBody\(filters\)/g) || []).length;
+  if (calls >= 1 && !/\bfilters\s*\.\s*[A-Za-z_$]/.test(memo)) {
+    pass(`summaryBody is derived from the filter object, never re-listed -> buildSummaryBody(filters) x${calls}`);
+  } else {
+    fail("summaryBody names filters by hand instead of calling buildSummaryBody(filters)");
+  }
+  const deps = /\[([^\]]*)\],$/.exec(memo.trim());
+  chk("summaryBody's deps are the filter object plus the opt-in latch only",
+    deps ? deps[1].split(",").map((s) => s.trim()).filter(Boolean) : null,
+    ["filters", "affilFacetKey", "baseSummaryBody"]);
+}
 dep("fetchSummary depends on that derived value alone, not on a list of filter names",
-  /\.then\(setSummary\)\.catch\(\(\) => setSummary\(null\)\);\n\s*\}, \[summaryBody\]\);/);
+  /\n\s*\}, \[summaryBody\]\);/);
 // A correct dep array on a fetch that posts something else is the same bug wearing a disguise:
 // the summary refetches on the right trigger and then asks the wrong question. Depending on
-// summaryBody is only meaningful if summaryBody is what actually goes over the wire.
+// summaryBody is only meaningful if summaryBody is what actually goes over the wire — which now
+// also means the body POSTED and the body RECORDED as "what summary describes" are the same
+// value, since the popover reads that equality to tell fresh counts from in-flight ones.
 dep("the /summary fetch posts summaryBody itself, not a re-inlined literal",
-  /headers: apiHeaders, body: summaryBody,/);
+  /const body = summaryBody;[\s\S]{0,240}?headers: apiHeaders, body,/);
+dep("the summary response is stamped with the body that produced it",
+  /setSummary\(d\);\n\s*setSummaryFor\(body\);/);
+// BOTH arms, counted rather than merely present: an early version of this check matched the
+// .catch guard when the .then guard had been deleted, i.e. it passed while a stale success
+// response could still repaint the counts. The success path is the one that actually matters.
+{
+  const armed = /const myId = \+\+summarySeqRef\.current;/.test(workSrc);
+  const guards = (workSrc.match(/if \(myId !== summarySeqRef\.current\) return;/g) || []).length;
+  const thenArm = /\.then\(\(d\) => \{\n\s*if \(myId !== summarySeqRef\.current\) return;/.test(workSrc);
+  const catchArm = /\.catch\(\(\) => \{\n\s*if \(myId !== summarySeqRef\.current\) return;/.test(workSrc);
+  if (armed && thenArm && catchArm && guards >= 2) {
+    pass(`a stale summary response cannot overwrite a newer one (both arms guarded, ${guards} checks)`);
+  } else {
+    fail(`the summary sequence guard must cover BOTH the .then and the .catch arm `
+      + `(armed=${armed} then=${thenArm} catch=${catchArm} checks=${guards})`);
+  }
+}
 dep("page is NOT part of the posted filter body", /offset: page \* PAGE_SIZE/);
 if (/buildFilterBody[\s\S]{0,900}?\bpage\b[\s\S]{0,40}?\n\}\);/.test(workSrc)) fail("buildFilterBody mentions page");
 else pass("buildFilterBody does not mention page");
@@ -432,6 +476,55 @@ chk('institutionBasis survives into the summary body as "person"',
   M.buildSummaryBody(defaults).institutionBasis, "person");
 chk("the summary body carries no key the list body does not",
   Object.keys(M.buildSummaryBody(defaults)).filter((k) => !(k in M.buildFilterBody(defaults))), []);
+
+console.log(`\n7. includeAuthorInstitutions — the on-demand Article-affiliation facet`);
+// Added 2026-09-04. #983 computed the byline institution facet on EVERY /summary call: 12
+// leading-wildcard LIKEs over author_affiliation, measured on production at 563 ms of an 896 ms
+// endpoint against a 311 ms pre-deploy baseline. It now ships behind an opt-in flag the client
+// sets only while the Affiliation popover wants it. Three things have to stay true, and each one
+// is a bug this project has already shipped once in some other form:
+//
+//   (a) the flag is NOT a filter. Putting it in AuthorshipFilters would give it a chip, a place
+//       in filterBody()'s deps and a place in the ephemeral-clear deps — so opening a popover
+//       would drop the curator's selection and refetch the LIST. §2/§6 above police the filter
+//       object; this policies the boundary of it.
+//   (b) the server computes the byline columns ONLY under the flag, and
+//   (c) omits `authorInstitutions` entirely when it did not — never [] and never a stale
+//       number. The client reads that absence as "loading"; a zero would read as fact.
+const FLAG = "includeAuthorInstitutions";
+chk(`${FLAG} is not a filter (absent from buildFilterBody's output)`,
+  Object.keys(M.buildFilterBody(defaults)).includes(FLAG), false);
+chk(`${FLAG} is not a filter (absent from FILTER_DEFAULTS)`,
+  Object.keys(defaults).includes(FLAG), false);
+chk(`${FLAG} is not baked into buildSummaryBody either — the fetch site adds it`,
+  Object.keys(M.buildSummaryBody(defaults)).includes(FLAG), false);
+// The client must only ever send it as `true`, tied to the popover latch — never unconditionally.
+dep(`the client sends ${FLAG} only under the affiliation-popover latch`,
+  new RegExp(`affilFacetKey === baseSummaryBody\\s*\\n?[\\s\\S]{0,120}?${FLAG}: true`));
+dep("the popover latch is armed by the affiliation anchor, not left permanently on",
+  /if \(affilAnchor\) setAffilFacetKey\(baseSummaryBody\);/);
+// Server side, read out of the controller source §6 already loaded.
+if (new RegExp(`const wantAuthorInstitutions = \\(req\\.body \\|\\| \\{\\}\\)\\.${FLAG} === true;`).test(summaryFn)) {
+  pass(`authorshipSummary reads ${FLAG} off req.body, outside the neutralised filter set`);
+} else fail(`authorshipSummary must read ${FLAG} off req.body (keeping it out of §6's override literal)`);
+if (/wantAuthorInstitutions && basis !== "byline"\s*\n?\s*\? institutionFacetAttributes\("byline", "byline_"\) : \[\]/.test(summaryFn)) {
+  pass("the byline_ facet columns are added ONLY under the flag");
+} else fail("the byline_ facet columns must be gated on wantAuthorInstitutions");
+if (/const authorInstitutions = wantAuthorInstitutions\s*\n?\s*\? bucketCounts\([^)]*\)\s*\n?\s*: undefined;/.test(summaryFn)) {
+  pass("authorInstitutions is undefined (key absent) when the flag is unset — not [] and not stale");
+} else fail("authorInstitutions must be undefined, not [], when the flag is unset");
+// The Identity-affiliation facet must NOT have been dragged behind the same flag: it has a
+// non-empty default, so it is on screen without anyone opening a popover.
+if (/const institutions = bucketCounts\(""\);/.test(summaryFn)) {
+  pass("the Identity-affiliation facet is still computed unconditionally");
+} else fail("the Identity-affiliation facet must not be gated on the flag");
+// And the client must render the absence as a loading state rather than as zeros.
+dep("the client gates the Article counts on a freshness test, not on truthiness",
+  /const authorFacetsReady = summaryFor === summaryBody && Array\.isArray\(summary\?\.authorInstitutions\);/);
+dep("an unready Article facet renders a placeholder, never a 0",
+  /\{!authorFacetsReady && <div style=\{emptyOptStyle\}>Counting…<\/div>\}/);
+dep("an unready Article facet blanks the count column too",
+  /\{authorFacetsReady \? inst\.n\.toLocaleString\(\) : "—"\}/);
 
 console.log(failures === 0 ? `\nOK — no request body changed\n` : `\n${failures} FAILURE(S)\n`);
 process.exit(failures === 0 ? 0 : 1);
