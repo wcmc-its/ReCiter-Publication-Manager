@@ -301,9 +301,18 @@ const SORTS: Record<string, any[]> = {
   // single_candidate is derived from), so this needs no JSON_LENGTH over candidate_cwids_json and
   // no computed expression. NULLs sort last under DESC in MariaDB, which is what we want: a row
   // the producer never counted is not "many candidates".
-  // ponytail: no index on n_candidates, so this filesorts — but so do all five sorts above
-  // (only single_candidate and the PK are indexed). Add a covering index if sort latency is ever
-  // shown to matter; do not add one speculatively for this option alone.
+  // Measured on prod 2026-09-04 (15,644 open rows): this sort warm-medians 40 ms against 39 ms for
+  // `io` and 38 ms for `precision`. No index on n_candidates and none needed — EXPLAIN shows the
+  // WHERE takes ix_status (type=range, rows~26k) and then filesorts, and it does that for the
+  // indexed sort columns too (ix_top_io_score, ix_entrez_date both exist), because only one index
+  // per table is usable here. An index on n_candidates would not be read.
+  //
+  // KNOWN CEILING, disclose before relying on this ordering: n_candidates maxes out at 5 on prod,
+  // and 5,305 of 15,192 rows (35%) sit at exactly 5 — a jump from 950 at n=4, so the producer
+  // almost certainly truncates candidate_cwids_json to 5 (n_candidates == JSON_LENGTH of it on all
+  // 15,192 valid rows, 0 disagreements). This sort therefore cannot separate a 5-homonym row from
+  // a 40-homonym one; it puts the whole capped bucket first in arbitrary order, broken only by the
+  // top_io_score tiebreak. A further 452 rows (2.9%) have NULL and sort last.
   candidates: [["n_candidates", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"]],
 };
 
