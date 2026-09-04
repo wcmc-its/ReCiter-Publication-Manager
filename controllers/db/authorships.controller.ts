@@ -1164,7 +1164,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 // belongs to accepted===0 alone.
 // The ACCEPTED qualifier is the whole claim: 5,662 is the count over ALL assertion states, and
 // 1,213 of those are PENDING or REJECTED rows this endpoint never reads (dev DB 2026-09-04:
-// 5,662 total = 4,449 ACCEPTED + 713 REJECTED + 500 PENDING). Do not quote the wider number here.
+// 5,662 total = 4,449 ACCEPTED + 713 REJECTED + 500 pending, which this table stores as '' not 'PENDING'). Do not quote the wider number here.
 const PRIOR_NAMES_CWID_CAP = 50;
 const PRIOR_NAMES_NAME_CAP = 8;
 

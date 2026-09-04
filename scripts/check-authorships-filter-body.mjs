@@ -281,6 +281,11 @@ dep("summaryBody is derived from the filter object",
   /const summaryBody = useMemo\(\(\) => JSON\.stringify\(buildSummaryBody\(filters\)\), \[filters\]\);/);
 dep("fetchSummary depends on that derived value alone, not on a list of filter names",
   /\.then\(setSummary\)\.catch\(\(\) => setSummary\(null\)\);\n\s*\}, \[summaryBody\]\);/);
+// A correct dep array on a fetch that posts something else is the same bug wearing a disguise:
+// the summary refetches on the right trigger and then asks the wrong question. Depending on
+// summaryBody is only meaningful if summaryBody is what actually goes over the wire.
+dep("the /summary fetch posts summaryBody itself, not a re-inlined literal",
+  /headers: apiHeaders, body: summaryBody,/);
 dep("page is NOT part of the posted filter body", /offset: page \* PAGE_SIZE/);
 if (/buildFilterBody[\s\S]{0,900}?\bpage\b[\s\S]{0,40}?\n\}\);/.test(workSrc)) fail("buildFilterBody mentions page");
 else pass("buildFilterBody does not mention page");
