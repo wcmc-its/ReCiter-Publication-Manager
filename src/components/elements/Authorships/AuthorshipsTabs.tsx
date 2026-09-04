@@ -2155,9 +2155,11 @@ const AuthorshipsTabs = () => {
               style={{ font: "inherit", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 9px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
               <option value="io">Highest IO</option>
               <option value="date">Newest</option>
+              <option value="date_asc">Oldest</option>
               <option value="precision">Best match</option>
               <option value="confidence">Match confidence</option>
               <option value="fg">Authorship Score</option>
+              <option value="candidates">Most candidates</option>
             </select>
             <button type="button" onClick={(e) => setFiltersAnchor(e.currentTarget)}
               style={{

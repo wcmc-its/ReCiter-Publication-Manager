@@ -294,6 +294,17 @@ const SORTS: Record<string, any[]> = {
   io: [["top_io_score", "DESC"], ["pmid", "DESC"]],
   fg: [["top_fg_score", "DESC"], ["pmid", "DESC"]],
   date: [["entrez_date", "DESC"], ["pmid", "DESC"]],
+  date_asc: [["entrez_date", "ASC"], ["pmid", "ASC"]],
+  // "Most candidates" — the homonym-heaviest rows first, which is the queue a curator wants when
+  // they are deliberately working the ambiguous tail rather than skimming near-certain accepts.
+  // n_candidates is a plain INTEGER column the AAR producer already writes (it is what
+  // single_candidate is derived from), so this needs no JSON_LENGTH over candidate_cwids_json and
+  // no computed expression. NULLs sort last under DESC in MariaDB, which is what we want: a row
+  // the producer never counted is not "many candidates".
+  // ponytail: no index on n_candidates, so this filesorts — but so do all five sorts above
+  // (only single_candidate and the PK are indexed). Add a covering index if sort latency is ever
+  // shown to matter; do not add one speculatively for this option alone.
+  candidates: [["n_candidates", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"]],
 };
 
 // Status-view predicate for the current view ("open" | "snoozed" | "dismissed"), or null
