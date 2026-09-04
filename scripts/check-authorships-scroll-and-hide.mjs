@@ -73,8 +73,8 @@ check("silent=false still clears loading in the finally", runGuard(finallyLine, 
 const bareCalls = tabsSrc.match(/\bfetchData\(\);/g) || [];
 const silentCalls = tabsSrc.match(/\bfetchData\(true\);/g) || [];
 check("exactly one non-silent fetchData() call (the navigation effect)", bareCalls.length, 1);
-check("exactly six silent fetchData(true) calls (action-catch, bulk-accept failure, bulk-assign failure, bulk-reject failure, undo, undo-from-activity)",
-  silentCalls.length, 6);
+check("exactly seven silent fetchData(true) calls (action-catch, bulk-accept failure, bulk-snooze failure, bulk-assign failure, bulk-reject failure, undo, undo-from-activity)",
+  silentCalls.length, 7);
 
 // The lone non-silent call must be the one gated on datesReady/pendingPageReset, not some
 // other new call that happens to omit the argument.

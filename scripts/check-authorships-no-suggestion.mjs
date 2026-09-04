@@ -75,12 +75,18 @@ check("toggleSelect still allows an ordinary single-candidate open row",
 // Array.prototype.filter only cares about truthiness — the real expression short-circuits on
 // `r.top_cwid` and returns null, not false, for a no-suggestion row. `!!` reproduces exactly
 // what .filter() itself does with that return value, without softening the assertion.
-const nearCertainLine = line(tabsSrc, "const nearCertain = rows.filter", "nearCertain filter");
+const nearCertainLine = line(tabsSrc, "const nearCertainOnPage = rows.filter", "nearCertain filter");
 const nearCertainPredicate = new Function("r", `return !!(${nearCertainLine.match(/rows\.filter\(\(r\) => (.+)\);$/)[1]});`);
 check("near-certain bulk excludes a no-suggestion row even at IO 100",
   nearCertainPredicate({ single_candidate: true, identity_in_reciter: true, top_cwid: null, top_io_score: 100 }), false);
 check("near-certain bulk still includes a real high-IO single-candidate row",
   nearCertainPredicate({ single_candidate: true, identity_in_reciter: true, top_cwid: "aaa2014", top_io_score: 100 }), true);
+// The row predicate above is queue-blind on purpose (so it can be run standalone), so the queue
+// gate is a separate line and needs its own assertion: the redesigned bulk bar renders in every
+// queue for its "Showing N of M" line, and "Accept near-certain" must stay Open-only.
+check("near-certain is gated on the open queue outside the predicate",
+  line(tabsSrc, "const nearCertain = statusView", "nearCertain queue gate"),
+  'const nearCertain = statusView === "open" ? nearCertainOnPage : [];');
 
 // eligibleRows is `rows.filter((r) => isBulkSelectable(r, statusView))` (T4 + the select-all
 // widening) — assert the delegation, then exercise the real imported function, same pattern as

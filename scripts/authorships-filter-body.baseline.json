@@ -1,6 +1,6 @@
 {
-  "capturedFrom": "068614f3",
-  "shape": "filterBody() useCallback literal",
+  "capturedFrom": "f3c264b1 + working tree",
+  "shape": "buildFilterBody(f)",
   "states": {
     "mount (today's initial state)": {
       "lane": "single",
@@ -8,6 +8,7 @@
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "all",
       "selectedPubTypes": [],
@@ -25,6 +26,7 @@
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "all",
       "selectedPubTypes": [],
@@ -42,6 +44,7 @@
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "all",
       "selectedPubTypes": [],
@@ -59,6 +62,7 @@
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "all",
       "selectedPubTypes": [],
@@ -76,6 +80,7 @@
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "all",
       "selectedPubTypes": [],
@@ -98,6 +103,7 @@
         "wcm",
         "nyp"
       ],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "person",
       "source": "all",
       "selectedPubTypes": [],
@@ -117,6 +123,7 @@
       "selectedInstitutions": [
         "msk"
       ],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "byline",
       "source": "all",
       "selectedPubTypes": [],
@@ -128,12 +135,36 @@
       "hideNoIdentity": false,
       "likeAuthor": ""
     },
+    "identity and article affiliation together (ANDed server-side)": {
+      "lane": "single",
+      "classification": "all",
+      "search": "",
+      "selectedTypes": [],
+      "selectedInstitutions": [
+        "wcm"
+      ],
+      "selectedAuthorAffiliations": [
+        "nyp",
+        "msk"
+      ],
+      "institutionBasis": "either",
+      "source": "all",
+      "selectedPubTypes": [],
+      "dateFrom": "2024-09-04",
+      "dateTo": "2026-09-04",
+      "sort": "date",
+      "statusView": "open",
+      "hideNoSuggestion": false,
+      "hideNoIdentity": false,
+      "likeAuthor": ""
+    },
     "scopus source carries its pub-type facet": {
       "lane": "single",
       "classification": "all",
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "scopus",
       "selectedPubTypes": [
@@ -154,6 +185,7 @@
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "pubmed",
       "selectedPubTypes": [
@@ -174,6 +206,7 @@
       "search": "park",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "all",
       "selectedPubTypes": [],
@@ -191,6 +224,7 @@
       "search": "",
       "selectedTypes": [],
       "selectedInstitutions": [],
+      "selectedAuthorAffiliations": [],
       "institutionBasis": "either",
       "source": "all",
       "selectedPubTypes": [],
@@ -215,6 +249,9 @@
         "hss",
         "msk"
       ],
+      "selectedAuthorAffiliations": [
+        "nyp"
+      ],
       "institutionBasis": "person",
       "source": "scopus",
       "selectedPubTypes": [
@@ -237,7 +274,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
@@ -255,7 +293,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
@@ -273,7 +312,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2020-01-01",
@@ -291,7 +331,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
@@ -309,7 +350,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
@@ -333,6 +375,7 @@
         "nyp"
       ],
       "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
@@ -352,12 +395,37 @@
       "institutions": [
         "msk"
       ],
-      "institutionBasis": "byline",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
       "dateTo": "2026-09-04",
       "sort": "io",
+      "statusView": "open",
+      "hideNoSuggestion": false,
+      "hideNoIdentity": false,
+      "likeAuthor": ""
+    },
+    "identity and article affiliation together (ANDed server-side)": {
+      "feed": "unassigned",
+      "precision": "single",
+      "classification": "all",
+      "searchTextInput": "",
+      "personTypes": [],
+      "institutions": [
+        "wcm"
+      ],
+      "institutionBasis": "person",
+      "authorAffiliations": [
+        "nyp",
+        "msk"
+      ],
+      "source": "all",
+      "pubTypes": [],
+      "dateFrom": "2024-09-04",
+      "dateTo": "2026-09-04",
+      "sort": "date",
       "statusView": "open",
       "hideNoSuggestion": false,
       "hideNoIdentity": false,
@@ -370,7 +438,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "scopus",
       "pubTypes": [
         "Article",
@@ -391,7 +460,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "pubmed",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
@@ -409,7 +479,8 @@
       "searchTextInput": "park",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2024-09-04",
@@ -427,7 +498,8 @@
       "searchTextInput": "",
       "personTypes": [],
       "institutions": [],
-      "institutionBasis": "either",
+      "institutionBasis": "person",
+      "authorAffiliations": [],
       "source": "all",
       "pubTypes": [],
       "dateFrom": "2019-03-01",
@@ -453,6 +525,9 @@
         "msk"
       ],
       "institutionBasis": "person",
+      "authorAffiliations": [
+        "nyp"
+      ],
       "source": "scopus",
       "pubTypes": [
         "Conference Paper"

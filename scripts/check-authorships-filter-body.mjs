@@ -25,11 +25,18 @@
  *       assembly as `const filterBody = useCallback(() => ({...}), [deps])`; from phase 2 on it is
  *       the module-level `buildFilterBody(f)`. Both shapes are understood.
  *
- *   node scripts/check-authorships-filter-body.mjs --capture <rev>
- *       Rewrite the baseline from <rev>. Only legitimate when a body change is intended and
- *       reviewed.
+ *   node scripts/check-authorships-filter-body.mjs --capture <rev|work>
+ *       Rewrite the baseline from <rev>, or from the working tree ("work"). Only legitimate when
+ *       a body change is intended and reviewed.
  *
  *   ... --print     also dump every body as JSON.
+ *
+ * INTENDED CHANGES. A phase does sometimes mean to change the posted body, and "recapture the
+ * baseline and move on" would throw away the evidence that nothing ELSE moved with it. So an
+ * intended change is declared as BODY_DELTA below — a transformation applied to the reference
+ * body before the byte comparison. Everything the declaration does not name still has to match
+ * exactly, key order included. The transformation is idempotent, so it holds whether the
+ * reference predates the change (--against an old rev) or already contains it (the baseline).
  */
 
 import assert from "node:assert/strict";
@@ -93,13 +100,43 @@ const readFilterKeys = (src) => {
 // Dates are literal strings, never computed, so a run in six months produces the same bytes.
 // Every state below holds SEVERAL filters off their defaults at once: that is the point — the
 // failure this guards against is one control's change dropping another's value.
+// `institutionBasis` is still set here even though phase 3 removed it as a filter: the reference
+// implementations this runs against DO read it, and a state that stopped mentioning it would
+// quietly compare a body that no longer exercises the basis at all.
 const MOUNT = {
   lane: "single", classification: "all", search: "", selectedTypes: [], selectedInstitutions: [],
+  selectedAuthorAffiliations: [],
   institutionBasis: "either", source: "all", selectedPubTypes: [],
   dateFrom: "2024-09-04", dateTo: "2026-09-04", sort: "io", statusView: "open",
   hideNoSuggestion: false, hideNoIdentity: false, likeAuthor: "",
 };
 const s = (patch) => ({ ...MOUNT, ...patch });
+
+// ---- the one intended body change, declared -------------------------------------------------
+// Phase 3 (HANDOFF §2.2) replaced #982's `match: either/person/byline` select with the two-list
+// Affiliation popover. Two keys move as a result, and NOTHING else may:
+//
+//   institutionBasis   either|person|byline -> the constant "person". The identity list IS the
+//                      person basis now; the server parameter is kept and still works, so
+//                      restoring an OR across the two conditions later is a UI change only.
+//   authorAffiliations NEW, immediately after institutionBasis — the byline-basis list. The
+//                      server ANDs it with `institutions`.
+//
+// Applied to the reference body before comparison, in place, so key ORDER is still checked:
+// authorAffiliations has to land exactly where the current implementation puts it.
+const BODY_DELTA_NOTE = [
+  'institutionBasis: pinned to "person" (was a user-facing select, deleted in §2.2)',
+  "authorAffiliations: new, inserted after institutionBasis (ARTICLE AFFILIATION list)",
+];
+const applyBodyDelta = (before, state) => {
+  const out = {};
+  for (const [k, v] of Object.entries(before)) {
+    if (k === "authorAffiliations") continue;                 // re-inserted at its fixed position
+    out[k] = k === "institutionBasis" ? "person" : v;
+    if (k === "institutionBasis") out.authorAffiliations = state.selectedAuthorAffiliations ?? [];
+  }
+  return out;
+};
 
 const STATES = {
   "mount (today's initial state)": MOUNT,
@@ -111,6 +148,8 @@ const STATES = {
   "institutions + basis=person + person types + sort":
     s({ selectedInstitutions: ["wcm", "nyp"], institutionBasis: "person", selectedTypes: ["academic-faculty-weillfulltime"], sort: "confidence" }),
   "institutions + basis=byline": s({ selectedInstitutions: ["msk"], institutionBasis: "byline" }),
+  "identity and article affiliation together (ANDed server-side)":
+    s({ selectedInstitutions: ["wcm"], selectedAuthorAffiliations: ["nyp", "msk"], sort: "date" }),
   "scopus source carries its pub-type facet": s({ source: "scopus", selectedPubTypes: ["Article", "Review"] }),
   "pubmed source drops a stale pub-type selection": s({ source: "pubmed", selectedPubTypes: ["Article", "Review"] }),
   "both hides + likeAuthor + search, everything else non-default":
@@ -118,7 +157,8 @@ const STATES = {
   "custom date window": s({ dateFrom: "2019-03-01", dateTo: "2019-04-15" }),
   "every filter off its default at once":
     s({ lane: "fullname", classification: "suggested", search: "42449164", selectedTypes: ["staff-weillfulltime", "student"],
-        selectedInstitutions: ["wcm", "hss", "msk"], institutionBasis: "person", source: "scopus",
+        selectedInstitutions: ["wcm", "hss", "msk"], selectedAuthorAffiliations: ["nyp"],
+        institutionBasis: "person", source: "scopus",
         selectedPubTypes: ["Conference Paper"], dateFrom: "2015-01-01", dateTo: "2016-06-30", sort: "precision",
         statusView: "dismissed", hideNoSuggestion: true, hideNoIdentity: true, likeAuthor: "Wei Zhang" }),
 };
@@ -132,12 +172,22 @@ const workSrc = readWorkingTree();
 const work = compile(workSrc, "working tree");
 const { defaults, initial, keys } = readFilterKeys(workSrc);
 
+// The current implementation is fed the state PLUS any filter key it has gained since the
+// reference was captured, defaulted from FILTER_DEFAULTS — a reference state literally cannot
+// mention a key that did not exist when it was written, and a missing key would otherwise
+// stringify away to nothing and look like agreement.
+const currentBody = (state) => work.build({ ...defaults, ...state });
+
 if (CAPTURE) {
-  const from = compile(readRev(CAPTURE), CAPTURE);
+  const fromWorkingTree = CAPTURE === "work" || CAPTURE === "working-tree";
+  const from = fromWorkingTree ? { ...work, build: currentBody } : compile(readRev(CAPTURE), CAPTURE);
+  const label = fromWorkingTree
+    ? execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim() + " + working tree"
+    : CAPTURE;
   const bodies = {};
   for (const [name, state] of Object.entries(STATES)) bodies[name] = from.build(state);
-  writeFileSync(BASELINE, `${JSON.stringify({ capturedFrom: CAPTURE, shape: from.shape, states: STATES, bodies }, null, 2)}\n`);
-  console.log(`baseline written from ${CAPTURE} (${from.shape}) -> ${BASELINE}`);
+  writeFileSync(BASELINE, `${JSON.stringify({ capturedFrom: label, shape: from.shape, states: STATES, bodies }, null, 2)}\n`);
+  console.log(`baseline written from ${label} (${from.shape}) -> ${BASELINE}`);
   process.exit(0);
 }
 
@@ -147,14 +197,18 @@ const reference = AGAINST
 
 console.log(`\n1. request body, state by state`);
 console.log(`   reference: ${reference.label}`);
-console.log(`   current:   working tree (${work.shape})\n`);
+console.log(`   current:   working tree (${work.shape})`);
+console.log(`   declared changes applied to the reference before comparing (everything else must match byte for byte):`);
+BODY_DELTA_NOTE.forEach((n) => console.log(`     · ${n}`));
+console.log("");
 
 for (const [name, state] of Object.entries(reference.states)) {
-  const before = JSON.stringify(reference.bodies[name]);
-  const after = JSON.stringify(work.build(state));
+  const raw = JSON.stringify(reference.bodies[name]);
+  const before = JSON.stringify(applyBodyDelta(reference.bodies[name], state));
+  const after = JSON.stringify(currentBody(state));
   if (before === after) {
-    pass(`${name}  [${before.length} bytes identical]`);
-    if (PRINT) console.log(`       ${before}`);
+    pass(`${name}  [${after.length} bytes${raw === before ? " identical" : ", identical after the declared change"}]`);
+    if (PRINT) console.log(`       ${after}`);
   } else {
     fail(name);
     console.log(`       before: ${before}`);
@@ -174,16 +228,24 @@ console.log(`\n2. every filter in the object reaches the posted body`);
 const SENSITIVITY_BASE = { ...MOUNT, source: "scopus" };  // scopus, so the pubTypes branch is live
 const FLIP = {
   lane: "fullname", classification: "buried", search: "zzz", selectedTypes: ["x"], selectedInstitutions: ["wcm"],
-  institutionBasis: "person", source: "pubmed", selectedPubTypes: ["Article"], dateFrom: "2001-01-01",
-  dateTo: "2002-02-02", sort: "date", statusView: "dismissed", hideNoSuggestion: true, hideNoIdentity: true,
+  selectedAuthorAffiliations: ["nyp"],
+  source: "pubmed", selectedPubTypes: ["Article"], dateFrom: "2001-01-01",
+  dateTo: "2002-02-02", sort: "date", statusView: "conflicts", hideNoSuggestion: true, hideNoIdentity: true,
   likeAuthor: "someone",
 };
-const baseBody = JSON.stringify(work.build(SENSITIVITY_BASE));
+const baseBody = JSON.stringify(currentBody(SENSITIVITY_BASE));
 for (const k of keys) {
   if (!(k in FLIP)) { fail(`${k} is a filter with no flip value in this script — add one`); continue; }
-  const flipped = JSON.stringify(work.build({ ...SENSITIVITY_BASE, [k]: FLIP[k] }));
+  const flipped = JSON.stringify(currentBody({ ...SENSITIVITY_BASE, [k]: FLIP[k] }));
   if (flipped === baseBody) fail(`${k} never reaches the request body (buildFilterBody ignores it)`);
   else pass(`${k} changes the request body`);
+}
+// The converse for the one key that is no longer a filter: institutionBasis must be a constant
+// in the body, unmoved by anything the caller can express.
+{
+  const bodies = ["person", "byline", "either"].map((v) => currentBody({ ...SENSITIVITY_BASE, institutionBasis: v }).institutionBasis);
+  if (bodies.every((v) => v === "person")) pass('institutionBasis is pinned to "person" and is no longer a filter');
+  else fail(`institutionBasis is still read from the filter state: ${JSON.stringify(bodies)}`);
 }
 
 console.log(`\n3. defaults and mount state`);
@@ -191,14 +253,18 @@ const chk = (label, actual, expected) => {
   if (JSON.stringify(actual) === JSON.stringify(expected)) pass(`${label} -> ${JSON.stringify(actual)}`);
   else fail(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
 };
-// HANDOFF §2.4. These are the values "Reset all" restores; they are NOT (yet) what the page mounts
-// with — see INITIAL_FILTERS' comment in the .tsx.
+// HANDOFF §2.4. Phase 3 adopts these as the mount state too, so the two must now agree exactly —
+// the page loads on its own defaults and the chip row starts empty.
 chk("FILTER_DEFAULTS.lane + classification = match class \"All unassigned\"", [defaults.lane, defaults.classification], ["all", "all"]);
 chk("FILTER_DEFAULTS.selectedInstitutions = identity affiliation WCM", defaults.selectedInstitutions, ["wcm"]);
+chk("FILTER_DEFAULTS.selectedAuthorAffiliations = article affiliation any", defaults.selectedAuthorAffiliations, []);
 chk("FILTER_DEFAULTS.statusView", defaults.statusView, "open");
 chk("FILTER_DEFAULTS.source", defaults.source, "all");
-chk("mount lane is still today's high-precision lane", initial.lane, "single");
-chk("mount institution filter is still unset", initial.selectedInstitutions, []);
+chk("institutionBasis is no longer a filter key at all", Object.keys(defaults).includes("institutionBasis"), false);
+// §3a's stranded-default trap, stated as a test: the lane's old "single" default outlived the
+// chip strip that set it. It must now mount on the lane's own all-value.
+chk("the lane is not stranded on high-precision at mount", initial.lane, "all");
+chk("the page mounts on FILTER_DEFAULTS exactly", initial, defaults);
 // The one thing "Reset all" must never touch.
 const resetExempt = /const RESET_EXEMPT: Array<keyof AuthorshipFilters> = \[([^\]]*)\]/.exec(workSrc);
 chk("sort is exempt from Reset all", resetExempt && resetExempt[1].trim(), '"sort"');
@@ -232,8 +298,7 @@ const M = loadFilterModel(workSrc);
 const labels = (state, preset = "24m") => M.filterChips({ ...MOUNT, ...state }, preset).map((c) => c.label);
 
 chk("the defaults produce no chips", M.filterChips(M.FILTER_DEFAULTS, "24m").map((c) => c.label), []);
-chk("today's mount state names both filters it silently applies",
-  M.filterChips(M.INITIAL_FILTERS, "24m").map((c) => c.label), ["Class: High-precision", "Identity affil: any"]);
+chk("the page mounts with an empty chip row", M.filterChips(M.INITIAL_FILTERS, "24m").map((c) => c.label), []);
 chk("queue", labels({ statusView: "snoozed", selectedInstitutions: ["wcm"] }), ["Queue: Snoozed", "Class: High-precision"]);
 chk("class from the classification axis", labels({ lane: "all", classification: "buried", selectedInstitutions: ["wcm"] }), ["Class: Buried"]);
 chk("class from the lane axis", labels({ lane: "fullname", selectedInstitutions: ["wcm"] }), ["Class: Unique and full given-name match"]);
@@ -247,6 +312,14 @@ chk("an empty identity affiliation IS a chip (the default is WCM)", labels({ lan
 chk("non-default identity affiliations chip one by one, by display name",
   labels({ lane: "all", selectedInstitutions: ["nyp", "msk"] }),
   ["Identity affil: New York-Presbyterian Hospital", "Identity affil: Memorial Sloan Kettering"]);
+// ARTICLE AFFILIATION: default is EMPTY, so unlike the identity list it has no "any" chip —
+// every value present is off-default by definition, and the two lists chip independently.
+chk("the default article affiliation is not a chip", labels({ lane: "all", selectedInstitutions: ["wcm"], selectedAuthorAffiliations: [] }), []);
+chk("article affiliations chip one by one, beside the identity ones",
+  labels({ lane: "all", selectedInstitutions: ["nyp"], selectedAuthorAffiliations: ["wcm", "msk"] }),
+  ["Identity affil: New York-Presbyterian Hospital", "Article affil: Weill Cornell Medicine", "Article affil: Memorial Sloan Kettering"]);
+chk("the structured like-author filter is a chip in this row, not a pill of its own",
+  labels({ lane: "all", selectedInstitutions: ["wcm"], likeAuthor: "Bernard Park" }), ["Like: Bernard Park"]);
 chk("date", labels({ lane: "all", selectedInstitutions: ["wcm"] }, "12m"), ["Date: Last 12 months"]);
 chk("the default date window is not a chip", labels({ lane: "all", selectedInstitutions: ["wcm"] }, "24m"), []);
 chk("hides", labels({ lane: "all", selectedInstitutions: ["wcm"], hideNoSuggestion: true, hideNoIdentity: true }),

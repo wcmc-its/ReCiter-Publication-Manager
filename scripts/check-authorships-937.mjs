@@ -72,7 +72,14 @@ assert(/if \(hasIdentity && !isScopus && pmid != null/.test(assignCase),
 
 // ---------------------------------------------------------------------------------------
 console.log("\n3. overflow menu — a shortcut to the existing input, not a new one:");
-const menuBlock = tabsSrc.slice(tabsSrc.indexOf("{/* overflow menu:"), tabsSrc.indexOf("{/* person-type multiselect menu */}"));
+// End marker moved with the controls redesign: the person-type/institution MUI Menus that used
+// to follow the overflow menu are now Popovers rendered up with the control row, so the next
+// sibling of the overflow menu is the undo Snackbar. Locate the end explicitly rather than let
+// indexOf(-1) silently widen the slice to the rest of the file (which contains inputs and would
+// have turned the "no text input in the menu" assertion into a false alarm — it did).
+const menuBlockEnd = tabsSrc.indexOf("{/* undo (immediate reversal, batched) */}");
+assert(menuBlockEnd > -1, "overflow menu's end marker (the undo Snackbar) located");
+const menuBlock = tabsSrc.slice(tabsSrc.indexOf("{/* overflow menu:"), menuBlockEnd);
 assert(menuBlock.length > 200, "overflow menu block located");
 assert(/Assign to someone else/.test(menuBlock), "menu item text present");
 assert(/focusAssignOther\(id\)/.test(menuBlock), "clicking it calls the shared focusAssignOther(id) helper");
