@@ -225,8 +225,22 @@ function bylineCondition(key: string) {
 // COLLATE goes on the authorship_review side, same rule and same reason as the person join
 // above (person_article.personIdentifier is utf8mb4_unicode_ci, authorship_review.top_cwid is
 // utf8mb4_general_ci; a bare comparison throws 1267). EXPLAIN on the dev DB: the subquery is
-// type=ref on person_article.idx_pmid, rows=1, and the outer scan of authorship_review is the
-// same one every other query in this file already does. Count: 129 ms.
+// type=ref on person_article.idx_pmid, rows=1, FirstMatch, index_condition
+// `AuthorshipReview.pmid = pa.pmid` — index-backed, not a scan; the outer type=ALL over
+// authorship_review is the same scan every other query in this file already does.
+//
+// COST, stated plainly rather than hidden, because /summary is the endpoint §4's latency trap
+// already burned once (dev DB, 2026-09-04, 7,688 open rows over 745,994 person_article rows):
+//   this COUNT alone, warm .................................. 130 ms median
+//   the same open-queue COUNT without this predicate ........   36 ms median
+//   /summary's whole query fan-out, 9 queries (pool max 20) .. 385 ms median
+//   the same fan-out with this as the 10th ................... 458 ms median  (+73 ms)
+// The 10 run in parallel — src/db/db.ts sets pool.max 20 — so the wall clock is set by the
+// 24-SUM institution facet at ~300 ms and this adds contention, not a serial leg. It is the
+// honest cost of an index-backed correlated EXISTS and is left as-is; the number is here so the
+// prod gate (§5 baseline: summary 489 ms over 15,566 open rows, i.e. ~2x the row count) can be
+// judged on evidence. Making it materially cheaper needs a covering index on
+// person_article(pmid, userAssertion, personIdentifier) — a prod DDL change, not a code one.
 //
 // KNOWN WIDTH, measured, flagged for the product owner rather than silently narrowed: this is
 // a PMID-level test, so it also fires when the already-accepted cwid is a genuine *co-author*
@@ -882,12 +896,21 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     const pubmedRows = rows.filter((r: any) => r.source !== "scopus" && r.pmid != null);
     const rejectionCwids = new Set<string>();
     for (const r of pubmedRows) candidateCwidsFromRow(r).forEach((c) => rejectionCwids.add(c));
-    const rejectedByCwid = await getRejectedPmidsByCwid([...rejectionCwids]);
     const rejectionCheckIds = new Set(pubmedRows.map((r: any) => r.id));
 
     // §2.6 identity hover card: division comes from the IDM roster (its own indexed lookup over
     // this page's cwids), institution off the widened person join already on each row.
-    const divisions = await identityDivisions(rows.map((r: any) => r.top_cwid));
+    //
+    // Run WITH the gold-standard rejection lookup, not after it. The two share no input and no
+    // output — one is a DynamoDB BatchGetItem against GoldStandard, the other an indexed IN()
+    // over `identity` in MySQL — so awaiting them in sequence cost the page one whole extra
+    // round-trip on every load for nothing (measured on dev: the divisions query is a 23 ms
+    // range scan on a 25-row page, and it used to start only once DynamoDB had answered).
+    // §4's rule: a correctness check is not a latency check.
+    const [rejectedByCwid, divisions] = await Promise.all([
+      getRejectedPmidsByCwid([...rejectionCwids]),
+      identityDivisions(rows.map((r: any) => r.top_cwid)),
+    ]);
 
     const out = rows.map((r: any) => {
       const map = r.source === "scopus" ? scopusSib : pmidSib;
@@ -1135,9 +1158,13 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
 //    many distinct forms were dropped — the card shows a handful, not a life's bibliography.
 //
 // `accepted` is returned alongside `names` because they answer different questions and the card
-// needs both: a cwid with accepted papers whose byline names are all blank (5,662 person_article
-// rows carry an empty articleAuthorNameLastName) has names:[] but accepted>0, and must NOT be
-// rendered as the mockup's "No accepted papers yet" — that line belongs to accepted===0 alone.
+// needs both: a cwid with accepted papers whose byline names are all blank (4,449 person_article
+// rows WITH userAssertion='ACCEPTED' carry an empty articleAuthorNameLastName) has names:[] but
+// accepted>0, and must NOT be rendered as the mockup's "No accepted papers yet" — that line
+// belongs to accepted===0 alone.
+// The ACCEPTED qualifier is the whole claim: 5,662 is the count over ALL assertion states, and
+// 1,213 of those are PENDING or REJECTED rows this endpoint never reads (dev DB 2026-09-04:
+// 5,662 total = 4,449 ACCEPTED + 713 REJECTED + 500 PENDING). Do not quote the wider number here.
 const PRIOR_NAMES_CWID_CAP = 50;
 const PRIOR_NAMES_NAME_CAP = 8;
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
@@ -156,8 +156,10 @@ interface ActivityEntry {
 // block of §2.6's identity hover card. `names` is capped at 8 forms server-side (most frequent
 // first) with `more` counting the rest.
 //
-// `accepted` is NOT derivable from `names`: 5,662 person_article rows carry an accepted paper
-// with a blank byline name, so a cwid can legitimately have accepted > 0 and names === []. The
+// `accepted` is NOT derivable from `names`: 4,449 person_article rows with userAssertion=
+// 'ACCEPTED' carry a blank byline name (ACCEPTED ONLY — the all-assertion-states count is 5,662
+// and says nothing about accepted papers), so a cwid can legitimately have accepted > 0 and
+// names === [] — on the dev DB 25 cwids are in exactly that state. The
 // mockup's "No accepted papers yet" line belongs to `accepted === 0` alone — reading it off
 // names.length would tell a curator someone has published nothing when they have published a lot.
 interface PriorNames {
@@ -465,11 +467,13 @@ const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
   { label: CLASS_META.suggested.label, lane: "all", classification: "suggested", hint: CLASS_META.suggested.hint, count: (s) => s?.classes?.suggested },
   { label: CLASS_META.buried.label, lane: "all", classification: "buried", hint: CLASS_META.buried.hint, count: (s) => s?.classes?.buried },
   { label: CLASS_META.absent.label, lane: "all", classification: "absent", hint: CLASS_META.absent.hint, count: (s) => s?.classes?.absent },
-  // "All classes" is the classification strip's all-value, which lands on exactly the same
-  // (lane:"all", classification:"all") state as "All unassigned" above — the mockup lists both
-  // because it does not know they are two axes. matchClassLabel() resolves that state to the
-  // default, so neither ever shows a chip.
-  { label: "All classes", lane: "all", classification: "all", hint: "Show every classification", count: (s) => s?.total },
+  // SIX options, not the mockup's seven. Its 7th, "All classes", is the classification strip's
+  // all-value and lands on exactly the same (lane:"all", classification:"all") state as
+  // "All unassigned" at the top of this list — the mockup lists both only because it is today's
+  // two chip strips concatenated (HANDOFF §3a) and does not know they are two axes. Two entries
+  // for one state is a dead control: activeMatchClass uses .find(), so the later duplicate could
+  // never highlight and clicking it did nothing visible. The two all-values collapse into one.
+  // Do not re-add it.
 ];
 // The two strips can still express a combination the single-select list cannot (e.g. the
 // fullname lane AND the Buried class); name it honestly rather than mislabel it as one option.
@@ -509,6 +513,42 @@ const buildFilterBody = (f: AuthorshipFilters) => ({
   hideNoIdentity: f.hideNoIdentity,
   likeAuthor: f.likeAuthor,
 });
+
+// The body POST /api/db/authorships/summary gets. Derived from buildFilterBody by REMOVAL, not
+// rebuilt from a second hand-written key list, so the two can never disagree about a filter's
+// spelling or value and a filter added to buildFilterBody later reaches the summary for free.
+//
+// What is removed, and why it is safe to remove — this is the list the guard script holds the
+// server to. authorshipSummary (controllers/db/authorships.controller.ts) opens with
+//
+//     const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all",
+//                    personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [] };
+//
+// so those seven keys cannot move a single number it returns: every facet must report its own
+// queue-wide total rather than one already narrowed by the very selection the curator is about
+// to change. `sort` goes for a different reason — the endpoint is ten COUNT/GROUP BY queries
+// with no ORDER BY and never reads it.
+//
+// Everything NOT listed here (searchTextInput, dateFrom, dateTo, statusView, the two hides,
+// likeAuthor) genuinely narrows the summary and must keep reaching it, which is the property
+// scripts/check-authorships-filter-body.mjs §6 enforces — it re-reads the controller's own
+// override literal and fails if this list and the server's behaviour drift apart.
+//
+// institutionBasis SURVIVES the removal and must: it is not a filter here (institutions is
+// forced to [] server-side), it only says which basis the `institutions` facet is COUNTED on,
+// and it has to stay "person" because that facet feeds the IDENTITY AFFILIATION list while
+// buildFilterBody pins the same basis — otherwise the list would show "either" counts next to
+// checkboxes that filter on person (on dev: wcm 3,335 vs 2,279 for the same box).
+const SUMMARY_BLIND_BODY_KEYS = [
+  "precision", "classification", "source", "personTypes", "pubTypes",   // neutralised on arrival
+  "institutions", "authorAffiliations",                                  // ditto
+  "sort",                                                                // counts have no ORDER BY
+] as const;
+const buildSummaryBody = (f: AuthorshipFilters) => {
+  const body: Record<string, any> = { ...buildFilterBody(f) };
+  for (const k of SUMMARY_BLIND_BODY_KEYS) delete body[k];
+  return body;
+};
 
 // Active-filter chips (HANDOFF §2.4). A transcription of the mockup's chipsFor (mockup:607-624),
 // including its two quirks: the source segment is never a chip, and the search box IS one.
@@ -836,8 +876,10 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
 //   * no answer yet          -> "Loading…"          (the parent's fetch is in flight)
 //   * accepted === 0         -> "No accepted papers yet"  (the mockup's line; genuinely none)
 //   * accepted > 0, names [] -> says so explicitly   (they HAVE accepted papers, but every one
-//                               of them has a blank byline name in person_article — 5,662 such
-//                               rows exist, and calling that "no accepted papers" is a lie)
+//                               of them has a blank byline name in person_article — 4,449 such
+//                               rows exist WITH userAssertion='ACCEPTED', the only state this
+//                               card counts; 5,662 is the all-states figure and is not the
+//                               claim. Calling this "no accepted papers" is a lie)
 const IdentityHoverCard = ({ row: r, priorNames }: { row: AuthorshipRow; priorNames?: PriorNames }) => {
   const hasDetail = !!(r.top_dept || r.top_division || r.top_institution);
   return (
@@ -1179,23 +1221,23 @@ const AuthorshipsTabs = () => {
       .catch((e) => console.error("[authorships]", e));
   }, [filterBody, page]);
 
+  // DERIVED from the filter object, never hand-listed — the same rule filterBody follows, and
+  // for the same reason: a summary dependency array typed out by hand is exactly how a filter
+  // silently stops reaching the counts. buildSummaryBody drops only the keys SUMMARY_BLIND_BODY_KEYS
+  // names, so a filter added later is carried here automatically unless it is declared blind.
+  //
+  // Keyed on the SERIALISED body rather than on `filters` so the two properties that matter both
+  // hold: a filter the summary is blind to (source, person types, the two affiliation lists…)
+  // produces an identical string, leaving fetchSummary's identity — and so the effect at
+  // `useEffect(() => { fetchSummary(); }, [fetchSummary])` — untouched, costing no refetch; and
+  // any filter it is NOT blind to changes the string and always refetches.
+  const summaryBody = useMemo(() => JSON.stringify(buildSummaryBody(filters)), [filters]);
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
-      credentials: "same-origin", method: "POST", headers: apiHeaders,
-      // institutionBasis is the ONE filter key this body carries, and it is not a filter here:
-      // summary forces institutions/authorAffiliations to [] so both facets stay queue-wide, and
-      // this only says which basis the `institutions` facet is COUNTED on. It must be "person",
-      // because that facet feeds the IDENTITY AFFILIATION list and buildFilterBody pins the same
-      // basis — otherwise the list would show "either" counts next to checkboxes that filter on
-      // person (on dev: wcm 3,335 vs 2,279 for the same box).
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, institutionBasis: "person", hideNoIdentity, hideNoSuggestion, likeAuthor }),
+      credentials: "same-origin", method: "POST", headers: apiHeaders, body: summaryBody,
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search, dateFrom, dateTo, statusView, hideNoIdentity, hideNoSuggestion, likeAuthor]);
-  // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
-  // current status/search/date scope — no need to refetch it on source-segment changes. hideNoIdentity,
-  // hideNoSuggestion, and (T5) likeAuthor are all threaded through here, so header totals stay
-  // consistent with the filtered list/pagination the moment any one of them is toggled/set.
+  }, [summaryBody]);
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.
@@ -2677,6 +2719,14 @@ const AuthorshipsTabs = () => {
             // ARE open rows, so the card must offer the same per-row actions, including Force.
             // Spelled out rather than routed through a helper so the type narrows here.
             statusView={statusView === "duplicates" || statusView === "conflicts" ? "open" : statusView}
+            // …but the checkbox must NOT follow that substitution, and this is why it is a prop
+            // rather than something the card recomputes from the statusView it was handed. Bulk
+            // actions are open-queue only (isBulkSelectable returns false for every other view,
+            // and toggleSelect gates on the REAL statusView), so a card told "open" inside the
+            // duplicates or conflicts queue rendered an enabled checkbox that did nothing when
+            // clicked. Computed here, from the real queue, so the page and the card cannot
+            // disagree about what is selectable.
+            selectable={isBulkSelectable(r, statusView)}
             isExpanded={expanded === r.id}
             isSelected={selected.has(r.id)}
             isFocused={focusedId === r.id}
@@ -2991,6 +3041,9 @@ const pubChipStyle = (active: boolean): CSSProperties => ({
 interface CardProps {
   row: AuthorshipRow;
   statusView: "open" | "snoozed" | "dismissed";
+  // isBulkSelectable(row, the REAL statusView) — see the call site. Never derived from the
+  // `statusView` above, which the duplicates/conflicts queues deliberately substitute.
+  selectable: boolean;
   isExpanded: boolean;
   isSelected: boolean;
   isFocused: boolean;
@@ -3015,7 +3068,7 @@ interface CardProps {
 }
 
 const AuthorshipCard = ({
-  row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
+  row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, pickedCwid,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
   onFindOthers, priorNames, onHoverIdentity,
   conflict, onClearConflict,
@@ -3035,9 +3088,9 @@ const AuthorshipCard = ({
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
   const meta = CLASS_META[r.classification || "absent"];
-  // T4: same predicate toggleSelect gates on — multi-candidate rows are now checkbox-
-  // selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/isMultiAssignEligible).
-  const selectable = isBulkSelectable(r, statusView);
+  // T4: `selectable` is the same predicate toggleSelect gates on — multi-candidate rows are now
+  // checkbox-selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/
+  // isMultiAssignEligible). It arrives as a prop, computed by the page from the real statusView.
   // T5: server-computed sibling count for "Show N others like this" (see like_count on
   // AuthorshipRow) — 0/undefined both mean "nobody else, hide the button".
   const likeCount = r.like_count ?? 0;

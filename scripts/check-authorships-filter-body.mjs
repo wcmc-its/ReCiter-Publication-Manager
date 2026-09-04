@@ -269,11 +269,18 @@ chk("the page mounts on FILTER_DEFAULTS exactly", initial, defaults);
 const resetExempt = /const RESET_EXEMPT: Array<keyof AuthorshipFilters> = \[([^\]]*)\]/.exec(workSrc);
 chk("sort is exempt from Reset all", resetExempt && resetExempt[1].trim(), '"sort"');
 
-console.log(`\n4. the two dependency arrays are derived, not hand-listed`);
+console.log(`\n4. the three dependency arrays are derived, not hand-listed`);
 const dep = (label, re) => (re.test(workSrc) ? pass(label) : fail(label));
 dep("filterBody depends on the whole filter object", /const filterBody = useCallback\(\(\) => buildFilterBody\(filters\), \[filters\]\);/);
 dep("the ephemeral-clear effect depends on the same object (plus page)",
   /setSelected\(new Set\(\)\); setExpanded\(null\); setPicked\(\{\}\); setAllMatching\(null\); \},\n\s*\[filters, page\]\);/);
+// The summary is the third, and was the last hand-listed one: it named seven filters by hand and
+// was correct only because the server neutralises the rest. It is now derived from the same
+// object, keyed on the serialised body so a blind filter still costs no refetch (§6).
+dep("summaryBody is derived from the filter object",
+  /const summaryBody = useMemo\(\(\) => JSON\.stringify\(buildSummaryBody\(filters\)\), \[filters\]\);/);
+dep("fetchSummary depends on that derived value alone, not on a list of filter names",
+  /\.then\(setSummary\)\.catch\(\(\) => setSummary\(null\)\);\n\s*\}, \[summaryBody\]\);/);
 dep("page is NOT part of the posted filter body", /offset: page \* PAGE_SIZE/);
 if (/buildFilterBody[\s\S]{0,900}?\bpage\b[\s\S]{0,40}?\n\}\);/.test(workSrc)) fail("buildFilterBody mentions page");
 else pass("buildFilterBody does not mention page");
@@ -289,7 +296,7 @@ const loadFilterModel = (src) => {
   ];
   assert.ok(slabs.every((x) => x.length > 200), "filter-model slabs located");
   const body = ts.transpileModule(
-    `${slabs.join("\n")}\nreturn { filterChips, matchClassLabel, filterResetPatch, FILTER_DEFAULTS, INITIAL_FILTERS, MATCH_CLASS_OPTIONS };`,
+    `${slabs.join("\n")}\nreturn { filterChips, matchClassLabel, filterResetPatch, FILTER_DEFAULTS, INITIAL_FILTERS, MATCH_CLASS_OPTIONS, buildFilterBody, buildSummaryBody, SUMMARY_BLIND_BODY_KEYS };`,
     { compilerOptions: { target: ts.ScriptTarget.ES2019, module: ts.ModuleKind.None } },
   ).outputText;
   return new Function(body)();
@@ -328,9 +335,16 @@ chk("the search box is a chip, trimmed and curly-quoted",
   labels({ lane: "all", selectedInstitutions: ["wcm"], search: "  park  " }), ["\u201cpark\u201d"]);
 chk("the source segment is never a chip", labels({ lane: "all", selectedInstitutions: ["wcm"], source: "scopus" }), []);
 chk("sort is never a chip", labels({ lane: "all", selectedInstitutions: ["wcm"], sort: "date" }), []);
-chk("every match-class option in the popover list resolves back to its own label (bar the duplicate all-value)",
+// SIX options, and each resolves back to its own label. The mockup's seventh, "All classes",
+// was the classification strip's all-value and landed on the same (lane:"all",
+// classification:"all") state as "All unassigned" — a second entry for one state that
+// activeMatchClass's .find() could never highlight. It was removed; a re-added duplicate fails
+// the second check below.
+chk("every match-class option in the popover list resolves back to its own label",
   M.MATCH_CLASS_OPTIONS.map((o) => M.matchClassLabel({ ...MOUNT, lane: o.lane, classification: o.classification })),
-  ["All unassigned", "Unique and full given-name match", "High-precision", "Suggested", "Buried", "Never retrieved", "All unassigned"]);
+  ["All unassigned", "Unique and full given-name match", "High-precision", "Suggested", "Buried", "Never retrieved"]);
+chk("no two match-class options address the same (lane, classification) state",
+  new Set(M.MATCH_CLASS_OPTIONS.map((o) => `${o.lane}|${o.classification}`)).size, M.MATCH_CLASS_OPTIONS.length);
 
 // Removing a chip removes ONLY that filter — the owner's requirement, stated as a test.
 const kitchenSink = { ...STATES["every filter off its default at once"] };
@@ -348,6 +362,71 @@ chk("the Filters badge is exactly the number of chips", sinkChips.length, M.filt
 const afterReset = { ...kitchenSink, ...M.filterResetPatch() };
 chk("Reset all clears every filter", M.filterChips(afterReset, "24m").map((c) => c.label), []);
 chk("Reset all keeps the curator's sort", afterReset.sort, kitchenSink.sort);
+
+console.log(`\n6. the summary body, checked against what the server actually neutralises`);
+// /api/db/authorships/summary sees a NARROWER body than the list does, and until this section
+// existed that narrowing lived in a hand-typed dependency array — the exact failure mode §4
+// guards everywhere else. buildSummaryBody now derives the body by removing SUMMARY_BLIND_BODY_KEYS
+// from buildFilterBody's, so the only thing left to police is that list itself. It is checked
+// against the controller's own source, not against a copy of it kept here:
+//
+//   * every key it drops because the endpoint neutralises it must appear in authorshipSummary's
+//     override literal, and every key in that literal must appear in it;
+//   * the one key dropped for a different reason (`sort` — a set of COUNTs has no ORDER BY) must
+//     genuinely never be read by the endpoint;
+//   * and a filter whose value survives into the body must reach the SUMMARY body too. That is
+//     the property that fails if a filter is added later that the summary should see: it is
+//     derived from FILTER_DEFAULTS, so a new filter is covered the moment it exists.
+const CONTROLLER = "controllers/db/authorships.controller.ts";
+const ctrl = readFileSync(join(ROOT, CONTROLLER), "utf8");
+const summaryFn = (() => {
+  const a = ctrl.indexOf("export const authorshipSummary");
+  assert.ok(a > -1, "authorshipSummary located in the controller");
+  const b = ctrl.indexOf("\n};", ctrl.indexOf("res.status(500)", a));
+  return ctrl.slice(a, b);
+})();
+// The literal that neutralises the caller's own narrowing, verbatim from the controller.
+const overrideLit = /const body = \{\s*\.\.\.\(req\.body \|\| \{\}\),([\s\S]*?)\n\s*\};/.exec(summaryFn);
+if (!overrideLit) fail("could not find authorshipSummary's `const body = { ...req.body, … }` override literal");
+const serverNeutralised = overrideLit
+  ? [...overrideLit[1].matchAll(/(?:^|[\s,])([A-Za-z_$][\w$]*)\s*:/g)].map((m) => m[1])
+  : [];
+const blind = [...(M.SUMMARY_BLIND_BODY_KEYS || [])];
+const NO_ORDER_BY = ["sort"];   // dropped for a reason the override literal cannot express
+chk("the keys authorshipSummary overwrites on arrival", [...serverNeutralised].sort(),
+  blind.filter((k) => !NO_ORDER_BY.includes(k)).sort());
+// `sort` is the one blind key with no counterpart in that literal, so its justification is
+// checked directly: the endpoint must never READ it. (Array.prototype.sort on the facet arrays
+// is not a read of the body — match the property access and the SORTS table, not the word.)
+const readsSort = /\b(?:req\.)?body(?:\s*\|\|\s*\{\})?\??\.sort\b|\bSORTS\s*\[/.test(summaryFn);
+if (readsSort) fail("authorshipSummary reads `sort` — it is not safe to drop from the summary body");
+else pass("authorshipSummary never reads body.sort (ten COUNT/GROUP BY queries, no ORDER BY)");
+
+// Sensitivity, key by key, derived from FILTER_DEFAULTS exactly as §2 is. For each filter, work
+// out which BODY keys it moves, then require: all of them blind -> the summary body must not
+// change (no wasted refetch); any of them live -> it must (or the counts silently desync from
+// the list they describe).
+const listBody = (state) => M.buildFilterBody({ ...defaults, ...state });
+const summaryOf = (state) => JSON.stringify(M.buildSummaryBody({ ...defaults, ...state }));
+const summaryBase = summaryOf(SENSITIVITY_BASE);
+for (const k of keys) {
+  if (!(k in FLIP)) continue;   // already reported as a failure in §2
+  const before = listBody(SENSITIVITY_BASE);
+  const after = listBody({ ...SENSITIVITY_BASE, [k]: FLIP[k] });
+  const moved = Object.keys(before).filter((b) => JSON.stringify(before[b]) !== JSON.stringify(after[b]));
+  const isBlind = moved.length > 0 && moved.every((b) => blind.includes(b));
+  const changed = summaryOf({ ...SENSITIVITY_BASE, [k]: FLIP[k] }) !== summaryBase;
+  if (moved.length === 0) fail(`${k} moves nothing in the list body — §2 should already have caught this`);
+  else if (isBlind && changed) fail(`${k} reaches the summary body although the server neutralises ${moved.join(" + ")}`);
+  else if (!isBlind && !changed) fail(`${k} never reaches the SUMMARY body (it moves ${moved.join(" + ")}, which the server does NOT neutralise)`);
+  else if (!isBlind) pass(`${k} -> ${moved.join(" + ")}: reaches the summary body`);
+  else pass(`${k} -> ${moved.join(" + ")}: ${moved.every((b) => NO_ORDER_BY.includes(b)) ? "never read by the endpoint" : "neutralised server-side"}, correctly absent`);
+}
+// institutionBasis must survive the removal: the identity-affiliation facet is COUNTED on it.
+chk('institutionBasis survives into the summary body as "person"',
+  M.buildSummaryBody(defaults).institutionBasis, "person");
+chk("the summary body carries no key the list body does not",
+  Object.keys(M.buildSummaryBody(defaults)).filter((k) => !(k in M.buildFilterBody(defaults))), []);
 
 console.log(failures === 0 ? `\nOK — no request body changed\n` : `\n${failures} FAILURE(S)\n`);
 process.exit(failures === 0 ? 0 : 1);
