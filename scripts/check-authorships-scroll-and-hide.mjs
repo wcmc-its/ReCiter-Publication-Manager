@@ -73,8 +73,8 @@ check("silent=false still clears loading in the finally", runGuard(finallyLine, 
 const bareCalls = tabsSrc.match(/\bfetchData\(\);/g) || [];
 const silentCalls = tabsSrc.match(/\bfetchData\(true\);/g) || [];
 check("exactly one non-silent fetchData() call (the navigation effect)", bareCalls.length, 1);
-check("exactly six silent fetchData(true) calls (action-catch, bulk-accept failure, bulk-assign failure, bulk-reject failure, undo, undo-from-activity)",
-  silentCalls.length, 6);
+check("exactly seven silent fetchData(true) calls (action-catch, bulk-accept failure, bulk-snooze failure, bulk-assign failure, bulk-reject failure, undo, undo-from-activity)",
+  silentCalls.length, 7);
 
 // The lone non-silent call must be the one gated on datesReady/pendingPageReset, not some
 // other new call that happens to omit the argument.
@@ -118,19 +118,21 @@ check("hideNoSuggestion:true adds exactly one predicate", runHideGate(true), 1);
 
 // Client always sends the flag (so the loaded-page filter and "Select all N matching" — which
 // posts the same buildWhere-shaped body — can never disagree about which rows are hidden).
-// Located by membership, not position: hideNoSuggestion no longer has to be the LAST field in
-// either the object literal or the deps array — hideNoIdentity and likeAuthor (T5, no-identity
-// hide) were added after it in both, which is fine, so long as it's still in both.
-const filterBodyStart = tabsSrc.indexOf("const filterBody = useCallback(");
-const filterBodyObjEnd = tabsSrc.indexOf("}), [", filterBodyStart);
-const filterBodyDepsEnd = tabsSrc.indexOf(");", filterBodyObjEnd);
-const filterBodyObjSrc = tabsSrc.slice(filterBodyStart, filterBodyObjEnd);
-const filterBodyDepsSrc = tabsSrc.slice(filterBodyObjEnd + "}), [".length, filterBodyDepsEnd);
-assert.ok(filterBodyObjSrc.length > 50 && filterBodyDepsSrc.length > 10, "filterBody located");
-check("filterBody() includes hideNoSuggestion in the posted body",
-  /\bhideNoSuggestion,/.test(filterBodyObjSrc), true);
-check("filterBody's own useCallback deps include hideNoSuggestion (recomputes + resets page on toggle)",
-  /\bhideNoSuggestion\b/.test(filterBodyDepsSrc), true);
+// The posted body is now assembled by the module-level buildFilterBody(f), and filterBody()
+// depends on the whole filter object rather than a hand-written list of filter names — so there
+// is no longer a per-filter dependency array to inspect here. That derivation is what
+// scripts/check-authorships-filter-body.mjs proves, state by state, against a body captured
+// before the controls were restructured. What still belongs in THIS check is that
+// hideNoSuggestion is one of the filters the object carries and that it reaches the body.
+const bodyStart = tabsSrc.indexOf("const buildFilterBody = ");
+assert.ok(bodyStart > -1, "buildFilterBody located");
+const buildFilterBodySrc = tabsSrc.slice(bodyStart, tabsSrc.indexOf("});", bodyStart));
+check("buildFilterBody() includes hideNoSuggestion in the posted body",
+  /\bhideNoSuggestion: f\.hideNoSuggestion,/.test(buildFilterBodySrc), true);
+check("hideNoSuggestion is a key of the one filter object (so it is in both derived dep arrays)",
+  /interface AuthorshipFilters \{[\s\S]*?\n  hideNoSuggestion: boolean;[\s\S]*?\n\}/.test(tabsSrc), true);
+check("filterBody() recomputes on any filter change, hideNoSuggestion included",
+  tabsSrc.includes("const filterBody = useCallback(() => buildFilterBody(filters), [filters]);"), true);
 
 // No parallel client-side hiding mechanism: every reference to hideNoSuggestion in the
 // component is state/wiring, never a rows.filter/array-filter predicate of its own.

@@ -56,12 +56,30 @@ models.AuthorshipReview.belongsTo(models.Person, {
 // authorshipSummary (LEFT JOIN there would count nothing for an unmatched top_cwid, which is
 // correct for "no institution to bucket" but wrong for "how many rows exist" elsewhere) — see
 // each call site for why.
-function personInstitutionInclude(required: boolean) {
+//
+// `attributes` defaults to [] — "filtering/grouping only, never shapes a returned row" was the
+// original invariant and it still holds for two of the three call sites, which MUST keep the
+// default:
+//   - authorshipSelectable returns a deliberately slim shape; nothing there needs a person row.
+//   - authorshipSummary's institution facet is a bare aggregate with NO GROUP BY, so any
+//     non-aggregated column added to its SELECT is an ONLY_FULL_GROUP_BY error waiting to
+//     happen — the same class of trap as the ambiguous-`id` one already documented there.
+// listAuthorships is the exception and passes ["primaryInstitution"], because §2.6's identity
+// hover card needs the proposed person's institution on the row. Widened here rather than by
+// attaching a second include on purpose: the join already exists on that query, so this is one
+// more column off an already-joined row, not a new join. Measured on the dev DB, 25-row page,
+// SQL_NO_CACHE, 3 runs each: 86/87/90 ms without the column, 58/58/64 ms with it — no
+// measurable cost. EXPLAIN is identical for both apart from `Person` losing "Using index": it
+// stays type=ref on person_personIdentifier_IDX at one row per outer row, it just reads the
+// row instead of covering from the index. The row COUNT cannot change either: sequelize's
+// count() sets includeIgnoreAttributes=false (6.37.8, lib/model.js:1302), so include
+// attributes never reach the COUNT query at all.
+function personInstitutionInclude(required: boolean, attributes: string[] = []) {
   return {
     model: models.Person,
     as: "Person",
     required,
-    attributes: [] as string[], // filtering/grouping only — never shapes a returned row
+    attributes,
     on: {
       // The COLLATE goes on the authorship_review side ON PURPOSE. Applying it to
       // `Person`.`personIdentifier` makes that column non-indexable, which drops
@@ -137,8 +155,16 @@ const INSTITUTION_BYLINE_PATTERNS: Record<string, string[]> = {
 // "Weill Cornell" matches the Qatar campus too; wcm excludes it so the buckets stay disjoint.
 const BYLINE_EXCLUDE: Record<string, string[]> = { wcm: ["Qatar"] };
 
-/** One SUM(...) column per bucket key, counting rows that match that bucket under `basis`. */
-function institutionFacetAttributes(basis: InstitutionBasis): any[] {
+/**
+ * One SUM(...) column per bucket key, counting rows that match that bucket under `basis`.
+ * `alias` prefixes the returned column names so two bases can be summed in ONE pass over the
+ * rows — the summary asks for the person/either basis (the `institutions` facet) and the byline
+ * basis (the `authorInstitutions` facet) together, and running them as two queries would mean
+ * two scans. Measured on the dev DB over the open queue: 12 SUMs (either) 315 ms, the same 12
+ * plus 12 byline_-prefixed SUMs 534 ms, byline alone 322 ms — one combined query is ~100 ms
+ * cheaper than two separate ones and holds one scan instead of two.
+ */
+function institutionFacetAttributes(basis: InstitutionBasis, alias = ""): any[] {
   const esc = (v: string) => v.replace(/'/g, "''");
   return Object.keys(INSTITUTION_BUCKETS).map((key) => {
     const clauses: string[] = [];
@@ -156,7 +182,7 @@ function institutionFacetAttributes(basis: InstitutionBasis): any[] {
       }
     }
     const expr = clauses.length ? clauses.join(" OR ") : "0";
-    return [literal(`SUM(CASE WHEN ${expr} THEN 1 ELSE 0 END)`), key];
+    return [literal(`SUM(CASE WHEN ${expr} THEN 1 ELSE 0 END)`), `${alias}${key}`];
   });
 }
 
@@ -176,6 +202,76 @@ function bylineCondition(key: string) {
   for (const e of excl) conds.push({ author_affiliation: { [Op.notLike]: `%${e}%` } });
   return conds.length === 1 ? conds[0] : { [Op.and]: conds };
 }
+
+// ---- Identity conflicts queue --------------------------------------------------
+//
+// "Two CWIDs assigned to one authorship": this row's PMID is ALREADY accepted by a cwid other
+// than the one the producer proposes. Accepting the row as-is would put the same paper on two
+// people's records under (potentially) the same byline.
+//
+// Three deliberate choices, each measured against the live dev DB (7,688 open rows, 2026-09-04):
+//
+//  - "assignment" means userAssertion='ACCEPTED', not any person_article row. person_article
+//    also holds PENDING suggestions (userAssertion='' — 243,643 of its 745,994 rows), and a
+//    suggestion is not an assignment. Dropping the ACCEPTED test takes this queue from 169 rows
+//    to 3,636 (47% of the whole open queue), which is not a conflict queue.
+//  - top_cwid IS NOT NULL is required rather than implied. A row with no proposed identity has
+//    no second cwid to conflict with — one cwid is not two — and `pa.personIdentifier <> NULL`
+//    is NULL, i.e. already excluded; stating it makes that intent explicit rather than a
+//    three-valued-logic accident.
+//  - Scopus rows have no pmid, so `pa.pmid = NULL` never matches and they never enter this
+//    queue. That is correct (gold standard is PMID-keyed) and needs no extra predicate.
+//
+// COLLATE goes on the authorship_review side, same rule and same reason as the person join
+// above (person_article.personIdentifier is utf8mb4_unicode_ci, authorship_review.top_cwid is
+// utf8mb4_general_ci; a bare comparison throws 1267). EXPLAIN on the dev DB: the subquery is
+// type=ref on person_article.idx_pmid, rows=1, FirstMatch, index_condition
+// `AuthorshipReview.pmid = pa.pmid` — index-backed, not a scan; the outer type=ALL over
+// authorship_review is the same scan every other query in this file already does.
+//
+// COST, stated plainly rather than hidden, because /summary is the endpoint §4's latency trap
+// already burned once (dev DB, 2026-09-04, 7,688 open rows over 745,994 person_article rows):
+//   this COUNT alone, warm .................................. 130 ms median
+//   the same open-queue COUNT without this predicate ........   36 ms median
+//   /summary's whole query fan-out, 9 queries (pool max 20) .. 385 ms median
+//   the same fan-out with this as the 10th ................... 458 ms median  (+73 ms)
+// The 10 run in parallel — src/db/db.ts sets pool.max 20 — so the wall clock is set by the
+// 24-SUM institution facet at ~300 ms and this adds contention, not a serial leg. It is the
+// honest cost of an index-backed correlated EXISTS and is left as-is; the number is here so the
+// prod gate (§5 baseline: summary 489 ms over 15,566 open rows, i.e. ~2x the row count) can be
+// judged on evidence. Making it materially cheaper needs a covering index on
+// person_article(pmid, userAssertion, personIdentifier) — a prod DDL change, not a code one.
+//
+// KNOWN WIDTH, measured, flagged for the product owner rather than silently narrowed: this is
+// a PMID-level test, so it also fires when the already-accepted cwid is a genuine *co-author*
+// on the same paper rather than a rival claim on the same byline. Of the 169 dev rows, only 21
+// share a surname with the accepted cwid's byline name (the true "same authorship, two people"
+// shape — e.g. byline "Kristy A Brown" proposed to sxa9001 while kab2060 has already accepted
+// that PMID as "Kristy A Brown"). Narrowing to those 21 is one extra condition here
+// (LOWER(pa.articleAuthorNameLastName) = LOWER(SUBSTRING_INDEX(wcm_author,' ',-1)), 156 ms) —
+// deliberately NOT applied, because the PMID-level reading is the decision on record.
+function identityConflictWhere(): any {
+  return {
+    [Op.and]: [
+      { top_cwid: { [Op.ne]: null } },
+      literal(
+        "EXISTS (SELECT 1 FROM `person_article` `pa` " +
+        "WHERE `pa`.`pmid` = `AuthorshipReview`.`pmid` " +
+        "AND `pa`.`userAssertion` = 'ACCEPTED' " +
+        "AND `pa`.`personIdentifier` <> `AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci)",
+      ),
+    ],
+  };
+}
+
+// The Identity-conflicts queue is requested either as its own statusView (what the redesigned
+// QUEUE list sends) or as a standalone boolean. Both are honoured because they are not
+// interchangeable everywhere: authorshipSelectable force-overrides statusView to "open", so a
+// conflicts request expressed ONLY as a statusView would be silently widened back to the whole
+// open queue there — exactly the "a bulk action fires on rows the user can no longer see" bug
+// class. That endpoint normalises through this helper before overriding.
+const wantsIdentityConflicts = (body: any): boolean =>
+  body?.identityConflicts === true || body?.statusView === "conflicts";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -198,6 +294,26 @@ const SORTS: Record<string, any[]> = {
   io: [["top_io_score", "DESC"], ["pmid", "DESC"]],
   fg: [["top_fg_score", "DESC"], ["pmid", "DESC"]],
   date: [["entrez_date", "DESC"], ["pmid", "DESC"]],
+  date_asc: [["entrez_date", "ASC"], ["pmid", "ASC"]],
+  // "Most candidates" — the homonym-heaviest rows first, which is the queue a curator wants when
+  // they are deliberately working the ambiguous tail rather than skimming near-certain accepts.
+  // n_candidates is a plain INTEGER column the AAR producer already writes (it is what
+  // single_candidate is derived from), so this needs no JSON_LENGTH over candidate_cwids_json and
+  // no computed expression. NULLs sort last under DESC in MariaDB, which is what we want: a row
+  // the producer never counted is not "many candidates".
+  // Measured on prod 2026-09-04 (15,644 open rows): this sort warm-medians 40 ms against 39 ms for
+  // `io` and 38 ms for `precision`. No index on n_candidates and none needed — EXPLAIN shows the
+  // WHERE takes ix_status (type=range, rows~26k) and then filesorts, and it does that for the
+  // indexed sort columns too (ix_top_io_score, ix_entrez_date both exist), because only one index
+  // per table is usable here. An index on n_candidates would not be read.
+  //
+  // KNOWN CEILING, disclose before relying on this ordering: n_candidates maxes out at 5 on prod,
+  // and 5,305 of 15,192 rows (35%) sit at exactly 5 — a jump from 950 at n=4, so the producer
+  // almost certainly truncates candidate_cwids_json to 5 (n_candidates == JSON_LENGTH of it on all
+  // 15,192 valid rows, 0 disagreements). This sort therefore cannot separate a 5-homonym row from
+  // a 40-homonym one; it puts the whole capped bucket first in arbitrary order, broken only by the
+  // top_io_score tiebreak. A further 452 rows (2.9%) have NULL and sort last.
+  candidates: [["n_candidates", "DESC"], ["top_io_score", "DESC"], ["pmid", "DESC"]],
 };
 
 // Status-view predicate for the current view ("open" | "snoozed" | "dismissed"), or null
@@ -231,6 +347,12 @@ function openStatusWhere(body: any): any {
   // accept_conflict rows are excluded here — they live in the "duplicates" view above.
   // Same for an unverdicted matched_pmid flag; ANY verdict lets the row back in here ('distinct' is
   // the only one PM writes; a stray 'same' must never hide a row from every view).
+  //
+  // statusView "conflicts" reaches here on purpose and takes this same open-queue predicate:
+  // identity conflicts are a SUBSET of the open queue, not a fifth status. The predicate that
+  // narrows them is identityConflictWhere(), applied in buildWhere — which is also why the
+  // sibling/like counts that call this function with the caller's body stay describing the open
+  // queue rather than the conflicts slice of it (same stance as the institution filter there).
   return {
     [Op.and]: [
       { accept_conflict: null },
@@ -299,6 +421,11 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
 
   const status = openStatusWhere(body);
   if (status) and.push(status);
+  // identity-conflicts queue: open rows whose PMID is already accepted by another cwid. Layered
+  // on top of the status predicate rather than replacing it — see identityConflictWhere().
+  if (wantsIdentityConflicts(body)) {
+    and.push(identityConflictWhere());
+  }
   // source segment: "all" (default) | "pubmed" | "scopus"
   if (body.source && body.source !== "all") {
     and.push({ source: body.source });
@@ -361,6 +488,20 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
       const either = [personCond, bylineCond].filter(Boolean) as any[];
       if (either.length) and.push(either.length === 1 ? either[0] : { [Op.or]: either });
     }
+  }
+  // Article-affiliation filter (multiselect): the SAME curated buckets as `institutions` above,
+  // but always resolved against the affiliation printed on the paper
+  // (INSTITUTION_BYLINE_PATTERNS via bylineCondition), never against the person's HR roster
+  // value. It is a separate body key rather than another basis value because the redesigned
+  // Affiliation popover holds two INDEPENDENT lists — "Identity affiliation" (the person, the
+  // `institutions` key above) and "Article affiliation" (the byline, this key) — and picking in
+  // both means BOTH must hold: a WCM person on an NYP byline. That AND falls out for free from
+  // both branches pushing onto the same `and` array; within one list the selected buckets still
+  // OR together. Touches no joined table (author_affiliation is a column on authorship_review),
+  // so unlike the `institutions` branch this one needs no Person include to resolve against.
+  if (Array.isArray(body.authorAffiliations) && body.authorAffiliations.length > 0) {
+    const conds = (body.authorAffiliations as string[]).map(bylineCondition).filter(Boolean) as any[];
+    if (conds.length) and.push(conds.length === 1 ? conds[0] : { [Op.or]: conds });
   }
   // hide rows with no proposed identity at all (#938 — ReCiterDB#177 nulls top_cwid on rows
   // the merged matcher no longer matches to anyone; neither Accept nor Reject has anything to
@@ -525,6 +666,37 @@ async function personNames(cwids: Array<string | undefined | null>): Promise<Rec
   return out;
 }
 
+// primaryAcademicDivision per cwid, for §2.6's identity hover card (which shows department /
+// division / institution). Department is already on the row as top_dept and institution now
+// comes off the widened person join, but division lives ONLY on the IDM roster table
+// `identity` — so it needs its own lookup.
+//
+// App-side IN() rather than a third include, for the same collation reason personNames() and
+// identityLabel() give: identity.cwid is utf8mb4_unicode_ci against authorship_review.top_cwid's
+// utf8mb4_general_ci, so a direct join throws 1267 and a COLLATE on the identity side would
+// de-index it (the exact mistake the person join's comment documents). One indexed range scan
+// per page, over the page's distinct cwids (25 at the default page size): EXPLAIN gives
+// type=range, key=`dfsdfsdf` (the cwid index), rows=10 for a 10-cwid probe; 35 ms on the dev DB,
+// and ~20 ms of the list endpoint's measured 247→270 ms warm total.
+//
+// A cwid with no identity row, or with the column null, is simply absent from the result — the
+// hover card omits the division line rather than showing an empty one. That is common, not
+// exceptional: of 10 sampled queue cwids, 5 had a null primaryAcademicDivision.
+async function identityDivisions(cwids: Array<string | undefined | null>): Promise<Record<string, string>> {
+  const wanted = [...new Set(cwids.filter(Boolean).map(String))];
+  if (wanted.length === 0) return {};
+  const found: any[] = await models.Identity.findAll({
+    where: { cwid: { [Op.in]: wanted } },
+    attributes: ["cwid", "primaryAcademicDivision"], raw: true,
+  });
+  const out: Record<string, string> = {};
+  found.forEach((r) => {
+    const div = String(r.primaryAcademicDivision || "").trim();
+    if (r.cwid && div) out[String(r.cwid)] = div;
+  });
+  return out;
+}
+
 // "Given Middle Surname · Department" for ONE curator-typed cwid. This string is the only
 // thing standing between the curator and an authoritative write into a stranger's publication
 // record, so it comes from THREE sources and the caller only ever falls back to a bare cwid
@@ -654,7 +826,11 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       // not be silently dropped by the join. The include is attached unconditionally (not
       // only when body.institutions is set) so buildWhere's optional $Person.primaryInstitution$
       // reference always has a join to resolve against.
-      include: [personInstitutionInclude(false)],
+      // This is the ONE call site that widens the include's attributes: the identity hover card
+      // needs the proposed person's institution, and the join is already here. See
+      // personInstitutionInclude() for the measurements and for why the other two callers keep
+      // the empty default.
+      include: [personInstitutionInclude(false, ["primaryInstitution"])],
       where: buildWhere(body, absentCwids),
       order,
       offset,
@@ -740,12 +916,30 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     const pubmedRows = rows.filter((r: any) => r.source !== "scopus" && r.pmid != null);
     const rejectionCwids = new Set<string>();
     for (const r of pubmedRows) candidateCwidsFromRow(r).forEach((c) => rejectionCwids.add(c));
-    const rejectedByCwid = await getRejectedPmidsByCwid([...rejectionCwids]);
     const rejectionCheckIds = new Set(pubmedRows.map((r: any) => r.id));
+
+    // §2.6 identity hover card: division comes from the IDM roster (its own indexed lookup over
+    // this page's cwids), institution off the widened person join already on each row.
+    //
+    // Run WITH the gold-standard rejection lookup, not after it. The two share no input and no
+    // output — one is a DynamoDB BatchGetItem against GoldStandard, the other an indexed IN()
+    // over `identity` in MySQL — so awaiting them in sequence cost the page one whole extra
+    // round-trip on every load for nothing (measured on dev: the divisions query is a 23 ms
+    // range scan on a 25-row page, and it used to start only once DynamoDB had answered).
+    // §4's rule: a correctness check is not a latency check.
+    const [rejectedByCwid, divisions] = await Promise.all([
+      getRejectedPmidsByCwid([...rejectionCwids]),
+      identityDivisions(rows.map((r: any) => r.top_cwid)),
+    ]);
 
     const out = rows.map((r: any) => {
       const map = r.source === "scopus" ? scopusSib : pmidSib;
       const json: any = r.toJSON();
+      // The widened include lands as a nested `Person` object. Flatten it to one flat, stable
+      // key alongside top_dept/top_name and drop the nested object, so the response shape stays
+      // a flat row and the join's presence remains an implementation detail.
+      const top_institution: string | null = json.Person?.primaryInstitution || null;
+      delete json.Person;
       if (rejectionCheckIds.has(r.id)) {
         const pmidNum = Number(r.pmid);
         let candidates: any[] = [];
@@ -771,6 +965,9 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
         pmid_sibling_count: map[siblingKey(r)] || 1,
         // false → the proposed identity can't be accepted into ReCiter (UI hides Accept)
         identity_in_reciter: !r.top_cwid || knownIdentities.has(String(r.top_cwid)),
+        // hover-card fields; null when unknown, never "" — the card omits the line entirely
+        top_institution,
+        top_division: (r.top_cwid && divisions[String(r.top_cwid)]) || null,
         like_count,
       };
     });
@@ -799,7 +996,15 @@ const SELECTABLE_CAP = 5000;
 
 export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const body = { ...(req.body || {}), statusView: "open" };
+    // statusView is force-overridden to "open" (bulk actions only ever act on the open queue),
+    // so a caller browsing the Identity-conflicts queue must have that narrowing carried across
+    // the override as its own flag — otherwise "Select all N matching" would silently widen from
+    // the conflicts slice to the entire open queue, i.e. act on rows the curator cannot see.
+    const body = {
+      ...(req.body || {}),
+      identityConflicts: wantsIdentityConflicts(req.body),
+      statusView: "open",
+    };
     const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
     const rows = await models.AuthorshipReview.findAll({
       attributes: ["id", "source", "pmid", "wcm_author", "top_name", "top_cwid", "single_candidate", "candidate_cwids_json"],
@@ -840,19 +1045,31 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
 };
 
 // POST /api/db/authorships/summary — counts for the tab headers. Ignores the
-// segment/classification/precision/person-type/institution filters so each facet shows its
-// own total.
+// segment/classification/precision/person-type/institution/article-affiliation filters so each
+// facet shows its own total.
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
+    // authorAffiliations is neutralised alongside institutions and for the same reason: both
+    // facets below must report their own queue-wide totals, not totals already narrowed by the
+    // very selection the curator is about to change.
     const body = {
       ...(req.body || {}), source: "all", classification: "all", precision: "all",
-      personTypes: [], pubTypes: [], institutions: [],
+      personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [],
     };
     const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
     const where = buildWhere(body, absentCwids);
     // The duplicates facet counts its own view, so it needs a where built with that statusView
     // rather than the caller's (the open-queue where excludes exactly the rows it counts).
     const dupWhere = buildWhere({ ...body, statusView: "duplicates" }, absentCwids);
+    // Same for identity conflicts: the header pill and the QUEUE label must show the queue-wide
+    // N no matter which queue is being browsed, so this one is built with the conflicts
+    // narrowing forced ON and the status forced back to the open queue — never from the
+    // caller's own view. (statusView itself still passes through to `where` above, so `total`
+    // continues to describe the caller's current queue, exactly as it already does for
+    // duplicates.)
+    const conflictWhere = buildWhere(
+      { ...body, statusView: "open", identityConflicts: true }, absentCwids,
+    );
     // The 8 queries below do NOT get personInstitutionInclude() attached, unlike every other
     // buildWhere caller in this file — and this is deliberate, not an oversight. `where`/
     // `dupWhere` here can NEVER carry a $Person.primaryInstitution$ condition (institutions is
@@ -862,11 +1079,15 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // JOIN to `person` entered these queries (ER_NON_UNIQ_ERROR 1052), confirmed against the
     // live dev DB. The institution facet query just below is the one place in this endpoint
     // that legitimately needs the join, and it qualifies every column accordingly.
-    const [total, single, fullname, duplicates, byClass, byType, bySrc, byPub, byInstitution] = await Promise.all([
+    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution] = await Promise.all([
       models.AuthorshipReview.count({ where }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
       models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true, top_given_match: "full" }] } }),
       models.AuthorshipReview.count({ where: dupWhere }),
+      // Identity conflicts. No include needed and none wanted: identityConflictWhere() is an
+      // EXISTS subquery against person_article and touches no joined table, so the ambiguous-`id`
+      // trap documented above does not apply and this stays a plain COUNT over authorship_review.
+      models.AuthorshipReview.count({ where: conflictWhere }),
       models.AuthorshipReview.findAll({ attributes: ["classification", [fn("COUNT", col("id")), "n"]], where, group: ["classification"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["top_person_type", [fn("COUNT", col("id")), "n"]], where, group: ["top_person_type"], raw: true }),
       models.AuthorshipReview.findAll({ attributes: ["source", [fn("COUNT", col("id")), "n"]], where, group: ["source"], raw: true }),
@@ -883,8 +1104,20 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       // when top_cwid matches no person row — an INNER JOIN would silently drop exactly the
       // rows the byline basis exists to surface. Measured on production: the 12 LIKE patterns
       // cost ~690 ms over the open rows, which the facet already tolerates.
+      //
+      // TWO facets now come out of this ONE query. `institutions` keeps its existing basis
+      // (whatever the caller asks for, default "either") and feeds the Identity-affiliation
+      // list; the `byline_`-prefixed columns feed the new Article-affiliation list, which is
+      // always the byline basis by definition. When the caller's basis IS "byline" the two are
+      // the same numbers, so the extra columns are skipped and both facets read the same ones.
+      // Combining beats a second query — dev DB, over the open queue: 12 SUMs (either) 315 ms,
+      // 24 SUMs 534 ms, 12 SUMs (byline) 322 ms.
       models.AuthorshipReview.findAll({
-        attributes: institutionFacetAttributes(normaliseBasis(body.institutionBasis)),
+        attributes: [
+          ...institutionFacetAttributes(normaliseBasis(body.institutionBasis)),
+          ...(normaliseBasis(body.institutionBasis) === "byline"
+            ? [] : institutionFacetAttributes("byline", "byline_")),
+        ],
         include: [personInstitutionInclude(false)],
         where, raw: true,
       }),
@@ -903,11 +1136,103 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // "Other".
     // the conditional-SUM query returns a single row, one column per bucket key
     const facetRow: Record<string, any> = ((byInstitution as any[])[0]) || {};
-    const institutions = Object.keys(INSTITUTION_BUCKETS)
-      .map((key) => ({ key, n: Number(facetRow[key] || 0) }))
+    const bucketCounts = (prefix: string) => Object.keys(INSTITUTION_BUCKETS)
+      .map((key) => ({ key, n: Number(facetRow[`${prefix}${key}`] || 0) }))
       .filter((b) => b.n > 0)
       .sort((a, b) => b.n - a.n);
-    res.send({ total, single_candidate: single, fullname, duplicates, classes, personTypes, bySource, pubTypes, institutions });
+    const institutions = bucketCounts("");
+    // Article-affiliation facet — same bucket keys, counted on the byline basis. Shares the
+    // prefix-free columns when the caller's own basis is already "byline" (see the query).
+    const authorInstitutions = bucketCounts(
+      normaliseBasis(body.institutionBasis) === "byline" ? "" : "byline_",
+    );
+    res.send({
+      total, single_candidate: single, fullname, duplicates, conflicts,
+      classes, personTypes, bySource, pubTypes, institutions, authorInstitutions,
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
+// POST /api/db/authorships/prior-names — every byline form a cwid has already published under,
+// for §2.6's identity hover card ("NAMES ON ACCEPTED PAPERS"). This is the one piece of the
+// card that answers the curator's actual question — "does the name printed on THIS paper look
+// like the names this person already publishes under?" — so a homonym row shows "Kristy A
+// Brown / Kristy Brown / K A Brown" and not just a department.
+//
+// Source is person_article: articleAuthorNameFirstName/LastName is the byline ReCiter matched,
+// and userAssertion='ACCEPTED' is the curator-confirmed subset (the table also holds PENDING
+// suggestions, userAssertion='', which are emphatically not evidence of how someone publishes).
+//
+// Safe to call on hover, by construction rather than by hope:
+//  - Batched. The card is per-row but a page has 25 rows, so the client can warm the whole page
+//    in one call; CWID_CAP bounds a hostile or buggy caller.
+//  - Index-driven. WHERE personIdentifier IN (...) rides the (personIdentifier, pmid) index —
+//    EXPLAIN on the dev DB gives type=range, key=personIdentifier, rows=873 for a 10-cwid probe,
+//    39 ms including the GROUP BY. userAssertion has NO index of its own, which is exactly why
+//    it is applied as a filter on the rows that index already narrowed to: a query that leads
+//    with userAssertion instead scans all 745,994 rows (measured: 31,853 ms).
+//  - Capped per cwid. NAME_CAP forms are returned, most frequent first, with `more` saying how
+//    many distinct forms were dropped — the card shows a handful, not a life's bibliography.
+//
+// `accepted` is returned alongside `names` because they answer different questions and the card
+// needs both: a cwid with accepted papers whose byline names are all blank (4,449 person_article
+// rows WITH userAssertion='ACCEPTED' carry an empty articleAuthorNameLastName) has names:[] but
+// accepted>0, and must NOT be rendered as the mockup's "No accepted papers yet" — that line
+// belongs to accepted===0 alone.
+// The ACCEPTED qualifier is the whole claim: 5,662 is the count over ALL assertion states, and
+// 1,213 of those are PENDING or REJECTED rows this endpoint never reads (dev DB 2026-09-04:
+// 5,662 total = 4,449 ACCEPTED + 713 REJECTED + 500 pending, which this table stores as '' not 'PENDING'). Do not quote the wider number here.
+const PRIOR_NAMES_CWID_CAP = 50;
+const PRIOR_NAMES_NAME_CAP = 8;
+
+export const authorshipPriorNames = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const raw: any[] = Array.isArray(req.body?.cwids)
+      ? req.body.cwids
+      : (req.body?.cwid ? [req.body.cwid] : []);
+    const cwids = [...new Set(raw.map((v: any) => String(v || "").trim()).filter(Boolean))]
+      // same shape gate authorshipLookupCwid applies to a typed cwid — a value that cannot be a
+      // cwid cannot match a row, so it is dropped rather than sent to the database.
+      .filter((c) => /^[A-Za-z0-9]{1,32}$/.test(c))
+      .slice(0, PRIOR_NAMES_CWID_CAP);
+    if (!cwids.length) return res.send({ names: {}, accepted: {} });
+
+    const rows: any[] = await models.PersonArticle.findAll({
+      attributes: [
+        "personIdentifier", "articleAuthorNameFirstName", "articleAuthorNameLastName",
+        [fn("COUNT", col("id")), "n"],
+      ],
+      where: { personIdentifier: { [Op.in]: cwids }, userAssertion: "ACCEPTED" },
+      group: ["personIdentifier", "articleAuthorNameFirstName", "articleAuthorNameLastName"],
+      raw: true,
+    });
+
+    const names: Record<string, Array<{ first: string; last: string; n: number }>> = {};
+    const accepted: Record<string, number> = {};
+    const dropped: Record<string, number> = {};
+    for (const r of rows) {
+      const cwid = String(r.personIdentifier);
+      const n = Number(r.n) || 0;
+      accepted[cwid] = (accepted[cwid] || 0) + n;
+      const first = String(r.articleAuthorNameFirstName || "").trim();
+      const last = String(r.articleAuthorNameLastName || "").trim();
+      if (!first && !last) continue;   // nameless accepted rows still count toward `accepted`
+      (names[cwid] ||= []).push({ first, last, n });
+    }
+    for (const cwid of Object.keys(names)) {
+      names[cwid].sort((a, b) => b.n - a.n || `${a.last}${a.first}`.localeCompare(`${b.last}${b.first}`));
+      if (names[cwid].length > PRIOR_NAMES_NAME_CAP) {
+        dropped[cwid] = names[cwid].length - PRIOR_NAMES_NAME_CAP;
+        names[cwid] = names[cwid].slice(0, PRIOR_NAMES_NAME_CAP);
+      }
+    }
+    // Every requested cwid gets an entry, so the client can tell "asked and has none" from
+    // "never asked" without tracking its own request bookkeeping.
+    for (const c of cwids) { names[c] ||= []; accepted[c] ||= 0; }
+    res.send({ names, accepted, more: dropped });
   } catch (e) {
     console.log(e);
     res.status(500).send(String(e));

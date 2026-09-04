@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Popover from "@mui/material/Popover";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import Checkbox from "@mui/material/Checkbox";
@@ -43,6 +44,11 @@ interface AuthorshipRow {
   top_name?: string;
   top_person_type?: string;
   top_dept?: string;
+  // §2.6 identity hover card. Both come from the list endpoint's widened SELECT (phase 1):
+  // institution off the `person` join already attached to every row, division off the IDM
+  // roster. `null` (never "") when the row's cwid has no such record — the card omits the line.
+  top_institution?: string | null;
+  top_division?: string | null;
   top_fg_score?: number;
   top_io_score?: number;
   top_confidence?: number;
@@ -146,6 +152,22 @@ interface ActivityEntry {
   external_id?: string;
 }
 
+// One cwid's answer from POST /api/db/authorships/prior-names — the "NAMES ON ACCEPTED PAPERS"
+// block of §2.6's identity hover card. `names` is capped at 8 forms server-side (most frequent
+// first) with `more` counting the rest.
+//
+// `accepted` is NOT derivable from `names`: 4,449 person_article rows with userAssertion=
+// 'ACCEPTED' carry a blank byline name (ACCEPTED ONLY — the all-assertion-states count is 5,662
+// and says nothing about accepted papers), so a cwid can legitimately have accepted > 0 and
+// names === [] — on the dev DB 25 cwids are in exactly that state. The
+// mockup's "No accepted papers yet" line belongs to `accepted === 0` alone — reading it off
+// names.length would tell a curator someone has published nothing when they have published a lot.
+interface PriorNames {
+  names: Array<{ first: string; last: string; n: number }>;
+  accepted: number;
+  more?: number;
+}
+
 interface Candidate {
   cwid: string;
   name?: string;
@@ -165,10 +187,18 @@ interface Summary {
   total: number; single_candidate: number; classes: Record<string, number>;
   fullname?: number;                                 // single-candidate AND full given-name match
   duplicates?: number;                               // accepts parked by a dup-check 409
+  // Identity conflicts: open rows whose PMID is already ACCEPTED by a different cwid. Like
+  // `duplicates`, it is computed over the OPEN queue whatever queue the caller is browsing, so
+  // the QUEUE list can label the branch with a stable N from inside any other queue.
+  conflicts?: number;
   personTypes?: Array<{ type: string; n: number }>;
   bySource?: Record<string, number>;                 // { pubmed: n, scopus: n } — source-segment counts
   pubTypes?: Array<{ type: string; n: number }>;      // scopus pub_type facet
-  institutions?: Array<{ key: string; n: number }>;   // curated institution-bucket facet (see INSTITUTION_LABELS)
+  // Two institution facets over the SAME bucket keys, one per basis (see INSTITUTION_LABELS):
+  // `institutions` is the person/HR basis behind IDENTITY AFFILIATION, `authorInstitutions` the
+  // byline basis behind ARTICLE AFFILIATION. They are independent lists, ANDed by the server.
+  institutions?: Array<{ key: string; n: number }>;
+  authorInstitutions?: Array<{ key: string; n: number }>;
 }
 
 // Response shape of POST /api/db/authorships/counterpart (authorshipCounterpart in
@@ -248,10 +278,322 @@ const STATUS_LABEL: Record<string, string> = {
   accepted: "Accepted", assigned: "Assigned", rejected: "Rejected", dismissed: "Dismissed",
 };
 
-// noun for the summary total — the count is scoped to the active status view, so the label must
-// follow it (Snoozed/Dismissed counts aren't "unassigned").
-const SUMMARY_TOTAL_LABEL: Record<"open" | "snoozed" | "dismissed", string> = {
-  open: "unassigned", snoozed: "snoozed", dismissed: "dismissed",
+// The noun phrase after the count in §2.1's one-line header ("7,412 unassigned authorships,
+// past 5 years"). summary.total is scoped to the caller's own queue, so every queue needs its
+// own phrase — a snoozed count is not "unassigned", and the two review queues read as a
+// qualifier on "authorships" rather than an adjective in front of it.
+const SUMMARY_HEADLINE: Record<string, string> = {
+  open: "unassigned authorships", snoozed: "snoozed authorships", dismissed: "dismissed authorships",
+  conflicts: "authorships with an identity conflict", duplicates: "possible duplicate authorships",
+};
+
+// The date phrase that trails that line (§2.1: "…, past 5 years"). Keyed by datePreset, which is
+// a module constant at mount, so the statically-prerendered first paint and the client agree —
+// dateFrom/dateTo are computed client-side and must never be echoed into it except under
+// "custom", which no first render can be in.
+const DATE_PHRASE: Record<string, string> = {
+  any: "", "30d": "past 30 days", "90d": "past 90 days", "6m": "past 6 months",
+  "12m": "past 12 months", "24m": "past 2 years", "60m": "past 5 years",
+};
+const datePhrase = (preset: string, from: string, to: string): string => {
+  if (preset !== "custom") return DATE_PHRASE[preset] ?? "";
+  if (from && to) return `${from} to ${to}`;
+  if (from) return `since ${from}`;
+  if (to) return `through ${to}`;
+  return "";
+};
+
+// ---- filter model (single source of truth) -------------------------------
+// Every server-visible filter on this page lives in ONE object. Two dependency arrays in this
+// file have repeatedly gone stale when a filter was added by hand:
+//   * filterBody()'s deps — a filter missing there silently stops triggering refetches, so the
+//     list keeps showing rows the filter says are gone.
+//   * the ephemeral-clear effect's deps — a filter missing there leaves `selected` alive on
+//     rows the curator can no longer see, and the next bulk action fires on them.
+// Both now depend on this one object, so neither can be forgotten: add a key to
+// AuthorshipFilters, give it a default in FILTER_DEFAULTS, and read it in buildFilterBody().
+// scripts/check-authorships-filter-body.mjs fails the build-time check if a key is added
+// without reaching the posted body.
+//
+// Deliberately NOT in here (each one is a documented exception, not an oversight):
+//   * `page`        — appended as `offset` at the fetch site, never part of the posted filter
+//                     body; it IS in the ephemeral-clear deps (paging must drop the selection).
+//   * `searchInput` — the raw text box. It debounces (300 ms) into `search`, which is the
+//                     filter; binding a fetch to every keystroke is what the debounce avoids.
+//   * `datePreset`  — a LABEL for the dateFrom/dateTo pair, not a filter. Selecting "Custom…"
+//                     changes only the preset and must not refetch or drop a selection.
+//   * anchors, `expanded`, `selected`, `picked`, `allMatching` — UI state, not filters.
+interface AuthorshipFilters {
+  lane: "fullname" | "single" | "all";
+  classification: "all" | "buried" | "absent" | "suggested";
+  search: string;
+  selectedTypes: string[];
+  // IDENTITY AFFILIATION (HANDOFF §2.2): institution buckets matched against the proposed
+  // person's HR/roster institution — #982's `person` basis, which buildFilterBody now pins.
+  selectedInstitutions: string[];
+  // ARTICLE AFFILIATION (HANDOFF §2.2): the same bucket keys matched against the affiliation
+  // printed on THIS paper — #982's `byline` basis. A separate, independent list: the server
+  // ANDs the two, so "identity WCM + article NYP" means "a WCM person on an NYP byline".
+  selectedAuthorAffiliations: string[];
+  source: "all" | "pubmed" | "scopus";
+  selectedPubTypes: string[];
+  dateFrom: string;
+  dateTo: string;
+  sort: string;
+  statusView: "open" | "snoozed" | "dismissed" | "duplicates" | "conflicts";
+  hideNoSuggestion: boolean;
+  hideNoIdentity: boolean;
+  likeAuthor: string;
+}
+
+const DEFAULT_DATE_PRESET = "24m";                       // "Last 2 years" (HANDOFF §2.4)
+// "All time" / "Last 12 months" / "Last 2 years" / "Last 5 years" are the four the mockup's DATE
+// select names (HANDOFF §2.3, mockup:244-249); "Last 5 years" is new. The other three presets
+// (and Custom…, which reveals the explicit From/To inputs) are pre-existing windows this page
+// already supports — the mockup's list is a subset, and dropping a working filter is not a
+// re-skin, so they stay.
+const DATE_PRESET_LABEL: Record<string, string> = {
+  any: "All time", "30d": "Last 30 days", "90d": "Last 90 days", "6m": "Last 6 months",
+  "12m": "Last 12 months", "24m": "Last 2 years", "60m": "Last 5 years", custom: "Custom…",
+};
+const DATE_PRESET_ORDER = ["any", "30d", "90d", "6m", "12m", "24m", "60m", "custom"];
+const STATUS_VIEW_LABEL: Record<AuthorshipFilters["statusView"], string> = {
+  open: "Open", conflicts: "Identity conflicts", duplicates: "Duplicate records",
+  snoozed: "Snoozed", dismissed: "Dismissed",
+};
+// QUEUE (HANDOFF §2.3, mockup:498-504) — `statusView` plus the new Identity-conflicts branch.
+// The lane does NOT live here (see MATCH_CLASS_OPTIONS below and HANDOFF §3a): these five are
+// mutually exclusive server-side views, a precision lane is not.
+const QUEUE_OPTIONS: Array<{ key: AuthorshipFilters["statusView"]; note?: string }> = [
+  { key: "open" },
+  { key: "conflicts", note: "Two CWIDs on one authorship" },
+  { key: "duplicates", note: "Same paper from PubMed and Scopus" },
+  { key: "snoozed" },
+  { key: "dismissed" },
+];
+// Duplicates and Identity conflicts are REVIEW queues, not status values: the rows in them are
+// still status="open" underneath. Two consequences, both already true of duplicates and both
+// now true of conflicts — a card inside one must be handed statusView="open" so it offers the
+// same per-row actions as the open feed, and the page-level bulk actions stay off (eligibleRows
+// gates on statusView === "open"), because a review queue is resolved one row at a time.
+
+// The defaults "Reset all" restores and the chip row measures against (HANDOFF §2.4, from the
+// mockup's DEFAULTS at mockup:552 plus its resetAll at mockup:702).
+const FILTER_DEFAULTS: AuthorshipFilters = {
+  lane: "all", classification: "all",                    // match class "All unassigned"
+  search: "",
+  selectedTypes: [],
+  selectedInstitutions: ["wcm"],                         // identity affiliation = WCM
+  selectedAuthorAffiliations: [],                        // article affiliation = any
+  source: "all",
+  selectedPubTypes: [],
+  dateFrom: "", dateTo: "",                              // the real default window is computed
+                                                         // by applyDatePreset(DEFAULT_DATE_PRESET)
+  sort: "io",                                            // never reset — see RESET_EXEMPT
+  statusView: "open",
+  hideNoSuggestion: false, hideNoIdentity: false,
+  likeAuthor: "",
+};
+
+// What the page mounts with. Phase 3 adopts HANDOFF §2.4's defaults wholesale, so this is now
+// FILTER_DEFAULTS exactly and the page loads with an empty chip row.
+//
+// Two first-load behaviours changed with it, both deliberate and both owner-confirmed (§2.2):
+//   lane "single" -> "all"             — the old mount silently pinned the queue to the
+//                                        high-precision lane through a control that no longer
+//                                        exists as a strip. Leaving it at "single" while
+//                                        deleting the strip is exactly the stranded-default
+//                                        trap §3a warns about; the lane now lives in MATCH
+//                                        CLASS and starts at its own all-value.
+//   selectedInstitutions [] -> ["wcm"] — the identity-affiliation default. Narrower than
+//                                        before: the queue shows fewer rows on first load.
+const INITIAL_FILTERS: AuthorshipFilters = {
+  ...FILTER_DEFAULTS,
+};
+
+// "Reset all" restores FILTER_DEFAULTS except these. Sort is a view preference, not a filter:
+// the mockup's DEFAULTS omits it, it is never a chip, and the owner's standing requirement is
+// that changing one control must not lose the others, sort in particular.
+const RESET_EXEMPT: Array<keyof AuthorshipFilters> = ["sort"];
+const filterResetPatch = (): Partial<AuthorshipFilters> => {
+  const patch: Partial<AuthorshipFilters> = {};
+  (Object.keys(FILTER_DEFAULTS) as Array<keyof AuthorshipFilters>).forEach((k) => {
+    if (RESET_EXEMPT.indexOf(k) > -1) return;
+    const v = FILTER_DEFAULTS[k];
+    (patch as any)[k] = Array.isArray(v) ? v.slice() : v;   // never hand out the shared array
+  });
+  return patch;
+};
+
+// Two filter values are "the same" when a write of one over the other is a no-op. Arrays are
+// compared by content because several call sites re-set an already-empty list (the
+// source-leaves-scopus reset, "Clear selection"); with one shared object a fresh [] would
+// otherwise look like a change and cost a refetch plus the curator's selection.
+const sameFilterValue = (a: any, b: any): boolean => {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => v === b[i]);
+  return Object.is(a, b);
+};
+
+// MATCH CLASS (HANDOFF §2.3) is the union of today's two chip strips — the lane strip
+// (fullname / single / all) and the classification strip — as ONE single-select list in the
+// mockup's order (mockup:488-496). Picking a lane value resets classification to its all-value
+// and vice versa, which is why 7 entries cover 3 lane values + 4 classification values.
+const LANE_LABEL: Record<AuthorshipFilters["lane"], string> = {
+  all: "All unassigned", fullname: "Unique and full given-name match", single: "High-precision",
+};
+const MATCH_CLASS_DEFAULT = LANE_LABEL.all;
+// `hint` is the tooltip the deleted strips carried (they are the only place these explanations
+// lived); `count` is the right-aligned number the popover shows (§2.3), read off the same
+// summary facets the strips used — no new server field.
+type MatchClassOption = {
+  label: string;
+  lane: AuthorshipFilters["lane"];
+  classification: AuthorshipFilters["classification"];
+  hint: string;
+  count: (s: Summary | null) => number | undefined;
+};
+const MATCH_CLASS_OPTIONS: MatchClassOption[] = [
+  { label: LANE_LABEL.all, lane: "all", classification: "all", hint: "Every unassigned authorship", count: (s) => s?.total },
+  {
+    label: LANE_LABEL.fullname, lane: "fullname", classification: "all",
+    hint: "Exactly one WCM identity matches AND the given name matches in full (not just the initial). Curators have accepted 4,723 of these and rejected none; the initial-only rows next door were rejected 373 times.",
+    count: (s) => s?.fullname,
+  },
+  {
+    label: LANE_LABEL.single, lane: "single", classification: "all",
+    hint: "Only authorships where exactly one WCM identity matches the name",
+    count: (s) => s?.single_candidate,
+  },
+  { label: CLASS_META.suggested.label, lane: "all", classification: "suggested", hint: CLASS_META.suggested.hint, count: (s) => s?.classes?.suggested },
+  { label: CLASS_META.buried.label, lane: "all", classification: "buried", hint: CLASS_META.buried.hint, count: (s) => s?.classes?.buried },
+  { label: CLASS_META.absent.label, lane: "all", classification: "absent", hint: CLASS_META.absent.hint, count: (s) => s?.classes?.absent },
+  // SIX options, not the mockup's seven. Its 7th, "All classes", is the classification strip's
+  // all-value and lands on exactly the same (lane:"all", classification:"all") state as
+  // "All unassigned" at the top of this list — the mockup lists both only because it is today's
+  // two chip strips concatenated (HANDOFF §3a) and does not know they are two axes. Two entries
+  // for one state is a dead control: activeMatchClass uses .find(), so the later duplicate could
+  // never highlight and clicking it did nothing visible. The two all-values collapse into one.
+  // Do not re-add it.
+];
+// The two strips can still express a combination the single-select list cannot (e.g. the
+// fullname lane AND the Buried class); name it honestly rather than mislabel it as one option.
+const matchClassLabel = (f: AuthorshipFilters): string => {
+  const lane = f.lane === "all" ? "" : LANE_LABEL[f.lane];
+  const cls = f.classification === "all" ? "" : (CLASS_META[f.classification]?.label || f.classification);
+  if (lane && cls) return `${lane} + ${cls}`;
+  return lane || cls || MATCH_CLASS_DEFAULT;
+};
+
+// The exact JSON body every list/selectable request posts. Module-level and pure so it can be
+// diffed across revisions without a browser — scripts/check-authorships-filter-body.mjs pulls
+// this literal out of the file and compares its output, state by state, against a committed
+// baseline captured before the controls were restructured. KEY ORDER IS PART OF THAT CONTRACT:
+// the check is a byte comparison of JSON.stringify, so reordering keys fails it.
+const buildFilterBody = (f: AuthorshipFilters) => ({
+  feed: "unassigned",
+  precision: f.lane,
+  classification: f.classification,
+  searchTextInput: f.search,
+  personTypes: f.selectedTypes,
+  institutions: f.selectedInstitutions,
+  // Pinned, no longer a control. #982 shipped a user-facing `match: either/person/byline`
+  // select; HANDOFF §2.2 replaces it with the two-list Affiliation popover, in which
+  // `institutions` IS the identity list and therefore always means the person basis, while the
+  // byline basis is expressed by `authorAffiliations` below. The server parameter is kept and
+  // still works, so restoring an OR across the two conditions later is a UI change only.
+  institutionBasis: "person",
+  authorAffiliations: f.selectedAuthorAffiliations,
+  source: f.source,
+  pubTypes: f.source === "scopus" ? f.selectedPubTypes : [],   // pub-type facet only meaningful for scopus
+  dateFrom: f.dateFrom,
+  dateTo: f.dateTo,
+  sort: f.sort,
+  statusView: f.statusView,
+  hideNoSuggestion: f.hideNoSuggestion,
+  hideNoIdentity: f.hideNoIdentity,
+  likeAuthor: f.likeAuthor,
+});
+
+// The body POST /api/db/authorships/summary gets. Derived from buildFilterBody by REMOVAL, not
+// rebuilt from a second hand-written key list, so the two can never disagree about a filter's
+// spelling or value and a filter added to buildFilterBody later reaches the summary for free.
+//
+// What is removed, and why it is safe to remove — this is the list the guard script holds the
+// server to. authorshipSummary (controllers/db/authorships.controller.ts) opens with
+//
+//     const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all",
+//                    personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [] };
+//
+// so those seven keys cannot move a single number it returns: every facet must report its own
+// queue-wide total rather than one already narrowed by the very selection the curator is about
+// to change. `sort` goes for a different reason — the endpoint is ten COUNT/GROUP BY queries
+// with no ORDER BY and never reads it.
+//
+// Everything NOT listed here (searchTextInput, dateFrom, dateTo, statusView, the two hides,
+// likeAuthor) genuinely narrows the summary and must keep reaching it, which is the property
+// scripts/check-authorships-filter-body.mjs §6 enforces — it re-reads the controller's own
+// override literal and fails if this list and the server's behaviour drift apart.
+//
+// institutionBasis SURVIVES the removal and must: it is not a filter here (institutions is
+// forced to [] server-side), it only says which basis the `institutions` facet is COUNTED on,
+// and it has to stay "person" because that facet feeds the IDENTITY AFFILIATION list while
+// buildFilterBody pins the same basis — otherwise the list would show "either" counts next to
+// checkboxes that filter on person (on dev: wcm 3,335 vs 2,279 for the same box).
+const SUMMARY_BLIND_BODY_KEYS = [
+  "precision", "classification", "source", "personTypes", "pubTypes",   // neutralised on arrival
+  "institutions", "authorAffiliations",                                  // ditto
+  "sort",                                                                // counts have no ORDER BY
+] as const;
+const buildSummaryBody = (f: AuthorshipFilters) => {
+  const body: Record<string, any> = { ...buildFilterBody(f) };
+  for (const k of SUMMARY_BLIND_BODY_KEYS) delete body[k];
+  return body;
+};
+
+// Active-filter chips (HANDOFF §2.4). A transcription of the mockup's chipsFor (mockup:607-624),
+// including its two quirks: the source segment is never a chip, and the search box IS one.
+// `patch` is what removing the chip writes back — a plain object rather than a closure, so the
+// rule set stays pure and testable. `preset` accompanies the date chip, whose removal has to go
+// through applyDatePreset (it recomputes dateFrom/dateTo) rather than a direct patch.
+// filterCount, the number on the Filters button in phase 3, is this array's length.
+type FilterChip = { id: string; label: string; patch: Partial<AuthorshipFilters>; preset?: string };
+const filterChips = (f: AuthorshipFilters, datePreset: string): FilterChip[] => {
+  const out: FilterChip[] = [];
+  if (f.statusView !== FILTER_DEFAULTS.statusView)
+    out.push({ id: "queue", label: `Queue: ${STATUS_VIEW_LABEL[f.statusView]}`, patch: { statusView: FILTER_DEFAULTS.statusView } });
+  const matchClass = matchClassLabel(f);
+  if (matchClass !== MATCH_CLASS_DEFAULT)
+    out.push({ id: "class", label: `Class: ${matchClass}`, patch: { lane: FILTER_DEFAULTS.lane, classification: FILTER_DEFAULTS.classification } });
+  f.selectedTypes.forEach((v) => out.push({
+    id: `type:${v}`, label: `Person type: ${v}`, patch: { selectedTypes: f.selectedTypes.filter((x) => x !== v) },
+  }));
+  // Identity affiliation: an EMPTY list is off-default (the default is WCM), so it gets its own
+  // chip whose × restores the default rather than clearing anything — mockup:617 exactly.
+  if (f.selectedInstitutions.length === 0)
+    out.push({ id: "affil:any", label: "Identity affil: any", patch: { selectedInstitutions: FILTER_DEFAULTS.selectedInstitutions.slice() } });
+  else if (!(f.selectedInstitutions.length === 1 && f.selectedInstitutions[0] === FILTER_DEFAULTS.selectedInstitutions[0]))
+    f.selectedInstitutions.forEach((v) => out.push({
+      id: `affil:${v}`, label: `Identity affil: ${INSTITUTION_LABELS[v] || v}`,
+      patch: { selectedInstitutions: f.selectedInstitutions.filter((x) => x !== v) },
+    }));
+  // Article affiliation (mockup:619). Unlike the identity list its default is EMPTY, so there
+  // is no "any" chip to render — every selected value is off-default by definition.
+  f.selectedAuthorAffiliations.forEach((v) => out.push({
+    id: `authorAffil:${v}`, label: `Article affil: ${INSTITUTION_LABELS[v] || v}`,
+    patch: { selectedAuthorAffiliations: f.selectedAuthorAffiliations.filter((x) => x !== v) },
+  }));
+  if (datePreset !== DEFAULT_DATE_PRESET)
+    out.push({ id: "date", label: `Date: ${DATE_PRESET_LABEL[datePreset] || datePreset}`, patch: {}, preset: DEFAULT_DATE_PRESET });
+  if (f.hideNoSuggestion) out.push({ id: "hideNoSuggestion", label: "Hiding no suggested identity", patch: { hideNoSuggestion: false } });
+  if (f.hideNoIdentity) out.push({ id: "hideNoIdentity", label: "Hiding no ReCiter identity", patch: { hideNoIdentity: false } });
+  if (f.search.trim()) out.push({ id: "search", label: `“${f.search.trim()}”`, patch: { search: "" } });
+  // likeAuthor ("Show N others like this") has no counterpart in the mockup, which never saw
+  // the filter. It used to render its own dismissible "Like: …" pill beside the search box;
+  // phase 3 folds it in here, because the row's whole promise (§2.2 point 2) is that the
+  // filters in effect are listed in ONE place — a filter with a private pill elsewhere breaks
+  // that, and the Filters badge, being chips.length, would undercount it.
+  if (f.likeAuthor.trim()) out.push({ id: "like", label: `Like: ${f.likeAuthor.trim()}`, patch: { likeAuthor: "" } });
+  return out;
 };
 
 // ---- inline Lucide SVG icons (no npm deps) -------------------------------
@@ -442,32 +784,38 @@ const clampStyle = (lines: number): CSSProperties => ({
   display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: lines, overflow: "hidden",
 });
 
-// PMID outbound PubMed link — lead element of an evidence panel (Item 3).
-// stopPropagation so clicking it never toggles the card (Item 6).
-const PmidLink = ({ pmid }: { pmid: number }) => {
+// §2.6's meta-line PMID: an outbound PubMed link plus a 22px copy button that flips to a green
+// check for 1.4s (mockup:387-394, :798-803). It replaces the old evidence-panel PmidLink — the
+// number is now on the collapsed card, so it is not also repeated inside the panel.
+// stopPropagation on both, so neither toggles the card open (Item 6).
+const PmidCite = ({ pmid }: { pmid: number }) => {
   const [copied, setCopied] = useState(false);
-  // matches the searchInput debounce pattern above: cleanup on unmount/re-trigger so a
-  // card removed (accept/reject) within the 1200ms window can't setState after unmount.
+  // cleanup on unmount/re-trigger, so a card removed (accept/reject) inside the 1.4s window
+  // can't setState after unmount.
   useEffect(() => {
     if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1200);
+    const t = setTimeout(() => setCopied(false), 1400);
     return () => clearTimeout(t);
   }, [copied]);
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 9 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
       <a href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noreferrer"
         onClick={(e) => e.stopPropagation()}
-        style={outLinkStyle}>
-        PMID {pmid} <IconExt size={13} />
+        style={{ color: "#2563eb", textDecoration: "none", fontVariantNumeric: "tabular-nums" }}>
+        PMID {pmid}
       </a>
       <button
         onClick={(e) => {
           e.stopPropagation();
-          navigator.clipboard.writeText(String(pmid));
+          navigator.clipboard?.writeText(String(pmid));
           setCopied(true);
         }}
-        title="Copy PMID" style={iconBtn()}>
-        {copied ? <IconCheck size={13} style={{ color: "#15803d" }} /> : <IconCopy size={13} />}
+        aria-label="Copy PMID" title="Copy PMID"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22,
+          border: "1px solid #e6e1d9", background: "#fff", borderRadius: 4, padding: 0, cursor: "pointer",
+          color: copied ? "#146c39" : "#6f7889", flex: "none" }}>
+        {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
       </button>
     </span>
   );
@@ -519,6 +867,69 @@ const ScopusLinks = ({ row: r }: { row: AuthorshipRow }) => {
   );
 };
 
+// §2.6's 296px identity hover card (mockup:337-369). Name + CWID, then whatever of
+// department / division / affiliation the row actually carries, then the byline names this
+// person has already published under.
+//
+// The three states of the names block are deliberately distinct, because two of them look the
+// same from the client and mean opposite things:
+//   * no answer yet          -> "Loading…"          (the parent's fetch is in flight)
+//   * accepted === 0         -> "No accepted papers yet"  (the mockup's line; genuinely none)
+//   * accepted > 0, names [] -> says so explicitly   (they HAVE accepted papers, but every one
+//                               of them has a blank byline name in person_article — 4,449 such
+//                               rows exist WITH userAssertion='ACCEPTED', the only state this
+//                               card counts; 5,662 is the all-states figure and is not the
+//                               claim. Calling this "no accepted papers" is a lie)
+const IdentityHoverCard = ({ row: r, priorNames }: { row: AuthorshipRow; priorNames?: PriorNames }) => {
+  const hasDetail = !!(r.top_dept || r.top_division || r.top_institution);
+  return (
+    <span onClick={(e) => e.stopPropagation()}
+      style={{ position: "absolute", top: "100%", left: 0, zIndex: 60, width: 296, paddingTop: 8, display: "block", cursor: "default" }}>
+      <span style={{
+        display: "flex", flexDirection: "column", gap: 10, background: "#fff", border: `1px solid ${CTRL.border}`,
+        borderRadius: 8, boxShadow: "0 14px 34px rgba(27,36,50,0.18)", padding: "13px 15px",
+        fontWeight: 400, letterSpacing: 0, color: CTRL.ink }}>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{r.top_name || r.top_cwid}</span>
+          <span style={{ fontSize: 13, color: CTRL.accent }}>{r.top_cwid}</span>
+        </span>
+        {hasDetail && (
+          <span style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13, color: "#4a5262", lineHeight: 1.45 }}>
+            {r.top_dept && <span>{r.top_dept}</span>}
+            {r.top_division && <span style={{ color: "#6f7889" }}>{r.top_division}</span>}
+            {r.top_institution && <span style={{ color: "#6f7889" }}>{r.top_institution}</span>}
+          </span>
+        )}
+        <span style={{ display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${CTRL.rule}`, paddingTop: 9 }}>
+          {!priorNames ? (
+            <span style={{ fontSize: 13, color: "#6f7889" }}>Loading…</span>
+          ) : priorNames.accepted === 0 ? (
+            <span style={{ fontSize: 13, color: "#6f7889" }}>No accepted papers yet</span>
+          ) : priorNames.names.length === 0 ? (
+            <span style={{ fontSize: 13, color: "#6f7889" }}>
+              {priorNames.accepted.toLocaleString()} accepted paper{priorNames.accepted === 1 ? "" : "s"}, none with a byline name recorded
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: 11, letterSpacing: ".1em", color: "#6b7484" }}>NAMES ON ACCEPTED PAPERS</span>
+              {priorNames.names.map((p, i) => (
+                <span key={`${p.last}|${p.first}|${i}`}
+                  style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+                  <span style={{ color: CTRL.ink }}>{`${p.first} ${p.last}`.trim()}</span>
+                  <span style={{ color: "#6f7889", fontVariantNumeric: "tabular-nums" }}>{p.n.toLocaleString()}</span>
+                </span>
+              ))}
+              {!!priorNames.more && (
+                <span style={{ fontSize: 12, color: "#8b93a2" }}>+{priorNames.more.toLocaleString()} more form{priorNames.more === 1 ? "" : "s"}</span>
+              )}
+            </>
+          )}
+        </span>
+      </span>
+    </span>
+  );
+};
+
 // ---- main component ------------------------------------------------------
 const AuthorshipsTabs = () => {
   const [rows, setRows] = useState<AuthorshipRow[]>([]);
@@ -526,62 +937,131 @@ const AuthorshipsTabs = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [lane, setLane] = useState<"fullname" | "single" | "all">("single");
   // Rows matching the current filters beyond this page, pulled by "Select all N matching".
   // Held apart from `rows` because the bulk loop needs off-page rows the feed never loaded.
   const [allMatching, setAllMatching] = useState<AuthorshipRow[] | null>(null);
   const [selectingAll, setSelectingAll] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
-  const [classification, setClassification] = useState<"all" | "buried" | "absent" | "suggested">("all");
-  const [search, setSearch] = useState("");
+  // The raw text box. Debounced (300 ms) into the `search` filter below — deliberately NOT a
+  // filter itself, so typing does not fire a request per keystroke.
   const [searchInput, setSearchInput] = useState("");
+  // A label for the dateFrom/dateTo pair, not a filter of its own: "Custom…" changes only this
+  // and must not refetch. Kept out of the filter object for exactly that reason.
+  const [datePreset, setDatePreset] = useState(DEFAULT_DATE_PRESET); // "any"|"30d"|"90d"|"6m"|"12m"|"24m"|"custom"
+  // The default window is applied on mount (client-side, below) so the statically-prerendered
+  // initial render stays date-free and hydrates cleanly; the first list fetch waits on this.
+  const [datesReady, setDatesReady] = useState(false);
+  // One anchor per popover level (HANDOFF §2.2/§2.3). MUI positions a Popover from the element
+  // it is handed, so the two affiliation lists share ONE anchor only because they share one
+  // popover; a nested level would need its own.
+  const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
+  const [affilAnchor, setAffilAnchor] = useState<HTMLElement | null>(null);
+  const [filtersAnchor, setFiltersAnchor] = useState<HTMLElement | null>(null);
+  const [keysAnchor, setKeysAnchor] = useState<HTMLElement | null>(null);
+  // §2.5: the bulk bar's round "i" — toggles today's always-on two-line caveat into a strip
+  // under the bar instead of it holding a permanent row.
+  const [rulesOpen, setRulesOpen] = useState(false);
+  // §2.1: the explanatory paragraph is always-on today; it becomes collapsed-by-default behind
+  // the "What am I looking at?" link (mockup:576 — aboutOpen starts false). `false` on both the
+  // server render and the client's first paint, so nothing here can diverge at hydration.
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  // ---- filters: one object, one set of writers --------------------------
+  // See AuthorshipFilters / FILTER_DEFAULTS above for what belongs in here and what does not.
+  // filterBody() and the ephemeral-clear effect below both depend on THIS OBJECT, so adding a
+  // filter cannot leave either dependency array behind.
+  const [filters, setFilters] = useState<AuthorshipFilters>(INITIAL_FILTERS);
+  // Destructured so every consumer below still reads plain `lane`, `statusView`, `sort`, …
+  const {
+    lane, classification, search, selectedTypes, selectedInstitutions, selectedAuthorAffiliations,
+    source, selectedPubTypes, dateFrom, dateTo, sort, statusView,
+    hideNoSuggestion, hideNoIdentity, likeAuthor,
+  } = filters;
+
+  // The single writer. Returns the SAME object when nothing actually changes, so re-picking the
+  // value a control already holds stays the no-op it was when each filter had its own useState
+  // (React bails out on identical primitive state). Without that guard, clicking the already-
+  // active chip — or the source effect re-clearing an already-empty pub-type list — would mint
+  // a new object, refetch the page and wipe the curator's selection.
+  const patchFilters = useCallback((patch: Partial<AuthorshipFilters> | ((prev: AuthorshipFilters) => Partial<AuthorshipFilters>)) => {
+    setFilters((prev) => {
+      const p = typeof patch === "function" ? patch(prev) : patch;
+      const changed = (Object.keys(p) as Array<keyof AuthorshipFilters>)
+        .filter((k) => (p as any)[k] !== undefined && !sameFilterValue(prev[k], (p as any)[k]));
+      if (changed.length === 0) return prev;
+      const next: AuthorshipFilters = { ...prev };
+      changed.forEach((k) => { (next as any)[k] = (p as any)[k]; });
+      return next;
+    });
+  }, []);
+  const setFilter = useCallback(<K extends keyof AuthorshipFilters>(
+    key: K, value: AuthorshipFilters[K] | ((prev: AuthorshipFilters[K]) => AuthorshipFilters[K]),
+  ) => {
+    patchFilters((prev) => ({
+      [key]: typeof value === "function" ? (value as (p: AuthorshipFilters[K]) => AuthorshipFilters[K])(prev[key]) : value,
+    } as Partial<AuthorshipFilters>));
+  }, [patchFilters]);
+
+  // One named writer per filter, so the ~30 call sites below read exactly as they did when each
+  // filter was its own useState. These are the only way anything reaches `filters`.
+  type SetFilter<K extends keyof AuthorshipFilters> =
+    (v: AuthorshipFilters[K] | ((prev: AuthorshipFilters[K]) => AuthorshipFilters[K])) => void;
+  // No standalone setLane/setClassification any more: the two chip strips they backed are gone,
+  // and the only control over either axis is the single MATCH CLASS list, which must write BOTH
+  // together. narrowToPmid ("+N more WCM on this paper") is the one other writer, and it patches
+  // both in one go for the same reason.
+  // MATCH CLASS is ONE single-select list over TWO server axes (HANDOFF §3a): picking a lane
+  // entry resets the classification to its all-value and vice versa. Writing both in a single
+  // patch is what makes that a cross-axis RESET rather than two independent changes — one
+  // refetch, one selection clear, and no state where the list highlights an entry the queue is
+  // not actually showing. The one cross-filter reset the redesign adds; it follows the existing
+  // source -> setSelectedPubTypes([]) precedent.
+  const selectMatchClass = useCallback((opt: MatchClassOption) => {
+    patchFilters({ lane: opt.lane, classification: opt.classification });
+  }, [patchFilters]);
+  const setSearch: SetFilter<"search"> = useCallback((v) => setFilter("search", v), [setFilter]);
+  const setSelectedTypes: SetFilter<"selectedTypes"> = useCallback((v) => setFilter("selectedTypes", v), [setFilter]);
+  // curated institution filter (multiselect) — mirrors selectedTypes/typeAnchor exactly, one
+  // bucket key (see INSTITUTION_LABELS) per selection rather than a raw personTypes string.
+  const setSelectedInstitutions: SetFilter<"selectedInstitutions"> = useCallback((v) => setFilter("selectedInstitutions", v), [setFilter]);
+  // ARTICLE AFFILIATION — the byline-basis half of the Affiliation popover. Its own key, so
+  // choosing an article affiliation never disturbs the identity list beside it (the two are
+  // ANDed, not alternatives), nor sort / dates / class.
+  const setSelectedAuthorAffiliations: SetFilter<"selectedAuthorAffiliations"> = useCallback((v) => setFilter("selectedAuthorAffiliations", v), [setFilter]);
+  const setSource: SetFilter<"source"> = useCallback((v) => setFilter("source", v), [setFilter]);
+  const setSelectedPubTypes: SetFilter<"selectedPubTypes"> = useCallback((v) => setFilter("selectedPubTypes", v), [setFilter]);
+  const setDateFrom: SetFilter<"dateFrom"> = useCallback((v) => setFilter("dateFrom", v), [setFilter]);
+  const setDateTo: SetFilter<"dateTo"> = useCallback((v) => setFilter("dateTo", v), [setFilter]);
   // default sort = IO desc, matching the page's own lede ("IO ... leads"). top_confidence
   // (the matcher's identity-match heuristic, not an authorship-likelihood score) was the
   // prior default, but it's near-constant across the queue — most rows land on the same
   // base value for a given given-name-match/affiliation-match combo — so it silently fell
   // through to the pmid tiebreaker for the vast majority of rows (live-verified: 19/20 on
   // one real page tied at 0.65, ordered only by pmid, unrelated to what's shown on the card).
-  const [sort, setSort] = useState("io");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [datePreset, setDatePreset] = useState("24m"); // default = Last 2 years; "any"|"30d"|"90d"|"6m"|"12m"|"24m"|"custom"
-  // The default window is applied on mount (client-side, below) so the statically-prerendered
-  // initial render stays date-free and hydrates cleanly; the first list fetch waits on this.
-  const [datesReady, setDatesReady] = useState(false);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
-  // curated institution filter (multiselect) — mirrors selectedTypes/typeAnchor exactly, one
-  // bucket key (see INSTITUTION_LABELS) per selection rather than a raw personTypes string.
-  const [selectedInstitutions, setSelectedInstitutions] = useState<string[]>([]);
-  // Which institution the bucket filter asks about: the person's HR roster value, the
-  // affiliation printed on the paper, or either. Its own state, so switching it never
-  // disturbs sort / dates / classification / the selected buckets themselves.
-  const [institutionBasis, setInstitutionBasis] = useState<"person" | "byline" | "either">("either");
-  const [institutionAnchor, setInstitutionAnchor] = useState<HTMLElement | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed" | "duplicates">("open");
-  const [source, setSource] = useState<"all" | "pubmed" | "scopus">("all");
-  const [selectedPubTypes, setSelectedPubTypes] = useState<string[]>([]);
+  // Never cleared by "Reset all" (RESET_EXEMPT) and never a chip.
+  const setSort: SetFilter<"sort"> = useCallback((v) => setFilter("sort", v), [setFilter]);
+  const setStatusView: SetFilter<"statusView"> = useCallback((v) => setFilter("statusView", v), [setFilter]);
   // hide rows with no proposed identity at all (#938 — top_cwid null, the "No suggested
   // identity" pill below) — a real filter sent to the server (buildWhere) rather than sliced
   // client-side, so it stays consistent with the total count and "Select all N matching"
   // (authorshipSelectable shares the same buildWhere). Deliberately does NOT also hide "No
   // ReCiter identity" rows (identity_in_reciter===false) — that's hideNoIdentity below.
-  const [hideNoSuggestion, setHideNoSuggestion] = useState(false);
+  const setHideNoSuggestion: SetFilter<"hideNoSuggestion"> = useCallback((v) => setFilter("hideNoSuggestion", v), [setFilter]);
   // hide rows proposing a person with no ReCiter identity (identity_in_reciter===false — a
   // person IS proposed, just not yet in ReCiter). Complements hideNoSuggestion above. The
   // per-page identity_in_reciter flag is resolved fresh against DynamoDB after LIMIT/OFFSET
   // and can't drive a WHERE clause directly, so the server keeps a short-TTL cache of the
   // "absent" cwid set instead of resolving identity for the whole matching set on every list
   // load — by the time it reaches buildWhere this is also a plain SQL predicate.
-  const [hideNoIdentity, setHideNoIdentity] = useState(false);
+  const setHideNoIdentity: SetFilter<"hideNoIdentity"> = useCallback((v) => setFilter("hideNoIdentity", v), [setFilter]);
   // T5: "Show N others like this" — a structured filter (the anchor row's raw wcm_author),
   // independent of the free-text search box above. The server (buildWhere's likeAuthor block)
   // turns this into the normalized-key equality match authorKey() defines, not a LIKE
   // substring, so a middle-initial variant like "Bernard J. Park" is found starting from
   // "Bernard Park" and vice versa — the case the free-text box's LIKE cannot cover. Cleared by
   // the dismissible "Like: …" chip near the filter row.
-  const [likeAuthor, setLikeAuthor] = useState("");
+  const setLikeAuthor: SetFilter<"likeAuthor"> = useCallback((v) => setFilter("likeAuthor", v), [setFilter]);
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -596,6 +1076,16 @@ const AuthorshipsTabs = () => {
   // accumulated client-side.
   const [recentActivity, setRecentActivity] = useState<ActivityEntry[]>([]);
   const [activityAnchor, setActivityAnchor] = useState<HTMLElement | null>(null);
+  // §2.6's identity hover card, cached per cwid for the life of the page. Held HERE rather than
+  // in the card so paging back and forth, or hovering the same person on two rows, costs one
+  // request in total — the answer ("which byline names has this cwid published under") does not
+  // change while a curator works a queue.
+  const [priorNames, setPriorNames] = useState<Record<string, PriorNames>>({});
+  // Every cwid already asked for, in-flight ones included. This is what makes the hover safe:
+  // the request fires at most once per cwid no matter how many times the pointer crosses the
+  // name, and the card's own hover-intent delay (see the card) keeps a mouse sweeping down the
+  // page from asking for every row it passes over.
+  const priorNamesAsked = useRef<Set<string>>(new Set());
   const clearConflict = useCallback((id: number) => {
     setConflicts((c) => { if (!(id in c)) return c; const n = { ...c }; delete n[id]; return n; });
   }, []);
@@ -644,35 +1134,33 @@ const AuthorshipsTabs = () => {
   const focusedIdRef = useRef<number | null>(null);
   const statusViewRef = useRef(statusView);
   const undoRef = useRef<{ rows: AuthorshipRow[]; label: string } | null>(null);
+  // "is any overlay this component owns currently up?" — read by the same stable keydown
+  // listener, which must not act on the row behind an open popover/menu/dialog.
+  const overlayOpenRef = useRef(false);
   // latest action handlers, so the stable keydown listener invokes the current closures
   const doActionRef = useRef<(row: AuthorshipRow, action: string, extra?: Record<string, any>) => void>();
   const toggleSelectRef = useRef<(row: AuthorshipRow) => void>();
   const doUndoRef = useRef<() => void>();
 
-  const filterBody = useCallback(() => ({
-    feed: "unassigned",
-    precision: lane,
-    classification,
-    searchTextInput: search,
-    personTypes: selectedTypes,
-    institutions: selectedInstitutions,
-    institutionBasis,
-    source,
-    pubTypes: source === "scopus" ? selectedPubTypes : [],   // pub-type facet only meaningful for scopus
-    dateFrom,
-    dateTo,
-    sort,
-    statusView,
-    hideNoSuggestion,
-    hideNoIdentity,
-    likeAuthor,
-  }), [lane, classification, search, selectedTypes, selectedInstitutions, institutionBasis, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+  // The posted filter body is built by buildFilterBody() above from the whole filter object, so
+  // this dependency array is the object itself: there is no per-filter name left to forget, and
+  // a filter that never reaches the body is caught by
+  // `node scripts/check-authorships-filter-body.mjs` rather than by a curator seeing stale rows.
+  const filterBody = useCallback(() => buildFilterBody(filters), [filters]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
   useEffect(() => { focusedIdRef.current = focusedId; }, [focusedId]);
   useEffect(() => { statusViewRef.current = statusView; }, [statusView]);
   useEffect(() => { undoRef.current = undo; }, [undo]);
+  // Every overlay this component owns, in one expression: the four control popovers, the three
+  // MUI menus (row overflow, bulk-assign picker, the two history panels), and the three
+  // hand-rolled full-screen layers (lookup spinner, assign confirm, reject confirm). The
+  // keyboard handler bails while any of them is up.
+  const overlayOpen = !!typeAnchor || !!affilAnchor || !!filtersAnchor || !!keysAnchor
+    || !!menu || !!assignMenuAnchor || !!historyAnchor || !!activityAnchor
+    || !!assignLookupCwid || !!assignConfirm || rejectConfirmOpen;
+  useEffect(() => { overlayOpenRef.current = overlayOpen; }, [overlayOpen]);
 
   // `silent` skips the loading flag, which is what unmounts the whole card list below (the
   // {loading && …}/{!loading && rows.map(…)} gate) — a curator scrolled into the middle of the
@@ -733,17 +1221,23 @@ const AuthorshipsTabs = () => {
       .catch((e) => console.error("[authorships]", e));
   }, [filterBody, page]);
 
+  // DERIVED from the filter object, never hand-listed — the same rule filterBody follows, and
+  // for the same reason: a summary dependency array typed out by hand is exactly how a filter
+  // silently stops reaching the counts. buildSummaryBody drops only the keys SUMMARY_BLIND_BODY_KEYS
+  // names, so a filter added later is carried here automatically unless it is declared blind.
+  //
+  // Keyed on the SERIALISED body rather than on `filters` so the two properties that matter both
+  // hold: a filter the summary is blind to (source, person types, the two affiliation lists…)
+  // produces an identical string, leaving fetchSummary's identity — and so the effect at
+  // `useEffect(() => { fetchSummary(); }, [fetchSummary])` — untouched, costing no refetch; and
+  // any filter it is NOT blind to changes the string and always refetches.
+  const summaryBody = useMemo(() => JSON.stringify(buildSummaryBody(filters)), [filters]);
   const fetchSummary = useCallback(() => {
     fetch("/api/db/authorships/summary", {
-      credentials: "same-origin", method: "POST", headers: apiHeaders,
-      body: JSON.stringify({ feed: "unassigned", searchTextInput: search, dateFrom, dateTo, statusView, hideNoIdentity, hideNoSuggestion, likeAuthor }),
+      credentials: "same-origin", method: "POST", headers: apiHeaders, body: summaryBody,
     })
       .then((r) => r.json()).then(setSummary).catch(() => setSummary(null));
-  }, [search, dateFrom, dateTo, statusView, hideNoIdentity, hideNoSuggestion, likeAuthor]);
-  // summary forces source:"all" server-side, so bySource/pubTypes always reflect both lanes for the
-  // current status/search/date scope — no need to refetch it on source-segment changes. hideNoIdentity,
-  // hideNoSuggestion, and (T5) likeAuthor are all threaded through here, so header totals stay
-  // consistent with the filtered list/pagination the moment any one of them is toggled/set.
+  }, [summaryBody]);
 
   // "Recent activity" — fixed-size global feed, no filters, so unlike fetchSummary this never
   // needs to re-key off the queue's own filter state.
@@ -755,6 +1249,31 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json())
       .then((d) => setRecentActivity(d.rows || []))
       .catch(() => setRecentActivity([]));
+  }, []);
+
+  // §2.6: fill the identity hover card's "NAMES ON ACCEPTED PAPERS" block for one cwid. Called
+  // from the card once the pointer has settled on a name, never on render — a page is 20 rows
+  // and most of them are never hovered, so warming the whole page up front would trade one
+  // cheap on-demand request for twenty speculative ones.
+  //
+  // The endpoint answers per cwid (`names`/`accepted`/`more` keyed by cwid, and it always
+  // returns an entry for a well-formed cwid it was asked about), so a missing key means the
+  // request is still in flight — the card shows a loading line, never "No accepted papers yet".
+  // On failure the cwid is dropped from the asked set so the next hover retries; leaving it in
+  // would strand that card on "Loading…" for the rest of the session.
+  const requestPriorNames = useCallback((cwid?: string | null) => {
+    if (!cwid || priorNamesAsked.current.has(cwid)) return;
+    priorNamesAsked.current.add(cwid);
+    fetch("/api/db/authorships/prior-names", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders,
+      body: JSON.stringify({ cwid }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d) => setPriorNames((p) => ({
+        ...p,
+        [cwid]: { names: d?.names?.[cwid] || [], accepted: d?.accepted?.[cwid] ?? 0, more: d?.more?.[cwid] },
+      })))
+      .catch(() => { priorNamesAsked.current.delete(cwid); });
   }, []);
 
   // Undo a resolved row straight from the "Recent activity" panel. Deliberately NOT
@@ -785,7 +1304,7 @@ const AuthorshipsTabs = () => {
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, setSearch]);   // setSearch is a stable useCallback; listed only to satisfy the lint rule
 
   // A filter/sort/status change must always show page 0. If we're already on a later page we
   // synchronously snap back to 0 and skip the about-to-fire stale-offset fetch, so ONLY the
@@ -809,10 +1328,17 @@ const AuthorshipsTabs = () => {
   // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
+  // Same derivation as filterBody's deps — the whole filter object, plus `page` (which is NOT a
+  // filter: it is appended as `offset` at the fetch site, but paging still has to drop a
+  // selection made on the page you left). Note what is deliberately absent: this effect clears
+  // only ephemeral per-page state, it never RESETS a filter. Sort, dates, class, types and
+  // institutions all survive a change to any other control.
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, selectedInstitutions, institutionBasis, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+    [filters, page]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
-  useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
+  // (setSelectedPubTypes is stable, and patchFilters no-ops when the list is already empty, so
+  // this cannot fire a second refetch of its own.)
+  useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source, setSelectedPubTypes]);
 
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure).
   // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
@@ -1039,6 +1565,46 @@ const AuthorshipsTabs = () => {
     setAllMatching(null);
   }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
 
+  // §2.5: bulk Snooze — new as a bulk action, built on the SAME per-row call the overflow
+  // menu's "Snooze 90 days" already makes (doActionAsync(row, "snooze")), with doBulkAccept's
+  // chunking/allSettled/Undo/refresh shape around it. No confirm gate in front of it, unlike
+  // bulk reject: snooze writes no gold standard and no rejection — it sets status/snooze_until
+  // on the row and nothing else — and the Undo snackbar reverses the whole batch, so a
+  // mis-click costs one click back, not a curator decision recorded against a person.
+  // Deliberately no failure-bucketing helper: the server's snooze case has no precondition to
+  // fail (unlike accept's dup/no-identity gates), so anything rejected here is a plain error.
+  const doBulkSnooze = useCallback((batch: AuthorshipRow[]) => {
+    if (batch.length === 0) return;
+    setMenu(null);
+    setBulkProgress(batch.length > BULK_CHUNK ? { done: 0, total: batch.length } : null);
+    const runChunks = async () => {
+      const results: PromiseSettledResult<boolean>[] = [];
+      for (let i = 0; i < batch.length; i += BULK_CHUNK) {
+        const chunk = batch.slice(i, i + BULK_CHUNK);
+        results.push(...await Promise.allSettled(chunk.map((row) => doActionAsync(row, "snooze"))));
+        if (batch.length > BULK_CHUNK) setBulkProgress({ done: results.length, total: batch.length });
+      }
+      return results;
+    };
+    runChunks()
+      .then((results) => {
+        const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+        const ok = batch.filter((_, i) => results[i].status === "fulfilled");
+        if (ok.length > 0) setUndo({ rows: ok, label: `Snoozed ${ok.length}` });
+        if (failures.length) {
+          setErrorMsg(`Snoozed ${ok.length} of ${batch.length} selected; ${failures.length} failed — refreshing`);
+          // silent — same as every other bulk path: still mid-review of this same page.
+          fetchData(true);
+        }
+        else topUp();
+        fetchSummary();
+        fetchRecentActivity();
+      })
+      .finally(() => setBulkProgress(null));
+    setSelected(new Set());
+    setAllMatching(null);
+  }, [doActionAsync, fetchData, fetchSummary, fetchRecentActivity, topUp]);
+
   // T4: union of everything the current selection proposes, for the "Assign selected (N) to…"
   // picker — "Name (cwid) — matches k of N selected", ranked k desc. Recomputed on every
   // render off selectedRows; bulk-assign is a same-page/handful-of-rows tool (unlike
@@ -1184,11 +1750,11 @@ const AuthorshipsTabs = () => {
   // person-type/date filters are left intact (they aren't part of the sibling-count scope
   // either, but relaxing lane+classification is what makes the primary mismatch go away).
   const narrowToPmid = useCallback((pmid: number) => {
-    setLane("all");
-    setClassification("all");
+    // One patch, so lane/classification/search land in a single filter-object update (one
+    // refetch, one selection clear) instead of three.
+    patchFilters({ lane: "all", classification: "all", search: String(pmid) });
     setSearchInput(String(pmid));
-    setSearch(String(pmid));
-  }, []);
+  }, [patchFilters]);
 
   // Shared by the "Assign to someone else…" overflow item and the no-identity pill/button
   // (T3): expands the card and focuses the AssignOther typed-cwid input it renders. Card
@@ -1209,7 +1775,7 @@ const AuthorshipsTabs = () => {
   const findOthersLikeThis = useCallback((wcmAuthor?: string) => {
     if (!wcmAuthor) return;
     setLikeAuthor(wcmAuthor);
-  }, []);
+  }, [setLikeAuthor]);
 
   // T4: single-candidate rows keep the pre-existing accept-eligible gate (no-ReCiter-identity,
   // already-rejected, no proposed identity at all (#938) stay unselectable). Multi-candidate
@@ -1235,7 +1801,7 @@ const AuthorshipsTabs = () => {
   const applyDatePreset = useCallback((preset: string) => {
     setDatePreset(preset);
     if (preset === "custom") return; // keep current From/To, just show the inputs
-    if (preset === "any") { setDateFrom(""); setDateTo(""); return; }
+    if (preset === "any") { patchFilters({ dateFrom: "", dateTo: "" }); return; }
     const fmt = (d: Date) => {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -1251,23 +1817,43 @@ const AuthorshipsTabs = () => {
     else if (preset === "6m") { const day = from.getDate(); from.setDate(1); from.setMonth(from.getMonth() - 6); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
     else if (preset === "12m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 1); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
     else if (preset === "24m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 2); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
-    setDateFrom(fmt(from));
-    setDateTo(fmt(today));
-  }, []);
+    // §2.3's new "Last 5 years" — same clamp-the-day dance as the two above (Feb 29 back five
+    // years is Feb 28, not Mar 1).
+    else if (preset === "60m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 5); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
+    patchFilters({ dateFrom: fmt(from), dateTo: fmt(today) });
+  }, [patchFilters]);
+
+  // "Reset all" (HANDOFF §2.4): FILTER_DEFAULTS for every filter except sort (RESET_EXEMPT),
+  // plus the two pieces of presentation state that shadow a filter — the search box's own text
+  // and the date preset, whose default window applyDatePreset recomputes. Both patches land in
+  // one render, so this is a single refetch. Phase 3 wires it to the Filters popover's
+  // "Reset all" and to the chip row's "Clear"; nothing else may reset a filter.
+  const resetAll = useCallback(() => {
+    patchFilters(filterResetPatch());
+    setSearchInput("");
+    applyDatePreset(DEFAULT_DATE_PRESET);
+  }, [patchFilters, applyDatePreset]);
 
   // Apply the default "recent" window (Last 2 years) on mount — client-only so the statically
   // prerendered initial render (empty dates) hydrates cleanly. datesReady then releases the first
   // list fetch, so curators land on the windowed view instead of flashing the full backlog.
-  useEffect(() => { applyDatePreset("24m"); setDatesReady(true); }, [applyDatePreset]);
+  useEffect(() => { applyDatePreset(DEFAULT_DATE_PRESET); setDatesReady(true); }, [applyDatePreset]);
 
-  // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open PubMed.
-  // Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so an optimistic action
-  // or a rolling-queue refill never swaps the listener (and the post-action focus-advance still sees
-  // current state through those same refs).
+  // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, U undo,
+  // Enter open PubMed. Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so
+  // an optimistic action or a rolling-queue refill never swaps the listener (and the post-action
+  // focus-advance still sees current state through those same refs).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "select" || tag === "textarea") return;
+      // …and not while a popover, menu or confirm dialog is up. The tag test above is not enough:
+      // MUI moves focus INTO the popover's paper (a div, not an input), so with the Filters or
+      // Affiliation list open every keystroke still fell through to the row behind it — j/k moved
+      // an invisible focus ring and y/n/s ACTED on a row the curator could not see. Every overlay
+      // this component owns is folded into one boolean (see overlayOpen) so a new one cannot be
+      // added and forgotten here.
+      if (overlayOpenRef.current) return;
       const visible = rowsRef.current;
       if (visible.length === 0) return;
       const focusedId = focusedIdRef.current;
@@ -1309,13 +1895,69 @@ const AuthorshipsTabs = () => {
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
+
+  // Active filters, computed in ONE place (HANDOFF §2.4). `filterCount` is the number the
+  // Filters button's blue badge shows in phase 3 — it is chips.length by definition (mockup:666),
+  // so it can never drift from what the chip row lists. Both come from the pure filterChips()
+  // above; nothing here decides what counts as "active".
+  const chips = filterChips(filters, datePreset);
+  const filterCount = chips.length;
+  // §2.1's header line trails the active date window ("…, past 2 years"). Derived from the
+  // preset, not from dateFrom/dateTo, everywhere except "custom" — the preset is a module
+  // constant on the first render and the dates are not, so this is the one form of the phrase
+  // that cannot diverge between the prerendered HTML and hydration.
+  const headerDatePhrase = datePhrase(datePreset, dateFrom, dateTo);
+  // Removing one chip removes ONLY that filter. Two of them reach past the filter object:
+  // the search chip must also empty the text box that debounces into it, and the date chip goes
+  // through applyDatePreset because the preset recomputes dateFrom/dateTo.
+  const removeChip = (chip: FilterChip) => {
+    if (Object.keys(chip.patch).length > 0) patchFilters(chip.patch);
+    if (chip.preset) applyDatePreset(chip.preset);
+    if (chip.id === "search") setSearchInput("");
+  };
+  // The MATCH CLASS entry currently in force. Compared by (lane, classification), never by
+  // label — "All unassigned" and "All classes" are the same state, and only the first is ever
+  // highlighted (matchClassLabel resolves that state to the default).
+  const activeMatchClass = MATCH_CLASS_OPTIONS.find((o) => o.lane === lane && o.classification === classification);
+  // §2.2's affiliation button, transcribed from the mockup (mockup:636, :692-694): the identity
+  // list AT ITS DEFAULT contributes nothing, so "Affiliation" with no badge is the resting
+  // state; one value across both lists names that value; more than one shows the count badge.
+  const affilNames = [
+    ...(selectedInstitutions.length === 1 && selectedInstitutions[0] === FILTER_DEFAULTS.selectedInstitutions[0]
+      ? [] : selectedInstitutions),
+    ...selectedAuthorAffiliations,
+  ].map((k) => INSTITUTION_LABELS[k] || k);
+  const affilCount = affilNames.length;
+  const identityFacets = summary?.institutions || [];
+  const authorFacets = summary?.authorInstitutions || [];
+  // A value the curator has selected but which the current facet no longer counts (the server
+  // drops n=0 buckets, and narrowing another filter can empty one) must still render its
+  // checkbox — otherwise the only way to clear it is the chip row, and the popover silently
+  // misreports what is in force.
+  const withSelected = (facets: Array<{ key: string; n: number }>, chosen: string[]) => [
+    ...facets,
+    ...chosen.filter((k) => !facets.some((f) => f.key === k)).map((k) => ({ key: k, n: 0 })),
+  ];
+  const identityOptions = withSelected(identityFacets, selectedInstitutions);
+  const authorOptions = withSelected(authorFacets, selectedAuthorAffiliations);
+  const personTypeOptions = withSelected(
+    (summary?.personTypes || []).map((pt) => ({ key: pt.type, n: pt.n })), selectedTypes,
+  );
+  const toggleInList = (list: string[], key: string) =>
+    list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
 
   // F4: near-certain bulk = visible single-candidate rows with IO >= 95 (and acceptable).
   // top_io_score can survive #938's no-suggestion rows (top_cwid null) even though there is no
   // candidate left to accept — exclude them explicitly rather than trust identity_in_reciter,
   // which is vacuously true when top_cwid is null.
-  const nearCertain = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && r.top_cwid && (r.top_io_score ?? 0) >= 95);
+  const nearCertainOnPage = rows.filter((r) => r.single_candidate && r.identity_in_reciter !== false && r.top_cwid && (r.top_io_score ?? 0) >= 95);
+  // The statusView gate is NEW and load-bearing, and is kept OUT of the row predicate above so
+  // that predicate stays a pure per-row test (check-authorships-no-suggestion.mjs lifts it out
+  // of the source and runs it standalone). Until phase 3 this button only ever rendered inside a
+  // `statusView === "open"` block; the bulk bar now renders in every queue so that "Showing N of
+  // M" is always present, and a snoozed / dismissed / duplicate / conflict row must not become
+  // bulk-acceptable just because it scores IO ≥ 95. Same gate as eligibleRows below.
+  const nearCertain = statusView === "open" ? nearCertainOnPage : [];
   // Item 7: select-all targets the eligible (bulk-selectable) rows on this page — the same
   // set the per-row checkboxes allow (T4: multi-candidate rows included, for bulk-assign).
   // Accept safety is downstream: every accept-type consumer reads selectedAcceptRows, so
@@ -1323,6 +1965,13 @@ const AuthorshipsTabs = () => {
   const eligibleRows = statusView === "open" ? rows.filter((r) => isBulkSelectable(r, statusView)) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
+  // §2.5: the bar's action cluster and its "N selected" label key off this; "Accept
+  // near-certain" is its complement (shown only when nothing is selected).
+  const hasSelection = selectedRows.length > 0;
+  // One "Clear", whichever way the selection was made: a select-all-matching batch lives in
+  // allMatching, a page selection in `selected`, and dropping only one of the two leaves the
+  // other still driving every bulk button.
+  const clearSelection = useCallback(() => { setSelected(new Set()); setAllMatching(null); }, []);
   const toggleSelectAllEligible = useCallback(() => {
     setSelected((s) => {
       const next = new Set(s);
@@ -1335,305 +1984,558 @@ const AuthorshipsTabs = () => {
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif", color: "#0f172a" }}>
-      <h1 style={{ paddingBottom: 10, marginBottom: 0 }}>Authorships</h1>
-      <p style={{ color: "#475569", marginTop: 4, marginBottom: 20, maxWidth: 760, fontSize: 14, lineHeight: 1.45 }}>
-        WCM-affiliated authorships not yet assigned to an identity. Each card is one decision: is this author the
-        proposed WCM person? <strong style={{ color: "#0f172a", fontWeight: 600 }}>IO</strong> (identity-only, the trusted
-        signal) leads; <strong style={{ color: "#0f172a", fontWeight: 600 }}>Authorship Score</strong> (production) is shown
-        small as the diagnosis. Expand a card for the affiliation and evidence.
-      </p>
+      {/* ================= header band (HANDOFF §2.1, mockup:64-83) =========================
+          Title and one muted count line on the left, the two alert pills and Activity on the
+          right. Three always-on things collapse into it: the explanatory paragraph (now behind
+          "What am I looking at?"), the Recent-activity row (now a button beside the title), and
+          the multi-figure count strip — whose per-class numbers did not disappear, they are the
+          right-hand column of the Filters popover's MATCH CLASS list, which is also the only
+          place they were ever clickable. */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            {/* §2.1 asks for 30px/600, which an inline style cannot deliver here: globals.css
+                pins `h1 { font-size:28px !important; font-weight:500 !important; color:#1a2133
+                !important }` app-wide, and an !important rule beats a non-important inline one.
+                The title therefore keeps the app's house heading — 28px/500, and it already
+                carries the -0.02em tracking the canvas asks for. What IS overridable is the
+                global's `padding-bottom:10px`, which is dead space now that the count line sits
+                directly beneath. */}
+            <h1 style={{ margin: 0, paddingBottom: 0 }}>Authorships</h1>
+            <button type="button" onClick={() => setAboutOpen((v) => !v)} aria-expanded={aboutOpen}
+              style={{ font: "inherit", border: "none", background: "none", padding: 0, fontSize: 13, color: CTRL.accent, cursor: "pointer" }}>
+              What am I looking at?
+            </button>
+          </div>
+          {/* One muted line, and the date phrase tracks the active date filter rather than
+              naming a fixed window: with "All time" selected there is no phrase at all, and a
+              custom window names its own bounds. summary is null until the first response, so
+              the line holds its height with a non-breaking space instead of appearing late and
+              pushing the control band down. */}
+          <div style={{ fontSize: 13.5, color: CTRL.muted }}>
+            {summary ? (
+              <>
+                <strong style={{ color: CTRL.ink, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                  {summary.total.toLocaleString()}
+                </strong>{" "}
+                {SUMMARY_HEADLINE[statusView] || "authorships"}
+                {headerDatePhrase ? `, ${headerDatePhrase}` : ""}
+              </>
+            ) : " "}
+          </div>
+        </div>
 
-      {(conflictLog.length > 0 || recentActivity.length > 0) && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none", flexWrap: "wrap" }}>
+          {/* Both pills are queue-wide counts the server computes over the OPEN queue whatever
+              queue is being browsed (see Summary.conflicts), so they read the same from inside
+              any view and clicking one is always a real navigation. Hidden at zero: a "0
+              identity conflicts" pill is a permanent alarm for a condition that isn't there. */}
+          {(summary?.conflicts ?? 0) > 0 && (
+            <Tip title="Two CWIDs assigned to one authorship — this paper is already accepted by a different person. Opens the Identity conflicts queue." placement="bottom" arrow>
+              <button type="button" onClick={() => setStatusView("conflicts")} style={alertPill("red")}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#b1483c", display: "block", flex: "none" }} />
+                {(summary?.conflicts ?? 0).toLocaleString()} identity conflict{summary?.conflicts === 1 ? "" : "s"}
+              </button>
+            </Tip>
+          )}
+          {(summary?.duplicates ?? 0) > 0 && (
+            <Tip title="Same publication retrieved from PubMed and Scopus. Opens the Duplicate records queue." placement="bottom" arrow>
+              <button type="button" onClick={() => setStatusView("duplicates")} style={alertPill("amber")}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c07f11", display: "block", flex: "none" }} />
+                {(summary?.duplicates ?? 0).toLocaleString()} duplicate record{summary?.duplicates === 1 ? "" : "s"}
+              </button>
+            </Tip>
+          )}
+          {/* Session-local conflict log — not in the mockup because it only exists once a
+              curator has hit a 409 this session. Kept, and deliberately NOT styled as a third
+              coloured alert: the two pills beside it are server counts, this is a private
+              history of what just happened in this tab. */}
           {conflictLog.length > 0 && (
-            <button onClick={(ev) => setHistoryAnchor(ev.currentTarget)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px",
-                border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e", borderRadius: 7,
-                fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
-              ⚠ Recent duplicate conflicts ({conflictLog.length})
-            </button>
+            <Tip title="Duplicate-conflict prompts raised in THIS browser session (lost on reload) — not a server queue." placement="bottom" arrow>
+              <button type="button" onClick={(ev) => setHistoryAnchor(ev.currentTarget)} style={alertPill("plain")}>
+                <IconAlert size={13} /> Session conflicts ({conflictLog.length})
+              </button>
+            </Tip>
           )}
-          {recentActivity.length > 0 && (
-            <button onClick={(ev) => setActivityAnchor(ev.currentTarget)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px",
-                border: "1px solid #dde3ea", background: "#fff", color: "#475569", borderRadius: 7,
-                fontSize: 12.5, fontWeight: 600, cursor: "pointer", font: "inherit" }}>
-              <IconClock size={13} /> Recent activity ({recentActivity.length})
+          {/* The count is NOT filter-scoped and the server caps the feed at 15 — placing it
+              beside two filter-scoped pills would otherwise imply a scoping it does not have,
+              so the tooltip says so outright and the label carries no noun that suggests
+              "matching these filters". */}
+          <Tip title="The most recently resolved authorships across the whole queue and every curator — not scoped to the filters below. The server returns at most 15." placement="bottom" arrow>
+            <button type="button" onClick={(ev) => setActivityAnchor(ev.currentTarget)} style={alertPill("plain")}>
+              <IconClock size={13} /> Activity ({recentActivity.length})
             </button>
-          )}
+          </Tip>
         </div>
-      )}
-
-      {/* summary */}
-      {summary && (
-        <div style={{ display: "flex", gap: 18, margin: "12px 0 18px", color: "#475569", fontSize: 13, flexWrap: "wrap" }}>
-          <span><strong style={{ color: "#0f172a" }}>{summary.total.toLocaleString()}</strong> {SUMMARY_TOTAL_LABEL[statusView]}</span>
-          <span><strong style={{ color: "#0f172a" }}>{summary.single_candidate.toLocaleString()}</strong> single-candidate</span>
-          {Object.entries(summary.classes).map(([k, v]) => (
-            <span key={k}>{CLASS_META[k]?.label || k}: <strong style={{ color: "#0f172a" }}>{v.toLocaleString()}</strong></span>
-          ))}
-        </div>
-      )}
-
-      {/* row 1: status view + sort + keyboard help */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
-          {([["open", "Open"], ["duplicates", "Possible duplicates"], ["snoozed", "Snoozed"], ["dismissed", "Dismissed"]] as const).map(([key, label]) => (
-            <button key={key} onClick={() => setStatusView(key)} title={key === "duplicates"
-              ? "Two sources: Accepts the server flagged as a possible duplicate (a fuzzy title+year match, which can pair two genuinely different works), and Scopus rows the producer matched to a possible PubMed twin (a title-search heuristic). Held out of the open queue for review."
-              : undefined} style={{
-              border: "none", padding: "5px 12px", font: "inherit", fontSize: 13, fontWeight: 600, borderRadius: 5,
-              cursor: "pointer", background: statusView === key ? "#fff" : "transparent",
-              color: statusView === key ? "#0f172a" : "#475569",
-              boxShadow: statusView === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
-            }}>{label}{key === "duplicates" && summary?.duplicates ? ` (${summary.duplicates.toLocaleString()})` : ""}</button>
-          ))}
-        </div>
-        {/* source segment: PubMed lane vs Scopus not-in-PubMed lane (counts from summary.bySource) */}
-        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
-          {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"]] as const).map(([key, label]) => {
-            const n = key === "all"
-              ? (summary?.bySource ? Object.values(summary.bySource).reduce((a, b) => a + b, 0) : undefined)
-              : summary?.bySource?.[key];
-            return (
-              <Tip key={key} title={key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)" : key === "pubmed" ? "Authorships from PubMed" : "Both sources"} placement="top" arrow>
-                <button onClick={() => setSource(key)} style={{
-                  border: "none", padding: "5px 12px", font: "inherit", fontSize: 13, fontWeight: 600, borderRadius: 5,
-                  cursor: "pointer", background: source === key ? "#fff" : "transparent",
-                  color: source === key ? (key === "scopus" ? "#4338ca" : "#0f172a") : "#475569",
-                  boxShadow: source === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
-                }}>{label}{n != null ? ` (${n.toLocaleString()})` : ""}</button>
-              </Tip>
-            );
-          })}
-        </div>
-        <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, color: "#94a3b8", fontSize: 12 }}>
-          <IconInfo size={13} /> <kbd style={kbdStyle}>J</kbd><kbd style={kbdStyle}>K</kbd> move · <kbd style={kbdStyle}>Y</kbd> accept · <kbd style={kbdStyle}>N</kbd> reject · <kbd style={kbdStyle}>S</kbd> snooze
-        </span>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#475569" }}>
-          Sort
-          <select value={sort} onChange={(e) => setSort(e.target.value)}
-            style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", font: "inherit", fontSize: 13, color: "#0f172a", padding: "0 10px", cursor: "pointer" }}>
-            <option value="io">Identity-only (IO) — strongest first</option>
-            <option value="date">Newest</option>
-            <option value="confidence">Match confidence (name/affiliation, not IO)</option>
-            <option value="precision">Best match</option>
-            <option value="fg">Authorship Score</option>
-          </select>
-        </label>
       </div>
 
-      {/* row 2: lane + classification chips + type + dates + search */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
-          {([["fullname", "Unique and full given-name match"], ["single", "High-precision"], ["all", "All unassigned"]] as const).map(([key, label]) => (
-            <Tip key={key} title={
-              key === "fullname" ? "Exactly one WCM identity matches AND the given name matches in full (not just the initial). Curators have accepted 4,723 of these and rejected none; the initial-only rows next door were rejected 373 times."
-              : key === "single" ? "Only authorships where exactly one WCM identity matches the name"
-              : "Every unassigned authorship"} placement="top" arrow>
-              <button onClick={() => setLane(key)} style={{
-                border: "none", padding: "5px 11px", font: "inherit", fontSize: 13, fontWeight: 500, borderRadius: 5,
-                cursor: "pointer", background: lane === key ? "#fff" : "transparent",
-                color: lane === key ? "#2563eb" : "#475569",
-                boxShadow: lane === key ? "0 1px 2px rgba(15,23,42,.08)" : "none",
-              }}>{label}{key === "fullname" && summary?.fullname != null ? ` (${summary.fullname.toLocaleString()})` : ""}</button>
-            </Tip>
-          ))}
+      {/* §2.1's copy, verbatim from the canvas (mockup:87) — collapsed by default. */}
+      {aboutOpen && (
+        <div style={{ border: `1px solid ${CTRL.border}`, borderLeft: `3px solid ${CTRL.accent}`, background: "#fff", borderRadius: 6, padding: "14px 16px", fontSize: 13.5, lineHeight: 1.6, color: "#4a5262", maxWidth: 720, marginBottom: 14 }}>
+          WCM-affiliated authorships not yet assigned to an identity. Each card is one decision: is this author the
+          proposed WCM person? <strong style={{ color: CTRL.ink, fontWeight: 600 }}>IO</strong> (identity-only, the trusted
+          signal) leads; <strong style={{ color: CTRL.ink, fontWeight: 600 }}>AS</strong> (ReCiter authorship score,
+          production model) is shown small beneath it as the diagnosis. Expand a card for the affiliation and evidence.
         </div>
-        <div style={{ display: "inline-flex", background: "#eef2f7", borderRadius: 7, padding: 2 }}>
-          {classChips.map((c) => (
-            <Tip key={c} title={c === "all" ? "Show every classification" : CLASS_META[c].hint} placement="top" arrow>
-              <button onClick={() => setClassification(c)} style={{
-                border: "none", padding: "5px 11px", font: "inherit", fontSize: 13, fontWeight: 500, borderRadius: 5,
-                cursor: "pointer", background: classification === c ? "#fff" : "transparent",
-                color: classification === c ? "#2563eb" : "#475569",
-                boxShadow: classification === c ? "0 1px 2px rgba(15,23,42,.08)" : "none",
-              }}>{c === "all" ? "All classes" : CLASS_META[c].label}</button>
-            </Tip>
-          ))}
-        </div>
-        <button type="button" onClick={(e) => setTypeAnchor(e.currentTarget)}
-          style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {selectedTypes.length === 0 ? "All types" : selectedTypes.length === 1 ? selectedTypes[0] : `Type: ${selectedTypes.length}`} <IconChevD size={13} />
-        </button>
-        <button type="button" onClick={(e) => setInstitutionAnchor(e.currentTarget)}
-          style={{ height: 32, display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 10px", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {selectedInstitutions.length === 0 ? "All institutions"
-            : selectedInstitutions.length === 1 ? (INSTITUTION_LABELS[selectedInstitutions[0]] || selectedInstitutions[0])
-              : `Institution: ${selectedInstitutions.length}`} <IconChevD size={13} />
-        </button>
-        {selectedInstitutions.length > 0 && (
-          <Tip title={"What the institution filter matches on. “Person” uses the proposed person's ReCiter/HR institution — they may appear on a paper credited elsewhere. “Byline” uses the affiliation printed on this paper. “Either” returns both."} placement="top" arrow>
-            <select value={institutionBasis}
-              onChange={(e) => setInstitutionBasis(e.target.value as "person" | "byline" | "either")}
-              aria-label="Institution match basis"
-              style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 8px" }}>
-              <option value="either">match: either</option>
-              <option value="person">match: person</option>
-              <option value="byline">match: byline</option>
+      )}
+
+      {/* ================= the single control row (HANDOFF §2.2, mockup:110-272) =================
+          Five always-on rows collapse into this one. Source, person type and affiliation stay in
+          the open on the left; search, sort, Filters and the keyboard legend sit right. Queue,
+          match class, date and the two hides moved into the Filters popover (§2.3); whatever is
+          in force is listed as a removable chip directly beneath (§2.4). The card wrapper holds
+          the control row, the chip row and the bulk bar together so they read as one band. */}
+      <div style={{ background: "#fff", border: `1px solid ${CTRL.border}`, borderRadius: 8, marginBottom: 18 }}>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 12px 10px 14px", borderBottom: `1px solid ${CTRL.rule}`, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+
+            {/* 1. source segment (mockup:112-116). Selecting a source behaves exactly as it did.
+                   The per-lane counts moved off the labels and into the tooltips each segment
+                   already had: at 13.5px they cost ~190px of a row whose whole purpose is to fit
+                   on one line (measured — with them the row needs a 1,220px content width, without
+                   them ~1,030px, and the common 1440px laptop with the sidebar expanded gives
+                   1,140px). §2.2 names the labels as bare `All` / `PubMed` / `Scopus`. */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 2, background: CTRL.track, borderRadius: 7, padding: 3 }}>
+              {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"]] as const).map(([key, label]) => {
+                const n = key === "all"
+                  ? (summary?.bySource ? Object.values(summary.bySource).reduce((a, b) => a + b, 0) : undefined)
+                  : summary?.bySource?.[key];
+                const what = key === "scopus" ? "WCM authorships found in Scopus but NOT in PubMed (no production score)"
+                  : key === "pubmed" ? "Authorships from PubMed" : "Both sources";
+                return (
+                  <Tip key={key} title={n != null ? `${what} — ${n.toLocaleString()} in this queue` : what} placement="top" arrow>
+                    <button onClick={() => setSource(key)} style={segBtn(source === key)}>{label}</button>
+                  </Tip>
+                );
+              })}
+            </div>
+
+            {/* 2. person type (mockup:117-140) */}
+            <button type="button" onClick={(e) => setTypeAnchor(e.currentTarget)}
+              style={dropBtn(selectedTypes.length > 0, !!typeAnchor)}>
+              {selectedTypes.length === 0 ? "All person types"
+                : selectedTypes.length === 1 ? selectedTypes[0]
+                  : `Person type · ${selectedTypes.length}`}
+              <span style={caretStyle}>▾</span>
+            </button>
+
+            {/* 3. affiliation — two independent lists, ANDed (mockup:141-183). Replaces #982's
+                   `match: either/person/byline` select: the identity list IS the person basis
+                   and the article list IS the byline basis, so the basis is no longer a choice. */}
+            <button type="button" onClick={(e) => setAffilAnchor(e.currentTarget)}
+              style={dropBtn(affilCount > 0, !!affilAnchor)}>
+              {affilCount === 1 ? affilNames[0] : "Affiliation"}
+              {affilCount > 1 && <span style={countBadgeStyle}>{affilCount}</span>}
+              <span style={caretStyle}>▾</span>
+            </button>
+          </div>
+
+          {/* right group (mockup:186-198) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
+            <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
+              {/* bound to searchInput, NOT search: the box debounces (300 ms) into the filter, so
+                  binding it to the filter would fight the debounce on every keystroke. */}
+              <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Name, CWID, or PMID" aria-label="Filter by name, CWID, or PMID"
+                style={{ font: "inherit", width: 196, border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 11px", fontSize: 13.5, color: CTRL.ink, background: "#fff" }} />
+            </form>
+            {/* §2.2 uses the mockup's wording where it maps onto a sort the server actually
+                supports (SORTS in authorships.controller.ts: precision/confidence/io/fg/date).
+                Its "Oldest" and "Most candidates" have no server order and are NOT invented here;
+                the three sorts it omits are kept rather than dropped. Default stays `io` — the
+                mockup's DEFAULTS never mentions sort, sort is never a chip and never reset, and
+                IO leading is what the page's own lede promises. */}
+            {/* A <select> is as wide as its widest option, so a long label here is what pushes
+                the whole right group onto a second line. The nuance the old "Match confidence
+                (name/affiliation, not IO)" label carried moves into the title instead of costing
+                ~150px of the row this step exists to fit on one line. */}
+            <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort"
+              title={"Sort order — kept when any other control changes.\n“Match confidence” is the matcher's name/affiliation heuristic, not IO."}
+              style={{ font: "inherit", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 9px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
+              <option value="io">Highest IO</option>
+              <option value="date">Newest</option>
+              <option value="date_asc">Oldest</option>
+              <option value="precision">Best match</option>
+              <option value="confidence">Match confidence</option>
+              <option value="fg">Authorship Score</option>
+              <option value="candidates">Most candidates</option>
             </select>
-          </Tip>
+            <button type="button" onClick={(e) => setFiltersAnchor(e.currentTarget)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13.5,
+                border: `1px solid ${filtersAnchor || filterCount ? CTRL.accent : CTRL.border}`,
+                background: filtersAnchor ? CTRL.accentBg : "#fff", color: CTRL.ink,
+                borderRadius: 6, padding: "7px 12px", cursor: "pointer",
+              }}>
+              Filters
+              {/* the badge is chips.length by definition (mockup:666), so it can never drift
+                  from what the chip row below actually lists */}
+              {filterCount > 0 && <span style={countBadgeStyle}>{filterCount}</span>}
+            </button>
+            <button type="button" onClick={(e) => setKeysAnchor(e.currentTarget)} title="Keyboard shortcuts"
+              aria-label="Keyboard shortcuts"
+              style={{ font: "inherit", width: 32, height: 32, border: `1px solid ${CTRL.border}`, background: keysAnchor ? CTRL.accentBg : "#fff", borderRadius: 6, fontSize: 13.5, color: CTRL.muted, cursor: "pointer" }}>
+              ?
+            </button>
+          </div>
+        </div>
+
+        {/* scopus pub-type facet — a facet OF the source segment, so it stays beside it rather
+            than moving into the Filters popover. It is mounted only under Scopus and the
+            source effect empties the list on the way out, which is what keeps buildFilterBody's
+            `source === "scopus" ? … : []` ternary from ever hiding a live-looking selection. */}
+        {source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderBottom: `1px solid ${CTRL.rule}`, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: CTRL.soft, letterSpacing: ".06em" }}>PUBLICATION TYPE</span>
+            <button onClick={() => setSelectedPubTypes([])} style={pubChipStyle(selectedPubTypes.length === 0)}>All</button>
+            {(summary?.pubTypes || []).map((pt) => {
+              const on = selectedPubTypes.includes(pt.type);
+              return (
+                <button key={pt.type} style={pubChipStyle(on)}
+                  onClick={() => setSelectedPubTypes((s) => toggleInList(s, pt.type))}>
+                  {pt.type} ({pt.n.toLocaleString()})
+                </button>
+              );
+            })}
+          </div>
         )}
-        <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows below, where a person IS proposed but isn't in ReCiter yet — see that checkbox."} placement="top" arrow>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
-            <Checkbox size="small" checked={hideNoSuggestion}
-              onChange={(e) => setHideNoSuggestion(e.target.checked)} style={{ padding: 0 }} />
-            Hide “No suggested identity”
-          </label>
-        </Tip>
-        <Tip title={"Hides rows proposing a person who has no ReCiter identity yet (the “No ReCiter identity” pill) — there is a proposal, just nothing in ReCiter to accept it into. Totals above reflect this filter when it's on."} placement="top" arrow>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
-            <Checkbox size="small" checked={hideNoIdentity}
-              onChange={(e) => setHideNoIdentity(e.target.checked)} style={{ padding: 0 }} />
-            Hide “No ReCiter identity”
-          </label>
-        </Tip>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date">
-            Date
-            <select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)}
-              style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", font: "inherit", fontSize: 13, color: "#0f172a", padding: "0 8px", cursor: "pointer" }}>
-              <option value="any">Any time</option>
-              <option value="30d">Last 30 days</option>
-              <option value="90d">Last 90 days</option>
-              <option value="6m">Last 6 months</option>
-              <option value="12m">Last 12 months</option>
-              <option value="24m">Last 2 years</option>
-              <option value="custom">Custom…</option>
-            </select>
-          </label>
-          {datePreset === "custom" && (
-            <>
-              <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (from)">
-                From
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                  style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }} title="Filter by article publication date (to)">
-                To
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                  style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #dde3ea", fontSize: 13, color: "#0f172a" }} />
-              </label>
-              {(dateFrom || dateTo) && (
-                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
-                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #dde3ea", background: "#fff", cursor: "pointer", color: "#475569", fontSize: 12 }}>
-                  Clear dates
-                </button>
-              )}
-            </>
-          )}
-          <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}>
-            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Filter by name, CWID, or PMID"
-              style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #dde3ea", width: 220, fontSize: 13 }} />
-          </form>
-          {/* T5: dismissible chip for the structured "Show N others like this" filter — separate
-              state from the free-text box above (independent, per MUST DO #3), so clearing it
-              here never touches whatever's typed in "Filter by name, CWID, or PMID". */}
-          {likeAuthor && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 6px 5px 11px", borderRadius: 16, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
-              Like: {likeAuthor}
-              <button type="button" onClick={() => setLikeAuthor("")} aria-label="Clear the like-author filter"
-                title="Clear this filter"
-                style={{ border: "none", background: "none", cursor: "pointer", color: "#1d4ed8", fontWeight: 700, fontSize: 14, lineHeight: 1, padding: "0 2px" }}>
-                ×
-              </button>
-            </span>
-          )}
-        </div>
-      </div>
 
-      {/* scopus pub-type facet (chips from summary.pubTypes) */}
-      {source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 5, margin: "2px 0 14px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, color: "#94a3b8" }}>Type</span>
-          <button onClick={() => setSelectedPubTypes([])} style={pubChipStyle(selectedPubTypes.length === 0)}>All</button>
-          {(summary?.pubTypes || []).map((pt) => {
-            const on = selectedPubTypes.includes(pt.type);
-            return (
-              <button key={pt.type} style={pubChipStyle(on)}
-                onClick={() => setSelectedPubTypes((s) => s.includes(pt.type) ? s.filter((t) => t !== pt.type) : [...s, pt.type])}>
-                {pt.type} ({pt.n.toLocaleString()})
+        {/* ---- active filter chips (§2.4, mockup:274-284) — directly beneath the control row.
+            Rendered only when something is off its default; the source segment is never a chip
+            and the search box is one, both transcribed in filterChips() rather than re-decided
+            here. Removing a chip removes ONLY that filter. */}
+        {chips.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: CTRL.band }}>
+            <span style={{ fontSize: 12, letterSpacing: ".06em", color: "#8b93a2" }}>FILTERS</span>
+            {chips.map((chip) => (
+              <button key={chip.id} type="button" onClick={() => removeChip(chip)}
+                aria-label={`Remove filter ${chip.label}`} title="Remove this filter"
+                style={{ font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, border: `1px solid ${CTRL.chipBorder}`, background: CTRL.accentBg, color: CTRL.accentInk, borderRadius: 999, padding: "4px 8px 4px 11px", fontSize: 13, cursor: "pointer" }}>
+                {chip.label}<span style={{ color: "#6f8cbe", fontSize: 14, lineHeight: 1 }}>×</span>
               </button>
-            );
-          })}
-        </div>
-      )}
+            ))}
+            <button type="button" onClick={resetAll}
+              title={`Reset all ${filterCount} ${filterCount === 1 ? "filter" : "filters"} to their defaults (sort is left alone)`}
+              style={{ font: "inherit", border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer", padding: "4px 6px" }}>
+              Clear
+            </button>
+          </div>
+        )}
 
-      {/* F4: bulk bar (slim) */}
-      {statusView === "open" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 18px", fontSize: 13, color: "#475569", flexWrap: "wrap" }}>
-          <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate (non-Scopus) rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: eligibleRows.length === 0 ? "default" : "pointer", color: eligibleRows.length === 0 ? "#94a3b8" : "#475569" }}>
-              <Checkbox size="small" disabled={eligibleRows.length === 0}
-                checked={allEligibleSelected}
-                indeterminate={someEligibleSelected && !allEligibleSelected}
-                onChange={toggleSelectAllEligible}
-                style={{ padding: 0 }} />
-              Select all selectable (this page)
-            </label>
-          </Tip>
-          <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
-            <button disabled={nearCertain.length === 0} style={btn("soft", nearCertain.length === 0)}
-              onClick={() => doBulkAccept(nearCertain)}>
-              <IconChecks /> Accept near-certain · IO ≥ 95 <strong style={{ fontVariantNumeric: "tabular-nums" }}>({nearCertain.length})</strong>
-            </button>
-          </Tip>
-          {/* Escape hatch from the page-scoped selection above: only offered once this page is
-              fully selected and there is more behind it, and the count is stated in the label so
-              nobody selects a few thousand rows without reading the number. */}
-          {/* Hidden whenever the selection holds multi-candidate rows: selectAllMatching
-              REPLACES the selection with the server's single-candidate-only set
-              (authorshipSelectable), which would silently drop them. */}
-          {allEligibleSelected && selectedAcceptRows.length === selectedRows.length && !allMatching && count > eligibleRows.length && (
-            <button disabled={selectingAll} style={btn("soft", selectingAll)} onClick={selectAllMatching}>
-              {selectingAll ? "Selecting…" : `Select all ${count.toLocaleString()} matching these filters`}
-            </button>
+        {/* ---- selection / bulk bar (§2.5, mockup:286-315) ------------------------------------
+            The actions appear only when rows are selected. What did NOT change: a selection can
+            only exist on the open queue (isBulkSelectable gates on statusView), every accept-type
+            button still reads selectedAcceptRows, and "Accept near-certain" is gated on the open
+            queue explicitly now that the bar itself renders in every queue for "Showing N of M". */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, rowGap: 8, flexWrap: "wrap", padding: "9px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: hasSelection ? "#f3f7fd" : "#fff" }}>
+          {statusView === "open" && (
+            <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate (non-Scopus) rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: 13.5, color: eligibleRows.length === 0 ? "#9aa2b1" : "#4a5262", cursor: eligibleRows.length === 0 ? "default" : "pointer" }}>
+                <Checkbox size="small" disabled={eligibleRows.length === 0}
+                  checked={allEligibleSelected}
+                  indeterminate={someEligibleSelected && !allEligibleSelected}
+                  onChange={toggleSelectAllEligible}
+                  style={{ padding: 0 }} />
+                <span>{hasSelection ? `${selectedRows.length.toLocaleString()} selected` : "Select all on page"}</span>
+              </label>
+            </Tip>
           )}
-          {allMatching && (
-            <span style={{ color: "#1d4ed8", fontWeight: 600 }}>
-              All {allMatching.length.toLocaleString()} matching rows selected
-              <button style={{ ...btn("soft"), padding: "2px 8px", marginLeft: 8 }}
-                onClick={() => { setAllMatching(null); setSelected(new Set()); }}>Clear</button>
-            </span>
-          )}
-          {selectedRows.length > 0 && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              — <strong>{selectedRows.length}</strong> selected
-              {/* T4: selectedRows can now include multi-candidate rows (bulk-assign only) —
-                  Accept must stay scoped to selectedAcceptRows so one can never be
-                  bulk-accepted, and hides entirely once the selection is assign-only. */}
+
+          {hasSelection && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 4, flexWrap: "wrap" }}>
+              {/* Accept stays scoped to selectedAcceptRows and hides entirely once the selection
+                  is assign-only; the count is appended only when the two differ, so the curator
+                  is never told "Accept" will act on more rows than it will. */}
               {selectedAcceptRows.length > 0 && (
-                <button style={{ ...btn("accept"), padding: "4px 10px" }} disabled={!!bulkProgress}
+                <button style={barBtn("accept")} disabled={!!bulkProgress}
                   onClick={() => doBulkAccept(selectedAcceptRows)}>
-                  <IconCheck /> Accept selected{selectedAcceptRows.length < selectedRows.length ? ` (${selectedAcceptRows.length})` : ""}
+                  Accept{selectedAcceptRows.length < selectedRows.length ? ` (${selectedAcceptRows.length})` : ""}
                 </button>
               )}
-              {/* T5: "Show N others like this" (per-row) narrows the queue to one author's open
-                  rows; this is the other half — assign one cwid to every row now selected. */}
-              <button style={{ ...btn("soft"), padding: "4px 10px" }} disabled={!!bulkProgress}
+              <button style={barBtn("plain")} disabled={!!bulkProgress}
                 onClick={(e) => openAssignPicker(e.currentTarget)}>
-                Assign selected ({selectedRows.length}) to…
+                Assign to…
               </button>
-              {/* T-950: mirrors bulk assign — opens the confirm dialog below, never fires
-                  directly (the multi-candidate/no-identity wording in it needs a beat to read). */}
-              <button style={{ ...btn("reject"), padding: "4px 10px" }} disabled={!!bulkProgress}
+              <button style={barBtn("plain")} disabled={!!bulkProgress}
                 onClick={() => setRejectConfirmOpen(true)}>
-                <IconX /> Reject selected ({selectedRows.length})
+                Reject
               </button>
-            </span>
+              {/* §2.5's new bulk action. No confirm gate: snooze writes nothing but a wake date
+                  on the row, and the Undo snackbar reverses the batch. */}
+              <button style={barBtn("plain")} disabled={!!bulkProgress}
+                onClick={() => doBulkSnooze(selectedRows)}>
+                Snooze
+              </button>
+              <button type="button" onClick={() => setRulesOpen((v) => !v)}
+                aria-label="What bulk actions act on" title="What bulk actions act on"
+                style={{ font: "inherit", width: 26, height: 26, border: `1px solid ${rulesOpen ? CTRL.accent : CTRL.border}`, background: rulesOpen ? CTRL.accentBg : "#fff", borderRadius: "50%", fontSize: 12, color: rulesOpen ? CTRL.accentInk : CTRL.muted, cursor: "pointer" }}>
+                i
+              </button>
+              <button type="button" onClick={clearSelection}
+                style={{ font: "inherit", border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer" }}>
+                Clear
+              </button>
+              {/* Escape hatch from the page-scoped selection: offered only once this page is
+                  fully selected and there is more behind it, with the count in the label. Hidden
+                  whenever the selection holds multi-candidate rows — selectAllMatching REPLACES
+                  the selection with the server's single-candidate-only set, which would drop them. */}
+              {allEligibleSelected && selectedAcceptRows.length === selectedRows.length && !allMatching && count > eligibleRows.length && (
+                <button style={barBtn("plain")} disabled={selectingAll} onClick={selectAllMatching}>
+                  {selectingAll ? "Selecting…" : `Select all ${count.toLocaleString()} matching`}
+                </button>
+              )}
+              {allMatching && (
+                <span style={{ color: CTRL.accentInk, fontWeight: 600, fontSize: 13 }}>
+                  All {allMatching.length.toLocaleString()} matching rows selected
+                </span>
+              )}
+            </div>
           )}
+
           {bulkProgress && (
-            <span style={{ color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ color: "#4a5262", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
               Working: {bulkProgress.done.toLocaleString()} of {bulkProgress.total.toLocaleString()}…
             </span>
           )}
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "#94a3b8" }}>
-            {allMatching ? "Bulk accept acts on every matching single-candidate row"
-              : "Bulk accept acts on single-candidate rows on this page; bulk assign and bulk reject also cover open, non-Scopus multi-candidate rows and single-candidate rows with no ReCiter identity"}
-          </span>
+
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>
+              Showing {rows.length.toLocaleString()} of {count.toLocaleString()}
+            </span>
+            {!hasSelection && statusView === "open" && (
+              <Tip title="Acts on single-candidate rows with IO ≥ 95 on this page only (bounded blast radius)" placement="top" arrow>
+                <span>
+                  <button disabled={nearCertain.length === 0} onClick={() => doBulkAccept(nearCertain)}
+                    style={{ ...barBtn("plain"), color: "#4a5262", opacity: nearCertain.length === 0 ? 0.5 : 1, cursor: nearCertain.length === 0 ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                    Accept near-certain · IO ≥ 95 <span style={{ color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>({nearCertain.length})</span>
+                  </button>
+                </span>
+              </Tip>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* the "i" strip (mockup:311-315) — today's always-on two-line caveat, verbatim, now
+            behind the round i on the bar. Wording follows the selection: a select-all-matching
+            batch is not page-scoped. */}
+        {/* Tied to hasSelection, like the `i` that toggles it: without that, clearing a selection
+            while the strip is open would leave it stranded with its own toggle gone. */}
+        {rulesOpen && hasSelection && (
+          <div style={{ padding: "11px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: CTRL.band, fontSize: 13, lineHeight: 1.55, color: CTRL.muted, maxWidth: 760 }}>
+            {allMatching
+              ? "Bulk accept acts on every matching single-candidate row."
+              : "Bulk accept acts on single-candidate rows on this page. Bulk assign and bulk reject also cover open, non-Scopus multi-candidate rows and single-candidate rows with no ReCiter identity."}
+          </div>
+        )}
+      </div>
+
+      {/* ---- person-type popover (§2.2, mockup:121-139) ---------------------------------- */}
+      <Popover open={!!typeAnchor} anchorEl={typeAnchor} onClose={() => setTypeAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
+        PaperProps={{ style: popPaper(250) }}>
+        <div style={popHeadRow}>
+          <div style={popHead}>PERSON TYPE <span style={popHeadCount}>{selectedTypes.length} of {personTypeOptions.length}</span></div>
+          <button type="button" onClick={() => setSelectedTypes([])} style={linkBtn}>All</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {personTypeOptions.length === 0 && <div style={emptyOptStyle}>No types</div>}
+          {personTypeOptions.map((pt) => {
+            const on = selectedTypes.includes(pt.key);
+            return (
+              <label key={pt.key} style={optRow(on)}>
+                <Checkbox size="small" checked={on} style={{ padding: 0 }}
+                  onChange={() => setSelectedTypes((s) => toggleInList(s, pt.key))} />
+                <span style={{ flex: 1, minWidth: 0 }}>{pt.key}</span>
+                <span style={optCountStyle}>{pt.n.toLocaleString()}</span>
+              </label>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `1px solid ${CTRL.rule}`, marginTop: 11, paddingTop: 10 }}>
+          <button type="button" onClick={() => setTypeAnchor(null)} style={doneBtn}>Done</button>
+        </div>
+      </Popover>
+
+      {/* ---- affiliation popover: two independent multi-selects (§2.2, mockup:145-182) ----
+          Identity filters Person.primaryInstitution (#982's `person` basis), Article filters
+          AuthorshipReview.author_affiliation (its `byline` basis). Both selected = both must
+          match; the server ANDs them. Each list has its own facet counts, so the same bucket
+          key shows different numbers on the two sides — that is the point, not a bug. */}
+      <Popover open={!!affilAnchor} anchorEl={affilAnchor} onClose={() => setAffilAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
+        PaperProps={{ style: { ...popPaper(320), display: "flex", flexDirection: "column", gap: 14 } }}>
+        <div>
+          <div style={popHeadRow}>
+            <div style={popHead}>IDENTITY AFFILIATION <span style={popHeadCount}>{selectedInstitutions.length} of {identityOptions.length}</span></div>
+            <button type="button" onClick={() => setSelectedInstitutions([])} style={linkBtn}>Any</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {identityOptions.length === 0 && <div style={emptyOptStyle}>No institutions</div>}
+            {identityOptions.map((inst) => {
+              const on = selectedInstitutions.includes(inst.key);
+              return (
+                <label key={inst.key} style={optRow(on)}>
+                  <Checkbox size="small" checked={on} style={{ padding: 0 }}
+                    onChange={() => setSelectedInstitutions((s) => toggleInList(s, inst.key))} />
+                  <span style={{ flex: 1, minWidth: 0 }}>{INSTITUTION_LABELS[inst.key] || inst.key}</span>
+                  <span style={optCountStyle}>{inst.n.toLocaleString()}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div style={helperStyle}>Where the proposed WCM person sits in the directory.</div>
+        </div>
+        <div>
+          <div style={popHeadRow}>
+            <div style={popHead}>ARTICLE AFFILIATION <span style={popHeadCount}>{selectedAuthorAffiliations.length} of {authorOptions.length}</span></div>
+            <button type="button" onClick={() => setSelectedAuthorAffiliations([])} style={linkBtn}>Any</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {authorOptions.length === 0 && <div style={emptyOptStyle}>No institutions</div>}
+            {authorOptions.map((inst) => {
+              const on = selectedAuthorAffiliations.includes(inst.key);
+              return (
+                <label key={inst.key} style={optRow(on)}>
+                  <Checkbox size="small" checked={on} style={{ padding: 0 }}
+                    onChange={() => setSelectedAuthorAffiliations((s) => toggleInList(s, inst.key))} />
+                  <span style={{ flex: 1, minWidth: 0 }}>{INSTITUTION_LABELS[inst.key] || inst.key}</span>
+                  <span style={optCountStyle}>{inst.n.toLocaleString()}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div style={helperStyle}>As printed on the article. Several may be selected.</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, paddingTop: 11 }}>
+          {/* Reset here restores only THIS control's two lists (mockup:697), not every filter —
+              that is the Filters popover's "Reset all". */}
+          <button type="button" onClick={() => patchFilters({
+            selectedInstitutions: FILTER_DEFAULTS.selectedInstitutions.slice(),
+            selectedAuthorAffiliations: FILTER_DEFAULTS.selectedAuthorAffiliations.slice(),
+          })} style={{ ...linkBtn, color: CTRL.muted }}>Reset</button>
+          <button type="button" onClick={() => setAffilAnchor(null)} style={doneBtn}>Done</button>
+        </div>
+      </Popover>
+
+      {/* ---- Filters popover (§2.3, mockup:212-270): QUEUE / MATCH CLASS / DATE / HIDE ---- */}
+      <Popover open={!!filtersAnchor} anchorEl={filtersAnchor} onClose={() => setFiltersAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ style: { ...popPaper(400), padding: "16px 18px 14px" } }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+          <div>
+            <div style={{ ...popHead, marginBottom: 8 }}>QUEUE</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {QUEUE_OPTIONS.map((q) => {
+                const n = q.key === "conflicts" ? summary?.conflicts : q.key === "duplicates" ? summary?.duplicates : undefined;
+                return (
+                  <button key={q.key} type="button" onClick={() => setStatusView(q.key)}
+                    style={{ ...listBtn(statusView === q.key), flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                    <span>{STATUS_VIEW_LABEL[q.key]}{n != null ? ` (${n.toLocaleString()})` : ""}</span>
+                    {q.note && <span style={{ fontSize: 12, fontWeight: 400, color: CTRL.soft }}>{q.note}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            {/* MATCH CLASS is the union of the two deleted chip strips (HANDOFF §3a): three lane
+                entries and four classification entries in ONE single-select list, mockup order.
+                selectMatchClass writes both axes in one patch, so picking a lane resets the
+                class and vice versa — the lane's old "single" default cannot be stranded. */}
+            <div style={{ ...popHead, marginBottom: 8 }}>MATCH CLASS</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {MATCH_CLASS_OPTIONS.map((opt) => {
+                const n = opt.count(summary);
+                return (
+                  <Tip key={opt.label} title={opt.hint} placement="left" arrow>
+                    <button type="button" onClick={() => selectMatchClass(opt)}
+                      style={{ ...listBtn(activeMatchClass === opt), justifyContent: "space-between" }}>
+                      <span>{opt.label}</span>
+                      <span style={{ fontSize: 12, color: "#8b93a2", fontVariantNumeric: "tabular-nums" }}>
+                        {n != null ? n.toLocaleString() : ""}
+                      </span>
+                    </button>
+                  </Tip>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ ...popHead, marginBottom: 7 }}>DATE</div>
+            <select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)} aria-label="Article publication date"
+              style={{ font: "inherit", width: "100%", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 8px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
+              {DATE_PRESET_ORDER.map((p) => <option key={p} value={p}>{DATE_PRESET_LABEL[p]}</option>)}
+            </select>
+            {datePreset === "custom" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <label style={{ fontSize: 12.5, color: CTRL.muted, display: "flex", alignItems: "center", gap: 6 }}>
+                  From
+                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                    style={{ font: "inherit", padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink }} />
+                </label>
+                <label style={{ fontSize: 12.5, color: CTRL.muted, display: "flex", alignItems: "center", gap: 6 }}>
+                  To
+                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                    style={{ font: "inherit", padding: "5px 8px", borderRadius: 6, border: `1px solid ${CTRL.border}`, fontSize: 13, color: CTRL.ink }} />
+                </label>
+                {(dateFrom || dateTo) && (
+                  <button type="button" onClick={() => patchFilters({ dateFrom: "", dateTo: "" })} style={{ ...linkBtn, color: CTRL.muted }}>
+                    Clear dates
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ ...popHead, marginBottom: 8 }}>HIDE</div>
+            <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows, where a person IS proposed but isn't in ReCiter yet — see the checkbox below."} placement="left" arrow>
+              <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, color: CTRL.ink, padding: "4px 0", cursor: "pointer" }}>
+                <Checkbox size="small" checked={hideNoSuggestion}
+                  onChange={(e) => setHideNoSuggestion(e.target.checked)} style={{ padding: 0 }} />
+                Rows with no suggested identity
+              </label>
+            </Tip>
+            <Tip title={"Hides rows proposing a person who has no ReCiter identity yet (the “No ReCiter identity” pill) — there is a proposal, just nothing in ReCiter to accept it into. The totals above reflect this filter when it's on."} placement="left" arrow>
+              <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, color: CTRL.ink, padding: "4px 0", cursor: "pointer" }}>
+                <Checkbox size="small" checked={hideNoIdentity}
+                  onChange={(e) => setHideNoIdentity(e.target.checked)} style={{ padding: 0 }} />
+                Rows with no ReCiter identity
+              </label>
+            </Tip>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, paddingTop: 12 }}>
+            <button type="button" onClick={resetAll} style={{ ...linkBtn, color: CTRL.muted }}
+              title="Restore every filter to its default (sort is left alone)">Reset all</button>
+            <button type="button" onClick={() => setFiltersAnchor(null)} style={{ ...doneBtn, padding: "7px 16px" }}>Done</button>
+          </div>
+        </div>
+      </Popover>
+
+      {/* ---- keyboard legend (§2.2, mockup:200-210) --------------------------------------
+          Transcribed from the HANDLER, not from the mockup's list: the mockup names J/K/Y/N/S/F,
+          but `f` is not implemented and `u`, `x` and Enter are. Documenting a shortcut that does
+          nothing is worse than omitting it, so the list below is exactly what the keydown
+          listener does, including the queue restrictions three of them carry. */}
+      <Popover open={!!keysAnchor} anchorEl={keysAnchor} onClose={() => setKeysAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}
+        PaperProps={{ style: { width: 250, maxWidth: "calc(100vw - 32px)", background: "#101c30", color: "#dbe2ee", borderRadius: 8, padding: "12px 14px", boxShadow: "0 12px 28px rgba(16,28,48,0.22)" } }}>
+        <div style={{ fontSize: 11, letterSpacing: ".1em", color: "#8b96aa", marginBottom: 9 }}>KEYBOARD</div>
+        {KEY_LEGEND.map((k) => (
+          <div key={k.key} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "3px 0", fontSize: 13 }}>
+            <span style={{ minWidth: 22, textAlign: "center", border: "1px solid #3a4a66", borderRadius: 4, padding: "1px 0", fontSize: 12, flex: "none" }}>{k.key}</span>
+            <span>{k.label}</span>
+          </div>
+        ))}
+        <div style={{ fontSize: 11.5, color: "#8b96aa", marginTop: 9, lineHeight: 1.45 }}>
+          Inactive while a popover, menu or dialog is open, and while typing in a field.
+        </div>
+      </Popover>
 
       {/* T4: "Assign selected (N) to…" picker — union of every candidate the selection
           proposes (rowCandidateLites: candidate_cwids_json for a multi row, the row's own
@@ -1815,11 +2717,18 @@ const AuthorshipsTabs = () => {
           <AuthorshipCard
             key={r.id}
             row={r}
-            // The duplicates view is a REVIEW queue: each row is still status="open", so the card
-            // must offer the same per-row actions (including Force) as the open feed. The parent
-            // keeps statusView="duplicates", which is what leaves eligibleRows empty and so keeps
-            // the bulk bar off — duplicates get resolved one at a time, deliberately.
-            statusView={statusView === "duplicates" ? "open" : statusView}
+            // Both review queues (see STATUS_VIEW_LABEL above) hand the card "open": their rows
+            // ARE open rows, so the card must offer the same per-row actions, including Force.
+            // Spelled out rather than routed through a helper so the type narrows here.
+            statusView={statusView === "duplicates" || statusView === "conflicts" ? "open" : statusView}
+            // …but the checkbox must NOT follow that substitution, and this is why it is a prop
+            // rather than something the card recomputes from the statusView it was handed. Bulk
+            // actions are open-queue only (isBulkSelectable returns false for every other view,
+            // and toggleSelect gates on the REAL statusView), so a card told "open" inside the
+            // duplicates or conflicts queue rendered an enabled checkbox that did nothing when
+            // clicked. Computed here, from the real queue, so the page and the card cannot
+            // disagree about what is selectable.
+            selectable={isBulkSelectable(r, statusView)}
             isExpanded={expanded === r.id}
             isSelected={selected.has(r.id)}
             isFocused={focusedId === r.id}
@@ -1835,6 +2744,10 @@ const AuthorshipsTabs = () => {
             onAssignOther={() => focusAssignOther(r.id)}
             onNarrowPmid={() => narrowToPmid(r.pmid)}
             onFindOthers={() => findOthersLikeThis(r.wcm_author)}
+            // §2.6 hover card: `undefined` means "not asked yet / still in flight", which the
+            // card renders as a loading line. An answered cwid always has an entry.
+            priorNames={r.top_cwid ? priorNames[r.top_cwid] : undefined}
+            onHoverIdentity={() => requestPriorNames(r.top_cwid)}
             // Session conflict if this curator just hit it; otherwise rehydrate the one
             // persisted on the row, so a refresh (or a different curator) still sees why.
             conflict={conflicts[r.id] ?? (r.accept_conflict ? {
@@ -1891,38 +2804,6 @@ const AuthorshipsTabs = () => {
         )}
         <MenuItem onClick={() => menu && doAction(menu.row, "snooze")}>Snooze 90 days</MenuItem>
         <MenuItem onClick={() => menu && doAction(menu.row, "dismiss")}>Dismiss</MenuItem>
-      </Menu>
-
-      {/* person-type multiselect menu */}
-      <Menu anchorEl={typeAnchor} open={!!typeAnchor} onClose={() => setTypeAnchor(null)}>
-        {(summary?.personTypes || []).length === 0 && <MenuItem disabled>No types</MenuItem>}
-        {(summary?.personTypes || []).map((pt) => (
-          <MenuItem key={pt.type} dense onClick={() =>
-            setSelectedTypes((s) => s.includes(pt.type) ? s.filter((t) => t !== pt.type) : [...s, pt.type])
-          }>
-            <Checkbox checked={selectedTypes.includes(pt.type)} size="small" style={{ padding: "0 8px 0 0" }} />
-            {pt.type} ({pt.n.toLocaleString()})
-          </MenuItem>
-        ))}
-        {selectedTypes.length > 0 && (
-          <MenuItem dense onClick={() => setSelectedTypes([])} style={{ color: "#b42318", fontWeight: 600 }}>Clear selection</MenuItem>
-        )}
-      </Menu>
-
-      {/* curated institution multiselect menu — mirrors the person-type menu above exactly */}
-      <Menu anchorEl={institutionAnchor} open={!!institutionAnchor} onClose={() => setInstitutionAnchor(null)}>
-        {(summary?.institutions || []).length === 0 && <MenuItem disabled>No institutions</MenuItem>}
-        {(summary?.institutions || []).map((inst) => (
-          <MenuItem key={inst.key} dense onClick={() =>
-            setSelectedInstitutions((s) => s.includes(inst.key) ? s.filter((k) => k !== inst.key) : [...s, inst.key])
-          }>
-            <Checkbox checked={selectedInstitutions.includes(inst.key)} size="small" style={{ padding: "0 8px 0 0" }} />
-            {INSTITUTION_LABELS[inst.key] || inst.key} ({inst.n.toLocaleString()})
-          </MenuItem>
-        ))}
-        {selectedInstitutions.length > 0 && (
-          <MenuItem dense onClick={() => setSelectedInstitutions([])} style={{ color: "#b42318", fontWeight: 600 }}>Clear selection</MenuItem>
-        )}
       </Menu>
 
       {/* undo (immediate reversal, batched) */}
@@ -2015,7 +2896,7 @@ const AuthorshipsTabs = () => {
                 <span>{entry.reviewer || "—"} · {formatActivityDate(entry.resolved_at)}</span>
                 <button
                   onClick={(e) => { e.stopPropagation(); undoRecentActivity(entry); }}
-                  style={{ marginLeft: "auto", background: "none", border: "none", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, font: "inherit" }}>
+                  style={{ font: "inherit", marginLeft: "auto", background: "none", border: "none", color: "#2563eb", fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0 }}>
                   Undo
                 </button>
               </div>
@@ -2027,21 +2908,144 @@ const AuthorshipsTabs = () => {
   );
 };
 
-const kbdStyle: CSSProperties = {
-  font: "inherit", fontSize: 11, background: "#eef2f7", border: "1px solid #dde3ea", borderBottomWidth: 2,
-  borderRadius: 4, padding: "0 5px", color: "#475569",
+// ---- the single control row's palette and its recurring shapes -----------------------------
+// Colour values transcribed from the mockup (HANDOFF §2.2-§2.5). Held together rather than
+// inlined per element because the control row, the two dropdown popovers, the Filters popover
+// and the chip row all draw from the same handful of tokens, and a border that drifts between
+// them is exactly what makes a "one row" band read as three.
+//
+// `font: "inherit"` LEADS every shape helper below, and must keep leading. It is the `font`
+// SHORTHAND, so it resets font-size along with family/weight/line-height — written after a
+// `fontSize`, as most of these were, it silently threw the declared size away and the control
+// rendered at the inherited 14px instead of the 12-13.5px §2.2-§2.5 specify. Ordered first, the
+// shorthand supplies family and line-height and each object's own fontSize survives. React
+// writes inline styles in object-key order, so the order here IS the cascade.
+const CTRL = {
+  border: "#ddd8d0",       // resting control border
+  rule: "#eae6df",         // the hairline between bands
+  track: "#f4f2ef",        // segment-control track
+  ink: "#1b2432",
+  muted: "#6b7484",
+  soft: "#6f7889",
+  accent: "#2563c9",       // active border / primary button
+  accentBg: "#eef4fd",     // active row + open-popover button fill
+  accentInk: "#1c3f7d",
+  band: "#fbfaf8",         // chip row + the "i" strip
+  chipBorder: "#c8d8f4",
 };
 
+// §2.1's three header-band buttons (mockup:76-81). One shape, three palettes: red for identity
+// conflicts, amber for duplicate records, plain for Activity and the session conflict log.
+const alertPill = (kind: "red" | "amber" | "plain"): CSSProperties => ({
+  font: "inherit",
+  display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 6, padding: "7px 12px",
+  fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
+  border: `1px solid ${kind === "red" ? "#dcb4b0" : kind === "amber" ? "#e6c99a" : CTRL.border}`,
+  background: kind === "red" ? "#fdf3f2" : kind === "amber" ? "#fdf6e8" : "#fff",
+  color: kind === "red" ? "#9a3128" : kind === "amber" ? "#8a5a08" : "#4a5262",
+});
+
+// source segment (mockup:601-605): active segment is white with a 1px shadow, not a border.
+const segBtn = (active: boolean): CSSProperties => ({
+  font: "inherit",
+  border: "none", cursor: "pointer", borderRadius: 5, padding: "7px 14px", fontSize: 13.5,
+  whiteSpace: "nowrap",
+  background: active ? "#fff" : "transparent",
+  color: active ? CTRL.ink : CTRL.muted,
+  fontWeight: active ? 600 : 400,
+  boxShadow: active ? "0 1px 2px rgba(27,36,50,0.12)" : "none",
+});
+
+// the two dropdown buttons: border goes blue when the popover is open OR the filter is set, so
+// an active facet is visible without opening it (mockup:684-686, :695-696).
+const dropBtn = (active: boolean, open: boolean): CSSProperties => ({
+  display: "inline-flex", alignItems: "center", gap: 8, font: "inherit", fontSize: 13.5,
+  border: `1px solid ${open || active ? CTRL.accent : CTRL.border}`,
+  background: open ? CTRL.accentBg : "#fff", color: CTRL.ink,
+  borderRadius: 6, padding: "7px 11px", cursor: "pointer", whiteSpace: "nowrap",
+  maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis",
+});
+const caretStyle: CSSProperties = { color: CTRL.soft, fontSize: 11 };
+const countBadgeStyle: CSSProperties = {
+  minWidth: 19, textAlign: "center", fontSize: 12, fontVariantNumeric: "tabular-nums",
+  background: CTRL.accent, color: "#fff", borderRadius: 999, padding: "1px 6px",
+};
+
+const popPaper = (width: number): CSSProperties => ({
+  width, maxWidth: "calc(100vw - 32px)", border: `1px solid ${CTRL.border}`, borderRadius: 8,
+  boxShadow: "0 16px 40px rgba(27,36,50,0.16)", padding: "14px 14px 12px",
+});
+const popHead: CSSProperties = { fontSize: 11, letterSpacing: ".1em", color: CTRL.muted };
+const popHeadCount: CSSProperties = { color: "#9aa2b1", fontVariantNumeric: "tabular-nums" };
+const popHeadRow: CSSProperties = {
+  display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 6,
+};
+const linkBtn: CSSProperties = {
+  font: "inherit",
+  border: "none", background: "none", padding: 0, fontSize: 12.5, color: CTRL.accent,
+  cursor: "pointer",
+};
+const doneBtn: CSSProperties = {
+  font: "inherit",
+  border: `1px solid ${CTRL.accent}`, background: CTRL.accent, color: "#fff", borderRadius: 6,
+  padding: "6px 14px", fontSize: 13.5, cursor: "pointer",
+};
+// a checkbox row in a multiselect popover
+const optRow = (on: boolean): CSSProperties => ({
+  display: "flex", alignItems: "center", gap: 9, fontSize: 13.5, padding: "5px 7px",
+  borderRadius: 5, cursor: "pointer",
+  background: on ? CTRL.accentBg : "transparent", color: on ? CTRL.accentInk : "#3d4756",
+});
+const optCountStyle: CSSProperties = { fontSize: 12, color: "#8b93a2", fontVariantNumeric: "tabular-nums" };
+const emptyOptStyle: CSSProperties = { fontSize: 13, color: "#9aa2b1", padding: "5px 7px" };
+const helperStyle: CSSProperties = { fontSize: 12.5, color: CTRL.soft, marginTop: 5, lineHeight: 1.45 };
+// a single-select list row in the Filters popover (QUEUE, MATCH CLASS)
+const listBtn = (active: boolean): CSSProperties => ({
+  font: "inherit",
+  display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+  border: "none", cursor: "pointer", borderRadius: 5, padding: "7px 9px", fontSize: 13.5,
+  background: active ? CTRL.accentBg : "transparent",
+  color: active ? CTRL.accentInk : "#3d4756",
+  fontWeight: active ? 600 : 400,
+});
+// the bulk bar's buttons (mockup:292-301): Accept is the only coloured one.
+const barBtn = (kind: "accept" | "plain"): CSSProperties => ({
+  font: "inherit",
+  border: `1px solid ${kind === "accept" ? "#9dc4a8" : CTRL.border}`,
+  background: kind === "accept" ? "#eef7f0" : "#fff",
+  color: kind === "accept" ? "#146c39" : CTRL.ink,
+  borderRadius: 6, padding: "6px 13px", fontSize: 13.5, cursor: "pointer",
+});
+
+// The `?` legend (§2.2). Transcribed from the keydown handler in this file, not from the
+// mockup's fixture: the mockup lists J/K/Y/N/S/F, but `f` (open filters) is not implemented and
+// `u`, `x` and Enter are. Three of these only fire on the Open queue, which the handler enforces
+// and the labels therefore say.
+const KEY_LEGEND: Array<{ key: string; label: string }> = [
+  { key: "J", label: "Next row" },
+  { key: "K", label: "Previous row" },
+  { key: "Y", label: "Accept (single-candidate, Open queue)" },
+  { key: "N", label: "Reject (Open queue)" },
+  { key: "S", label: "Snooze (Open queue)" },
+  { key: "X", label: "Select / deselect the row" },
+  { key: "U", label: "Undo the last action" },
+  { key: "↵", label: "Open the record in a new tab" },
+];
+
 const pubChipStyle = (active: boolean): CSSProperties => ({
-  border: `1px solid ${active ? "#c7d2fe" : "#dde3ea"}`, background: active ? "#eef2ff" : "#fff",
-  color: active ? "#4338ca" : "#475569", borderRadius: 14, padding: "2px 8px", fontSize: 11,
-  fontWeight: 600, cursor: "pointer", font: "inherit",
+  font: "inherit",
+  border: `1px solid ${active ? CTRL.chipBorder : CTRL.border}`, background: active ? CTRL.accentBg : "#fff",
+  color: active ? CTRL.accentInk : CTRL.muted, borderRadius: 999, padding: "3px 10px", fontSize: 12,
+  fontWeight: 600, cursor: "pointer",
 });
 
 // ---- card ----------------------------------------------------------------
 interface CardProps {
   row: AuthorshipRow;
   statusView: "open" | "snoozed" | "dismissed";
+  // isBulkSelectable(row, the REAL statusView) — see the call site. Never derived from the
+  // `statusView` above, which the duplicates/conflicts queues deliberately substitute.
+  selectable: boolean;
   isExpanded: boolean;
   isSelected: boolean;
   isFocused: boolean;
@@ -2057,14 +3061,18 @@ interface CardProps {
   onAssignOther: () => void;
   onNarrowPmid: () => void;
   onFindOthers: () => void;
+  // §2.6 identity hover card. undefined = not fetched yet (or in flight); the parent owns the
+  // per-cwid cache, so a card never re-requests what another card already asked for.
+  priorNames?: PriorNames;
+  onHoverIdentity: () => void;
   conflict?: ConflictEntry;
   onClearConflict: () => void;
 }
 
 const AuthorshipCard = ({
-  row: r, statusView, isExpanded, isSelected, isFocused, acting, pickedCwid,
+  row: r, statusView, selectable, isExpanded, isSelected, isFocused, acting, pickedCwid,
   registerRef, onFocus, onToggleExpand, onToggleSelect, onPick, onAction, onMenu, onAssignOther, onNarrowPmid,
-  onFindOthers,
+  onFindOthers, priorNames, onHoverIdentity,
   conflict, onClearConflict,
 }: CardProps) => {
   // Matches the server accept gate (`!row.single_candidate`) and the sibling gates below
@@ -2082,12 +3090,26 @@ const AuthorshipCard = ({
   const wcm = hasWcm(r.author_affiliation);
   const candidates = isMulti ? parseCandidates(r.candidate_cwids_json) : [];
   const meta = CLASS_META[r.classification || "absent"];
-  // T4: same predicate toggleSelect gates on — multi-candidate rows are now checkbox-
-  // selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/isMultiAssignEligible).
-  const selectable = isBulkSelectable(r, statusView);
+  // T4: `selectable` is the same predicate toggleSelect gates on — multi-candidate rows are now
+  // checkbox-selectable too (open, non-scopus, bulk-assign only; see isBulkSelectable/
+  // isMultiAssignEligible). It arrives as a prop, computed by the page from the real statusView.
   // T5: server-computed sibling count for "Show N others like this" (see like_count on
   // AuthorshipRow) — 0/undefined both mean "nobody else, hide the button".
   const likeCount = r.like_count ?? 0;
+  // §2.6 identity hover card. Two things keep this from firing a request per mouse-over
+  // jitter: the parent's per-cwid cache (one request per person, ever), and this hover-intent
+  // delay, so a pointer travelling down the page over five names asks for none of them. The
+  // timer is cleared on leave AND on unmount — a card removed by an accept mid-hover would
+  // otherwise open a popup on a node that no longer exists.
+  const [identityHover, setIdentityHover] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelHover = () => { if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; } };
+  useEffect(() => cancelHover, []);
+  const openIdentityHover = () => {
+    cancelHover();
+    hoverTimer.current = setTimeout(() => { setIdentityHover(true); onHoverIdentity(); }, 220);
+  };
+  const closeIdentityHover = () => { cancelHover(); setIdentityHover(false); };
 
   const cardStyle: CSSProperties = {
     background: isSelected ? "#eff6ff" : "#fff",
@@ -2114,13 +3136,20 @@ const AuthorshipCard = ({
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>{r.wcm_author}</span>
             <span style={{ fontSize: 12, color: "#94a3b8" }}>{r.author_position_label} author</span>
+            {/* §2.6's co-author pill. The mockup labels this "+N more WCM on this paper", which
+                this number does not mean and must not claim: pmid_sibling_count counts sibling
+                authorship_review rows in the ACTIVE STATUS VIEW only, so a co-author already
+                accepted onto their identity — the commonest case on a well-worked paper — is
+                not in it. Rather than ship the mockup's wording over a number that would
+                understate the paper's WCM authors, the label says what it counts. Fixing the
+                count itself needs a person_article join the list query does not have. */}
             {(r.pmid_sibling_count ?? 1) > 1 && (
-              <Tip title="Show all WCM authorships on this paper" placement="top" arrow>
+              <Tip title="Other authorship rows for this paper still sitting in the queue you're viewing. Co-authors already assigned to an identity are NOT counted, so this is not the paper's full WCM author list. Click to narrow the queue to this PMID." placement="top" arrow>
                 <button onClick={(e) => { e.stopPropagation(); onNarrowPmid(); }} style={{
                   display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid #e2e9f3", background: "#f4f7fc",
                   color: "#2563eb", borderRadius: 12, padding: "1px 8px", fontSize: 11, fontWeight: 600, cursor: "pointer",
                 }}>
-                  <IconUsers size={12} /> +{(r.pmid_sibling_count as number) - 1} more WCM authors on this paper
+                  <IconUsers size={12} /> +{(r.pmid_sibling_count as number) - 1} more in this queue
                 </button>
               </Tip>
             )}
@@ -2135,13 +3164,21 @@ const AuthorshipCard = ({
               <span style={{ fontStyle: "italic", color: "#94a3b8" }}>No suggested identity — assign one below</span>
             ) : (
               <>
-                <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
-                {r.top_cwid && (
-                  <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
-                    style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
-                )}
+                {/* §2.6: the proposed identity's name + cwid carry the 296px hover card. The
+                    wrapper is the hover target AND the positioning context for the popup. */}
+                <span onMouseEnter={openIdentityHover} onMouseLeave={closeIdentityHover}
+                  style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, color: "#0f172a" }}>{r.top_name}</span>
+                  {r.top_cwid && (
+                    <a href={`/curate/${r.top_cwid}`} target="_blank" rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      title={`Open ${r.top_name || r.top_cwid}'s curate profile`}
+                      style={{ color: "#2563eb", textDecoration: "none" }}>{r.top_cwid}</a>
+                  )}
+                  {identityHover && (
+                    <IdentityHoverCard row={r} priorNames={priorNames} />
+                  )}
+                </span>
                 <span style={{ color: "#94a3b8" }}>· {r.top_person_type}{r.top_dept ? `, ${r.top_dept}` : ""}</span>
               </>
             )}
@@ -2211,14 +3248,22 @@ const AuthorshipCard = ({
           <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 4, ...clampStyle(2) }} title={stripHtml(r.title)}>
             <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.title) }} />
           </div>
-          {(r.journal || r.entrez_date) && (
-            <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
-              {r.journal && <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>}
-              {r.entrez_date && (
-                <Tip title={dateLabel(r.source).tip} placement="top" arrow>
-                  <span style={{ cursor: "help" }}>{r.journal ? " · " : ""}{dateLabel(r.source).label} {r.entrez_date}</span>
-                </Tip>
+          {/* §2.6's meta line: journal · Indexed date · PMID + copy. The PMID moved up here
+              from the evidence panel, where it was only reachable by expanding the card — a
+              curator cross-checking in PubMed had to open a row to get the number. */}
+          {(r.journal || r.entrez_date || (r.source !== "scopus" && r.pmid)) && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 9, flexWrap: "wrap", fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
+              {(r.journal || r.entrez_date) && (
+                <span>
+                  {r.journal && <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(r.journal) }} /></i>}
+                  {r.entrez_date && (
+                    <Tip title={dateLabel(r.source).tip} placement="top" arrow>
+                      <span style={{ cursor: "help" }}>{r.journal ? " · " : ""}{dateLabel(r.source).label} {r.entrez_date}</span>
+                    </Tip>
+                  )}
+                </span>
               )}
+              {r.source !== "scopus" && r.pmid != null && <PmidCite pmid={r.pmid} />}
             </div>
           )}
 
@@ -2242,7 +3287,11 @@ const AuthorshipCard = ({
 
         {/* right rail: score block + primary action + overflow */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>
-          <ScoreRail row={r} isMulti={isMulti} isAbsent={isAbsent} candidates={candidates} />
+          {/* §2.6 hides the AS diagnosis "once the row is resolved". In this queue the only
+              resolved rows on screen are the Dismissed view's (accept/reject/assign remove the
+              row outright; snoozed rows are not resolved), so that is the one view it hides in. */}
+          <ScoreRail row={r} isMulti={isMulti} isAbsent={isAbsent} candidates={candidates}
+            resolved={statusView === "dismissed"} />
           {statusView === "open" ? (
             isMulti ? (
               <button style={btn("ghost")} onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>Pick one <IconChevR size={13} /></button>
@@ -2390,8 +3439,23 @@ const AuthorshipCard = ({
   );
 };
 
+// §2.6's score stack: one badge, with the AS diagnosis in 11.5px beneath it (mockup:401-416).
+// The badge SHAPE is the mockup's for every branch; its colour thresholds are this page's own
+// existing ones (ioColor: >= 90 / >= 50), not the mockup's fixture, so a row that reads green
+// today still reads green — the redesign restyles the block, it does not re-grade the queue.
+const ioBadgeColors = (v?: number): { bg: string; fg: string } => (
+  v == null ? { bg: "#f2f0ec", fg: "#6b7484" }
+    : v >= 90 ? { bg: "#eaf5ed", fg: "#146c39" }
+      : v >= 50 ? { bg: "#fdf3e2", fg: "#8a5a08" }
+        : { bg: "#f2f0ec", fg: "#6b7484" }
+);
+const scoreBadgeStyle = (bg: string, fg: string): CSSProperties => ({
+  display: "inline-block", fontSize: 12.5, fontWeight: 600, padding: "3px 9px", borderRadius: 999,
+  whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", background: bg, color: fg,
+});
+
 // right-rail score block
-const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipRow; isMulti: boolean; isAbsent: boolean; candidates: Candidate[] }) => {
+const ScoreRail = ({ row: r, isMulti, isAbsent, candidates, resolved }: { row: AuthorshipRow; isMulti: boolean; isAbsent: boolean; candidates: Candidate[]; resolved?: boolean }) => {
   // #938 — top_io_score is not part of ReCiterDB#177's null sweep, so without this branch a
   // no-suggestion row (top_cwid null) would fall through to the plain numeric score below,
   // a real coloured score attached to no candidate at all. Same muted palette as the
@@ -2400,9 +3464,7 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
   if (!r.top_cwid) {
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#f8fafc", color: "#64748b" }}>
-          No suggestion
-        </span>
+        <span style={scoreBadgeStyle("#f2f0ec", "#6b7484")}>No suggestion</span>
       </div>
     );
   }
@@ -2410,11 +3472,9 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
     const total = r.n_candidates ?? candidates.length;
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap", background: "#fffbeb", color: "#b45309" }}>
-          {total} candidates
-        </span>
+        <span style={scoreBadgeStyle("#fdf3e2", "#8a5a08")}>{total} candidates</span>
         {r.top_io_score != null && (
-          <span style={{ display: "block", fontSize: 10.5, color: "#94a3b8", marginTop: 3, textAlign: "right", fontWeight: 500 }}>
+          <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
             top IO {fmtScore(r.top_io_score)}
           </span>
         )}
@@ -2425,28 +3485,29 @@ const ScoreRail = ({ row: r, isMulti, isAbsent, candidates }: { row: AuthorshipR
     const scopus = r.source === "scopus";
     return (
       <div style={{ textAlign: "right", minWidth: 46 }}>
-        <span style={{ display: "inline-block", fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20, whiteSpace: "nowrap",
-          background: scopus ? "#eef2ff" : "#fffbeb", color: scopus ? "#4338ca" : "#b45309" }}>
+        <span style={scoreBadgeStyle(scopus ? "#eef2ff" : "#fdf3e2", scopus ? "#4338ca" : "#8a5a08")}>
           {scopus ? "Not in PubMed" : "Never retrieved"}
         </span>
-        <span style={{ display: "block", fontSize: 10.5, color: "#94a3b8", marginTop: 3, textAlign: "right", fontWeight: 500 }}>
+        <span style={{ display: "block", fontSize: 11.5, color: "#5c6474", marginTop: 2, textAlign: "right" }}>
           conf: {confBand(r.top_confidence)}
         </span>
       </div>
     );
   }
+  const io = ioBadgeColors(r.top_io_score);
   return (
-    <div style={{ textAlign: "right", minWidth: 78 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, minWidth: 64 }}>
       <Tip title="Identity-Only score — authorship likelihood from identity evidence alone (name, affiliation, cohort), ignoring curator feedback (0-100)." placement="left" arrow>
-        <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: ioColor(r.top_io_score), cursor: "help" }}>
-          {fmtScore(r.top_io_score)}
-        </div>
+        <span style={{ ...scoreBadgeStyle(io.bg, io.fg), cursor: "help" }}>IO {fmtScore(r.top_io_score)}</span>
       </Tip>
-      {r.top_fg_score != null && (
-        <Tip title="Authorship Score — ReCiter production authorship-likelihood score (0-100); below 30 means production buried this person." placement="left" arrow>
-          <div style={{ fontSize: 11, color: "#c2410c", marginTop: 3, fontWeight: 600, fontVariantNumeric: "tabular-nums", cursor: "help" }}>
-            Auth. Score {fmtScore(r.top_fg_score)}
-          </div>
+      {/* AS = ReCiter's production authorship score, the diagnosis under the trusted signal.
+          Amber below 70 (mockup:763-765). Hidden once the row is resolved — there is no
+          decision left for it to inform. */}
+      {!resolved && r.top_fg_score != null && (
+        <Tip title="AS — ReCiter authorship score (production model), 0-100. Below 30 means production buried this person." placement="left" arrow>
+          <span style={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", cursor: "help", color: r.top_fg_score < 70 ? "#8a5a08" : "#5c6474" }}>
+            AS {fmtScore(r.top_fg_score)}
+          </span>
         </Tip>
       )}
     </div>
@@ -2462,7 +3523,9 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
   const noSuggestion = !r.top_cwid;
   return (
   <>
-    <div>{r.source === "scopus" ? <ScopusLinks row={r} /> : <PmidLink pmid={r.pmid} />}</div>
+    {/* Scopus rows have no PMID, so this lane keeps its record/DOI links here. PubMed rows get
+        their PMID + copy button on the card's own meta line (§2.6) instead of twice over. */}
+    {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
     {/* absent → labeled facts, no score blocks (F10) */}
     {isAbsent && (
       <div style={{ display: "flex", gap: 22, marginBottom: 10 }}>
@@ -2560,7 +3623,8 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 
   return (
     <>
-      <div>{r.source === "scopus" ? <ScopusLinks row={r} /> : <PmidLink pmid={r.pmid} />}</div>
+      {/* see SingleEvidence — the PMID now sits on the card's meta line, not in here. */}
+      {r.source === "scopus" && <div><ScopusLinks row={r} /></div>}
       {!anyDeptMatch && (
         <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginBottom: 10 }}>
           <IconAlert size={15} style={{ marginTop: 1 }} />
@@ -2905,7 +3969,9 @@ const CounterpartPanel = ({ row: r, acting, onAction }: {
         {compare.sharedSurnames} of {compare.scopusAuthorCount} Scopus surname{compare.scopusAuthorCount === 1 ? "" : "s"} shared with PubMed
       </div>
 
-      <div style={{ marginTop: 10 }}><PmidLink pmid={pmid} /></div>
+      {/* the TWIN's pmid, not this row's — a scopus row has none of its own, so the card's
+          meta line shows nothing here and this stays the only place to reach it. */}
+      <div style={{ marginTop: 10 }}><PmidCite pmid={pmid} /></div>
 
       <div style={{ fontSize: 12.5 }}>
         {inRecordFor.length > 0
