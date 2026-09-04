@@ -254,6 +254,205 @@ const SUMMARY_TOTAL_LABEL: Record<"open" | "snoozed" | "dismissed", string> = {
   open: "unassigned", snoozed: "snoozed", dismissed: "dismissed",
 };
 
+// ---- filter model (single source of truth) -------------------------------
+// Every server-visible filter on this page lives in ONE object. Two dependency arrays in this
+// file have repeatedly gone stale when a filter was added by hand:
+//   * filterBody()'s deps — a filter missing there silently stops triggering refetches, so the
+//     list keeps showing rows the filter says are gone.
+//   * the ephemeral-clear effect's deps — a filter missing there leaves `selected` alive on
+//     rows the curator can no longer see, and the next bulk action fires on them.
+// Both now depend on this one object, so neither can be forgotten: add a key to
+// AuthorshipFilters, give it a default in FILTER_DEFAULTS, and read it in buildFilterBody().
+// scripts/check-authorships-filter-body.mjs fails the build-time check if a key is added
+// without reaching the posted body.
+//
+// Deliberately NOT in here (each one is a documented exception, not an oversight):
+//   * `page`        — appended as `offset` at the fetch site, never part of the posted filter
+//                     body; it IS in the ephemeral-clear deps (paging must drop the selection).
+//   * `searchInput` — the raw text box. It debounces (300 ms) into `search`, which is the
+//                     filter; binding a fetch to every keystroke is what the debounce avoids.
+//   * `datePreset`  — a LABEL for the dateFrom/dateTo pair, not a filter. Selecting "Custom…"
+//                     changes only the preset and must not refetch or drop a selection.
+//   * anchors, `expanded`, `selected`, `picked`, `allMatching` — UI state, not filters.
+interface AuthorshipFilters {
+  lane: "fullname" | "single" | "all";
+  classification: "all" | "buried" | "absent" | "suggested";
+  search: string;
+  selectedTypes: string[];
+  selectedInstitutions: string[];
+  institutionBasis: "person" | "byline" | "either";
+  source: "all" | "pubmed" | "scopus";
+  selectedPubTypes: string[];
+  dateFrom: string;
+  dateTo: string;
+  sort: string;
+  statusView: "open" | "snoozed" | "dismissed" | "duplicates";
+  hideNoSuggestion: boolean;
+  hideNoIdentity: boolean;
+  likeAuthor: string;
+}
+
+const DEFAULT_DATE_PRESET = "24m";                       // "Last 2 years" (HANDOFF §2.4)
+const DATE_PRESET_LABEL: Record<string, string> = {
+  any: "Any time", "30d": "Last 30 days", "90d": "Last 90 days", "6m": "Last 6 months",
+  "12m": "Last 12 months", "24m": "Last 2 years", custom: "Custom…",
+};
+const STATUS_VIEW_LABEL: Record<AuthorshipFilters["statusView"], string> = {
+  open: "Open", duplicates: "Possible duplicates", snoozed: "Snoozed", dismissed: "Dismissed",
+};
+
+// The defaults "Reset all" restores and the chip row measures against (HANDOFF §2.4, from the
+// mockup's DEFAULTS at mockup:552 plus its resetAll at mockup:702).
+const FILTER_DEFAULTS: AuthorshipFilters = {
+  lane: "all", classification: "all",                    // match class "All unassigned"
+  search: "",
+  selectedTypes: [],
+  selectedInstitutions: ["wcm"],                         // identity affiliation = WCM
+  institutionBasis: "either",                            // #982's default; phase 3 makes the
+                                                         // identity list mean basis "person"
+  source: "all",
+  selectedPubTypes: [],
+  dateFrom: "", dateTo: "",                              // the real default window is computed
+                                                         // by applyDatePreset(DEFAULT_DATE_PRESET)
+  sort: "io",                                            // never reset — see RESET_EXEMPT
+  statusView: "open",
+  hideNoSuggestion: false, hideNoIdentity: false,
+  likeAuthor: "",
+};
+
+// What the page actually mounts with TODAY. It differs from FILTER_DEFAULTS in exactly two
+// places, both of which change which rows a curator sees on first load — a product change, not
+// a re-skin, so it belongs with the controls that express it (phase 3) rather than here:
+//   lane "single" vs "all"            — today's queue is pinned to High-precision. This is the
+//                                       trap HANDOFF §3a warns about; the chip row below now
+//                                       says so out loud instead of it being invisible.
+//   selectedInstitutions [] vs ["wcm"] — the mockup's identity-affiliation default narrows the
+//                                       first-load queue to WCM identities.
+// Changing INITIAL_FILTERS to FILTER_DEFAULTS is the whole of that change.
+const INITIAL_FILTERS: AuthorshipFilters = {
+  ...FILTER_DEFAULTS,
+  lane: "single",
+  selectedInstitutions: [],
+};
+
+// "Reset all" restores FILTER_DEFAULTS except these. Sort is a view preference, not a filter:
+// the mockup's DEFAULTS omits it, it is never a chip, and the owner's standing requirement is
+// that changing one control must not lose the others, sort in particular.
+const RESET_EXEMPT: Array<keyof AuthorshipFilters> = ["sort"];
+const filterResetPatch = (): Partial<AuthorshipFilters> => {
+  const patch: Partial<AuthorshipFilters> = {};
+  (Object.keys(FILTER_DEFAULTS) as Array<keyof AuthorshipFilters>).forEach((k) => {
+    if (RESET_EXEMPT.indexOf(k) > -1) return;
+    const v = FILTER_DEFAULTS[k];
+    (patch as any)[k] = Array.isArray(v) ? v.slice() : v;   // never hand out the shared array
+  });
+  return patch;
+};
+
+// Two filter values are "the same" when a write of one over the other is a no-op. Arrays are
+// compared by content because several call sites re-set an already-empty list (the
+// source-leaves-scopus reset, "Clear selection"); with one shared object a fresh [] would
+// otherwise look like a change and cost a refetch plus the curator's selection.
+const sameFilterValue = (a: any, b: any): boolean => {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => v === b[i]);
+  return Object.is(a, b);
+};
+
+// MATCH CLASS (HANDOFF §2.3) is the union of today's two chip strips — the lane strip
+// (fullname / single / all) and the classification strip — as ONE single-select list in the
+// mockup's order (mockup:488-496). Picking a lane value resets classification to its all-value
+// and vice versa, which is why 7 entries cover 3 lane values + 4 classification values.
+const LANE_LABEL: Record<AuthorshipFilters["lane"], string> = {
+  all: "All unassigned", fullname: "Unique and full given-name match", single: "High-precision",
+};
+const MATCH_CLASS_DEFAULT = LANE_LABEL.all;
+const MATCH_CLASS_OPTIONS: Array<{ label: string; lane: AuthorshipFilters["lane"]; classification: AuthorshipFilters["classification"] }> = [
+  { label: LANE_LABEL.all, lane: "all", classification: "all" },
+  { label: LANE_LABEL.fullname, lane: "fullname", classification: "all" },
+  { label: LANE_LABEL.single, lane: "single", classification: "all" },
+  { label: CLASS_META.suggested.label, lane: "all", classification: "suggested" },
+  { label: CLASS_META.buried.label, lane: "all", classification: "buried" },
+  { label: CLASS_META.absent.label, lane: "all", classification: "absent" },
+  // "All classes" is the classification strip's all-value, which lands on exactly the same
+  // (lane:"all", classification:"all") state as "All unassigned" above — the mockup lists both
+  // because it does not know they are two axes. matchClassLabel() resolves that state to the
+  // default, so neither ever shows a chip.
+  { label: "All classes", lane: "all", classification: "all" },
+];
+// The two strips can still express a combination the single-select list cannot (e.g. the
+// fullname lane AND the Buried class); name it honestly rather than mislabel it as one option.
+const matchClassLabel = (f: AuthorshipFilters): string => {
+  const lane = f.lane === "all" ? "" : LANE_LABEL[f.lane];
+  const cls = f.classification === "all" ? "" : (CLASS_META[f.classification]?.label || f.classification);
+  if (lane && cls) return `${lane} + ${cls}`;
+  return lane || cls || MATCH_CLASS_DEFAULT;
+};
+
+// The exact JSON body every list/selectable request posts. Module-level and pure so it can be
+// diffed across revisions without a browser — scripts/check-authorships-filter-body.mjs pulls
+// this literal out of the file and compares its output, state by state, against a committed
+// baseline captured before the controls were restructured. KEY ORDER IS PART OF THAT CONTRACT:
+// the check is a byte comparison of JSON.stringify, so reordering keys fails it.
+const buildFilterBody = (f: AuthorshipFilters) => ({
+  feed: "unassigned",
+  precision: f.lane,
+  classification: f.classification,
+  searchTextInput: f.search,
+  personTypes: f.selectedTypes,
+  institutions: f.selectedInstitutions,
+  institutionBasis: f.institutionBasis,
+  source: f.source,
+  pubTypes: f.source === "scopus" ? f.selectedPubTypes : [],   // pub-type facet only meaningful for scopus
+  dateFrom: f.dateFrom,
+  dateTo: f.dateTo,
+  sort: f.sort,
+  statusView: f.statusView,
+  hideNoSuggestion: f.hideNoSuggestion,
+  hideNoIdentity: f.hideNoIdentity,
+  likeAuthor: f.likeAuthor,
+});
+
+// Active-filter chips (HANDOFF §2.4). A transcription of the mockup's chipsFor (mockup:607-624),
+// including its two quirks: the source segment is never a chip, and the search box IS one.
+// `patch` is what removing the chip writes back — a plain object rather than a closure, so the
+// rule set stays pure and testable. `preset` accompanies the date chip, whose removal has to go
+// through applyDatePreset (it recomputes dateFrom/dateTo) rather than a direct patch.
+// filterCount, the number on the Filters button in phase 3, is this array's length.
+type FilterChip = { id: string; label: string; patch: Partial<AuthorshipFilters>; preset?: string };
+const filterChips = (f: AuthorshipFilters, datePreset: string): FilterChip[] => {
+  const out: FilterChip[] = [];
+  if (f.statusView !== FILTER_DEFAULTS.statusView)
+    out.push({ id: "queue", label: `Queue: ${STATUS_VIEW_LABEL[f.statusView]}`, patch: { statusView: FILTER_DEFAULTS.statusView } });
+  const matchClass = matchClassLabel(f);
+  if (matchClass !== MATCH_CLASS_DEFAULT)
+    out.push({ id: "class", label: `Class: ${matchClass}`, patch: { lane: FILTER_DEFAULTS.lane, classification: FILTER_DEFAULTS.classification } });
+  f.selectedTypes.forEach((v) => out.push({
+    id: `type:${v}`, label: `Person type: ${v}`, patch: { selectedTypes: f.selectedTypes.filter((x) => x !== v) },
+  }));
+  // Identity affiliation: an EMPTY list is off-default (the default is WCM), so it gets its own
+  // chip whose × restores the default rather than clearing anything — mockup:617 exactly.
+  if (f.selectedInstitutions.length === 0)
+    out.push({ id: "affil:any", label: "Identity affil: any", patch: { selectedInstitutions: FILTER_DEFAULTS.selectedInstitutions.slice() } });
+  else if (!(f.selectedInstitutions.length === 1 && f.selectedInstitutions[0] === FILTER_DEFAULTS.selectedInstitutions[0]))
+    f.selectedInstitutions.forEach((v) => out.push({
+      id: `affil:${v}`, label: `Identity affil: ${INSTITUTION_LABELS[v] || v}`,
+      patch: { selectedInstitutions: f.selectedInstitutions.filter((x) => x !== v) },
+    }));
+  // Article affiliation ("Article affil: <value>", mockup:619) has no chip yet: it needs the
+  // `authorAffiliations` key the phase-1 controller now accepts, and a filter that reaches the
+  // object without reaching buildFilterBody is precisely the bug this step exists to prevent.
+  // Phase 3 adds all three at once — the key, the body line, and the rule here.
+  if (datePreset !== DEFAULT_DATE_PRESET)
+    out.push({ id: "date", label: `Date: ${DATE_PRESET_LABEL[datePreset] || datePreset}`, patch: {}, preset: DEFAULT_DATE_PRESET });
+  if (f.hideNoSuggestion) out.push({ id: "hideNoSuggestion", label: "Hiding no suggested identity", patch: { hideNoSuggestion: false } });
+  if (f.hideNoIdentity) out.push({ id: "hideNoIdentity", label: "Hiding no ReCiter identity", patch: { hideNoIdentity: false } });
+  if (f.search.trim()) out.push({ id: "search", label: `“${f.search.trim()}”`, patch: { search: "" } });
+  // likeAuthor ("Show N others like this") is deliberately absent: it already renders its own
+  // dismissible "Like: …" chip beside the search box, and duplicating it here would give the
+  // curator two × buttons for one filter. Phase 3 folds that chip into this row.
+  return out;
+};
+
 // ---- inline Lucide SVG icons (no npm deps) -------------------------------
 type IconProps = { size?: number; style?: CSSProperties };
 const svgBase = (size: number, style?: CSSProperties): CSSProperties => ({
@@ -526,62 +725,108 @@ const AuthorshipsTabs = () => {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [lane, setLane] = useState<"fullname" | "single" | "all">("single");
   // Rows matching the current filters beyond this page, pulled by "Select all N matching".
   // Held apart from `rows` because the bulk loop needs off-page rows the feed never loaded.
   const [allMatching, setAllMatching] = useState<AuthorshipRow[] | null>(null);
   const [selectingAll, setSelectingAll] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
-  const [classification, setClassification] = useState<"all" | "buried" | "absent" | "suggested">("all");
-  const [search, setSearch] = useState("");
+  // The raw text box. Debounced (300 ms) into the `search` filter below — deliberately NOT a
+  // filter itself, so typing does not fire a request per keystroke.
   const [searchInput, setSearchInput] = useState("");
+  // A label for the dateFrom/dateTo pair, not a filter of its own: "Custom…" changes only this
+  // and must not refetch. Kept out of the filter object for exactly that reason.
+  const [datePreset, setDatePreset] = useState(DEFAULT_DATE_PRESET); // "any"|"30d"|"90d"|"6m"|"12m"|"24m"|"custom"
+  // The default window is applied on mount (client-side, below) so the statically-prerendered
+  // initial render stays date-free and hydrates cleanly; the first list fetch waits on this.
+  const [datesReady, setDatesReady] = useState(false);
+  const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
+  const [institutionAnchor, setInstitutionAnchor] = useState<HTMLElement | null>(null);
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  // ---- filters: one object, one set of writers --------------------------
+  // See AuthorshipFilters / FILTER_DEFAULTS above for what belongs in here and what does not.
+  // filterBody() and the ephemeral-clear effect below both depend on THIS OBJECT, so adding a
+  // filter cannot leave either dependency array behind.
+  const [filters, setFilters] = useState<AuthorshipFilters>(INITIAL_FILTERS);
+  // Destructured so every consumer below still reads plain `lane`, `statusView`, `sort`, …
+  const {
+    lane, classification, search, selectedTypes, selectedInstitutions, institutionBasis,
+    source, selectedPubTypes, dateFrom, dateTo, sort, statusView,
+    hideNoSuggestion, hideNoIdentity, likeAuthor,
+  } = filters;
+
+  // The single writer. Returns the SAME object when nothing actually changes, so re-picking the
+  // value a control already holds stays the no-op it was when each filter had its own useState
+  // (React bails out on identical primitive state). Without that guard, clicking the already-
+  // active chip — or the source effect re-clearing an already-empty pub-type list — would mint
+  // a new object, refetch the page and wipe the curator's selection.
+  const patchFilters = useCallback((patch: Partial<AuthorshipFilters> | ((prev: AuthorshipFilters) => Partial<AuthorshipFilters>)) => {
+    setFilters((prev) => {
+      const p = typeof patch === "function" ? patch(prev) : patch;
+      const changed = (Object.keys(p) as Array<keyof AuthorshipFilters>)
+        .filter((k) => (p as any)[k] !== undefined && !sameFilterValue(prev[k], (p as any)[k]));
+      if (changed.length === 0) return prev;
+      const next: AuthorshipFilters = { ...prev };
+      changed.forEach((k) => { (next as any)[k] = (p as any)[k]; });
+      return next;
+    });
+  }, []);
+  const setFilter = useCallback(<K extends keyof AuthorshipFilters>(
+    key: K, value: AuthorshipFilters[K] | ((prev: AuthorshipFilters[K]) => AuthorshipFilters[K]),
+  ) => {
+    patchFilters((prev) => ({
+      [key]: typeof value === "function" ? (value as (p: AuthorshipFilters[K]) => AuthorshipFilters[K])(prev[key]) : value,
+    } as Partial<AuthorshipFilters>));
+  }, [patchFilters]);
+
+  // One named writer per filter, so the ~30 call sites below read exactly as they did when each
+  // filter was its own useState. These are the only way anything reaches `filters`.
+  type SetFilter<K extends keyof AuthorshipFilters> =
+    (v: AuthorshipFilters[K] | ((prev: AuthorshipFilters[K]) => AuthorshipFilters[K])) => void;
+  const setLane: SetFilter<"lane"> = useCallback((v) => setFilter("lane", v), [setFilter]);
+  const setClassification: SetFilter<"classification"> = useCallback((v) => setFilter("classification", v), [setFilter]);
+  const setSearch: SetFilter<"search"> = useCallback((v) => setFilter("search", v), [setFilter]);
+  const setSelectedTypes: SetFilter<"selectedTypes"> = useCallback((v) => setFilter("selectedTypes", v), [setFilter]);
+  // curated institution filter (multiselect) — mirrors selectedTypes/typeAnchor exactly, one
+  // bucket key (see INSTITUTION_LABELS) per selection rather than a raw personTypes string.
+  const setSelectedInstitutions: SetFilter<"selectedInstitutions"> = useCallback((v) => setFilter("selectedInstitutions", v), [setFilter]);
+  // Which institution the bucket filter asks about: the person's HR roster value, the
+  // affiliation printed on the paper, or either. Its own key, so switching it never disturbs
+  // sort / dates / classification / the selected buckets themselves.
+  const setInstitutionBasis: SetFilter<"institutionBasis"> = useCallback((v) => setFilter("institutionBasis", v), [setFilter]);
+  const setSource: SetFilter<"source"> = useCallback((v) => setFilter("source", v), [setFilter]);
+  const setSelectedPubTypes: SetFilter<"selectedPubTypes"> = useCallback((v) => setFilter("selectedPubTypes", v), [setFilter]);
+  const setDateFrom: SetFilter<"dateFrom"> = useCallback((v) => setFilter("dateFrom", v), [setFilter]);
+  const setDateTo: SetFilter<"dateTo"> = useCallback((v) => setFilter("dateTo", v), [setFilter]);
   // default sort = IO desc, matching the page's own lede ("IO ... leads"). top_confidence
   // (the matcher's identity-match heuristic, not an authorship-likelihood score) was the
   // prior default, but it's near-constant across the queue — most rows land on the same
   // base value for a given given-name-match/affiliation-match combo — so it silently fell
   // through to the pmid tiebreaker for the vast majority of rows (live-verified: 19/20 on
   // one real page tied at 0.65, ordered only by pmid, unrelated to what's shown on the card).
-  const [sort, setSort] = useState("io");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [datePreset, setDatePreset] = useState("24m"); // default = Last 2 years; "any"|"30d"|"90d"|"6m"|"12m"|"24m"|"custom"
-  // The default window is applied on mount (client-side, below) so the statically-prerendered
-  // initial render stays date-free and hydrates cleanly; the first list fetch waits on this.
-  const [datesReady, setDatesReady] = useState(false);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [typeAnchor, setTypeAnchor] = useState<HTMLElement | null>(null);
-  // curated institution filter (multiselect) — mirrors selectedTypes/typeAnchor exactly, one
-  // bucket key (see INSTITUTION_LABELS) per selection rather than a raw personTypes string.
-  const [selectedInstitutions, setSelectedInstitutions] = useState<string[]>([]);
-  // Which institution the bucket filter asks about: the person's HR roster value, the
-  // affiliation printed on the paper, or either. Its own state, so switching it never
-  // disturbs sort / dates / classification / the selected buckets themselves.
-  const [institutionBasis, setInstitutionBasis] = useState<"person" | "byline" | "either">("either");
-  const [institutionAnchor, setInstitutionAnchor] = useState<HTMLElement | null>(null);
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed" | "duplicates">("open");
-  const [source, setSource] = useState<"all" | "pubmed" | "scopus">("all");
-  const [selectedPubTypes, setSelectedPubTypes] = useState<string[]>([]);
+  // Never cleared by "Reset all" (RESET_EXEMPT) and never a chip.
+  const setSort: SetFilter<"sort"> = useCallback((v) => setFilter("sort", v), [setFilter]);
+  const setStatusView: SetFilter<"statusView"> = useCallback((v) => setFilter("statusView", v), [setFilter]);
   // hide rows with no proposed identity at all (#938 — top_cwid null, the "No suggested
   // identity" pill below) — a real filter sent to the server (buildWhere) rather than sliced
   // client-side, so it stays consistent with the total count and "Select all N matching"
   // (authorshipSelectable shares the same buildWhere). Deliberately does NOT also hide "No
   // ReCiter identity" rows (identity_in_reciter===false) — that's hideNoIdentity below.
-  const [hideNoSuggestion, setHideNoSuggestion] = useState(false);
+  const setHideNoSuggestion: SetFilter<"hideNoSuggestion"> = useCallback((v) => setFilter("hideNoSuggestion", v), [setFilter]);
   // hide rows proposing a person with no ReCiter identity (identity_in_reciter===false — a
   // person IS proposed, just not yet in ReCiter). Complements hideNoSuggestion above. The
   // per-page identity_in_reciter flag is resolved fresh against DynamoDB after LIMIT/OFFSET
   // and can't drive a WHERE clause directly, so the server keeps a short-TTL cache of the
   // "absent" cwid set instead of resolving identity for the whole matching set on every list
   // load — by the time it reaches buildWhere this is also a plain SQL predicate.
-  const [hideNoIdentity, setHideNoIdentity] = useState(false);
+  const setHideNoIdentity: SetFilter<"hideNoIdentity"> = useCallback((v) => setFilter("hideNoIdentity", v), [setFilter]);
   // T5: "Show N others like this" — a structured filter (the anchor row's raw wcm_author),
   // independent of the free-text search box above. The server (buildWhere's likeAuthor block)
   // turns this into the normalized-key equality match authorKey() defines, not a LIKE
   // substring, so a middle-initial variant like "Bernard J. Park" is found starting from
   // "Bernard Park" and vice versa — the case the free-text box's LIKE cannot cover. Cleared by
   // the dismissible "Like: …" chip near the filter row.
-  const [likeAuthor, setLikeAuthor] = useState("");
+  const setLikeAuthor: SetFilter<"likeAuthor"> = useCallback((v) => setFilter("likeAuthor", v), [setFilter]);
   const [actingId, setActingId] = useState<number | null>(null);
   // scopus Accept/Assign can 409 on a likely-duplicate ExternalArticle; the backend retries past
   // it with force:"true". This holds the pending action so the curator can confirm "Force add".
@@ -649,24 +894,11 @@ const AuthorshipsTabs = () => {
   const toggleSelectRef = useRef<(row: AuthorshipRow) => void>();
   const doUndoRef = useRef<() => void>();
 
-  const filterBody = useCallback(() => ({
-    feed: "unassigned",
-    precision: lane,
-    classification,
-    searchTextInput: search,
-    personTypes: selectedTypes,
-    institutions: selectedInstitutions,
-    institutionBasis,
-    source,
-    pubTypes: source === "scopus" ? selectedPubTypes : [],   // pub-type facet only meaningful for scopus
-    dateFrom,
-    dateTo,
-    sort,
-    statusView,
-    hideNoSuggestion,
-    hideNoIdentity,
-    likeAuthor,
-  }), [lane, classification, search, selectedTypes, selectedInstitutions, institutionBasis, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+  // The posted filter body is built by buildFilterBody() above from the whole filter object, so
+  // this dependency array is the object itself: there is no per-filter name left to forget, and
+  // a filter that never reaches the body is caught by
+  // `node scripts/check-authorships-filter-body.mjs` rather than by a curator seeing stale rows.
+  const filterBody = useCallback(() => buildFilterBody(filters), [filters]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -785,7 +1017,7 @@ const AuthorshipsTabs = () => {
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, setSearch]);   // setSearch is a stable useCallback; listed only to satisfy the lint rule
 
   // A filter/sort/status change must always show page 0. If we're already on a later page we
   // synchronously snap back to 0 and skip the about-to-fire stale-offset fetch, so ONLY the
@@ -809,10 +1041,17 @@ const AuthorshipsTabs = () => {
   // NOT on every `rows` change, so a silent rolling-queue refill (topUp) after a single action
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
+  // Same derivation as filterBody's deps — the whole filter object, plus `page` (which is NOT a
+  // filter: it is appended as `offset` at the fetch site, but paging still has to drop a
+  // selection made on the page you left). Note what is deliberately absent: this effect clears
+  // only ephemeral per-page state, it never RESETS a filter. Sort, dates, class, types and
+  // institutions all survive a change to any other control.
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, selectedInstitutions, institutionBasis, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+    [filters, page]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
-  useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
+  // (setSelectedPubTypes is stable, and patchFilters no-ops when the list is already empty, so
+  // this cannot fire a second refetch of its own.)
+  useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source, setSelectedPubTypes]);
 
   // perform a curator action: optimistically drop the row, POST, then offer Undo (or revert on failure).
   // `extra` carries the assign cwid; the returned promise lets bulk loops await settlement.
@@ -1184,11 +1423,11 @@ const AuthorshipsTabs = () => {
   // person-type/date filters are left intact (they aren't part of the sibling-count scope
   // either, but relaxing lane+classification is what makes the primary mismatch go away).
   const narrowToPmid = useCallback((pmid: number) => {
-    setLane("all");
-    setClassification("all");
+    // One patch, so lane/classification/search land in a single filter-object update (one
+    // refetch, one selection clear) instead of three.
+    patchFilters({ lane: "all", classification: "all", search: String(pmid) });
     setSearchInput(String(pmid));
-    setSearch(String(pmid));
-  }, []);
+  }, [patchFilters]);
 
   // Shared by the "Assign to someone else…" overflow item and the no-identity pill/button
   // (T3): expands the card and focuses the AssignOther typed-cwid input it renders. Card
@@ -1209,7 +1448,7 @@ const AuthorshipsTabs = () => {
   const findOthersLikeThis = useCallback((wcmAuthor?: string) => {
     if (!wcmAuthor) return;
     setLikeAuthor(wcmAuthor);
-  }, []);
+  }, [setLikeAuthor]);
 
   // T4: single-candidate rows keep the pre-existing accept-eligible gate (no-ReCiter-identity,
   // already-rejected, no proposed identity at all (#938) stay unselectable). Multi-candidate
@@ -1235,7 +1474,7 @@ const AuthorshipsTabs = () => {
   const applyDatePreset = useCallback((preset: string) => {
     setDatePreset(preset);
     if (preset === "custom") return; // keep current From/To, just show the inputs
-    if (preset === "any") { setDateFrom(""); setDateTo(""); return; }
+    if (preset === "any") { patchFilters({ dateFrom: "", dateTo: "" }); return; }
     const fmt = (d: Date) => {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -1251,14 +1490,24 @@ const AuthorshipsTabs = () => {
     else if (preset === "6m") { const day = from.getDate(); from.setDate(1); from.setMonth(from.getMonth() - 6); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
     else if (preset === "12m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 1); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
     else if (preset === "24m") { const day = from.getDate(); from.setDate(1); from.setFullYear(from.getFullYear() - 2); from.setDate(Math.min(day, daysInMonth(from.getFullYear(), from.getMonth()))); }
-    setDateFrom(fmt(from));
-    setDateTo(fmt(today));
-  }, []);
+    patchFilters({ dateFrom: fmt(from), dateTo: fmt(today) });
+  }, [patchFilters]);
+
+  // "Reset all" (HANDOFF §2.4): FILTER_DEFAULTS for every filter except sort (RESET_EXEMPT),
+  // plus the two pieces of presentation state that shadow a filter — the search box's own text
+  // and the date preset, whose default window applyDatePreset recomputes. Both patches land in
+  // one render, so this is a single refetch. Phase 3 wires it to the Filters popover's
+  // "Reset all" and to the chip row's "Clear"; nothing else may reset a filter.
+  const resetAll = useCallback(() => {
+    patchFilters(filterResetPatch());
+    setSearchInput("");
+    applyDatePreset(DEFAULT_DATE_PRESET);
+  }, [patchFilters, applyDatePreset]);
 
   // Apply the default "recent" window (Last 2 years) on mount — client-only so the statically
   // prerendered initial render (empty dates) hydrates cleanly. datesReady then releases the first
   // list fetch, so curators land on the windowed view instead of flashing the full backlog.
-  useEffect(() => { applyDatePreset("24m"); setDatesReady(true); }, [applyDatePreset]);
+  useEffect(() => { applyDatePreset(DEFAULT_DATE_PRESET); setDatesReady(true); }, [applyDatePreset]);
 
   // F13: keyboard nav — J/K move, Y accept (single), N reject, S snooze, X select, Enter open PubMed.
   // Registered ONCE: it reads the latest rows/focus/view/handlers from refs, so an optimistic action
@@ -1310,6 +1559,21 @@ const AuthorshipsTabs = () => {
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
   const classChips: Array<typeof classification> = ["all", "buried", "absent", "suggested"];
+
+  // Active filters, computed in ONE place (HANDOFF §2.4). `filterCount` is the number the
+  // Filters button's blue badge shows in phase 3 — it is chips.length by definition (mockup:666),
+  // so it can never drift from what the chip row lists. Both come from the pure filterChips()
+  // above; nothing here decides what counts as "active".
+  const chips = filterChips(filters, datePreset);
+  const filterCount = chips.length;
+  // Removing one chip removes ONLY that filter. Two of them reach past the filter object:
+  // the search chip must also empty the text box that debounces into it, and the date chip goes
+  // through applyDatePreset because the preset recomputes dateFrom/dateTo.
+  const removeChip = (chip: FilterChip) => {
+    if (Object.keys(chip.patch).length > 0) patchFilters(chip.patch);
+    if (chip.preset) applyDatePreset(chip.preset);
+    if (chip.id === "search") setSearchInput("");
+  };
 
   // F4: near-certain bulk = visible single-candidate rows with IO >= 95 (and acceptable).
   // top_io_score can survive #938's no-suggestion rows (top_cwid null) even though there is no
@@ -1557,6 +1821,31 @@ const AuthorshipsTabs = () => {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Active filter chips (HANDOFF §2.4, mockup:274-284). Rendered here, below the control
+          rows, for phase 2; phase 3 moves it under the single control row it belongs to. The
+          source segment is never a chip and the search box is one — both are the mockup's rules,
+          transcribed in filterChips() rather than re-decided here. */}
+      {chips.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", background: "#fbfaf8", borderBottom: "1px solid #eceae6", padding: "8px 12px", margin: "0 0 12px" }}>
+          <span style={{ fontSize: 12, color: "#8b93a2", letterSpacing: ".04em" }}>FILTERS</span>
+          {chips.map((chip) => (
+            <span key={chip.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 6px 4px 11px", borderRadius: 999, background: "#eef4fd", border: "1px solid #c8d8f4", color: "#1c3f7d", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap" }}>
+              {chip.label}
+              <button type="button" onClick={() => removeChip(chip)} aria-label={`Remove filter ${chip.label}`}
+                title="Remove this filter"
+                style={{ border: "none", background: "none", cursor: "pointer", color: "#1c3f7d", fontWeight: 700, fontSize: 14, lineHeight: 1, padding: "0 2px" }}>
+                ×
+              </button>
+            </span>
+          ))}
+          <button type="button" onClick={resetAll}
+            title={`Reset all ${filterCount} ${filterCount === 1 ? "filter" : "filters"} to their defaults (sort is left alone)`}
+            style={{ border: "none", background: "none", cursor: "pointer", color: "#6b7484", fontSize: 12.5, padding: "0 2px" }}>
+            Clear
+          </button>
         </div>
       )}
 
