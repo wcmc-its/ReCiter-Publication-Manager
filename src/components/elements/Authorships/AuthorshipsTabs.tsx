@@ -553,6 +553,10 @@ const AuthorshipsTabs = () => {
   // curated institution filter (multiselect) — mirrors selectedTypes/typeAnchor exactly, one
   // bucket key (see INSTITUTION_LABELS) per selection rather than a raw personTypes string.
   const [selectedInstitutions, setSelectedInstitutions] = useState<string[]>([]);
+  // Which institution the bucket filter asks about: the person's HR roster value, the
+  // affiliation printed on the paper, or either. Its own state, so switching it never
+  // disturbs sort / dates / classification / the selected buckets themselves.
+  const [institutionBasis, setInstitutionBasis] = useState<"person" | "byline" | "either">("either");
   const [institutionAnchor, setInstitutionAnchor] = useState<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [statusView, setStatusView] = useState<"open" | "snoozed" | "dismissed" | "duplicates">("open");
@@ -652,6 +656,7 @@ const AuthorshipsTabs = () => {
     searchTextInput: search,
     personTypes: selectedTypes,
     institutions: selectedInstitutions,
+    institutionBasis,
     source,
     pubTypes: source === "scopus" ? selectedPubTypes : [],   // pub-type facet only meaningful for scopus
     dateFrom,
@@ -661,7 +666,7 @@ const AuthorshipsTabs = () => {
     hideNoSuggestion,
     hideNoIdentity,
     likeAuthor,
-  }), [lane, classification, search, selectedTypes, selectedInstitutions, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+  }), [lane, classification, search, selectedTypes, selectedInstitutions, institutionBasis, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, hideNoSuggestion, hideNoIdentity, likeAuthor]);
 
   // keep the refs the (stable) keydown listener reads in sync with the latest render
   useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -805,7 +810,7 @@ const AuthorshipsTabs = () => {
   // doesn't collapse the card the curator is mid-read on or wipe an in-progress bulk selection.
   // Stale ids left in selected/picked when a row drops are harmless (they match no visible row).
   useEffect(() => { setSelected(new Set()); setExpanded(null); setPicked({}); setAllMatching(null); },
-    [lane, classification, search, selectedTypes, selectedInstitutions, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
+    [lane, classification, search, selectedTypes, selectedInstitutions, institutionBasis, source, selectedPubTypes, dateFrom, dateTo, sort, statusView, page, hideNoSuggestion, hideNoIdentity, likeAuthor]);
   // pub-type facet is scopus-only — drop any selection when leaving the Scopus segment
   useEffect(() => { if (source !== "scopus") setSelectedPubTypes([]); }, [source]);
 
@@ -1457,6 +1462,18 @@ const AuthorshipsTabs = () => {
             : selectedInstitutions.length === 1 ? (INSTITUTION_LABELS[selectedInstitutions[0]] || selectedInstitutions[0])
               : `Institution: ${selectedInstitutions.length}`} <IconChevD size={13} />
         </button>
+        {selectedInstitutions.length > 0 && (
+          <Tip title={"What the institution filter matches on. “Person” uses the proposed person's ReCiter/HR institution — they may appear on a paper credited elsewhere. “Byline” uses the affiliation printed on this paper. “Either” returns both."} placement="top" arrow>
+            <select value={institutionBasis}
+              onChange={(e) => setInstitutionBasis(e.target.value as "person" | "byline" | "either")}
+              aria-label="Institution match basis"
+              style={{ height: 32, border: "1px solid #dde3ea", borderRadius: 7, background: "#fff", cursor: "pointer", fontSize: 13, color: "#0f172a", padding: "0 8px" }}>
+              <option value="either">match: either</option>
+              <option value="person">match: person</option>
+              <option value="byline">match: byline</option>
+            </select>
+          </Tip>
+        )}
         <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows below, where a person IS proposed but isn't in ReCiter yet — see that checkbox."} placement="top" arrow>
           <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "#475569", cursor: "pointer" }}>
             <Checkbox size="small" checked={hideNoSuggestion}

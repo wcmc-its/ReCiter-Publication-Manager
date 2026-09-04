@@ -110,6 +110,73 @@ const INSTITUTION_BUCKETS: Record<string, string[]> = {
   sidra: ["SIDRA Medical and Research Center"],
 };
 
+// Byline-affiliation patterns for the same buckets. Distinct from INSTITUTION_BUCKETS because
+// that maps person.primaryInstitution (an HR roster value) while this LIKE-matches the raw
+// author_affiliation text printed on the paper — a person whose roster value is "Weill Cornell
+// Medical College" routinely appears on a byline reading "Weill Cornell Medicine", so reusing
+// the roster literals here would match almost nothing. Patterns were validated against live
+// production data (all 12 buckets return plausible counts in one pass over the open rows).
+// `wcmExclude` keeps buckets disjoint: "Weill Cornell" also matches the Qatar campus, which has
+// its own bucket, so wcm subtracts it rather than double-counting.
+const INSTITUTION_BYLINE_PATTERNS: Record<string, string[]> = {
+  wcm: ["Weill Cornell"],
+  nyp: ["New York-Presbyterian", "NewYork-Presbyterian", "New York Presbyterian"],
+  wcm_qatar: ["Weill Cornell Medicine-Qatar", "Weill Cornell Medical College in Qatar",
+              "Weill Cornell Medicine - Qatar", "Weill Cornell Medicine Qatar"],
+  msk: ["Sloan Kettering"],
+  houston_methodist: ["Houston Methodist"],
+  hss: ["Hospital for Special Surgery"],
+  hamad_medical: ["Hamad Medical"],
+  ny_methodist: ["New York Methodist"],
+  nyp_queens: ["Presbyterian Queens", "Presbyterian-Queens", "Presbyterian/Queens"],
+  lincoln: ["Lincoln Medical"],
+  columbia: ["Columbia University"],
+  sidra: ["Sidra"],
+};
+
+// "Weill Cornell" matches the Qatar campus too; wcm excludes it so the buckets stay disjoint.
+const BYLINE_EXCLUDE: Record<string, string[]> = { wcm: ["Qatar"] };
+
+/** One SUM(...) column per bucket key, counting rows that match that bucket under `basis`. */
+function institutionFacetAttributes(basis: InstitutionBasis): any[] {
+  const esc = (v: string) => v.replace(/'/g, "''");
+  return Object.keys(INSTITUTION_BUCKETS).map((key) => {
+    const clauses: string[] = [];
+    if (basis === "person" || basis === "either") {
+      const lits = (INSTITUTION_BUCKETS[key] || []).map((l) => `'${esc(l)}'`);
+      if (lits.length) clauses.push(`\`Person\`.\`primaryInstitution\` IN (${lits.join(", ")})`);
+    }
+    if (basis === "byline" || basis === "either") {
+      const pats = INSTITUTION_BYLINE_PATTERNS[key] || [];
+      if (pats.length) {
+        const hit = pats.map((pat) => `\`AuthorshipReview\`.\`author_affiliation\` LIKE '%${esc(pat)}%'`).join(" OR ");
+        const excl = (BYLINE_EXCLUDE[key] || [])
+          .map((e) => ` AND \`AuthorshipReview\`.\`author_affiliation\` NOT LIKE '%${esc(e)}%'`).join("");
+        clauses.push(`((${hit})${excl})`);
+      }
+    }
+    const expr = clauses.length ? clauses.join(" OR ") : "0";
+    return [literal(`SUM(CASE WHEN ${expr} THEN 1 ELSE 0 END)`), key];
+  });
+}
+
+type InstitutionBasis = "person" | "byline" | "either";
+
+function normaliseBasis(v: any): InstitutionBasis {
+  return v === "person" || v === "byline" ? v : "either";   // unknown/absent -> widest
+}
+
+/** Sequelize condition matching the paper's byline text for one bucket key. */
+function bylineCondition(key: string) {
+  const pats = INSTITUTION_BYLINE_PATTERNS[key] || [];
+  if (!pats.length) return null;
+  const hit: any = { [Op.or]: pats.map((p) => ({ [Op.like]: `%${p}%` })) };
+  const excl = BYLINE_EXCLUDE[key] || [];
+  const conds: any[] = [{ author_affiliation: hit }];
+  for (const e of excl) conds.push({ author_affiliation: { [Op.notLike]: `%${e}%` } });
+  return conds.length === 1 ? conds[0] : { [Op.and]: conds };
+}
+
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 // A no-DOI scopus row can't yet be verified against PubMed (aar_universe_scopus.py's
@@ -273,9 +340,26 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
   // without needing an INNER JOIN — verified empirically: a LEFT JOIN + this filter and an
   // INNER JOIN + this filter returned the identical row count against the live dev DB).
   if (Array.isArray(body.institutions) && body.institutions.length > 0) {
-    const institutionLiterals = (body.institutions as string[]).flatMap((key) => INSTITUTION_BUCKETS[key] || []);
-    if (institutionLiterals.length > 0) {
-      and.push({ "$Person.primaryInstitution$": { [Op.in]: institutionLiterals } });
+    // basis decides WHICH institution is being asked about: the person's HR roster value
+    // ("is this our person?"), the affiliation printed on the paper ("does this paper credit
+    // us?"), or either. They diverge sharply — measured on production, the WCM person bucket
+    // held 4,594 open rows of which 2,370 had a non-WCM byline, while 5,613 rows with a WCM
+    // byline sat outside it entirely — so one basis alone is always wrong for someone.
+    const basis = normaliseBasis(body.institutionBasis);
+    const keys = body.institutions as string[];
+    const institutionLiterals = keys.flatMap((key) => INSTITUTION_BUCKETS[key] || []);
+    const personCond = institutionLiterals.length
+      ? { "$Person.primaryInstitution$": { [Op.in]: institutionLiterals } } : null;
+    const bylineConds = keys.map(bylineCondition).filter(Boolean) as any[];
+    const bylineCond = bylineConds.length ? { [Op.or]: bylineConds } : null;
+
+    if (basis === "person") {
+      if (personCond) and.push(personCond);
+    } else if (basis === "byline") {
+      if (bylineCond) and.push(bylineCond);
+    } else {
+      const either = [personCond, bylineCond].filter(Boolean) as any[];
+      if (either.length) and.push(either.length === 1 ? either[0] : { [Op.or]: either });
     }
   }
   // hide rows with no proposed identity at all (#938 — ReCiterDB#177 nulls top_cwid on rows
@@ -794,10 +878,15 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       // nothing to this specific grouped count is correct, not a loss. Both columns are
       // explicitly table-qualified (Person.primaryInstitution / AuthorshipReview.id) — the
       // ambiguous-`id` trap noted above applies here too, just already avoided.
+      // One conditional-SUM pass per bucket instead of GROUP BY, so the same query serves all
+      // three bases. required:false (LEFT JOIN) because a byline can name an institution even
+      // when top_cwid matches no person row — an INNER JOIN would silently drop exactly the
+      // rows the byline basis exists to surface. Measured on production: the 12 LIKE patterns
+      // cost ~690 ms over the open rows, which the facet already tolerates.
       models.AuthorshipReview.findAll({
-        attributes: [[col("Person.primaryInstitution"), "institution"], [fn("COUNT", col("AuthorshipReview.id")), "n"]],
-        include: [personInstitutionInclude(true)],
-        where, group: ["Person.primaryInstitution"], raw: true,
+        attributes: institutionFacetAttributes(normaliseBasis(body.institutionBasis)),
+        include: [personInstitutionInclude(false)],
+        where, raw: true,
       }),
     ]);
     const classes: Record<string, number> = {};
@@ -812,10 +901,10 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // institution not named by any bucket (e.g. "Rockefeller University", below the curated
     // list's ~100-person cutoff) simply never gets added to any sum — dropped, not shown as
     // "Other".
-    const rawInstitutionCounts: Record<string, number> = {};
-    (byInstitution as any[]).forEach((r) => { if (r.institution) rawInstitutionCounts[r.institution] = Number(r.n); });
-    const institutions = Object.entries(INSTITUTION_BUCKETS)
-      .map(([key, literals]) => ({ key, n: literals.reduce((sum, lit) => sum + (rawInstitutionCounts[lit] || 0), 0) }))
+    // the conditional-SUM query returns a single row, one column per bucket key
+    const facetRow: Record<string, any> = ((byInstitution as any[])[0]) || {};
+    const institutions = Object.keys(INSTITUTION_BUCKETS)
+      .map((key) => ({ key, n: Number(facetRow[key] || 0) }))
       .filter((b) => b.n > 0)
       .sort((a, b) => b.n - a.n);
     res.send({ total, single_candidate: single, fullname, duplicates, classes, personTypes, bySource, pubTypes, institutions });
