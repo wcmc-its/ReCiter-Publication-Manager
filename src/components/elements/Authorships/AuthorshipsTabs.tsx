@@ -66,6 +66,12 @@ interface AuthorshipRow {
   // true → top_cwid already rejected this exact pmid via their own /curate page
   // (GoldStandard.rejectedpmids); Accept is impossible for the same reason as noIdentity.
   top_already_rejected?: boolean;
+  // #990: other WCM identities who already hold ACCEPTED at this row's exact (pmid,
+  // author_position) byline slot (identityConflictWhere()'s own rival(s), named rather than
+  // just counted) — always [] rather than undefined when there is none, computed for every
+  // pubmed row regardless of single_candidate. Renders the "Already accepted by ..." line on
+  // the card and the "Accepted this article" badge on a matching candidate in Pick-one.
+  accepted_by?: Array<{ cwid: string; name: string }>;
   // T5: how many OTHER open rows share this row's normalized author key (authorKey() in
   // src/lib/bulkAssign.ts — first+last whitespace token, tolerant of middle-initial variants
   // like "Bernard Park" vs "Bernard J. Park"). Drives "Show N others like this" — hidden at 0.
@@ -187,9 +193,11 @@ interface Summary {
   total: number; single_candidate: number; classes: Record<string, number>;
   fullname?: number;                                 // single-candidate AND full given-name match
   duplicates?: number;                               // accepts parked by a dup-check 409
-  // Identity conflicts: open rows whose PMID is already ACCEPTED by a different cwid. Like
-  // `duplicates`, it is computed over the OPEN queue whatever queue the caller is browsing, so
-  // the QUEUE list can label the branch with a stable N from inside any other queue.
+  // Identity conflicts (#986/#990): open rows whose exact byline slot — same PMID AND same
+  // author position — is already ACCEPTED by a different WCM identity (one that exists in the
+  // HR `identity` roster, so the external-validation cohorts in person_article don't count as
+  // rivals). Like `duplicates`, it is computed over the OPEN queue whatever queue the caller is
+  // browsing, so the QUEUE list can label the branch with a stable N from inside any other queue.
   conflicts?: number;
   personTypes?: Array<{ type: string; n: number }>;
   bySource?: Record<string, number>;                 // { pubmed: n, scopus: n } — source-segment counts
@@ -2096,7 +2104,7 @@ const AuthorshipsTabs = () => {
               zero: a "0 identity conflicts" pill is a permanent alarm for a condition that
               isn't there. */}
           {(summary?.conflicts ?? 0) > 0 && (
-            <Tip title="Two CWIDs assigned to one authorship — this paper is already accepted by a different person. Opens the Identity conflicts queue." placement="bottom" arrow>
+            <Tip title="Two CWIDs assigned to one authorship — the same byline position on this paper is already accepted by a different WCM identity. Opens the Identity conflicts queue." placement="bottom" arrow>
               <button type="button" onClick={() => setStatusView("conflicts")} style={alertPill("red")}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#b1483c", display: "block", flex: "none" }} />
                 {(summary?.conflicts ?? 0).toLocaleString()} identity conflict{summary?.conflicts === 1 ? "" : "s"}
@@ -3310,6 +3318,18 @@ const AuthorshipCard = ({
             </div>
           )}
 
+          {/* #990: another WCM identity already holds ACCEPTED at this row's exact byline slot
+              (identityConflictWhere()'s own rival, named). Same amber box register as
+              MultiEvidence's "no department" line below — fires on every row shape, single- or
+              multi-candidate, since accepted_by is computed per (pmid, author_position), not
+              per n_candidates. */}
+          {(r.accepted_by?.length ?? 0) > 0 && (
+            <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.5, borderRadius: 7, padding: "8px 10px", background: "#fffbeb", color: "#b45309", marginTop: 5 }}>
+              <IconAlert size={15} style={{ marginTop: 1 }} />
+              <span>Already accepted by {r.accepted_by!.map((a) => `${a.name} (${a.cwid})`).join(", ")}</span>
+            </div>
+          )}
+
           {/* Scopus byline — full author list from authors_json, quiet/muted like the L3 meta line */}
           {r.source === "scopus" && formatAuthorsJson(r.authors_json) && (
             <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3, ...clampStyle(2) }} title={formatAuthorsJson(r.authors_json)}>
@@ -3699,6 +3719,15 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
   const rejectedCandidates = candidates.filter((c) => c.already_rejected)
     .sort((a, b) => (b.io_score ?? -1) - (a.io_score ?? -1) || (b.confidence ?? -1) - (a.confidence ?? -1));
   const visible = [...(showAll || unfolded.length === 0 ? ranked : unfolded), ...rejectedCandidates];
+  // #990: which of these candidates is ALREADY the accepted rival identityConflictWhere()/
+  // accepted_by names for this exact byline slot — a "picking this one just re-confirms an
+  // existing conflict" signal, distinct from already_rejected (which is about a DIFFERENT
+  // candidate's own /curate rejection, not this row's slot).
+  // Lowercased on both sides: the server's own exclusion of the row's top_cwid, and the SQL
+  // this list comes from, compare cwids under a case-insensitive collation, so a case-only
+  // difference between a candidate cwid and an accepted_by cwid must not silently drop the
+  // badge off the one candidate the curator most needs it on.
+  const acceptedByCwids = new Set((r.accepted_by || []).map((a) => String(a.cwid || "").toLowerCase()));
 
   return (
     <>
@@ -3715,6 +3744,7 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           const isLead = c.cwid === lead?.cwid;
           const checked = c.cwid === selectedCwid;
           const rejected = c.already_rejected === true;
+          const acceptedElsewhere = acceptedByCwids.has(String(c.cwid || "").toLowerCase());
           return (
             <label key={c.cwid || i} onClick={(e) => e.stopPropagation()} style={{
               display: "flex", alignItems: "center", gap: 11, padding: "9px 11px",
@@ -3734,10 +3764,13 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
                 <span style={{ display: "block", fontSize: 12, color: "#94a3b8" }}>
                   {c.person_type}{c.dept ? ` · ${c.dept}` : ""}{!hasWcm(r.author_affiliation) ? " · ⚠ no WCM string" : ""}
                 </span>
-                {(c.given_match === "full" || c.affil_dept_match || rejected) && (
+                {(c.given_match === "full" || c.affil_dept_match || rejected || acceptedElsewhere) && (
                   <span style={{ display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap" }}>
                     {/* already-rejected (GoldStandard) takes precedence — shown ahead of any match chips */}
                     {rejected && <Chip kind="warn">Already rejected</Chip>}
+                    {/* #990: this candidate is the accepted_by rival named on the card above —
+                        picking them here would just re-confirm the existing slot conflict. */}
+                    {acceptedElsewhere && <Chip kind="warn">Accepted this article</Chip>}
                     {c.given_match === "full" && <Chip kind="ok">Full name match</Chip>}
                     {c.affil_dept_match && <Chip kind="ok">Dept match</Chip>}
                   </span>
