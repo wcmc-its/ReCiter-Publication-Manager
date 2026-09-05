@@ -2190,7 +2190,7 @@ const AuthorshipsTabs = () => {
               {selectedTypes.length === 0 ? "All person types"
                 : selectedTypes.length === 1 ? selectedTypes[0]
                   : `Person type · ${selectedTypes.length}`}
-              <span style={caretStyle}>▾</span>
+              <Caret />
             </button>
 
             {/* 3. affiliation — two independent lists, ANDed (mockup:141-183). Replaces #982's
@@ -2200,7 +2200,7 @@ const AuthorshipsTabs = () => {
               style={dropBtn(affilCount > 0, !!affilAnchor)}>
               {affilCount === 1 ? affilNames[0] : "Affiliation"}
               {affilCount > 1 && <span style={countBadgeStyle}>{affilCount}</span>}
-              <span style={caretStyle}>▾</span>
+              <Caret />
             </button>
           </div>
 
@@ -3048,7 +3048,16 @@ const dropBtn = (active: boolean, open: boolean): CSSProperties => ({
   borderRadius: 6, padding: "7px 11px", cursor: "pointer", whiteSpace: "nowrap",
   maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis",
 });
-const caretStyle: CSSProperties = { color: CTRL.soft, fontSize: 11 };
+// A stroked chevron, so the two popover buttons match the native <select> arrow Chrome draws on
+// the sort control beside them. The old "▾" glyph rendered as a small solid triangle at a
+// font-dependent size, which read as a different kind of control sitting in the same row.
+const Caret = () => (
+  <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true" focusable="false"
+    style={{ flexShrink: 0, marginLeft: 1 }}>
+    <path d="M1 1l4 4 4-4" fill="none" stroke={CTRL.soft} strokeWidth="1.5"
+      strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 const countBadgeStyle: CSSProperties = {
   minWidth: 19, textAlign: "center", fontSize: 12, fontVariantNumeric: "tabular-nums",
   background: CTRL.accent, color: "#fff", borderRadius: 999, padding: "1px 6px",
