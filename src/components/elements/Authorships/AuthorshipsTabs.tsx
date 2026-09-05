@@ -245,7 +245,7 @@ const apiHeaders = {
 };
 
 // case-insensitive WCM institution token matcher (F6) — longest variants first
-const WCM_RE = /Weill Cornell(?:\s+(?:Medicine|Medical College|Medical Cent(?:er|re)))?/i;
+const WCM_RE = /Weill[ -]Cornell(?:\s+(?:Medicine|Medical College|Medical Cent(?:er|re)))?/i;
 
 // Display names for the curated institution-bucket keys the server returns (summary.institutions
 // and the institutions filter body field) — keeps INSTITUTION_BUCKETS' server-side literal
