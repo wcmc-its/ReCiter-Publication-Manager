@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 // `where` aliased sqlWhere — authorshipSummary already has a local `const where = buildWhere(...)`,
 // and colliding with that is worse than one extra character at every call site below.
-import { Op, fn, col, literal, where as sqlWhere } from "sequelize";
+import { Op, fn, col, literal, where as sqlWhere, QueryTypes } from "sequelize";
 import { getToken } from "next-auth/jwt";
 import models from "../../src/db/sequelize";
+import sequelize from "../../src/db/db";
 import { reciterConfig } from "../../config/local";
 import { updatePendingArticleCount } from "./person.controller";
 import { addExternalArticle, deleteExternalArticle } from "../externalArticle.controller";
@@ -17,7 +18,7 @@ import { DynamoDBClient, BatchGetItemCommand, GetItemCommand } from "@aws-sdk/cl
 // Multi-source: `source`/`external_id`/`pub_type`/`container_id` drive the Scopus lane
 // (documents not in PubMed → curators Accept them as ExternalArticle, no PMID).
 const LIST_ATTRIBUTES = [
-  "id", "source", "pmid", "external_id", "author_key", "wcm_author", "author_position_label", "author_affiliation",
+  "id", "source", "pmid", "author_position", "external_id", "author_key", "wcm_author", "author_position_label", "author_affiliation",
   "entrez_date", "title", "journal", "doi", "pub_type", "container_id", "classification",
   "top_cwid", "top_name", "top_person_type", "top_dept",
   "top_fg_score", "top_io_score", "top_confidence", "top_cohort_size",
@@ -205,101 +206,96 @@ function bylineCondition(key: string) {
 
 // ---- Identity conflicts queue --------------------------------------------------
 //
-// "Two CWIDs assigned to one authorship" (the header pill's own tooltip): the SAME byline
-// author is claimed by two different people — this row proposes top_cwid for the byline
-// `wcm_author`, and some OTHER cwid has already ACCEPTED that same paper under that same
-// surname. Accepting the row as-is would put one byline on two people's records.
+// A row is an identity conflict when a DIFFERENT WCM identity already holds an ACCEPTED
+// assertion at the EXACT SAME byline slot on the EXACT SAME PMID: same pmid, same author
+// position, two cwids. Accepting the row as-is would put one byline on two people's records.
 //
-// The surname test is load-bearing, not decoration. WITHOUT it this is a PMID-level test —
-// "somebody else on this paper is already assigned" — which is true of most multi-author WCM
-// papers and is not a conflict at all. Measured on production 2026-09-04 over the all-time
-// open queue (15,532 rows):
+// #986 replaces the surname-based approximation this queue shipped with (#985) with an exact
+// test, because person_article_author (unlike person_article) carries an author-position
+// column (`rank`), so "same slot" no longer has to be inferred from a name match at all.
+// `rank` and `authorship_review.author_position` are the same numbering — measured on prod
+// 2026-09-04: 7,003 of 7,004 target-author rows agree; the single disagreement is itself a
+// finding (pmid 42400659: `fsl4001` "Florence Lui" at position 1 vs a stored row for "Forshing
+// Lui" at rank 2 — different people, not a numbering bug).
 //
-//     PMID-level only ............ 6,434 rows  (41.4% of the whole open queue)   183 ms
-//     + this surname test ........    89 rows  ( 0.57%)                          224 ms
+// The surname test (`LOWER(pa.articleAuthorNameLastName) = LOWER(SUBSTRING_INDEX(wcm_author,'
+// ',-1))`) had two failure modes an exact-slot test closes by construction:
+//  - compound surnames it can never match: SUBSTRING_INDEX takes the final whitespace token, so
+//    "Marcel R M van den Brink" extracts "Brink" against a recorded "Van den Brink" — likewise
+//    Van Zee, Al-Obaidly, el-Tamer, Korc-Grodzicki, L'Erario. ~1.2% of the open queue, and
+//    exactly the names most prone to misattribution in the first place.
+//  - same-surname CO-AUTHORS at a DIFFERENT slot on the same paper, which it could not tell
+//    apart from a genuine rival claim ("Craig H Moskowitz" at position 16 vs "Urvi Shah" at 7,
+//    "Steven R Goldring" at 9 — not conflicts). Of the surname test's 77-row "Last 2 years"
+//    queue (2026-09-04), only 31 also matched on a first given-name token; the other 46 were
+//    this failure mode.
+// Measured on prod 2026-09-04, all-time open queue: the shipped surname test matched 75 rows;
+// the exact-slot test (below, before the `identity` join) matches 37, with 36 agreeing — the
+// exact test drops 52 same-surname-different-slot co-authors and recovers one the surname test
+// missed (pmid 42400659, `jgr9007`).
 //
-// and over the queue the UI actually opens on ("Last 2 years", 9,858 rows): 5,635 (57.2%)
-// versus 77 (0.78%). The PMID-level rows sampled as ordinary work — n_candidates=1,
-// single_candidate=true — flagged only because some unrelated co-author was assigned; e.g.
-// pmid 39266364 / top_cwid jaa2040 fired purely because 10+ other WCM authors on that paper
-// have identities. That reading shipped in #983 as "the decision on record" and was WRONG;
-// it was reversed on 2026-09-04 and this is the reversal. Do not widen it back.
+// #990 adds the `identity` join on top of the exact-slot test, to exclude external-validation
+// identities from counting as a rival. `person_article` (and `person`) hold real ACCEPTED rows
+// for cohorts that are not WCM people at all — the external-validation harness's ucsf_*/
+// ucdavis_*/ucsd_*/fredhutch_*/usc_*/ucla_* ids and singletons like `solitd` (measured on prod:
+// 74,881 ucsf_* rows, 53,513 of them ACCEPTED, plus five more such cohorts). None of that
+// appears in `identity` (the HR roster, 35,448 rows, zero with an underscore in the cwid), so
+// joining to it is the correct "is the rival a WCM person" test. Measured on prod 2026-09-04,
+// open queue: exact-slot alone (any rival) matches 24 rows; requiring the rival to be in
+// `identity` narrows that to 15 — the 9 dropped are exactly the external-cohort false
+// positives ("James Chen" vs `ucsf_76679`, "David B Solit" vs `solitd`, "Maya Graham" vs
+// `ucsf_74309`). The surname test being replaced has the identical leak: of its 75 matching
+// rows, 11 had only an external rival.
 //
-// Three further deliberate choices, measured against the live dev DB (7,688 open rows):
+// person_article_author.targetAuthor stores '1' followed by a CARRIAGE RETURN (0x310D — checked
+// 2026-09-04, 848,145 rows at `'1\r'`), so `TRIM(targetAuthor) = '1'` strips spaces only and
+// silently returns ZERO rows. `LIKE '1%'` is the fix, and it is what restricts the paa side to
+// the target-author's own row rather than every co-author byline entry for that pmid+rank pair.
+// This cost two probe cycles to find and is documented here so it is not rediscovered.
 //
-//  - "assignment" means userAssertion='ACCEPTED', not any person_article row. person_article
-//    also holds PENDING suggestions (userAssertion='' — 243,643 of its 745,994 rows), and a
-//    suggestion is not an assignment. Dropping the ACCEPTED test takes this queue from 169 rows
-//    to 3,636 (47% of the whole open queue), which is not a conflict queue.
-//  - top_cwid IS NOT NULL is required rather than implied. A row with no proposed identity has
-//    no second cwid to conflict with — one cwid is not two — and `pa.personIdentifier <> NULL`
-//    is NULL, i.e. already excluded; stating it makes that intent explicit rather than a
-//    three-valued-logic accident.
-//  - Scopus rows have no pmid, so `pa.pmid = NULL` never matches and they never enter this
-//    queue. That is correct (gold standard is PMID-keyed) and needs no extra predicate.
+// top_cwid IS NOT NULL stays an explicit guard rather than implied: a row with no proposed
+// identity has no second cwid to conflict with, and stating that is clearer than relying on
+// `pa.personIdentifier <> NULL` evaluating to NULL (i.e. already excluded) as a
+// three-valued-logic accident. Scopus rows have no pmid, so `paa.pmid = NULL` never matches and
+// they never enter this queue — correct, since gold standard is PMID-keyed.
 //
-// KNOWN RESIDUAL WIDTH — disclosed with numbers rather than left to be rediscovered. Surname
-// equality is a proxy for "the same byline", and it still admits a same-surname CO-AUTHOR.
-// All 77 rows of the "Last 2 years" queue were read on 2026-09-04: 31 have a matching first
-// given-name token and are unambiguous ("Han Jo Kim" proposed to hyk9017/Hyejin Kim while
-// hjk7002 has already accepted that paper as "Han Jo Kim"); the other 46 are two different
-// same-surname authors on one paper ("Ziwen Zhang" proposed to zhz4003 while yiz2014 accepted
-// it as "Yiye Zhang"; "Urvi A Shah" vs "Gunjan L Shah"; "Augustine M K Choi" vs "Mary E Choi").
-// Adding `LOWER(SUBSTRING_INDEX(pa.articleAuthorNameFirstName,' ',1)) = LOWER(SUBSTRING_INDEX(
-// wcm_author,' ',1))` cuts 77 to 31 at the same cost (204 ms) — NOT applied, because it also
-// drops a genuine conflict whose byline is merely reordered: pmid 39741985, byline
-// "Carrington M Reid" proposed to careid (Carolyn Anne Reid), already accepted by mcr2004 as
-// "M Carrington Reid". 77 rows a curator reads is a working queue; 6,434 was not. Tightening
-// further is a product decision about that trade, not a bug fix, so it is left to the owner.
-// person_article has NO author-position column (checked: only articleAuthorName*/
-// institutionalAuthorName*), so an exact "same byline slot" test is not available today.
+// COST and the index this needs. There is NO index on person_article_author(pmid, rank) on
+// prod today (#986 files the ReCiterDB DDL for one) — EXPLAIN drives from person_article's
+// pmid index and then person_article_author(personIdentifier, pmid), the wrong shape for this
+// query. Measured on prod 2026-09-04, no new index: 1,260 ms for exact-slot/any-rival, 1,214 ms
+// for exact-slot/identity-rival, against 208 ms for the surname test it replaces. The subquery
+// below is written FROM person_article_author, filtered by pmid AND rank in its WHERE clause
+// before either JOIN, on purpose — that is the shape the (pmid, rank) index is meant for, so the
+// query is already the one the optimizer should pick the index up for the moment it exists;
+// restructuring it afterward should not be necessary. Until the index lands this is the fan-out's
+// long pole, the same trade #985 made for the surname test in its day.
 //
-// COLLATE goes on the authorship_review side, same rule and same reason as the person join
-// above (person_article.personIdentifier is utf8mb4_unicode_ci, authorship_review.top_cwid is
-// utf8mb4_general_ci; a bare comparison throws 1267). EXPLAIN on the dev DB: the subquery is
-// type=ref on person_article.idx_pmid, rows=1, FirstMatch, index_condition
-// `AuthorshipReview.pmid = pa.pmid` — index-backed, not a scan; the outer type=ALL over
-// authorship_review is the same scan every other query in this file already does.
-//
-// COST, stated plainly rather than hidden, because /summary is the endpoint §4's latency trap
-// already burned once. Production, 2026-09-04, "Last 2 years" open queue (9,858 rows) over
-// person_article, warm medians of 5 runs:
-//   this COUNT alone, PMID-level ............................  159 ms
-//   this COUNT alone, with the surname test .................  198 ms  (+39 ms)
-//   the same open-queue COUNT with no conflicts predicate ...   23 ms
-//   /summary's whole fan-out, pre-#983 (9 queries, no conflicts count, 12-SUM facet) .. 238 ms
-//   /summary's whole fan-out, this predicate + the lazy facet (10 queries) ............ 435 ms
-// The 10 run in parallel — src/db/db.ts sets pool.max 20 — so this is contention against the
-// eight other full scans of authorship_review, not a serial leg. With the byline facet made
-// lazy (see authorshipSummary) this COUNT is now the fan-out's longest single query, and it is
-// the whole of the residual gap to the pre-#983 baseline: the facet dropped from 563 ms to
-// 76 ms, this is 198 ms. Making it materially cheaper needs a covering index on
-// person_article(pmid, userAssertion, personIdentifier) — a prod DDL change, not a code one.
-//
-// The surname comparison carries an explicit COLLATE on the same side as everything else here,
-// defensively rather than because prod needs it. information_schema on PRODUCTION, 2026-09-04,
-// reports authorship_review.wcm_author and .top_cwid as BOTH utf8mb4_unicode_ci — which
-// contradicts the "top_cwid is utf8mb4_general_ci" note above and at the person join, so read
-// that note as dev-specific rather than universal. The two environments differ, and a bare
-// comparison that happens to work on prod can still throw 1267 on dev. Collating the
-// authorship_review side is free either way (it is already inside SUBSTRING_INDEX, hence
-// non-indexable regardless), whereas collating person_article's column would not be — the same
-// rule and the same reasoning as the person join. SUBSTRING_INDEX(wcm_author,' ',-1) is this
-// file's established surname extraction (see the likeAuthor branch in buildWhere and the
-// like_count query), not a new convention. wcm_author is NOT NULL across the whole open queue
-// on prod (checked 2026-09-04: 0 rows), so no row is lost to a NULL byline — and a NULL would
-// simply fail the equality rather than error.
+// COLLATE goes on the AuthorshipReview-side expression only, never on person_article's,
+// person_article_author's, or identity's own columns — the same rule and the same reason as the
+// person join above and the surname test this replaces: authorship_review.top_cwid is a
+// different collation from person_article.personIdentifier / identity.cwid on at least one
+// environment (dev: utf8mb4_general_ci vs utf8mb4_unicode_ci; prod's information_schema showed
+// both as utf8mb4_unicode_ci as of 2026-09-04, but the comparison throws MySQL error 1267 the
+// moment the two environments disagree, so it stays collated defensively either way). Collating
+// the AuthorshipReview side is free (top_cwid carries no usable index for this EXISTS
+// regardless); collating the other tables' side would de-index THEIR lookups instead — the
+// "three orders of magnitude" mistake the person-join comment above already paid for once.
+// pmid and author_position/rank are plain integers on every table involved (AuthorshipReview.
+// author_position and PersonArticleAuthor.rank are both INTEGER), so neither needs a COLLATE.
 function identityConflictWhere(): any {
   return {
     [Op.and]: [
       { top_cwid: { [Op.ne]: null } },
       literal(
-        "EXISTS (SELECT 1 FROM `person_article` `pa` " +
-        "WHERE `pa`.`pmid` = `AuthorshipReview`.`pmid` " +
+        "EXISTS (SELECT 1 FROM `person_article_author` `paa` " +
+        "JOIN `person_article` `pa` ON `pa`.`pmid` = `paa`.`pmid` " +
+        "AND `pa`.`personIdentifier` = `paa`.`personIdentifier` " +
         "AND `pa`.`userAssertion` = 'ACCEPTED' " +
-        "AND `pa`.`personIdentifier` <> `AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci " +
-        "AND LOWER(`pa`.`articleAuthorNameLastName`) = " +
-        "LOWER(SUBSTRING_INDEX(`AuthorshipReview`.`wcm_author`, ' ', -1)) COLLATE utf8mb4_unicode_ci)",
+        "JOIN `identity` `i` ON `i`.`cwid` = `pa`.`personIdentifier` " +
+        "WHERE `paa`.`pmid` = `AuthorshipReview`.`pmid` " +
+        "AND `paa`.`rank` = `AuthorshipReview`.`author_position` " +
+        "AND `paa`.`targetAuthor` LIKE '1%' " +
+        "AND `pa`.`personIdentifier` <> `AuthorshipReview`.`top_cwid` COLLATE utf8mb4_unicode_ci)",
       ),
     ],
   };
@@ -462,8 +458,9 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
 
   const status = openStatusWhere(body);
   if (status) and.push(status);
-  // identity-conflicts queue: open rows whose PMID is already accepted by another cwid. Layered
-  // on top of the status predicate rather than replacing it — see identityConflictWhere().
+  // identity-conflicts queue: open rows whose exact byline slot (pmid + author_position) is
+  // already ACCEPTED by a different WCM identity. Layered on top of the status predicate rather
+  // than replacing it — see identityConflictWhere().
   if (wantsIdentityConflicts(body)) {
     and.push(identityConflictWhere());
   }
@@ -737,6 +734,55 @@ async function identityDivisions(cwids: Array<string | undefined | null>): Promi
   return out;
 }
 
+// #990: which OTHER WCM identities already hold ACCEPTED at the exact same (pmid,
+// author_position) byline slot as each row on the current page — the source of the list
+// endpoint's per-row `accepted_by` and the Pick-one panel's "Accepted this article" badge.
+// Same three-table join identityConflictWhere() tests (person_article_author -> person_article
+// ACCEPTED -> identity), so the count in Summary.conflicts and the names shown here can never
+// disagree by construction — this just names the rival(s) that predicate only counts.
+//
+// One query for the whole page, scoped to the page's distinct pmids AND distinct
+// author_positions (not by pmid alone, which would pull every accepted co-author on a
+// multi-WCM-author paper regardless of slot). The caller re-applies the exact (pmid,
+// author_position) pair via this function's `${pmid}|${author_position}` map key, so a rival at
+// a DIFFERENT slot that happens to share one of these pmids can never land under the wrong row.
+// Excluding the row's OWN top_cwid is deliberately NOT done here — that exclusion is per-row
+// (top_cwid differs row to row, this lookup does not know which row is asking) and is applied
+// by the caller after the map comes back.
+//
+// Raw SQL via the shared `sequelize` instance (same pattern as proxy.controller.ts), not a
+// Sequelize `include`, for the same reason identityConflictWhere() stays a literal EXISTS: the
+// join to `identity` must not go through Sequelize's association/collation machinery. `LIKE
+// '1%'` is the same person_article_author.targetAuthor carriage-return trap
+// identityConflictWhere() documents above — TRIM(targetAuthor) = '1' silently returns zero rows.
+async function acceptedBySlot(
+  pairs: Array<{ pmid: number; author_position: number }>,
+): Promise<Record<string, Array<{ cwid: string; name: string }>>> {
+  const out: Record<string, Array<{ cwid: string; name: string }>> = {};
+  const pmids = [...new Set(pairs.map((p) => p.pmid))];
+  const positions = [...new Set(pairs.map((p) => p.author_position))];
+  if (!pmids.length || !positions.length) return out;
+  const rows: any[] = await sequelize.query(
+    "SELECT `paa`.`pmid` AS `pmid`, `paa`.`rank` AS `rnk`, `pa`.`personIdentifier` AS `cwid`, " +
+    "`i`.`givenName` AS `givenName`, `i`.`surname` AS `surname` " +
+    "FROM `person_article_author` `paa` " +
+    "JOIN `person_article` `pa` ON `pa`.`pmid` = `paa`.`pmid` " +
+    "AND `pa`.`personIdentifier` = `paa`.`personIdentifier` " +
+    "AND `pa`.`userAssertion` = 'ACCEPTED' " +
+    "JOIN `identity` `i` ON `i`.`cwid` = `pa`.`personIdentifier` " +
+    "WHERE `paa`.`pmid` IN (:pmids) AND `paa`.`rank` IN (:positions) " +
+    "AND `paa`.`targetAuthor` LIKE '1%'",
+    { replacements: { pmids, positions }, type: QueryTypes.SELECT },
+  );
+  rows.forEach((r) => {
+    const key = `${r.pmid}|${r.rnk}`;
+    const cwid = String(r.cwid);
+    const name = [r.givenName, r.surname].map((v: any) => String(v || "").trim()).filter(Boolean).join(" ");
+    (out[key] ||= []).push({ cwid, name: name || cwid });
+  });
+  return out;
+}
+
 // "Given Middle Surname · Department" for ONE curator-typed cwid. This string is the only
 // thing standing between the curator and an authoritative write into a stranger's publication
 // record, so it comes from THREE sources and the caller only ever falls back to a bare cwid
@@ -967,9 +1013,20 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
     // round-trip on every load for nothing (measured on dev: the divisions query is a 23 ms
     // range scan on a 25-row page, and it used to start only once DynamoDB had answered).
     // §4's rule: a correctness check is not a latency check.
-    const [rejectedByCwid, divisions] = await Promise.all([
+    //
+    // #990's accepted_by lookup joins the same two independent-input, independent-output group:
+    // it touches neither DynamoDB nor the identity-hover indexed IN(), just its own three-table
+    // join scoped to this page's (pmid, author_position) pairs (scopus rows and rows with no
+    // author_position are dropped before building the pair list — see acceptedBySlot's own
+    // comment for why the exclusion of each row's own top_cwid happens after, not here).
+    const [rejectedByCwid, divisions, acceptedByMap] = await Promise.all([
       getRejectedPmidsByCwid([...rejectionCwids]),
       identityDivisions(rows.map((r: any) => r.top_cwid)),
+      acceptedBySlot(
+        pubmedRows
+          .filter((r: any) => r.author_position != null)
+          .map((r: any) => ({ pmid: Number(r.pmid), author_position: Number(r.author_position) })),
+      ),
     ]);
 
     const out = rows.map((r: any) => {
@@ -1000,6 +1057,20 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
       // to subtract for it).
       const key = authorKey(r.wcm_author);
       const like_count = key ? Math.max(0, (likeCountMap[key] || 0) - (isRowOpenForLike(r) ? 1 : 0)) : 0;
+      // #990: the rival(s) who already hold ACCEPTED at this row's exact (pmid,
+      // author_position) slot, minus the row's OWN top_cwid — acceptedBySlot() looks up by
+      // slot only, so the per-row exclusion happens here, at render/response time, same as
+      // identityConflictWhere()'s own `pa.personIdentifier <> AuthorshipReview.top_cwid`.
+      // That SQL exclusion compares under a case-INSENSITIVE collation (both _ci), so this
+      // one lowercases both sides to match it. A `!==` on the raw strings would let a cwid
+      // that differs only in case through as a "rival" here while the conflicts COUNT had
+      // already excluded it — the two would then disagree on exactly the rows this feature
+      // exists to explain.
+      const ownCwid = String(r.top_cwid || "").toLowerCase();
+      const accepted_by = (r.source !== "scopus" && r.pmid != null && r.author_position != null)
+        ? (acceptedByMap[`${r.pmid}|${r.author_position}`] || [])
+          .filter((a) => a.cwid.toLowerCase() !== ownCwid)
+        : [];
       return {
         ...json,
         pmid_sibling_count: map[siblingKey(r)] || 1,
@@ -1009,6 +1080,7 @@ export const listAuthorships = async (req: NextApiRequest, res: NextApiResponse)
         top_institution,
         top_division: (r.top_cwid && divisions[String(r.top_cwid)]) || null,
         like_count,
+        accepted_by,
       };
     });
 
