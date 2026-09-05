@@ -412,19 +412,21 @@ const afterReset = { ...kitchenSink, ...M.filterResetPatch() };
 chk("Reset all clears every filter", M.filterChips(afterReset, "24m").map((c) => c.label), []);
 chk("Reset all keeps the curator's sort", afterReset.sort, kitchenSink.sort);
 
-console.log(`\n6. the summary body, checked against what the server actually neutralises`);
-// /api/db/authorships/summary sees a NARROWER body than the list does, and until this section
-// existed that narrowing lived in a hand-typed dependency array — the exact failure mode §4
-// guards everywhere else. buildSummaryBody now derives the body by removing SUMMARY_BLIND_BODY_KEYS
-// from buildFilterBody's, so the only thing left to police is that list itself. It is checked
-// against the controller's own source, not against a copy of it kept here:
+console.log(`\n6. the summary body, checked against the honoured-filters contract (PM#988)`);
+// #988: /api/db/authorships/summary used to see a NARROWER body than the list — a hand-typed
+// override literal neutralised seven keys on arrival so every facet reported an unfiltered
+// queue-wide total. That literal is gone: the summary now honours every filter the list does,
+// with exclusions applied per RESPONSE FIELD instead (the header total is blind to nothing; a
+// MATCH CLASS option is blind to precision+classification; etc — see authorshipSummary's own
+// exclusion-map comment). The only thing left for buildSummaryBody to drop at all is `sort`
+// (a set of COUNT/GROUP BY queries has no ORDER BY), so SUMMARY_BLIND_BODY_KEYS collapses to
+// that one key — checked here against the controller's own source, not a copy kept in this file:
 //
-//   * every key it drops because the endpoint neutralises it must appear in authorshipSummary's
-//     override literal, and every key in that literal must appear in it;
-//   * the one key dropped for a different reason (`sort` — a set of COUNTs has no ORDER BY) must
-//     genuinely never be read by the endpoint;
-//   * and a filter whose value survives into the body must reach the SUMMARY body too. That is
-//     the property that fails if a filter is added later that the summary should see: it is
+//   * SUMMARY_BLIND_BODY_KEYS is exactly ["sort"];
+//   * the seven-key override literal the endpoint used to open with is GONE from the controller;
+//   * `sort` itself is genuinely never read by the endpoint;
+//   * and every filter whose value survives buildFilterBody's output reaches the summary body
+//     too — the property that fails if a future filter silently stops reaching the counts. It is
 //     derived from FILTER_DEFAULTS, so a new filter is covered the moment it exists.
 const CONTROLLER = "controllers/db/authorships.controller.ts";
 const ctrl = readFileSync(join(ROOT, CONTROLLER), "utf8");
@@ -434,19 +436,14 @@ const summaryFn = (() => {
   const b = ctrl.indexOf("\n};", ctrl.indexOf("res.status(500)", a));
   return ctrl.slice(a, b);
 })();
-// The literal that neutralises the caller's own narrowing, verbatim from the controller.
-const overrideLit = /const body = \{\s*\.\.\.\(req\.body \|\| \{\}\),([\s\S]*?)\n\s*\};/.exec(summaryFn);
-if (!overrideLit) fail("could not find authorshipSummary's `const body = { ...req.body, … }` override literal");
-const serverNeutralised = overrideLit
-  ? [...overrideLit[1].matchAll(/(?:^|[\s,])([A-Za-z_$][\w$]*)\s*:/g)].map((m) => m[1])
-  : [];
 const blind = [...(M.SUMMARY_BLIND_BODY_KEYS || [])];
-const NO_ORDER_BY = ["sort"];   // dropped for a reason the override literal cannot express
-chk("the keys authorshipSummary overwrites on arrival", [...serverNeutralised].sort(),
-  blind.filter((k) => !NO_ORDER_BY.includes(k)).sort());
-// `sort` is the one blind key with no counterpart in that literal, so its justification is
-// checked directly: the endpoint must never READ it. (Array.prototype.sort on the facet arrays
-// is not a read of the body — match the property access and the SORTS table, not the word.)
+chk('SUMMARY_BLIND_BODY_KEYS is exactly ["sort"]', blind, ["sort"]);
+const overrideLitGone = !/const body = \{\s*\.\.\.\(req\.body \|\| \{\}\),\s*source: "all"/.test(summaryFn);
+if (overrideLitGone) pass("authorshipSummary's seven-key neutralising override literal is gone");
+else fail("authorshipSummary still opens with the old `const body = { ...req.body, source: \"all\", … }` override literal");
+// `sort` is the one blind key, so its justification is checked directly: the endpoint must never
+// READ it. (Array.prototype.sort on the facet arrays is not a read of the body — match the
+// property access and the SORTS table, not the word.)
 const readsSort = /\b(?:req\.)?body(?:\s*\|\|\s*\{\})?\??\.sort\b|\bSORTS\s*\[/.test(summaryFn);
 if (readsSort) fail("authorshipSummary reads `sort` — it is not safe to drop from the summary body");
 else pass("authorshipSummary never reads body.sort (ten COUNT/GROUP BY queries, no ORDER BY)");
@@ -466,10 +463,10 @@ for (const k of keys) {
   const isBlind = moved.length > 0 && moved.every((b) => blind.includes(b));
   const changed = summaryOf({ ...SENSITIVITY_BASE, [k]: FLIP[k] }) !== summaryBase;
   if (moved.length === 0) fail(`${k} moves nothing in the list body — §2 should already have caught this`);
-  else if (isBlind && changed) fail(`${k} reaches the summary body although the server neutralises ${moved.join(" + ")}`);
-  else if (!isBlind && !changed) fail(`${k} never reaches the SUMMARY body (it moves ${moved.join(" + ")}, which the server does NOT neutralise)`);
+  else if (isBlind && changed) fail(`${k} reaches the summary body although it is blind (${moved.join(" + ")})`);
+  else if (!isBlind && !changed) fail(`${k} never reaches the SUMMARY body (it moves ${moved.join(" + ")}, which the server honours per #988)`);
   else if (!isBlind) pass(`${k} -> ${moved.join(" + ")}: reaches the summary body`);
-  else pass(`${k} -> ${moved.join(" + ")}: ${moved.every((b) => NO_ORDER_BY.includes(b)) ? "never read by the endpoint" : "neutralised server-side"}, correctly absent`);
+  else pass(`${k} -> ${moved.join(" + ")}: blind (a set of COUNTs has no ORDER BY), correctly absent`);
 }
 // institutionBasis must survive the removal: the identity-affiliation facet is COUNTED on it.
 chk('institutionBasis survives into the summary body as "person"',
@@ -505,18 +502,22 @@ dep("the popover latch is armed by the affiliation anchor, not left permanently 
   /if \(affilAnchor\) setAffilFacetKey\(baseSummaryBody\);/);
 // Server side, read out of the controller source §6 already loaded.
 if (new RegExp(`const wantAuthorInstitutions = \\(req\\.body \\|\\| \\{\\}\\)\\.${FLAG} === true;`).test(summaryFn)) {
-  pass(`authorshipSummary reads ${FLAG} off req.body, outside the neutralised filter set`);
-} else fail(`authorshipSummary must read ${FLAG} off req.body (keeping it out of §6's override literal)`);
-if (/wantAuthorInstitutions && basis !== "byline"\s*\n?\s*\? institutionFacetAttributes\("byline", "byline_"\) : \[\]/.test(summaryFn)) {
-  pass("the byline_ facet columns are added ONLY under the flag");
-} else fail("the byline_ facet columns must be gated on wantAuthorInstitutions");
-if (/const authorInstitutions = wantAuthorInstitutions\s*\n?\s*\? bucketCounts\([^)]*\)\s*\n?\s*: undefined;/.test(summaryFn)) {
+  pass(`authorshipSummary reads ${FLAG} off req.body, outside the honoured-filters body`);
+} else fail(`authorshipSummary must read ${FLAG} off req.body`);
+// #988 dropped the old shared-columns query (institutions + byline_-prefixed columns read off
+// ONE findAll) for its own separate SUM query, gated on the flag and always counted on the
+// byline basis — the UI pins institutionBasis to "person", so the old "share the unprefixed
+// columns when basis is already byline" branch never fired and is gone, not just unreachable.
+if (/wantAuthorInstitutions\s*\n\s*\? models\.AuthorshipReview\.findAll\(\{\s*\n\s*attributes: institutionFacetAttributes\("byline"\),/.test(summaryFn)) {
+  pass("the Article-affiliation facet is its own query, gated on wantAuthorInstitutions, counted on the byline basis");
+} else fail("the Article-affiliation facet must be its own query, gated on wantAuthorInstitutions, counted on the byline basis");
+if (/const authorInstitutions = wantAuthorInstitutions\s*\n\s*\? bucketCounts\([\s\S]*?\)\s*\n\s*: undefined;/.test(summaryFn)) {
   pass("authorInstitutions is undefined (key absent) when the flag is unset — not [] and not stale");
 } else fail("authorInstitutions must be undefined, not [], when the flag is unset");
 // The Identity-affiliation facet must NOT have been dragged behind the same flag: it has a
 // non-empty default, so it is on screen without anyone opening a popover.
-if (/const institutions = bucketCounts\(""\);/.test(summaryFn)) {
-  pass("the Identity-affiliation facet is still computed unconditionally");
+if (/const institutions = bucketCounts\(\(\(byInstitution as any\[\]\)\[0\]\) \|\| \{\}\);/.test(summaryFn)) {
+  pass("the Identity-affiliation facet is still computed unconditionally, off its own query");
 } else fail("the Identity-affiliation facet must not be gated on the flag");
 // And the client must render the absence as a loading state rather than as zeros.
 dep("the client gates the Article counts on a freshness test, not on truthiness",

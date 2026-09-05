@@ -523,31 +523,27 @@ const buildFilterBody = (f: AuthorshipFilters) => ({
 // rebuilt from a second hand-written key list, so the two can never disagree about a filter's
 // spelling or value and a filter added to buildFilterBody later reaches the summary for free.
 //
-// What is removed, and why it is safe to remove — this is the list the guard script holds the
-// server to. authorshipSummary (controllers/db/authorships.controller.ts) opens with
+// #988: the summary honours every filter the list does. authorshipSummary
+// (controllers/db/authorships.controller.ts) used to force source/classification/precision/
+// personTypes/pubTypes/institutions/authorAffiliations to neutral values on arrival, which made
+// every facet describe a totally unfiltered queue — wrong for the header total (must equal the
+// list's own row count) and for the two alert pills (statusView forced, everything else still
+// meant to apply). That override literal is gone; the server now excludes each of those seven
+// keys ONLY from the one or two response fields that are themselves an option along that key
+// (see the exclusion map on authorshipSummary's per-field `where`s). `sort` is the sole key
+// still dropped here, and for the original, unrelated reason: the endpoint is ten COUNT/GROUP BY
+// queries with no ORDER BY and never reads it —
+// scripts/check-authorships-filter-body.mjs §6 checks that directly against the controller
+// source (authorshipSummary must never read body.sort).
 //
-//     const body = { ...(req.body || {}), source: "all", classification: "all", precision: "all",
-//                    personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [] };
-//
-// so those seven keys cannot move a single number it returns: every facet must report its own
-// queue-wide total rather than one already narrowed by the very selection the curator is about
-// to change. `sort` goes for a different reason — the endpoint is ten COUNT/GROUP BY queries
-// with no ORDER BY and never reads it.
-//
-// Everything NOT listed here (searchTextInput, dateFrom, dateTo, statusView, the two hides,
-// likeAuthor) genuinely narrows the summary and must keep reaching it, which is the property
-// scripts/check-authorships-filter-body.mjs §6 enforces — it re-reads the controller's own
-// override literal and fails if this list and the server's behaviour drift apart.
-//
-// institutionBasis SURVIVES the removal and must: it is not a filter here (institutions is
-// forced to [] server-side), it only says which basis the `institutions` facet is COUNTED on,
-// and it has to stay "person" because that facet feeds the IDENTITY AFFILIATION list while
-// buildFilterBody pins the same basis — otherwise the list would show "either" counts next to
-// checkboxes that filter on person (on dev: wcm 3,335 vs 2,279 for the same box).
+// institutionBasis is not in this list and so always reaches the summary body: it is not a
+// filter (buildWhere only ever reads it when `institutions` itself is non-empty for that
+// field's own where), it says which basis the `institutions` facet is COUNTED on, and it has to
+// stay "person" because that facet feeds the IDENTITY AFFILIATION list while buildFilterBody
+// pins the same basis — otherwise the list would show "either" counts next to checkboxes that
+// filter on person (on dev: wcm 3,335 vs 2,279 for the same box).
 const SUMMARY_BLIND_BODY_KEYS = [
-  "precision", "classification", "source", "personTypes", "pubTypes",   // neutralised on arrival
-  "institutions", "authorAffiliations",                                  // ditto
-  "sort",                                                                // counts have no ORDER BY
+  "sort",   // counts have no ORDER BY
 ] as const;
 const buildSummaryBody = (f: AuthorshipFilters) => {
   const body: Record<string, any> = { ...buildFilterBody(f) };
@@ -2093,10 +2089,12 @@ const AuthorshipsTabs = () => {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none", flexWrap: "wrap" }}>
-          {/* Both pills are queue-wide counts the server computes over the OPEN queue whatever
-              queue is being browsed (see Summary.conflicts), so they read the same from inside
-              any view and clicking one is always a real navigation. Hidden at zero: a "0
-              identity conflicts" pill is a permanent alarm for a condition that isn't there. */}
+          {/* Both pills force statusView to the queue the pill opens (conflicts also forces
+              identityConflicts on) and honour every OTHER filter in the current body exactly
+              like the list does (#988), so the number shown is the row count that queue will
+              show once the pill is clicked — not an unfiltered queue-wide count. Hidden at
+              zero: a "0 identity conflicts" pill is a permanent alarm for a condition that
+              isn't there. */}
           {(summary?.conflicts ?? 0) > 0 && (
             <Tip title="Two CWIDs assigned to one authorship — this paper is already accepted by a different person. Opens the Identity conflicts queue." placement="bottom" arrow>
               <button type="button" onClick={() => setStatusView("conflicts")} style={alertPill("red")}>
