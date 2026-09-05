@@ -137,11 +137,11 @@ const INSTITUTION_BUCKETS: Record<string, string[]> = {
 // `wcmExclude` keeps buckets disjoint: "Weill Cornell" also matches the Qatar campus, which has
 // its own bucket, so wcm subtracts it rather than double-counting.
 const INSTITUTION_BYLINE_PATTERNS: Record<string, string[]> = {
-  wcm: ["Weill Cornell"],
+  wcm: ["Weill Cornell", "Weill-Cornell"],
   nyp: ["New York-Presbyterian", "NewYork-Presbyterian", "New York Presbyterian"],
   wcm_qatar: ["Weill Cornell Medicine-Qatar", "Weill Cornell Medical College in Qatar",
               "Weill Cornell Medicine - Qatar", "Weill Cornell Medicine Qatar"],
-  msk: ["Sloan Kettering"],
+  msk: ["Sloan Kettering", "Sloan-Kettering"],
   houston_methodist: ["Houston Methodist"],
   hss: ["Hospital for Special Surgery"],
   hamad_medical: ["Hamad Medical"],
