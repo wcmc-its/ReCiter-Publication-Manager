@@ -499,11 +499,10 @@ function buildWhere(body: any, absentCwids?: Set<string>): any {
   // silently drop out), then filter on the joined Person row via Sequelize's
   // $Person.primaryInstitution$ dotted syntax for an included-model column. Every caller that
   // can pass a non-empty body.institutions through to here (listAuthorships,
-  // authorshipSelectable) attaches personInstitutionInclude() to that same query so the dotted
-  // reference always has a join to resolve against — authorshipSummary's main facet queries
-  // don't, because it forces body.institutions to [] before calling buildWhere, so this branch
-  // never fires for them in the first place (required:false is fine even here: IN(...) never
-  // matches a NULL from an
+  // authorshipSelectable, and — since #988 — every authorshipSummary response field except its
+  // own `institutions` facet, which excludes this key from its own where by definition) attaches
+  // personInstitutionInclude() to that same query so the dotted reference always has a join to
+  // resolve against (required:false is fine even here: IN(...) never matches a NULL from an
   // unmatched/absent top_cwid, so those rows correctly drop out of just this filtered query
   // without needing an INNER JOIN — verified empirically: a LEFT JOIN + this filter and an
   // INNER JOIN + this filter returned the identical row count against the live dev DB).
@@ -1085,23 +1084,32 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
   }
 };
 
-// POST /api/db/authorships/summary — counts for the tab headers. Ignores the
-// segment/classification/precision/person-type/institution/article-affiliation filters so each
-// facet shows its own total.
+// POST /api/db/authorships/summary — counts for the tab headers, the two alert pills, the QUEUE
+// list and the MATCH CLASS options (#988). The body arrives UN-touched — every filter the list
+// endpoint honours, this one honours too — and each response FIELD below builds its OWN where
+// via summaryWhere(), excluding only the key(s) that field is itself an option along (e.g. the
+// "High-precision" MATCH CLASS option must report the full high-precision total, so its own
+// count is blind to precision+classification; the header total is blind to nothing at all,
+// because it describes the exact queue the list right below it is showing). See summaryWhere()
+// just below and the exclusion comment on each where in authorshipSummary for the per-field map.
+function summaryWhere(body: any, exclude: string[], absentCwids?: Set<string>): any {
+  const neutral: Record<string, any> = {
+    source: "all", classification: "all", precision: "all",
+    personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [],
+  };
+  const b = { ...body };
+  for (const k of exclude) if (k in neutral) b[k] = neutral[k];
+  return buildWhere(b, absentCwids);
+}
+
 export const authorshipSummary = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    // authorAffiliations is neutralised alongside institutions and for the same reason: both
-    // facets below must report their own queue-wide totals, not totals already narrowed by the
-    // very selection the curator is about to change.
-    const body = {
-      ...(req.body || {}), source: "all", classification: "all", precision: "all",
-      personTypes: [], pubTypes: [], institutions: [], authorAffiliations: [],
-    };
+    const body = req.body || {};
     // ---- the Article-affiliation facet is OPT-IN ----------------------------------------
-    // Read off req.body, NOT off `body`, to keep it visibly separate from the filter keys the
-    // literal above neutralises: this is a request OPTION ("also compute this facet"), not a
-    // filter, and it must not join the set scripts/check-authorships-filter-body.mjs §6 holds
-    // that literal to.
+    // Read off req.body, NOT off `body` (the same object now, but kept as its own expression on
+    // purpose): this is a request OPTION ("also compute this facet"), not a filter, and it must
+    // never become one of the keys scripts/check-authorships-filter-body.mjs §6/§7 hold the
+    // client's SUMMARY_BLIND_BODY_KEYS / buildFilterBody output to.
     //
     // Why it exists (production regression, measured 2026-09-04 from inside reciter-pm-prod).
     // The byline half of the institution facet is 12 leading-wildcard LIKEs over the
@@ -1132,73 +1140,86 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     // screen never takes that path; a caller that wants the cheap basis must say so.
     const basis = normaliseBasis(body.institutionBasis);
     const absentCwids = body.hideNoIdentity ? await absentCwidSet() : undefined;
-    const where = buildWhere(body, absentCwids);
-    // The duplicates facet counts its own view, so it needs a where built with that statusView
-    // rather than the caller's (the open-queue where excludes exactly the rows it counts).
+
+    // Exclusion map (#988) — the key(s) each response field's OWN where must be blind to; every
+    // other filter in the body is honoured exactly like the list.
+    const where = summaryWhere(body, [], absentCwids);                                   // total: nothing excluded
+    const matchClassWhere = summaryWhere(body, ["precision", "classification"], absentCwids); // single_candidate/fullname/classes
+    const bySourceWhere = summaryWhere(body, ["source", "pubTypes"], absentCwids);        // bySource
+    const pubTypesWhere = summaryWhere(body, ["pubTypes"], absentCwids);                  // pubTypes (source:"scopus" AND kept below)
+    const personTypesWhere = summaryWhere(body, ["personTypes"], absentCwids);            // personTypes
+    const institutionsWhere = summaryWhere(body, ["institutions"], absentCwids);          // institutions (identity-affiliation) facet
+    const authorInstWhere = summaryWhere(body, ["authorAffiliations"], absentCwids);      // authorInstitutions facet (opt-in)
+    // duplicates/conflicts: the full body, only statusView (and, for conflicts,
+    // identityConflicts) forced — never blind to anything else, so the pill's number is the row
+    // count the click actually produces.
     const dupWhere = buildWhere({ ...body, statusView: "duplicates" }, absentCwids);
-    // Same for identity conflicts: the header pill and the QUEUE label must show the queue-wide
-    // N no matter which queue is being browsed, so this one is built with the conflicts
-    // narrowing forced ON and the status forced back to the open queue — never from the
-    // caller's own view. (statusView itself still passes through to `where` above, so `total`
-    // continues to describe the caller's current queue, exactly as it already does for
-    // duplicates.)
     const conflictWhere = buildWhere(
       { ...body, statusView: "open", identityConflicts: true }, absentCwids,
     );
-    // The 8 queries below do NOT get personInstitutionInclude() attached, unlike every other
-    // buildWhere caller in this file — and this is deliberate, not an oversight. `where`/
-    // `dupWhere` here can NEVER carry a $Person.primaryInstitution$ condition (institutions is
-    // forced to [] on `body` above, before either is built), so the include has nothing to
-    // resolve against. It was tried and reverted: attaching it made `id` ambiguous —
-    // `person` has its own `id` column, so `fn("COUNT", col("id"))` broke the moment a LEFT
-    // JOIN to `person` entered these queries (ER_NON_UNIQ_ERROR 1052), confirmed against the
-    // live dev DB. The institution facet query just below is the one place in this endpoint
-    // that legitimately needs the join, and it qualifies every column accordingly.
-    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution] = await Promise.all([
-      models.AuthorshipReview.count({ where }),
-      models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true }] } }),
-      models.AuthorshipReview.count({ where: { [Op.and]: [where, { single_candidate: true, top_given_match: "full" }] } }),
-      models.AuthorshipReview.count({ where: dupWhere }),
-      // Identity conflicts. No include needed and none wanted: identityConflictWhere() is an
-      // EXISTS subquery against person_article and touches no joined table, so the ambiguous-`id`
-      // trap documented above does not apply and this stays a plain COUNT over authorship_review.
-      models.AuthorshipReview.count({ where: conflictWhere }),
-      models.AuthorshipReview.findAll({ attributes: ["classification", [fn("COUNT", col("id")), "n"]], where, group: ["classification"], raw: true }),
-      models.AuthorshipReview.findAll({ attributes: ["top_person_type", [fn("COUNT", col("id")), "n"]], where, group: ["top_person_type"], raw: true }),
-      models.AuthorshipReview.findAll({ attributes: ["source", [fn("COUNT", col("id")), "n"]], where, group: ["source"], raw: true }),
-      models.AuthorshipReview.findAll({ attributes: ["pub_type", [fn("COUNT", col("id")), "n"]], where: { [Op.and]: [where, { source: "scopus" }] }, group: ["pub_type"], raw: true }),
-      // Institution facet: grouped by the joined Person row, required:true (INNER JOIN) unlike
-      // every other include in this file — a row whose top_cwid is null or matches no current
-      // person row has no institution to bucket, and (unlike the general list/selectable
-      // queries, where that same row must still appear in an unfiltered page) contributing
-      // nothing to this specific grouped count is correct, not a loss. Both columns are
-      // explicitly table-qualified (Person.primaryInstitution / AuthorshipReview.id) — the
-      // ambiguous-`id` trap noted above applies here too, just already avoided.
-      // One conditional-SUM pass per bucket instead of GROUP BY, so the same query serves all
-      // three bases. required:false (LEFT JOIN) because a byline can name an institution even
-      // when top_cwid matches no person row — an INNER JOIN would silently drop exactly the
-      // rows the byline basis exists to surface. Measured on production: the 12 LIKE patterns
-      // cost ~690 ms over the open rows, which the facet already tolerates.
-      //
-      // Up to TWO facets come out of this ONE query. `institutions` keeps the caller's basis
-      // (default "either") and feeds the Identity-affiliation list — it is ALWAYS computed, so
-      // the opt-in below cannot regress it. The `byline_`-prefixed columns feed the
-      // Article-affiliation list, which is the byline basis by definition, and they are added
-      // ONLY when the caller opted in: they are the 850 ms `wantAuthorInstitutions` documents.
-      // When the caller's basis already IS "byline" the two facets are the same numbers, so the
-      // extra columns are skipped even then and both are read off the unprefixed ones.
-      // Keeping them in this one query (rather than a second one) is still right when they are
-      // asked for — dev DB, over the open queue: 12 SUMs (either) 315 ms, 24 SUMs 534 ms,
-      // 12 SUMs (byline) 322 ms, i.e. one combined pass beats two scans.
+
+    // Every where above except institutionsWhere can now carry a $Person.primaryInstitution$
+    // condition (buildWhere honours `institutions` there) whenever the caller actually selected
+    // some — so those queries need personInstitutionInclude() attached, same as listAuthorships/
+    // authorshipSelectable, or the dotted reference has no join to resolve against. That
+    // includes conflictWhere: identityConflictWhere() itself is an EXISTS subquery over
+    // person_article_author -> person_article -> identity (a literal joined to nothing Sequelize
+    // knows about, so IT never needs this include) — but conflictWhere is still buildWhere() run
+    // on the FULL body, so an active institutions filter reaches it too, through the SAME
+    // $Person.primaryInstitution$ branch as everywhere else. Attached only when
+    // body.institutions is non-empty, so the (still far more common) no-institutions path keeps
+    // its existing cost. `distinct: true, col: "id"` on the count() calls matters for real, not
+    // defensively: person.personIdentifier is NOT unique on the dev DB (13 duplicated values
+    // among 24,403 rows, verified 2026-09-04 — SELECT personIdentifier, COUNT(*) c FROM person
+    // GROUP BY personIdentifier HAVING c > 1), so an un-deduplicated COUNT over the LEFT JOIN can
+    // double-count a row whose top_cwid happens to hit one of those duplicates. Model.count()
+    // auto-qualifies `col` to `${modelName}.${col}` the moment `include` is present (sequelize
+    // lib/model.js `count()`), which is also why passing the bare "id" here is enough — same
+    // reasoning the GROUP BY queries below apply by hand via
+    // fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))), since findAll has no `distinct`
+    // shorthand of its own.
+    const hasInstitutions = Array.isArray(body.institutions) && body.institutions.length > 0;
+    const instInclude = [personInstitutionInclude(false)];
+    const countOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude, distinct: true, col: "id" } : { where: w });
+    const whereOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude } : { where: w });
+    const groupCountAttr = hasInstitutions ? fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))) : fn("COUNT", col("id"));
+
+    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution] = await Promise.all([
+      models.AuthorshipReview.count(countOpts(where)),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true }] })),
+      models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true, top_given_match: "full" }] })),
+      models.AuthorshipReview.count(countOpts(dupWhere)),
+      models.AuthorshipReview.count(countOpts(conflictWhere)),
+      models.AuthorshipReview.findAll({ attributes: ["classification", [groupCountAttr, "n"]], ...whereOpts(matchClassWhere), group: ["classification"], raw: true }),
+      models.AuthorshipReview.findAll({ attributes: ["top_person_type", [groupCountAttr, "n"]], ...whereOpts(personTypesWhere), group: ["top_person_type"], raw: true }),
+      models.AuthorshipReview.findAll({ attributes: ["source", [groupCountAttr, "n"]], ...whereOpts(bySourceWhere), group: ["source"], raw: true }),
+      models.AuthorshipReview.findAll({ attributes: ["pub_type", [groupCountAttr, "n"]], ...whereOpts({ [Op.and]: [pubTypesWhere, { source: "scopus" }] }), group: ["pub_type"], raw: true }),
+      // Institution facet (IDENTITY AFFILIATION list): unconditionally joined, exactly as
+      // before — institutionsWhere never carries $Person.primaryInstitution$ (institutions is
+      // excluded from this field's own where by definition, so the popover always shows every
+      // bucket's own queue-wide count), and this query's SUM(...) formula needs the join
+      // regardless of any filter. required:false (LEFT JOIN) on purpose — see
+      // personInstitutionInclude()'s own comment. Basis handling is unchanged.
       models.AuthorshipReview.findAll({
-        attributes: [
-          ...institutionFacetAttributes(basis),
-          ...(wantAuthorInstitutions && basis !== "byline"
-            ? institutionFacetAttributes("byline", "byline_") : []),
-        ],
+        attributes: institutionFacetAttributes(basis),
         include: [personInstitutionInclude(false)],
-        where, raw: true,
+        where: institutionsWhere, raw: true,
       }),
+      // Article-affiliation facet (opt-in). Its own SUM query rather than shared columns off
+      // the query above: authorInstWhere excludes authorAffiliations (not institutions), so its
+      // row set can differ from institutionsWhere's the moment an institutions filter is
+      // active — folding both into one query would report the wrong basis's numbers for
+      // whichever filter is live. Always counted on the byline basis (this facet's whole
+      // point). The old "share the unprefixed columns when the caller's basis is already
+      // byline" special case is gone: the UI always pins institutionBasis to "person"
+      // (buildFilterBody), so that case never actually fired.
+      wantAuthorInstitutions
+        ? models.AuthorshipReview.findAll({
+            attributes: institutionFacetAttributes("byline"),
+            ...whereOpts(authorInstWhere),
+            raw: true,
+          })
+        : Promise.resolve(undefined),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });
@@ -1206,27 +1227,23 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     (bySrc as any[]).forEach((r) => { bySource[r.source] = Number(r.n); });
     const personTypes = (byType as any[]).filter((r) => r.top_person_type).map((r) => ({ type: r.top_person_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
     const pubTypes = (byPub as any[]).filter((r) => r.pub_type).map((r) => ({ type: r.pub_type as string, n: Number(r.n) })).sort((a, b) => b.n - a.n);
-    // Bucket the raw primaryInstitution strings the grouped query returned back into
+    // Bucket the raw primaryInstitution strings a grouped query returned back into
     // INSTITUTION_BUCKETS' keys, summing counts for a bucket with more than one literal string
     // (wcm has two — "Weill Cornell Medicine" and "Weill Cornell Medical College"). A raw
     // institution not named by any bucket (e.g. "Rockefeller University", below the curated
     // list's ~100-person cutoff) simply never gets added to any sum — dropped, not shown as
-    // "Other".
-    // the conditional-SUM query returns a single row, one column per bucket key
-    const facetRow: Record<string, any> = ((byInstitution as any[])[0]) || {};
-    const bucketCounts = (prefix: string) => Object.keys(INSTITUTION_BUCKETS)
-      .map((key) => ({ key, n: Number(facetRow[`${prefix}${key}`] || 0) }))
+    // "Other". Each conditional-SUM query returns a single row, one column per bucket key.
+    const bucketCounts = (row: Record<string, any>) => Object.keys(INSTITUTION_BUCKETS)
+      .map((key) => ({ key, n: Number(row[key] || 0) }))
       .filter((b) => b.n > 0)
       .sort((a, b) => b.n - a.n);
-    const institutions = bucketCounts("");
-    // Article-affiliation facet — same bucket keys, counted on the byline basis. Shares the
-    // prefix-free columns when the caller's own basis is already "byline" (see the query).
-    // `undefined` when it was not asked for, and JSON.stringify DROPS an undefined value, so
-    // the key is genuinely ABSENT from the response rather than present-and-empty. That
-    // distinction is the whole contract: absent means "not computed, show a loading state",
-    // where [] would mean "computed, every bucket is zero".
+    const institutions = bucketCounts(((byInstitution as any[])[0]) || {});
+    // `undefined` when authorInstitutions was not asked for, and JSON.stringify DROPS an
+    // undefined value, so the key is genuinely ABSENT from the response rather than
+    // present-and-empty. That distinction is the whole contract: absent means "not computed,
+    // show a loading state", where [] would mean "computed, every bucket is zero".
     const authorInstitutions = wantAuthorInstitutions
-      ? bucketCounts(basis === "byline" ? "" : "byline_")
+      ? bucketCounts(((byAuthorInstitution as any[])?.[0]) || {})
       : undefined;
     res.send({
       total, single_candidate: single, fullname, duplicates, conflicts,
