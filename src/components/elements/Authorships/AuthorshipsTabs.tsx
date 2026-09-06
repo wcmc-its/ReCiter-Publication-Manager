@@ -212,7 +212,72 @@ interface Summary {
   // different, legitimate answer ("computed, no bucket matched") and the server never conflates
   // the two.
   authorInstitutions?: Array<{ key: string; n: number }>;
+  // The canned reports' row counts — the ONE field POST /api/db/authorships/summary gained for
+  // them, and the only thing they need from this endpoint. Undefined until the first summary
+  // response lands, which is why the reports menu reserves the width of its count column
+  // instead of letting the numbers shove the labels sideways when they arrive.
+  reports?: { lowScoringAccepts: number; highScoringRejects: number };
 }
+
+// ---- canned reports ------------------------------------------------------
+// Two saved curator/model disagreement queries over reciterdb.person_article. NOT a statusView
+// and NOT a review queue: only 2.3% of the low-scoring accepts and 0.5% of the high-scoring
+// rejects have an authorship_review row at all (the AAR producer skips already-curated
+// authorships on purpose), so these rows carry no id, no status and no curator columns —
+// nothing the authorship card or the bulk-action machinery could bind to. They need no actions
+// of their own either: the article is already curated, so the only useful verb is "look at this
+// again", and /curate/<cwid> already provides it.
+type ReportKey = "lowScoringAccepts" | "highScoringRejects";
+// The report currently on screen; `null` is the normal authorships feed.
+//
+// Held as a SIBLING of AuthorshipFilters, never as a member of it, and this is a hard contract
+// rather than a preference. buildFilterBody's output is byte-compared (key order included)
+// against a committed baseline by scripts/check-authorships-filter-body.mjs, and the chip row
+// plus "Reset all" measure against FILTER_DEFAULTS. Keeping the report out of the filter object
+// is what makes "choosing a report does not touch the curator's filters, and leaving it restores
+// the feed exactly" true by construction instead of by careful bookkeeping. The report body is
+// `{ ...buildFilterBody(f), report }` — a spread of a copy; buildFilterBody itself never changes.
+type ReportView = null | ReportKey;
+
+// One person_article row as POST /api/db/authorships/reports returns it. Every field is
+// nullable because person_article is: a row can predate the score column, carry no PMID, or
+// have been written before a feedback channel existed.
+interface ReportRow {
+  cwid: string; person: string; pmid: number | null; score: number | null;
+  pubDate: string | null; journal: string | null; title: string | null;
+  // The four feedback evidence channels behind the burial mechanism (see FEEDBACK_CHANNELS).
+  fbInstitution: number | null; fbJournal: number | null;
+  fbOrganization: number | null; fbCoAuthor: number | null;
+  groupCount: number;   // how many rows this person has in THIS report
+}
+interface ReportResponse {
+  report: ReportKey;
+  total: number;       // rows returned
+  people: number;      // distinct cwids among them
+  capped: boolean;     // true when the server's REPORT_ROW_CAP truncated the result
+  // Already ordered and ready to group in document order: groupCount DESC, then the person's
+  // worst score, then cwid, then within a person by score (ascending for accepts, descending
+  // for rejects). Never re-sorted client-side.
+  rows: ReportRow[];
+}
+
+const REPORT_LABEL: Record<ReportKey, string> = {
+  lowScoringAccepts: "Low-scoring accepts",
+  highScoringRejects: "High-scoring rejects",
+};
+// Which filters the reports endpoint honours, stated in the menu where the curator PICKS a
+// report rather than left to be discovered afterwards from a filter bar that quietly did
+// nothing. The controls it does not honour are hidden while a report is on screen (see
+// isChipHiddenByReport and the hide sites in the render), so this sentence and the filter bar
+// always agree.
+const REPORT_FILTER_NOTE = "Honours the date window, person type, institution and search";
+// Verified against production 2026-09-06: ~1,065 rows / 816 people and ~430 rows / 332 people at
+// the default filters. Those two counts are the acceptance test for the endpoint behind this
+// menu, so a number here that drifts far from them is a server-side regression, not a re-skin.
+const REPORT_OPTIONS: Array<{ key: ReportKey; note: string; count: (s: Summary | null) => number | undefined }> = [
+  { key: "lowScoringAccepts", note: "Curator accepted, model scored it below 10", count: (s) => s?.reports?.lowScoringAccepts },
+  { key: "highScoringRejects", note: "Curator rejected, model scored it 90 or above", count: (s) => s?.reports?.highScoringRejects },
+];
 
 // Response shape of POST /api/db/authorships/counterpart (authorshipCounterpart in
 // authorships.controller.ts) — the PubMed-twin comparison CounterpartPanel renders.
@@ -605,6 +670,24 @@ const filterChips = (f: AuthorshipFilters, datePreset: string): FilterChip[] => 
   return out;
 };
 
+// While a canned report is on screen the filter bar must not advertise a filter the report
+// silently ignores — a partially-applied filter bar is worse than one that says what it is
+// doing. These are the chip ids whose CONTROLS are hidden for the same reason (each hide site
+// carries its own one-line reason), so the chip row drops them too and the Filters badge, being
+// the visible chip count, drops with it.
+//
+// The curator's filter STATE is never touched: this filters filterChips' OUTPUT for display
+// only, so leaving the report restores every chip and the badge count exactly as they were.
+const REPORT_HIDDEN_CHIP_IDS = new Set([
+  "queue",              // authorship_review statuses; person_article has no such column
+  "class",              // lane + classification are producer match-quality axes, review-only
+  "hideNoSuggestion",   // vacuous — the report INNER JOINs identity, so every row has one
+  "hideNoIdentity",     // same
+  "like",               // likeAuthor keys off authorship_review.wcm_author
+]);
+const isChipHiddenByReport = (id: string): boolean =>
+  REPORT_HIDDEN_CHIP_IDS.has(id) || id.startsWith("authorAffil:");   // byline affiliation is an authorship_review column
+
 // ---- inline Lucide SVG icons (no npm deps) -------------------------------
 type IconProps = { size?: number; style?: CSSProperties };
 const svgBase = (size: number, style?: CSSProperties): CSSProperties => ({
@@ -981,6 +1064,25 @@ const AuthorshipsTabs = () => {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
 
+  // ---- canned reports: state, deliberately outside AuthorshipFilters -----
+  // See the ReportView type for why this is a sibling of the filter object rather than a member
+  // of it. Everything here is view state for the report panel; none of it reaches
+  // buildFilterBody, the chip row, or FILTER_DEFAULTS.
+  const [reportView, setReportView] = useState<ReportView>(null);
+  const [reportAnchor, setReportAnchor] = useState<HTMLElement | null>(null);
+  const [reportData, setReportData] = useState<ReportResponse | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState("");
+  // Which person groups are open. A Set rather than the card list's single `expanded` id: the
+  // interesting cases in these reports are the people with several rows (~1,065 rows across 816
+  // people, so most groups are one row and the tail is what matters), and comparing two of them
+  // side by side is the point. Reset whenever the report or its filters change — a cwid held
+  // open across a different result set means nothing.
+  const [expandedPeople, setExpandedPeople] = useState<Set<string>>(new Set());
+  // Same last-write-wins guard fetchData/fetchSummary use: two report requests have very
+  // different result sizes, so a slow earlier one must not repaint over a fast later one.
+  const reportSeqRef = useRef(0);
+
   // ---- filters: one object, one set of writers --------------------------
   // See AuthorshipFilters / FILTER_DEFAULTS above for what belongs in here and what does not.
   // filterBody() and the ephemeral-clear effect below both depend on THIS OBJECT, so adding a
@@ -1151,6 +1253,8 @@ const AuthorshipsTabs = () => {
   // "is any overlay this component owns currently up?" — read by the same stable keydown
   // listener, which must not act on the row behind an open popover/menu/dialog.
   const overlayOpenRef = useRef(false);
+  // "is a canned report on screen instead of the card list?" — read by that same listener.
+  const reportViewRef = useRef<ReportView>(null);
   // latest action handlers, so the stable keydown listener invokes the current closures
   const doActionRef = useRef<(row: AuthorshipRow, action: string, extra?: Record<string, any>) => void>();
   const toggleSelectRef = useRef<(row: AuthorshipRow) => void>();
@@ -1172,9 +1276,16 @@ const AuthorshipsTabs = () => {
   // hand-rolled full-screen layers (lookup spinner, assign confirm, reject confirm). The
   // keyboard handler bails while any of them is up.
   const overlayOpen = !!typeAnchor || !!affilAnchor || !!filtersAnchor || !!keysAnchor
+    || !!reportAnchor
     || !!menu || !!assignMenuAnchor || !!historyAnchor || !!activityAnchor
     || !!assignLookupCwid || !!assignConfirm || rejectConfirmOpen;
   useEffect(() => { overlayOpenRef.current = overlayOpen; }, [overlayOpen]);
+  // A report REPLACES the card list, and the keydown listener reads rowsRef, which the feed
+  // keeps populated underneath. Without this the y/n/s keys would accept, reject or snooze a
+  // row the curator cannot see. Its own ref rather than a term in overlayOpen above: a report
+  // is not an overlay, it is a different view, and folding it in there would make that
+  // expression's name a lie.
+  useEffect(() => { reportViewRef.current = reportView; }, [reportView]);
 
   // `silent` skips the loading flag, which is what unmounts the whole card list below (the
   // {loading && …}/{!loading && rows.map(…)} gate) — a curator scrolled into the middle of the
@@ -1310,6 +1421,64 @@ const AuthorshipsTabs = () => {
       .then((r) => r.json())
       .then((d) => setRecentActivity(d.rows || []))
       .catch(() => setRecentActivity([]));
+  }, []);
+
+  // ---- the canned report's own request -----------------------------------
+  // A SPREAD OF A COPY of the posted filter body plus the one extra key. buildFilterBody's own
+  // return value is never mutated and never gains a key: its exact bytes, key order included,
+  // are the contract scripts/check-authorships-filter-body.mjs holds it to.
+  //
+  // The whole body goes over even though the reports endpoint honours only four of its keys —
+  // sending buildFilterBody's output verbatim is the contract, and a hand-pruned second body
+  // would be one more place a filter could be forgotten. The filters the server drops are the
+  // ones whose controls are hidden while a report is up, so nothing on screen claims otherwise.
+  const reportBody = useMemo(
+    () => (reportView ? JSON.stringify({ ...buildFilterBody(filters), report: reportView }) : ""),
+    [filters, reportView],
+  );
+  useEffect(() => {
+    if (!reportView) { setReportData(null); setReportError(""); setReportLoading(false); return; }
+    if (!datesReady) return;                       // same hold the first list fetch takes
+    const myId = ++reportSeqRef.current;
+    setReportLoading(true);
+    fetch("/api/db/authorships/reports", {
+      credentials: "same-origin", method: "POST", headers: apiHeaders, body: reportBody,
+    })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: ReportResponse) => {
+        if (myId !== reportSeqRef.current) return;
+        setReportData(d);
+        setReportError("");
+      })
+      .catch((e) => {
+        if (myId !== reportSeqRef.current) return;
+        // Inline in the panel, not the error Snackbar: a failed report load is a persistent
+        // state of the thing the curator is looking at, not a transient notice that should
+        // time out from under them.
+        setReportData(null);
+        setReportError(String(e?.message || e));
+      })
+      .finally(() => { if (myId === reportSeqRef.current) setReportLoading(false); });
+  }, [reportBody, reportView, datesReady]);
+
+  // Entering, switching and LEAVING a report, in one writer. It touches `filters` nowhere —
+  // that is the whole point of holding reportView outside the filter object (see ReportView):
+  // leaving restores the feed, the chip row, the Filters badge and the curator's place in the
+  // queue with no state to put back.
+  const selectReport = useCallback((next: ReportView) => {
+    setReportView(next);
+    setReportAnchor(null);
+  }, []);
+  // A cwid held open across a different result set means nothing, so groups close whenever the
+  // report or the filters behind it change. Keyed on the posted body, like every other
+  // report-scoped derivation here.
+  useEffect(() => { setExpandedPeople(new Set()); }, [reportBody]);
+  const toggleReportPerson = useCallback((cwid: string) => {
+    setExpandedPeople((s) => {
+      const next = new Set(s);
+      if (next.has(cwid)) next.delete(cwid); else next.add(cwid);
+      return next;
+    });
   }, []);
 
   // §2.6: fill the identity hover card's "NAMES ON ACCEPTED PAPERS" block for one cwid. Called
@@ -1915,6 +2084,10 @@ const AuthorshipsTabs = () => {
       // this component owns is folded into one boolean (see overlayOpen) so a new one cannot be
       // added and forgotten here.
       if (overlayOpenRef.current) return;
+      // …and not while a canned report has replaced the card list. The feed keeps its rows in
+      // rowsRef underneath, so every shortcut would otherwise still fire — j/k moving an
+      // invisible focus ring, y/n/s ACTING on a row that is not on screen.
+      if (reportViewRef.current) return;
       const visible = rowsRef.current;
       if (visible.length === 0) return;
       const focusedId = focusedIdRef.current;
@@ -1962,7 +2135,12 @@ const AuthorshipsTabs = () => {
   // so it can never drift from what the chip row lists. Both come from the pure filterChips()
   // above; nothing here decides what counts as "active".
   const chips = filterChips(filters, datePreset);
-  const filterCount = chips.length;
+  // What the chip row and the Filters badge SHOW. While a report is up the chips for filters
+  // that report ignores are dropped from the display (isChipHiddenByReport) so the row lists
+  // only what is actually in force; `filters` itself is untouched, so leaving the report brings
+  // every chip and the badge count straight back.
+  const visibleChips = reportView ? chips.filter((c) => !isChipHiddenByReport(c.id)) : chips;
+  const filterCount = visibleChips.length;
   // §2.1's header line trails the active date window ("…, past 2 years"). Derived from the
   // preset, not from dateFrom/dateTo, everywhere except "custom" — the preset is a module
   // constant on the first render and the dates are not, so this is the one form of the phrase
@@ -1986,7 +2164,11 @@ const AuthorshipsTabs = () => {
   const affilNames = [
     ...(selectedInstitutions.length === 1 && selectedInstitutions[0] === FILTER_DEFAULTS.selectedInstitutions[0]
       ? [] : selectedInstitutions),
-    ...selectedAuthorAffiliations,
+    // The article list is hidden inside this popover while a report is up (see the hide site
+    // there), so it must not go on counting towards the button's label and badge either — the
+    // button would otherwise name or count a filter with no control behind it and no effect on
+    // what is on screen. The selection itself survives untouched.
+    ...(reportView ? [] : selectedAuthorAffiliations),
   ].map((k) => INSTITUTION_LABELS[k] || k);
   const affilCount = affilNames.length;
   // Identity affiliation reads `institutions`, which the server computes on EVERY summary call
@@ -2033,7 +2215,13 @@ const AuthorshipsTabs = () => {
   // set the per-row checkboxes allow (T4: multi-candidate rows included, for bulk-assign).
   // Accept safety is downstream: every accept-type consumer reads selectedAcceptRows, so
   // widening THIS set can never widen what "Accept selected" acts on.
-  const eligibleRows = statusView === "open" ? rows.filter((r) => isBulkSelectable(r, statusView)) : [];
+  // The reportView gate is the same stance the statusView gate beside it takes, for the same
+  // reason: a canned report is not a curation queue. Its rows are already-curated person_article
+  // rows with no authorship_review id, so nothing here can act on them, and the feed's rows —
+  // still loaded underneath — must not become bulk-selectable through a report the curator is
+  // reading. "Accept near-certain" is gated at its render site instead of on its own line: that
+  // line is pinned byte-for-byte by scripts/check-authorships-no-suggestion.mjs.
+  const eligibleRows = statusView === "open" && reportView === null ? rows.filter((r) => isBulkSelectable(r, statusView)) : [];
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selected.has(r.id));
   const someEligibleSelected = eligibleRows.some((r) => selected.has(r.id));
   // §2.5: the bar's action cluster and its "N selected" label key off this; "Accept
@@ -2097,15 +2285,40 @@ const AuthorshipsTabs = () => {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none", flexWrap: "wrap" }}>
+          {/* Canned reports. ALWAYS VISIBLE, unlike the two pills after it: those are hidden at
+              zero on purpose (a "0 identity conflicts" pill is a permanent alarm for a condition
+              that is not there), but this is a navigation control, not an alarm — which also
+              means this band is never empty. Deliberately NOT a third alertPill: the red/amber
+              palettes are reserved for server counts that demand attention. It uses dropBtn +
+              Caret, the neutral treatment the person-type and affiliation dropdowns already
+              carry, so it reads as the control it is.
+              The counts live inside the popover, not on this button, so its label is a constant
+              string — summary landing late cannot reflow this band, the hazard the count line
+              above it is written to avoid. */}
+          <Tip title="Two saved curator/model disagreement reports over person_article. These articles are already curated, so there is nothing to action here — the report explains WHY the model and the curator disagreed, and links to each person's curate page." placement="bottom" arrow>
+            <button type="button" onClick={(ev) => setReportAnchor(ev.currentTarget)}
+              aria-haspopup="true" aria-expanded={!!reportAnchor}
+              style={dropBtn(!!reportView, !!reportAnchor)}>
+              {reportView ? REPORT_LABEL[reportView] : "Canned reports"}
+              <Caret />
+            </button>
+          </Tip>
           {/* Both pills force statusView to the queue the pill opens (conflicts also forces
               identityConflicts on) and honour every OTHER filter in the current body exactly
               like the list does (#988), so the number shown is the row count that queue will
               show once the pill is clicked — not an unfiltered queue-wide count. Hidden at
               zero: a "0 identity conflicts" pill is a permanent alarm for a condition that
               isn't there. */}
+          {/* Both stay visible while a canned report is up — they are server alarms, not filter
+              controls — but each must LEAVE the report on the way to the queue it names. statusView
+              is one of the keys a report ignores and one of the chips it hides, so setting it from
+              under a report would change the curator's queue with nothing on screen moving and no
+              chip to show it: they would return to the feed in a queue they never chose. Leaving
+              first is also what the tooltips already promise ("Opens the … queue"). selectReport
+              writes no filter, so this remains one filter write, exactly as it is on the feed. */}
           {(summary?.conflicts ?? 0) > 0 && (
             <Tip title="Two CWIDs assigned to one authorship — the same byline position on this paper is already accepted by a different WCM identity. Opens the Identity conflicts queue." placement="bottom" arrow>
-              <button type="button" onClick={() => setStatusView("conflicts")} style={alertPill("red")}>
+              <button type="button" onClick={() => { selectReport(null); setStatusView("conflicts"); }} style={alertPill("red")}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#b1483c", display: "block", flex: "none" }} />
                 {(summary?.conflicts ?? 0).toLocaleString()} identity conflict{summary?.conflicts === 1 ? "" : "s"}
               </button>
@@ -2113,7 +2326,7 @@ const AuthorshipsTabs = () => {
           )}
           {(summary?.duplicates ?? 0) > 0 && (
             <Tip title="Same publication retrieved from PubMed and Scopus. Opens the Duplicate records queue." placement="bottom" arrow>
-              <button type="button" onClick={() => setStatusView("duplicates")} style={alertPill("amber")}>
+              <button type="button" onClick={() => { selectReport(null); setStatusView("duplicates"); }} style={alertPill("amber")}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#c07f11", display: "block", flex: "none" }} />
                 {(summary?.duplicates ?? 0).toLocaleString()} duplicate record{summary?.duplicates === 1 ? "" : "s"}
               </button>
@@ -2169,6 +2382,11 @@ const AuthorshipsTabs = () => {
                    on one line (measured — with them the row needs a 1,220px content width, without
                    them ~1,030px, and the common 1440px laptop with the sidebar expanded gives
                    1,140px). §2.2 names the labels as bare `All` / `PubMed` / `Scopus`. */}
+            {/* Hidden while a canned report is up, not disabled: a greyed control still reads
+                as "this exists and is off". `source` is authorship_review's producer lane
+                (pubmed vs the Scopus AF-ID sweep); person_article has no counterpart, so the
+                report cannot honour it. The curator's choice is kept and comes straight back. */}
+            {!reportView && (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 2, background: CTRL.track, borderRadius: 7, padding: 3 }}>
               {([["all", "All"], ["pubmed", "PubMed"], ["scopus", "Scopus"]] as const).map(([key, label]) => {
                 const n = key === "all"
@@ -2183,8 +2401,10 @@ const AuthorshipsTabs = () => {
                 );
               })}
             </div>
+            )}
 
-            {/* 2. person type (mockup:117-140) */}
+            {/* 2. person type (mockup:117-140) — the report honours this one, so it stays
+                exactly as it is. */}
             <button type="button" onClick={(e) => setTypeAnchor(e.currentTarget)}
               style={dropBtn(selectedTypes.length > 0, !!typeAnchor)}>
               {selectedTypes.length === 0 ? "All person types"
@@ -2223,6 +2443,14 @@ const AuthorshipsTabs = () => {
                 the whole right group onto a second line. The nuance the old "Match confidence
                 (name/affiliation, not IO)" label carried moves into the title instead of costing
                 ~150px of the row this step exists to fit on one line. */}
+            {/* Hidden while a canned report is up, on the same rule as the source segment and the
+                QUEUE list: `sort` is one of the keys reportFilterSql() explicitly ignores (a
+                report's order is its own — groupCount DESC, then the person's worst score), so a
+                live Sort control here would be visibly set and silently dropped. Worse than
+                cosmetic: sort IS part of the posted report body, so changing it would refetch the
+                report and collapse every open person group for an identical result. The choice
+                stays in `filters` and the control comes back with the feed. */}
+            {!reportView && (
             <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort"
               title={"Sort order — kept when any other control changes.\n“Match confidence” is the matcher's name/affiliation heuristic, not IO."}
               style={{ font: "inherit", border: `1px solid ${CTRL.border}`, borderRadius: 6, padding: "7px 9px", fontSize: 13.5, background: "#fff", color: CTRL.ink, cursor: "pointer" }}>
@@ -2234,6 +2462,7 @@ const AuthorshipsTabs = () => {
               <option value="fg">Authorship Score</option>
               <option value="candidates">Most candidates</option>
             </select>
+            )}
             <button type="button" onClick={(e) => setFiltersAnchor(e.currentTarget)}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 13.5,
@@ -2258,7 +2487,12 @@ const AuthorshipsTabs = () => {
             than moving into the Filters popover. It is mounted only under Scopus and the
             source effect empties the list on the way out, which is what keeps buildFilterBody's
             `source === "scopus" ? … : []` ternary from ever hiding a live-looking selection. */}
-        {source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
+        {/* …and hidden with it while a report is up: pub_type is Scopus's subtypeDescription,
+            which person_article has no counterpart for. Its own gate rather than a consequence
+            of the segment being hidden — the selection survives, so a curator who was on the
+            Scopus segment would otherwise see a live-looking facet strip under a source control
+            that is no longer there. */}
+        {!reportView && source === "scopus" && (summary?.pubTypes?.length ?? 0) > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderBottom: `1px solid ${CTRL.rule}`, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, color: CTRL.soft, letterSpacing: ".06em" }}>PUBLICATION TYPE</span>
             <button onClick={() => setSelectedPubTypes([])} style={pubChipStyle(selectedPubTypes.length === 0)}>All</button>
@@ -2278,18 +2512,25 @@ const AuthorshipsTabs = () => {
             Rendered only when something is off its default; the source segment is never a chip
             and the search box is one, both transcribed in filterChips() rather than re-decided
             here. Removing a chip removes ONLY that filter. */}
-        {chips.length > 0 && (
+        {/* visibleChips, not chips: while a canned report is up this row lists only the filters
+            the report actually honours (see isChipHiddenByReport). Nothing is reset — the hidden
+            chips come back, with the same values, the moment the curator returns to the feed. */}
+        {visibleChips.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: CTRL.band }}>
             <span style={{ fontSize: 12, letterSpacing: ".06em", color: "#8b93a2" }}>FILTERS</span>
-            {chips.map((chip) => (
+            {visibleChips.map((chip) => (
               <button key={chip.id} type="button" onClick={() => removeChip(chip)}
                 aria-label={`Remove filter ${chip.label}`} title="Remove this filter"
                 style={{ font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, border: `1px solid ${CTRL.chipBorder}`, background: CTRL.accentBg, color: CTRL.accentInk, borderRadius: 999, padding: "4px 8px 4px 11px", fontSize: 13, cursor: "pointer" }}>
                 {chip.label}<span style={{ color: "#6f8cbe", fontSize: 14, lineHeight: 1 }}>×</span>
               </button>
             ))}
+            {/* Clear still resets EVERY filter, the hidden ones included, so while a report is
+                up the title says so rather than naming only the chips on screen. */}
             <button type="button" onClick={resetAll}
-              title={`Reset all ${filterCount} ${filterCount === 1 ? "filter" : "filters"} to their defaults (sort is left alone)`}
+              title={reportView
+                ? "Reset every filter to its defaults, including the ones this report hides (sort is left alone)"
+                : `Reset all ${filterCount} ${filterCount === 1 ? "filter" : "filters"} to their defaults (sort is left alone)`}
               style={{ font: "inherit", border: "none", background: "none", fontSize: 13, color: CTRL.muted, cursor: "pointer", padding: "4px 6px" }}>
               Clear
             </button>
@@ -2301,6 +2542,13 @@ const AuthorshipsTabs = () => {
             only exist on the open queue (isBulkSelectable gates on statusView), every accept-type
             button still reads selectedAcceptRows, and "Accept near-certain" is gated on the open
             queue explicitly now that the bar itself renders in every queue for "Showing N of M". */}
+        {/* The whole bar goes while a canned report is up. Its actions have nothing to act on
+            (a report row is an already-curated person_article row with no authorship_review id),
+            and its "Showing N of M" describes the feed still loaded underneath — a true number
+            about something the curator is not looking at, which is the worst kind. The report
+            panel carries its own "N rows across M people" instead. */}
+        {!reportView && (
+        <>
         <div style={{ display: "flex", alignItems: "center", gap: 12, rowGap: 8, flexWrap: "wrap", padding: "9px 14px", borderBottom: `1px solid ${CTRL.rule}`, background: hasSelection ? "#f3f7fd" : "#fff" }}>
           {statusView === "open" && (
             <Tip title="Select every selectable row on this page — single-candidate rows for bulk accept/assign/reject, multi-candidate (non-Scopus) rows and single-candidate no-ReCiter-identity rows for bulk assign/reject" placement="top" arrow>
@@ -2401,6 +2649,8 @@ const AuthorshipsTabs = () => {
               : "Bulk accept acts on single-candidate rows on this page. Bulk assign and bulk reject also cover open, non-Scopus multi-candidate rows and single-candidate rows with no ReCiter identity."}
           </div>
         )}
+        </>
+        )}
       </div>
 
       {/* ---- person-type popover (§2.2, mockup:121-139) ---------------------------------- */}
@@ -2459,6 +2709,12 @@ const AuthorshipsTabs = () => {
           </div>
           <div style={helperStyle}>Where the proposed WCM person sits in the directory.</div>
         </div>
+        {/* ARTICLE AFFILIATION is hidden while a canned report is up — hiding beats disabling,
+            because a greyed list still reads as "this exists and is off". It matches
+            authorship_review.author_affiliation, the affiliation printed on the byline, which
+            person_article does not carry; the report can only honour the IDENTITY list above.
+            The selection is left alone and the list returns intact with the feed. */}
+        {!reportView && (
         <div>
           <div style={popHeadRow}>
             {/* "N of M" needs the facet to know M, so M is withheld until it arrives rather
@@ -2490,12 +2746,20 @@ const AuthorshipsTabs = () => {
           </div>
           <div style={helperStyle}>As printed on the article. Several may be selected.</div>
         </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, paddingTop: 11 }}>
           {/* Reset here restores only THIS control's two lists (mockup:697), not every filter —
               that is the Filters popover's "Reset all". */}
           <button type="button" onClick={() => patchFilters({
             selectedInstitutions: FILTER_DEFAULTS.selectedInstitutions.slice(),
-            selectedAuthorAffiliations: FILTER_DEFAULTS.selectedAuthorAffiliations.slice(),
+            // …and only the lists actually on screen. While a canned report is up the ARTICLE
+            // list above is hidden (the report cannot honour a byline affiliation), so a control
+            // the curator cannot see is not one they can have meant to reset: clearing it would
+            // silently discard a selection the feed is owed back, and — because
+            // authorAffiliations rides in the posted report body — would refetch the report and
+            // collapse every open person group for an identical result. "Reset all" is still the
+            // one place that reaches the hidden filters, and its title says so.
+            ...(reportView ? {} : { selectedAuthorAffiliations: FILTER_DEFAULTS.selectedAuthorAffiliations.slice() }),
           })} style={{ ...linkBtn, color: CTRL.muted }}>Reset</button>
           <button type="button" onClick={() => setAffilAnchor(null)} style={doneBtn}>Done</button>
         </div>
@@ -2507,6 +2771,16 @@ const AuthorshipsTabs = () => {
         PaperProps={{ style: { ...popPaper(400), padding: "16px 18px 14px" } }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+          {/* QUEUE and MATCH CLASS are both hidden while a canned report is up — hidden, not
+              disabled, because a greyed control still reads as "this exists and is off". Both
+              are authorship_review concepts: QUEUE selects among that table's review states
+              (open/snoozed/dismissed and the two review branches), and MATCH CLASS is the
+              producer's own match-quality grading of a row it proposed. A report's rows were
+              curated long ago and mostly have no authorship_review row at all, so neither axis
+              has anything to select on. The values stay in `filters` and both lists come back
+              untouched with the feed. */}
+          {!reportView && (
+          <>
           <div>
             <div style={{ ...popHead, marginBottom: 8 }}>QUEUE</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -2547,6 +2821,10 @@ const AuthorshipsTabs = () => {
             </div>
           </div>
 
+          </>
+          )}
+
+          {/* DATE is honoured by the reports endpoint, so it stays exactly as it is. */}
           <div>
             <div style={{ ...popHead, marginBottom: 7 }}>DATE</div>
             <select value={datePreset} onChange={(e) => applyDatePreset(e.target.value)} aria-label="Article publication date"
@@ -2574,6 +2852,13 @@ const AuthorshipsTabs = () => {
             )}
           </div>
 
+          {/* HIDE goes too, and for a different reason from QUEUE/MATCH CLASS above: both of
+              these boxes are VACUOUS on a report rather than unsupported. The report INNER JOINs
+              identity, so every row it can return already has a proposed person and a ReCiter
+              identity — ticking either box could only ever be a no-op, and a no-op checkbox that
+              changes nothing is exactly the "partially applied filter" this hide rule exists to
+              prevent. */}
+          {!reportView && (
           <div>
             <div style={{ ...popHead, marginBottom: 8 }}>HIDE</div>
             <Tip title={"Hides rows with no proposed identity at all (the “No suggested identity” rows below) — there is nothing for Accept or Reject to act on there. Does NOT hide “No ReCiter identity” rows, where a person IS proposed but isn't in ReCiter yet — see the checkbox below."} placement="left" arrow>
@@ -2591,12 +2876,66 @@ const AuthorshipsTabs = () => {
               </label>
             </Tip>
           </div>
+          )}
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${CTRL.rule}`, paddingTop: 12 }}>
             <button type="button" onClick={resetAll} style={{ ...linkBtn, color: CTRL.muted }}
               title="Restore every filter to its default (sort is left alone)">Reset all</button>
             <button type="button" onClick={() => setFiltersAnchor(null)} style={{ ...doneBtn, padding: "7px 16px" }}>Done</button>
           </div>
+        </div>
+      </Popover>
+
+      {/* ---- canned reports popover -----------------------------------------------------
+          Same construction as the Filters popover's QUEUE list above — popPaper, listBtn, and
+          the 12px CTRL.soft note beneath each label — so this control needs no styling of its
+          own and looks native beside the ones it sits next to.
+
+          Two note lines per entry, not one: the first says what the report IS, the second says
+          which filters are in force. Stating the honoured/hidden split HERE, where the report is
+          chosen, is what stops it from being discovered afterwards by a curator wondering why a
+          control they set has no effect. */}
+      <Popover open={!!reportAnchor} anchorEl={reportAnchor} onClose={() => setReportAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }} transformOrigin={{ vertical: "top", horizontal: "left" }}
+        PaperProps={{ style: { ...popPaper(376), padding: "16px 18px 14px" } }}>
+        <div style={{ ...popHead, marginBottom: 8 }}>CANNED REPORTS</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {/* The way back to the feed, in the same menu the report was chosen from. It restores
+              the queue and every filter untouched — there is no state to put back, because
+              choosing a report never wrote any (see ReportView). */}
+          <button type="button" onClick={() => selectReport(null)}
+            style={{ ...listBtn(reportView === null), flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+            <span>Authorships feed</span>
+            <span style={reportNoteStyle}>The normal queue, with every filter exactly as you left it</span>
+          </button>
+          {REPORT_OPTIONS.map((r) => {
+            const n = r.count(summary);
+            return (
+              <button key={r.key} type="button" onClick={() => selectReport(r.key)}
+                style={{ ...listBtn(reportView === r.key), flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                <span>
+                  {REPORT_LABEL[r.key]}
+                  {/* Fixed-width, so the count cannot reflow this row when the first summary
+                      response lands. summary is null on the first paint and these numbers
+                      arrive late; popping them in would shift the label they follow. */}
+                  <span style={reportCountStyle}>{n != null ? `(${n.toLocaleString()})` : " "}</span>
+                </span>
+                <span style={reportNoteStyle}>{r.note}</span>
+                <span style={reportNoteStyle}>{REPORT_FILTER_NOTE}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ ...helperStyle, borderTop: `1px solid ${CTRL.rule}`, marginTop: 11, paddingTop: 10 }}>
+          Where the curator and the model disagreed. These articles are already curated, so there
+          is nothing to accept or reject here — each person links to their curate page.
+          {/* Same control, different fact, and worth saying once: over the queue the date window
+              filters authorship_review.entrez_date (when ReCiter RETRIEVED the article); over a
+              report it filters person_article.publicationDateStandardized (when it was
+              PUBLISHED). A 2019 paper first retrieved last month is inside the queue's "Last 2
+              years" and outside the report's. */}
+          {" "}The date window here means the publication date, not the date ReCiter retrieved the
+          article as it does in the queue.
         </div>
       </Popover>
 
@@ -2790,7 +3129,24 @@ const AuthorshipsTabs = () => {
         </div>
       )}
 
+      {/* A canned report takes over the list area. The feed keeps fetching underneath — one
+          cheap list request per filter change — so returning to it is instant and lands the
+          curator back on the same page of the same queue, with no refetch and no scroll jump.
+          It also keeps `rows`, `count` and the pagination honest the whole time, rather than
+          leaving them describing a filter state that has since moved on. */}
+      {reportView && (
+        <CannedReportPanel
+          view={reportView}
+          response={reportData}
+          loading={reportLoading}
+          error={reportError}
+          expanded={expandedPeople}
+          onToggle={toggleReportPerson}
+        />
+      )}
+
       {/* card queue */}
+      {!reportView && (
       <div>
         {loading && <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Loading…</div>}
         {!loading && rows.length === 0 && (
@@ -2842,8 +3198,10 @@ const AuthorshipsTabs = () => {
           />
         ))}
       </div>
+      )}
 
-      {/* pagination */}
+      {/* pagination — the feed's, so it goes with the feed. A report is capped, not paged. */}
+      {!reportView && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18, color: "#475569", fontSize: 13 }}>
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{count.toLocaleString()} authorships · page {page + 1} of {totalPages}</span>
         <span style={{ display: "flex", gap: 8 }}>
@@ -2851,6 +3209,7 @@ const AuthorshipsTabs = () => {
           <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} style={btn("ghost", page + 1 >= totalPages)}>Next</button>
         </span>
       </div>
+      )}
 
       {/* overflow menu: Snooze / Dismiss, plus Reject all for multi-candidate rows.
           Single-candidate Reject is a primary button on the card itself, not buried here.
@@ -3100,6 +3459,15 @@ const listBtn = (active: boolean): CSSProperties => ({
   color: active ? CTRL.accentInk : "#3d4756",
   fontWeight: active ? 600 : 400,
 });
+// the sub-label under a canned-report menu entry — QUEUE_OPTIONS' note treatment exactly
+const reportNoteStyle: CSSProperties = { fontSize: 12, fontWeight: 400, color: CTRL.soft };
+// …and the count that follows the label. A reserved width, unlike the QUEUE list's inline
+// count, because summary.reports arrives after the first paint: without it the numbers would
+// pop in and shove their own labels sideways as they landed.
+const reportCountStyle: CSSProperties = {
+  display: "inline-block", minWidth: 62, marginLeft: 6, fontVariantNumeric: "tabular-nums",
+};
+
 // the bulk bar's buttons (mockup:292-301): Accept is the only coloured one.
 const barBtn = (kind: "accept" | "plain"): CSSProperties => ({
   font: "inherit",
@@ -3130,6 +3498,175 @@ const pubChipStyle = (active: boolean): CSSProperties => ({
   color: active ? CTRL.accentInk : CTRL.muted, borderRadius: 999, padding: "3px 10px", fontSize: 12,
   fontWeight: 600, cursor: "pointer",
 });
+
+// ---- the canned report panel ---------------------------------------------
+// It replaces the card list rather than sitting beside it, and it is GROUPED BY PERSON rather
+// than being a flat table: ~1,065 rows across 816 people means a flat list is mostly one-row
+// groups, and the people carrying several rows — the ones actually worth a curator's time — are
+// invisible in it. Groups are collapsed by default with their count on the header, because 816
+// of them expanded is not a report, it is a wall.
+const reportNoticeStyle: CSSProperties = { padding: 24, textAlign: "center", color: "#94a3b8" };
+const reportGroupStyle: CSSProperties = {
+  background: "#fff", border: `1px solid ${CTRL.border}`, borderRadius: 8, marginBottom: 8,
+};
+
+interface ReportGroup { cwid: string; person: string; groupCount: number; rows: ReportRow[] }
+// Walk the server's order; never regroup into a map and never re-sort. The rows arrive already
+// ordered (groupCount DESC, then the person's worst score, then cwid, and within a person by
+// score — ascending for accepts, descending for rejects), so any client-side ordering could only
+// disagree with it. A cwid appearing in two non-adjacent runs therefore renders as two groups:
+// the honest rendering of what arrived, and a visible sign the server's ordering has changed.
+const groupReportRows = (rows: ReportRow[]): ReportGroup[] => {
+  const out: ReportGroup[] = [];
+  for (const r of rows) {
+    const current = out.length > 0 ? out[out.length - 1] : null;
+    if (current && current.cwid === r.cwid) current.rows.push(r);
+    else out.push({ cwid: r.cwid, person: r.person, groupCount: r.groupCount, rows: [r] });
+  }
+  return out;
+};
+
+// The four feedback evidence channels, surfaced per article in the expanded detail because they
+// ARE the explanation: 75% of the low-scoring accepts have all four non-positive, which is the
+// burial mechanism itself. Seeing that inline is what turns this from a list into an argument.
+const FEEDBACK_CHANNELS: Array<{ key: "fbInstitution" | "fbJournal" | "fbOrganization" | "fbCoAuthor"; label: string }> = [
+  { key: "fbInstitution", label: "Institution" },
+  { key: "fbJournal", label: "Journal" },
+  { key: "fbOrganization", label: "Organization" },
+  { key: "fbCoAuthor", label: "Co-author" },
+];
+
+const ReportArticleRow = ({ row, view }: { row: ReportRow; view: ReportKey }) => {
+  const channels = FEEDBACK_CHANNELS.map((c) => ({ ...c, value: row[c.key] }));
+  // "All four non-positive" needs all four to be KNOWN and non-positive. A null channel is
+  // "person_article never recorded this one", not a zero, and claiming the pattern off a missing
+  // value would put the report's own headline explanation on evidence that isn't there.
+  const allNonPositive = channels.every((c) => c.value != null && c.value <= 0);
+  return (
+    <div style={{ padding: "10px 14px 12px 36px", borderTop: `1px solid ${CTRL.rule}` }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", fontSize: 12.5, color: "#94a3b8" }}>
+        <Tip title="ReCiter's authorship likelihood score for this article on this person (0-100) — the model's half of the disagreement." placement="top" arrow>
+          <span style={{ color: ioColor(row.score ?? undefined), fontWeight: 700, fontSize: 14, fontVariantNumeric: "tabular-nums", cursor: "help", minWidth: 34 }}>
+            {fmtScore(row.score ?? undefined)}
+          </span>
+        </Tip>
+        {row.pmid != null ? <PmidCite pmid={row.pmid} /> : <span>No PMID</span>}
+        {row.pubDate && <span style={{ fontVariantNumeric: "tabular-nums" }}>{row.pubDate}</span>}
+        {row.journal && <i><span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(row.journal) }} /></i>}
+      </div>
+      <div style={{ fontSize: 13, color: "#334155", marginTop: 3, ...clampStyle(2) }} title={stripHtml(row.title || "")}>
+        {row.title ? <span dangerouslySetInnerHTML={{ __html: sanitizeInlineHtml(row.title) }} /> : "—"}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap" }}>
+        {channels.map((c) => (
+          <Chip key={c.key} kind={c.value == null ? "neutral" : c.value > 0 ? "ok" : "warn"} style={{ fontSize: 11 }}>
+            {c.label} {fmtScore(c.value ?? undefined)}
+          </Chip>
+        ))}
+        {allNonPositive && (
+          <Tip placement="top" arrow
+            title={view === "lowScoringAccepts"
+              ? "Nothing in this person's feedback history pulls the paper up: institution, journal, organization and co-author evidence are all non-positive. 75% of the accepts in this report look like this — it is the burial mechanism, not a coincidence."
+              : "Institution, journal, organization and co-author evidence are all non-positive, yet the model still scored this 90 or above — the identity signal carried it on its own."}>
+            <span style={{ fontSize: 12, color: "#b45309", cursor: "help" }}>All four non-positive</span>
+          </Tip>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ReportPersonGroup = ({ group, view, open, onToggle }: {
+  group: ReportGroup; view: ReportKey; open: boolean; onToggle: () => void;
+}) => {
+  const shown = group.rows.length;
+  return (
+    <div style={reportGroupStyle}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 9, padding: "10px 14px", flexWrap: "wrap" }}>
+        <button type="button" onClick={onToggle} aria-expanded={open}
+          style={{ font: "inherit", display: "inline-flex", alignItems: "center", gap: 7, border: "none", background: "none", padding: 0, cursor: "pointer", color: CTRL.ink, fontSize: 14, fontWeight: 600, textAlign: "left" }}>
+          {open ? <IconChevD size={14} /> : <IconChevR size={14} />}
+          {group.person || "—"}
+        </button>
+        {/* The curate link belongs to the PERSON, not to each article beneath: /curate/[id]
+            takes a uid and nothing else today, so there is no way to deep-link the PMID a
+            curator is looking at. Teaching that page to accept a pmid (scroll to it, or filter
+            to it) is the natural follow-up — until then, one link per person is the honest
+            affordance, and it is the only action this whole report offers, because the articles
+            in it are already curated. Sibling of the toggle rather than nested inside it: an
+            <a> inside a <button> is invalid, and both need to stay independently clickable. */}
+        <a href={`/curate/${group.cwid}`} target="_blank" rel="noreferrer"
+          title={`Open ${group.person || group.cwid}'s curate page`}
+          style={{ color: "#2563eb", textDecoration: "none", fontSize: 13 }}>{group.cwid}</a>
+        {/* The count stays visible while collapsed — it is the whole reason to group. groupCount
+            is the person's own total in this report; when the row cap has cut into their tail,
+            say how many actually arrived rather than let the header overpromise. */}
+        <span style={{ marginLeft: "auto", fontSize: 13, color: CTRL.soft, fontVariantNumeric: "tabular-nums" }}>
+          {group.groupCount.toLocaleString()} article{group.groupCount === 1 ? "" : "s"}
+          {shown < group.groupCount ? ` · ${shown.toLocaleString()} shown` : ""}
+        </span>
+      </div>
+      {open && (
+        <div>
+          {group.rows.map((r, i) => (
+            <ReportArticleRow key={`${r.pmid ?? "nopmid"}-${i}`} row={r} view={view} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CannedReportPanel = ({ view, response, loading, error, expanded, onToggle }: {
+  view: ReportKey;
+  response: ReportResponse | null;
+  loading: boolean;
+  error: string;
+  expanded: Set<string>;
+  onToggle: (cwid: string) => void;
+}) => {
+  // Loading and empty are handled the way the card queue handles them (same padding, same
+  // muted grey, same one-line copy), so switching between the two views does not feel like
+  // arriving at a different page. A failed load says so here rather than in the error Snackbar:
+  // it is a persistent state of the thing on screen, not a notice that should time out.
+  if (loading) return <div style={reportNoticeStyle}>Loading…</div>;
+  if (error) return <div style={{ ...reportNoticeStyle, color: "#b42318" }}>Couldn’t load this report — {error}</div>;
+  if (!response) return null;
+  const groups = groupReportRows(response.rows);
+  if (groups.length === 0) return <div style={reportNoticeStyle}>No rows in this report match these filters.</div>;
+  return (
+    <div>
+      {/* The report's own count line, replacing the bulk bar's "Showing N of M" — that one
+          describes the feed, which is hidden while this is up. The number in the reports menu
+          (summary.reports) is filter-scoped the same way, sharing the server's one filter
+          helper, so the two agree by construction with exactly one exception: a capped response
+          returns fewer rows than the population it was counted from. Hence `total` here is
+          "rows on screen", and `capped` says when that is less than the menu's number. */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 10, fontSize: 13.5, color: CTRL.muted }}>
+        <strong style={{ color: CTRL.ink, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+          {response.total.toLocaleString()}
+        </strong>
+        {response.total === 1 ? "row" : "rows"} across {response.people.toLocaleString()}{" "}
+        {response.people === 1 ? "person" : "people"} · {REPORT_LABEL[view].toLowerCase()}
+      </div>
+      {/* Never truncate silently. A capped report is a different claim from a complete one, and
+          a curator working down it needs to know the tail exists. */}
+      {response.capped && (
+        <div style={{ border: "1px solid #e6c99a", background: "#fdf6e8", color: "#8a5a08", borderRadius: 6, padding: "9px 12px", fontSize: 13, lineHeight: 1.5, marginBottom: 10 }}>
+          This report hit the server’s row cap — the {response.total.toLocaleString()} rows below are
+          the top of the list, not all of it. Narrow the date window, the person type or the
+          institution to see the rest.
+        </div>
+      )}
+      {groups.map((g, i) => (
+        // Index in the key because a cwid can legitimately appear in two runs (see
+        // groupReportRows); the two would otherwise collide on the same React key.
+        <ReportPersonGroup key={`${g.cwid}-${i}`} group={g} view={view}
+          open={expanded.has(g.cwid)} onToggle={() => onToggle(g.cwid)} />
+      ))}
+    </div>
+  );
+};
 
 // ---- card ----------------------------------------------------------------
 interface CardProps {

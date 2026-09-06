@@ -1156,6 +1156,449 @@ export const authorshipSelectable = async (req: NextApiRequest, res: NextApiResp
   }
 };
 
+// =================================================================================================
+// CANNED REPORTS — curator/model disagreement over person_article
+// =================================================================================================
+// Two saved queries the Authorships toolbar offers alongside the queue:
+//   lowScoringAccepts   a curator ACCEPTED it and the model scores it below 10   (~1,065 rows / 816 people)
+//   highScoringRejects  a curator REJECTED it and the model scores it 90 or over (~ 430 rows / 332 people)
+// (measured unfiltered against production on 2026-09-06).
+//
+// THOSE COUNTS DRIFT, AND A MISMATCH IS NOT A DEFECT. They moved while this endpoint was being
+// built: 1,066/816 and 431/333 before the nightly reciterdb rebuild swapped person_article at
+// 15:16 UTC, 1,065/816 and 430/332 after. Eight rows crossed a threshold in the data — no
+// exclusion clause touched them, and the reference script
+// (scripts/curation_disagreement_reports.py in the research repo) returns the same new numbers.
+// Re-run that script for today's figures rather than trusting this comment, and only suspect the
+// query if it and this endpoint disagree WITH EACH OTHER. Each row is a place where a human and the model disagree outright,
+// which makes them the cleanest calibration evidence available and, read the other way, a way to
+// catch curation mistakes. Unlike the AAR queue (defined as io >= 90 AND final < 30) membership
+// here does not depend on the score being wrong in one particular direction, so neither report is
+// selection-biased by construction.
+//
+// THESE ARE NOT A statusView, and cannot be made into one. Only 2.3% of the low-scoring accepts
+// and 0.5% of the high-scoring rejects have an authorship_review row at all — the AAR producer
+// skips already-curated authorships on purpose (aar_orchestrator._already_curated) — so there is
+// no id, no status, no reviewer, and nothing for the authorship card or the bulk-action machinery
+// to bind to. They are plain person_article rows, and they need no actions of their own: the
+// article is already curated, so the only useful verb is "go look at this again", and
+// /curate/<cwid> already provides it.
+//
+// NO SEQUELIZE MODEL, deliberately — raw parametrized SQL through the shared `sequelize` instance,
+// the same pattern acceptedBySlot() above uses. A Sequelize model declared without an explicit
+// modelName has its alias minified to "n" by the production build, which is exactly what broke
+// /authorships in prod on 2026-09-03 (#980): no model, no exposure. It also sidesteps a stale one.
+// src/db/models/Identity.ts carries no `alumniResidentNYP` attribute and
+// src/db/models/PersonArticle.ts carries neither `authorshipLikelihoodScore` nor the four feedback
+// channels — all five columns exist on the live table (information_schema, dev 2026-09-06) and all
+// five are read below.
+
+// Thresholds are FIXED in v1: there is no UI control for either, and the client sends only the
+// report key. 30 was tried for the accepts side and rejected on 2026-09-06 — it returned 2,315
+// rows instead of ~1,065, and the extra population sat in the 15-30 band, which is mostly ordinary
+// low confidence rather than curator/model disagreement: the share of rows carrying the
+// four-non-positive-feedback-channel signature fell from 75% to 68%. If a threshold ever does
+// become a control it belongs in REPORT_SPECS below, never inlined at a call site, so that the
+// rows query and the summary counts can never drift apart.
+const REPORT_ACCEPT_MAX_SCORE = 10;
+const REPORT_REJECT_MIN_SCORE = 90;
+
+// Runaway guard, not a paging story. Current populations are ~1,065 and ~430 rows, so this cap sits
+// ~4.7x above the larger report and ~11.6x above the smaller: it can only ever fire if a
+// threshold changes or the populations grow by an order of magnitude. `capped` is reported honestly rather than silently
+// truncating, on the same reasoning as authorshipSelectable's SELECTABLE_CAP: a report that
+// under-reports without saying so is worse than one that admits it stopped counting.
+const REPORT_ROW_CAP = 5000;
+
+// PERSON TYPE, derived live from `identity`. The feed's person-type facet holds DISPLAY LABELS
+// ("Full-Time Faculty", "Resident (NYP)", "Alumni MD") because that is what the AAR producer
+// stores in authorship_review.top_person_type, and the client sends those same label strings here.
+// person_article has no person-type column, and the obvious substitute is a trap:
+// person_person_type.personType holds unrelated slugs ("academic-faculty", "affiliate-nyp",
+// "employee-exempt") that match none of those labels, so filtering on it returns nonsense rather
+// than an empty result a reader would notice. The labels come instead from the boolean-ish flag
+// columns on `identity`, whose values are the literal string 'yes' (varchar; also '' and NULL) —
+// this is the producer's own derivation ported over.
+//
+// THE ORDER OF THIS ARRAY IS THE PRECEDENCE. Many people carry several flags at once; CASE stops
+// at the first WHEN that matches, so a full-time faculty member who is also an MD alumnus is
+// labelled "Full-Time Faculty", exactly as the producer labels them. Reordering these entries
+// silently relabels people — it is not a cosmetic list.
+//
+// The ELSE is not cosmetic. The producer defaults a person carrying none of the 21 flags to
+// "Other / CTSC" (identity_index._record), the facet therefore OFFERS that label — 315 rows of
+// authorship_review carry it — and the client sends it here like any other. Without an ELSE the
+// CASE yields NULL for exactly those people, the IN() never matches, and picking that one chip
+// silently empties both reports instead of filtering them. Matching the producer's fallback also
+// raises agreement with its stored value (below) rather than lowering it.
+//
+// Verified against production on 2026-09-06: this CASE reproduces the producer's stored
+// top_person_type on 30,384 of 30,808 authorship_review rows (98.62%; 30,116 / 97.75% without the
+// ELSE). The residual is honest disagreement rather than a bug to chase — people whose identity
+// flags changed after the producer last ran. Computing it live is the more CURRENT answer for a
+// report over person_article as it stands now, but it is not bit-identical to the facet the same
+// dropdown drives over the queue, and a curator comparing the two counts should know that.
+// The producer's fallback for a person carrying none of the 21 flags, reproduced verbatim so
+// the facet's "Other / CTSC" chip filters instead of silently matching nothing.
+const REPORT_PERSON_TYPE_FALLBACK = "Other / CTSC";
+
+const REPORT_PERSON_TYPE_LABELS: Array<[string, string]> = [
+  ["fullTimeFaculty", "Full-Time Faculty"],
+  ["partTimeFaculty", "Part-Time Faculty"],
+  ["voluntaryFaculty", "Voluntary Faculty"],
+  ["adjunctFaculty", "Adjunct Faculty"],
+  ["emeritusFaculty", "Emeritus Faculty"],
+  ["inactiveFaculty", "Inactive Faculty"],
+  ["faculty", "Faculty"],
+  ["postdoc", "Postdoc"],
+  ["fellow", "Fellow"],
+  ["nonFaculty", "Non-Faculty"],
+  ["residentNYP", "Resident (NYP)"],
+  ["studentMDNYC", "Student MD (NYC)"],
+  ["studentMDPhD", "Student MD-PhD"],
+  ["studentMDQatar", "Student MD (Qatar)"],
+  ["studentPhDTriI", "Student PhD (Tri-I)"],
+  ["studentPhDWeill", "Student PhD (Weill)"],
+  ["inactiveNonAlumniStudent", "Inactive Student"],
+  ["alumniMD", "Alumni MD"],
+  ["alumniMDPHD", "Alumni MD-PhD"],
+  ["alumniPHD", "Alumni PhD"],
+  ["alumniResidentNYP", "Alumni Resident (NYP)"],
+];
+
+// Both halves interpolated here are this file's own literals — a fixed column allow-list and a
+// fixed label list, neither reachable from a request body — so this is the one string in the
+// report SQL that is built rather than bound. Every user-supplied value below goes through a
+// :named replacement without exception.
+const REPORT_PERSON_TYPE_CASE = `CASE ${REPORT_PERSON_TYPE_LABELS
+  .map(([column, label]) => `WHEN \`i\`.\`${column}\` = 'yes' THEN '${label}'`)
+  .join(" ")} ELSE '${REPORT_PERSON_TYPE_FALLBACK}' END`;
+
+// The two joins. `identity` is an INNER JOIN and that is exclusion (a) below; `person` is a LEFT
+// JOIN because it only supplies the display name and an absent roster row must not drop the row
+// (0 of 1,590 accept rows on the dev DB are missing one, so this is defensive, not routine).
+//
+// NO COLLATE anywhere in this query, deliberately. The rule the person-join and
+// identityConflictWhere() comments above establish is that COLLATE goes on the AuthorshipReview
+// side only, because authorship_review.top_cwid is the column whose collation differs; collating
+// any of the other tables' columns de-indexes THEIR lookups (the "three orders of magnitude"
+// mistake documented at personInstitutionInclude). This query has no AuthorshipReview side at all,
+// and person_article.personIdentifier, identity.cwid and person.personIdentifier are all
+// utf8mb4_unicode_ci (information_schema, dev 2026-09-06 — and acceptedBySlot() has been joining
+// identity to person_article without one in prod since #990). Do not add one here.
+const REPORT_FROM =
+  "FROM `person_article` `pa` " +
+  "JOIN `identity` `i` ON `i`.`cwid` = `pa`.`personIdentifier` " +
+  "LEFT JOIN `person` `p` ON `p`.`personIdentifier` = `pa`.`personIdentifier` ";
+
+// Exclusion (b): the all-zero writer defect — 110 cwids where EVERY person_article row is exactly
+// 0.00, because ReCiter persisted an Analysis record whose scoring never ran. Those rows are a
+// different bug entirely, not calibration misses. Re-measured on prod 2026-09-06 at the shipping
+// threshold, the exclusion removes 213 rows from the accepts report with the identity join in
+// place (1,278 -> 1,065) and 456 without it; the "857 rows" figure quoted during design was taken
+// at the looser < 30 cut and does not describe what ships.
+//
+// The reference script (scripts/curation_disagreement_reports.py in the research repo) writes this
+// as `pa.personIdentifier NOT IN (SELECT personIdentifier FROM person_article GROUP BY
+// personIdentifier HAVING SUM(authorshipLikelihoodScore = 0) = COUNT(*))`. DO NOT restore that
+// form: measured on production 2026-09-06 it is a full GROUP BY over all 858,946 rows and costs
+// 2,397 ms on its own — the whole query ran 2,923-3,556 ms that way against 1,415-1,429 ms with
+// the EXISTS below, returning identical counts. (Re-checked on the dev DB 2026-09-06: both forms
+// return 1,590 accept rows and 1,690 reject rows there too.)
+//
+// `<=>` is NULL-safe equality, and it is load-bearing, not a flourish. NOT (x <=> 0) is true for a
+// non-zero score OR a NULL one, which is what makes this EXACTLY equivalent to the SUM/COUNT form:
+// SUM(score = 0) treats a NULL score as 0 rather than 1, so a person whose rows are only zeros and
+// NULLs fails that HAVING and is KEPT — and is kept here too. "Simplifying" this to
+// `z.authorshipLikelihoodScore <> 0` silently drops those people, because a plain <> against NULL
+// is unknown, never true.
+const REPORT_EXCLUDE_ALL_ZERO_CWIDS =
+  "AND EXISTS (SELECT 1 FROM `person_article` `z` " +
+  "WHERE `z`.`personIdentifier` = `pa`.`personIdentifier` " +
+  "AND NOT (`z`.`authorshipLikelihoodScore` <=> 0)) ";
+
+type ReportKey = "lowScoringAccepts" | "highScoringRejects";
+
+// Per-report SQL. `worstSql` is the person's WORST score under that report's definition — the
+// lowest score for accepts, the highest for rejects — and it is what orders one person's group
+// against another's, so the person the model is most confidently wrong about leads. `dir` is the
+// direction that puts worst first, and it orders within a person too, for the same reason.
+const REPORT_SPECS: Record<ReportKey, {
+  assertion: string; scoreSql: string; threshold: number; worstSql: string; dir: "ASC" | "DESC";
+}> = {
+  lowScoringAccepts: {
+    assertion: "ACCEPTED",
+    scoreSql: "`pa`.`authorshipLikelihoodScore` < :threshold",
+    threshold: REPORT_ACCEPT_MAX_SCORE,
+    worstSql: "MIN(`pa`.`authorshipLikelihoodScore`) OVER (PARTITION BY `pa`.`personIdentifier`)",
+    dir: "ASC",
+  },
+  highScoringRejects: {
+    assertion: "REJECTED",
+    scoreSql: "`pa`.`authorshipLikelihoodScore` >= :threshold",
+    threshold: REPORT_REJECT_MIN_SCORE,
+    worstSql: "MAX(`pa`.`authorshipLikelihoodScore`) OVER (PARTITION BY `pa`.`personIdentifier`)",
+    dir: "DESC",
+  },
+};
+
+const isReportKey = (v: any): v is ReportKey =>
+  typeof v === "string" && Object.prototype.hasOwnProperty.call(REPORT_SPECS, v);
+
+// Exclusion (a), and the index this whole feature rests on.
+//
+// (a) The INNER JOIN to `identity` in REPORT_FROM is not decoration: person_article carries the
+//     external validation cohorts (ucsf_*, uc*, fredhutch_*, usc_*) alongside WCM, and `identity`
+//     is the only table that excludes them — the same join, for the same reason,
+//     identityConflictWhere() and acceptedBySlot() above make. Without it the accepts report is
+//     substantially non-WCM. Measured on prod 2026-09-06 at the shipping thresholds, dropping the
+//     join adds 945 rows to the accepts report (1,065 -> 2,010, 816 -> 1,518 people) and 327 to the
+//     rejects (430 -> 757), overwhelmingly ucsf_ / ucdavis_ / ucsd_ / usc_ / ucla_ / uci_ prefixes.
+//     (The "3,973 extra rows / 63% non-WCM" figure from the design note was measured at the
+//     looser < 30 accepts cut, not at the 10 that ships.)
+//
+// THE INDEX. This query leads with (userAssertion, authorshipLikelihoodScore) and depends on
+// ReCiterDB PR #216's KEY ix_assertion_score (userAssertion, authorshipLikelihoodScore,
+// personIdentifier) to resolve that as a range scan — ~2,466 candidate rows for accepts, ~757 for
+// rejects — instead of scanning person_article whole. Both counts also run on EVERY /authorships
+// load (see the `reports` field in authorshipSummary below), not only when a curator opens the
+// dropdown, which is why that index is a PREREQUISITE for this feature rather than an
+// optimization to schedule afterwards. Without it, measured on the dev DB where it does not yet
+// exist, one report count takes ~2.6 s.
+function reportBaseSql(spec: (typeof REPORT_SPECS)[ReportKey], filterSql: string): string {
+  return `${REPORT_FROM}WHERE \`pa\`.\`userAssertion\` = :assertion AND ${spec.scoreSql} ` +
+    `${REPORT_EXCLUDE_ALL_ZERO_CWIDS}${filterSql}`;
+}
+
+/**
+ * The WHERE fragment for the filters a report over person_article can actually honour, plus its
+ * replacements. ONE helper, used by both the rows query and the summary counts, so the number on
+ * the dropdown and the number of rows behind it can never disagree.
+ *
+ * HONOURED: date window, institution, person type, free-text search. IGNORED, because none of them
+ * has a source over person_article — the client hides every one of these controls while a report is
+ * selected, so a set value can never be invisibly dropped:
+ *   - precision / classification / source / likeAuthor / authorAffiliations — all keyed on
+ *     authorship_review columns (single_candidate, classification, source, wcm_author,
+ *     author_affiliation) that these rows do not have, by construction: 97.7% / 99.5% of them have
+ *     no authorship_review row at all.
+ *   - hideNoSuggestion / hideNoIdentity — the report INNER JOINs identity, so "has a ReCiter
+ *     identity" is structurally true of every row it can return, and there is no PROPOSED identity
+ *     here to be absent: the curator already decided.
+ *   - pubTypes — the feed's vocabulary is Scopus subtypeDescription ("Book Chapter", "Conference
+ *     Paper", "Note", "Short Survey") while person_article.publicationTypeCanonical is PubMed
+ *     canonical ("Academic Article", "Case Report", "Editorial Article", "Preprint"). Only
+ *     Review / Letter / Erratum overlap literally, so any mapping between them would be a guess
+ *     rendered as a filter. It is also only ever non-empty when source === "scopus", and source is
+ *     itself hidden.
+ *   - statusView / sort — a report is not a queue: there is no status to view, and the row order is
+ *     the report's own (see REPORT_SPECS).
+ */
+function reportFilterSql(body: any): { sql: string; replacements: Record<string, any> } {
+  const parts: string[] = [];
+  const replacements: Record<string, any> = {};
+
+  // Date window. person_article.publicationDateStandardized is varchar(128) holding ISO
+  // 'YYYY-MM-DD': 0 nulls across all 858,946 production rows (verified 2026-09-06), and on the dev
+  // DB 0 nulls AND 0 values failing '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' across 745,994 rows. So plain
+  // string comparison is correct here and no CAST is needed — which matters for readability, not
+  // for the plan: the column carries no index on person_article either way.
+  //
+  // NOTE THE DATE IS NOT THE SAME FACT the queue's identical-looking control filters on. Over the
+  // queue, buildWhere() compares authorship_review.entrez_date, the date the article was RETRIEVED;
+  // here it is the date the article was PUBLISHED. person_article has no column named entrez_date;
+  // its nearest relative is datePublicationAddedToEntrez (varchar(128), populated on all but 18 of
+  // 745,994 dev rows), and v1 deliberately does not use it, because a curator reading a
+  // disagreement report is asking about the publication, not about when ReCiter happened to find
+  // it. The consequence is real and worth knowing: a 2019 paper first retrieved last month is
+  // inside the queue's "Last 2 years" and outside this report's.
+  const dateFrom = String(body?.dateFrom || "").trim();
+  const dateTo = String(body?.dateTo || "").trim();
+  if (dateFrom && dateTo) {
+    parts.push("AND `pa`.`publicationDateStandardized` BETWEEN :dateFrom AND :dateTo ");
+    replacements.dateFrom = dateFrom;
+    replacements.dateTo = dateTo;
+  } else if (dateFrom) {
+    parts.push("AND `pa`.`publicationDateStandardized` >= :dateFrom ");
+    replacements.dateFrom = dateFrom;
+  } else if (dateTo) {
+    parts.push("AND `pa`.`publicationDateStandardized` <= :dateTo ");
+    replacements.dateTo = dateTo;
+  }
+
+  // Institution: resolve each selected bucket key through INSTITUTION_BUCKETS to the literal
+  // person.primaryInstitution string(s) it covers, exactly as buildWhere's `institutions` branch
+  // does — including the part where an unrecognised key silently drops out, and a selection of
+  // ONLY unrecognised keys therefore applies no filter at all rather than matching nothing.
+  //
+  // PERSON BASIS ONLY. The byline basis has no source over person_article (author_affiliation is an
+  // authorship_review column, and person_article's own affiliation columns are the matcher's
+  // evidence text, not the affiliation printed on the paper), and buildFilterBody pins
+  // institutionBasis to "person" regardless, so no basis branch is reachable here. The IN() drops
+  // rows whose LEFT JOIN found no `person` row, which is the correct reading of "this person is at
+  // institution X" — the same behaviour buildWhere documents for its own required:false join.
+  if (Array.isArray(body?.institutions) && body.institutions.length > 0) {
+    const institutionLiterals = (body.institutions as string[])
+      .flatMap((key) => INSTITUTION_BUCKETS[key] || []);
+    if (institutionLiterals.length) {
+      parts.push("AND `p`.`primaryInstitution` IN (:institutionLiterals) ");
+      replacements.institutionLiterals = institutionLiterals;
+    }
+  }
+
+  // Person type: match the client's display labels against the CASE derived above. See
+  // REPORT_PERSON_TYPE_LABELS for why this is computed from identity's flag columns rather than
+  // read from person_person_type, and for the 98.62% agreement with the producer's stored value.
+  if (Array.isArray(body?.personTypes) && body.personTypes.length > 0) {
+    parts.push(`AND (${REPORT_PERSON_TYPE_CASE}) IN (:personTypes) `);
+    replacements.personTypes = body.personTypes;
+  }
+
+  // Free-text search over what this table actually holds: the person's name off the joined roster
+  // row, the article title, and an exact pmid when the term is all digits — the same
+  // digits-are-a-pmid rule buildWhere applies over the queue. The queue's box also searches
+  // top_name and external_id, which have no counterpart here (top_name is authorship_review's copy
+  // of a PROPOSED identity's name, and a curated row has no proposal; external_id is Scopus-only).
+  // Its other two targets DO have counterparts — pa.personIdentifier for top_cwid, and
+  // person_article's own doi column — and v1 leaves them out only because the client half was
+  // built against this exact list; each is a one-line addition here if a curator asks for it.
+  const search = String(body?.searchTextInput || "").trim();
+  if (search) {
+    const or = [
+      "`p`.`firstName` LIKE :search",
+      "`p`.`lastName` LIKE :search",
+      "`pa`.`articleTitle` LIKE :search",
+    ];
+    replacements.search = `%${search}%`;
+    if (/^\d+$/.test(search)) {
+      or.push("`pa`.`pmid` = :searchPmid");
+      replacements.searchPmid = Number(search);
+    }
+    parts.push(`AND (${or.join(" OR ")}) `);
+  }
+
+  return { sql: parts.join(""), replacements };
+}
+
+/**
+ * Row count for one report under the caller's filters — the number behind the dropdown item.
+ * Shares reportFilterSql() and reportBaseSql() with authorshipReports below by construction, so
+ * the count and the report can only ever disagree if the row cap fires (which the report reports
+ * as `capped`).
+ */
+async function reportCount(report: ReportKey, body: any): Promise<number> {
+  const spec = REPORT_SPECS[report];
+  const filter = reportFilterSql(body);
+  const rows: any[] = await sequelize.query(
+    `SELECT COUNT(*) AS \`n\` ${reportBaseSql(spec, filter.sql)}`,
+    {
+      replacements: { assertion: spec.assertion, threshold: spec.threshold, ...filter.replacements },
+      type: QueryTypes.SELECT,
+    },
+  );
+  return Number(rows[0]?.n || 0);
+}
+
+// POST /api/db/authorships/reports — the rows behind one canned report.
+//
+// The body is the same one the list and summary endpoints take (buildFilterBody's output) plus a
+// `report` key; everything reportFilterSql() does not name is ignored, and the client hides those
+// controls while a report is selected.
+//
+// Rows come back ALREADY ORDERED and ready to render in document order, so the client groups by
+// walking the array and never sorts: the largest disagreement groups first (groupCount DESC), ties
+// broken by the person the model is most confidently wrong about (their worst score), then by cwid
+// so the order is stable across calls, and within a person worst-first. groupCount is the person's
+// TOTAL row count in this report — COUNT(*) OVER (PARTITION BY ...) is evaluated before LIMIT, so
+// it stays honest even on a capped response, where the tail of a group may be missing.
+// (prod is MariaDB 11.4, dev 10.6 — window functions since 10.2, so this is safe on both.)
+export const authorshipReports = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    const body = req.body || {};
+    const report = body.report;
+    // Rejected, never defaulted: silently serving the accepts report to a caller that asked for
+    // something else would put wrong rows under a right-looking heading.
+    if (!isReportKey(report)) {
+      // The caller's value is NOT echoed back. res.send() of a string leaves Next serving it as
+      // text/html, so reflecting request content here would be a reflected-XSS shape for no gain —
+      // naming the valid keys is all a caller needs to fix the call.
+      res.status(400).send(`report must be one of: ${Object.keys(REPORT_SPECS).join(", ")}`);
+      return;
+    }
+    const spec = REPORT_SPECS[report];
+    const filter = reportFilterSql(body);
+
+    // The four feedback channels ride along in the payload because they are the EXPLANATION, not
+    // decoration: 75% of the low-scoring accepts have all four of institution / journal /
+    // organization / co-author non-positive at once, which is the burial mechanism the calibration
+    // work identified — a curator looking at a low score wants to see that signature on the row
+    // rather than infer it.
+    const rows: any[] = await sequelize.query(
+      "SELECT `pa`.`personIdentifier` AS `cwid`, " +
+      "TRIM(CONCAT(COALESCE(`p`.`firstName`, ''), ' ', COALESCE(`p`.`lastName`, ''))) AS `person`, " +
+      "`pa`.`pmid` AS `pmid`, " +
+      "ROUND(`pa`.`authorshipLikelihoodScore`, 2) AS `score`, " +
+      "`pa`.`publicationDateStandardized` AS `pubDate`, " +
+      "`pa`.`journalTitleVerbose` AS `journal`, " +
+      "`pa`.`articleTitle` AS `title`, " +
+      "`pa`.`feedbackScoreInstitution` AS `fbInstitution`, " +
+      "`pa`.`feedbackScoreJournal` AS `fbJournal`, " +
+      "`pa`.`feedbackScoreOrganization` AS `fbOrganization`, " +
+      "`pa`.`feedbackScoreCoAuthorName` AS `fbCoAuthor`, " +
+      "COUNT(*) OVER (PARTITION BY `pa`.`personIdentifier`) AS `groupCount` " +
+      reportBaseSql(spec, filter.sql) +
+      `ORDER BY \`groupCount\` DESC, ${spec.worstSql} ${spec.dir}, \`cwid\`, \`score\` ${spec.dir} ` +
+      "LIMIT :limit",
+      {
+        replacements: {
+          assertion: spec.assertion,
+          threshold: spec.threshold,
+          ...filter.replacements,
+          // +1 so a result sitting exactly ON the cap is distinguishable from one the cap
+          // truncated; the extra row is dropped below and only ever used to set `capped`.
+          // Same trick, for the same reason, as authorshipSelectable's SELECTABLE_CAP.
+          limit: REPORT_ROW_CAP + 1,
+        },
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    const capped = rows.length > REPORT_ROW_CAP;
+    const page = capped ? rows.slice(0, REPORT_ROW_CAP) : rows;
+    const out = page.map((r) => ({
+      cwid: String(r.cwid),
+      // Falls back to the cwid when the roster row is missing or nameless, the same way
+      // acceptedBySlot() does — the client renders this as a heading, and an empty heading reads as
+      // a bug. Defensive rather than routine: 0 of 1,590 accept rows on the dev DB lack a name.
+      person: String(r.person || "").trim() || String(r.cwid),
+      pmid: r.pmid == null ? null : Number(r.pmid),
+      score: r.score == null ? null : Number(r.score),
+      pubDate: r.pubDate ?? null,
+      journal: r.journal ?? null,
+      title: r.title ?? null,
+      fbInstitution: r.fbInstitution == null ? null : Number(r.fbInstitution),
+      fbJournal: r.fbJournal == null ? null : Number(r.fbJournal),
+      fbOrganization: r.fbOrganization == null ? null : Number(r.fbOrganization),
+      fbCoAuthor: r.fbCoAuthor == null ? null : Number(r.fbCoAuthor),
+      groupCount: Number(r.groupCount),
+    }));
+
+    res.send({
+      report,
+      total: out.length,
+      // Distinct cwids among the rows ACTUALLY RETURNED, so it describes what the client is
+      // holding. On a capped response that is smaller than the population, which is exactly what
+      // `capped: true` is there to say.
+      people: new Set(out.map((r) => r.cwid)).size,
+      capped,
+      rows: out,
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(String(e));
+  }
+};
+
 // POST /api/db/authorships/summary — counts for the tab headers, the two alert pills, the QUEUE
 // list and the MATCH CLASS options (#988). The body arrives UN-touched — every filter the list
 // endpoint honours, this one honours too — and each response FIELD below builds its OWN where
@@ -1256,7 +1699,7 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     const whereOpts = (w: any) => (hasInstitutions ? { where: w, include: instInclude } : { where: w });
     const groupCountAttr = hasInstitutions ? fn("COUNT", fn("DISTINCT", col("AuthorshipReview.id"))) : fn("COUNT", col("id"));
 
-    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution] = await Promise.all([
+    const [total, single, fullname, duplicates, conflicts, byClass, byType, bySrc, byPub, byInstitution, byAuthorInstitution, lowScoringAccepts, highScoringRejects] = await Promise.all([
       models.AuthorshipReview.count(countOpts(where)),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true }] })),
       models.AuthorshipReview.count(countOpts({ [Op.and]: [matchClassWhere, { single_candidate: true, top_given_match: "full" }] })),
@@ -1292,6 +1735,20 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
             raw: true,
           })
         : Promise.resolve(undefined),
+      // Canned-report counts, for the "Canned reports" dropdown. In this Promise.all rather than
+      // a third round trip on purpose: the dropdown shows both numbers on first paint, and the
+      // list/summary pair is already the load's critical path — a separate request would add a
+      // full round trip to every /authorships open for two integers.
+      //
+      // Which also means these two queries run on EVERY /authorships load, not only when the
+      // dropdown is opened, and that is precisely why ReCiterDB PR #216's ix_assertion_score is a
+      // prerequisite for this feature and not an optimization to schedule later. They deliberately
+      // take the raw `body`, not a summaryWhere() variant: reportFilterSql() reads only the four
+      // keys it can honour, so it is already blind to everything else, and a report is not a facet
+      // of itself — neither count is ever "the option the user is choosing along", so there is
+      // nothing to exclude.
+      reportCount("lowScoringAccepts", body),
+      reportCount("highScoringRejects", body),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });
@@ -1320,6 +1777,10 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
     res.send({
       total, single_candidate: single, fullname, duplicates, conflicts,
       classes, personTypes, bySource, pubTypes, institutions, authorInstitutions,
+      // Always present, unlike authorInstitutions above — these two are cheap enough to compute
+      // unconditionally once the index exists, and the dropdown needs both labels populated the
+      // moment it can be opened.
+      reports: { lowScoringAccepts, highScoringRejects },
     });
   } catch (e) {
     console.log(e);
