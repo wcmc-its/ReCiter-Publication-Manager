@@ -270,9 +270,15 @@ const REPORT_LABEL: Record<ReportKey, string> = {
 // nothing. The controls it does not honour are hidden while a report is on screen (see
 // isChipHiddenByReport and the hide sites in the render), so this sentence and the filter bar
 // always agree.
-const REPORT_FILTER_NOTE = "Honours the date window, person type, institution and search";
-// Verified against production 2026-09-06: ~1,065 rows / 816 people and ~430 rows / 332 people at
-// the default filters. Those two counts are the acceptance test for the endpoint behind this
+//
+// The date window and the identity-affiliation list are both honoured but RESET on entry (see
+// selectReport), so the counts beside each label are the whole population rather than a slice of
+// it. Together the queue's defaults hid 94% of both reports: the two-year window took accepts
+// from 1,065 to 106, and the WCM affiliation took that to 66.
+const REPORT_FILTER_NOTE = "All years and affiliations by default; honours person type, institution and search";
+// Verified against production 2026-09-06: ~1,065 rows / 816 people and ~430 rows / 332 people
+// over all years and all affiliations, which is what these counts now show (the server holds both
+// of those filters neutral for them — see authorshipSummary). Those two counts are the acceptance test for the endpoint behind this
 // menu, so a number here that drifts far from them is a server-side regression, not a re-skin.
 const REPORT_OPTIONS: Array<{ key: ReportKey; note: string; count: (s: Summary | null) => number | undefined }> = [
   { key: "lowScoringAccepts", note: "Curator accepted, model scored it below 10", count: (s) => s?.reports?.lowScoringAccepts },
@@ -1461,14 +1467,50 @@ const AuthorshipsTabs = () => {
       .finally(() => { if (myId === reportSeqRef.current) setReportLoading(false); });
   }, [reportBody, reportView, datesReady]);
 
-  // Entering, switching and LEAVING a report, in one writer. It touches `filters` nowhere —
-  // that is the whole point of holding reportView outside the filter object (see ReportView):
-  // leaving restores the feed, the chip row, the Filters badge and the curator's place in the
-  // queue with no state to put back.
+  // Entering, switching and LEAVING a report, in one writer.
+  //
+  // It writes exactly ONE filter, the date window, and puts it back on the way out. That is a
+  // deliberate exception to holding reportView outside the filter object, and it exists because
+  // the queue's default window made the reports look empty: measured on prod 2026-09-06, the
+  // default "Last 2 years" cut low-scoring accepts from 1,065 rows to 106 and high-scoring
+  // rejects from 430 to 43 — before the WCM institution filter took them to 66 and 22. A curator
+  // reading "(66)" reasonably concludes that is the whole report.
+  //
+  // The window is also the one filter whose MEANING changes between the two views: in the queue
+  // it is entrez_date, when ReCiter retrieved the article ("recent work to review"), and in a
+  // report it is the publication date. A curation mistake made last month on a 2015 paper is
+  // exactly what these reports exist to catch, and a publication-date window hides it. So a
+  // report opens on the whole corpus and the curator narrows from there.
+  //
+  // Restoring on the way out keeps the original guarantee intact — the feed comes back with its
+  // own window, chip row, Filters badge and queue position untouched — and the Date control
+  // visibly reads "All time" while a report is open, so the bar never disagrees with the list.
+  // The identity-affiliation default is widened for the same reason and with one extra argument
+  // for it: `selectedInstitutions: ["wcm"]` renders NO chip (filterChips treats the one-element
+  // WCM list as the default and stays silent), so it was the only active filter with no on-screen
+  // trace at all — the property that made the original "(66)" so hard to account for. Cleared, the
+  // chip row shows "Identity affil: any" and the widening is visible, exactly as the Date control
+  // reading "All time" makes the other one visible.
+  const reportFilterStash = useRef<
+    { preset: string; from: string; to: string; institutions: string[] } | null>(null);
   const selectReport = useCallback((next: ReportView) => {
+    if (!reportView && next) {
+      reportFilterStash.current = {
+        preset: datePreset, from: dateFrom, to: dateTo, institutions: selectedInstitutions.slice(),
+      };
+      setDatePreset("any");
+      patchFilters({ dateFrom: "", dateTo: "", selectedInstitutions: [] });
+    } else if (reportView && !next && reportFilterStash.current) {
+      const stashed = reportFilterStash.current;
+      setDatePreset(stashed.preset);
+      patchFilters({
+        dateFrom: stashed.from, dateTo: stashed.to, selectedInstitutions: stashed.institutions,
+      });
+      reportFilterStash.current = null;
+    }
     setReportView(next);
     setReportAnchor(null);
-  }, []);
+  }, [reportView, datePreset, dateFrom, dateTo, selectedInstitutions, patchFilters]);
   // A cwid held open across a different result set means nothing, so groups close whenever the
   // report or the filters behind it change. Keyed on the posted body, like every other
   // report-scoped derivation here.
