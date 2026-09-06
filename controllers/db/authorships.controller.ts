@@ -1486,6 +1486,12 @@ function reportFilterSql(body: any): { sql: string; replacements: Record<string,
  * the count and the report can only ever disagree if the row cap fires (which the report reports
  * as `capped`).
  */
+// The filters authorshipSummary holds neutral when counting a report, so the number in the menu
+// is the number clicking it produces. Kept as one expression rather than spelled out at each call
+// site: the client widens exactly these two on entry, and a count that widened a different set
+// would be wrong in a way nothing would catch.
+const REPORT_COUNT_BODY = (body: any) => ({ ...body, dateFrom: "", dateTo: "", institutions: [] });
+
 async function reportCount(report: ReportKey, body: any): Promise<number> {
   const spec = REPORT_SPECS[report];
   const filter = reportFilterSql(body);
@@ -1744,17 +1750,17 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       // dropdown is opened, and that is precisely why ReCiterDB PR #216's ix_assertion_score is a
       // prerequisite for this feature and not an optimization to schedule later.
       //
-      // The DATE WINDOW IS HELD NEUTRAL for both counts, and that is the one exclusion here.
-      // Selecting a report resets the window to all time (selectReport in AuthorshipsTabs), so a
-      // count computed under the queue's window would not be the number the click produces —
-      // measured on prod 2026-09-06, the default "Last 2 years" showed "(66)" and "(22)" over
-      // populations of 1,065 and 430. A menu entry whose number is 6% of what opening it yields
-      // is worse than no number. Everything else in the body still applies, exactly like the two
-      // alert pills: reportFilterSql() reads only the four keys it can honour and is already
-      // blind to the rest, and a report is not a facet of itself, so there is nothing else to
-      // exclude.
-      reportCount("lowScoringAccepts", { ...body, dateFrom: "", dateTo: "" }),
-      reportCount("highScoringRejects", { ...body, dateFrom: "", dateTo: "" }),
+      // THE DATE WINDOW AND THE INSTITUTION LIST ARE HELD NEUTRAL for both counts, and those are
+      // the only exclusions here. Selecting a report resets both (selectReport in
+      // AuthorshipsTabs), so a count computed under the queue's defaults would not be the number
+      // the click produces — measured on prod 2026-09-06 the menu showed "(66)" and "(22)" over
+      // populations of 1,065 and 430, the two-year window accounting for 1,065 -> 106 and the WCM
+      // affiliation for 106 -> 66. A menu entry whose number is 6% of what opening it yields is
+      // worse than no number. Everything else in the body still applies: reportFilterSql() reads
+      // only the four keys it can honour and is already blind to the rest, and a report is not a
+      // facet of itself, so there is nothing else to exclude.
+      reportCount("lowScoringAccepts", REPORT_COUNT_BODY(body)),
+      reportCount("highScoringRejects", REPORT_COUNT_BODY(body)),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });

@@ -115,19 +115,27 @@ check("does not sort", /\.sort\(/.test(slice(tabs, "const groupReportRows", "\n}
 // filter; 430 -> 43 -> 22), so entering a report widens the window and leaving restores it.
 console.log("6. all-years default");
 const sel = slice(tabs, "const selectReport = useCallback", "}, [reportView");
-check("entering stashes the window", /reportDateStash\.current = \{ preset: datePreset, from: dateFrom, to: dateTo \}/.test(sel), true);
-check("entering widens to all time", /setDatePreset\("any"\)[\s\S]*patchFilters\(\{ dateFrom: "", dateTo: "" \}\)/.test(sel), true);
-check("leaving restores the stash", /setDatePreset\(stashed\.preset\)[\s\S]*patchFilters\(\{ dateFrom: stashed\.from, dateTo: stashed\.to \}\)/.test(sel), true);
-check("stash cleared on the way out", /reportDateStash\.current = null/.test(sel), true);
+check("entering stashes window + institutions", /reportFilterStash\.current = \{[\s\S]*preset: datePreset[\s\S]*institutions: selectedInstitutions\.slice\(\)/.test(sel), true);
+check("entering widens both", /setDatePreset\("any"\)[\s\S]*dateFrom: "", dateTo: "", selectedInstitutions: \[\]/.test(sel), true);
+check("leaving restores both", /setDatePreset\(stashed\.preset\)[\s\S]*stashed\.from[\s\S]*stashed\.institutions/.test(sel), true);
+check("stash cleared on the way out", /reportFilterStash\.current = null/.test(sel), true);
 // report -> report must NOT re-stash, or switching would capture the all-time window as if it
 // were the feed's and the queue would never get its own window back.
 check("switching between reports touches neither branch",
   /if \(!reportView && next\)[\s\S]*else if \(reportView && !next/.test(sel), true);
 // the menu counts must match what a click produces, or "(66)" misleads before the click
 const summaryCounts = slice(ctl, 'reportCount("lowScoringAccepts"', "]);");
-check("menu counts hold the date window neutral",
-  (summaryCounts.match(/\{ \.\.\.body, dateFrom: "", dateTo: "" \}/g) || []).length, 2);
-check("menu note says all years", /All years by default/.test(tabs), true);
+check("both menu counts use the shared neutral body",
+  (summaryCounts.match(/REPORT_COUNT_BODY\(body\)/g) || []).length, 2);
+// the neutral set must match what the client widens, or the count describes a different query
+const neutralSrc = slice(ctl, "const REPORT_COUNT_BODY =", ";\n")
+  .replace("const REPORT_COUNT_BODY =", "")
+  .replace("(body: any)", "(body)");                         // strip the TS annotation only
+const neutral = new Function(`return (${neutralSrc})`)()(
+  { dateFrom: "x", dateTo: "y", institutions: ["wcm"], personTypes: ["Faculty"] });
+check("neutral body clears exactly date + institutions",
+  neutral, { dateFrom: "", dateTo: "", institutions: [], personTypes: ["Faculty"] });
+check("menu note says all years and affiliations", /All years and affiliations by default/.test(tabs), true);
 
 // ---- 7. bulk actions and the queue are off under a report ----------------------------------
 console.log("7. report disables the feed's machinery");
