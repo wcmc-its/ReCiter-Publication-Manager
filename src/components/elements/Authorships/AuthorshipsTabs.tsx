@@ -3527,15 +3527,22 @@ const AuthorshipCard = ({
           {/* Both row kinds, not just multi (#925 shipped it inside MultiEvidence only): a
               single-candidate row is precisely where the producer was CONFIDENTLY wrong, so
               it's the case where the curator most often knows a name the card can't offer. */}
-          <AssignOther rowId={r.id} acting={acting} onAction={onAction}
-            homonyms={r.source === "scopus" ? 0
+          <AssignOther rowId={r.id} acting={acting} onAction={onAction} />
+          {/* One note for both buttons above. `listed` is candidates-minus-one and does not
+              move with the radio: whichever one is picked, the same number of others are
+              rejected. `typed` is all N — someone typed into the box is by definition not one
+              of the proposed candidates. (If the curator types a listed candidate's cwid
+              instead of clicking its radio, the server excludes them and typed over-counts by
+              one.) F-2: a single-candidate row records the same "not mine" for its one
+              proposed candidate when the curator assigns elsewhere — but only when that
+              candidate actually exists to be displaced (a real top_cwid) and has a ReCiter
+              identity to write the rejection against (noIdentity / noSuggestion are exactly
+              the server-computed facts that already gate this row's own "No ReCiter identity"
+              pill and no-suggestion state). Scopus has no pmid to reject, so neither count. */}
+          <HomonymNote
+            listed={r.source !== "scopus" && isMulti ? Math.max(0, candidates.length - 1) : 0}
+            typed={r.source === "scopus" ? 0
               : isMulti ? candidates.length
-                // F-2: a single-candidate row now records the same "not mine" for its one
-                // proposed candidate when the curator assigns elsewhere — but only when that
-                // candidate actually exists to be displaced (a real top_cwid) and has a
-                // ReCiter identity to write the rejection against (noIdentity / noSuggestion
-                // are exactly the server-computed facts that already gate this row's own
-                // "No ReCiter identity" pill and no-suggestion state).
                 : (noSuggestion || noIdentity ? 0 : 1)} />
         </div>
       )}
@@ -3680,10 +3687,19 @@ const SingleEvidence = ({ row: r, wcm, isAbsent }: { row: AuthorshipRow; wcm: bo
 // "with a ReCiter identity" is not hedging: the server skips candidates ReCiter has no Identity
 // row for, because that write would SUCCEED (200) into an orphan GoldStandard row nothing reads
 // — 39 of the 153 people in the resolved backlog are these.
-const HomonymNote = ({ n }: { n: number }) => n < 1 ? null : (
+// Rendered ONCE per card, after both assign controls, because the two buttons reject
+// different sets and both notes used to stack: `listed` is what "Assign selected" rejects
+// (the candidates minus the picked one), `typed` is what the AssignOther box rejects (all of
+// them — someone typed in is by definition not a listed candidate). They differ by one, so
+// one sentence names both rather than two amber paragraphs disagreeing about the number.
+const HomonymNote = ({ listed, typed }: { listed: number; typed: number }) => typed < 1 ? null : (
   <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "#b45309", marginTop: 7, maxWidth: 620 }}>
-    Assigning also records “not mine” for the other {n} candidate{n === 1 ? "" : "s"} on this row
-    (those with a ReCiter identity). Reopening the row undoes both.
+    {listed < 1
+      // single-candidate row: the two counts collapse (0 listed / 1 typed), so the combined
+      // wording would name a choice the curator doesn't have.
+      ? <>Assigning also records “not mine” for the other {typed} candidate{typed === 1 ? "" : "s"} on this row (those with a ReCiter identity).</>
+      : <>Assigning also records “not mine” for the other candidates on this row — the {listed} listed here, or all {typed} if you assign someone you type in (those with a ReCiter identity).</>}
+    {" "}Reopening the row undoes both.
   </div>
 );
 
@@ -3822,9 +3838,6 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
           <IconX /> Reject all
         </button>
       </div>
-      {/* count is candidates-minus-one and does not move with the radio: whichever one is
-          picked, the same number of others are rejected. */}
-      {r.source !== "scopus" && <HomonymNote n={Math.max(0, candidates.length - 1)} />}
     </>
   );
 };
@@ -3839,9 +3852,8 @@ const MultiEvidence = ({ row: r, candidates, pickedCwid, acting, onPick, onActio
 // ponytail: the "lookup route feeding the box" upgrade path landed — #948 built POST
 // /api/db/authorships/lookup for the bulk dialog, so the box debounces into it and a resolved
 // Assign/Enter writes in one click; unresolved (debouncing/errored) falls back to the plain call.
-const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
+const AssignOther = ({ rowId, acting, onAction }: {
   rowId: number; acting: boolean; onAction: (action: string, extra?: Record<string, any>) => void;
-  homonyms?: number;
 }) => {
   const [otherCwid, setOtherCwid] = useState("");
   // What the debounced POST /api/db/authorships/lookup has found for the CURRENT otherCwid —
@@ -3941,11 +3953,6 @@ const AssignOther = ({ rowId, acting, onAction, homonyms = 0 }: {
           </div>
         );
       })()}
-      {/* all N here, not N-1: someone typed into this box is by definition not one of the
-          proposed candidates, so every one of them is the "other" — the stronger version of
-          the warning under Assign selected. (If the curator types a listed candidate's cwid
-          instead of clicking its radio, the server excludes them and this over-counts by one.) */}
-      <HomonymNote n={homonyms} />
     </>
   );
 };
