@@ -1742,13 +1742,19 @@ export const authorshipSummary = async (req: NextApiRequest, res: NextApiRespons
       //
       // Which also means these two queries run on EVERY /authorships load, not only when the
       // dropdown is opened, and that is precisely why ReCiterDB PR #216's ix_assertion_score is a
-      // prerequisite for this feature and not an optimization to schedule later. They deliberately
-      // take the raw `body`, not a summaryWhere() variant: reportFilterSql() reads only the four
-      // keys it can honour, so it is already blind to everything else, and a report is not a facet
-      // of itself — neither count is ever "the option the user is choosing along", so there is
-      // nothing to exclude.
-      reportCount("lowScoringAccepts", body),
-      reportCount("highScoringRejects", body),
+      // prerequisite for this feature and not an optimization to schedule later.
+      //
+      // The DATE WINDOW IS HELD NEUTRAL for both counts, and that is the one exclusion here.
+      // Selecting a report resets the window to all time (selectReport in AuthorshipsTabs), so a
+      // count computed under the queue's window would not be the number the click produces —
+      // measured on prod 2026-09-06, the default "Last 2 years" showed "(66)" and "(22)" over
+      // populations of 1,065 and 430. A menu entry whose number is 6% of what opening it yields
+      // is worse than no number. Everything else in the body still applies, exactly like the two
+      // alert pills: reportFilterSql() reads only the four keys it can honour and is already
+      // blind to the rest, and a report is not a facet of itself, so there is nothing else to
+      // exclude.
+      reportCount("lowScoringAccepts", { ...body, dateFrom: "", dateTo: "" }),
+      reportCount("highScoringRejects", { ...body, dateFrom: "", dateTo: "" }),
     ]);
     const classes: Record<string, number> = {};
     (byClass as any[]).forEach((r) => { classes[r.classification] = Number(r.n); });

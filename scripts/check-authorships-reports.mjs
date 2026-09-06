@@ -110,8 +110,27 @@ check("groups in document order", got.map((g) => g.cwid), ["a", "b", "a"]);
 check("rows kept in arrival order", got[0].rows.map((r) => r.pmid), [1, 2]);
 check("does not sort", /\.sort\(/.test(slice(tabs, "const groupReportRows", "\n};")), false);
 
-// ---- 6. bulk actions and the queue are off under a report ----------------------------------
-console.log("6. report disables the feed's machinery");
+// ---- 6. reports open on all years, and put the queue's window back ------------------------
+// The queue's default two-year window hid 94% of both reports (1,065 -> 106 -> 66 with the WCM
+// filter; 430 -> 43 -> 22), so entering a report widens the window and leaving restores it.
+console.log("6. all-years default");
+const sel = slice(tabs, "const selectReport = useCallback", "}, [reportView");
+check("entering stashes the window", /reportDateStash\.current = \{ preset: datePreset, from: dateFrom, to: dateTo \}/.test(sel), true);
+check("entering widens to all time", /setDatePreset\("any"\)[\s\S]*patchFilters\(\{ dateFrom: "", dateTo: "" \}\)/.test(sel), true);
+check("leaving restores the stash", /setDatePreset\(stashed\.preset\)[\s\S]*patchFilters\(\{ dateFrom: stashed\.from, dateTo: stashed\.to \}\)/.test(sel), true);
+check("stash cleared on the way out", /reportDateStash\.current = null/.test(sel), true);
+// report -> report must NOT re-stash, or switching would capture the all-time window as if it
+// were the feed's and the queue would never get its own window back.
+check("switching between reports touches neither branch",
+  /if \(!reportView && next\)[\s\S]*else if \(reportView && !next/.test(sel), true);
+// the menu counts must match what a click produces, or "(66)" misleads before the click
+const summaryCounts = slice(ctl, 'reportCount("lowScoringAccepts"', "]);");
+check("menu counts hold the date window neutral",
+  (summaryCounts.match(/\{ \.\.\.body, dateFrom: "", dateTo: "" \}/g) || []).length, 2);
+check("menu note says all years", /All years by default/.test(tabs), true);
+
+// ---- 7. bulk actions and the queue are off under a report ----------------------------------
+console.log("7. report disables the feed's machinery");
 check("eligibleRows gates on reportView",
   /const eligibleRows = statusView === "open" && reportView === null/.test(tabs), true);
 check("keyboard shortcuts bail early", /if \(reportViewRef\.current\) return;/.test(tabs), true);
